@@ -24,7 +24,7 @@
  * - a **wrong type** threw deep inside a builder, or was coerced;
  * - a **misspelled property** was simply *ignored* — the builders are an
  *   allow-list, so an unrecognised `sohl:` key is dropped without a word. That
- *   is how 204 kethira mystical abilities shipped with no affiliation (#3), and
+ *   is how 204 kethira mystical abilities shipped with no affiliation, and
  *   why the silence mattered more than the missing field: an author could not
  *   tell a builder that forgot the field apart from a field that does
  *   not belong on the type at all;
@@ -312,8 +312,7 @@ function nearest(key, candidates) {
  *
  * Deliberately lenient about the spellings YAML makes ambiguous: `"12"` is a
  * number, because a quoted scalar is how a number arrives from many editors,
- * and a map authored as an empty list is a map, because Obsidian's property
- * editor serialises an emptied map that way (#8). What it rejects is a value
+ * and a map authored as an empty list has no entries, just like `{}`. What it rejects is a value
  * that cannot mean what the field is for — `weight: heavy`.
  *
  * @param {unknown} value - The authored value.
@@ -378,7 +377,7 @@ function mapEntries(value) {
  * The `data:` container a note authored.
  *
  * An emptied map arrives from the property editor as `[]` and means the same
- * thing `{}` does — this note authors no entries (#8) — so both read as an
+ * thing `{}` does — this note authors no entries — so both read as an
  * empty container rather than as a malformed one.
  *
  * @param {object} fm - The note's frontmatter.

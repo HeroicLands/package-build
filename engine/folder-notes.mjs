@@ -174,8 +174,7 @@ function folderFields(fm) {
  * An authored `parent` with any wikilink brackets and label stripped.
  *
  * The specification types `parent` as an `Address`, written bare — but
- * `[[address]]` is what an author reaches for,
- * and Obsidian wrote that form for years. Accepting both costs one regex and
+ * `[[address]]` is also a recognizable link form. Accepting both costs one regex and
  * removes a failure whose message would have to explain the difference.
  *
  * @param {string|null} value - As authored.

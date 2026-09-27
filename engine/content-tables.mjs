@@ -15,7 +15,7 @@ import { completeAddress, renderAddress, isAddressTuple } from "./address.mjs";
 import { contentPackage } from "./content-package.mjs";
 
 /**
- * Generated content tables — Obsidian **Dataview** `TABLE` queries.
+ * Generated content tables from fenced `dataview` `TABLE` queries.
  *
  * A catalog table (every cloth armour, every animal's abilities) is data that
  * already lives in the frontmatter of the notes it describes. Authoring such a
@@ -30,13 +30,9 @@ import { contentPackage } from "./content-package.mjs";
  * SORT name.full ASC
  * ```
  *
- * The content notes live in an **Obsidian vault**, where that block is rendered
- * live by the Dataview plugin. At build time this module renders the same query
- * against the same frontmatter and replaces the block with a markdown table, so
- * an author sees in Obsidian what the build ships. Both content builds run it —
- * the pack compilers (Foundry journals/items/actors) and the knowledgebase — so
- * one authored query yields the same table in the vault, in Foundry, and on the
- * knowledgebase.
+ * The build evaluates the query against note frontmatter and replaces the
+ * block with a Markdown table. Pack journals and site pages read the same
+ * generated table from the authored query.
  *
  * The emitted table is **markdown**, not HTML, and it is expanded *before*
  * wikilink resolution: a cell may therefore carry `[[type/shortcode|Text]]`,

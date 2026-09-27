@@ -343,8 +343,7 @@ describe("defineConfig — the layout a consumer supplies", () => {
     });
 
     it("defaults the skipped-directory list to empty", () => {
-        // `Templates/` is an Obsidian convention, not a property of the
-        // toolchain — a consumer that uses it says so.
+        // A consumer lists any authoring directories it wants excluded.
         expect(defineConfig(minimal()).skipDirectories).toEqual([]);
         expect(
             defineConfig({ ...minimal(), skipDirectories: ["Templates"] }).skipDirectories,
@@ -385,7 +384,7 @@ describe("defineConfig — the layout a consumer supplies", () => {
     });
 });
 
-describe("defineConfig — an item type's default art (#7)", () => {
+describe("defineConfig — an item type's default art", () => {
     const build = (fm: object) => ({ from: "builder", n: (fm as any)?.n ?? 0 });
 
     it("accepts a bare builder function, and derives no art from it", () => {

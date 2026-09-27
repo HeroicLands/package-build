@@ -32,7 +32,7 @@ const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
  *
  * Read once here rather than imported as a constant: the engine resolves it on
  * first read and not at import, so that the package can be imported — and its
- * CLI asked its version — with no configuration anywhere above it (#2).
+ * CLI asked its version — with no configuration anywhere above it.
  */
 const packConfig = loadPackConfig();
 
@@ -113,9 +113,8 @@ describe("the one pack list (SOURCE_PACKS and PACK_CONFIGS merged)", () => {
         expect(packConfig.packs.every((p) => !("folders" in p))).toBe(true);
     });
 
-    it("skips the Obsidian scaffolding directory by configuration", () => {
-        // `Templates/` was a hardcoded Obsidian convention inside the generic
-        // tree walker; a consumer whose vault does not use it says so here.
+    it("skips an authoring directory by configuration", () => {
+        // The configured scope excludes templates from the content walk.
         expect(packConfig.skipDirectories).toEqual(["Templates"]);
     });
 });

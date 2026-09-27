@@ -71,6 +71,10 @@ const COMPILER_WORDS = /\b(base|code|flag|mult|desc)$/i;
 
 /** A value the vocabulary's declared shape will accept, so every field is filled. */
 function sampleFor(field: { shape?: string; kind?: string; entryKind?: string }): unknown {
+    if (field.shape?.startsWith("list of `{ to,"))
+        return [{ to: "someref", bearing: "NE", mode: "land", days: 2 }];
+    if (field.shape?.startsWith("a map keyed by Address"))
+        return { "affiliation-someref": "friend" };
     if (field.kind === "address") return "someref";
     if (field.kind === "list" && field.entryKind === "address") return ["someref"];
     if (field.kind === "number") return 7;
@@ -94,6 +98,45 @@ function fullyStated(type: string): Record<string, unknown> {
 }
 
 describe("the note box's fields are the type's own vocabulary", () => {
+    it("shows structured place links and affiliation relations", () => {
+        const resolve = (ref: unknown) => ({ name: `Named ${ref}`, url: `/note/${ref}` });
+        const place = noteInfobox(
+            {
+                type: "place",
+                name: { full: "North" },
+                data: {
+                    borders: [{ to: "south", bearing: "S" }],
+                    routes: [{ to: "south", bearing: "S", mode: "land", days: 2 }],
+                },
+            },
+            { resolve },
+        );
+        expect(place.sections[0].rows).toContainEqual({
+            label: "Borders",
+            kind: "links",
+            value: [{ text: "Named south (Bearing: S)", url: "/note/south" }],
+        });
+        expect(
+            place.sections[0].rows.find((row: { label: string }) => row.label === "Routes").value[0]
+                .text,
+        ).toContain("Days: 2");
+
+        const affiliation = noteInfobox(
+            {
+                type: "affiliation",
+                name: { full: "Guild" },
+                data: {
+                    relations: { "affiliation-allies": "aligned", "affiliation-foes": "nemesis" },
+                },
+            },
+            { resolve },
+        );
+        expect(affiliation.sections[0].rows).toContainEqual({
+            label: "Aligned",
+            kind: "links",
+            value: [{ text: "Named affiliation-allies", url: "/note/affiliation-allies" }],
+        });
+    });
     it("keeps lore event metadata out of the infobox", () => {
         const box = noteInfobox({
             type: "lore",
@@ -126,7 +169,9 @@ describe("the note box's fields are the type's own vocabulary", () => {
                 const overlay = overlayFor(NOTE_FIELD_PRESENTATION, type, field.name);
                 if (overlay.withheld) continue;
                 const wanted =
-                    overlay.group ? "Appearance" : (overlay.label ?? humanizeFieldName(field.name));
+                    overlay.group ? "Appearance"
+                    : field.shape?.startsWith("a map keyed by Address") ? "Friend"
+                    : (overlay.label ?? humanizeFieldName(field.name));
                 if (!labels.has(wanted)) (missing[type] ??= []).push(field.name);
             }
         }

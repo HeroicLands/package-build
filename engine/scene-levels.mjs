@@ -43,7 +43,7 @@
  * Plain ESM with no Foundry, so the rule itself is a pure function over records
  * and is unit-tested directly.
  *
- * **What a report has to say (#9).** The likeliest way to meet any of this is a
+ * **What a report has to say.** The likeliest way to meet any of this is a
  * compendium CLI older than {@link LEVEL_SPLITTING_CLI}, which does not split
  * Scene Levels into the sublevel at all — so the guard fires on every scene at
  * once, and each `levels` entry is an inline Level *object* rather than an id.
@@ -71,7 +71,7 @@ const ADVENTURE_PREFIX = "!adventures!";
 /**
  * The compendium CLI release that began splitting Scene Levels into the
  * `!scenes.levels!` sublevel. Anything older writes them inline on the Scene
- * document, which is the shape the reports below name (#9).
+ * document, which is the shape the reports below name.
  */
 const LEVEL_SPLITTING_CLI = "3.0.3";
 
@@ -184,7 +184,7 @@ function predatesLevelSplitting(version) {
 
 /**
  * What to do about it, decided from the version actually resolved — so the
- * report ends in an instruction rather than a lead to follow (#9).
+ * report ends in an instruction rather than a lead to follow.
  *
  * @param {string | undefined} cliVersion - The resolved compendium CLI
  *   version, when it is known.
@@ -222,7 +222,7 @@ function describeRemedy(cliVersion) {
  * it on that record's write path; a pack that has none never split them, which
  * is what a compendium CLI older than {@link LEVEL_SPLITTING_CLI} does — two
  * different diagnoses, so the message names whichever shape it found rather
- * than guessing (#9).
+ * than guessing.
  *
  * @param {Array<[string, object]>} declaring - `[sceneId, scene]` for every
  *   scene declaring at least one level.

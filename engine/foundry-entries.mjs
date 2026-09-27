@@ -163,7 +163,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
     // A published address must name the pack the document actually shipped in:
     // a consumer resolves the UUID verbatim, and a repository may ship several
     // packs of one type.
-    const uuidFor = (type, id, routeFm) => {
+    const uuidFor = (type, id, routeFm, system) => {
         // **A document that would be empty is not created, so nothing names
         // one.** A JournalEntry's content is the note's prose, and an empty
         // body compiles no pages, so the pass emits no entry — and a manifest
@@ -201,7 +201,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
             !id ||
             NEVER_PACKED_TYPES.has(String(type)) ||
             DERIVED_PACKED_TYPES.has(String(type)) ||
-            (routeFm && declaresNoPack(routeFm))
+            (routeFm && declaresNoPack(routeFm, system))
         ) {
             return undefined;
         }
@@ -209,7 +209,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
         const docType = routeFm ? packForType(type).docType : "JournalEntry";
         const pack =
             routeFm ?
-                packRouter.resolveOrNull(routeFm, docType)
+                packRouter.resolveOrNull(routeFm, docType, system)
             :   packRouter.defaultOf("JournalEntry");
 
         // **A system block is what makes a game document**, so a note carrying
@@ -224,12 +224,25 @@ export function entriesForNote(fm, name, address, body, ctx) {
         // and one declaring none by the fallback, which reads a single block of
         // its own.
         if (SYSTEM_DOCUMENT_CLASSES.has(docType)) {
-            const system =
-                (pack && packRouter.systemOf?.(pack)) || DEFAULT_DOCUMENT_SUBTYPES.system;
-            if (!carriesSystemBlock(routeFm, system)) return undefined;
+            const targetSystem =
+                system || (pack && packRouter.systemOf?.(pack)) || DEFAULT_DOCUMENT_SUBTYPES.system;
+            if (!carriesSystemBlock(routeFm, targetSystem)) return undefined;
         }
 
         return compendiumUuid(foundryPackageId, type, id, pack);
+    };
+
+    const systemUuidsFor = (type, id) => {
+        const docType = packForType(type)?.docType;
+        if (!SYSTEM_DOCUMENT_CLASSES.has(docType)) return undefined;
+        const systems = packRouter.systemsOfType?.(docType) ?? [];
+        if (!systems.length) return undefined;
+        return Object.fromEntries(
+            systems.flatMap((system) => {
+                const uuid = uuidFor(type, id, fm, system);
+                return uuid ? [[system, uuid]] : [];
+            }),
+        );
     };
 
     const carriesDoc =
@@ -251,6 +264,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
                 url,
                 id: fm.id,
                 uuid: uuidFor(fm.type, fm.id, fm),
+                systemUuids: systemUuidsFor(fm.type, fm.id),
                 doc: docKey,
             },
             {
@@ -283,6 +297,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
             url,
             id: fm.id,
             uuid: own,
+            systemUuids: systemUuidsFor(fm.type, fm.id),
             anchors: own && fm.type === "doc" ? anchorsOf(own, fm.id, body ?? "", name) : undefined,
         },
     ];

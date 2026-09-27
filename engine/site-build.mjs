@@ -133,8 +133,8 @@ function siteCorpusFiles(contentBase, ctx) {
  * Reads a note, returning `null` for one that cannot be parsed.
  *
  * A file that is not front-mattered markdown is skipped rather than reported: a
- * content tree is edited in Obsidian, which leaves files of its own about, and
- * failing on one would make the build hostage to the editor.
+ * content tree may contain editor or working files, and failing on one would
+ * make the build depend on unrelated local files.
  *
  * @param {string} file - Absolute path.
  * @returns {{fm: object, body: string}|null}
@@ -510,9 +510,8 @@ export function tableUniverse(pages) {
  * The frontmatter a page publishes with.
  *
  * An authored `aliases` is retired and refused before a build reaches
- * here, which makes this a guard rather than a working path. It was Obsidian's
- * — a list of *names* a reader might call
- * the note, which is vault addressing and stays in the vault. Hugo reads
+ * here, which makes this a guard rather than a working path. It is a list of
+ * names a reader might call the note. Hugo reads
  * `aliases` as **URL redirects**, so passing them through would publish a
  * redirect stub at each name. They are dropped, and this build emits no
  * redirects of its own.

@@ -69,7 +69,7 @@ describe("ITEM_BUILDERS (the one registry keyed by item type)", () => {
         expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual([...itemTypes()].map(subtype).sort());
     });
 
-    it("pairs each type with its own entry from the one art map (#7)", () => {
+    it("pairs each type with its own entry from the one art map", () => {
         // Art travels with the builder now, so a consumer's own item type can
         // bring art of its own. For *this* registry that must change nothing:
         // every entry's `img` is still the value `DEFAULT_ITEM_ART` holds, which
@@ -90,7 +90,7 @@ describe("itemBuilder (lookup that fails loudly)", () => {
         //
         // Compared against the registry as *Node* loads it, not the static
         // import above. The engine resolves the configuration with `require`
-        // so that reading a configured value stays synchronous (#2); in a
+        // so that reading a configured value stays synchronous; in a
         // plain Node process that shares one module instance with `import`,
         // but under vitest the module runner serves the static import from
         // its own graph, so the two spellings are two copies of one file. The
@@ -100,7 +100,7 @@ describe("itemBuilder (lookup that fails loudly)", () => {
             .ITEM_BUILDERS as Record<string, unknown>;
         // The resolved configuration holds the entries' `system` builders, not
         // the entries themselves — `itemBuilder` has always returned something
-        // callable, and the paired shape (#7) did not change that.
+        // callable, and the paired shape did not change that.
         expect(itemBuilder("skill")).toBe((registry["skill"] as { system: unknown }).system);
         expect(itemBuilder("weapongear")).toBe(
             (registry["weapongear"] as { system: unknown }).system,
@@ -118,7 +118,7 @@ describe("itemBuilder (lookup that fails loudly)", () => {
     });
 });
 
-describe("the art a compiled sohl item actually gets (#7)", () => {
+describe("the art a compiled sohl item actually gets", () => {
     /**
      * The Item compiler, against this repository's own configuration.
      *

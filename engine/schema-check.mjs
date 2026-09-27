@@ -26,7 +26,7 @@
  *   of `sohl-kethira-basic`'s deities, is not defined at the version that module
  *   targets, so the divine/arcane split evaporates on load.
  * - **Declared, not emitted.** The mirror image, fixed by hand in
- *   content-build#3.
+ *   the shared build.
  *
  * Neither was found by tooling. Both were found by set-subtracting compiled
  * documents' `system` keys against `defineSchema()` **by hand**, which is how

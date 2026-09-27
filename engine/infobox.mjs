@@ -112,7 +112,7 @@
  * @module
  */
 
-import { isAddressTuple, renderAddress } from "./address.mjs";
+import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { getFrontmatter } from "./frontmatter.mjs";
 import { currentType } from "./ids.mjs";
 import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
@@ -556,6 +556,58 @@ function rowValue(kind, raw, resolve, hint) {
     return presentValue(raw);
 }
 
+/** Expand structured references using the existing linked-row shape. */
+function structuredRows(field, raw, resolve, label, fm) {
+    if (Array.isArray(raw) && raw.some(isMapping)) {
+        const links = raw
+            .filter((entry) => isMapping(entry) && hasValue(entry.to))
+            .map((entry) => {
+                const link = linkValue(entry.to, resolve, { type: field.ref ?? "place" });
+                const details = Object.entries(entry)
+                    .filter(([key, value]) => key !== "to" && hasValue(value))
+                    .map(([key, value]) => `${humanizeFieldName(key)}: ${presentValue(value)}`);
+                return {
+                    ...link,
+                    text: details.length ? `${link.text} (${details.join(", ")})` : link.text,
+                };
+            });
+        return links.length ? [{ label, kind: "links", value: links }] : [];
+    }
+    if (isMapping(raw) && !isAddressTuple(raw)) {
+        const groups = new Map();
+        for (const [target, relation] of Object.entries(raw)) {
+            if (!hasValue(target) || !hasValue(relation) || isMapping(relation)) continue;
+            const term = String(relation);
+            if (field.terms && !field.terms.some((entry) => entry.term === term)) continue;
+            if (field.terms && field.keyKind === "address") {
+                const address = parseAddress(
+                    target,
+                    {
+                        package: fm.package ?? "local",
+                        system: "note",
+                        types: new Set(field.accepts),
+                    },
+                    { declared: true },
+                );
+                if (address.reason || (field.accepts && !field.accepts.includes(address.type)))
+                    continue;
+            }
+            const links = groups.get(term) ?? [];
+            links.push(linkValue(target, resolve, { type: field.ref }));
+            groups.set(term, links);
+        }
+        const terms = field.terms ? field.terms.map(({ term }) => term) : [...groups.keys()];
+        return terms
+            .filter((term) => groups.has(term))
+            .map((term) => ({
+                label: presentValue(term),
+                kind: "links",
+                value: groups.get(term),
+            }));
+    }
+    return null;
+}
+
 /**
  * One row, with its unit on it.
  *
@@ -665,7 +717,19 @@ function noteBox(
         // The current name wins, which is the whole of the retirement window's
         // behaviour and is `readAliasedField`'s answer, not a second one.
         const own = getFrontmatter(data, field.name, undefined);
-        const raw = hasValue(own) ? own : readAliasedField(fm, field.name, { inData: true });
+        const raw = own !== undefined ? own : readAliasedField(fm, field.name, { inData: true });
+        const structured = structuredRows(
+            field,
+            raw,
+            resolve,
+            overlay.label ?? humanizeFieldName(field.name),
+            fm,
+        );
+        if (structured) {
+            rows.push(...structured);
+            if (structured.length) shown.add(field.name);
+            continue;
+        }
         if (!hasValue(raw)) continue;
 
         if (overlay.group) {

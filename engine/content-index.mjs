@@ -87,7 +87,7 @@
  */
 
 import { isAddressSegment } from "./address-charset.mjs";
-import { positionOfYamlPath } from "./diagnostics.mjs";
+import { formatDiagnostic, positionOfYamlPath } from "./diagnostics.mjs";
 import {
     decodeNoteAddresses,
     decodeIndexAddresses,
@@ -101,6 +101,7 @@ import unidecode from "unidecode";
 
 import { metadataFileName } from "./metadata-index.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
+import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
 import { ownDocumentSystem } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
@@ -360,6 +361,13 @@ function foundryEntries({ frontmatter, address, body, manifest }) {
 
 function foundryBlock(entry, system) {
     if (!entry) return null;
+    if (entry.systemUuids && Object.keys(entry.systemUuids).length)
+        return Object.fromEntries(
+            Object.entries(entry.systemUuids).map(([targetSystem, uuid]) => [
+                targetSystem,
+                { uuid },
+            ]),
+        );
     const block = {};
     if (entry.uuid) block.uuid = entry.uuid;
     if (entry.anchors) block.anchors = entry.anchors;
@@ -886,6 +894,8 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     // the index refuse to build for a configuration that is perfectly able to
     // state one.
     const records = indexRecordsFor({ contentBase: tree, config: resolved });
+    const assetBindings = checkForeignAssetBindings(resolved);
+    if (assetBindings.length) throw new Error(assetBindings.map(formatDiagnostic).join("\n"));
     if (records.length === 0) {
         throw new Error(
             `${tree} yielded no notes, so the index would state that this ` +

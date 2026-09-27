@@ -46,7 +46,7 @@ import { loadPackConfig } from "./pack-config.mjs";
  * package below would differ.
  *
  * An accessor rather than a hoisted constant, so that importing this module
- * needs no configuration (#2).
+ * needs no configuration.
  *
  * @returns {string} The configured `contentPackage`.
  */
@@ -71,7 +71,7 @@ export function contentPackage() {
  * written — fails the build if this value and the manifest's `id` ever drift.
  *
  * An accessor rather than a hoisted constant, so that importing this module
- * needs no configuration (#2).
+ * needs no configuration.
  *
  * @returns {string} The configured `foundryPackage`.
  */

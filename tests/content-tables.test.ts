@@ -79,7 +79,7 @@ function armourDocs() {
 /** Every note in these fixtures is linkable unless a test says otherwise. */
 const linkable = (d: { fm: Record<string, unknown> }) => Boolean(d.fm.shortcode);
 
-/** Wraps a query in the ```dataview fence an author writes in Obsidian. */
+/** Wrap a query in its authored `dataview` fence. */
 const block = (query: string) => "```dataview\n" + query + "\n```";
 
 function expand(markdown: string, opts: Record<string, unknown> = {}) {

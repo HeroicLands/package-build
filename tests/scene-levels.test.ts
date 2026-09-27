@@ -134,7 +134,7 @@ describe("checkSceneLevels", () => {
     });
 });
 
-// #9: the guard built the key it reported by interpolating each `levels` entry,
+// the guard built the key it reported by interpolating each `levels` entry,
 // so an entry that is an inline Level *object* — what
 // `@foundryvtt/foundryvtt-cli` before 3.0.3 writes, because it does not split
 // Scene Levels into the sublevel — degraded to "[object Object]" and named a

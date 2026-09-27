@@ -949,6 +949,27 @@ describe("an item note is two records: the item, and its documentation", () => {
     });
 });
 
+describe("configured Actor targets", () => {
+    it("indexes each system's emitted pack for a dual-system being", () => {
+        note("Actor.md", "type: being\nshortcode: actor\nname: { full: Actor }\nsohl: {}\nhm3: {}");
+        const config = {
+            paths: { content: tmp, contentIndex: path.join(tmp, "..", "out") },
+            contentPackage: "ensemble",
+            foundryPackage: "harn-ensemble",
+            skipDirectories: [],
+            docEntryTypes: new Set(),
+            packs: [
+                { name: "actors-sohl", type: "Actor", system: "sohl" },
+                { name: "actors-hm3", type: "Actor", system: "hm3" },
+            ],
+        } as any;
+        const records = readIndex(emitContentIndex({ config }).file);
+        const actor = records.find((record) => record.type === "being");
+        expect(actor.foundry.sohl.uuid).toMatch(/^Compendium\.harn-ensemble\.actors-sohl\.Actor\./);
+        expect(actor.foundry.hm3.uuid).toMatch(/^Compendium\.harn-ensemble\.actors-hm3\.Actor\./);
+    });
+});
+
 describe("a note may declare more than one system", () => {
     const cfg = (root: string) =>
         ({

@@ -164,9 +164,9 @@ describe("the declarations preserve the vocabulary they replaced", () => {
 // The builders are an allow-list: a `sohl:` key no declaration names is
 // discarded at compile with no warning and no effect on the exit code. That is
 // how 204 kethira mystical abilities shipped with no link to the affiliation
-// granting them (#3). These assert the emitted document rather than the
+// granting them. These assert the emitted document rather than the
 // declaration, because the declaration is exactly what was wrong.
-describe("association codes reach the emitted document (#3)", () => {
+describe("association codes reach the emitted document", () => {
     it("carries a mystical ability's granting affiliation", () => {
         expect(
             build("mysticalability", {
@@ -200,11 +200,9 @@ describe("association codes reach the emitted document (#3)", () => {
     });
 });
 
-// The inverse of #3, from the same root cause: an emitted key no DataModel
-// declares. `MysticalAbilityDataModel` dropped `assocMysteryCode` in
-// Nothing read the mystery it
-// resolved to — and `assocAffiliationCode` arrived later and separately
-// as the granting faction, so the two are unrelated rather than a rename.
+// The inverse case is an emitted key no DataModel declares. Foundry discards
+// that key when the document is constructed, so the emitted document is the
+// assertion that matters.
 // Foundry discards an undeclared key when the document is constructed, so every
 // compiled ability shipped a value that was thrown away at load.
 describe("a compiled mystical ability carries no assocMysteryCode", () => {

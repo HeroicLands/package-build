@@ -529,8 +529,8 @@ Any other key is refused:
 
 **Type:** string[] · **Optional** · default `[]`.
 
-Directory names the content walk ignores wherever they appear — Obsidian's
-`Templates`, for instance.
+Directory names the content walk ignores wherever they appear — an author's
+`Templates` directory, for instance.
 
 ```yaml
 skipDirectories: [Templates]
@@ -1465,10 +1465,11 @@ table says `lang`, not `build/stage/lang`.
 `assets` is the table of staging copies: source path in the repository,
 destination under the staged package root.
 
-| Key                          | Type   | Required |
-| ---------------------------- | ------ | -------- |
-| `packageBuild.assets[].from` | string | yes      |
-| `packageBuild.assets[].to`   | string | yes      |
+| Key                             | Type                       | Required |
+| ------------------------------- | -------------------------- | -------- |
+| `packageBuild.assets[].from`    | string                     | yes      |
+| `packageBuild.assets[].to`      | string                     | yes      |
+| `packageBuild.assets[].bindsTo` | `{package, type, system?}` | no       |
 
 > ``package-build config: `packageBuild.stageDir` must be a non-empty string.``
 
@@ -1478,7 +1479,15 @@ destination under the staged package root.
 
 > ``package-build config: `packageBuild.assets[<index>].from` must be a non-empty string.``
 
-> ``package-build config: `packageBuild.assets[<index>].<key>` is not a recognised key (expected one of: from, to).``
+> ``package-build config: `packageBuild.assets[<index>].<key>` is not a recognised key (expected one of: from, to, bindsTo).``
+
+`bindsTo` says that every file under this copy's `from` directory uses its
+filename, without the extension, as a foreign Address shortcode. `package`
+and `type` are required; `system` defaults to `note`. The relationship with
+that package must provide a content index for the build to check the binding.
+The check reads the cached index, reports an unresolved file as an error, and
+does not fetch during compilation. Run `content-build deps fetch` to fill a
+cold cache.
 
 ### `packageBuild.assetTransform` and `packageBuild.manifestFlags`
 

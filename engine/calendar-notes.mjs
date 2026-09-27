@@ -82,6 +82,27 @@ export const CALENDAR_SUBTYPE = "calendar";
  */
 export const INVARIANT_SUBTYPES = Object.freeze(["world", "celestial"]);
 
+/** Calendaria's display locations that a calendar note can format. */
+export const CALENDAR_DATE_FORMAT_KEYS = Object.freeze([
+    "short",
+    "long",
+    "full",
+    "time",
+    "weekHeader",
+    "yearHeader",
+    "yearLabel",
+    "crossCalendar",
+]);
+
+/** Bare date tokens Calendaria substitutes inside authored format strings. */
+export const CALENDAR_FORMAT_TOKENS = Object.freeze(
+    new Set(
+        "YYYY YY Y MMMM MMM MM Mo M EEEEE EEEE EEE EE E dddd ddd dd Do DDD DD D d e GGGG GGG GG G QQQQ QQQ QQ Q zzzz z ww w W HH H hh h mm m ss s A a".split(
+            " ",
+        ),
+    ),
+);
+
 /**
  * The `data:` keys a calendar note may write — the closed list, in authored
  * order.
@@ -128,6 +149,12 @@ export const CALENDAR_FIELDS = Object.freeze([
         describe:
             "The year-counts kept in this calendar. A date names one by writing " +
             "`<calendar shortcode>.<era shortcode>`.",
+    },
+    {
+        name: "dateFormats",
+        shape: "map of short, long, full, time, weekHeader, yearHeader, yearLabel, crossCalendar strings",
+        kind: "map",
+        describe: "How this calendar writes dates and time in each display context.",
     },
 ]);
 
@@ -336,6 +363,51 @@ function atData(note, keyPath, severity, message) {
     };
 }
 
+/** Check each authored format slot and every unescaped letter run in it. */
+export function checkCalendarDateFormats(note) {
+    const formats = dataOf(note).dateFormats;
+    if (formats === undefined || formats === null) return [];
+    if (typeof formats !== "object" || Array.isArray(formats)) return [];
+    const findings = [];
+    for (const [slot, value] of Object.entries(formats)) {
+        if (!CALENDAR_DATE_FORMAT_KEYS.includes(slot)) {
+            findings.push(
+                atData(
+                    note,
+                    ["dateFormats", slot],
+                    "error",
+                    `data.dateFormats.${slot} is not a calendar display format; choose ${CALENDAR_DATE_FORMAT_KEYS.join(", ")}`,
+                ),
+            );
+            continue;
+        }
+        if (typeof value !== "string") {
+            findings.push(
+                atData(
+                    note,
+                    ["dateFormats", slot],
+                    "error",
+                    `data.dateFormats.${slot} must be a string`,
+                ),
+            );
+            continue;
+        }
+        const bare = value.replace(/\[[^\]]*\]|\{[^}]*\}/g, " ");
+        for (const run of bare.match(/\p{L}+/gu) ?? []) {
+            if (CALENDAR_FORMAT_TOKENS.has(run)) continue;
+            findings.push(
+                atData(
+                    note,
+                    ["dateFormats", slot],
+                    "error",
+                    `data.dateFormats.${slot} has unescaped letter run ${JSON.stringify(run)}; write literal words in brackets, or use a Calendaria date token`,
+                ),
+            );
+        }
+    }
+    return findings;
+}
+
 /**
  * Check a `place` note's world facts.
  *
@@ -488,6 +560,7 @@ export function checkCalendarNote(note, { index } = {}) {
 
     findings.push(...checkMonthSum(note, index));
     findings.push(...checkEraShortcodes(note));
+    findings.push(...checkCalendarDateFormats(note));
     return findings;
 }
 
@@ -747,6 +820,7 @@ export function compileCalendar({ note, invariants, contentPackage }) {
         epochDayOffset:
             epoch && months.length ? dayOfYear(months, epoch.month ?? 1, epoch.day ?? 1) - 1 : 0,
         eras: eraEntries(data.eras),
+        dateFormats: data.dateFormats,
         moons: moons ?? undefined,
         metadata: written({
             id: shortcode || undefined,

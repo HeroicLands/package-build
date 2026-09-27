@@ -56,10 +56,10 @@ const LABEL_LINE_RE = /^\*\*([^*]+)\*\*/;
 const COMMIT_HASH_RE = /^-\s+([0-9a-fA-F]{7,40})(?=[:\s]|$)/;
 
 /**
- * An issue or pull-request reference: `#123`, `owner/repo#123`.
+ * An issue or pull-request reference, with or without an owner and repository.
  *
  * No leading `\b` — `#` is not a word character, so a boundary assertion
- * immediately before it never matches the ordinary case of a bare `#123`
+ * immediately before it never matches a bare issue reference
  * preceded by whitespace or punctuation.
  */
 const ISSUE_REF_RE = /(?:[\w.-]+\/[\w.-]+)?#\d+\b/g;

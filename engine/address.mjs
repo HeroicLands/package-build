@@ -491,11 +491,9 @@ export function readCanonicalKey(key) {
  * confidently they mark a value as qualified:
  *
  * - **`type-shortcode`** and its qualified forms — the canonical spelling.
- *   Obsidian reads `/` inside a wikilink as a *path* and resolves it against the
- *   vault's folders, so a slash-qualified link is a broken link in the editor
- *   where the content is authored.
- * - **`type/shortcode`** — resolved so that a link written before the vault
- *   migrated does not silently die. A slash is *unconditionally* a qualifier:
+ *   The hyphenated form is portable across Markdown editors and renderers.
+ * - **`type/shortcode`** — an accepted qualified spelling. A slash is
+ *   *unconditionally* a qualifier:
  *   nothing else uses one, so an unknown type before it is reported rather than
  *   guessed at. The split is at the **last** slash.
  *

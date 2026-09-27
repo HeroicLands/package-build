@@ -19,9 +19,8 @@ describe("resolveRelation (pack builder — affiliation standing map)", () => {
         expect(resolveRelation({ sohl: {} })).toEqual({});
     });
 
-    it("reads an empty list as an empty map — that is what Obsidian writes", () => {
-        // Obsidian's property editor renders an emptied map as `[]`, so a note
-        // whose relations were cleared in the editor authors `relation: []`. It
+    it("reads an empty list as an empty map", () => {
+        // A note may author `relation: []` to state no entries. It
         // means exactly what `relation: {}` means: neutral toward everyone.
         expect(resolveRelation({ relation: [] })).toEqual({});
         expect(resolveRelation({ sohl: { relation: [] } })).toEqual({});
@@ -95,7 +94,7 @@ describe("resolveRelation — `relation` is the retired spelling of `relations`"
         );
     });
 
-    it("reads the empty list Obsidian writes for a cleared map under either spelling", () => {
+    it("reads an empty list under either relation spelling", () => {
         expect(resolveRelation({ sohl: { relations: [] } })).toEqual({});
         expect(resolveRelation({ sohl: { relation: [] } })).toEqual({});
     });

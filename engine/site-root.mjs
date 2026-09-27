@@ -44,6 +44,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import * as pagefind from "pagefind";
+import { gunzipSync } from "node:zlib";
 
 import { formatDiagnostic } from "./diagnostics.mjs";
 
@@ -174,19 +175,36 @@ export async function indexSite({ site, output }) {
         }
         throw err;
     }
+    let pages;
     try {
         const added = await index.addDirectory({ path: site });
         if (added.errors.length) throw new Error(added.errors.join("; "));
-        const pages = added.page_count;
+        pages = added.page_count;
         if (!pages) {
             throw new Error(`no page under ${site} was indexed — the site holds no HTML`);
         }
         const written = await index.writeFiles({ outputPath: output });
         if (written.errors.length) throw new Error(written.errors.join("; "));
-        return { pages };
     } finally {
         await pagefind.close();
     }
+    // Pagefind may finish its API call while fragment writes are still visible
+    // as incomplete gzip streams under heavy parallel load. A successful site
+    // build must hand deployment complete fragments.
+    const fragmentDir = path.join(output, "fragment");
+    const deadline = Date.now() + 5000;
+    for (;;) {
+        try {
+            const fragments = fs.readdirSync(fragmentDir);
+            if (!fragments.length) throw new Error("no search fragments were written");
+            for (const name of fragments) gunzipSync(fs.readFileSync(path.join(fragmentDir, name)));
+            break;
+        } catch (error) {
+            if (Date.now() >= deadline) throw error;
+            await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+    }
+    return { pages };
 }
 
 /**

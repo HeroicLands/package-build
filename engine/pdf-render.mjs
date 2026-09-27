@@ -956,7 +956,7 @@ export function bookTypstPreamble() {
 /**
  * The whole book, as one Typst document.
  *
- * **Pure, and that is the point.** Everything a reviewer of #316 has to check
+ * **Pure, and that is the point.** The book's structural properties
  * about structure — the outline's shape, the anchors, which links went inward,
  * the order entries print in — is decided here from a plan and a map of bodies,
  * with no filesystem and no compiler. {@link module:engine/pdf-build} supplies

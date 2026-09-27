@@ -12,7 +12,7 @@
  */
 
 /**
- * The document tree a PDF is built from, and the plan it resolves to (#316).
+ * The document tree a PDF is built from, and the plan it resolves to.
  *
  * The packs and the website both render the *whole* content tree: every note
  * becomes a document and a page, and the three surfaces agreeing about what the
@@ -39,7 +39,7 @@
  * handed back as `selections`, the way `expandContentTables` is handed its
  * `sqlTables` because DuckDB is async and the pass is not. That is what lets the
  * whole structure of a 2,500-entry book be asserted in a unit test with no
- * renderer present, which is most of what #316 asks for.
+ * renderer present, covering the structure before presentation is applied.
  *
  * **Every gate reports; none exits.** A filter that will not parse, a `file:`
  * that resolves nowhere and a filter reaching another package's schema are
@@ -415,7 +415,7 @@ export async function runTreeFilters(nodes, db, { keep = () => true, text } = {}
  * The plan is an ordered list of entries — `section`, `prose`, `note` — and it
  * is the artifact worth having. Order, depth, the outline, the table of
  * contents, anchor uniqueness and every link destination are all readable from
- * it, so nearly the whole of what #316 asks for can be asserted here, on data,
+ * it, so the book's structure can be asserted here, on data,
  * without a renderer or a PDF. Only how the result *looks* needs eyes.
  *
  * **Notes are sorted, prose is not.** A section's entries come out in

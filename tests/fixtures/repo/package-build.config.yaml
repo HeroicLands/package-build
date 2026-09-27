@@ -47,8 +47,7 @@ stats:
 # names one of the registries this package ships.
 itemBuilders: sohl
 
-# A content tree opened as an Obsidian vault keeps its templater scaffolding in
-# `Templates/`, which is never compendium content.
+# Authoring templates under `Templates/` are not compendium content.
 skipDirectories: [Templates]
 
 packs:

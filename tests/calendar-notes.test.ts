@@ -30,6 +30,8 @@ import { describe, it, expect } from "vitest";
 
 import {
     CALENDAR_FIELDS,
+    CALENDAR_DATE_FORMAT_KEYS,
+    CALENDAR_FORMAT_TOKENS,
     calendariaEnvelope,
     checkCalendarNote,
     checkWorldFacts,
@@ -507,6 +509,40 @@ describe("what the definition adds for Calendaria, and core prunes", () => {
     });
 });
 
+describe("authored calendar display formats", () => {
+    it("carries each declared slot into the emitted definition", () => {
+        for (const slot of CALENDAR_DATE_FORMAT_KEYS) {
+            const value = "D MMMM, YYYY";
+            const definition = compileCalendar({
+                note: calendarNote({ dateFormats: { [slot]: value } }),
+                invariants: worldInvariants(index(worldNote())),
+            });
+            expect(definition.dateFormats[slot]).toBe(value);
+        }
+    });
+
+    it("accepts tokens and bracketed words, and locates bare prose", () => {
+        expect(CALENDAR_FORMAT_TOKENS.size).toBe(45);
+        const good = calendarNote({
+            dateFormats: { full: "[Year] YYYY [of the] [Emperor of the] [Dynasty]" },
+        });
+        expect(checkCalendarNote(good, { index: index(worldNote(), good) })).toEqual([]);
+        const bad = calendarNote({ dateFormats: { full: "Year YYYY of the Dynasty" } });
+        const findings = checkCalendarNote(bad, { index: index(worldNote(), bad) });
+        expect(findings.length).toBeGreaterThan(0);
+        expect(findings[0]).toMatchObject({ file: "Common_Calendar.md", severity: "error" });
+        expect(findings[0].line).toBeGreaterThan(0);
+        expect(findings[0].message).toContain("unescaped letter run");
+    });
+
+    it("refuses unrecognized slots and non-string values", () => {
+        const bad = calendarNote({ dateFormats: { time12: "h:mm a", short: 12 } });
+        const findings = checkCalendarNote(bad, { index: index(worldNote(), bad) });
+        expect(findings.map((finding) => finding.message).join(" ")).toContain("time12");
+        expect(findings.map((finding) => finding.message).join(" ")).toContain("must be a string");
+    });
+});
+
 describe("the envelope a Calendaria import reads", () => {
     it("carries the definition and nothing else, byte for byte", () => {
         const definition = compileCalendar({
@@ -571,6 +607,7 @@ describe("every key the vocabulary declares reaches the definition", () => {
         weekdays: [{ name: "Oneday", abbreviation: "On" }],
         seasons: [{ name: "Spring", monthStart: 1, monthEnd: 3 }],
         eras: [{ shortcode: "founding", name: "After the Founding", abbreviation: "AF", start: 1 }],
+        dateFormats: { full: "D MMMM, YYYY" },
     };
 
     it("writes the family out at runtime rather than from a second list", () => {

@@ -47,7 +47,7 @@ function makeRepo(mode: string, withPdf = true, withTree = true): string {
         );
         note("sword.md", "type: weapongear\nshortcode: sword\nname:\n  full: Sword", "A blade.");
         // A body opening with an H1 repeating the note's own title is the
-        // defect #464 reports: the entry heading already carries the name, so
+        // repeated title case: the entry heading already carries the name, so
         // the body's H1 must stay unbookmarked or the sidebar shows "Shield"
         // twice for one page.
         note(

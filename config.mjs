@@ -100,7 +100,7 @@ export const DERIVED_MANIFEST_KEYS = Object.freeze({
     relationships: "the top level of package-build.config.yaml",
     packs: "the `packs` list at the top level of package-build.config.yaml",
 });
-const ASSET_KEYS = ["from", "to"];
+const ASSET_KEYS = ["from", "to", "bindsTo"];
 const CLEAN_KEYS = ["extra"];
 const LANG_KEYS = [
     "sources",
@@ -210,6 +210,8 @@ function requireNonEmptyString(value, where) {
  * @typedef {object} AssetSpec
  * @property {string} from  Source path, relative to the repository root.
  * @property {string} to    Destination, relative to the staged package root.
+ * @property {{package: string, system: string, type: string}|undefined} [bindsTo]
+ *   The foreign Address each file's basename claims, without its shortcode.
  */
 
 /**
@@ -222,9 +224,24 @@ function normalizeAsset(value, index) {
     if (!isMapping(value)) fail(where, "must be a mapping");
     const asset = /** @type {Record<string, unknown>} */ (value);
     rejectUnknownKeys(asset, ASSET_KEYS, `${where}.`);
+    let bindsTo;
+    if (asset.bindsTo !== undefined) {
+        if (!isMapping(asset.bindsTo)) fail(`${where}.bindsTo`, "must be a mapping");
+        const binding = /** @type {Record<string, unknown>} */ (asset.bindsTo);
+        rejectUnknownKeys(binding, ["package", "system", "type"], `${where}.bindsTo.`);
+        bindsTo = Object.freeze({
+            package: requireNonEmptyString(binding.package, `${where}.bindsTo.package`),
+            system:
+                binding.system === undefined ?
+                    "note"
+                :   requireNonEmptyString(binding.system, `${where}.bindsTo.system`),
+            type: requireNonEmptyString(binding.type, `${where}.bindsTo.type`),
+        });
+    }
     return Object.freeze({
         from: requireNonEmptyString(asset.from, `${where}.from`),
         to: requireNonEmptyString(asset.to, `${where}.to`),
+        ...(bindsTo ? { bindsTo } : {}),
     });
 }
 

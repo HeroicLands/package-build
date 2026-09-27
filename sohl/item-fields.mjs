@@ -140,7 +140,7 @@ const DURATION_BASE = Object.freeze({
 
 /** Aptitude weights per skill selector, validated as whole numbers. */
 const SKILL_APTITUDES = Object.freeze({
-    shape: "map of skill selector → whole number",
+    shape: "map of skill selector > whole number",
     read: (_raw, { fm }) => resolveSkillAptitudes(fm, noteContext(fm, "mystery")),
 });
 
@@ -188,7 +188,7 @@ const SKILL_UUID_ITEMS = Object.freeze({
 
 /** Standings toward other affiliations, validated against the closed list. */
 const RELATION = Object.freeze({
-    shape: "map of affiliation address → standing",
+    shape: "map of affiliation address > standing",
     read: (_raw, { fm }) => resolveRelation(fm, noteContext(fm, "affiliation")),
 });
 

@@ -110,6 +110,19 @@ describe("a being's dates", () => {
         expect(findings).toEqual([]);
     });
 
+    it("locates malformed birth and death dates on their own keys", () => {
+        for (const field of ["born", "died"]) {
+            const findings = lintNote(note("being", { data: { [field]: "not-a-date" } }), opts);
+            expect(findings).toHaveLength(1);
+            expect(findings[0]).toMatchObject({
+                file: "/tree/being.md",
+                line: 4,
+                severity: "error",
+            });
+            expect(findings[0].message).toContain(`data.${field}`);
+        }
+    });
+
     it("calls the row Born, and the one beside it Died", () => {
         const box = noteInfobox({
             type: "being",

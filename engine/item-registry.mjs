@@ -57,7 +57,7 @@ import { resolveImg } from "./helpers.mjs";
  * compile.
  *
  * An accessor rather than a hoisted constant, so that importing this module
- * needs no configuration (#2).
+ * needs no configuration.
  *
  * @returns {ReadonlySet<string>} The configured item types.
  */
@@ -163,7 +163,7 @@ export function itemFields(type, system) {
  * SoHL-owned table could never hold. Art is not looked up in
  * `sohl/default-item-art.mjs` instead: a type was configurable while its
  * default art was not, so a second consumer's items compiled only if every one
- * of its notes set `img:` (#7).
+ * of its notes set `img:`.
  *
  * **Still fail-fast.** A type with neither a note-level `img:` nor paired art
  * aborts the pack build rather than shipping a mismatched icon — the contract

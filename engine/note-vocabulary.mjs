@@ -96,12 +96,16 @@ import {
 // package's declared present compute — the closed `data:` container's own
 // question, asked the way `checkPlace` and `checkCalendarNote` are.
 import { checkBeingAge } from "./being-age.mjs";
+import { checkSocialTies } from "./social-ties.mjs";
+import { SOCIAL_TIES } from "./social-tie-terms.mjs";
+import { parseNoteDate } from "./note-dates.mjs";
 import { checkHeld } from "./holdings.mjs";
 import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 // What trade a settlement supports — the scale and the check that holds a
 // value to it, read rather than restated, so the reference below and the
 // finding an author meets state one list.
 import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
+import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 /**
  * One `data:` key a note type may carry.
@@ -365,6 +369,51 @@ function checkPlace(note, opts) {
     return [...checkHeld(note, opts), ...checkWorldFacts(note, opts)];
 }
 
+/** Validate a being's authored date using the shared note-date grammar. */
+function checkBeingDate(key) {
+    return (note) =>
+        parseNoteDate(note.fm?.data?.[key], {
+            field: `data.${key}`,
+            file: note.file,
+            raw: note.raw,
+            keyPath: ["data", key],
+        }).findings;
+}
+
+/** A place's purpose selects one of its own character tags. */
+function checkPlacePurpose(note) {
+    const value = note.fm?.data?.purpose;
+    if (value === undefined || value === null) return [];
+    const at = () => ({
+        file: note.file,
+        ...positionOfFrontmatterPath(note.raw ?? "", ["data", "purpose"]),
+        severity: "error",
+    });
+    const subType = note.fm?.subType;
+    if (!["settlement", "site", "structure"].includes(subType))
+        return [
+            {
+                ...at(),
+                message: `data.purpose applies to a settlement, site, or structure; this place is ${subType ?? "untyped"}`,
+            },
+        ];
+    if (!DECLARED_TAGS.placeCharacter.tags.includes(value))
+        return [
+            {
+                ...at(),
+                message: `data.purpose ${JSON.stringify(value)} is not a placeCharacter tag; choose one of ${DECLARED_TAGS.placeCharacter.tags.join(", ")}`,
+            },
+        ];
+    if (hasTag(note.fm, value)) return [];
+    const tags = note.fm?.tags ?? note.fm?.tag;
+    return [
+        {
+            ...at(),
+            message: `data.purpose ${JSON.stringify(value)} must select one of this place's tags; it carries ${JSON.stringify(tags ?? [])}`,
+        },
+    ];
+}
+
 /* --------------------------------------------------------------------- */
 /*  The vocabulary                                                        */
 /* --------------------------------------------------------------------- */
@@ -485,6 +534,10 @@ export const DECLARED_TAGS = Object.freeze({
             "holy",
             "sacred",
             "free",
+            "ford",
+            "portage",
+            "pass",
+            "well",
         ]),
     }),
     /** A place's scale, where the subtype does not distinguish it. */
@@ -564,14 +617,13 @@ export function exclusiveTagGroups(type, groups = DECLARED_TAGS) {
 /**
  * Whether a note carries a given tag, however the author wrote it.
  *
- * `tags:` is authored by hand and Obsidian is permissive about it: a single tag
+ * `tags:` accepts common YAML forms: a single tag
  * may be a scalar rather than a list, a value may carry the leading `#` it is
  * written with in prose, and case and surrounding space are not significant.
  * The spelling of the tag *itself* still is — a near miss is a near miss, and
  * the frontmatter lint is what reports it; nothing here guesses.
  *
- * Reads `tags` and, as Dataview does, `tag` — the singular spelling Obsidian
- * also accepts.
+ * Reads `tags` and the singular `tag` spelling.
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} tag - The tag to look for, in its declared spelling.
@@ -663,6 +715,16 @@ export const NOTE_VOCABULARY = Object.freeze({
                 accepts: ["affiliation"],
                 describe: "Affiliations the being belongs to — traditions, polities, and the rest.",
             },
+            {
+                name: "socialTies",
+                kind: "map",
+                keyKind: "address",
+                accepts: ["being", "affiliation"],
+                terms: SOCIAL_TIES,
+                shape: "a map keyed by Address",
+                check: checkSocialTies,
+                describe: `Defining ties directed from this being to others: ${SOCIAL_TIES.map(({ term, meaning }) => `\`${term}\` (${meaning})`).join("; ")}`,
+            },
             { name: "gender", ...TEXT, describe: "`male`, `female` or `other`." },
             {
                 name: "species",
@@ -674,6 +736,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "born",
                 ...TEXT,
+                check: checkBeingDate("born"),
                 describe:
                     "When the being was born — a date, or `unknown` where the birth is " +
                     "unrecorded. Absent, the being was never born.",
@@ -681,6 +744,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "died",
                 ...TEXT,
+                check: checkBeingDate("died"),
                 describe:
                     "When the being died — a date, or `unknown` where the death is " +
                     "unrecorded. Absent, the being is alive.",
@@ -1224,6 +1288,13 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "demonym",
                 ...TEXT,
                 describe: "What a person from this place is called — a Vylarian.",
+            },
+            {
+                name: "purpose",
+                ...TEXT,
+                check: checkPlacePurpose,
+                describe:
+                    "The reason this settlement, site, or structure exists, selected from its placeCharacter tags.",
             },
             {
                 name: "lore",
