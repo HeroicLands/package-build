@@ -58,6 +58,7 @@ function minimal(overrides: Record<string, unknown> = {}) {
         contentPackage: "acme",
         foundryPackage: "acme",
         packageKind: "systems",
+        compatibility: { minimum: "14.359" },
         stats: { lastModifiedBy: "acmebuilder0000" },
         packs: [{ name: "items", type: "Item" }],
         ...overrides,

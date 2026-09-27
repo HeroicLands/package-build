@@ -471,6 +471,7 @@ describe("the narrowed vocabulary is the kind's, not the linter's", () => {
             contentPackage: "toolkit",
             foundryPackage: "docpkg",
             packageKind: "modules",
+            compatibility: { minimum: "14.359" },
             stats: { lastModifiedBy: "docbuilder000000" },
             packs: [{ name: "items", type: "Item" }],
         } as ContentBuildConfigInput);

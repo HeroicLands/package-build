@@ -101,6 +101,7 @@ function config(site: Record<string, unknown> = {}) {
         contentPackage: "demo",
         foundryPackage: "demo",
         packageKind: "modules",
+        compatibility: { minimum: "14.359" },
         stats: { lastModifiedBy: "demobuilder0000" },
         packs: [
             { name: "items", type: "Item" },

@@ -56,6 +56,7 @@ function minimal(overrides: Record<string, unknown> = {}) {
         contentPackage: "acme",
         foundryPackage: "acme",
         packageKind: "systems",
+        compatibility: { minimum: "14.359" },
         stats: { lastModifiedBy: "acmebuilder0000" },
         packs: [{ name: "items", type: "Item" }],
         ...overrides,
@@ -223,6 +224,7 @@ describe("the homepage is written as the mount's `_index.md`", () => {
             contentPackage: "demo",
             foundryPackage: "demo",
             packageKind: "modules",
+            compatibility: { minimum: "14.359" },
             stats: { lastModifiedBy: "demobuilder0000" },
             packs: [
                 { name: "items", type: "Item" },
@@ -448,6 +450,7 @@ describe("the generated Hugo configuration renders `home` and `page` only", () =
                 contentPackage: "demo",
                 foundryPackage: "demo",
                 packageKind: "modules",
+                compatibility: { minimum: "14.359" },
                 homepage: "https://www.heroiclands.org/demo/",
                 stats: { lastModifiedBy: "demobuilder0000" },
                 packs: [{ name: "items", type: "Item" }],

@@ -349,6 +349,8 @@ in `packageBuild.manifestFlags` for a flag the repository has to compute
 itself — the compendium address of a document that exists only once the
 content tree has been walked. Reads the shared pack configuration and
 `package.json`; writes the manifest into `packageBuild.stageDir`.
+`packageBuild.manifest.title` must be a non-empty string, so the staged
+manifest carries the title Foundry requires for installation.
 
 **Refused for `packageKind: documentation`.** A manifest is the file Foundry
 reads to install a package, and a documentation package is not one —
@@ -365,7 +367,8 @@ None.
 1 for `packageKind: documentation`. 1 if `packageBuild.manifestFlags` is
 declared but cannot be loaded, or exports no `flags` function. 1 on any other
 thrown error (a manifest key the configuration cannot supply —
-`package.json` naming no `repository.url`, for instance). Otherwise 0.
+`package.json` naming no `repository.url`, or a missing or blank
+`packageBuild.manifest.title`, for instance). Otherwise 0.
 
 **EXAMPLES**
 

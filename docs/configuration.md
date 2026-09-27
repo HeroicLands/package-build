@@ -1126,7 +1126,7 @@ Any other key on `pdf` is refused:
 
 ### `compatibility`
 
-**Type:** object · **Optional** · default `null`. Refused in a
+**Type:** object · **Required for Foundry packages**. Refused in a
 `documentation` package, which installs into no Foundry data directory and so
 has no Foundry core range to support:
 
@@ -1145,23 +1145,22 @@ aspiration.
 compatibility: { minimum: "14.359", verified: "14.364" }
 ```
 
-| Key                      | Type   | Required                               | Default |
-| ------------------------ | ------ | -------------------------------------- | ------- |
-| `compatibility.minimum`  | string | yes, once `compatibility:` is declared | —       |
-| `compatibility.verified` | string | no                                     | none    |
+| Key                      | Type   | Required                 | Default |
+| ------------------------ | ------ | ------------------------ | ------- |
+| `compatibility.minimum`  | string | yes for Foundry packages | —       |
+| `compatibility.verified` | string | no                       | none    |
 
 > ``package-build config: `compatibility` must be a mapping.``
 
 > ``package-build config: `compatibility.minimum` must be a non-empty string.``
 
+> ``package-build config: `compatibility.minimum` is required for a Foundry package.``
+
 > ``package-build config: `compatibility.<key>` is not a recognized option (expected one of: minimum, verified).``
 
-`compatibility` itself is optional at this validation layer — absent for a
-content-only consumer, which has none to invent — but a repository that
-compiles any pack needs one in practice: reading the floor throws, at
-compile time rather than at configuration time, without it:
-
-> ``package-build: the configuration declares no `compatibility.minimum`, so compiled documents have no honest core version to stamp. Declare it at the top level of package-build.config.yaml.``
+`compatibility` belongs to every `systems` or `modules` package, including a
+module that ships only assets. A `documentation` package declares none because
+it installs no Foundry package and stamps no documents.
 
 ### `relationships`
 
@@ -1529,10 +1528,13 @@ repository has to compute. Neither declares anything, both default to
 
 ### `packageBuild.manifest`
 
+`packageBuild.manifest.title` is a required, non-empty string for a Foundry
+system or module. It is the package name Foundry displays during installation;
+`package-build manifest` refuses to write a manifest without it.
+
 Everything declared here is emitted into the generated manifest unchanged —
 **deliberately not key-checked**, so a key Foundry adds in a later version
-can be declared without waiting on a release of this package. The one rule
-that has a wrong answer rather than an unknown one: a key the build
+can be declared without waiting on a release of this package. A key the build
 **derives** must not also be authored, since the authored value would be
 silently overwritten and the two would be free to disagree with nothing to
 say so.
