@@ -1422,6 +1422,11 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...ANY,
                 describe: "A Foundry Scene export with all its authored fields.",
             },
+            {
+                name: "fixup",
+                ...LIST,
+                describe: "Asset address replacements in an exported Scene.",
+            },
             // A Scene has no `img`, so the shared art key reaches nothing here:
             // a map's background is its own slot, and an `image` address.
             {

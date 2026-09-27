@@ -3567,6 +3567,7 @@ A map note has its own prose and a Foundry Scene. A map can depict a place or an
 | `data` property   | Values       | Description                                                |
 | ----------------- | ------------ | ---------------------------------------------------------- |
 | `scene`           | object       | Exported Foundry Scene for battle and local maps           |
+| `fixup`           | object[]     | Asset address replacements in an exported Scene            |
 | `bgImage`         | Address      | Background image for regional and theatre-of-the-mind maps |
 | `scale`           | object       | Regional distance and unit per grid unit                   |
 | `dimensions`      | `[int, int]` | Optional shared dimensions metadata                        |
@@ -3589,6 +3590,26 @@ A map note has its own prose and a Foundry Scene. A map can depict a place or an
 Author the Scene in Foundry, export it, convert the export to YAML, and put the resulting object at `data.scene`. Preserve its walls, lights, tiles, regions, levels, environment, flags, and canvas settings. The export can name art from another Foundry package; that path is used as authored in Foundry. The Scene needs positive whole-number `width` and `height`, at least one Level, a valid `initialLevel` when present, and a unique 16-character `_id` on each embedded document. The build derives the top-level Scene `_id` from the map note, adds compendium keys and build metadata, and otherwise preserves the exported fields.
 
 A pin's `text` can contain `#anchor`, where the map note has a heading such as `# Big Bad Wolf {#myanchor1}`. With `text: '#myanchor1'`, the compiled pin opens the JournalEntry and page generated from this map note and displays **Big Bad Wolf**. Its position, icon, other settings, and embedded `_id` remain as exported. A missing anchor is a build error. Pins whose text does not use `#anchor` retain their exported text and references.
+
+`data.fixup` replaces exported asset paths without editing the Scene object by
+hand. Each entry has `path`, `type: address`, and `value`, an asset Address in
+the local or a fetched content index. Paths start at `data.scene` and use a
+property path with array indices or stable embedded `_id` selectors. A path
+must name one existing string or null field, and the address must resolve; any
+mistake fails the build. An `_id` selector remains stable when Foundry reorders
+an array on export.
+
+```yaml
+data:
+  fixup:
+    - { path: ".notes[NNNNNNNNNNNNNNNN].texture.src", type: address, value: sohl-none-icon-book }
+    - { path: ".sounds[0].path", type: address, value: sohl-none-audio-forest }
+```
+
+Fixups change the compiled copy only. The exported Scene in the note stays
+intact, and pin anchor binding runs after fixups. A package name such as
+`fvtt` is an ordinary address package name: it needs published asset records
+before its addresses can resolve.
 
 ```yaml
 shortcode: wolfden

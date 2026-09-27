@@ -1950,6 +1950,8 @@ Battle and local map notes can carry a Foundry Scene export under `data.scene`.
 The pack compiler preserves its fields and binds pins marked `#anchor` to pages
 from the map note's Markdown. A `totm` map uses an image Address and canvas
 dimensions to make a gridless Scene.
+`data.fixup` resolves asset Addresses into selected fields of an exported Scene;
+a missing path or asset is a build error.
 
 The four drawings, any of which may be asked for in one run:
 

@@ -2699,6 +2699,9 @@ Scene's canvas and embedded documents stay as authored. A pin whose text is
 `#anchor` opens the JournalEntry page with that heading in the map note and
 displays the heading text. A `totm` map uses a background image and dimensions
 to create a gridless Scene for theatre-of-the-mind play.
+An exported Scene can declare `data.fixup` entries that resolve asset Addresses
+into specific Scene fields. A fixup path can select an embedded document by its
+stable `_id`, so reordering the export does not redirect the replacement.
 
 ### Why the output location is fixed
 

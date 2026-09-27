@@ -97,6 +97,50 @@ describe("exported Foundry Scene", () => {
         ).toThrow(/#myanchor1.*no heading anchor/);
     });
 
+    it("applies address fixups by array index or stable embedded ID", () => {
+        const fm = mapNote() as any;
+        fm.data.fixup = [
+            { path: ".levels[0].background.src", type: "address", value: "demo-none-image-den" },
+            {
+                path: ".notes[NNNNNNNNNNNNNNNN].texture.src",
+                type: "address",
+                value: "demo-none-icon-book",
+            },
+        ];
+        const scene = buildExportedScene(fm, "# Big Bad Wolf {#myanchor1}", {
+            journalEntryId: ENTRY_ID,
+            resolveAddress: (address: string) => `modules/demo/assets/${address}.webp`,
+        }) as any;
+        expect(scene.levels[0].background.src).toBe("modules/demo/assets/demo-none-image-den.webp");
+        expect(scene.notes[0].texture.src).toBe("modules/demo/assets/demo-none-icon-book.webp");
+        expect(fm.data.scene.levels[0].background.src).toBe("other/maps/den.webp");
+        expect(fm.data.scene.notes[0].texture.src).toBe("icons/svg/book.svg");
+    });
+
+    it("rejects missing paths and unresolved fixup addresses", () => {
+        const fm = mapNote() as any;
+        fm.data.fixup = [
+            { path: ".notes[3].texture.src", type: "address", value: "demo-none-icon-book" },
+        ];
+        expect(() =>
+            buildExportedScene(fm, "", {
+                resolveAddress: () => "icons/svg/book.svg",
+            }),
+        ).toThrow(/no array index 3/);
+        fm.data.fixup[0].path = ".notes[ZZZZZZZZZZZZZZZZ].texture.src";
+        expect(() =>
+            buildExportedScene(fm, "", {
+                resolveAddress: () => "icons/svg/book.svg",
+            }),
+        ).toThrow(/matches 0 documents/);
+        fm.data.fixup[0].path = ".notes[0].texture.src";
+        expect(() =>
+            buildExportedScene(fm, "", {
+                resolveAddress: () => null,
+            }),
+        ).toThrow(/does not resolve to an asset/);
+    });
+
     it("refuses missing embedded IDs and invalid level references", () => {
         const fm = mapNote() as any;
         delete fm.data.scene.walls[0]._id;
@@ -115,9 +159,12 @@ describe("exported Foundry Scene", () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "exported-scene-"));
         try {
             const contentBase = path.join(root, "content");
+            const assetsBase = path.join(root, "assets");
             const sceneDir = path.join(root, "scenes");
             const adventureDir = path.join(root, "adventures");
             fs.mkdirSync(contentBase);
+            fs.mkdirSync(path.join(assetsBase, "images"), { recursive: true });
+            fs.writeFileSync(path.join(assetsBase, "images", "parchment.webp"), "webp");
             fs.mkdirSync(sceneDir);
             fs.mkdirSync(adventureDir);
             fs.writeFileSync(
@@ -128,6 +175,8 @@ name: { full: The Wolf's Den }
 type: map
 subType: battlemap
 data:
+  fixup:
+    - { path: '.levels[0].background.src', type: address, value: parchment }
   scene:
     name: Wolf Den Scene
     width: 1900
@@ -150,7 +199,7 @@ The wolf waits here.
             const pack = new Scenes({
                 skipDirectories: [],
                 contentBase,
-                assetsBase: path.join(root, "assets"),
+                assetsBase,
                 dest: sceneDir,
                 companionDests: { adventures: adventureDir },
             });
@@ -161,6 +210,7 @@ The wolf waits here.
             const scene = JSON.parse(fs.readFileSync(path.join(sceneDir, files[0]), "utf8"));
             expect(scene.name).toBe("Wolf Den Scene");
             expect(scene.grid).toEqual({ type: 1, size: 100, distance: 5, units: "ft" });
+            expect(scene.levels[0].background.src).toMatch(/assets\/images\/parchment\.webp$/);
             expect(scene.notes[0].text).toBe("Big Bad Wolf");
             expect(scene.notes[0].entryId).toMatch(/^[A-Za-z0-9]{16}$/);
             expect(scene.notes[0].pageId).toMatch(/^[A-Za-z0-9]{16}$/);

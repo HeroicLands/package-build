@@ -57,6 +57,7 @@ import {
     slugify,
     defaultStats,
     folderField,
+    resolveImg,
 } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 // What an Adventure member may carry is one rule, and the module that owns the
@@ -75,7 +76,7 @@ import { behaviorDocId, buildScene, isMapType, regionDocId } from "./map-notes.m
 import { buildItineraryScenes } from "./itinerary-scenes.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { rasterizeMapSvg } from "./map-raster.mjs";
-import { artSlot } from "./art-fields.mjs";
+import { artPathname, artSlot } from "./art-fields.mjs";
 import { buildExportedScene } from "./exported-scene.mjs";
 
 /**
@@ -440,6 +441,9 @@ export class Scenes extends BasePackCompiler {
         if (fm.data?.scene && fm.subType === "regionalmap") {
             throw new Error("`data.scene` is for battlemap and localmap notes");
         }
+        if (fm.data?.fixup !== undefined && !fm.data?.scene) {
+            throw new Error("`data.fixup` needs an exported Scene at `data.scene`");
+        }
         const bgImage =
             fm.data?.scene ?
                 null
@@ -463,7 +467,19 @@ export class Scenes extends BasePackCompiler {
             :   null;
         const scene =
             fm.data?.scene ?
-                buildExportedScene(fm, markdown, { journalEntryId: entryId, stats: this.stats })
+                buildExportedScene(fm, markdown, {
+                    journalEntryId: entryId,
+                    stats: this.stats,
+                    resolveAddress: (address) => {
+                        const result = artPathname(this.linkIndex, address, "image");
+                        if (!result.resolved || !result.pathname) {
+                            throw new Error(
+                                `Scene fixup address "${address}" cannot resolve to an asset: ${result.reason ?? "no pathname"}`,
+                            );
+                        }
+                        return resolveImg(result.pathname);
+                    },
+                })
             :   buildScene(fm, {
                     packageId: foundryPackageId(),
                     // The art resolver, so the map pass turns an address into the path
