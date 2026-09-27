@@ -739,6 +739,29 @@ compiles to a page, so there is no document to address.
 The index is derived and disposable; it is written under `build/` and rebuilt
 from the tree every time.
 
+### Calendar files for a setting module
+
+A content package with `lore` notes of `subType: calendar` can emit Foundry
+calendar definitions after the content index is built:
+
+```console
+$ npx package-build calendars --calendaria-version 1.4.2
+✅ 5 calendars emitted (10 files).
+```
+
+The command writes `build/calendars/<shortcode>.json` and
+`build/calendars/<shortcode>.calendaria.json` for each calendar. The first is a
+calendar definition; the second wraps the same definition for import through
+Calendaria's settings. The version argument names the Calendaria import format
+the package targets. The envelope uses a fixed `exportedAt` sentinel because
+these files are reproducible build artifacts. A package with no calendars gets
+an empty `build/calendars/` directory.
+
+To ship the files in a Foundry package, add
+`{ from: build/calendars, to: calendars }` to `packageBuild.assets` and run the
+calendar command before `package-build assets`. Running the command requires
+the current content index; regenerate it after changing calendar notes.
+
 ## Step 11 — the release archive
 
 ```console
