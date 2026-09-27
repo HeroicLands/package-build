@@ -42,13 +42,13 @@ it is configurable through [`paths`](configuration.md#paths). The defaults:
 
 | Path                    | Written by                     | Holds                                                         |
 | ----------------------- | ------------------------------ | ------------------------------------------------------------- |
-| `build/packs-json/`     | `content-build package`        | One JSON file per compiled document, before the pack is made. |
-| `build/stage/packs/`    | `content-build package`        | The LevelDB compendium packs.                                 |
+| `build/packs-json/`     | `package-build package`        | One JSON file per compiled document, before the pack is made. |
+| `build/stage/packs/`    | `package-build package`        | The LevelDB compendium packs.                                 |
 | `build/stage/`          | `package-build assets`         | The staged package — manifest, packs, and the shipped files.  |
-| `build/content-index/`  | `content-build content-index`  | This package's published note index.                          |
-| `build/cache/foreign/`  | `content-build deps`           | A dependency's unpacked item catalogue.                       |
-| `build/cache/metadata/` | `content-build deps`           | A dependency's fetched content index.                         |
-| `build/tmp/packs/`      | `content-build package unpack` | A compiled pack extracted back to JSON.                       |
+| `build/content-index/`  | `package-build content-index`  | This package's published note index.                          |
+| `build/cache/foreign/`  | `package-build deps`           | A dependency's unpacked item catalogue.                       |
+| `build/cache/metadata/` | `package-build deps`           | A dependency's fetched content index.                         |
+| `build/tmp/packs/`      | `package-build package unpack` | A compiled pack extracted back to JSON.                       |
 | `build/dist/`           | `package-build release`        | The release archive, and the book when one is built.          |
 
 The two that matter when something is wrong are `build/packs-json/`, which is
@@ -64,7 +64,7 @@ note compiles.
 
 Beyond the identity keys [`getting-started.md`](getting-started.md) covers,
 `package.json` carries the whole command surface of the repository. Nobody types
-`npx content-build package compile`; they type `npm run build`.
+`npx package-build package compile`; they type `npm run build`.
 
 The scripts fall into six groups, and the grouping is the point — a contributor
 who knows the groups can guess a name.
@@ -159,11 +159,11 @@ first failure, and knowing _which_ question failed is most of the diagnosis.
 
 ```json
 "lint": "run-s lint:format lint:markdown lint:addresses lint:content-links lint:lang lint:labels lint:changelog",
-"lint:format": "content-build format",
-"lint:markdown": "content-build markdown",
-"lint:markdown:fix": "content-build markdown --fix",
-"lint:addresses": "content-build lint",
-"lint:content-links": "content-build links",
+"lint:format": "package-build format",
+"lint:markdown": "package-build markdown",
+"lint:markdown:fix": "package-build markdown --fix",
+"lint:addresses": "package-build lint",
+"lint:content-links": "package-build links",
 "lint:lang": "package-build lang check",
 "lint:labels": "package-build labels check",
 "lint:changelog": "package-build changelog check"
@@ -204,10 +204,10 @@ and stops at the first failure, which is what makes a named chain readable.
 "build:local": "npm i && npm run build:noci",
 "build:noci": "run-s lint build:db build:module",
 "build:db": "run-s build:content-index build:assets build:compiledb",
-"build:content-index": "content-build content-index",
+"build:content-index": "package-build content-index",
 "build:assets": "package-build assets",
-"build:compiledb": "content-build package compile",
-"build:unpackdb": "content-build package unpack",
+"build:compiledb": "package-build package compile",
+"build:unpackdb": "package-build package unpack",
 "build:module": "package-build manifest",
 "build:pack-release": "package-build release"
 ```
@@ -234,7 +234,7 @@ another's, so their order among themselves is legibility rather than necessity.
 `build:unpackdb` is the inverse of `build:compiledb`: it extracts a compiled
 LevelDB pack back to JSON, which is how you read what actually shipped.
 
-A package with a dependency adds `"build:deps": "content-build deps fetch"` at
+A package with a dependency adds `"build:deps": "package-build deps fetch"` at
 the head of `build:db`. Fetching is its own step and never happens during a
 compile, so a build never reaches the network silently — a cold cache fails
 naming `deps fetch`.
@@ -242,8 +242,8 @@ naming `deps fetch`.
 ### `format` — writing rather than checking
 
 ```json
-"format": "content-build format --write",
-"format:check": "content-build format"
+"format": "package-build format --write",
+"format:check": "package-build format"
 ```
 
 Two names for one command because two audiences want it: a contributor wants
@@ -276,14 +276,14 @@ package carries this group:
 
 ```json
 "build:site": "run-s build:site-content build:site-html build:site-root",
-"build:site-content": "content-build site",
+"build:site-content": "package-build site",
 "build:site-html": "hugo --source build/hugo --minify --gc --cleanDestinationDir",
 "build:site-root": "package-build site-root",
 "serve:site": "npm run build:site-content && hugo server --source build/hugo"
 ```
 
 `build:site-content` writes the whole Hugo source tree under `build/hugo/` —
-the generated `hugo.toml` and the content mount — with `content-build site`;
+the generated `hugo.toml` and the content mount — with `package-build site`;
 `build:site-html` runs Hugo over it, rendering into `build/site/<contentPackage>/`;
 `build:site-root` writes the deployment's `_headers` beside that and indexes
 the rendered pages for search into `build/site/<contentPackage>/pagefind/`;
@@ -300,7 +300,7 @@ no other dependency still runs `deps fetch` first:
 
 ```json
 "build:site": "run-s build:deps build:site-content build:site-html build:site-root",
-"build:deps": "content-build deps fetch"
+"build:deps": "package-build deps fetch"
 ```
 
 ### Deployment scripts
@@ -330,7 +330,7 @@ options the toolchain applies — without it they fall back to Prettier's own
 defaults, and a print width that differs from the project's turns every
 save into a diff the lint chain reverts.
 
-`content-build markdown` needs no equivalent file: it hands the shared rule set
+`package-build markdown` needs no equivalent file: it hands the shared rule set
 to markdownlint directly, and a repository that declares nothing gets it. A
 `.markdownlint-cli2.jsonc` is for the editor's markdownlint extension, and
 [`@heroiclands/package-build/markdownlint`](api.md) is the export it re-uses —
@@ -342,7 +342,7 @@ that file excluded. The command always excludes `node_modules`.
 
 ## `.prettierignore`
 
-`content-build format` already consults `.gitignore`, so generated trees named
+`package-build format` already consults `.gitignore`, so generated trees named
 there need no second entry. `.prettierignore` is for the opposite case: files
 that are **committed** and must not be rewritten.
 
@@ -399,8 +399,8 @@ developer's absolute path. Unanchored so the same cannot happen one directory
 down, which is where a nested worktree puts it.
 
 Note also that `.gitignore` is what keeps `build/` out of the prose checks:
-`content-build format` reads `.gitignore` and `.prettierignore` both, and
-`content-build markdown` reads `.gitignore`.
+`package-build format` reads `.gitignore` and `.prettierignore` both, and
+`package-build markdown` reads `.gitignore`.
 
 ## `.changeset/`
 
@@ -515,8 +515,8 @@ A summary, because "where does this come from" is the question that recurs.
 | `package.json`                                     | The Foundry package id, the version, the release addresses; the site's `baseURL`, description and author. |
 | `package-build.config.yaml`                        | Everything else about the build.                                                                          |
 | `assets/content/**/*.md`                           | Every content command.                                                                                    |
-| `.gitignore`                                       | `content-build format`, `content-build markdown`.                                                         |
-| `.prettierignore`                                  | `content-build format`.                                                                                   |
+| `.gitignore`                                       | `package-build format`, `package-build markdown`.                                                         |
+| `.prettierignore`                                  | `package-build format`.                                                                                   |
 | `.github/labels.yml`, `.github/ISSUE_REPORTING.md` | `package-build labels check`.                                                                             |
 | `lang/*.json`                                      | `package-build lang`.                                                                                     |
 | `.env.local`                                       | `package-build deploy`.                                                                                   |

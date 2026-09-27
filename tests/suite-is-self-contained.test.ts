@@ -59,7 +59,7 @@ function suiteFiles(dir: string): string[] {
 
 const files = suiteFiles(HERE);
 
-describe("the content-build suite needs nothing from a consuming repository", () => {
+describe("the package-build suite needs nothing from a consuming repository", () => {
     it("finds the suite it is guarding", () => {
         // A broken walk would make every case below vacuously pass.
         expect(files.length).toBeGreaterThan(0);

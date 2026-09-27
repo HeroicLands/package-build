@@ -15,20 +15,8 @@
  * `@heroiclands/package-build` — the shared toolchain for building and shipping
  * a HeroicLands **Foundry package**, content and all.
  *
- * This package was two: `content-build`, which read `assets/content/**` and
- * produced compendium packs, site content and the link manifest, and this one,
- * which read `lang/`, `styles/`, `src/` and the manifest template. They were
- * split by *input* on the theory that a module would use either — an adventure
- * shipping only notes needs no bundler, a variant shipping only behavior needs
- * no Markdown pipeline.
- *
- * **No consumer ever used one alone.** All three installed both, and this
- * package depended on the other besides, so the packaging half dragged the
- * content half in regardless. What the boundary actually cost was a
- * configuration file with two owners, two CLIs with a colliding `manifest`
- * command, and a two-repository dance for changes that touched one idea. The
- * two halves are now one package; the split survives as the shape of this
- * barrel and nothing more.
+ * Content and package operations share one configuration and one CLI. The
+ * exports here provide library entry points for both kinds of work.
  *
  * **Everything exported here is pure.** Functions take source text and return
  * findings or values; discovery, I/O and reporting stay with the caller. That

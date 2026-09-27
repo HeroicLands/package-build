@@ -344,7 +344,7 @@ function documentationRepo(): string {
 }
 
 /** Run one command of either binary against a fixture repository. */
-function run(dir: string, binary: "content-build" | "package-build", ...args: string[]) {
+function run(dir: string, binary: "package-build" | "package-build", ...args: string[]) {
     const r = spawnSync(process.execPath, [path.join(ROOT, "bin", `${binary}.mjs`), ...args], {
         cwd: dir,
         env: {
@@ -359,7 +359,7 @@ function run(dir: string, binary: "content-build" | "package-build", ...args: st
 describe("what the pipeline does with one", () => {
     it("builds the site, and no Foundry document with it", () => {
         const dir = documentationRepo();
-        const { out, status } = run(dir, "content-build", "site");
+        const { out, status } = run(dir, "package-build", "site");
 
         expect(out).not.toMatch(/error:/);
         expect(status).toBe(0);
@@ -382,11 +382,11 @@ describe("what the pipeline does with one", () => {
     it("refuses to build the site from a cold navigation cache, naming `deps fetch`", () => {
         const dir = documentationRepo();
         fs.rmSync(navigationCacheDir(defineConfig(minimal(dir))), { recursive: true });
-        const { out, status } = run(dir, "content-build", "site");
+        const { out, status } = run(dir, "package-build", "site");
 
         expect(status).not.toBe(0);
         expect(out).toMatch(
-            /navigation has not been fetched\. Run `content-build deps fetch` first/,
+            /navigation has not been fetched\. Run `package-build deps fetch` first/,
         );
         // Nothing was written: the sources are read before the output tree is
         // touched, so the previous site is intact to look at.
@@ -395,7 +395,7 @@ describe("what the pipeline does with one", () => {
 
     it("builds the book from the same tree", () => {
         const dir = documentationRepo();
-        const { out, status } = run(dir, "content-build", "pdf", "--no-compile");
+        const { out, status } = run(dir, "package-build", "pdf", "--no-compile");
 
         expect(out).toMatch(/Typst source:/);
         expect(status).toBe(0);
@@ -403,7 +403,7 @@ describe("what the pipeline does with one", () => {
 
     it("publishes a content index another package can resolve an address into", () => {
         const dir = documentationRepo();
-        const { status } = run(dir, "content-build", "content-index");
+        const { status } = run(dir, "package-build", "content-index");
 
         expect(status).toBe(0);
         const index = path.join(dir, "build", "content-index", "toolkit-metadata.jsonl");
@@ -427,7 +427,7 @@ describe("what the pipeline does with one", () => {
 
     it("refuses to run a compile pass", () => {
         const dir = documentationRepo();
-        const { out, status } = run(dir, "content-build", "package", "compile");
+        const { out, status } = run(dir, "package-build", "package", "compile");
 
         // Exiting 0 having compiled nothing is the quiet failure — a build that
         // succeeds and produces no documents.
@@ -441,7 +441,7 @@ describe("what the pipeline does with one", () => {
             path.join(dir, "assets", "content", "Guides", "dagger.md"),
             "---\ntype: weapongear\nshortcode: dagger\nname:\n  full: Dagger\n---\n\nA blade.\n",
         );
-        const { out, status } = run(dir, "content-build", "lint");
+        const { out, status } = run(dir, "package-build", "lint");
 
         expect(out).toMatch(/`type: weapongear` compiles to a Foundry document/);
         // Located at the value the finding is about, not at the frontmatter's
@@ -452,7 +452,7 @@ describe("what the pipeline does with one", () => {
 
     it("passes a tree of the vocabulary it does have", () => {
         const dir = documentationRepo();
-        const { out, status } = run(dir, "content-build", "lint");
+        const { out, status } = run(dir, "package-build", "lint");
 
         expect(out).not.toMatch(/error:/);
         expect(status).toBe(0);

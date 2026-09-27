@@ -99,7 +99,7 @@ describe("package-build schema", () => {
         expect(fs.existsSync(path.join(root, "schema.json"))).toBe(false);
     });
 
-    it("publishes an artifact `content-build content-format schema` can read", () => {
+    it("publishes an artifact `package-build content-format schema` can read", () => {
         run("schema");
         const artifact = JSON.parse(
             fs.readFileSync(path.join(root, "build", "schema.json"), "utf8"),

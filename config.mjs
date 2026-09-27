@@ -526,7 +526,7 @@ function normalizeExceptions(value, field, where) {
  * The resolved `packageBuild` section, every optional half filled in.
  *
  * @typedef {object} PackageBuildConfig
- * @property {string} rootDir        The repository root, from content-build.
+ * @property {string} rootDir        The repository root, from package-build.
  * @property {string} packageKind    `systems` or `modules`.
  * @property {string} packageId      The Foundry package id.
  * @property {string} artifact       Derived: `system` or `module`.
@@ -921,7 +921,7 @@ export function resolvePackageBuildConfig(shared) {
 /**
  * The repository's resolved package-build configuration.
  *
- * Read on call rather than at import, exactly as content-build resolves its
+ * Read on call rather than at import, exactly as package-build resolves its
  * own: importing a module of this package must not require a configuration to
  * exist anywhere above it.
  *

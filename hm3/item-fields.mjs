@@ -40,7 +40,7 @@
  * are written bare, exactly as SoHL's are: the `data:` region is the sweep's
  * migration and neither half has moved to it. Spelling HM3's differently would
  * make a note feeding both systems author the same fact twice for no gain, and
- * would take these rows out of reach of `content-build content-format fields`,
+ * would take these rows out of reach of `package-build content-format fields`,
  * which pairs a `data.<key>` claim with a bare declared `<key>`. Both halves
  * move together when the sweep lands.
  *

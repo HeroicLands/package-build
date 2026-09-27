@@ -14,7 +14,7 @@
 /**
  * The shared Prettier configuration, as a Prettier config module.
  *
- * `content-build format` already applies these rules without a consumer
+ * `package-build format` already applies these rules without a consumer
  * declaring anything, so this exists for the **editor**: a format-on-save that
  * disagrees with the lint chain is a papercut every contributor hits, and
  * Prettier's editor integrations read a config file rather than asking this

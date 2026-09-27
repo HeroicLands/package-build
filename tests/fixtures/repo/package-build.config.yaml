@@ -1,7 +1,7 @@
 # Development-only configuration for this package's OWN test suite.
 #
 # It is not published — `files` in package.json does not list `tests` — so an
-# installed copy under `node_modules/@heroiclands/content-build/` never shadows
+# installed copy under `node_modules/@heroiclands/package-build/` never shadows
 # a consuming repository's config.
 #
 # WHY THIS FILE EXISTS: the suite has cases *about configured behaviour* — that
@@ -14,7 +14,7 @@
 # WHY IT LIVES HERE rather than at the repository root: the Foundry package id
 # and the system version are derived from the `package.json` beside the
 # configuration (#50). At the root, that is *this toolchain's* manifest —
-# `@heroiclands/content-build`, which is not a Foundry package id and not a game
+# `@heroiclands/package-build`, which is not a Foundry package id and not a game
 # system version. So the configuration sits in a fixture directory with a
 # `package.json` shaped like a consumer's, which is both what makes the
 # derivation meaningful and a more honest fixture than a placeholder pretending

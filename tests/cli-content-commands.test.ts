@@ -9,7 +9,7 @@
  * The content commands run against a content tree.
  *
  * This repository ships no content, so nothing here had ever *run*
- * `content-build lint` or `content-build site` over a tree — every test called
+ * `package-build lint` or `package-build site` over a tree — every test called
  * the engine functions directly, with arguments a test supplies. So when
  * `walkMarkdownTree` stopped defaulting its scope, two CLI callers that
  * had been living on that default broke, and the whole suite stayed green:
@@ -28,7 +28,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const CLI = path.join(PKG_ROOT, "bin", "content-build.mjs");
+const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
 let root: string;
 
@@ -83,7 +83,7 @@ function run(...args: string[]): string {
 }
 
 describe("a content command reaches the content", () => {
-    it.each(["lint", "links", "site"])("`content-build %s` states the walk's scope", (cmd) => {
+    it.each(["lint", "links", "site"])("`package-build %s` states the walk's scope", (cmd) => {
         // The failure this exists for: a caller that omits `skipDirectories`
         // throws on the first note, so the command reports nothing about the
         // tree and its exit code is the only symptom.
@@ -105,7 +105,7 @@ describe("a content command reaches the content", () => {
      * to be looking at the tree the compile will, or its counts describe a
      * corpus nobody builds.
      */
-    it("`content-build content-format notes` measures the configured corpus", () => {
+    it("`package-build content-format notes` measures the configured corpus", () => {
         const out = run("content-format", "notes");
 
         expect(out).not.toMatch(/requires `skipDirectories`/);
@@ -135,7 +135,7 @@ describe("a note the content index cannot record", () => {
     afterAll(() => fs.rmSync(bad, { force: true }));
 
     it.each(["lint", "links", "content-format notes"])(
-        "`content-build %s` reports it with a position and still reads the tree",
+        "`package-build %s` reports it with a position and still reads the tree",
         (cmd) => {
             const out = run(...cmd.split(" "));
 

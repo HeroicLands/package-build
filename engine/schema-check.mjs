@@ -468,7 +468,7 @@ export function compareEmittedSystem({
  *
  * - **A system**: its own `schema.json`, generated from its `src/` into
  *   `build/` by `package-build schema`.
- * - **A module**: the copy cached by `content-build deps fetch`, from the
+ * - **A module**: the copy cached by `package-build deps fetch`, from the
  *   archive of the version it pins — which is what makes the comparison happen
  *   at `verified` rather than against whatever the system's `main` holds today.
  *   That distinction is the whole of the `affiliation.subType` case.
@@ -640,7 +640,7 @@ function schemaFor(config, system = undefined) {
  * version released before the artifact existed, or a subtype the artifact does
  * not name, produces no findings — the same stance `compareFields` takes, where
  * an unknown subtype is a routing question rather than a field one. The
- * whole-build check in `content-build lint` is where a missing artifact is said
+ * whole-build check in `package-build lint` is where a missing artifact is said
  * out loud, once, instead of per note.
  *
  * @param {object} fm - The note's frontmatter.
@@ -690,7 +690,7 @@ export function checkAuthoredSystemData(
  * **Silent where there is nothing to check against**, exactly as its two
  * siblings are: a module pinning a system version released before the artifact
  * existed, or a subtype the artifact does not name, produces no findings.
- * `content-build lint` is where a missing artifact is said out loud, once.
+ * `package-build lint` is where a missing artifact is said out loud, once.
  *
  * @param {object} emitted - The `system` block the compiler produced.
  * @param {object} opts

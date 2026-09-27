@@ -1,7 +1,7 @@
 {
     "_comment": [
         "A copy of HarnMaster-3-FoundryVTT's published schema.json, so this repository can",
-        "run `content-build content-format schema` against HM3's column of the mapping",
+        "run `package-build content-format schema` against HM3's column of the mapping",
         "tables in its own CI. package-build ships no system, so there is no artifact here",
         "to point the check at, and its sibling `schema-sohl.json` is the same stand-in for",
         "the other column.",

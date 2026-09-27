@@ -109,13 +109,13 @@ export * as mapPlaces from "./map-places.mjs";
 /** The geometry of the map from a place: bearings to angles, days to rings, hops composed. */
 export * as mapLayout from "./map-layout.mjs";
 
-/** The three drawings of `content-build map`, as DOT. */
+/** The three drawings of `package-build map`, as DOT. */
 export * as mapDot from "./map-dot.mjs";
 
 /** GraphViz, as the map command finds and runs it. */
 export * as mapGraphviz from "./map-graphviz.mjs";
 
-/** `content-build map`: the drawings, written under `build/map/`. */
+/** `package-build map`: the drawings, written under `build/map/`. */
 export * as mapBuild from "./map-build.mjs";
 
 /** The map from each place, drawn for the site and written into its page. */

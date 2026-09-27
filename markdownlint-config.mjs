@@ -14,7 +14,7 @@
 /**
  * The shared markdownlint rules, as a markdownlint-cli2 options module.
  *
- * `content-build markdown` applies these without a consumer declaring
+ * `package-build markdown` applies these without a consumer declaring
  * anything; this is for an editor's markdownlint extension, and for a consumer
  * that wants to *extend* the set rather than replace it:
  *

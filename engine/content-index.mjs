@@ -46,7 +46,7 @@
  * nested access — whereas a stored schema would forfeit the open shape.
  *
  * **Byte-stable, because it is meant to be rebuilt.** {@link emitContentIndex}
- * is reachable on its own (`content-build content-index`) and costs a
+ * is reachable on its own (`package-build content-index`) and costs a
  * frontmatter parse, not a build, so the honest expectation is that anyone
  * regenerates it whenever they want rather than treating it as precious. That
  * only holds if two runs over an unchanged tree produce an identical file, so

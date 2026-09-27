@@ -9,8 +9,8 @@
  * `docs/commands.md` documents the real command surface, not a hand-kept
  * transcription of it.
  *
- * The two binaries — `bin/package-build.mjs`, `bin/content-build.mjs` — build
- * their yargs command trees from `<name>Command()` factory functions, each
+ * The CLI registers commands from `bin/package-build.mjs` and
+ * `bin/content-commands.mjs`. Both build their yargs command trees from `<name>Command()` factory functions, each
  * returning a `{ command, describe, builder, handler }` module. This file
  * parses both sources directly: it locates every `*Command()` function body by
  * brace-matching, finds which of them are wired as root commands versus nested
@@ -26,18 +26,19 @@
  * constants rather than guessed.
  *
  * What "documented" means, mechanically: the full invocation path
- * (`` `package-build clean` ``, `` `content-build content-format schema` ``)
+ * (`` `package-build clean` ``, `` `package-build content-format schema` ``)
  * appears verbatim; every bracketed or angled placeholder in the command
  * signature (`<stage>`, `[paths..]`) appears verbatim; every option appears as
  * `` `--name` ``; every choice value appears backtick-quoted. None of this
  * checks the prose is *correct* — only that nothing enumerable from the
- * binaries is missing from the page a developer reads instead of `--help`.
+ * command modules is missing from the page a developer reads instead of `--help`.
  */
 
 import { describe, it, expect } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execFileSync } from "node:child_process";
 import { CONTAINER_ACTIONS } from "../container.mjs";
 import { E2E_MODES } from "../e2e.mjs";
 
@@ -117,11 +118,11 @@ function choicesIn(body: string): string[] {
 }
 
 /**
- * Build the command tree for one binary: every root `.command(fooCommand())`
+ * Build the command tree for one command module: every root `.command(fooCommand())`
  * call that is not textually inside another `*Command()` function's own body,
  * recursively, with each node's own signature/options/positionals/choices.
  *
- * @param source - The binary's full source text.
+ * @param source - The command module's full source text.
  */
 function parseCommandTree(source: string): CommandNode[] {
     const bodies = functionBodies(source);
@@ -189,11 +190,11 @@ function flatten(nodes: CommandNode[]): CommandNode[] {
 }
 
 const PACKAGE_BUILD_SRC = fs.readFileSync(path.join(ROOT, "bin/package-build.mjs"), "utf8");
-const CONTENT_BUILD_SRC = fs.readFileSync(path.join(ROOT, "bin/content-build.mjs"), "utf8");
+const CONTENT_COMMANDS_SRC = fs.readFileSync(path.join(ROOT, "bin/content-commands.mjs"), "utf8");
 
-const BINARIES: { binary: string; source: string }[] = [
+const COMMAND_SOURCES: { binary: string; source: string }[] = [
     { binary: "package-build", source: PACKAGE_BUILD_SRC },
-    { binary: "content-build", source: CONTENT_BUILD_SRC },
+    { binary: "package-build", source: CONTENT_COMMANDS_SRC },
 ];
 
 /** Every root command tree, tagged with the binary and its full name path. */
@@ -206,7 +207,7 @@ interface TaggedNode {
 
 function allNodes(): TaggedNode[] {
     const out: TaggedNode[] = [];
-    for (const { binary, source } of BINARIES) {
+    for (const { binary, source } of COMMAND_SOURCES) {
         const roots = parseCommandTree(source);
         const walk = (node: CommandNode, prefix: string[]) => {
             const nodePath = [...prefix, node.name];
@@ -221,7 +222,7 @@ function allNodes(): TaggedNode[] {
 const nodes = allNodes();
 const doc = fs.readFileSync(DOC_PATH, "utf8");
 
-describe("the two binaries' real command surface, extracted from source", () => {
+describe("the command's real surface, extracted from source", () => {
     it("has 32 top-level commands", () => {
         const topLevel = nodes.filter((n) => n.path.length === 1);
         expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(32);
@@ -233,17 +234,46 @@ describe("the two binaries' real command surface, extracted from source", () => 
         ).toBe(true);
     });
 
-    it("includes `content-build pdf`", () => {
-        expect(nodes.some((n) => n.binary === "content-build" && n.path.join(" ") === "pdf")).toBe(
+    it("includes `package-build pdf`", () => {
+        expect(nodes.some((n) => n.binary === "package-build" && n.path.join(" ") === "pdf")).toBe(
             true,
         );
+    });
+
+    it("lists every top-level command in root help", () => {
+        const help = execFileSync(
+            process.execPath,
+            [path.join(ROOT, "bin/package-build.mjs"), "--help"],
+            {
+                encoding: "utf8",
+            },
+        );
+        for (const node of nodes.filter((entry) => entry.path.length === 1)) {
+            expect(help).toContain(`package-build ${node.path[0]}`);
+        }
+        expect(help).toContain("package-build <command> --help");
+    });
+
+    it("shows actions and options in command help", () => {
+        const help = (command: string) =>
+            execFileSync(
+                process.execPath,
+                [path.join(ROOT, "bin/package-build.mjs"), command, "--help"],
+                {
+                    encoding: "utf8",
+                },
+            );
+        expect(help("package")).toContain("compile");
+        expect(help("package")).toContain("unpack");
+        expect(help("docs")).toContain("item-fields");
+        expect(help("pdf")).toContain("--book-version");
     });
 
     // A representative sample of the parse itself, independent of the
     // document — if this drifts, the parser is wrong, not the document.
     it("finds content-format's three actions nested under it", () => {
         const names = nodes
-            .filter((n) => n.binary === "content-build" && n.path[0] === "content-format")
+            .filter((n) => n.binary === "package-build" && n.path[0] === "content-format")
             .map((n) => n.path.join(" "));
         expect(names.sort()).toEqual(
             [
@@ -300,7 +330,7 @@ describe("the seven options named nowhere before this document", () => {
 
 describe("guard sanity: the parse is not vacuous", () => {
     it("found at least one option and one choice value in the real surface", () => {
-        const flat = flatten(BINARIES.flatMap(({ source }) => parseCommandTree(source)));
+        const flat = flatten(COMMAND_SOURCES.flatMap(({ source }) => parseCommandTree(source)));
         expect(flat.some((n) => n.options.length > 0)).toBe(true);
         expect(flat.some((n) => n.choices.length > 0)).toBe(true);
     });

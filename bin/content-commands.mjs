@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /*
  * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
  * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
@@ -13,43 +12,26 @@
  */
 
 /**
- * The `content-build` command line — compile / unpack / clean LevelDB packs.
- *
- * A thin `yargs` front end over `../engine/compendiums.mjs`. **Every side
- * effect the pack pipeline has lives here**: argv parsing, `loglevel`
- * configuration, directory creation, reading the shipped Foundry package
- * manifest, and the process exit code. The library itself is import-safe, so a
- * consuming repository's build — or a test — can call it without any of this
- * happening.
- *
- * The side effects that need *configuration* live inside the command handler,
- * not at module scope, so `--version` and `--help` answer in a directory that
- * has neither a `package-build.config.yaml` nor a package manifest.
- * Running an actual command still resolves both, and still fails loudly when
- * either is missing.
- *
- * Every path and pack name it hands the library comes from the consuming
- * repository's `package-build.config.yaml`, located by
- * `engine/pack-config.mjs`; nothing about any one repository's layout is
- * written here.
+ * Content command modules registered by the `package-build` CLI.
+ * Configuration is read in handlers, so help and version work without a
+ * package configuration. Build inputs come from `package-build.config.yaml`.
  *
  * Usage:
- *   npx content-build package compile [pack]
- *   npx content-build package unpack [pack] [entry]
- *   npx content-build package clean [pack] [entry]
- *   npx content-build docs item-fields [--out <path>] [--title <title>]
- *   npx content-build lint [root] [--no-references]
- *   npx content-build content-format schema --schema <system>=<path>
- *   npx content-build content-format fields [--fields <system>]
- *   npx content-build content-format notes [root] [--strict]
- *   npx content-build links [root] [--manifests <dir>]
- *   npx content-build format [paths..] [--write]
- *   npx content-build markdown [paths..] [--fix]
- *   npx content-build manifest [root] [--out <dir>]
- *   npx content-build site [--out <dir>]
- *   npx content-build map [--tree] [--from <shortcode>] [--chart <shortcode>] [--travel] [--out <dir>]
- *   npx content-build reachability <dir> [file] [--index <shortcode>]
- *   npx content-build addresses diff --from <zip|dir> [--strict]
+ *   npx package-build package compile [pack]
+ *   npx package-build package unpack [pack] [entry]
+ *   npx package-build package clean [pack] [entry]
+ *   npx package-build docs item-fields [--out <path>] [--title <title>]
+ *   npx package-build lint [root] [--no-references]
+ *   npx package-build content-format schema --schema <system>=<path>
+ *   npx package-build content-format fields [--fields <system>]
+ *   npx package-build content-format notes [root] [--strict]
+ *   npx package-build links [root] [--manifests <dir>]
+ *   npx package-build format [paths..] [--write]
+ *   npx package-build markdown [paths..] [--fix]
+ *   npx package-build site [--out <dir>]
+ *   npx package-build map [--tree] [--from <shortcode>] [--chart <shortcode>] [--travel] [--out <dir>]
+ *   npx package-build reachability <dir> [file] [--index <shortcode>]
+ *   npx package-build addresses diff --from <zip|dir> [--strict]
  *
  * In a consuming repository, wrapped as npm scripts — SoHL spells them:
  *   npm run build:compiledb                // → … package compile (all packs)
@@ -61,8 +43,6 @@ import fs from "fs";
 import path from "node:path";
 import log from "loglevel";
 import prefix from "loglevel-plugin-prefix";
-import yargs from "yargs";
-import { hideBin } from "yargs/helpers";
 import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
@@ -170,21 +150,6 @@ function configuredPacks() {
     return loadPackConfig().packDirectories.map((name) => ({ name }));
 }
 
-/**
- * This package's own version, for `--version`.
- *
- * Read from the package's `package.json` rather than left to yargs, which
- * defaults to the *nearest* `package.json` walking up from the working
- * directory — inside a consuming repository that is the consumer's manifest, so
- * `content-build --version` reported the consumer's version instead of the
- * toolchain's.
- *
- * @returns {string} The `version` field of this package's manifest.
- */
-function ownVersion() {
-    return JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
-}
-
 // Configure loglevel
 log.setLevel("info"); // Set desired logging level
 
@@ -246,33 +211,24 @@ function readRawNote(file) {
  */
 const SHIPPED_ITEM_FIELDS = { sohl: ITEM_FIELDS, hm3: HM3_ITEM_FIELDS };
 
-const argv = yargs(hideBin(process.argv))
-    .command(packageCommand())
-    .command(depsCommand())
-    .command(docsCommand())
-    .command(lintCommand())
-    .command(contentFormatCommand())
-    .command(linksCommand())
-    .command(formatCommand())
-    .command(markdownCommand())
-    .command(contentIndexCommand())
-    .command(siteCommand())
-    .command(pdfCommand())
-    .command(mapCommand())
-    .command(reachabilityCommand())
-    .command(addressesCommand())
-    .version(ownVersion())
-    .help()
-    .alias("help", "h")
-    // Every invocation this CLI accepts must be one it performs. yargs
-    // gives neither guarantee by default: without `demandCommand` a bare
-    // `content-build` exits 0 in silence, and without `strict` an unknown
-    // command or option is ignored rather than reported. Both would read as
-    // success from a `run-s` chain, so a typo in a build script passed the step
-    // it was meant to run. The sibling toolchain `@heroiclands/package-build`
-    // opts into the same two.
-    .demandCommand(1, "Name a command.")
-    .strict().argv;
+/** Register the content operations on the package command line. */
+export function registerContentCommands(cli) {
+    return cli
+        .command(packageCommand())
+        .command(depsCommand())
+        .command(docsCommand())
+        .command(lintCommand())
+        .command(contentFormatCommand())
+        .command(linksCommand())
+        .command(formatCommand())
+        .command(markdownCommand())
+        .command(contentIndexCommand())
+        .command(siteCommand())
+        .command(pdfCommand())
+        .command(mapCommand())
+        .command(reachabilityCommand())
+        .command(addressesCommand());
+}
 
 /**
  * `docs item-fields` — render this repository's item-frontmatter reference.
@@ -354,7 +310,7 @@ function docsCommand() {
                 const body = `${renderItemFieldReference({
                     title: pageTitle,
                     ...(spec.preamble ? { preamble: spec.preamble } : {}),
-                    generatedBy: "`content-build docs item-fields`",
+                    generatedBy: "`package-build docs item-fields`",
                     config,
                 })}\n`;
                 // A page filed under the content tree is walked for its
@@ -395,7 +351,7 @@ function docsCommand() {
                             severity: "error",
                             message:
                                 "out of date with the item-field declarations " +
-                                "— run `content-build docs item-fields` and " +
+                                "— run `package-build docs item-fields` and " +
                                 "commit the regenerated file",
                         });
                         process.exitCode = 1;
@@ -423,7 +379,7 @@ function docsCommand() {
 }
 
 /**
- * `content-build content-format` — check the format specification itself.
+ * `package-build content-format` — check the format specification itself.
  *
  * Two checks, because the specification makes claims about two different
  * worlds, and they fail for different reasons and at different times:
@@ -754,7 +710,7 @@ function contentFormatNotesCommand() {
 }
 
 /**
- * `content-build lint` — check a content tree's addresses.
+ * `package-build lint` — check a content tree's addresses.
  *
  * Deliberately independent of the pack pipeline: it compiles nothing, opens no
  * LevelDB and needs no Foundry manifest, so it runs in a second and can gate a
@@ -910,7 +866,7 @@ function lintCommand() {
                             `@${config.stats.systemVersion ?? "?"}, so emitted ` +
                             `\`system\` fields are unchecked. A system ` +
                             `generates its own; a module gets one from ` +
-                            `\`content-build deps fetch\`.`,
+                            `\`package-build deps fetch\`.`,
                     );
                 }
                 const fieldSpecs = config.itemFields ?? {};
@@ -1061,7 +1017,7 @@ function lintCommand() {
 }
 
 /**
- * `content-build format` — Prettier, with the shared configuration.
+ * `package-build format` — Prettier, with the shared configuration.
  *
  * Deliberately **not** scoped to the content tree, and deliberately free of the
  * pack configuration: a repository's formatting covers everything it holds, and
@@ -1167,7 +1123,7 @@ function formatCommand() {
 }
 
 /**
- * `content-build markdown` — markdownlint, with the shared rule set.
+ * `package-build markdown` — markdownlint, with the shared rule set.
  *
  * The structural checks Prettier cannot make: a heading level that skips, two
  * sibling headings claiming one anchor, a reversed link, an emphasis marker
@@ -1215,7 +1171,7 @@ function markdownCommand() {
 }
 
 /**
- * `content-build links` — check that every link in a content tree lands.
+ * `package-build links` — check that every link in a content tree lands.
  *
  * Reports a dead `#anchor`, a dead qualified address, and a wikilink authored
  * in frontmatter, plus a vendored manifest that has drifted out of reach. All
@@ -1278,7 +1234,7 @@ function linksCommand() {
                             message: `unusable content index: ${s.reason}`,
                         });
                     }
-                    log.error("Re-run `content-build deps fetch`.");
+                    log.error("Re-run `package-build deps fetch`.");
                     process.exitCode = 1;
                     return;
                 }
@@ -1385,7 +1341,7 @@ function linksCommand() {
 }
 
 /**
- * `content-build content-index` — emit this package's note index.
+ * `package-build content-index` — emit this package's note index.
  *
  * Every build already walks the tree and parses every note's frontmatter, then
  * throws the result away, so nothing outside a build can ask a question about
@@ -1438,7 +1394,7 @@ function contentIndexCommand() {
 }
 
 /**
- * `content-build pdf` — build the book the content tree publishes as.
+ * `package-build pdf` — build the book the content tree publishes as.
  *
  * The third surface, beside `package compile` and `site`. It takes the same
  * `--out` override the site command does, and reports what it found in the same
@@ -1523,7 +1479,7 @@ function pdfCommand() {
 }
 
 /**
- * `content-build site` — publish the content tree as a website.
+ * `package-build site` — publish the content tree as a website.
  *
  * The sibling of `package compile`: the same tree, rendered as pages instead of
  * compiled into packs. Everything a consumer would otherwise write for itself —
@@ -1699,7 +1655,7 @@ function siteCommand() {
 }
 
 /**
- * `content-build map` — draw what the place notes state.
+ * `package-build map` — draw what the place notes state.
  *
  * Reads the content index — this package's and every declared dependency's —
  * so a consumer's map draws its dependencies' places beside its own, and
@@ -1818,7 +1774,7 @@ function mapCommand() {
                     });
                 }
                 if (world.stale.length) {
-                    log.error("Re-run `content-build deps fetch`.");
+                    log.error("Re-run `package-build deps fetch`.");
                     process.exitCode = 1;
                     return;
                 }
@@ -1855,14 +1811,14 @@ function mapCommand() {
 }
 
 /**
- * `content-build reachability <dir> [file]` — check that a corpus reads through.
+ * `package-build reachability <dir> [file]` — check that a corpus reads through.
  *
  * The corpus is named on the command line rather than declared in code, because
  * it never changes for a given repository: a consumer hardcodes the invocation
  * in `package.json` and gets the check without writing a script.
  *
- *   content-build reachability Rules --index glossary
- *   content-build reachability User_Guide --index glossary
+ *   package-build reachability Rules --index glossary
+ *   package-build reachability User_Guide --index glossary
  *
  * @returns {object} The yargs command module.
  */
@@ -2122,7 +2078,7 @@ function depsCommand() {
  *
  * ```sh
  * gh release download v0.8.2 -p system.zip -D build/baseline
- * npx content-build addresses diff --from build/baseline/system.zip
+ * npx package-build addresses diff --from build/baseline/system.zip
  * ```
  *
  * @param {object} config - The resolved build configuration.
@@ -2265,10 +2221,10 @@ function addressesCommand() {
 function packageCommand() {
     return {
         command: "package <action> [pack] [entry]",
-        describe: "Manage packages",
+        describe: "Compile, unpack, or clean compendium packs",
         builder: (yargs) => {
             // Required, not optional: the action *is* the work, and an
-            // optional one meant `content-build package` fell through the
+            // optional one meant `package-build package` fell through the
             // switch below and exited 0 having compiled nothing.
             yargs.positional("action", {
                 describe: "The action to perform.",
@@ -2300,8 +2256,8 @@ function packageCommand() {
                     throw new Error(
                         `\`packageKind: ${config.packageKind}\` compiles no ` +
                             `compendium, so there is nothing to ${action}. Build ` +
-                            `its site with \`content-build site\` and its book ` +
-                            `with \`content-build pdf\`.`,
+                            `its site with \`package-build site\` and its book ` +
+                            `with \`package-build pdf\`.`,
                     );
                 }
                 // The one directory the pipeline creates rather than expects:

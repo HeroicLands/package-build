@@ -53,6 +53,7 @@ const PKG_ROOT = path.dirname(HERE);
 const manifest = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, "package.json"), "utf8")) as {
     version: string;
     files: string[];
+    bin: Record<string, string>;
 };
 
 /** Where the copy lives, and the package root inside it. */
@@ -71,13 +72,13 @@ function walkModules(dir: string): string[] {
 /**
  * The shipped modules to import, package-relative.
  *
- * `bin/` is left out on purpose: importing the command line *runs* it, and the
- * `--version` / `--help` cases below cover it properly.
+ * The executable is left out: importing the command line runs it. The content
+ * command module is safe to import without configuration.
  */
 const MODULES = ["engine", "sohl", "hm3"]
     .flatMap((dir) => walkModules(path.join(PKG_ROOT, dir)))
     .map((full) => path.relative(PKG_ROOT, full))
-    .concat("index.mjs", "config.mjs")
+    .concat("index.mjs", "config.mjs", "bin/content-commands.mjs")
     .sort();
 
 /**
@@ -114,7 +115,7 @@ beforeAll(() => {
     // which is the whole point: the config walk climbs from the module's own
     // directory, so a copy left inside the repository would find this
     // repository's configuration and prove nothing.
-    sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "content-build-bare-"));
+    sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "package-build-bare-"));
     installed = path.join(sandbox, "pkg");
     fs.mkdirSync(installed);
 
@@ -173,16 +174,21 @@ describe("the shipped package needs no configuration to be imported", () => {
 
     it("answers --version", () => {
         const { status, stdout, stderr } = run([
-            path.join(installed, "bin", "content-build.mjs"),
+            path.join(installed, "bin", "package-build.mjs"),
             "--version",
         ]);
         expect(status, stderr).toBe(0);
         expect(stdout.trim()).toBe(manifest.version);
     });
 
+    it("publishes one executable", () => {
+        expect(manifest.bin).toEqual({ "package-build": "./bin/package-build.mjs" });
+        expect(fs.existsSync(path.join(installed, "bin", "content-build.mjs"))).toBe(false);
+    });
+
     it("answers --help", () => {
         const { status, stdout, stderr } = run([
-            path.join(installed, "bin", "content-build.mjs"),
+            path.join(installed, "bin", "package-build.mjs"),
             "--help",
         ]);
         expect(status, stderr).toBe(0);

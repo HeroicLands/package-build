@@ -39,7 +39,7 @@
  * rather than stored. It is the same vocabulary the link manifest uses.
  *
  * Not a standalone script — exports the `Scenes` compiler class, imported and
- * driven by `packages/content-build/engine/generate.mjs` (via `npm run build:compiledb`).
+ * driven by `packages/package-build/engine/generate.mjs` (via `npm run build:compiledb`).
  *
  * The walk itself — filtering by type, expanding tables, converting
  * wikilinks, writing the JSON and counting errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module

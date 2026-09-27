@@ -471,7 +471,7 @@ What a place is next to (`data.borders`) and reachable from (`data.routes`): the
 
 ### `engine.holdings`
 
-What lies within a place, who holds it, and what an affiliation holds — read off `data.parents` and `data.domains` across this package and every fetched index, inverted into the `contains`, `held_by` and `holdings` lists the site build writes — and the tenure check `content-build lint` runs on a place.
+What lies within a place, who holds it, and what an affiliation holds — read off `data.parents` and `data.domains` across this package and every fetched index, inverted into the `contains`, `held_by` and `holdings` lists the site build writes — and the tenure check `package-build lint` runs on a place.
 
 | Export                 | Signature                            | Returns                 | Use it when                                                                                                                  |
 | ---------------------- | ------------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
@@ -485,7 +485,7 @@ What lies within a place, who holds it, and what an affiliation holds — read o
 
 ### `engine.populations`
 
-Whether a world's population figures agree from the region down — the polities and regions inside a place against what it states, a settlement against every place containing it, and a `doc` note's cited figures against the notes that own them. `content-build lint` runs all four as warnings.
+Whether a world's population figures agree from the region down — the polities and regions inside a place against what it states, a settlement against every place containing it, and a `doc` note's cited figures against the notes that own them. `package-build lint` runs all four as warnings.
 
 | Export                  | Signature                                | Returns                | Use it when                                                                                                  |
 | ----------------------- | ---------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |
@@ -545,7 +545,7 @@ The geometry of the map from a place and of the chart from one, as arithmetic ov
 
 ### `engine.mapDot`
 
-The drawings of `content-build map` as DOT text, sharing one style table: shape, colour and size by `subType`, an anomaly overriding colour alone, every label a `name.full`, every tooltip an address, and a `URL` where the place carries one so the SVG's names are links.
+The drawings of `package-build map` as DOT text, sharing one style table: shape, colour and size by `subType`, an anomaly overriding colour alone, every label a `name.full`, every tooltip an address, and a `URL` where the place carries one so the SVG's names are links.
 
 | Export       | Signature                                          | Returns  | Use it when                                                                                                      |
 | ------------ | -------------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------- |
@@ -567,7 +567,7 @@ The npm-installed Graphviz runtime draws SVG maps and supplies the plain positio
 
 ### `engine.mapBuild`
 
-`content-build map` as a function: drawings written under an output directory, with each `.dot` beside its `.svg` and tree anomalies returned as findings.
+`package-build map` as a function: drawings written under an output directory, with each `.dot` beside its `.svg` and tree anomalies returned as findings.
 
 | Export          | Signature                                                                                                                    | Returns               | Use it when                                                                   |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------- |
@@ -578,7 +578,7 @@ The npm-installed Graphviz runtime draws SVG maps and supplies the plain positio
 
 ### `engine.siteMaps`
 
-The map from each place, drawn for the site: `content-build site` draws the map from every place of this package that states, or is named in, a border or a route — with the site's base, so every name links through it — and the page writer lays each drawing beside its page as `from-<shortcode>.svg` and names it in the front matter as `map`. `site.maps: false` draws none.
+The map from each place, drawn for the site: `package-build site` draws the map from every place of this package that states, or is named in, a border or a route — with the site's base, so every name links through it — and the page writer lays each drawing beside its page as `from-<shortcode>.svg` and names it in the front matter as `map`. `site.maps: false` draws none.
 
 | Export         | Signature                                               | Returns            | Use it when                                                                                                     |
 | -------------- | ------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------- |
@@ -715,7 +715,7 @@ A calendar is a `lore` note with `subType: calendar`, declaring the months it ke
 calendar files under `build/calendars/`. Each calendar produces a definition
 and an import envelope containing that same definition. The command line entry
 point is `package-build calendars --calendaria-version <version>`; run
-`content-build content-index` first. The generated import envelope carries a
+`package-build content-index` first. The generated import envelope carries a
 fixed ISO `exportedAt` sentinel so repeated builds of unchanged source emit
 identical bytes.
 
@@ -917,7 +917,7 @@ The toolchain's own content index — the files it ships, addressed. Every other
 
 ### `engine.siteBuild`
 
-Publishing a content tree as a website. Compiling a content tree into compendium packs is `content-build package compile`. Publishing the _same tree_ as a website was a script each consumer wrote for itself — 473 code lines in `sohl` and 462 in `sohl-thalorna`, 87 of them identical — and the copies drifted in ways neither repository could see. `sohl-thalorna` reimplemented four things this package already exported, not because it needed different behaviour but because its script predates the extraction. That is the failure a command removes: a consumer cannot accidentally reimplement one.
+Publishing a content tree as a website. Compiling a content tree into compendium packs is `package-build package compile`. Publishing the _same tree_ as a website was a script each consumer wrote for itself — 473 code lines in `sohl` and 462 in `sohl-thalorna`, 87 of them identical — and the copies drifted in ways neither repository could see. `sohl-thalorna` reimplemented four things this package already exported, not because it needed different behaviour but because its script predates the extraction. That is the failure a command removes: a consumer cannot accidentally reimplement one.
 
 | Export                | Signature                                         | Returns                                                                                                                                | Use it when                                                                                                           |
 | --------------------- | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -1107,7 +1107,7 @@ Generated content tables from fenced `dataview` `TABLE` queries. A catalog table
 
 ### `engine.helpers`
 
-Shared helpers for the pack compilers in `packages/content-build/`. The HeroicLands vault is authoritative for compendium item data. Pack compilers walk the vault, read markdown files with YAML frontmatter, and emit Foundry-compatible JSON. These helpers handle the common shape: markdown parsing, frontmatter access (including the nested `sohl:` block), filename generation, and slug normalization.
+Shared helpers for the pack compilers in `packages/package-build/`. The HeroicLands vault is authoritative for compendium item data. Pack compilers walk the vault, read markdown files with YAML frontmatter, and emit Foundry-compatible JSON. These helpers handle the common shape: markdown parsing, frontmatter access (including the nested `sohl:` block), filename generation, and slug normalization.
 
 | Export                    | Signature                                                                                                   | Returns                                                                                                                                                                                                                                 | Use it when                                                                                                                                                                                          |
 | ------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1617,7 +1617,7 @@ const config = defineConfig({
 
 ## `./config`
 
-The per-repository **packaging** configuration — `packageBuild:` within the same `package-build.config.yaml` that `content-config` validates the rest of. Read through the content half's loader rather than a second file, so `packageKind` and `foundryPackage` are stated once. The two halves validate independently but share one document.
+The per-repository **packaging** configuration is the `packageBuild:` section of `package-build.config.yaml`. The content configuration loader reads the same file, so `packageKind` and `foundryPackage` are declared once. The content and packaging validators each check their own keys.
 
 ```js
 // Run from a consuming repository's root, where package-build.config.yaml lives.
@@ -1632,12 +1632,12 @@ console.log(config.stageDir);
 | `DERIVED_MANIFEST_KEYS`     | `const DERIVED_MANIFEST_KEYS`             | —                              | reading which manifest keys a repository may not declare because the build derives them (declaring one is an error naming the key)                                              |
 | `resolvePackageBuildConfig` | `resolvePackageBuildConfig(shared)`       | `Readonly<PackageBuildConfig>` | validating the `packageBuild:` section from an already-loaded shared configuration — the pure half, usable without touching disk                                                |
 | `loadPackageBuildConfig`    | `loadPackageBuildConfig()`                | `Readonly<PackageBuildConfig>` | reading and validating the repository's resolved package-build configuration from disk, read fresh on each call rather than cached at import                                    |
-| `checkHomepage`             | `checkHomepage(homepage, contentPackage)` | `void`                         | validating a resolved `homepage` against `contentPackage` — called by `content-build site` before the generated `baseURL` is written, not by `resolvePackageBuildConfig` itself |
+| `checkHomepage`             | `checkHomepage(homepage, contentPackage)` | `void`                         | validating a resolved `homepage` against `contentPackage` — called by `package-build site` before the generated `baseURL` is written, not by `resolvePackageBuildConfig` itself |
 | `fail`                      | `fail(where, problem)`                    | `never`                        | rejecting a configured value from a sibling module, naming the dotted key path it was written under, so the loader can resolve it to a line and column                          |
 
 ## `./prettier`
 
-The shared Prettier configuration, published as a Prettier config module so an editor's format-on-save agrees with `content-build format`, which already applies these rules without a consumer declaring anything.
+The shared Prettier configuration, published as a Prettier config module so an editor's format-on-save agrees with `package-build format`, which already applies these rules without a consumer declaring anything.
 
 ```js
 // prettier.config.mjs
@@ -1650,7 +1650,7 @@ export { default } from "@heroiclands/package-build/prettier";
 
 ## `./markdownlint`
 
-The shared markdownlint rules, as a markdownlint-cli2 options module, applied without a consumer declaring anything by `content-build markdown`. Exists for an editor's markdownlint extension, and for a consumer that wants to extend rather than replace the set.
+The shared markdownlint rules, as a markdownlint-cli2 options module, applied without a consumer declaring anything by `package-build markdown`. Exists for an editor's markdownlint extension, and for a consumer that wants to extend rather than replace the set.
 
 ```js
 // .markdownlint-cli2.mjs

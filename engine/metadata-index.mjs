@@ -236,7 +236,7 @@ export function cachedMetadataIndexes(config) {
         if (!cached.length) {
             throw new Error(
                 `${rel.id} is a declared dependency but its content index has ` +
-                    `not been fetched. Run \`content-build deps fetch\` first.`,
+                    `not been fetched. Run \`package-build deps fetch\` first.`,
             );
         }
         files.push({ id: rel.id, file: newestIndex(cached) });

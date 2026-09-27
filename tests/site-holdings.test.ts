@@ -15,7 +15,7 @@
  * place, `holdings` on an affiliation, each absent where empty. The fixture is
  * the one the rule is stated on: a region, two settlements within it, a house
  * holding one of them and a manor in another region, and a polity holding the
- * region. `content-build lint` reports the settlement nobody holds.
+ * region. `package-build lint` reports the settlement nobody holds.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -528,7 +528,7 @@ function lintTenure(
     };
 }
 
-describe("`content-build lint` reports unheld land", () => {
+describe("`package-build lint` reports unheld land", () => {
     it("warns once, at the `type:` line of the settlement no `domains` names", () => {
         const { findings, root } = lintTenure(FIXTURE);
         try {

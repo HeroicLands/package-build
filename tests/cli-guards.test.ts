@@ -9,7 +9,7 @@
  * Every invocation the command line accepts is one it performs.
  *
  * The CLI is built on yargs, but yargs' guarantees are opt-in and this one had
- * opted into none of them: a bare `content-build`, an unknown command, and a
+ * opted into none of them: a bare `package-build`, an unknown command, and a
  * real command with its action left off all exited 0 having done nothing. In a
  * `run-s` build chain that is the worst possible outcome — the step passes, and
  * the build continues as though the packs had been compiled.
@@ -33,13 +33,13 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const BIN = path.join(HERE, "..", "bin", "content-build.mjs");
+const BIN = path.join(HERE, "..", "bin", "package-build.mjs");
 
 /** A directory with no configuration at or above it. */
 let cwd: string;
 
 beforeAll(() => {
-    cwd = fs.mkdtempSync(path.join(os.tmpdir(), "content-build-cli-"));
+    cwd = fs.mkdtempSync(path.join(os.tmpdir(), "package-build-cli-"));
 });
 
 afterAll(() => {
@@ -158,7 +158,7 @@ describe("what still answers without a configuration", () => {
     });
 });
 
-describe("content-build pdf's own error handling", () => {
+describe("package-build pdf's own error handling", () => {
     // A thrown error — as opposed to a finding `buildPdf` reports — must
     // reach the same located diagnostic every other command's catch block
     // produces, not crash the process trying to report itself.

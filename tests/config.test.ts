@@ -22,7 +22,7 @@ import path from "node:path";
 
 import { resolvePackageBuildConfig, checkHomepage, DERIVED_MANIFEST_KEYS } from "../config.mjs";
 
-/** The shared configuration content-build would have resolved. */
+/** The shared configuration package-build would have resolved. */
 function shared(packageBuild: Record<string, unknown> = {}) {
     return {
         rootDir: "/repo",

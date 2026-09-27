@@ -14,7 +14,7 @@
 /**
  * Publishing a content tree as a website.
  *
- * Compiling a content tree into compendium packs is `content-build package
+ * Compiling a content tree into compendium packs is `package-build package
  * compile`. Publishing the *same tree* as a website was a script each consumer
  * wrote for itself — 473 code lines in `sohl` and 462 in `sohl-thalorna`, 87 of
  * them identical — and the copies drifted in ways neither repository could see.

@@ -40,7 +40,7 @@
 
 import { codeRegions } from "./code-fences.mjs";
 
-/** The generated scaffold `content-build`/Changesets writes, never authored prose. */
+/** The generated scaffold `package-build`/Changesets writes, never authored prose. */
 const RELEASE_HEADING_RE = /^## /;
 const CHANGES_HEADING_RE = /^### (?:Major|Minor|Patch) Changes\s*$/;
 
