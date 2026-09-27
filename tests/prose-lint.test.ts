@@ -67,7 +67,7 @@ describe("the shared configuration", () => {
     });
 });
 
-describe("content-build format", () => {
+describe("package-build format", () => {
     it("reports an unformatted file and leaves it alone", () => {
         const file = write("a.md", "Some   *emphasis*    here.\n");
         return checkFormatting(root).then((r) => {
@@ -209,7 +209,7 @@ const stripOneBang = (source: string) => source.replace(/!(\n)$/, "$1");
 /** Adds a `!` before the final newline on every pass — never converges. */
 const addOneBang = (source: string) => source.replace(/(\n)$/, "!$1");
 
-describe("content-build format --write converges", () => {
+describe("package-build format --write converges", () => {
     it("leaves nothing for a second pass to write", async () => {
         // The regression test the issue asks for: format a tree once, then
         // assert an immediately following pass writes nothing at all.
@@ -260,9 +260,9 @@ describe("content-build format --write converges", () => {
     });
 });
 
-describe("content-build format --write reports what it could not do", () => {
+describe("package-build format --write reports what it could not do", () => {
     /** The real binary, because the exit code is half of what is under test. */
-    const bin = fileURLToPath(new URL("../bin/content-build.mjs", import.meta.url));
+    const bin = fileURLToPath(new URL("../bin/package-build.mjs", import.meta.url));
 
     it("emits the diagnostic and fails, instead of reporting a clean write", () => {
         // `--write` used to discard `findings` entirely: an unparseable file
@@ -284,7 +284,7 @@ describe("content-build format --write reports what it could not do", () => {
     });
 });
 
-describe("content-build format agrees with Prettier itself", () => {
+describe("package-build format agrees with Prettier itself", () => {
     /**
      * Prettier's own CLI, resolved from this package's dependency tree.
      *
@@ -447,7 +447,7 @@ describe("the shared conventions say when they are not in force", () => {
         // The whole tree is formatted to the local config's rules, so the only
         // thing `format` has to say is that those rules are not the shared
         // ones — and it must still exit 0.
-        const bin = fileURLToPath(new URL("../bin/content-build.mjs", import.meta.url));
+        const bin = fileURLToPath(new URL("../bin/package-build.mjs", import.meta.url));
         write(".prettierrc", '{ "tabWidth": 2 }\n');
         write("a.md", "Some _emphasis_ here.\n");
 
@@ -461,7 +461,7 @@ describe("the shared conventions say when they are not in force", () => {
     });
 });
 
-describe("content-build markdown", () => {
+describe("package-build markdown", () => {
     it("reports the emphasis marker the convention does not use", async () => {
         write("a.md", "Some *emphasis* here.\n");
         const r = await lintMarkdown(root);

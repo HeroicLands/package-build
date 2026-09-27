@@ -17,8 +17,8 @@
  * filename order.
  *
  * The rule is asserted at both call sites, because neither command reaches all
- * six packages: `HarnMaster-3-FoundryVTT` runs `content-build site` and no
- * `content-build lint`, and `sohl-thalorna` runs `content-build lint` and its
+ * six packages: `HarnMaster-3-FoundryVTT` runs `package-build site` and no
+ * `package-build lint`, and `sohl-thalorna` runs `package-build lint` and its
  * own site builder.
  */
 
@@ -167,7 +167,7 @@ describe("checkHomepageCount — the rule itself", () => {
     });
 });
 
-describe("`content-build lint` enforces it", () => {
+describe("`package-build lint` enforces it", () => {
     const lint = (files: Record<string, string>) =>
         lintContentTree(tree(files), {
             skipDirectories: [],

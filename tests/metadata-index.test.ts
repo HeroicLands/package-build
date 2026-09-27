@@ -176,14 +176,14 @@ describe("reading the metadata cache", () => {
     it("fails on a cold cache, naming the command that fills it", () => {
         // A compile must never reach the network: a build that downloads
         // silently is not reproducible and fails strangely offline.
-        expect(() => cachedMetadataFiles(config(root))).toThrow(/content-build deps fetch/);
+        expect(() => cachedMetadataFiles(config(root))).toThrow(/package-build deps fetch/);
     });
 
     it("ignores a half-finished fetch", () => {
         // No stamp: a partial index resolves some addresses and fails others
         // for no visible reason, which is worse than resolving none.
         cache("sohl", "0.8.2", "{}\n", { complete: false });
-        expect(() => cachedMetadataFiles(config(root))).toThrow(/content-build deps fetch/);
+        expect(() => cachedMetadataFiles(config(root))).toThrow(/package-build deps fetch/);
     });
 
     it("returns the cached index of a complete fetch", () => {

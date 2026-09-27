@@ -95,8 +95,7 @@
         "./package.json": "./package.json"
     },
     "bin": {
-        "package-build": "./bin/package-build.mjs",
-        "content-build": "./bin/content-build.mjs"
+        "package-build": "./bin/package-build.mjs"
     },
     "files": [
         "CHANGELOG-content-build.md",
@@ -174,13 +173,13 @@
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "lint": "run-p --aggregate-output -c --max-parallel 4 format:check lint:markdown lint:yaml lint:labels lint:content-format",
-        "lint:markdown": "node bin/content-build.mjs markdown",
+        "lint:markdown": "node bin/package-build.mjs markdown",
         "lint:yaml": "node bin/package-build.mjs yaml",
         "lint:labels": "node bin/package-build.mjs labels check",
-        "lint:markdown:fix": "node bin/content-build.mjs markdown --fix",
+        "lint:markdown:fix": "node bin/package-build.mjs markdown --fix",
         "lint:content-format": "npm run lint:content-format:schema && npm run lint:content-format:fields",
-        "lint:content-format:schema": "node bin/content-build.mjs content-format schema --schema sohl=tests/fixtures/content-format/schema-sohl.json --schema hm3=tests/fixtures/content-format/schema-hm3.json",
-        "lint:content-format:fields": "node bin/content-build.mjs content-format fields --fields sohl && node bin/content-build.mjs content-format fields --fields hm3",
+        "lint:content-format:schema": "node bin/package-build.mjs content-format schema --schema sohl=tests/fixtures/content-format/schema-sohl.json --schema hm3=tests/fixtures/content-format/schema-hm3.json",
+        "lint:content-format:fields": "node bin/package-build.mjs content-format fields --fields sohl && node bin/package-build.mjs content-format fields --fields hm3",
         "changeset": "changeset",
         "changeset:version": "changeset version && node bin/package-build.mjs changelog group && npm install --package-lock-only",
         "prepare": "git config core.hooksPath .githooks || true"

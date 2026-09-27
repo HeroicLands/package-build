@@ -12,7 +12,7 @@
  * directory the command was run from — that is what an editor, a CI annotator
  * or a shell `$EDITOR +line` resolves a finding against. A walk that
  * relativizes against the content root instead emits a path that reads fine and
- * opens nothing, and one `content-build lint` run emits both shapes at once.
+ * opens nothing, and one `package-build lint` run emits both shapes at once.
  *
  * So the check is mechanical rather than a reading: resolve each finding's path
  * against the working directory and require a file to be there.

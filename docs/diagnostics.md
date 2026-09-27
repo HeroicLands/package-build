@@ -18,7 +18,7 @@ file:line:column: severity: message
 For example:
 
 ```text
-assets/content/Regions/Capital_Nome.md:43:635: error: address [[place-kenbetpat]] resolves to no note — no package publishes it. Fix the shortcode, or declare the package that does as a dependency and run `content-build deps fetch` — in "The Capital Nome".
+assets/content/Regions/Capital_Nome.md:43:635: error: address [[place-kenbetpat]] resolves to no note — no package publishes it. Fix the shortcode, or declare the package that does as a dependency and run `package-build deps fetch` — in "The Capital Nome".
 ```
 
 That is the same shape every C-family compiler, `tsc` and ESLint already use,
@@ -235,13 +235,13 @@ stderr, including every warning.
 The rule that recurs everywhere a command reports diagnostics: **a run fails
 when it reports at least one `error`-severity diagnostic. A `warning` alone
 never fails a run.** `bin/report.mjs`'s `reportFindings` draws this line once
-for the commands built from the package's pure rule functions (`content-build
+for the commands built from the package's pure rule functions (`package-build
 lint`, `package-build lang check`, `package-build lang coverage`,
 `package-build yaml`, `package-build labels check`): it emits every finding
 and returns only the count whose `severity` is `error`, and the command sets
 `process.exitCode = 1` exactly when that count is nonzero. Commands whose
-findings are hand-assembled — `content-build links`, `content-build
-reachability`, `content-build site`, `content-build package compile` — apply
+findings are hand-assembled — `package-build links`, `package-build
+reachability`, `package-build site`, `package-build package compile` — apply
 the same rule by construction: everything they can report is a broken
 address, a dead link or a document Foundry would silently drop a field from,
 so every finding they emit is already `severity: "error"` and any finding at
@@ -275,27 +275,27 @@ over one would teach people to stop reading the report.
 
 | command                                          | fails when                                                                                                                                                                                                                                                         |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `content-build lint [root]`                      | an address, frontmatter, schema, charset, icon or HTML finding is `error`-severity, or the corpus cannot be indexed                                                                                                                                                |
-| `content-build content-format notes [root]`      | `--strict` was passed and it reported any finding (all findings are `error`-severity only under `--strict`), or the corpus cannot be indexed                                                                                                                       |
-| `content-build content-format schema`            | it reports any finding at all                                                                                                                                                                                                                                      |
-| `content-build content-format fields`            | it reports any finding at all                                                                                                                                                                                                                                      |
-| `content-build links [root]`                     | it reports any finding at all, an index is unusable (a stale or unaddressable foreign manifest), or the corpus cannot be indexed                                                                                                                                   |
-| `content-build reachability <dir> [file]`        | it reports any orphaned document, or the corpus cannot be indexed                                                                                                                                                                                                  |
-| `content-build addresses diff --from <artifact>` | the corpus cannot be indexed (always); otherwise only with `--strict`, and only then are the address findings `error`-severity                                                                                                                                     |
-| `content-build format [paths..]`                 | a file it checked is not formatted (or, under `--write`, could not be brought to a fixpoint) — never on a shared-convention divergence, which is always advisory                                                                                                   |
-| `content-build markdown [paths..]`               | it reports any markdownlint finding                                                                                                                                                                                                                                |
-| `content-build site`                             | any gate finding (no homepage, a wikilink in frontmatter, an address that cannot be derived, an unusable or unaddressable foreign manifest, a conflicting address) or any table or wikilink error while writing pages — the run stops at the first gate that fires |
-| `content-build pdf`                              | it could not build the book for a reason other than a deliberate no-op — never on a reported finding by itself                                                                                                                                                     |
-| `content-build map`                              | `--tree` reports an `error`-severity finding (a place with no parent, a parent that does not resolve, a cycle), a named place is not one, the renderer fails, or the corpus cannot be indexed — never on a warning                                                 |
-| `content-build docs item-fields --check`         | the generated page differs from what is committed                                                                                                                                                                                                                  |
-| `content-build package compile`                  | pack JSON generation reported any `error`-severity finding (checked, and the compile refused, before any pack is written), or a compiled pack fails its Scene/Level integrity check                                                                                |
-| `content-build deps fetch`                       | the fetch itself throws — it emits no diagnostics                                                                                                                                                                                                                  |
+| `package-build lint [root]`                      | an address, frontmatter, schema, charset, icon or HTML finding is `error`-severity, or the corpus cannot be indexed                                                                                                                                                |
+| `package-build content-format notes [root]`      | `--strict` was passed and it reported any finding (all findings are `error`-severity only under `--strict`), or the corpus cannot be indexed                                                                                                                       |
+| `package-build content-format schema`            | it reports any finding at all                                                                                                                                                                                                                                      |
+| `package-build content-format fields`            | it reports any finding at all                                                                                                                                                                                                                                      |
+| `package-build links [root]`                     | it reports any finding at all, an index is unusable (a stale or unaddressable foreign manifest), or the corpus cannot be indexed                                                                                                                                   |
+| `package-build reachability <dir> [file]`        | it reports any orphaned document, or the corpus cannot be indexed                                                                                                                                                                                                  |
+| `package-build addresses diff --from <artifact>` | the corpus cannot be indexed (always); otherwise only with `--strict`, and only then are the address findings `error`-severity                                                                                                                                     |
+| `package-build format [paths..]`                 | a file it checked is not formatted (or, under `--write`, could not be brought to a fixpoint) — never on a shared-convention divergence, which is always advisory                                                                                                   |
+| `package-build markdown [paths..]`               | it reports any markdownlint finding                                                                                                                                                                                                                                |
+| `package-build site`                             | any gate finding (no homepage, a wikilink in frontmatter, an address that cannot be derived, an unusable or unaddressable foreign manifest, a conflicting address) or any table or wikilink error while writing pages — the run stops at the first gate that fires |
+| `package-build pdf`                              | it could not build the book for a reason other than a deliberate no-op — never on a reported finding by itself                                                                                                                                                     |
+| `package-build map`                              | `--tree` reports an `error`-severity finding (a place with no parent, a parent that does not resolve, a cycle), a named place is not one, the renderer fails, or the corpus cannot be indexed — never on a warning                                                 |
+| `package-build docs item-fields --check`         | the generated page differs from what is committed                                                                                                                                                                                                                  |
+| `package-build package compile`                  | pack JSON generation reported any `error`-severity finding (checked, and the compile refused, before any pack is written), or a compiled pack fails its Scene/Level integrity check                                                                                |
+| `package-build deps fetch`                       | the fetch itself throws — it emits no diagnostics                                                                                                                                                                                                                  |
 | `package-build lang check`                       | any localization finding is `error`-severity                                                                                                                                                                                                                       |
 | `package-build lang coverage`                    | a referenced key is missing (`error`-severity); an unreferenced key is always advisory and never fails the run                                                                                                                                                     |
 | `package-build yaml [paths..]`                   | any YAML finding is `error`-severity                                                                                                                                                                                                                               |
 | `package-build labels check`                     | the label registry and the documented table disagree on any label                                                                                                                                                                                                  |
 
-Every command in both binaries also fails on a thrown error unrelated to a
+Every command also fails on a thrown error unrelated to a
 diagnostic — a missing configuration, an unreadable file, a network failure —
 through the same `process.exitCode = 1` (or `process.exit(1)`), reported as
 one line with no stack.
@@ -321,7 +321,7 @@ emitDiagnostic({
   message:
     "address [[place-kenbetpat]] resolves to no note — no package publishes it. " +
     "Fix the shortcode, or declare the package that does as a dependency and " +
-    'run `content-build deps fetch` — in "The Capital Nome".',
+    'run `package-build deps fetch` — in "The Capital Nome".',
 });
 emitDiagnostic({
   file: "assets/content/Regions/Capital_Nome.md",
@@ -390,7 +390,7 @@ Running `node parse.mjs` prints:
 ```text
 2 error(s), 1 warning(s):
 
-[error] assets/content/Regions/Capital_Nome.md:43:635 — address [[place-kenbetpat]] resolves to no note — no package publishes it. Fix the shortcode, or declare the package that does as a dependency and run `content-build deps fetch` — in "The Capital Nome".
+[error] assets/content/Regions/Capital_Nome.md:43:635 — address [[place-kenbetpat]] resolves to no note — no package publishes it. Fix the shortcode, or declare the package that does as a dependency and run `package-build deps fetch` — in "The Capital Nome".
 [warning] assets/content/Regions/Capital_Nome.md:12 — `system.sohl.unemitted` is declared but no builder ever sets it
 [error] assets/content/Regions/Capital_Nome.md — duplicate frontmatter key `name` — the second declaration wins and the first is dead
 ```

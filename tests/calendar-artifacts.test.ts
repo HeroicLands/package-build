@@ -122,7 +122,7 @@ describe("calendar artifact emission", () => {
 
     it("refuses a missing content index with the rebuild command", () => {
         expect(() => emitCalendarArtifacts({ config, calendariaVersion: "1.4.2" })).toThrow(
-            /content-build content-index/,
+            /package-build content-index/,
         );
     });
 

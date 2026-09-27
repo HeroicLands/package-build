@@ -39,7 +39,7 @@
  * item came from.
  *
  * **The network is never touched by a compile.** Fetching is its own command
- * (`content-build deps fetch`), and a compile whose cache is cold fails saying
+ * (`package-build deps fetch`), and a compile whose cache is cold fails saying
  * so. A build that silently downloads is not reproducible, fails strangely
  * offline, and hides a version change behind a passing run.
  *
@@ -223,7 +223,7 @@ function cachedItemPacks(dir) {
  * ways of proceeding without it are both wrong: reading every pack resolves an
  * `hm3` reference against `sohl` documents — the silent-wrong-output failure
  * this scoping exists to remove — and reading none fails a build that was
- * working. Treating it as incomplete makes `content-build deps fetch` refill
+ * working. Treating it as incomplete makes `package-build deps fetch` refill
  * it, which is a command the cold-cache path already tells anyone to run.
  *
  * @param {string} dir - The dependency's cache directory.
@@ -481,7 +481,7 @@ export async function fetchCatalogFromPath(config, rel, source) {
         throw new Error(`${rel.id}: nothing at ${source}`);
     }
 
-    const staging = fs.mkdtempSync(path.join(os.tmpdir(), `content-build-${rel.id}-`));
+    const staging = fs.mkdtempSync(path.join(os.tmpdir(), `package-build-${rel.id}-`));
     try {
         let root;
         if (fs.statSync(source).isDirectory()) {
@@ -608,7 +608,7 @@ export async function fetchMetadataFromPath(config, rel, source) {
         throw new Error(`${rel.id}: nothing at ${source}`);
     }
 
-    const staging = fs.mkdtempSync(path.join(os.tmpdir(), `content-build-meta-${rel.id}-`));
+    const staging = fs.mkdtempSync(path.join(os.tmpdir(), `package-build-meta-${rel.id}-`));
     try {
         let root = source;
         if (!fs.statSync(source).isDirectory()) {
@@ -752,7 +752,7 @@ export function foreignItemCatalogDirs(config, system = null) {
         if (!cached.length) {
             throw new Error(
                 `${rel.id} declares \`itemCatalog: true\` but has not been ` +
-                    `fetched. Run \`content-build deps fetch\` first.`,
+                    `fetched. Run \`package-build deps fetch\` first.`,
             );
         }
         // Newest wins if several versions are cached; a fetch always writes

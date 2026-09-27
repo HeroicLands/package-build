@@ -470,7 +470,7 @@ describe("`renamedFrom`, the address a note used to hold", () => {
 /**
  * The address lint reads the content index.
  *
- * `content-build lint` derives the index for its link check and its `sql`
+ * `package-build lint` derives the index for its link check and its `sql`
  * tables, and then walked the tree a second time to reach this pass — so one
  * command held two answers to "which files are the corpus?" and reported
  * findings drawn from both. It now holds one.

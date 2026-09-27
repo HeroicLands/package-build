@@ -271,7 +271,7 @@ describe("reading the catalogue cache", () => {
     it("fails on a cold cache, naming the command that fills it", () => {
         // A compile must never reach the network: a build that downloads
         // silently is not reproducible and fails strangely offline.
-        expect(() => foreignItemCatalogDirs(config(root))).toThrow(/content-build deps fetch/);
+        expect(() => foreignItemCatalogDirs(config(root))).toThrow(/package-build deps fetch/);
     });
 
     it("ignores a half-finished fetch", () => {

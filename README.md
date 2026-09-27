@@ -72,8 +72,8 @@ The whole of assemble → validate → ship, one subpath each:
 ## Configure
 
 A repository declares its build in **one** file — `package-build.config.yaml`.
-The content half reads its top level; the packaging half takes its settings from
-the `packageBuild:` section:
+Content settings live at the top level; packaging settings live in the
+`packageBuild:` section:
 
 ```yaml
 # Read from the top level, not restated below.
@@ -287,12 +287,11 @@ package-build.config.yaml:162:13: warning: packFolders: pack "items" is named by
 ```
 
 `compatibility` and `relationships` are read from the **top level** of the
-shared configuration, not from this section — content-build consumes them
-(`supportedCoreVersion`, and a module'''s `stats.systemVersion`) and the
-dependency runs one way.
+shared configuration, not from this section. The build uses them for
+`supportedCoreVersion` and a module's `stats.systemVersion`.
 
 **A relationship's build-only keys are not published.** `relationships` is the
-one block with a second reader, and content-build takes directives there:
+one block with a second reader, and package-build takes directives there:
 `itemCatalog: true` on a dependency selects that package's Item packs as a
 resolution source for the actors pass. That says how the package is _built_, not
 what it depends on, so it is dropped on the way into the manifest — Foundry's
@@ -301,13 +300,13 @@ cannot tell a build directive from a declaration. Every other key is copied,
 including one this package has never heard of.
 
 **Why one file and not two.** Two of the values this package needs —
-`packageKind` and `foundryPackage` — are already declared for `content-build`. A
+`packageKind` and `foundryPackage` — are already declared for `package-build`. A
 second config file would restate them, which is two places for one fact; that is
 exactly what every consumer's `push-stage.mjs` did, hard-coding
 `packageKind: "systems"` and `packageId: "sohl"` beside a configuration that
 already said both.
 
-`content-build` checks only that `packageBuild:` is a mapping and hands it back
+`package-build` checks only that `packageBuild:` is a mapping and hands it back
 frozen. Everything inside it is validated here, so neither package learns the
 other's schema — they split by input, and the dependency runs one way.
 
@@ -320,11 +319,11 @@ other's schema — they split by input, and the dependency runs one way.
 | the release artifact       | `packageKind` — a system ships `system.json`, a module `module.json`        |
 | the bundle entry           | `packageId` — `<id>.mjs`, unless `packageBuild.bundle.entry` says otherwise |
 
-**`packageKind: documentation` has no packaging half.** That kind publishes a
+**`packageKind: documentation` has no Foundry package.** That kind publishes a
 website and a book and installs into no Foundry data directory, so there is no
 artifact to name and no id to derive one from: `manifest` refuses rather than
 writing a manifest for a package Foundry never installs, and the whole of such a
-package's build is `content-build`. See
+package's build uses `package-build` for its site and book. See
 [A package that compiles nothing](CONTENT.md#a-package-that-compiles-nothing).
 
 ## Command line
@@ -362,8 +361,8 @@ adding one; `site.search: false` in `package-build.config.yaml` turns it off.
 The book is **built by default and never fatal**. A package publishing only a
 homepage, one with no `pdf:` block, and one with no content tree each build
 none and say so; `--no-pdf` is for a release that has a tree and does not want
-the book. What the book is and how it is configured is `CONTENT.md`, under
-_Publishing a book_ — it is a content surface, and the content half owns it.
+the book. The book format and configuration are documented in
+[CONTENT.md](CONTENT.md#publishing-a-book).
 
 Wrapped as npm scripts — SoHL spells them:
 
@@ -614,7 +613,7 @@ nothing.
 
 Findings carry the fields the shared diagnostic format takes (`line`, `column`,
 `severity`, `message`) but never `file`, which only the caller knows. The format
-itself is owned by `@heroiclands/content-build`'s `engine/diagnostics`, and is
+itself is owned by `@heroiclands/package-build`'s `engine/diagnostics`, and is
 not restated here.
 
 ```js
@@ -634,18 +633,12 @@ npm test
 ```
 
 Plain `vitest`, no setup file and no aliases: everything here is ESM over Node
-built-ins and what `dependencies` declares, and a harness that offered a Foundry
-global would let something reach for one. (This said "three dependencies" while
-it described the packaging half alone; absorbing the content half at 3.0.0
-brought the compendium, Markdown and SQL toolchains with it. The number is left
-out rather than restated, because the next dependency would make a restated one
-wrong again.)
+built-ins and declared dependencies. A harness that offered a Foundry global
+would let code depend on one without declaring it.
 
-`tests/dependencies-are-declared.test.ts` is the guard an extraction most needs
-— every bare specifier in a shipped file must be a builtin, this package, or a
-declared `dependency`. Inside a workspace, which this package was for its first
-six changes, a missing declaration is invisible; installed from npm it fails on
-the first import.
+`tests/dependencies-are-declared.test.ts` checks that every bare specifier in
+a shipped file is a builtin, this package, or a declared dependency. A missing
+declaration can resolve through another local install but fail for a consumer.
 
 ## Releasing
 
@@ -673,7 +666,7 @@ only versions that are not already on the registry, so re-running it is a no-op;
 after versioning.
 
 A changeset is also where a **raised dependency floor** gets recorded. 0.2.0 began
-requiring `@heroiclands/content-build >= 0.15.0` and announced it nowhere; a
+requiring `@heroiclands/package-build >= 0.15.0` and announced it nowhere; a
 changeset is the place that now happens.
 
 Below 1.0.0, `^0.x` never crosses a minor — a consumer on `^0.2.0` will not see

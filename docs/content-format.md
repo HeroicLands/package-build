@@ -323,7 +323,7 @@ description; `tags` carries publication and classification tags.
 Arrays and objects use one-line YAML flow form when the complete line is under
 100 characters. At 100 characters or more, they use full block form. A multiline
 flow collection is formatted into one of those forms; folded collections are
-not used. `content-build format --write` applies this rule and the top-level
+not used. `package-build format --write` applies this rule and the top-level
 order without changing the Markdown body.
 
 #### Dates and calendars
@@ -1209,7 +1209,7 @@ shortcode, so renaming a shortcode gives the document a new `_id`. Two things
 make that acceptable: a shortcode rename already breaks every wikilink to the
 note, so it is a breaking change either way; and a note that must keep its
 identity across one pins its `id`, which is what the pin is for. One diagnostic
-narrows — `content-build` tells a **rename** from a **withdrawal** by matching
+narrows — `package-build` tells a **rename** from a **withdrawal** by matching
 document ids across releases, and for an unpinned note both sides now move
 together. It never reports a _wrong_ successor, and it stays exact for a pinned
 note; for the rest, the diff reports the vacated address.
@@ -1222,7 +1222,7 @@ the build refuses it by that name rather than by a missing `id:`.
 
 `(type, shortcode)` is a published interface. Other packages can link to it or
 use it as an Item model, so changing either part requires those references to
-change too. `content-build addresses diff` compares the package with a released
+change too. `package-build addresses diff` compares the package with a released
 baseline and reports addresses whose published documents are absent. A pinned
 `data.id` preserves document identity across a shortcode change; it does not
 keep the old address available for links.
@@ -1388,7 +1388,7 @@ serializes these properties to Address strings. Runtime Shortcodes, Foundry
 UUIDs, file paths and URLs keep their own representations.
 
 An Address-valued `data:` field must name a target in this package or a declared
-dependency index. `content-build lint` reports a missing target at the value or
+dependency index. `package-build lint` reports a missing target at the value or
 map key that names it. A stub counts as a target for data even though it
 publishes no page. Art slots use their own missing-art warning and document
 fallback.
@@ -1603,7 +1603,7 @@ states the type itself and is verified against it.
 This is enforced rather than merely preferred: the build walks every frontmatter
 value, reports each bracketed link it finds, and reports each value whose
 qualification contradicts its field. A successful run says so — _no wikilink in
-frontmatter_ is part of what `content-build links` reports when it passes.
+frontmatter_ is part of what `package-build links` reports when it passes.
 
 Brackets belong in prose, where a link sits inside a sentence and needs marking
 off from the words around it. A frontmatter value has nothing to be marked off
@@ -2645,7 +2645,7 @@ declares no present computes no age and says nothing about it — the same
 silence a package with no calendar mechanism meets.
 
 **An authored `age` beside a dated `born` is expected to agree with what the
-date computes.** Where it does not, `content-build lint` raises a warning
+date computes.** Where it does not, `package-build lint` raises a warning
 naming both values, so a stale age left behind after a `born` was corrected
 does not go unnoticed. The warning is silent beside `born: unknown` or an
 absent `born` — there is nothing there to disagree with — and silent wherever
@@ -3890,7 +3890,7 @@ or neither.
 
 The value is a **class**, not a measurement. The numbers order six steps and do
 nothing else: a `5` is not a market two fifths larger than a `3`, it is a city
-rather than a town. `content-build lint` refuses a value off the scale instead
+rather than a town. `package-build lint` refuses a value off the scale instead
 of rounding it onto one, so a reader can trust that a number means the same
 thing on every page.
 
@@ -3950,7 +3950,7 @@ neighbour may be three days by land and one by ship — and in `borders` once.
 **A place never borders its own parent or child**: containment is `parents`,
 and restating it as adjacency makes the two contradict each other.
 
-**Both ends state the relation, and `content-build lint` checks that they
+**Both ends state the relation, and `package-build lint` checks that they
 agree.** A border at `NE` from one side is a border at `SW` from the other; a
 route stated by land in three days from one side is stated by land in three
 days from the other, at the opposite bearing. A neighbour that states nothing
@@ -4050,7 +4050,7 @@ names it — its lord's lord is reached through `affiliation.parents`.
 
 **A settlement, a site or a structure is held by someone.** One of those that
 no affiliation's `domains` names — in this package or in a fetched index — is
-a warning from `content-build lint`, `unheld land`, located at the note's
+a warning from `package-build lint`, `unheld land`, located at the note's
 `type:` line, so a gap in tenure shows while a note is written. A `world`, a
 `region` and a `feature` are exempt: a region is held through its polity's
 `domains`, and a river by nobody.
@@ -4059,7 +4059,7 @@ a warning from `content-build lint`, `unheld land`, located at the note's
 
 `population` is an approximate count, written to two significant digits. A
 place states one, and so does an affiliation — how many people it counts,
-wherever they are. `content-build lint` reads those figures against each other
+wherever they are. `package-build lint` reads those figures against each other
 and reports four warnings, each named by the phrase its message begins with.
 
 - **`over-held land`** — the polities whose `domains` name a place count more

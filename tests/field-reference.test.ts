@@ -50,7 +50,7 @@ const page = `${renderItemFieldReference({
         "",
         "Every item note carries the frontmatter envelope described there.",
     ],
-    generatedBy: "`content-build docs item-fields`",
+    generatedBy: "`package-build docs item-fields`",
 })}\n`;
 
 describe("the generated page is what Prettier would write", () => {
@@ -314,7 +314,7 @@ describe("renderItemFieldsPage", () => {
 
     it("writes a note that is already what the shared formatter produces", async () => {
         // The property that decides whether a consumer can commit this page:
-        // `content-build format` (Prettier) and `docs item-fields --check`
+        // `package-build format` (Prettier) and `docs item-fields --check`
         // (this generator) have to agree on one file. Proven by running the
         // generator's own output — envelope and all — through the shared
         // Prettier configuration and comparing, the same proof

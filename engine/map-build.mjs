@@ -12,7 +12,7 @@
  */
 
 /**
- * `content-build map`: the drawings, written under `build/map/`.
+ * `package-build map`: the drawings, written under `build/map/`.
  *
  * Four modes, each a function of the world the content index describes:
  *

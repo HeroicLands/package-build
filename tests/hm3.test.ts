@@ -348,7 +348,7 @@ describe("resolveSchemaArtifact — whose schema a pack is checked against", () 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /**
- * The two systems' published field sets, as `content-build deps fetch` caches
+ * The two systems' published field sets, as `package-build deps fetch` caches
  * them — the artifact the schema check reads.
  *
  * Deliberately small and deliberately *different*: each declares only what its

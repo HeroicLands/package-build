@@ -1,7 +1,7 @@
 {
     "_comment": [
         "A stand-in for a real system's published schema.json, so this repository can run",
-        "`content-build content-format schema` in its own CI. package-build ships no system,",
+        "`package-build content-format schema` in its own CI. package-build ships no system,",
         "so there is no real artifact here to point the check at.",
         "",
         "It is SoHL's own published schema.json at 0.8.2, plus exactly the fields the",

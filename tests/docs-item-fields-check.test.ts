@@ -6,7 +6,7 @@
  */
 
 /**
- * `content-build docs item-fields --check` reports a stale generated page
+ * `package-build docs item-fields --check` reports a stale generated page
  * against the diagnostics contract every other located failure in this
  * binary follows: `file: severity: message`, the path starting the line,
  * unprefixed by `loglevel`'s `[timestamp] [LEVEL]:` banner.
@@ -25,7 +25,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const CLI = path.join(PKG_ROOT, "bin", "content-build.mjs");
+const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
 let root: string;
 
@@ -94,7 +94,7 @@ function runWrite(
     return { code: r.status ?? 1, out: r.stdout ?? "", err: r.stderr ?? "" };
 }
 
-describe("`content-build docs item-fields --check` against a stale page", () => {
+describe("`package-build docs item-fields --check` against a stale page", () => {
     let destination: string;
 
     beforeAll(() => {
@@ -128,7 +128,7 @@ describe("`content-build docs item-fields --check` against a stale page", () => 
     });
 });
 
-describe("`content-build docs item-fields` with `--out` inside the content tree", () => {
+describe("`package-build docs item-fields` with `--out` inside the content tree", () => {
     it("writes a complete note, envelope and all", () => {
         const destination = path.join(root, "assets/content/item-frontmatter.md");
         try {

@@ -7,7 +7,7 @@
 
 /**
  * A place states what it is next to (`data.borders`) and what it is reachable
- * from (`data.routes`), and `content-build lint` checks both: every target is
+ * from (`data.routes`), and `package-build lint` checks both: every target is
  * a place, every value is from its closed set, and the relation is stated the
  * same way from both ends. Each fixture below is one check, and every finding
  * is located at the entry that states the fault.

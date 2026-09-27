@@ -248,7 +248,7 @@ describe("the schema check now sees them as emitted", () => {
 
 describe("against the pinned SoHL schema this repository vendors", () => {
     // The shape a consumer's `build/cache/foreign/sohl@<version>/schema.json`
-    // has, and the artifact `content-build lint` reports against — so this is
+    // has, and the artifact `package-build lint` reports against — so this is
     // the warning an author actually met, cleared where they actually met it.
     const artifact = JSON.parse(
         fs.readFileSync(

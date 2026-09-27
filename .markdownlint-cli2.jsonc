@@ -1,6 +1,6 @@
 // Repository-local markdown lint settings, layered over the shared rule set.
 //
-// `content-build markdown` passes the shared rules (engine/prose-config.mjs) as
+// `package-build markdown` passes the shared rules (engine/prose-config.mjs) as
 // markdownlint-cli2's `optionsDefault`, and this file is merged over them **key
 // by key**. So the rule set survives — `default: false` and every rule enabled
 // by name still apply — but `ignores` here *replaces* the shared
@@ -19,16 +19,8 @@
         // This entry mirrors the shared default; the reasoning lives there too.
         "CHANGELOG.md",
 
-        // The published changelog of `@heroiclands/content-build`, a deprecated
-        // repository whose package was absorbed into this one at 3.0.0 (#32).
-        //
-        // Frozen, not merely generated: exactly one commit has ever touched it,
-        // nothing regenerates it, and it ships only because `files` lists it.
-        // Its findings — two MD001 heading skips and one bare URL — are facts
-        // about what content-build published, not style this repository is still
-        // choosing. Rewriting them would edit a historical record to satisfy a
-        // rule about prose nobody will write again, and would leave a style-only
-        // commit in the blame of a file whose value is being what was published.
+        // This published changelog is frozen and ships unchanged. Its existing
+        // headings and URL are outside the current prose rules.
         "CHANGELOG-content-build.md",
     ],
 }

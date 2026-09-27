@@ -12,7 +12,7 @@
  */
 
 /**
- * The drawings of `content-build map`, as DOT.
+ * The drawings of `package-build map`, as DOT.
  *
  * Every drawing is emitted as DOT text and kept beside its rendering, so a
  * picture can be re-rendered, diffed or read without the content index.

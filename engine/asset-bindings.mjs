@@ -39,7 +39,7 @@ export function checkForeignAssetBindings(config, { foreignIndex, assets } = {})
                 {
                     file: "package-build.config.yaml",
                     severity: "error",
-                    message: `asset binding index for ${bindsTo.package} is unavailable; run content-build deps fetch`,
+                    message: `asset binding index for ${bindsTo.package} is unavailable; run package-build deps fetch`,
                 },
             ];
     }

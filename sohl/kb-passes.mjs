@@ -14,7 +14,7 @@
 /**
  * The `sohl` knowledgebase's own body pass.
  *
- * `content-build site` publishes a content tree as a website, and almost all of
+ * `package-build site` publishes a content tree as a website, and almost all of
  * that job is the same for every package. This rewrite is not: it is driven by
  * a TypeDoc symbol map only this package has, and it is ruled explicitly
  * per-consumer.
@@ -60,7 +60,7 @@ import log from "loglevel";
  *
  * The path is resolved against the **repository root**, never the process cwd.
  * `site.passOptions.symbolMap` is authored repo-relative, so a cwd-relative
- * read misses the moment `content-build site` is driven from anywhere but the
+ * read misses the moment `package-build site` is driven from anywhere but the
  * repository root — which is exactly how the end-to-end verification, running
  * through `PACKAGE_BUILD_CONFIG` from outside the tree, found this.
  *

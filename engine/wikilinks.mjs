@@ -536,7 +536,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // can never hold one is what made such links dead-end; an
         // an item's pages are addressed through its `note` Address.
         // A `#section` the target declares no heading for. Checked here, and
-        // not only by `content-build links`, because this is the build that
+        // not only by `package-build links`, because this is the build that
         // *emits* the link: `anchorPageId` will hash any slug into a page id,
         // so an undeclared one compiles to a `@UUID` that dead-ends for the
         // reader. A foreign anchor has always been checked this way —

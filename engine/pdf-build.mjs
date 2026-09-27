@@ -49,7 +49,7 @@
  *
  * A filter that selects nothing, a `file:` that resolves nowhere, a table that
  * will not run and a missing Typst binary are all findings handed back to the
- * caller. `bin/content-build.mjs` decides what to do about them — which is the
+ * caller. `bin/package-build.mjs` decides what to do about them — which is the
  * rule the whole engine is built on, and what lets one pass serve a lint, a
  * build step and a unit test.
  *

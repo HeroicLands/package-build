@@ -8,7 +8,7 @@
 /**
  * The generated Hugo configuration.
  *
- * `content-build site` writes the whole Hugo source tree under `build/hugo/`,
+ * `package-build site` writes the whole Hugo source tree under `build/hugo/`,
  * `hugo.toml` included. Every value in that file is either derived from a
  * source the repository already states, an organisation constant, or the
  * navigation `deps fetch` cached — so the cases here are weighted towards the
@@ -426,16 +426,16 @@ describe("the menu is whatever the cached navigation says", () => {
         const config = configFor();
         fs.rmSync(navigationCacheDir(config), { recursive: true, force: true });
         expect(() => readCachedNavigation(config)).toThrow(
-            /navigation has not been fetched\. Run `content-build deps fetch` first/,
+            /navigation has not been fetched\. Run `package-build deps fetch` first/,
         );
-        expect(() => generateHugoConfig(config)).toThrow(/Run `content-build deps fetch` first/);
+        expect(() => generateHugoConfig(config)).toThrow(/Run `package-build deps fetch` first/);
     });
 
     it("treats a half-finished fetch as cold", () => {
         const config = configFor();
         cacheNavigation(config);
         fs.rmSync(path.join(navigationCacheDir(config), ".complete"));
-        expect(() => readCachedNavigation(config)).toThrow(/Run `content-build deps fetch` first/);
+        expect(() => readCachedNavigation(config)).toThrow(/Run `package-build deps fetch` first/);
     });
 
     it("refuses a cached file that is not a navigation", () => {
@@ -467,7 +467,7 @@ describe("the menu is whatever the cached navigation says", () => {
         const fake = async () => new Response("nope", { status: 404, statusText: "Not Found" });
         await expect(fetchNavigation(config, { fetch: fake as any })).rejects.toThrow(/HTTP 404/);
         expect(fs.existsSync(path.join(navigationCacheDir(config), ".complete"))).toBe(false);
-        expect(() => readCachedNavigation(config)).toThrow(/Run `content-build deps fetch` first/);
+        expect(() => readCachedNavigation(config)).toThrow(/Run `package-build deps fetch` first/);
     });
 
     it("`fetchNavigation` refuses a response that is not a navigation", async () => {

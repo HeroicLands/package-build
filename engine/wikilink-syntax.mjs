@@ -232,7 +232,7 @@ export function unresolvedAddressMessage(target) {
     return (
         `address [[${target}]] resolves to no note — no package publishes ` +
         `it. Fix the shortcode, or declare the package that does as a ` +
-        `dependency and run \`content-build deps fetch\``
+        `dependency and run \`package-build deps fetch\``
     );
 }
 

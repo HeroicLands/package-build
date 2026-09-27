@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 // The single source of truth for per-type default item art — shared by the
-// build-time pack builder (`packages/content-build/sohl/items.mjs`) and the runtime
+// build-time pack builder (`packages/package-build/sohl/items.mjs`) and the runtime
 // `SohlItem.getDefaultArtwork` override. Plain ESM, living in the build package
 // and imported here through the same leaf entry point both of them use, so this
 // suite exercises the map they actually read. See issues.

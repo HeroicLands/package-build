@@ -287,7 +287,7 @@ describe("lintFrontmatter carries the vocabulary through", () => {
  * The compiler reads both — a folder's identity is one thing and
  * its hierarchy another, and both large trees file the same folder under a
  * different parent in the items pack and the journals pack. The vocabulary
- * typed the field as a bare wikilink, so `content-build lint` rejected every
+ * typed the field as a bare wikilink, so `package-build lint` rejected every
  * note using the form the compiler is specified to accept: 46 findings against
  * `sohl-thalorna` and 3 here, none of them a content defect.
  */

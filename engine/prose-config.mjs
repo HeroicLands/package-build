@@ -269,7 +269,7 @@ export const MARKDOWNLINT_CONFIG = Object.freeze({
 });
 
 /**
- * The globs `content-build markdown` checks when a consumer names no paths.
+ * The globs `package-build markdown` checks when a consumer names no paths.
  *
  * Every markdown file the repository tracks, which is what a consumer means by
  * "lint my markdown". What to *skip* is the repository's own business and comes
