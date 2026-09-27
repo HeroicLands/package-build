@@ -121,7 +121,7 @@ come from the content graph and should be read as generated page metadata.
 Place relationships can also produce a map alongside the page. The page
 links to that map as a local page resource; a place with no applicable
 relationship has no map. Set `site.maps: false` to omit these drawings. The
-[PDF command](../commands.md#package-build-pdf) covers books, and the
+[book guide](book.md) covers full-page maps in PDF, and the
 [packs guide](packs.md) covers documents compiled for Foundry.
 
 A package with a named `site.pass` can apply its own body transformation
