@@ -1,3 +1,10 @@
+---
+shortcode: commands
+name: { full: "Command reference" }
+type: doc
+subType: reference
+---
+
 # Command reference
 
 `@heroiclands/package-build` ships the `package-build` command. It checks and

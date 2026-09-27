@@ -1,3 +1,10 @@
+---
+shortcode: gettingstarted
+name: { full: "Getting started" }
+type: doc
+subType: userguide
+---
+
 # Getting started
 
 `@heroiclands/package-build` turns an authored content tree and a project configuration into Foundry compendiums, a website, and a book. Choose the path that matches the package you own, then use the shared note guide for its content.

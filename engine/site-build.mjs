@@ -955,6 +955,7 @@ export function renderPages(pages, options) {
  */
 const SITE_PASSES = Object.freeze({
     sohlKb: () => require("../sohl/kb-passes.mjs").sohlKbPass,
+    packageDocs: () => require("./documentation-links.mjs").documentationLinksPass,
 });
 
 /**
@@ -1185,6 +1186,7 @@ export function buildSite({ config, sqlTables } = {}) {
     const pass = resolveSitePass(site.pass, {
         ...site.passOptions,
         repoRoot: resolved.rootDir,
+        config: resolved,
     });
 
     // The map from each related place, drawn now that every page is known to

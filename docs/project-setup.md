@@ -1,3 +1,10 @@
+---
+shortcode: projectsetup
+name: { full: "Project setup" }
+type: doc
+subType: userguide
+---
+
 # Project setup
 
 [`getting-started.md`](getting-started.md) builds a package. This document

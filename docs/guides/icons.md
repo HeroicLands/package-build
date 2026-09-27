@@ -1,3 +1,10 @@
+---
+shortcode: guidesicons
+name: { full: "Icons and artwork" }
+type: doc
+subType: howto
+---
+
 # Icons and artwork
 
 Content uses two kinds of icons. An **asset icon** is an image file with an

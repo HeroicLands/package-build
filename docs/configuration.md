@@ -1,3 +1,10 @@
+---
+shortcode: configuration
+name: { full: "Configuration" }
+type: doc
+subType: reference
+---
+
 ## Configuration: `package-build.config.yaml`, key by key
 
 Every repository built by `@heroiclands/package-build` declares itself in one

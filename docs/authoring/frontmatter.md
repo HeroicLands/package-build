@@ -1,3 +1,10 @@
+---
+shortcode: authoringfrontmatter
+name: { full: "Frontmatter and system blocks" }
+type: doc
+subType: howto
+---
+
 # Frontmatter and system blocks
 
 HeroicLands notes begin with YAML frontmatter. A file is recognized as a note when its opening frontmatter has nonempty `shortcode` and `type` values. Ordinary Markdown files need neither. Keep top-level keys in this order, omitting keys that do not apply: `shortcode`, `name`, `type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`. Any other top-level key is an error.

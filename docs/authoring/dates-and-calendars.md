@@ -1,3 +1,10 @@
+---
+shortcode: authoringdatesandcalendars
+name: { full: "Dates, calendars, and eras" }
+type: doc
+subType: howto
+---
+
 # Dates, calendars, and eras
 
 A canonical date names a day without assuming how a culture divides a year. Write `<year>.<day>[:HHMMSS]`: `720.136` is day 136 of year 720, and `720.136:143005` adds a 24-hour time. A negative year is valid. The day must fit the world's declared year length. The dot separates year from **day of year**, not month from day.

@@ -18,8 +18,11 @@ The generated project includes a homepage, website and book targets, npm scripts
 
 ## Documentation
 
+[Read the published documentation](https://www.heroiclands.org/packagebuild/) or use the Markdown files in this repository.
+
 | Topic                                             | Guide                                                        |
 | ------------------------------------------------- | ------------------------------------------------------------ |
+| Documentation landing                             | [Home](docs/index.md)                                        |
 | Project layout and scripts                        | [Project setup](docs/project-setup.md)                       |
 | Note model and output                             | [Content format](docs/content-format.md)                     |
 | Frontmatter and system blocks                     | [Frontmatter](docs/authoring/frontmatter.md)                 |

@@ -1,3 +1,10 @@
+---
+shortcode: guidesreleaseanddeploy
+name: { full: "Release and deploy a package" }
+type: doc
+subType: howto
+---
+
 # Release and deploy a package
 
 A Foundry package has two delivery paths. `package-build release` prepares

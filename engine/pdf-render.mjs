@@ -632,10 +632,7 @@ function childMatching(children, i, open, close) {
  * @returns {string} Typst markup.
  */
 function inlineRaw(content) {
-    const text = String(content ?? "");
-    const longest = (text.match(/`+/g) ?? []).reduce((n, run) => Math.max(n, run.length), 0);
-    const ticks = "`".repeat(Math.max(1, longest + 1));
-    return `${ticks}${text}${ticks}`;
+    return `#raw("${escapeTypstString(content)}", block: false)`;
 }
 
 /**

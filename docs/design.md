@@ -1,3 +1,10 @@
+---
+shortcode: design
+name: { full: "Design of the package-build toolchain" }
+type: doc
+subType: concept
+---
+
 # Design of the package-build toolchain
 
 This document records the reasoning behind the package boundaries. [Getting started](getting-started.md) is the entry point for using the toolchain; [configuration](configuration.md), [commands](commands.md), and the [API reference](api.md) describe its current interface.

@@ -1,3 +1,10 @@
+---
+shortcode: authoringlinksandmarkup
+name: { full: "Addresses, links, and body markup" }
+type: doc
+subType: howto
+---
+
 # Addresses, links, and body markup
 
 An Address names content independently of its filename or folder. Its full form is `<package>-<system>-<type>-<shortcode>`. A regular prose link defaults to system `note`, and an asset embed defaults to system `none`. Omitted segments take their defaults from the writing context; a short form must still resolve unambiguously. Frontmatter fields that declare an Address contain the bare Address, without brackets.
