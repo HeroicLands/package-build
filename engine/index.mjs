@@ -184,6 +184,9 @@ export * as packagebuildIndex from "./packagebuild-index.mjs";
 /** Publishing a content tree as a website: the pass, and its integrity gates. */
 export * as siteBuild from "./site-build.mjs";
 
+/** In-memory page rendering for an editor preview. */
+export * as sitePreview from "./site-preview.mjs";
+
 /** Address rules every content tree is linted against: shape, uniqueness, alias. */
 export * as contentLint from "./content-lint.mjs";
 

@@ -35,6 +35,13 @@ and this tutorial links to them rather than repeating them:
 | [`project-setup.md`](project-setup.md)   | The files a repository carries beyond the configuration, and the script wiring. |
 | [`api.md`](api.md)                       | The programmatic surface, for a repository with a build script of its own.      |
 
+An editor can render one note from its current buffer through the
+[`engine.sitePreview` API](api.md#enginesitepreview). The context reads saved
+notes and dependency indexes once, while each render overlays the active note's
+text and frontmatter. It returns generated Markdown and frontmatter for an HTML
+preview, or located findings if the page cannot be rendered. The editor keeps
+its own preview artifact and calls `refresh()` after a save.
+
 ## The shape of what you are building
 
 Nine files, and a directory the build writes:

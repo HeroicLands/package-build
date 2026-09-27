@@ -273,6 +273,8 @@ export async function openNotesDatabase(records, { dir, dependencies = [], addre
             };
         },
         async close() {
+            connection.closeSync();
+            instance.closeSync();
             if (!dir) fs.rmSync(base, { recursive: true, force: true });
         },
     };
