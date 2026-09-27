@@ -370,9 +370,10 @@ position together:
 ```
 
 The accepted sizes are `auto`, `small`, `medium`, `large`, `xlarge`, and
-`full-width`. Omitting `size:` means `auto`. The build checks the name, but
-`size:` does not change the displayed dimensions on the website, in Foundry, or
-in the book. See [Images](content-format.md#images) for the rendering rules.
+`full-width`. Omitting `size:` means `auto`, which uses the image's natural
+dimensions within the available measure. The other names set maximum display
+widths for the website, Foundry, and book. See
+[Images](content-format.md#images) for the surface sizes and layout rules.
 
 ## Step 6 — check the tree
 
