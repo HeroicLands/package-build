@@ -45,6 +45,7 @@ function config() {
         contentPackage: "demo",
         foundryPackage: "demo",
         packageKind: "modules",
+        compatibility: { minimum: "14.359" },
         stats: { lastModifiedBy: "demobuilder0000" },
         packs: [],
         publish: { site: "content", address: { prefix: "kb/" } },

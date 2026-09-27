@@ -437,6 +437,7 @@ describe("addresses are keyed from the configuration alone", () => {
             contentPackage: OWN,
             foundryPackage: "demo-module",
             packageKind: "modules",
+            compatibility: { minimum: "14.359" },
             stats: {
                 lastModifiedBy: "demobuilder0000",
             },

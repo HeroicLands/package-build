@@ -110,6 +110,7 @@ function configFor(
         contentPackage: "demo",
         foundryPackage: "demo",
         packageKind: "modules",
+        compatibility: { minimum: "14.359" },
         stats: {
             lastModifiedBy: "demobuilder0000",
         },
@@ -239,6 +240,7 @@ describe("`publish.site` distinguishes homepage-only from content", () => {
             contentPackage: "demo",
             foundryPackage: "demo",
             packageKind: "modules",
+            compatibility: { minimum: "14.359" },
             stats: {
                 lastModifiedBy: "demobuilder0000",
             },
@@ -254,6 +256,7 @@ describe("`publish.site` distinguishes homepage-only from content", () => {
             contentPackage: "demo",
             foundryPackage: "demo",
             packageKind: "modules",
+            compatibility: { minimum: "14.359" },
             stats: {
                 lastModifiedBy: "demobuilder0000",
             },
@@ -355,6 +358,7 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
             contentPackage: "hm3",
             foundryPackage: "hm3",
             packageKind: "systems",
+            compatibility: { minimum: "14.359" },
             stats: {
                 lastModifiedBy: "hm3builder000000",
             },

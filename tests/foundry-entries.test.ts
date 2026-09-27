@@ -134,6 +134,7 @@ function configFor(publish: Record<string, unknown>) {
         contentPackage: "demo",
         foundryPackage: "demo-module",
         packageKind: "modules",
+        compatibility: { minimum: "14.359" },
         stats: {
             lastModifiedBy: "demobuilder0000",
         },

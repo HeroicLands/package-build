@@ -237,6 +237,15 @@ describe("a configuration error carries the position of its key", () => {
 });
 
 describe("what cannot be located", () => {
+    it("reports a missing Foundry core floor at the configuration file", () => {
+        const text = MINIMAL.replace(/compatibility:\n    minimum: "14\.359"\n/, "");
+        const { err, file } = failureFor(text);
+        expect(err.message).toBe(
+            `${file}: error: package-build config: ` +
+                "`compatibility.minimum` is required for a Foundry package.",
+        );
+    });
+
     it("keeps the file and drops the position for an .mjs configuration", async () => {
         // There is no YAML text to resolve a key path against, and parsing JS
         // source as YAML would resolve some paths to positions that are not

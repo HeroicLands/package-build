@@ -47,6 +47,7 @@ function minimal(overrides: Record<string, unknown> = {}) {
         contentPackage: "acme",
         foundryPackage: "acme",
         packageKind: "systems",
+        compatibility: { minimum: "14.359" },
         stats: { lastModifiedBy: "acmebuilder0000" },
         packs: [{ name: "items", type: "Item" }],
         ...overrides,
@@ -767,10 +768,7 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
         );
     });
 
-    it("`compatibility.minimum`, when a document is compiled without one", () => {
-        assertQuoted(
-            "the configuration declares no `compatibility.minimum`, so compiled " +
-                "documents have no honest core version to stamp",
-        );
+    it("`compatibility.minimum`, when a Foundry package does not declare one", () => {
+        assertQuoted(thrown(() => defineConfig(minimal({ compatibility: undefined }))));
     });
 });

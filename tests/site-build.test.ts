@@ -93,6 +93,7 @@ function configFor(site: Record<string, unknown> = {}) {
         contentPackage: "demo",
         foundryPackage: "demo",
         packageKind: "modules",
+        compatibility: { minimum: "14.359" },
         stats: {
             lastModifiedBy: "demobuilder0000",
         },
@@ -369,6 +370,7 @@ describe("the output root is fixed, which is what makes wiping it safe", () => {
             contentPackage: "demo",
             foundryPackage: "demo",
             packageKind: "modules",
+            compatibility: { minimum: "14.359" },
             stats: {
                 lastModifiedBy: "demobuilder0000",
             },

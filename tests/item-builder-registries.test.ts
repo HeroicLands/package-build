@@ -37,6 +37,7 @@ const BASE = {
     contentPackage: "demo",
     foundryPackage: "demo",
     packageKind: "modules" as const,
+    compatibility: { minimum: "14.359" },
     stats: { lastModifiedBy: "demobuild000000x" },
     packs: [{ name: "items", type: "Item" }],
 };

@@ -238,6 +238,7 @@ describe("the site build enforces it, in both publishing modes", () => {
             contentPackage: "demo",
             foundryPackage: "demo",
             packageKind: "modules",
+            compatibility: { minimum: "14.359" },
             stats: {
                 lastModifiedBy: "demobuilder0000",
             },

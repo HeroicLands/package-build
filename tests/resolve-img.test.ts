@@ -151,6 +151,7 @@ describe("resolveImg for a non-`sohl` consumer", () => {
         contentPackage: "thalorna",
         foundryPackage: "sohl-thalorna",
         packageKind: "modules",
+        compatibility: { minimum: "14.359" },
         stats: {
             lastModifiedBy: "thalornabuild000",
         },
