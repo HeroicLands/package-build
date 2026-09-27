@@ -215,7 +215,7 @@ export function assertUniqueAnchors(rawPages, noteName) {
  * An anchored page takes the id its inbound links compute from the note id and
  * the slug, so link and page agree without shared state. Every other page is
  * keyed by its **name**, which is what lets the items pass address an item
- * doc's first page without having compiled it (see
+ * doc's selected page without having compiled it (see
  * {@link sohl.utils.packs.itemDocPointer}).
  *
  * **It takes no index**. Keying a page by position *and* name,

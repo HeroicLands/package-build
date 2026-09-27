@@ -99,7 +99,7 @@ describe("a pack per system", () => {
 
 describe("a system never receives another system's pack", () => {
     it("ignores a type-wide default belonging to the other system", () => {
-        // `CONTENT.md`'s documented two-system layout marks `actors-sohl` as the
+        // the two-system package layout marks `actors-sohl` as the
         // default. Returned to the HM3 pass, that pack name is not its own, so
         // it passed over every note in the tree and compiled zero entries —
         // silently, which is worse than the loud failure above.

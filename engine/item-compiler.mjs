@@ -50,7 +50,7 @@ import log from "loglevel";
 
 import { resolveName } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
-import { journalPageId, splitPages } from "./journals.mjs";
+import { assertUniquePages, journalPageId, splitPages } from "./journals.mjs";
 import { foundryPackageId } from "./content-package.mjs";
 import { itemDocEntryId, itemDocPointer } from "./item-docs.mjs";
 // The whitelist and the per-type `system` builders both come from the resolved
@@ -76,15 +76,15 @@ import { assertNoDerivedFields } from "./derived-fields.mjs";
 import { assertNoRuntimeOnlyFields } from "./runtime-only-fields.mjs";
 
 /**
- * The description an item carries: a pointer to its **item doc**, the
- * JournalEntry the journals pass compiles this same body into.
+ * The description an item carries: a pointer to a page of its **item doc**,
+ * the JournalEntry the journals pass compiles this same body into.
  *
  * The prose is not rendered into the item at all. Carrying it would duplicate
  * it onto every actor holding the item — 7.59 MB of copies across the actors
  * pack, of which 133 KB was distinct — where a link is 60 bytes and always
  * current. The two passes derive the target from the note's own id, so neither
- * has to see the other's output; both split the *converted* markdown, so an H1
- * carrying a wikilink names the same page on both sides.
+ * has to see the other's output. `{#description}` selects the named page;
+ * an item without that anchor points to its first page.
  *
  * An item with no prose points at nothing, exactly as the journals pass writes
  * no entry for it.
@@ -97,8 +97,10 @@ import { assertNoRuntimeOnlyFields } from "./runtime-only-fields.mjs";
  */
 export function itemDescription(markdown, fm, name) {
     if (!String(markdown).trim()) return "";
-    const [leadPage] = splitPages(markdown, name);
-    const pageId = journalPageId(itemDocEntryId(fm.id), leadPage);
+    const pages = splitPages(markdown, name);
+    assertUniquePages(pages, name);
+    const page = pages.find((entry) => entry.anchorSlug === "description") ?? pages[0];
+    const pageId = journalPageId(itemDocEntryId(fm.id), page);
     return itemDocPointer(foundryPackageId(), fm.id, name, pageId);
 }
 

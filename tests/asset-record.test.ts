@@ -37,7 +37,10 @@ import {
 } from "../engine/asset-index.mjs";
 import { ASSET_TYPES } from "../engine/asset-types.mjs";
 
-const SPEC = fs.readFileSync(path.resolve(__dirname, "../docs/content-format.md"), "utf8");
+const SPEC = fs.readFileSync(
+    path.resolve(__dirname, "../docs/reference/format-details.md"),
+    "utf8",
+);
 
 /**
  * The fields the specification's asset-record table names.

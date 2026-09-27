@@ -83,7 +83,7 @@ import {
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { reduceAddressFields } from "./address-fields.mjs";
 import { artPathname, artSlot, unacceptedArtMessage, unresolvedArtMessage } from "./art-fields.mjs";
-import { emitDiagnostic } from "./diagnostics.mjs";
+import { emitDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoDeclaredFolder } from "./folder-notes.mjs";
 import {
@@ -1225,13 +1225,22 @@ export class BasePackCompiler {
                 this.onCompiled(fm, doc);
             } catch (err) {
                 this.errorCount++;
+                const repeatedAnchor = err.message.match(
+                    /declares the anchor \{#([^}]+)\} on more than one heading/,
+                );
+                const position =
+                    err.position ??
+                    (repeatedAnchor ?
+                        positionOfLiteral(
+                            fs.readFileSync(absPath, "utf8"),
+                            `{#${repeatedAnchor[1]}}`,
+                            2,
+                        )
+                    :   undefined);
                 // `position` is set by whatever failed if it knew where — an
                 // unresolved address, a bad table directive — so the report
                 // points at the line rather than at the note.
-                this.noteError(
-                    `${this.noteLabel(fm)} failed to compile: ${err.message}`,
-                    err.position,
-                );
+                this.noteError(`${this.noteLabel(fm)} failed to compile: ${err.message}`, position);
             }
         }
 

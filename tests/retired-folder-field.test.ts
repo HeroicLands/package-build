@@ -163,7 +163,7 @@ describe("the frontmatter lint", () => {
  *
  * The epic's argument against `*-folders.yaml` was that a second, unchecked
  * statement of one fact drifts from the first. These assertions point that
- * argument at `docs/content-format.md`, which had drifted in both of the ways
+ * argument at `docs/reference/format-details.md`, which had drifted in both of the ways
  * a retired spelling can: it offered `folder` beside `packFolder` as a live
  * source, and it still called `packFolder` a path.
  *
@@ -174,7 +174,10 @@ describe("the frontmatter lint", () => {
  * are pinned.
  */
 describe("the specification states the address model", () => {
-    const SPEC = fs.readFileSync(path.resolve(__dirname, "../docs/content-format.md"), "utf8");
+    const SPEC = fs.readFileSync(
+        path.resolve(__dirname, "../docs/reference/format-details.md"),
+        "utf8",
+    );
 
     /** The shared-mappings rows — `| shared source | → sohl | → hm3 |`. */
     function sharedMappingSources(): string[] {

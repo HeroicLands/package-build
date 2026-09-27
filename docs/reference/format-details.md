@@ -1,0 +1,4377 @@
+## Content format: how a note becomes documents
+
+### Documentation
+
+Markdown generates a JournalEntry: content before the first H1 becomes its "Introduction" page, and each H1 begins another page. The document Address is `<package>-note-<note_type>-<shortcode>`.
+
+An **infobox** is prepended to the entry's first page, before the prose. It is
+not a page of its own: a page is what a Foundry UUID addresses, and a summary a
+reader has to navigate to is a summary they do not see. What the box holds, and
+where it sits in every other medium, is [the infobox](#the-infobox) below.
+
+**There are two kinds of infobox.**
+
+A **note infobox** summarises the subject itself, from `data:` — a scenario's
+length, party size and required archetypes; a place's subtype and its parent; a
+weapon's weight and value. None of that is SoHL or HM3 information, and it
+deserves a summary panel all the same. Any type that declares `data:` fields has
+one.
+
+A **system infobox** summarises what one system makes of the note, drawn from
+that system's block. There is one per system, and they are not alike: the two
+systems describe a weapon with different values for impact, heft, reach and draw,
+so neither box can stand for the other.
+
+**Which boxes appear is decided by the note type; what they say is decided by the
+note.** A type that both systems support always shows both system boxes, and a
+box whose system this particular note produces no document for reads
+**"Not available"**.
+
+| note type                                                             | system boxes shown                                 |
+| --------------------------------------------------------------------- | -------------------------------------------------- |
+| `weapon`, `skill`, `being`, `armorgear`, `containergear`, `miscgear`… | SoHL **and** HM3 — either may read _Not available_ |
+| `affiliation`, `affliction`, `attribute`, `concoctiongear`, `mystery` | SoHL only                                          |
+| `armorlocation`                                                       | HM3 only                                           |
+
+This is stated rather than inferred from an empty block, because an absence is a
+poor signal: noticing that something is missing requires already knowing it
+should have been there, and a reader meeting one page has no way to know. A box
+that says _Not available_ tells them outright.
+
+It also separates two facts that an absence would conflate. `Spear (thrown)` is
+HM3-only while spears plainly exist in SoHL — _that_ note has no SoHL form, and
+its SoHL box says so. HM3, by contrast, has no affiliations, mysteries or
+attributes **at all**; on those pages a box reading "Not available" would suggest
+a gap in the note when the truth is about the system's scope, so no HM3 box is
+drawn.
+
+The set of boxes needs no new declaration: the note-type → document-subtype map
+already records which systems each type reaches. Rendering one box per mapped
+system makes the page checkable — _every page carries exactly the boxes its type
+maps to_ is an assertion the build can make, so a missing infobox is a failure
+rather than something nobody notices.
+
+For web pages, the full Markdown body renders as HTML with its infoboxes.
+
+### The infobox
+
+**The infobox is generated content at a known position — prepended, before the
+prose.** It is not a floating sidebar and it is not defined in a rendering
+template. The toolchain settles what each box holds; each medium lays that out
+its own way.
+
+| medium  | placement                                              | collapsing                |
+| ------- | ------------------------------------------------------ | ------------------------- |
+| book    | flows in the column measure, breaking between sections | none, and none needed     |
+| website | side rail on wide screens, inline on narrow            | `<details>`, default open |
+| Foundry | inlined, the page being narrow                         | `<details>`, default open |
+
+Two columns are print-only. A scrolling page has no fixed viewport, so columns
+make a reader travel down and back up, and a narrow screen collapses to one
+column regardless.
+
+**Six rules hold in every medium.**
+
+1. **It is content in document order**, prepended before the prose. An image
+   authored before it appears before it.
+2. **It contains no image.** A picture is authored in the text with its own
+   directive, and its position governs.
+3. **A section is the unit that flows.** Sections are whole and unbreakable and
+   the panel breaks _between_ them, which is what lets a long box cross a
+   column or page boundary without splitting a stat grid down the middle.
+4. **An absent field is absent, not empty.** A row with no value is not
+   emitted, and neither is a section with no rows: a creature carrying no
+   equipment has no `EQUIPMENT` heading rather than an empty one. A placeholder
+   asserts a fact that is not there, and an empty heading asserts that something
+   was expected here and is missing. A corpus writes an absence three ways and
+   all three count: the key is omitted, it holds the field's own default, or it
+   holds a **sentinel** — `na`, `none`, `not applicable` — which is the same
+   absence written as a word. `Potency: Na` is not a fact about a potion.
+5. **A system box is never an empty panel; it says which silence it is.** Rule
+   4 governs rows, and a box is not a row — a heading over nothing asserts that
+   something should have been there. See
+   [the three states of a system box](#the-three-states-of-a-system-box).
+6. **Order is the toolchain's.** A medium renders boxes, sections and rows in
+   the order given.
+
+**Embedded models link to documentation in an infobox.** The model Address
+continues to identify the native Item used for compilation. Its displayed link
+uses that same package, type and Shortcode under `note`, which names the
+corresponding documentation journal. A model with no published documentation
+keeps its known name as plain text; the infobox does not substitute an Actor or
+Item link.
+
+#### What the note box holds
+
+**The note box's fields are the type's own `data:` vocabulary, in its declared
+order** — the very table each `### type:` section below states. There is no
+second list, so a key added to a type appears in the book, on the website and
+in a compendium journal with no further edit. A `Name` row stands first on
+every note, because every note has one.
+
+A few keys carry no row, and the reason in each case is one of exactly two —
+the key is **machinery**, steering a build or an interface rather than
+describing the subject, or it is an **image**, which rule 2 keeps out of the
+box:
+
+| key                      | why it carries no row                            |
+| ------------------------ | ------------------------------------------------ |
+| `templatePriority`       | template machinery, not a fact about the subject |
+| `color`                  | sidebar machinery, not a fact about the subject  |
+| the art slots, `overlay` | an image, which rule 2 keeps out of the box      |
+
+A field whose value is a **mapping** carries no row either — a governance
+ladder or a wall layout has no summary shape — and neither does one the note
+left empty.
+
+A being's `age`, `height`, `weight` and `appearance.*` compose into a single
+**Appearance** clause rather than taking six rows of their own: _Age 34, 6′ 1″,
+181 lbs, medium frame, brown eyes_.
+
+#### What a system box holds
+
+**A system box's fields are that system's own field declaration**, in its
+order. There is no second list here either, so a field added to a type reaches
+the box with no further edit.
+
+Two things keep a fact off it:
+
+- **A value the declaration would have supplied anyway.** A field answered by
+  its own default is a fact about the compiler, not about the note — and that is
+  true of the value, wherever it was written. A corpus writes its defaults out:
+  `improveFlag: false` and `combatCategory: none` are typed into hundreds of
+  notes that mean nothing by them.
+- **A fact the note box already put on the page.** A gear item's weight is
+  system-agnostic and belongs to the note. What counts is what the note box
+  _shows_, not what its vocabulary declares — the same fact is written under
+  `data:` on one note and at its destination path on another, and a system box
+  that stood down on the declaration alone would leave it on no surface at all.
+
+**A measured quantity carries its unit on its value** — `Price 160d`,
+`Weight 1.1 lbs`. The unit belongs to the quantity rather than to the name of
+the quantity, so it is not folded into the label: `Price (d)` beside `160` makes
+a reader reassemble one fact from two cells, and reads worst in the book, whose
+label column is a narrow small-caps rule. A medium cannot supply it either —
+appending `d` to a price means knowing which row is the price, which is the one
+thing a generic renderer must never know. A row carrying a unit is `text`,
+because a number with a unit is text for presentation.
+
+**What a field is called** is a **presentation overlay** on that same
+declaration, per system. It carries two things a compiler's field list cannot,
+because they are about a page rather than about a document: a reader's word
+where the declaration's key is the compiler's — `assocSkillCode` is exactly
+right in a DataModel and wrong in a panel somebody reads — and the handful of
+keys that belong on no page at all, either because the box shows the same fact
+whole somewhere else or because they steer a character sheet rather than
+describe the subject. It is an overlay and not a list: a field it does not
+mention still gets a row, under its own humanised name.
+
+Four types are read differently, because their box is derived rather than read
+field by field — a **being**, whose attributes, skills, mystical abilities and
+carried gear are one flat `sohl.items` list; **armour**, whose protection is
+shown for all four aspects with an unstated one rendered `0`; a **weapon**,
+whose strike modes are shown one per line with an unstated value rendered `—`;
+and a **projectile**, whose impact is three declared fields composing into the
+one quantity a reader wants. Both of those placeholders are decided by the
+toolchain and travel as data, so no renderer has to know which field it is
+looking at.
+
+A weapon's strike modes are authored either as a **list**, each mode carrying
+its own `shortcode`, or as a **mapping** keyed by the mode's name. Both are
+read, and both yield the same section.
+
+#### The three states of a system box
+
+A system box says something on every page that carries one. Which of the three
+it says is decided here and travels as the box's `statement`, so a medium draws
+one thing and decides none of it.
+
+| state          | when                                                       | what the box says                       |
+| -------------- | ---------------------------------------------------------- | --------------------------------------- |
+| content        | the system holds something the note box has not shown      | its sections, and no `statement`        |
+| not available  | the system maps this note's type but produced no document  | `statement: Not available`              |
+| nothing to add | the system produced a document holding nothing new to show | `statement: Nothing beyond the profile` |
+
+The third state is not the second. _Not available_ is a statement about this
+note — the system has no document for it, and a reader can act on that. A
+system that _does_ compile the note and holds only facts the note box has
+already given says so instead, because a reader told "not available" would go
+looking for a document that exists, and an empty panel tells them nothing at
+all.
+
+A system that does not map the note's type gets **no box**. A box reading
+_Not available_ on every affiliation page would suggest a gap in the note when
+the truth is about the system's scope.
+
+Whether a document was produced is the compile's own answer rather than a
+reading of the frontmatter. Three things must hold: the note must carry that
+system's block, its type must map to the system, and it must route to a pack of
+the document class that map names. The block is the first of them because a
+system block is what makes a game document — see
+[A system block is what makes a game document](#a-system-block-is-what-makes-a-game-document).
+A pack declaring **no** system is compiled by the fallback pass, which reads one
+system's block and no other, so the question is the same one whether or not the
+pack answered it.
+
+#### Four section layouts
+
+A section says how it is arranged, and a renderer switches on that and on a
+value's `kind` — never on a field name, which is what keeps a field list from
+leaking back into a template.
+
+| `layout` value | shape                           | what carries it | where it is used           |
+| -------------- | ------------------------------- | --------------- | -------------------------- |
+| `rows`         | label/value pairs, one per line | `rows`          | a profile                  |
+| `grid`         | short label/value cells         | `cells`         | attributes, armour aspects |
+| `runin`        | groups of comma-joined entries  | `groups`        | skills, equipment          |
+| `list`         | one entry per line              | `entries`       | mystical abilities         |
+
+| `kind` value | the value is                    |
+| ------------ | ------------------------------- |
+| `text`       | a string                        |
+| `number`     | a number                        |
+| `link`       | `{text, url?, uuid?, address?}` |
+| `links`      | a list of those                 |
+| `list`       | a list of strings               |
+
+A website renders a link by its `url`, a compendium journal by its `uuid`, and
+the book by the `address`, which is the entry's own label in the volume. A
+reference the index could not reach keeps its words rather than being dropped.
+
+**Emitted shape**, as a page's front matter carries it:
+
+```yaml
+infoboxes:
+  - id: note
+    kind: note
+    title: Profile
+    sections:
+      - id: profile
+        layout: rows
+        rows:
+          - label: Name
+            kind: text
+            value: Brànwâal Dôrgaar
+          - label: Affiliations
+            kind: links
+            value:
+              - text: The Silent Talon Company
+                url: /thalorna/affiliation-slntlncmpny/
+  - id: sohl
+    kind: system
+    system: sohl
+    title: SoHL
+    available: true
+    sections:
+      - id: attributes
+        label: Attributes
+        layout: grid
+        cells:
+          - label: STR
+            value: 14
+      - id: skills
+        label: Skills
+        layout: runin
+        groups:
+          - label: Combat
+            entries:
+              - text: Melee 75
+  - id: hm3
+    kind: system
+    system: hm3
+    title: HM3
+    available: false
+    sections: []
+    statement: Not available
+```
+
+### Frontmatter has three regions
+
+A HeroicLands note has opening YAML frontmatter with nonempty `shortcode` and
+`type` values. Other Markdown files are ordinary Markdown. A note's frontmatter
+has three regions:
+
+| Region               | Describes                                               | Unknown keys |
+| -------------------- | ------------------------------------------------------- | ------------ |
+| **Top level**        | The note's identity, name, description, and publication | An error     |
+| **`data:`**          | The subject itself, shared by systems                   | An error     |
+| **`hm3:` / `sohl:`** | The subject as one system's documents                   | An error     |
+
+The complete top-level allowlist, in its required order, is `shortcode`, `name`,
+`type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`. Omit fields that
+do not apply. The first fields of a typical note look like this:
+
+```yaml
+---
+shortcode: example
+name: { full: Example }
+type: lore
+subType: concept
+description: A short page description.
+tags: [draft]
+data: {}
+sohl: {}
+---
+```
+
+Any other top-level key is an error. To keep an author-only note beside the
+content, comment out its YAML lines with `#`. Comments remain valid YAML text
+and do not become data in the JSONL index, generated pages, or Foundry documents.
+There is no custom site metadata. `description` supplies the page's short
+description; `tags` carries publication and classification tags.
+
+Arrays and objects use one-line YAML flow form when the complete line is under
+100 characters. At 100 characters or more, they use full block form. A multiline
+flow collection is formatted into one of those forms; folded collections are
+not used. `package-build format --write` applies this rule and the top-level
+order without changing the Markdown body.
+
+#### Dates and calendars
+
+A calendar names and orders the days within a year. An **era** states where its
+year count begins. Several eras may use one calendar; each has its own origin.
+Every frontmatter date uses either a canonical day or a named calendar date:
+
+```yaml
+data:
+  born: datefrom vrcal 23 Taranis 326 VR
+  died: ~326.114
+```
+
+`datefrom` takes a calendar shortcode or Address, followed by a date in that
+calendar. The date may name a day and month (`23 Taranis 326 VR`), a month and
+year (`Taranis 326 VR`), or a year (`326 VR`). Its era label is required when
+the calendar has several eras. Month names and their abbreviations come from
+the calendar note; an era's `abbreviation`, `name`, marker, or shortcode names
+it. The conversion retains year or month precision when no exact day is given.
+A 24-hour time follows an exact day, such as `23 Taranis 326 VR 14:30:05`.
+
+The calendar-neutral spelling is `<year>.<day>[:HHMMSS]`: `720.136` names day
+136 of canonical year 720, and `720.136:143005` adds 14:30:05. The dot means
+**day of year**, not a month. Its day must fit the world's `data.year.days`,
+and its time must fit a 24-hour day. A negative canonical year is valid.
+Prefix either form with `~` to mark it approximate, as in `~326.114` or
+`~datefrom vrcal 23 Taranis 326 VR`. `unknown` states that an occurrence is
+known but its date is not recorded, in fields that permit it. No other
+frontmatter date form is valid.
+
+`package-build datefrom <calendar> <date>` prints the canonical day for a
+calendar date. `package-build dateto <calendar> <canonical-date>` prints the
+calendar date in the era covering that day. The calendar argument is its
+shortcode or Address. `datefrom` reads the named calendar form; `dateto` prints
+its named month and era. A gap between eras has no calendar date to print.
+Both commands read the current note tree and print only the converted value
+on success.
+
+An era's `start` locates its first year on the canonical timeline. It may be
+written canonically, such as `start: 1.1`, or in another declared era. The build
+resolves these dependencies across calendar notes and reports cycles, unknown
+eras, and dates outside an era's `end`. A year-precision start anchors the
+reckoning at the first day of that canonical year for conversion; it does not
+date the event that gave the era its name. A marker, when declared, is unique
+across the corpus and contains uppercase letters or digits, beginning with a
+letter. A
+year-precision end includes the whole named year. Month and day values are
+bounded by the named era's calendar months; canonical dates remain
+calendar-neutral.
+
+Eras in one calendar are listed by increasing `start`. The first era also
+names years before its start with negative numbers: if its year 1 begins in
+canonical year `-200`, its year `-100` corresponds to canonical year `-300`.
+Later eras count forward from their own year 1; a negative year in a later era
+is refused. The next era's start closes the preceding era on the day before it
+begins. An explicit earlier `end` leaves a gap, whose dates have no era in
+that calendar. The authored note dates and the neutral timeline follow this
+rule; the compiled calendar definition retains the format required by its
+Foundry consumers.
+
+An era is addressed as `<calendar shortcode>.<era shortcode>` where a
+qualified reference is needed. A full calendar Address works when calendar
+shortcodes occur in more than one package. An ambiguous reference is an error.
+The content index and generated page
+frontmatter carry `resolvedDates` for a being's `born` and `died`, and for a
+lore note's `data.event.when` and `until`. Each record retains the authored
+`text`, precision, approximation, and, when known, its canonical year, day,
+span, and sort value. An `unknown` date has no sortable year. A labelled era
+also supplies `prose` for display; otherwise `prose` is null.
+
+To print a date in another calendar, select the single era whose span contains
+the date. Dates before the first era's start select that era's negative count.
+A gap selects no era and keeps the authored date. Overlapping era declarations
+are an error. The printable form keeps year, month, day, and `~`
+at the precision the author supplied. Years on either side of an era's origin
+are `-1` and `1`; there is no year zero. A page's infobox displays the date in
+its authored era, using that era's prose label when one is declared.
+
+A being or place may set `data.calendar` to the Address of a `lore` note with
+`subType: calendar`. A being's infobox prints its dates in the era active in
+that calendar; a place's infobox prints its `present` there. When no calendar
+is named, it prints the date's authored era.
+Clock time is preserved in either form.
+
+Markdown prose accepts inline `{{...}}` expressions. A property path reads
+the note's frontmatter, and `dateformat` converts a date to the reckoning used by a
+specified calendar. The first argument names a calendar note by shortcode or
+Address, or one of its eras by `<calendar>.<era>`. Use a full Address when a
+short name is ambiguous. The second argument is a canonical date or a
+frontmatter property holding a date. A gap in the calendar's eras prints the
+canonical date. An explicit era that does not cover the date is an error.
+
+```markdown
+{{name.full}} was born on {{dateformat "vrcal" data.born}}.
+{{dateformat data.calendar data.born}}
+The event fell on {{dateformat "vrcal" "300.25"}}.
+{{and (gt 3 5) (lt 4 2)}}
+{{sql "SELECT COUNT(*) FROM notes WHERE type = 'being'"}}
+{{gt (sql "SELECT COUNT(*) FROM notes WHERE type = 'being'") 10}}
+```
+
+The comparison helpers `gt`, `gte`, `lt`, and `lte` take two numbers; `eq`
+compares two values. `and`, `or`, and `not` combine Boolean results. Nested
+helpers use Handlebars parentheses. These expressions are replaced on web,
+Foundry, and book pages. Code spans and fences remain literal, as do Hugo
+shortcodes such as `{{< glyph slug="bes" >}}`. A missing property, unresolved
+calendar, or invalid date produces a located build error.
+
+`sql` runs a quoted SQL query against the same `notes` index used by SQL
+tables. It returns one scalar value, so the query must produce exactly one
+row and one column. It can be nested inside comparisons. A query returning
+zero rows, several rows, or several columns is an error at the expression.
+Dependency indexes are available through their attached package schemas,
+just as they are in SQL tables.
+
+**`data:` is closed.** It holds the type-specific facts about the
+subject — a weapon's weight, an affliction's transmission, a being's species —
+and every note type declares which keys it may carry. A misspelled key is a
+finding in either region.
+
+Every note type may put a pinned document id in `data.id`, a shared compendium
+route in `data.pack`, a shared folder Address in `data.packFolder`, and source
+details in `data.harnworld`. A system block's `pack` or `packFolder` overrides
+the shared value for that system. A `being` may also describe its social profile
+in `data.social`.
+
+**Tags are open, except the ones that classify.** A tag naming a theme or a region — `underworld`,
+`byzaria`, `riverlands` — is the author's own and this build has no opinion about it.
+A tag that classifies the subject is different, because something queries it. A
+settlement tagged `village` appears in the list of villages and an untagged one
+does not, so `vilage` does not merely look wrong: it removes the note from an
+index, silently, and the index still renders. That is the same failure a
+misspelled `data:` key is, and it gets the same answer — the vocabulary
+is declared, so a near miss is a finding that names what you probably meant.
+
+| group               | applies to             | tags                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **place kind**      | `place` / `settlement` | `city`, `city-state`, `town`, `village`, `settlement`, `port`, `fortress`, `citadel`, `castle`, `stronghold`, `garrison`, `camp`, `oasis`, `waypoint`, `post`, `precinct`, `district`, `necropolis`, `hall`, `capital`                                                                                                                                  |
+| **place character** | `place`                | `fortified`, `temple`, `market`, `trading`, `merchant`, `mining`, `fishing`, `naval`, `military`, `imperial`, `provincial`, `coastal`, `river`, `lakeside`, `hill`, `mountain`, `valley`, `forest`, `woodland`, `inland`, `island`, `frontier`, `border`, `craft`, `caravan`, `pilgrimage`, `holy`, `sacred`, `free`, `ford`, `portage`, `pass`, `well` |
+| **place scale**     | `place` / `region`     | `continent`                                                                                                                                                                                                                                                                                                                                             |
+| **being station**   | `being`                | `tradesfolk`, `common-folk`, `soldiery`, `administration`, `clergy`, `mages`, `underworld`, `dependents`, `guilded`, `unguilded`                                                                                                                                                                                                                        |
+| **being kind**      | `being`                | `character`, `creature`                                                                                                                                                                                                                                                                                                                                 |
+| **state**           | any                    | `draft`                                                                                                                                                                                                                                                                                                                                                 |
+
+**`draft` is the one tag either build reads.** It does two things and nothing
+else: a link _into_ a draft note renders marked, and the note itself states that
+it is unfinished wherever a reader meets it.
+
+A link into it renders as
+`<span class="sohl-draft-link" title="Draft — not yet written">…</span>` in a
+compiled journal and on the website alike, with the appearance supplied by the
+consuming system's stylesheet or the site theme.
+
+The note's own statement is the **draft notice**, and it reads the same on every
+surface:
+
+> **Draft.** This entry is unfinished. What it states may change, and nothing in
+> it is settled.
+
+It leads the entry — above the infobox and above the prose — because a reader
+deciding whether to rely on an entry has to be told before they read it. Where
+it lands:
+
+| Surface      | What carries it                                                      |
+| ------------ | -------------------------------------------------------------------- |
+| JournalEntry | a `blockquote.sohl-draft-notice` at the head of the first page       |
+| Actor        | the dossier the sheet draws — SoHL's `dossier`, HM3's `biography`    |
+| The book     | a drawn mark and a left rule between the entry's plate and its panel |
+| The website  | the theme's own notice, above the infobox rail and the prose         |
+
+**An Actor carries it once.** A being's prose reaches two fields, and a document
+saying the same thing twice teaches a reader to skip it — a printed sheet draws
+both in turn — so the dossier carries the notice and the appearance is
+untouched. The two systems pair by the authored section each field reads rather
+than by its name, so `dossier` and `biography` carry it while `appearance` and
+`description` do not.
+
+**The mark is a notice, not a hazard** — `fa-circle-exclamation`, which Foundry
+bundles, so a journal page carries it with no module stylesheet loaded. The book
+draws its own, because a consumer declaring no icon family is the ordinary case
+and a glyph a face lacks is silent in Typst. Stripped of mark and rule the
+sentence still states the whole thing, which is the floor every surface is built
+to.
+
+**Nothing else changes**: the note compiles, validates, publishes and resolves
+exactly as any other, and it stays in the packs, in the link manifest and on the
+site. The `draft` tag marks the content for readers without making its Address unresolvable.
+
+**The group's scope is what makes the check work.** A group names the types it
+applies to, and a place's kinds are only ever checked on a place. Without that
+the rule is wrong on every note it touches: `azravan` on a faith, `barter` on an
+economy note and `secret` on three lore notes each sit a typo's distance from
+`caravan`, `border` and `sacred`, and none of them is a mistake. Scoped, the same
+corpus reports nothing — while a settlement tagged `vilage` is still caught, even
+beside a correct `town`.
+
+**Kind and character are separate because one slot could not hold both.** A
+fishing village is a `village` that is `fishing`, and the field this list
+replaced had to spell that `Fishing Village` as a value of its own — which is why
+a query for villages found two of the eleven that existed.
+
+**A station is not a rank.** Which kind of body a person belongs to — the
+clergy, the soldiery, the tradesfolk — is a different axis from where they stand
+inside one, which is what `data.lore` carries by naming the rank. A tag holds the
+first because a person may be several at once and because nothing ranks
+`clergy` against `mages`.
+
+**A continent is a region carrying a tag, not a subtype**, because structurally it
+is a region: the same fields, the same parent chain, everything but scale.
+
+#### A being's kind is the one tag group that is a slot
+
+A person and a beast carry very different amounts of data, and a being note says
+which it is with a tag rather than leaving it to be guessed from how much the
+note holds.
+
+| `beingKind` value | the subject is                                                                                                                                |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `character`       | a person — someone with a name, a station, a history, and the attributes, skills and carried gear that go with living a life                  |
+| `creature`        | a beast, a monster or a made thing — statted for what it does rather than for who it is, and usually carrying no equipment and no affiliation |
+
+**The slot is filled once, or not at all.** The two are alternative answers to
+one question, so a note carrying both has answered it twice and every reader of
+the tag gets to pick; that is refused as an error naming the note. A being
+carrying **neither** is not a finding. The kind is authored deliberately, and
+nothing can tell a being nobody has classified from one whose author means to
+leave it unclassified — a tree part-way through tagging is a tree with untagged
+beings in it, and failing its build would be a rule about the schedule rather
+than about the content.
+
+**Nothing else fills the slot, and nothing else is refused for failing to.** A
+being tagged `undead` or `beast-of-burden` is describing the subject in the
+author's own words, in a region that is open, and this build has no standing to
+take that back. What is refused is a near miss of one of the two — `charcter`
+drops the note out of every query for characters while the list still renders —
+and the two of them together. Those are the only two refusals a closed tag
+vocabulary can make here, and both are errors, so a build carrying one fails.
+
+**The same two words name two other things, and neither is this.** `hm3.type`
+takes `character` or `creature` as the HM3 _document_ a being compiles to, in a
+system block rather than in `tags:`. The note itself uses `type: being`; `type: character` is refused.
+Three namespaces, one pair of words; the tag is the system-agnostic one, and it
+is the only one that describes the subject rather than a document.
+
+**Neither the book nor the website branches on the kind.** One flow serves both
+— the authored image, then the infobox, then the prose — and a creature's box is
+simply shorter, because it has less in it. A section with nothing to put in it is
+not emitted at all, so a creature with no equipment has no `EQUIPMENT` heading
+rather than an empty one, exactly as rule 4 of [the infobox](#the-infobox) drops
+a row with no value. The tag classifies the subject, which is what makes a list
+of the creatures in a setting a thing a query can ask for; it is not an
+instruction to a renderer.
+
+The mapping tables below describe the **document** destinations. A key that
+appears in no table still reaches the web page; it simply reaches no Foundry
+document.
+
+**The shared source is a default; the system block overrides it.** Where a field
+can be reached two ways — `data.weight` through the mapping table, or
+`sohl.system.weightBase` written directly — the value in the system block wins.
+`data:` says what is true of the thing in general; a system says what is true of
+it _there_, and a system that disagrees is not in error. A weapon weighs what
+`data.weight` says unless SoHL says otherwise, and then SoHL is right for SoHL.
+
+This is the same rule as `hm3.type` overriding a derived document type, applied
+to fields: derive from the shared source, and let the system state the exception.
+
+**A shared source and an in-block key are separate declarations.**
+`data.gender` is the shared source for HM3 gender; `hm3.gender` is its
+in-block spelling, and `hm3.system.gender` is the native destination.
+The native destination wins, followed by the in-block value and the shared
+source. Field declarations name both source and destination explicitly.
+
+**A field without a shared source reads its system declaration.** An
+`affiliation` item's `system.title` is the style of address an office carries;
+the note's heading reads `name.full`. The field reads
+`<system>.system.<field>` and the in-block position, which describe the
+document. Native species is independent of the shared lore Address in `data.species`.
+`subType` has the same meaning at both levels.
+
+**Some of a system's fields are runtime state, and a note may not write any of
+them.** A data model declares everything a document stores, and part of that is
+what _play_ writes: an affliction's `onsetDate` is the world time its onset
+fired at. Writing `<system>.system.<field>` reaches such a field as directly as
+any other — the block is a verbatim passthrough, and the field really is in the
+schema — so a note left free to stamp one ships that world's play state to
+every world that installs the compiled pack.
+
+So a field the document writes for itself is **declared as such**, and the
+declaration says both halves of the fact: authoring it is an error naming the
+note, the key and what the field holds, and the compiled document leaves the key
+out entirely so the data model's own initial value stands. This is a property of
+the field rather than a list of names, so it covers every such field a system
+adds later. The per-type tables below never list one — they are the vocabulary
+an author writes — and each type that has any names them under its table.
+
+**An `Address` becomes a `Shortcode` where the target field expects one.** SoHL
+resolves a stored cross-reference among the items one actor holds, and packages do
+not exist there, so the field holds a `Shortcode`. Four `affiliation` fields are
+authored as Addresses and stored that way: `data.seat` becomes `system.seat`,
+`data.parents` becomes `system.parents`, `data.domains` becomes `system.domain`,
+and each authored key of `data.relations` becomes a key of `system.relations`. The
+reduction happens at build time, and two things are errors naming the note: an
+Address whose type the field does not accept, and two Addresses that reduce to one
+shortcode, which the field cannot hold both of.
+
+**A SoHL skill Address becomes a native Item UUID.** An affiliation's
+`sohl.system.commonSkills` names skills in its own package or a declared
+dependency. Its `system.commonSkills` contains the exact published Item UUIDs,
+including each foreign module's own pack name. Native skill lookup uses those
+UUIDs; the journal, website and book use documentation links for presentation.
+
+**A `Code` suffix marks a different thing.** `system.assocSkillCode`,
+`system.assocAffiliationCode` and `system.parentSkillCode` hold a `Shortcode` at
+both ends — each is authored as one, under `<system>.system`, and emitted verbatim
+— so no Address is reduced into them and none of them has a shared source. A value
+carrying a separator is refused there by the shortcode charset rather than read as
+an Address. `data.assocSkill`, `data.assocAffiliation` and `data.parentSkill` are
+properties of the **page**: each is an Address naming the note an infobox row
+links to, and none reaches a compiled document.
+
+### The note vocabulary, and how it maps
+
+A note has its own `type` and `subType`. **This is a third vocabulary** — not
+SoHL's and not HM3's. It says what the note _is_ and the scope it covers,
+irrespective of whether it becomes an Actor, an Item, a JournalEntry or nothing
+at all in any particular system.
+
+Each system then declares a map from the note's `(type, subType)` onto its own
+document type — and, for SoHL, its own `system.subType`. The map is **declared**,
+never inferred from a coincidence of names: `skill`, `weapongear`, `armorgear`,
+`containergear` and `miscgear` exist in both systems with _different_ data
+models, so name-matching there would not fail, it would succeed wrongly.
+
+Because the map derives the document type, `hm3.type` and `sohl.system.subType`
+are **overrides**, not required declarations. A note states them only when the
+map cannot decide, or decides wrongly.
+
+**Four rows cannot decide, and there `hm3.type` is required.** HM3 splits four
+of the note vocabulary's types across several documents — `mysticalability` into
+a `psionic`, a `spell` or an `invocation`; `trauma` into an `injury` or a
+`trait`; `weapongear` into a `weapongear` or a `missilegear`; `being` into a
+`character` or a `creature`. Nothing in the note's own vocabulary partitions
+cleanly onto any of those splits, so the note says which, in its own block, and
+a note that says nothing is **an error naming the note and listing the permitted
+values**. It is never defaulted: a default would pick one and be right about
+half the time.
+
+A consequence worth knowing before you author a being's embedded items: a
+`(type, shortcode)` reference has no block of its own to read a discriminator
+from, so it **cannot address a one-to-many type**. `[[weapongear-spear]]` names
+no single HM3 document, and the reference is refused rather than resolved to
+whichever came first.
+
+A note whose `(type, subType)` has no mapping for a system it carries a block
+for is an **error naming the note**, never a silent skip and never a guess at the
+first matching value. Where a mapping is missing for a whole class of note, that
+is a gap in the vocabulary rather than something to write into every note: an
+override that thousands of notes need is a missing subType value.
+
+**A type's `subType` values are stated in one shape**, so that they can be read
+and compared to the vocabulary that enforces them. Under the type's
+heading, write `**subType**:` on a line of its own, then one bullet per value —
+`- <value>` or `- <value>: <definition>` — and nothing else between the marker
+and the list. A type that has no `subType`, or whose values are not enumerated
+yet, writes no marker at all. Any other spelling is a build error naming the
+line: five were in use, and a reader that accepted them all would keep accepting
+the sixth by reading a section as declaring nothing, which is exactly the drift
+the comparison exists to catch.
+
+### Mappings every type shares
+
+Eight rows were identical in all sixteen tables below, so they are stated once
+here and omitted there. Each per-type table shows only what is particular to that
+type.
+
+| shared source           | → sohl                    | → hm3                        |
+| ----------------------- | ------------------------- | ---------------------------- |
+| `name.full`             | `name`                    | `name`                       |
+| `data.icon`             | `img`                     | `img`                        |
+| `data.id`               | `_id`                     | `_id`                        |
+| `data.packFolder`       | `folder`                  | `folder`                     |
+| `shortcode`             | `system.shortcode`        | NA                           |
+| `data.templatePriority` | `system.templatePriority` | `flags.hm3.templatePriority` |
+| `actionDefs`            | `system.actionDefs`       | NA                           |
+| `notes`                 | `system.notes`            | `system.notes`               |
+
+**A column reads NA wherever the type produces no document in that system.** An
+`affiliation` has no HM3 form, so its whole HM3 column is NA; `armorlocation` has
+no SoHL form, so its SoHL column is. Nothing else varies — which is why these
+rows are worth stating once: repeated sixteen times they buried the differences
+that matter.
+
+**`data.icon` maps onto a document that has one, and not every type's does.**
+The row is shared because the key is legal on every note whatever its type, not
+because every document carries artwork: `doc`, `place`, `lore` and `scenario`
+compile into a JournalEntry, which has no image of any kind, and a `folder`
+compiles into a Foundry `Folder`, which has none either. A `homepage` compiles
+into no compendium document at all. On any of those the mapping has no
+destination, so the resolved value is simply dropped — the note validates, the
+tree compiles, and the value goes nowhere.
+
+**What a note writes is an address; what a document carries is a path.**
+`data.icon` is an `Address` defaulting to type `icon`, so a being writes
+`icon: anvil` and never a file name. The compiler resolves that address to the
+file the owning package ships and writes the resulting path into `img`. The two
+sides of this row are therefore in two different currencies, which is why the
+row reads `data.icon → img` rather than naming one thing twice.
+
+Since a dropped value looks exactly like a value never written, the frontmatter
+lint **reports it**: an art key authored on a type whose passes emit none is a
+warning naming the note and the key. A warning rather than an error, because the
+note still compiles correctly and the key is not certainly unwanted — a note's
+top level is the generated page's front matter as well, so a site template may
+read there what no document carries. `null` is never reported: that is the
+blessed way to say "this note names no art", and on a type with no art it is a
+true and harmless thing to say.
+
+Which types those are is **not a list**. It is asked of the passes: a type routes
+to a document, a document to the pass that compiles it, and each pass declares
+the art it writes (`emitsArt`). A second table of iconless types would be a table
+free to drift from what is actually emitted, which is the defect rather than the
+check.
+
+#### The four art slots
+
+A note declares the art its document needs, and every other image in it is
+inline. All four slots are ordinary `Address` fields declaring a default type,
+exactly as `seat` declares `place` — a bare shortcode takes its type from the
+declaration, and qualification climbs the same short-form ladder every other
+link uses.
+
+| field       | default type | accepts         | resolves into                | on                                        |
+| ----------- | ------------ | --------------- | ---------------------------- | ----------------------------------------- |
+| `icon`      | `icon`       | `icon`, `image` | `document.img`               | every Actor/Item type, and embedded items |
+| `tokenIcon` | `icon`       | `icon`, `image` | `prototypeToken.texture.src` | Actor types                               |
+| `bgImage`   | `image`      | `icon`, `image` | `background.src`             | map types                                 |
+| `banner`    | `image`      | `icon`, `image` | the site hero image          | any note; not a Foundry field             |
+
+All four are authored under `data:`:
+
+```yaml
+data:
+  icon: anvil
+  banner: packagebuild-none-image-skillbnr
+```
+
+**Every slot accepts a second type beyond the one it defaults to**, and the two
+defaults pair with the same accepted set: `icon` and `tokenIcon` default to
+`icon`, `bgImage` and `banner` default to `image`, and all four accept `icon`
+**and** `image` regardless of which one they default to. A bare shortcode still
+takes the slot's default — `icon: anvil` above names an `icon`, not an `image`
+— and it is a **qualified** value, one that states its own type, that the
+accepted set governs. `sohl-kethira-basic` writes an `icon` slot this way
+twenty times, once per faith tradition, because a deity's profile art is a full
+illustration rather than a game icon:
+
+```yaml
+data:
+  icon: image-kpagrik
+```
+
+That value is accepted because `image` is in the slot's accepted set, not
+because it matches the default — `icon` still defaults to `icon`. `audio` is
+refused at all four slots: a sound is not art, and a value naming one — `icon:
+audio-thunder`, say — is an error naming the set the slot accepts, never a
+silent fall back to the note's default art.
+
+**These properties are legal on _every_ note**, whatever its type. `data:` is a
+closed container and the per-type vocabularies below are the only lists there
+are, so a key legal everywhere is stated once here rather than repeated in
+twenty-five tables where the one that was mistyped would be the one nobody
+noticed:
+
+| shared `data` property | Values                 | Description                                                          |
+| ---------------------- | ---------------------- | -------------------------------------------------------------------- |
+| `id`                   | `string`               | A pinned document identity.                                          |
+| `pack`                 | `string`               | The shared compendium route.                                         |
+| `packFolder`           | `Address` or pack map  | The shared compendium folder Address.                                |
+| `harnworld`            | `Map<string, unknown>` | HârnWorld source details.                                            |
+| `icon`                 | `Address`              | The document's profile art — an `icon` address, resolved into `img`. |
+| `banner`               | `Address`              | The page's hero image — an `image` address.                          |
+
+`icon` is legal everywhere because most types compile into a document that
+carries one; where a type's passes emit none, the lint says so and the value is
+left alone, because a page template may still read it. `banner` reaches no
+compiled document at all, and a page is what every note publishes.
+
+The other two are narrower, and each type's own table names them: `tokenIcon`
+on the Actor types, `bgImage` on a map.
+
+**A portrait is not one of them.** A picture of the subject is a picture, so it
+is authored in the prose that describes the subject, as an ordinary embedded
+image — see [the lead image](#the-lead-image). A slot exists for art a
+_document field_ needs; nothing else earns one.
+
+**A reference carries no slashes and no extension.** That is what keeps it from
+being read as a file name, and it is checked: a value shaped like a pathname is
+an error naming the note and the key.
+
+`tokenIcon` unset defaults to `icon`. A token has to read at grid scale and when
+a map is zoomed out, so it is an `icon` rather than an `image`, and its fallback
+has to be `icon`-typed too.
+
+Actor types (`being`, `vehicle`) therefore add one row:
+
+| shared source    | → sohl                       | → hm3                        |
+| ---------------- | ---------------------------- | ---------------------------- |
+| `data.tokenIcon` | `prototypeToken.texture.src` | `prototypeToken.texture.src` |
+
+An actor's two pieces of art are two different questions. `data.icon` is the
+profile art — what a directory listing shows beside the name and what the sheet
+header carries. `data.tokenIcon` is what a token on the canvas wears. Both are
+addresses and both resolve the same way; only the destination differs. An Item
+has one piece of art, so this row applies to actor types alone.
+
+**A `data:` source is still read at the top level, for now.** `data:` did
+not invent the facts it holds — it gathered them out of the top level — so every
+key it collected has a **pre-`data:` spelling** that is read after the declared
+one and reported as retiring. This is the shared level's counterpart to the
+in-block `<system>.<key>` retirement, and the two are separate: a note may have
+moved one and not the other.
+
+**No image key is one of those.** A top-level `img:` is not authored at all:
+`data.icon` is a different key holding a different kind of value, and a note
+writing `img:` is naming a file where an address belongs. `portrait:` is not authorable at any level; a portrait is an embed in the body.
+
+**Two of the eight are Item-only in SoHL.** `actionDefs` and `notes` are declared
+on every SoHL Item subtype and on no SoHL Actor, so on a `being` or a `vehicle`
+the SoHL column of both reads NA.
+
+`notes` is also the one row that is emitted rather than mapped: SoHL writes
+`system.notes` empty on every Item, and no note-level key fills it yet. The row
+states where such a key would land, which is what makes `armorlocation`'s
+exception below sayable at all.
+
+**A third SoHL Item mapping has no shared source, so it is not a row.** SoHL
+writes `system.docHtml` on every Item from the note's own prose — the UUID of the
+JournalEntry that prose compiled into, which is derived rather than authored.
+HM3's data model has nowhere to put such a pointer, so the same prose reaches an
+HM3 item only as its own journal.
+
+**One exception.** HM3's `armorlocation` declares no `notes` — it is the one
+subtype that extends the Foundry base directly with no templates — so `notes` is
+NA on both sides for that type, and its table says so.
+
+**And one divergence, tracked rather than specified away.** HM3 records a
+template priority on an Actor and not on an Item: `hm3/actors.mjs` writes
+`flags.hm3.templatePriority`, and HM3's Item pass writes no equivalent, so an HM3
+item compiled from a template note loses the fact that it is one
+The row states the mapping the format makes;
+the gap is in the pass, not in the table.
+
+#### A pathname names the package that owns the file
+
+A note names a file once, and four surfaces have to serve it: a Foundry
+install, this repository's own working tree, the website, and the book. Each
+addresses the same file differently, so an authored pathname is a **statement
+of ownership** and every surface derives its own address from it.
+
+**The first segment names the package, when an `assets/` follows it.**
+Everything after that `assets/` is the _suffix_ — the path inside the package's
+shipped tree, and the one piece every derived form is built from. A pathname
+that does not open `<package>/assets/` belongs to the package being compiled,
+and the whole of it is the suffix.
+
+```markdown
+![A map of the Vale](images/maps/valeofthorns.webp) <!-- this package's -->
+![A shield](sohl/assets/icons/noun/shield.svg) <!-- the sohl package's -->
+```
+
+The four forms, for a `thalorna` note (the `thalorna` package ships as the
+Foundry module `sohl-thalorna`) writing `images/map.webp`:
+
+| Surface     | Address                                                  |
+| ----------- | -------------------------------------------------------- |
+| **Foundry** | `modules/sohl-thalorna/assets/images/map.webp`           |
+| **Local**   | `assets/images/map.webp`                                 |
+| **Web**     | `https://cdn.heroiclands.org/thalorna/images/map.webp`   |
+| **Book**    | `assets/images/map.webp`, staged beside the Typst source |
+
+And for the same note writing `sohl/assets/icons/noun/shield.svg`, a file the
+system ships and this repository does not hold:
+
+| Surface     | Address                                                   |
+| ----------- | --------------------------------------------------------- |
+| **Foundry** | `systems/sohl/assets/icons/noun/shield.svg`               |
+| **Local**   | `assets/icons/noun/shield.svg`, in the `sohl` repository  |
+| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`  |
+| **Book**    | not carried — a build stages only what this package ships |
+
+**The package's name is not its Foundry id.** `thalorna` is what the content is
+called, what a note writes, and what the website serves it under.
+`sohl-thalorna` is what Foundry installs the module as, and it appears in the
+Foundry form alone. The two words are the same for `sohl` and for `hm3`, which
+is exactly why they are kept apart here.
+
+Which packages a build can resolve is derived from its configuration: its own
+`contentPackage`, every game system it compiles content for (`systems:`,
+`packs[].system`, `requiresSystem`, `relationships.systems`), and every package
+it declares under `relationships`, whose `contentPackage` names the content
+where that differs from the Foundry id. A pathname naming a package the build
+does not know still resolves on the website and in the book — those need only
+the name and the suffix — and has no Foundry address, which is refused rather
+than guessed.
+
+An art package that replaces another package's images can declare
+`packageBuild.assets[].bindsTo` on the relevant asset copy. Each file's basename
+then acts as a shortcode for the declared package and type. The related
+`relationships.requires[].contentIndex` supplies the address index; with that
+index enabled, an asset with no matching note is a located build error. See
+[asset bindings](../configuration.md#packagebuildstagedir-and-packagebuildassets)
+for the configuration and cache requirements.
+
+**The host is configuration.** `site.assets` in `package-build.config.yaml` is
+the root the web form is joined onto, and a package-owned image on a page with
+none set is an error naming that key.
+
+**A pathname naming no package at all passes through on every surface** — an
+absolute URL, a `data:` URI, a protocol-relative `//host/…`, or a `/`-rooted
+path, which Foundry serves from its data root. That is how a note addresses
+core Foundry art (`/icons/svg/mystery-man.svg`) or a package this build knows
+nothing of (`/systems/dnd5e/icons/spell.webp`).
+
+**A `systems/…` or `modules/…` pathname is refused**, with a finding naming the
+replacement. It is a Foundry address written where an ownership statement
+belongs: it resolves for Foundry and for nothing else, because neither the
+website nor the book has any such directory. `systems/sohl/assets/ui/logo.webp`
+is written `sohl/assets/ui/logo.webp`, and `systems/hm3/images/svg/sword.svg` —
+where the package serves its pictures from its own root — is written
+`hm3/assets/images/svg/sword.svg`, because `assets/` is where a package's files
+sit in every derived form.
+
+`worlds/` is not a Foundry root for this purpose. A package may not ship files
+out of a world, so a note writing one has made a different mistake and gets the
+ordinary "this package owns it" reading — a plainly broken path rather than a
+plausible one that 404s with nothing reporting it.
+
+**The rule is about ownership, not a list of directories.** A package owns its
+whole `assets/` tree and the directory names inside it are its own business:
+`sohl-kethira-basic` keeps art under `assets/artwork/`, and `artwork/deity.webp`
+is that package's by the same rule that claims `icons/…` and `images/…`.
+
+**Where a pathname is still authored, it follows this rule.** That is the
+address of an image in a note's body, and a map note's `overlay`. The art
+fields do not: `icon`, `tokenIcon`, `bgImage` and `banner` name
+addresses, and the path comes from the record the resolved address points at —
+which already carries the owning package, so there is nothing for a first
+segment to state.
+
+#### `banner:` reaches no compiled document
+
+`data.banner` is the page's hero image, and it is the one art slot with no
+Foundry destination: searching a built `packs-json` tree for it turns up
+nothing. It reaches the generated page and the book's section plates, and
+nothing else.
+
+It is an `Address` all the same, defaulting to type `image`, so a section note
+writes `banner: skillbnr` and a note borrowing another package's plate writes
+`banner: packagebuild-none-image-skillbnr`. The resolved record carries the
+owning package, and each surface joins the suffix onto its own root — the site
+onto `site.assets`, the book onto the directory it stages banners into.
+
+**`banner: null` is how a note says it wants no plate.** It is a true statement
+on any type, and the frontmatter lint never reports it.
+
+#### The pack a note compiles into
+
+`data.pack` names which configured compendium receives the note's document.
+
+```yaml
+data:
+  pack: items-hm3
+```
+
+`contentPackage` in the repository configuration names the distribution that owns the note; `data.pack` names the compendium receiving its document.
+
+**It names the pack for the note's _own_ document.** A document derived from it
+— an item's prose compiling into a `JournalEntry` of its own — is not what the
+author was addressing, and is routed by the pass that produces it.
+
+**`<system>.pack` names the pack for one system's document.** Routing is per
+system: each block the note carries sends its own document where that block
+says, and a note carrying two blocks may place them in two packs.
+
+```yaml
+data:
+  pack: items-sohl
+hm3:
+  pack: items-hm3
+```
+
+**Unstated, a system's document goes to that system's default pack of its
+class** — the pack of the class declaring that `system:`, or, where none does,
+the pack of the class marked `default: true`. Where nothing answers, the build
+refuses rather than guessing, and names the candidates.
+
+**`pack` and `packFolder` are different questions.** `pack` names _which
+compendium_ receives a document; `packFolder` names the folder note whose
+address the document is filed under _within_ whichever compendium that is. They
+compose, and both are read per system, so a note may place its two systems'
+documents in different packs and different folders:
+
+```yaml
+sohl:
+  pack: characteristics
+  packFolder: none-folder-miscgear
+```
+
+**`pack: none` compiles the note into no document.** The note is walked,
+published as a page, present in the content index with an address and no
+Foundry UUID, and addressable by wikilink like any other; every pack compiler
+passes over it without a finding, and the check that reports a note nothing
+compiles says nothing about it. Write it on a page that belongs on the website
+and in no compendium — a page of developer documentation, a page about the
+package itself:
+
+```yaml
+shortcode: architecture
+type: doc
+subType: concept
+data:
+  pack: none
+```
+
+A link to such a note resolves everywhere the note is addressable. On the web
+it is an ordinary link to the page. In a compiled journal there is no document
+to open, so the reader gets the link's text as prose and no `@UUID` — the
+mirror of a link into a package that publishes documents and no pages.
+
+It is accepted only on a type whose **sole document is the JournalEntry its
+prose becomes** — `doc`, `place`, `lore` and `scenario`. On a type that
+compiles an Item, an Actor, a Macro, a Scene or an Adventure it is refused by
+name, because there it would drop the document the type exists to produce;
+the message names that document. It is read per system like any other
+`pack:`, so `<system>.pack: none` withholds one system's document while the
+shared declaration names a pack for the rest, and a configured pack may not
+be called `none`.
+
+Four declarations are refused, each with the reason:
+
+| written                                     | why it is refused                                                                            |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| a **companion** pack                        | A companion is written by another pack's pass, so no note may be routed into one.            |
+| a pack **nothing answers to**               | The message lists the configured packs of that document type.                                |
+| a pack of **another document type**         | A note's `pack:` names a pack of its own document type.                                      |
+| **`none`** on a type with a second document | The Item, Actor, Macro, Scene or Adventure the type compiles into would be dropped, by name. |
+
+#### Template priority: which template wins
+
+A note can mark its document as a **starting template** the Create dialog offers
+to clone from, so a new being or item is born populated rather than blank. The
+value is a **priority**, and the priority is the whole mechanism — it decides
+which of several competing templates a player is actually offered.
+
+The shared mapping table above names it `data.templatePriority`, targeting
+`system.templatePriority` in SoHL and `flags.hm3.templatePriority` in HM3.
+
+> **`archetype` is the retiring spelling.** It is still read, in the `sohl:`
+> block and at the top level, so a tree sweeps on its own schedule
+> — but the frontmatter linter refuses it, and
+> what is compiled and emitted is `templatePriority` on all three sides.
+>
+> It is more than a rename, and the collision is **already live** rather than
+> pending: `archetypes` is specified above as the _sort_ a character is, and a
+> being's row declares it. So a number deciding which template wins and a list of
+> what sort of character this is would otherwise be distinguished **only by a
+> plural `s`**.
+>
+> A note carrying both spellings with **different** values is refused rather than
+> resolved quietly — `templatePriority: null` and `archetype: 0` say opposite
+> things, and picking either silently would decide it on the author's behalf.
+
+```yaml
+data:
+  templatePriority: 0 # a template, at the priority SoHL's own ship at
+```
+
+```yaml
+data:
+  templatePriority: null # not a template
+```
+
+**Every note SoHL compiles into an Item or an Actor must state it.** Absent, the
+build refuses: "not a template" has to be _said_, not left out, or an omission
+and a decision look identical. The value is a number or `null`, and **`0` is a
+real priority** — the one SoHL's own templates ship at — not an absence.
+
+**Where it lands differs by system, because HM3's data model has no field for
+it.** SoHL records it in `system`; HM3 keeps it under its own flag scope,
+`flags.hm3`, and a note that is not a template writes nothing there rather than a
+`null` nothing reads. Both HM3 Item and Actor passes write their own flag when
+the note declares a priority.
+
+**How a winner is chosen.** Opening a Create dialog gathers every candidate
+across the world and every matching compendium, _including other modules'_. Those
+are filtered to the `(type, subType)` being created, deduped by **`shortcode`** —
+a template's stable identity, where the name is only presentation — and one
+winner is taken per shortcode:
+
+1. the highest priority;
+2. then the nearest source — **world**, then **system**, then **module** — so a
+   GM's own copy shadows a shipped one at equal priority;
+3. then a stable UUID, so the answer never depends on load order.
+
+**The reserved ranges make a collision predictable.** Two packages can easily
+ship a template under one shortcode, and the number says which yields:
+
+| priority   | reserved for               |
+| ---------- | -------------------------- |
+| `0`–`98`   | SoHL and HM3 themselves    |
+| `99`–`999` | other HeroicLands packages |
+| `1000`+    | everyone else              |
+
+HeroicLands reserves everything below `1000`. Since the highest priority wins,
+**anyone else's template always beats content shipped from here** — which is the
+point: a module author can override a standard template without coordinating with
+anybody, and be certain it takes effect.
+
+#### The document id
+
+A note's Foundry `_id` is **derived from its canonical address**, and no note
+needs to write one:
+
+```yaml
+type: miscgear
+shortcode: bowlcer
+# no `id:` — the document is filed under makeId("document", "sohl-none-miscgear-bowlcer")
+```
+
+The derivation is exactly:
+
+```
+_id = makeId("document", "<package>-<system>-<type>-<shortcode>")
+```
+
+— the note's canonical address, hashed with SHA-1 and truncated to the 16 hex
+characters a Foundry id is. Nothing else feeds it.
+
+**One type hashes under a different namespace, and a consumer must not assume
+otherwise.** A `Folder` is a document of its own class, and its id is
+`makeId("folder", <address>)` — a separate namespace so that a folder and an
+item sharing a shortcode cannot derive one id, which Foundry would not report
+because it keys folders and documents in separate collections. See
+[`type: folder`](#type-folder).
+
+**So the id is transported, not recomputed.** The content index publishes an
+`id` on every entry it gives an identity to, beside the `uuid` that identity
+ends in, and both are computed by whatever owns that entry's derivation — the
+folder pass for a folder, the journals pass for a documentation journal, this
+rule for everything else. Re-deriving one from the `canonical` key alone reads
+correctly and is wrong for a folder, and wrong in a way nothing outside the
+build can detect: the result is a plausible 16-character id that resolves to
+nothing.
+
+**The Address determines the default id.** `content-lint` refuses a duplicate
+Address across the packs of a document type, so the derived id shares that
+uniqueness scope. An author pins a document's identity with `data.id` when it
+must remain stable across an Address change.
+
+**An authored `data.id` wins**, and that is how a document's identity is
+**pinned**:
+
+```yaml
+shortcode: bowlcer
+type: miscgear
+data:
+  id: plaiQQm2T5zVK5mO # pinned: this document keeps this id
+```
+
+A blank `data.id:` is not a pin — it is a deleted value with the key left behind, and
+is treated as absent.
+
+**A rename moves the id, and that is the trade.** The address carries the
+shortcode, so renaming a shortcode gives the document a new `_id`. Two things
+make that acceptable: a shortcode rename already breaks every wikilink to the
+note, so it is a breaking change either way; and a note that must keep its
+identity across one pins its `id`, which is what the pin is for. One diagnostic
+narrows — `package-build` tells a **rename** from a **withdrawal** by matching
+document ids across releases, and for an unpinned note both sides now move
+together. It never reports a _wrong_ successor, and it stays exact for a pinned
+note; for the rest, the diff reports the vacated address.
+
+**A note with no address gets no id, and no document.** `type` and `shortcode`
+are what a note is addressed by, so a note missing either cannot be filed and
+the build refuses it by that name rather than by a missing `id:`.
+
+#### Address changes
+
+`(type, shortcode)` is a published interface. Other packages can link to it or
+use it as an Item model, so changing either part requires those references to
+change too. `package-build addresses diff` compares the package with a released
+baseline and reports addresses whose published documents are absent. A pinned
+`data.id` preserves document identity across a shortcode change; it does not
+keep the old address available for links.
+
+#### The compendium folder
+
+A note says which folder of its pack it lands in:
+
+```yaml
+data:
+  packFolder: poisonsandtoxins # a folder note's address
+```
+
+**`packFolder` is a folder note's address** — an ordinary address, resolved the
+way every other reference is, and written in any form [the grammar
+admits](#shorter-forms). The field supplies the type, so a bare shortcode is a
+complete address here; `folder-poisonsandtoxins` and the fully qualified
+`sohl-none-folder-poisonsandtoxins` name the same folder. An address no folder
+note answers to is a build error naming the folders the package does declare.
+
+Note this is the _pack_ folder, not the note's directory. The directory is
+`file.path` / `file.folder`, which a content table reads separately.
+
+**Where a folder materialises is derived from what references it.** Every pack
+holding a document that names a folder gets that folder, and its ancestors with
+it — so a documentation journal is filed beside the item it describes without
+the journals pack having to declare anything. A folder nothing references
+materialises nowhere.
+
+One folder note and one Address supply every pack that references it.
+`data.packFolder` names a folder by Address. A top-level `folder:` key is
+refused with a finding that names `data.packFolder` and the authored line.
+
+#### The knowledgebase category
+
+`kbcat` names the group a note is listed under on the knowledgebase and the
+website. It is written in the system block:
+
+```yaml
+sohl:
+  kbcat: poisontoxin
+```
+
+**It compiles into no document.** No pack compiler reads it and no `system`
+field receives it. It reaches a published page because a note's frontmatter is
+copied onto that page, where a list layout groups by `sohl.kbcat` — so `kbcat`
+is the one key in this section that answers _where does this appear_ for the
+web rather than for Foundry. `pack` and `packFolder` place a document in a
+compendium; `kbcat` places a page in a list.
+
+That is also why it is specified here rather than in a type's table. A type's
+fields say what the **builder** compiles, and `kbcat` is never compiled — but
+what a note **may write** is broader than what any one consumer reads, and a
+check that equated the two reported thousands of correctly authored properties
+as unknown.
+
+**It is editorial, and deliberately independent of `subType`.** The two are not
+alternative spellings of one classification and neither is derived from the
+other. `kbcat` both _subdivides_ a subtype — `trauma`/`physcond` is listed as
+`physdisability`, `physfeature` or `physprivations` — and _renames_ one for
+display, as `trauma`/`fear` listed under `phobias`. Most notes that carry a
+`kbcat` declare no `subType` at all. So the two are stated separately where both
+apply, and a reviewer should not read a disagreement between them as an error.
+
+**The value is free-form, and nothing validates it.** There is no configured
+list of categories. The frontmatter check knows `kbcat` is a key every type may
+write and says nothing whatever about its value. A layout supplies display
+titles and an explicit order for the values it knows about, and appends any
+other value as its own group, titled by humanizing it.
+
+The consequence is worth stating plainly, because it is the failure mode this
+key has: **a misspelled category is not a build error and is not dropped — it
+silently becomes a group of one**, sorted in after the known ones.
+
+**A note that writes none is dropped from the list entirely.** Grouping is by
+the key, so a page carrying no value falls in no group and is absent from the
+list page — not listed last, not listed under a fallback heading, absent, with
+nothing reported at either build. Every note of a listed type in SoHL's tree
+carries one today, and nothing in this package enforces that; the content index
+is where the question _which notes carry no `kbcat`?_ is answered.
+
+**It is also what a content table sections on.** `sohl.kbcat AS _section` in a
+`sql` fence is the ordinary case of _Content tables_ below, and the same
+free-form value decides the headings there.
+
+### Addresses
+
+Three types name one thing from another in a content tree, and they are not
+lengths of one another:
+
+| type        | written                                      | where it is met                                             |
+| ----------- | -------------------------------------------- | ----------------------------------------------------------- |
+| `Address`   | `<package>-<system>-<note_type>-<shortcode>` | a frontmatter field, a `model:`, an art slot, a link target |
+| `Shortcode` | `<shortcode>`                                | a note's own identity, and a key a runtime resolves by      |
+| `Wikilink`  | `[[<Address>[#<anchor>]\|<text>]]`           | body prose                                                  |
+
+An **`Address`** is the tuple below, and it is what every field typed `Address`
+in the tables that follow holds. It is equally what a `model:` names, what an art
+slot points at and what a wikilink resolves through — so an address is the thing
+being named, and the brackets around one in prose are a separate matter. Three
+rules govern it, and the first three subsections below state them in turn: the
+tuple is read by position, any suffix of it may be written, and each omitted
+segment is supplied by a default the position declares.
+
+A **`Shortcode`** is one segment, and nothing expands it — see _A shortcode is
+one segment, and nothing expands it_ below.
+
+A **`Wikilink`** is the prose form, which contains an Address — see _Wikilinks_
+below.
+
+#### The canonical address
+
+```text
+<package>-<system>-<note_type>-<shortcode>
+```
+
+The final segment is the shortcode, preceded by the note type, the system and
+the package. Each segment has one position. The system says which kind of target
+is named:
+
+| system        | target                                                                      |
+| ------------- | --------------------------------------------------------------------------- |
+| `note`        | Readable note content: a web page, a book entry, or a Foundry JournalEntry. |
+| `none`        | A systemless target such as an asset, Folder, Macro or Scene.               |
+| `sohl`, `hm3` | A game system's Actor or Item document.                                     |
+
+A note can publish more than one Address. A `being` note, for example, publishes
+`thalorna-note-being-bctrncml` for its readable content and
+`thalorna-sohl-being-bctrncml` for its SoHL Actor. An item note follows the same
+pattern for its page and Item. The type segment remains the authored note type
+in each Address.
+
+#### Shorter forms
+
+Authors may omit segments from the left. The complete Address states all four:
+
+| form                            | expands to                                               |
+| ------------------------------- | -------------------------------------------------------- |
+| `package-system-type-shortcode` | itself                                                   |
+| `system-type-shortcode`         | `<this package>-system-type-shortcode`                   |
+| `type-shortcode`                | `<this package>-<this position's system>-type-shortcode` |
+| `shortcode`                     | as above, with the type from the field's declaration     |
+
+There is no `package-type-shortcode` form. A reference to another package states
+its system as well as its package.
+
+#### Authored references and generated references
+
+Authored notes may use any permitted suffix. Builds leave source bytes unchanged.
+Generated content indexes, SQL records, site frontmatter and generated
+Wikilinks contain complete Addresses. For example, `data.parents: [north]` in
+`thalorna` emits `data.parents: [thalorna-note-place-north]`.
+
+SQL queries compare Address-valued fields to complete Addresses. A note's
+`shortcode` is a distinct identity component, so it is not equal to an Address
+stored in `data.parents`, `data.domains` or a governance rank's `lore`. Use the
+target's complete identity for that comparison. A stub has no published page
+address; its note identity still contains the package, system, type and shortcode.
+
+The toolchain holds parsed Addresses as complete tuples internally. Address-keyed
+relation maps hold typed targets and standing values. Only generated output
+serializes these properties to Address strings. Runtime Shortcodes, Foundry
+UUIDs, file paths and URLs keep their own representations.
+
+An Address-valued `data:` field must name a target in this package or a declared
+dependency index. `package-build lint` reports a missing target at the value or
+map key that names it. A stub counts as a target for data even though it
+publishes no page. Art slots use their own missing-art warning and document
+fallback.
+
+#### An omitted segment defaults from where the link is written
+
+An omitted segment is a default, not a wildcard. Every short form expands to one
+complete Address before lookup.
+
+- **Package:** the current package. A short address never falls through to a
+  dependency.
+- **System in `[[link|text]]`:** `note`, for every note type. Use an explicit
+  game system to name its Actor or Item, or `none` to name a systemless target.
+- **System in `![[link|text]]`:** `none`. An embed names an image or icon asset;
+  it also supplies `image` as the type of a bare shortcode.
+- **System in frontmatter:** a system block such as `sohl:` or `hm3:` supplies
+  its game system. Other Address fields default to `note`, except fields
+  declared for images, icons or folders, which default to `none`.
+
+For example, `[[macro-autoattack|Automated Attack]]` names the readable macro
+note, while `[[none-macro-autoattack|Automated Attack]]` names the Foundry Macro.
+`![[icon-anvil|Anvil]]` names the systemless icon asset.
+
+**A complete Address is lowercase throughout.** Every segment — package,
+system, type and shortcode alike — contains only lowercase ASCII letters and
+digits (`^[a-z0-9]+$`). Declared Address fields reject uppercase segments.
+A model reference accepts mixed-case Shortcodes and resolves their lowercase
+Address identity; this does not change a native embedded item's Shortcode.
+
+**Parsing is positional counting from the right, and nothing else.** Every
+segment is lowercase alphanumeric — shortcodes, **types** and **subTypes** are
+all `^[a-z0-9]+$`, systems come from a closed registry, and `contentPackage` is
+`^[a-z0-9]+$` too — so the hyphen is purely a separator. There is no longest-match
+against a roster and no vocabulary check before splitting.
+
+**`type` and `subType` are held to that charset, not merely expected to meet
+it**. A type is the first segment of every address, so a hyphen in one is
+read back as a segment boundary that was never meant as one. A `subType` reaches no address, but it is a vocabulary term the toolchain keys on and follows the same charset rule. Both are checked
+against the same constant a shortcode is checked against, and a note carrying a
+hyphenated value is reported where it wrote it:
+
+```text
+Trauma/Blood_Loss.md:3:1: error: `subType` "blood-loss" is not a well-formed subType — a subType is lowercase letters and digits only (^[a-z0-9]+$), the same charset a type, a shortcode and a contentPackage are held to. It is a vocabulary term the whole toolchain keys on, and one closed set away from being an address segment again, so a charset that held for every term but this one would be a rule nobody could state in a sentence
+```
+
+The `doc` subType is **`userguide`**. A hyphenated `user-guide` is refused by
+the shared charset check. Shortcodes likewise contain only lowercase letters
+and digits, preserving one unambiguous Address grammar.
+
+`type/shortcode` with a slash is accepted. A slash is _unconditionally_ an
+address separator — pipe or no pipe — so an unknown type before one is an error
+rather than something to guess at.
+
+#### A shortcode is one segment, and nothing expands it
+
+A **`Shortcode`** is a single segment of the same charset an address segment is
+held to, and it is a type of its own rather than the shortest `Address`. It
+names a thing's identity, or it is the key something resolves by where the other
+three segments have nothing to say:
+
+| where a `Shortcode` is written               | what it names                                                                       |
+| -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| a note's own `shortcode:`                    | the note's identity — the name every address of it is built from                    |
+| a custom embedded entry's `system.shortcode` | that entry's identity within the actor that holds it                                |
+| an emitted `system.relations` key            | the other body this one has a standing towards                                      |
+| a mystery's `skillAptitudes` keys            | the skill an aptitude weighs, where the key is not a `subType:` selector            |
+| a `Code`-suffixed system field               | what the resolved address is stored as — see _The note vocabulary, and how it maps_ |
+
+**The test is whether the position can take the full four-tuple.** An `Address`
+accepts it by definition, and the positions above cannot: a `system.relations`
+key is read at runtime as `relations[shortcode]`, among the items one actor
+carries, where packages do not exist. So nothing defaults a `Shortcode` out to
+four segments, and a value persisted there as an address names no standing at
+all.
+
+**The two halves of `relations` are two types.** The key an author writes is an
+`Address` — a body in another package is named in full, and one in this package
+by its shortcode alone — and the key the compiled Item carries is the
+`Shortcode` that address names. The builder performs the reduction, exactly as
+it does for a `Code`-suffixed field, and two authored keys reducing to one
+emitted key is an error naming both addresses: a shortcode is unique within one
+package's address space, so two packages may each declare one, and the compiled
+field holds one of the two.
+
+**A bare shortcode in an `Address` field is not a `Shortcode`.** It is an
+Address written at its shortest, with the package, the system and the type all
+supplied by the position — the same value as the full tuple, spelled shorter.
+Which of the two a field holds is the field's own declaration, stated in the
+`Values` column of the tables below and nowhere else.
+
+#### Every address resolves, and every build says so the same way
+
+An address that names no note **fails the build** — in the link checker,
+in the pack compilers and in the site build alike.
+
+A `draft` note exists, resolves, compiles and publishes; a link to it renders
+visibly marked. An Address landing nowhere is a typo or an omission and earns
+an error.
+
+There are six ways a link can fail, and each is one **error** with one message
+wherever it is met:
+
+| finding          | what it means                                 | the fix                                                |
+| ---------------- | --------------------------------------------- | ------------------------------------------------------ |
+| `unlabelled`     | no `\|`, so the link addresses nothing        | write `[[type-shortcode\|Text]]`                       |
+| `not-an-address` | labelled, but the target is not an address    | write the address, not the name                        |
+| `not-lowercase`  | any segment of the address is capitalised     | lowercase it — every segment is lowercase              |
+| `unknown-type`   | qualified, but names no type this build knows | correct the type segment                               |
+| `unresolved`     | parses as an address; nothing publishes it    | fix the shortcode, or qualify to reach another package |
+| `ambiguous`      | _unreachable; kept for the manifest_          | —                                                      |
+| `unknown-anchor` | the address resolves; the `#section` does not | correct the anchor                                     |
+
+`ambiguous` is a reserved reason in the result vocabulary. An omitted segment
+defaults rather than wildcarding, so each written target expands to one
+canonical Address and a lookup returns one entry or none.
+
+The vocabulary and the messages live in one module (`engine/wikilink-syntax.mjs`)
+precisely because an author meets whichever build ran first. Three resolvers read
+one authored link; they must not describe the same mistake in three ways, and
+they must never disagree about whether it is a mistake at all.
+
+#### In frontmatter, the address is written bare
+
+An **`Address` field** takes the address with no brackets:
+
+```yaml
+data:
+  parents:
+    - hexhodai
+  seat: tashal
+```
+
+not `[[hexhodai]]`. The field is declared as an `Address`, so the schema knows
+what the value is and reads it as one; brackets are a wikilink's punctuation,
+which the reader would have to strip before it could do anything.
+
+A frontmatter value is parsed by the address grammar above, so a single-segment
+value such as `hexhodai` names the target by its shortcode alone, with every
+other segment supplied by the position. Frontmatter is structure rather than
+prose: a field value is a reference something else will compile against, and it
+should say exactly what it points at.
+
+**A field can supply the type.** A field naming one kind of note declares its
+default — `seat` a `place`, `parents` an `affiliation`, `stations` a `lore` — so
+the type segment defaults from the declaration and a bare shortcode is the
+ordinary case, not an abbreviation of one. That is why the examples above read
+`tashal` rather than `place-tashal`: the shorter form carries the same
+information, because the field already said what kind of thing it points at.
+
+The frontmatter lint checks scalar Addresses, entries in Address lists, and
+Address map keys at the entry's own location. Segments contain lowercase ASCII
+letters and digits; wikilink brackets, labels, anchors, and spaces do not belong
+in these fields. Optional null values and empty lists or maps express no
+reference. Grammar and accepted types are checked independently of whether a
+target exists.
+
+An affiliation's `economy` accepts only `affiliation` and `lore` Addresses.
+Each entry states its type: `affiliation-merchants` or `lore-tanvrcrncy`.
+There is no default type; a bare shortcode is an error.
+Bundle `contents` likewise requires a type for each document.
+
+**The declaration constrains the type; it does not shorten the address.** A field
+value may be written at any length, and every length is equally correct so long
+as the type it names is the one the field declares. All four of these are valid
+in a `seat` field:
+
+```yaml
+seat: tashal
+seat: place-tashal
+seat: none-place-tashal
+seat: kethira-none-place-tashal
+```
+
+Each is a **suffix** of the canonical address, which is why the third one names
+the system and the fourth cannot omit it — see [Shorter forms](#shorter-forms).
+
+An `affiliation-` prefix there is an **error naming the field and both types** —
+never a silent widening of what the field accepts. Where a field permits more
+than one type with no default among them, a bare shortcode is refused
+outright — an error naming the field and the types it accepts, never a
+resolution across them.
+
+**A position's default and its accepted set are two different declarations,
+and most positions are not ambiguous at all.** The paragraph above is about a
+position that permits more than one type with no default among them; `seat` is
+the plainer case, permitting exactly one. Between those sits a third shape,
+and it is the common one: a position that nominates one of its accepted types
+as the default while accepting others besides. There a bare shortcode is never
+a candidate to weigh — it takes the default outright, every time — and the
+accepted set is what a value that states its own type is checked against
+instead: naming any member of the set is as valid as naming the default
+itself, and naming a type outside it is an error against the set, never
+against the default alone. [The four art slots](#the-four-art-slots) are
+declared exactly this way — each one accepts a second type beyond the one a
+bare shortcode takes.
+
+**Only the type segment defaults.** Package and system are not the field's to
+supply — it has no opinion about which package holds the target — so reaching
+another package's note means qualifying, and because parsing is positional
+counting from the right, qualifying at all means naming the type too.
+`kethira-tashal` is not "the `tashal` place in `kethira`"; it is two segments, so
+it reads as type `kethira`, shortcode `tashal`, and fails.
+
+So the ladder has one rung where the field helps and three where it only checks:
+a bare shortcode takes its type from the declaration, and every longer form
+states the type itself and is verified against it.
+
+This is enforced rather than merely preferred: the build walks every frontmatter
+value, reports each bracketed link it finds, and reports each value whose
+qualification contradicts its field. A successful run says so — _no wikilink in
+frontmatter_ is part of what `package-build links` reports when it passes.
+
+Brackets belong in prose, where a link sits inside a sentence and needs marking
+off from the words around it. A frontmatter value has nothing to be marked off
+from.
+
+### Wikilinks
+
+A **`Wikilink`** is how body prose names something:
+
+```text
+[[<Address>[#<anchor>]|<text>]]
+```
+
+The brackets, the `#<anchor>` and the `|<text>` label are the Wikilink's own.
+What sits inside them is an `Address` like any other — read by the same grammar,
+written at any of its lengths, and taking each omitted segment from where the
+link is written, which for body prose is this package and system `note`. So
+nothing about resolution belongs to the bracketed form: a wikilink and a
+frontmatter field ask the same question of the same value, and the findings above
+are the answers either of them gets.
+
+The anchor is the Wikilink's, not the Address's. It names a section of the target
+by the slug that section's heading declares — `[[place-tashal#market|the
+market]]` — and one naming no section there is the `unknown-anchor` finding.
+Written alone, `[[#slug|Text]]` addresses a section of the page the link sits on,
+which is the one form carrying no address at all.
+
+#### Every wikilink carries a label
+
+There is one namespace, and the pipe is required:
+
+| written             | resolved as | displays                   |
+| ------------------- | ----------- | -------------------------- |
+| `[[Address\|]]`     | an address  | the target note's own name |
+| `[[Address\|Text]]` | an address  | `Text`                     |
+| `[[Name]]`          | nothing     | a finding                  |
+
+**A link written without a label addresses nothing**, and the correction
+is always the same: write `[[type-shortcode|Text]]`.
+
+The bare form does not resolve by display name or alias. `name.aliases` is
+indexed for search and completion, while an authored link names an Address.
+A top-level `aliases:` key is refused.
+
+Requiring the label is also what makes positional parsing safe. Note names
+contain hyphens — `Grukar-ahk` is a name, not a `Grukar` of type `ahk` — so a
+target that does not parse as an address is reported as one that does not, rather
+than split at an arbitrary place or quietly looked up somewhere else.
+
+The **empty** label is not a way of writing no label. It says _address this
+target, and show whatever it calls itself_ — so a note renamed later takes its new
+name at every citation with no link edited. `[[x|]]` is labelled; `[[x]]` is not.
+
+It is the label that is required, not a target: the anchor-only form above
+carries its pipe like every other link.
+
+### Assets are types
+
+`icon`, `image` and `audio` are types in the type vocabulary, and an address
+reaches one exactly as it reaches a being or a skill. Their trees are
+the one thing about them that differs: they sit beside `content/` rather than
+inside it, because the thing a note is addressing is a file rather than a note.
+
+**Three roots, one per type.** The directory is named for what it holds and the
+type is named for what an address reaches, so the two differ by a letter and the
+mapping is declared rather than derived from the name:
+
+| root            | type    |
+| --------------- | ------- |
+| `assets/icons`  | `icon`  |
+| `assets/images` | `image` |
+| `assets/audio`  | `audio` |
+
+**A file's extension decides whether it is an asset at all**, and its root
+decides which type. Every image-extensioned file anywhere under `assets/icons`
+is an icon, and every audio-extensioned file under `assets/audio` is an audio
+asset, however deep it sits.
+
+That filter is load-bearing rather than tidy-minded: `provenance.yaml` files
+live **inside** these roots, at any level, and a walk that took every file would
+read attribution records as assets. A directory under `assets/` that is not one
+of the four holds no addressable asset — `assets/ui` is a package's own
+furniture, and nothing addresses it.
+
+**An asset type carries no system.** Its addresses keep the fourth segment, and
+it is always `none` — `sohl-none-icon-anvil`, never `sohl-icon-anvil` — so key
+parsing stays uniform across every type. The path shape is a property of the
+type rather than a test on a value.
+
+#### The filename is the shortcode
+
+```text
+assets/icons/game-icons/lorc/anvil.svg   →   <package>-none-icon-anvil
+assets/images/beings/creatures/drake.webp →  <package>-none-image-drake
+```
+
+**The extension is not part of the address**, and neither are the directories
+above the file. A root's shortcodes are one flat namespace however deeply the
+tree nests, so two files under one root sharing a basename are two claims on one
+address and a build error naming both. Across roots they are no such thing:
+`icon-anvil` and `image-anvil` are different addresses.
+
+Leaving the extension out is what makes a format change free. Changing an icon
+from SVG to WebP is dropping a different file in place, and no note changes;
+`abysdrksvg` and `abysdrkwebp` would be two addresses for one drake.
+
+**Beneath the root the structure is arbitrary, exactly as it is under
+`assets/content`.** A note's address does not depend on where its `.md` sits,
+and an asset's address does not depend on where its file sits within its root.
+Both trees are arranged for the people who maintain them —
+`icons/game-icons/<contributor>/`, `images/beings/creatures/` — and either can be
+rearranged wholesale without a single reference changing.
+
+**That freedom is the point.** Whoever maintains a tree organises it however
+makes sense to them — by contributor, by subject, by the source a set came from,
+by whatever the next thousand files want — and the build has no opinion. A
+layout that carried meaning would spend that freedom to buy nothing: moving a
+file would become a breaking change, and the arrangement would answer to the
+walk rather than to the person reading it.
+
+**The root itself is the exception, and only because an asset root is
+homogeneous.** `assets/content` is mixed: it holds beings, places, skills and
+the rest side by side, and each note declares its own `type:`, so no directory
+needs to. An asset root holds one type and nothing else — everything under
+`assets/icons` is an icon — which is what lets the root supply the type. It has
+to: a `.webp` carries no frontmatter and has nowhere to say what it is.
+
+So the two trees follow one rule about layout and differ on exactly one point:
+a note's type comes from the note, an asset's type comes from its root. That is
+also why the three roots are a closed list rather than a convention — a fourth
+directory under `assets/` declares nothing, so nothing in it is addressable.
+`assets/ui` and `assets/fonts` fall out of that rule rather than needing an
+exemption.
+
+**A shortcode is lowercase alphanumerics.** A filename that is not — a version
+string, a hyphen, a date stamp — cannot be addressed, and the build says so
+rather than inventing a shortcode for it.
+
+#### The asset record
+
+An asset reaches the content index as a record of its own — one line per
+addressable file, in the same JSON Lines index the notes publish into. It
+carries no frontmatter, no anchors and no `foundry` block: a file declares
+nothing about itself, compiles into no document, and publishes no page, so the
+`address` holds the canonical key and no page slug.
+
+| `asset` field | Source     | What it says                                                       |
+| ------------- | ---------- | ------------------------------------------------------------------ |
+| `path`        | the walk   | Where the file sits inside the emitting package's asset directory. |
+| `attribution` | provenance | The person holding the rights, to whom attribution is legally due. |
+| `source`      | provenance | Where it came from — a URL, or a sentence.                         |
+| `ai`          | provenance | Whether the file is machine-generated — `true` or `false`.         |
+| `license`     | provenance | The licence it is used under — an SPDX identifier, or terms.       |
+| `notes`       | provenance | Anything else a person reading the attribution needs.              |
+
+Every field is present on every record, blank where nothing states one. A fixed
+shape is what lets a consumer read `asset.license` without first asking whether
+the package happened to record one.
+
+**`path` is what makes resolution one step.** The record is emitted by the
+package holding the bytes, so the path is that package's path and each consumer
+joins its own root onto it:
+
+| Consumer | `thalorna-none-image-thorn` resolves to                            |
+| -------- | ------------------------------------------------------------------ |
+| Web      | `<cdn base>/thalorna/images/beings/characters/thorn.webp`          |
+| Book     | `<asset base>/thalorna/images/beings/characters/thorn.webp`        |
+| Foundry  | `modules/sohl-thalorna/assets/images/beings/characters/thorn.webp` |
+
+Foundry names a **Foundry package id** rather than a content package, because
+the two are distinct — they are equal in the system only by coincidence, and in
+`sohl-thalorna` they differ.
+
+##### Where provenance comes from
+
+A `provenance.yaml` states the provenance fields in the table above, and nothing
+else: an unknown key is a finding rather than a silent drop, because `licence`
+beside `license` is otherwise an attribution record that looks complete and
+carries nothing.
+
+One address resolves its record in this order:
+
+1. A sibling `<filename.ext>.yaml`, which **replaces** an inherited record
+   wholesale rather than merging over it. A sidecar exists precisely because the
+   inherited answer is wrong for this one file, so carrying half of it forward
+   would make the record's meaning depend on a directory two levels up.
+2. Otherwise the nearest `provenance.yaml`, searching the file's own directory
+   and then its ancestors, **stopping at the type root**. A record above the root
+   would speak for trees it says nothing about.
+3. Otherwise nothing, and the provenance fields are blank. A package that
+   records no attribution is a fact to state, not a walk to fail.
+
+**The nearest record is the whole answer.** It is never merged with the one
+above it, so a record states every key it means to claim — which is what lets a
+reader open one file and know what the tree beneath it carries, instead of
+resolving a chain by hand.
+
+That is also why `attribution` and `license` are **required in any record that
+exists**: a key left out is not inherited from above, it is simply absent, so a
+record stating neither leaves every file it covers with no rights holder and no
+terms. Omitting one is a finding. `source`, `ai` and `notes` stay optional,
+because a blank is a truthful answer for each of them.
+
+#### A font is not an asset
+
+`assets/fonts` is not a root, and a font has no address.
+
+**An asset type exists so a note can name a file and a package can substitute
+it.** Nothing about a font answers to either half. No note names a typeface —
+the art slots are `icon`, `tokenIcon`, `bgImage` and `banner` — and substituting
+one package's font for another's is not something anyone wants.
+
+**Neither consumer of a font can use an address.** A stylesheet names a file
+with `url()`, resolved relative to the stylesheet and never through the content
+index. The book names a _family_ — `#set text(font: "Libertinus Serif")` — and
+the typesetter matches that against a directory it is pointed at. One wants a
+relative path, the other a family name; an address serves neither.
+
+**And the model fits badly.** An address holds one file whose format is free to
+change, which suits a picture. A font family is a matrix of family, weight and
+style, and a filename already says which cell a file is — a shortcode would have
+to re-encode that, worse.
+
+So fonts stay ordinary files a package ships and points a tool at, and their
+licences are recorded where a person reads them rather than in an index.
+
+#### `icon` and `image` are two types, not one
+
+An icon has to stay coherent drawn into a 32×32 slot, which is why icons are
+SVG. An image is unbounded, expected to be large, and unreadable at that size.
+That is a fitness property of the asset itself, and one merged type would leave
+every consumer inferring the handling from the extension; two types let a guard
+assert it instead.
+
+So the two have **separate shortcode namespaces**. `icon-anvil` and
+`image-anvil` are different addresses for different purposes, and a rewrite rule
+reaches one without touching the other.
+
+**An asset address is its own name.** `image-thorn` is an image called `thorn`;
+any resemblance to `being-thorn` is coincidence, and nothing derives one from
+the other.
+
+#### `packagebuild` is a reserved package name
+
+package-build is an npm package rather than a system or a module, and it ships
+a set of images — section banners chiefly — that many packages draw on.
+Addressing them as `packagebuild-none-image-<shortcode>` lets a note reach one
+without declaring a dependency on some parent system or module it otherwise has
+no relationship with.
+
+**Its files reach the website and the book and no Foundry document.** Foundry
+installs no package of that name and no relationship can be declared with one,
+so `banner:` — the one art slot with no Foundry destination — is where a
+`packagebuild` address belongs. A body image naming one, written either way, is
+refused with the line and column it sits on.
+
+`packagebuild` is therefore **reserved** in the package registry: nothing may
+create a real package that collides with it, and its resolution is special-cased,
+because no installed directory sits behind the name.
+
+#### An embedded image is a wikilink
+
+```text
+![[address|label]]
+```
+
+There is no image grammar. An embed is the wikilink above, with `!` meaning
+_render it here_ rather than _link to it_, and the syntax supplying the default
+type the way a field declaration does — `image`. The short-form ladder, the
+package and system defaults, the lowercase rule, the ambiguity reporting and the
+findings vocabulary all apply unchanged.
+
+| written                             | means                                    |
+| ----------------------------------- | ---------------------------------------- |
+| `![[anvil\|]]`                      | decorative — the common case             |
+| `![[anvil\|An anvil]]`              | alt text where it carries meaning        |
+| `![[anvil]]`                        | unlabelled, and a finding like any other |
+| `![[sohl-none-image-anvil\|Anvil]]` | qualified, reaching another package      |
+
+The parser distinguishes a missing label from an empty one, so _deliberately
+decorative_ and _not written_ differ without an exemption.
+
+**The label is the alt text, and it stays with the referrer.** One image serves
+many documents, and only the referrer knows what it means where it sits.
+
+**An embed reaches asset types only.** The syntax invites the broader reading —
+transclusion of an arbitrary note — so the restriction is a guard rather than a
+convention.
+
+**An embed takes the same directive an image does**, in the same place —
+immediately after the closing `]]`, with no space:
+
+```markdown
+![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
+![[branwldrgr|Brànwâal Dôrgaar]]{size: medium, float: top-left}
+![[thalornamap|Map of Thalorna]]{.full-width}
+![[thalornamap|Map of Thalorna]]{.full-width, float: top-left}
+![[thalornamap|Map of Thalorna]]{float: top-left, .full-width}
+```
+
+**The same parser reads both**, so an embed takes a width class, a `size:`, a
+`float:`, or a combination in any order, comma-separated — everything
+[an image's directive](#width-is-a-class-and-the-ordinary-width-carries-no-marker)
+takes and nothing beyond it. The width, size, and position vocabularies are the ones
+above, and they are closed here for the same reason: a directive that is quietly
+ignored looks exactly like one that worked, and a directive holding a problem is
+not honoured in part either.
+
+**A being's portrait is one of these**, opening its `{#appearance}` section by
+convention rather than declared in a field — see
+[the lead image](#the-lead-image).
+
+### Three states of a note
+
+A note has three states, and two of them are nothing but conventions the format
+already carried.
+
+| State     | Body    | Marker          | Page         | Document                          | Link target |
+| --------- | ------- | --------------- | ------------ | --------------------------------- | ----------- |
+| **stub**  | empty   | none            | no           | yes, where one would not be empty | no          |
+| **draft** | written | `tags: [draft]` | yes, noticed | yes, noticed                      | yes         |
+| **full**  | written | none            | yes          | yes                               | yes         |
+
+"Document" here is the document a note's frontmatter earns. A system's Actor or
+Item is earned by that system's block, in every state —
+[a system block is what makes a game document](#a-system-block-is-what-makes-a-game-document).
+
+**Full is the absence of everything.** It is the default and carries no marker,
+which is right: the overwhelming majority of a finished corpus should say
+nothing about its own finishedness.
+
+There is no new frontmatter key, no new filetype and no second parser. A stub is
+a `.md` file the walk already finds, and the moment somebody writes a body it
+becomes an ordinary note — nothing moves, nothing is deleted, and every inbound
+link starts resolving.
+
+#### A stub is a note with an empty body
+
+> **The body is empty when everything after the closing frontmatter fence is
+> whitespace.** Nothing else is empty.
+
+The rule is that severe because the test has to be one you can apply by looking
+at the file. Every softer rule makes two files that look different behave the
+same.
+
+| After the fence         | Empty? | What happens                                                    |
+| ----------------------- | ------ | --------------------------------------------------------------- |
+| Nothing, or blank lines | yes    | A stub                                                          |
+| An HTML comment         | no     | A note with a body that renders to nothing. The lint reports it |
+| A horizontal rule       | no     | The same                                                        |
+| A lone heading          | no     | The same                                                        |
+| `_To be written._`      | no     | The same                                                        |
+
+An HTML comment is deliberately not empty. An invisible marker does not make a valid stub; use an empty body when the note has no prose.
+
+#### What a stub emits
+
+A stub's index record is its frontmatter plus the derived keys, **minus
+`address` and `anchors`**. The absent address is the whole signal, and it is the
+column a table renderer already reads.
+
+It keeps everything else:
+
+- **`file`**, which is what you edit and what every diagnostic names.
+- **`id`**, which is the identity every diagnostic and every table reads.
+- **`foundry`**, naming each document that was made.
+
+#### A document that would be empty is not created
+
+> **If the resulting document would be empty, it is not created** — and the
+> index then names no artefact: `uuid`, `path` and `address` are `null`, which
+> is how a record says one was not made.
+
+The test is about the **output**, which is what lets one rule cover every case:
+
+| The note                           | The document                           | Made? |
+| ---------------------------------- | -------------------------------------- | ----- |
+| `place`, `lore`, `doc`, `scenario` | its JournalEntry, which _is_ the prose | no    |
+| any item type, `macro`             | the Item or Macro, from `data:`        | yes   |
+| the same note's documentation      | a JournalEntry of the same prose       | no    |
+| `map`                              | the Scene, from `data:`                | yes   |
+
+An unwritten arcane talent still compiles into its Item, because an Item is its
+`data:` and that is not empty. What it has no documentation journal for is the
+same thing an unwritten `place` has no journal for: there is nothing to put in
+one.
+
+**An infobox does not count as content.** The panel is a rendering of `data:`
+that the index already publishes, so an entry holding nothing else would tell a
+reader exactly what the record told them.
+
+Nothing anywhere names a document that was not made: a compendium UUID for one
+would send every consumer that resolves it to a document the pack does not hold.
+
+What is suppressed with the page is the web address and the link target: a
+wikilink into a stub is refused, and a table cell listing one prints its name as
+plain text rather than as a link.
+
+#### Two types are structural and exempt
+
+`folder` and `homepage` have no body by design — a folder note's page is a
+generated section index, and the homepage's is the site's front door. An empty
+body on either keeps its address and resolves as **full**, because such a note is
+complete.
+
+Every type in the vocabulary declares whether an empty body suppresses its page,
+so adding a type means answering the question rather than inheriting a default.
+
+#### A stub is still referenceable as data
+
+`borders.to` and `routes.to` name a place by `Address`, and those are **index
+relations rather than page links**: a border with a stub on the far side is a
+valid statement about the world and resolves. So does `parents` for the
+containment tree and `domains` for tenure — a stub appears in its region's
+`contains` and on its holder's `holdings`, rendered as plain text. What a stub
+cannot be is the target of a wikilink, because a wikilink points at a page.
+
+### What a note produces
+
+Note types fall into two groups, and only the first has a mapping table.
+
+**Types that _may_ produce a system document** — a SoHL or HM3 Actor or Item,
+one per system, described by the tables further down.
+
+**Types producing only a core document** — `lore`, `place`, `scenario`, `doc`,
+`map`, `macro` and `homepage`. A core document is one Foundry defines rather than
+a system: a JournalEntry, a Scene, a Macro. These are system-agnostic, so such a
+note carries no `sohl:` or `hm3:` block, has no mapping table, and shows no
+**system** infoboxes.
+
+It may still show a **note** infobox, and several should: a scenario's length,
+party size and required archetypes, or a place's subtype and parent, are exactly
+what a reader wants at a glance. Being outside both systems is not the same as
+having nothing worth summarising.
+
+Every note in **both** groups still produces its JournalEntry and its web page.
+The difference is only whether a system Actor or Item is created as well.
+
+#### A system block is what makes a game document
+
+> **A note produces a system's Actor or Item only where it carries that
+> system's block.** A note carrying no block for any system produces no Actor
+> and no Item anywhere, whatever its packs declare.
+
+The block is not a place to put optional detail — it is the statement that this
+person or thing is meant to be played. Its absence is a statement too, and it is
+made silently: the note is passed over by the Actor and Item passes exactly as
+any note they do not own, with no finding.
+
+**Prose is untouched by this.** A body with content still compiles into one
+JournalEntry, one web page and one PDF page, however many blocks the note
+carries and whether or not it carries any; an empty body still compiles none of
+the three. So a note has three states, and each reaches the next by one edit in
+one file, with its address, its id, its index record and every link into it
+unchanged:
+
+| The note carries           | Produces                                       |
+| -------------------------- | ---------------------------------------------- |
+| no block, empty body       | an index record — a name that can be queried   |
+| no block, a written body   | a page, a PDF page and a JournalEntry          |
+| a block, a written body    | all of those, plus that system's Actor or Item |
+| two blocks, a written body | one document per system, and one of each other |
+
+Write the person; add a system block when someone will need a token. A setting's
+cast is mostly people nobody rolls dice against, and a note about one of them
+carries no block and occupies no slot in a compendium a referee browses.
+
+**A note carrying no document publishes no UUID for one.** Its address, its
+page and its documentation journal are published as they are for any other note,
+and the `foundry` entry that would name an Actor or an Item is absent — the same
+statement [`pack: none`](#the-pack-a-note-compiles-into) makes about a pack,
+made about a system.
+
+**A block for a system this package ships no pack for is an error.** The
+authored data would be discarded either way, so the build says so, once per note
+per system, naming the system and the document class:
+
+```
+assets/content/People/Aelric.md:7:1: error: carries a `hm3:` block, and no Actor pack in this package compiles hm3 documents, so the block is discarded — declare `system: hm3` on one of the `packs:`, or remove the block.
+```
+
+A pack declaring no `system:` is compiled by the fallback pass, which reads one
+system's block — so a systemless Actor pack serves that system and not every
+system a note might write. A package shipping for a second system declares
+`system:` on a pack of each class it compiles.
+
+That includes actors. A being producing its Actor and nothing else would be
+a system-bearing note with readable content, giving a prose link
+naming it nowhere to land. It carries a documentation journal like every other
+such note, addressed
+`<package>-note-being-<shortcode>` beside the Actor's
+`<package>-<system>-being-<shortcode>`.
+
+**A being keeps its prose inline as well.** `system.appearance` and
+`system.dossier` are still the rendered text, where an item's description is an
+`@UUID` pointer into its journal. The difference is deliberate and is about
+size: one item is embedded across hundreds of beings, so baking its description
+into every copy bloats the compendium by the length of the prose times the
+number of carriers, and the pointer buys that back. An actor is singular, so the
+same indirection would cost a reader a click and save nothing.
+
+### One note is at most one document per system
+
+A note produces **at most one document in each system**. That constraint is worth
+stating because the obvious counter-example is real, and the way it is resolved
+shapes how weapons are authored.
+
+SoHL gives a weapon **strike modes**: `system.strikeModes` on a single
+`weapongear`, each mode melee or missile. A shorkana has four — the edge, the
+blunt of the swung blade, the haft or pommel, and the throw. HM3 has no such
+field: it assumes one usage per item, so those four modes are three
+`weapongear` documents and one `missilegear`.
+
+**The mechanical values cannot be shared, so the modes cannot be lifted into
+`data:`.** Impact, heft, reach and draw all differ between the two systems even
+where the concept matches. `data:` holds what the _thing_ is; how it performs is
+each system's own, and belongs in that system's block.
+
+**So the second document becomes a second note.** A `Spear` note carries a
+`sohl:` block describing four strike modes and an `hm3:` block describing its
+usual melee profile; a separate `Spear (thrown)` note carries **only** an `hm3:`
+block, describing the missilegear. That yields two shortcodes, which is what HM3
+needs, and the companion never appears in SoHL, which is what SoHL needs.
+
+The population is small. Of HM3's eleven `missilegear` items, seven are distinct
+objects with a SoHL counterpart — `Arrow (Longbow)`, `Bolt (Crossbow)`,
+`Dart (Blowgun)`, `Stone (Sling)` and so on, which are ordinary notes carrying
+both blocks. Only four are companions: `Javelin (thrown)`, `Shorkana (thrown)`,
+`Spear (thrown)`, `Taburi (thrown)`.
+
+**Every note carrying an `hm3:` block states its type.** Nothing can derive
+whether `Spear (thrown)` is a `weapongear` or a `missilegear` — there is no other
+system to infer from and no subType to read — and the same is true of the note
+carrying both blocks, whose SoHL strike modes describe every usage at once. So
+`hm3.type` is _required_ on both, not only on the companion.
+
+The following special markdown sequences are recognized:
+
+```
+# Heading {#id .class1 .class2 attr="value"}
+```
+
+Any header can include curly braces. Inside the curly braces:
+
+- `#id` represents an id anchor named `id` (only one allowed)
+- `.class1` represents a CSS class named `class1` (any number of classes allowed)
+- `attr="value"` represents an HTML attribute named `attr` whose value is `value` (any number of attr/value pairs allowed)
+
+#### Images
+
+An image is authored in the body, in the place it belongs, and every surface
+renders it there — the book, the website and a Foundry Journal Page alike. One
+authored statement, three renderers, which is the single-sourcing every other
+part of this format follows.
+
+```markdown
+![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
+![[branwldrgr|Brànwâal Dôrgaar]]{size: medium, float: top-left}
+
+![Map of Thalorna](images/maps/thalorna.webp){.full-width}
+```
+
+**An image is a block.** It stands alone in its paragraph, with a blank line
+either side of it, and every surface renders it as a figure. An image sharing a
+paragraph with prose is refused, because a width and a position mean nothing
+applied to a word in the middle of a sentence.
+
+**The alt text is the caption.** Print has no `alt` attribute and has to put
+those words somewhere a reader can see them, so every surface draws them under
+the picture; the two HTML surfaces carry them as `alt` as well. A title —
+`![alt](src "title")` — is refused rather than dropped in silence: there is one
+place for those words and this is it.
+
+##### Width is a class, and the ordinary width carries no marker
+
+| `class` value | book                          | website            | Foundry journal |
+| ------------- | ----------------------------- | ------------------ | --------------- |
+| _(none)_      | natural width within a column | natural width      | natural width   |
+| `.full-width` | page measure                  | full content width | full page width |
+
+The simple case needs no spelling, which is why the ordinary width has no name.
+
+**No pixel values, ever.** A number means something in a browser and nothing
+coherent in print, and a directive carrying a class and a dimension at once
+gives one question two answers with no rule for which wins. `{width=800}` is
+refused.
+
+##### Named size is `size:`
+
+| `size` value | website and Foundry | book         |
+| ------------ | ------------------- | ------------ |
+| `auto`       | natural size        | natural size |
+| `small`      | 64 CSS pixels       | 1.6 cm       |
+| `medium`     | 128 CSS pixels      | 3.2 cm       |
+| `large`      | 256 CSS pixels      | 5.6 cm       |
+| `xlarge`     | 512 CSS pixels      | 8 cm         |
+| `full-width` | content measure     | page measure |
+
+These are maximum display widths for Markdown images and embedded assets;
+height follows the file's aspect ratio. The available column, page, or browser
+measure caps every size, and print also caps image height within the page.
+Omitting `size:` means `auto`, which uses the file's natural dimensions within
+those bounds. `full-width` spans the book's page rather than one column. The
+`.full-width` class also grants page scope in print; when it accompanies a
+bounded `size:`, the image keeps that bounded width inside the page figure.
+A `size:` may sit before or after `float:` in the same directive, and neither
+changes the other's behavior.
+
+##### Position is `float:`
+
+| `float` value  | book                 | website and Foundry journal     |
+| -------------- | -------------------- | ------------------------------- |
+| `top-left`     | top of the column    | floated left, text wraps        |
+| `bottom-left`  | bottom of the column | floated left, text wraps        |
+| `top-right`    | top of the column    | floated right, text wraps       |
+| `bottom-right` | bottom of the column | floated right, text wraps       |
+| `center`       | top of the column    | centred, with no text beside it |
+
+**Print cannot wrap text around an arbitrary shape.** A Typst float occupies
+the column measure, so in the book only the vertical half of a position has an
+effect — top of the column or bottom of it — while the horizontal half does
+not. The website and a Foundry journal get true CSS wrap from the same
+directive. Expect the same statement, not the same page.
+
+An image with no `float:` is an ordinary block in the flow, where it was
+written. A `.full-width` image is set at the **top of a new page**: the book is
+set in two columns, only a float spans them both, and a float is placed where
+the page has room rather than where it was written — so the page breaks before
+the picture, and the prose that follows it runs below it on the same page. The
+picture can therefore never print above the prose that introduces it or after
+the prose that follows it, at the cost of the page before it ending short. A
+picture taller than the page takes a page of its own.
+
+A `.full-width` image that **also states a `float:`** is asking for a float and
+gets one, with no break before it. A float is placed where it fits, which may be
+the next page.
+
+##### All three vocabularies are closed
+
+`{.fullwidth}`, `{.full_width}`, `{width=800}` and `{float: middle}` are
+refused, located by file, line and column, and the build fails. An unrecognised
+value rendering as the ordinary width is the failure worth preventing, because
+it looks exactly like a directive that worked.
+
+A directive holding anything this section does not name is not honoured at all,
+even in the part that parsed: a half-honoured directive is the same silent
+failure in a smaller costume. The image keeps its braces and renders them as
+literal text, so the mistake is visible on the page as well as in the log.
+
+**Nothing else reaches emitted markup.** The width and position classes and the
+address are all that leave a note; there is no `style`, no `id` and no arbitrary
+attribute, because data is never compiled into markup here. An address carries
+a scheme of `http:` or `https:`, or none at all.
+
+##### Where an address resolves
+
+An image's address follows [the pathname rule](#a-pathname-names-the-package-that-owns-the-file)
+— its first segment says which package owns the file — and each surface
+resolves it to what that surface serves:
+
+- **Foundry** is handed the path inside the install, so `images/map.webp`
+  reaches a journal page as `modules/<package>/assets/images/map.webp`. An
+  address with no such path — a package this build declares no relationship
+  with, or `packagebuild`, which Foundry installs nothing of — is **refused,
+  located by file, line and column**, and the build fails. Foundry is the one
+  surface a correctly written pathname can be dead on while the other two
+  resolve it, and a `src` that resolves against nothing looks exactly like an
+  address that worked.
+- **The book** is handed a copy of the file, staged out of this package's own
+  asset tree into the build directory before the compiler runs. An address
+  naming a file this package does not ship — another package's, or a URL —
+  cannot be staged, and the book prints the caption alone and says so.
+- **The website** passes the address through exactly as authored, because a
+  site serves its imagery from its own asset host and this package is not told
+  what that host is. An address that has to resolve there is written as a full
+  URL.
+
+#### Content tables
+
+A fenced `dataview` block is replaced by the table its query selects:
+
+````markdown
+```dataview
+TABLE WITHOUT ID name.full AS "Name", shortcode AS "Code"
+WHERE type = "armorgear"
+```
+````
+
+**A query that selects nothing is a build error.** A zero-row table publishes as
+a bare header and a rule, and a stale query — a renamed type, a retired
+category, a typo'd path — is then indistinguishable from a category that is
+legitimately empty. Eight tables in one note published that way for months after
+a type rename, and no build said a word.
+
+Where a table is _meant_ to be empty, say so on the fence:
+
+````markdown
+```dataview allow-empty
+TABLE WITHOUT ID name.full AS "Name"
+WHERE type = "affliction" AND sohl.kbcat = "not-written-yet"
+```
+````
+
+The opt-in is on the fence rather than in the query because it is a statement
+about this directive, not part of the query language. Either way the table is
+still rendered — the finding is the point, not withholding the output.
+
+##### In SQL, over the content index
+
+SQL fences query the content index through DuckDB. `dataview` fences are also accepted. The SQL dialect is DuckDB's.
+
+````markdown
+```sql
+SELECT address.slug AS _ref,
+       sohl.kbcat   AS _section,
+       name.full    AS "Name",
+       sohl.weight  AS "Weight"
+FROM notes
+WHERE type = 'miscgear'
+ORDER BY sohl.kbcat, name.full
+```
+````
+
+**`FROM notes`** is the content index: one row per note, plus one per
+documentation entry, so `type = 'miscgear'` selects the items and never their
+journals. A nested field is addressed exactly as a note authors it —
+`sohl.weight`, `name.full`, `file.path` — because the index is read as JSON and
+every nested object is inferred as a struct. A field a note type does not carry
+reads `NULL` rather than failing.
+
+**`notes` leaves out stubs; `entries` does not.** Both carry a derived `state`
+column — `stub`, `draft` or `full` — and `notes` is exactly
+`SELECT * FROM entries WHERE state <> 'stub'`. So every table already written
+selects what it always selected, and gains `state` for free; a table that should
+list the unwritten beside the written changes one word:
+
+````markdown
+```sql
+SELECT address.slug    AS _ref,
+       name.full       AS "Name",
+       state           AS "State",
+       m.name          AS "Market",
+       data.population AS "People"
+FROM entries
+LEFT JOIN market m ON m.value = data.market
+WHERE type = 'place' AND subType = 'settlement'
+  AND list_contains(data.parents, 'place-aelwyth')
+ORDER BY data.population DESC NULLS LAST, name.full COLLATE NOCASE
+```
+````
+
+A written settlement renders as a link and a stub renders as plain text, from
+one query with no branch in it: `_ref` is the stub's absent address, and the
+renderer already prints a bare cell where it is null.
+
+A fence selecting `FROM notes` that **would** gain rows from `FROM entries` is
+warned about at the fence, with the count — so adopting stubs in a given table
+stays a decision somebody makes rather than one they forget.
+
+The ladder is what makes "how finished is this?" a query:
+
+```sql
+SELECT state, count(*) AS n FROM entries GROUP BY state ORDER BY state
+```
+
+**`market`** is the six-step market scale as a relation — `value`, `name`,
+`trade` — so a table prints `village` beside the number a note wrote without a
+second copy of the scale living in authored content.
+
+**The state is derived, never stored.** No index record carries it, no note can
+author it, and nothing in `data:` may claim it: the only authored signal is the
+`draft` tag, which marks the one thing reading the body cannot reveal.
+
+**Two aliases are read by the renderer rather than printed**, because which
+column links and where a section breaks are decisions about output, not
+relational operations:
+
+| Alias      | What it does                                                           |
+| ---------- | ---------------------------------------------------------------------- |
+| `_ref`     | Makes the row's **first** rendered column a wikilink to that address.  |
+| `_section` | Emits a headed table per distinct value, in the order the rows arrive. |
+
+`_section` is why one query replaces the forty near-identical blocks a grouped
+table would otherwise need: the authored `ORDER BY` decides the section order too.
+
+**Beware `packFolder`.** It is a note's _pack_ folder, not its directory — the
+directory is `file.folder`.
+
+###### Reading another package's notes
+
+Each package this one **depends on** is attached as a schema named after it, so
+a satellite can tabulate what it builds on:
+
+````markdown
+```sql
+SELECT name.full AS "Name", sohl.skillBase AS "Base"
+FROM sohl.notes
+WHERE type = 'skill'
+ORDER BY name.full
+```
+````
+
+This package's own notes stay at the unqualified `notes`, and a query may read
+both at once — joining your beings against the skills they cite is one `FROM`
+clause. It needs no fetch and no configuration: a dependency's published index
+is already cached when a compile starts, because resolving addresses across
+packages needs it.
+
+Which dataset a query reads is `FROM`'s job rather than a fence property. A
+fence naming a file would write a build artifact's path into the corpus, so
+renaming the artifact would mean sweeping every note that cited it.
+
+###### Header arguments
+
+Statements _about the directive_ — as opposed to the query — are written after
+the language as **org-babel header arguments**:
+
+````markdown
+```sql :section-level 3 :allow-empty
+SELECT name.full AS "Name", sohl.kbcat AS _section
+FROM notes WHERE type = 'affliction'
+```
+````
+
+The language word stays first and stays plain, so GitHub, Prettier and every
+other markdown reader still highlight the block as SQL and simply ignore what
+follows.
+
+| Argument               | What it does                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `:allow-empty`         | A table selecting nothing is intended, not a stale query. Without it, empty is an error. |
+| `:section-level <1-6>` | The heading level `_section` emits. Default `2`.                                         |
+
+The grammar is org's, so it extends without inventing a spelling per property:
+
+- a key is `:name` **starting a word**, so a colon inside or ending one is text
+  — `:caption Gear: the tables` is a single argument;
+- a value runs to the next key or the end of the line, spaces included;
+- a key with no value means `true`, which is what `:allow-empty` is;
+- a value may be `"quoted"` to hold a word that would otherwise read as a key;
+- a repeated key takes its last value.
+
+`dataview` keeps its own bare `allow-empty`; it is the retiring language and its
+grammar is frozen.
+
+```
+:::secret
+This is secret text
+:::
+```
+
+Use a whole-line `:::secret` opener and a whole-line `:::` closer to mark a GM passage. Markdown inside the block, including links and emphasis, renders normally. Keep the fences outside code blocks and close each one before starting another. An unclosed or nested block is a build error at the source line.
+
+In FoundryVTT, the passage is a secret section visible to the GM and owners of the journal:
+
+```html
+<section class="secret" id="secret-example">
+  <p>This is secret text</p>
+</section>
+```
+
+On webpages, the passage appears as a collapsed spoiler that any reader can open:
+
+```html
+<details>
+  <summary>Spoiler</summary>
+  <p>This is secret text</p>
+</details>
+```
+
+In books, the passage is visible under a **GM note** label. A printed page has no reader permissions or interactive disclosure control.
+
+#### Actors
+
+All actor types, including being and vehicle, have their entire markdown section processed as normal.
+
+The following H1 headers are treated specially:
+
+- `# ... {#appearance}`: The contents of this header become the `doc.appearance` property in sohl and `doc.description` in hm3.
+- `# ... {#dossier}`: The contents of this header become the `doc.dossier` property in sohl and `doc.biography` in hm3.
+- `# ... {#spoilers}`: The contents of this header are not written to the actor at all.
+
+For JournalEntries, the following rules apply:
+
+- `# ... {#spoilers}`: The contents of this header go into a page which is viewable only by the GM (`CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE`).
+
+**Archetypes** describe characters in broad terms and help match them to an adventure. The list is:
+
+- warrior: Can hold a line and win a fight.
+- skirmisher: Fights light — ambush, missile, mobility.
+- infiltrator: Gets in unseen — locks, stealth, disguise.
+- mage: Commands arcane practice.
+- cleric: Commands religious practice and standing.
+- healer: Treats wounds and illness.
+- scholar: Reads, researches, and knows things.
+- courtier: Navigates rank, negotiation, and intrigue.
+- woodsman: Travels and survives wild country.
+- mariner: Handles boats and blue water.
+- artisan: Builds, repairs, and appraises craft work.
+- trader: Moves goods, values them, and knows markets.
+
+Note that archetypes are descriptive, not proscriptive, and a character may be described by multiple archetypes at once.
+
+#### Items
+
+All item types, including affiliation, affliction, armor, armorlocation, attribute, concoction, containergear, miscgear, mystery, mysticalability, projectile, skill, trauma, weapon, and lore, have their entire markdown section processed as normal.
+
+An Item can mark its readable description with `# ... {#description}`. That heading starts a JournalEntryPage even when other pages precede it. Its Address is `<package>-note-<type>-<shortcode>#description`; the compiler resolves it to one `@UUID[...]` pointer. SoHL stores that pointer in `system.docHtml`, and HM3 stores the same pointer in `system.description` for Item subtypes that declare the field. An Item without this anchor points to its first page. Other pages remain addressable by their own anchors.
+
+### type: being
+
+Generates a living (or undead, or spirit) being.
+
+| `data` property             | Values                                         | Description                                                                                      |
+| --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `tokenIcon`                 | `Address`                                      | What a token on the canvas wears — an `icon` address; defaults to `icon`                         |
+| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                       |
+| `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — `[]` where none apply; `null` is an error. |
+| `occupation`                | `string`                                       | Name of the character's occupation                                                               |
+| `social`                    | `Map<string, unknown>`                         | The being's social profile                                                                       |
+| `stations`                  | `Address[]`                                    | Name of the stations the character belongs to                                                    |
+| `lore`                      | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                 |
+| `culture`                   | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                      |
+| `homes`                     | `Address[]`                                    | Place the being calls home                                                                       |
+| `affiliations`              | `Address[]`                                    | Affilliations (e.g., arcane/divine traditions, polities, etc)                                    |
+| `socialTies`                | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                              |
+| `gender`                    | `male \| female \| other`                      | Gender of the character                                                                          |
+| `species`                   | `Address`                                      | Being's species (lore)                                                                           |
+| `born`                      | `date \| unknown`                              | When the being was born; absent, it was never born                                               |
+| `calendar`                  | `Address`                                      | Calendar note used to print the being's dates                                                    |
+| `died`                      | `date \| unknown`                              | When the being died; absent, it is alive                                                         |
+| `age`                       | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                    |
+| `ageYears`                  | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this   |
+| `height`                    | `1.91m \| 6' 3"`                               | Height in metres or feet and inches                                                              |
+| `weight`                    | `85kg \| 187 lbs`                              | Body weight in kilograms or pounds                                                               |
+| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                              |
+| `appearance.eye_color`      | `string`                                       | Eye color                                                                                        |
+| `appearance.hair_color`     | `string`                                       | Hair color                                                                                       |
+| `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
+| `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
+| `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
+
+Author `data.height` as a string of decimal metres (`1.91m` or `1.91 m`) or
+whole feet with optional inches (`6'`, `6'3"`, or `6' 3"`). Inches must be
+between 0 and 11. Author `data.weight` as a string of decimal kilograms (`85kg`
+or `85 kg`) or whole pounds (`187lbs` or `187 lbs`). The infobox prints both in
+feet and inches and whole pounds, rounding metric input to the nearest inch or
+pound. Numeric values are also accepted as metres and kilograms during content
+conversion; explicit units make an authored value unambiguous. These fields
+describe a being's body. Item gear weight remains a numeric `data.weight`.
+
+`data.culture` names the culture in which a character belongs. It is one
+Address to a `type: lore`, `subType: culture` note. A named character with a
+known culture states it here; generic beings and templates can omit it.
+`data.lore` holds other lore concerning the being, such as social standing or
+law. Record the primary culture in `data.culture` only.
+
+```yaml
+data:
+  culture: lore-vedyariclt
+  lore: [lore-commonerrnk]
+```
+
+#### The people who matter to a being
+
+`data.socialTies` records relationships that define the subject's dossier, not
+everyone the subject knows. An absent entry says nothing about that relationship.
+An acquaintance belongs here when, for example, a guard will recognize the
+subject at a gate. A father and an independent adult son can have no tie in
+either note; a daughter who relies on her father may be his `dependent`.
+
+The keys are bare Addresses with an explicit `being` or `affiliation` type.
+Values are `patron`, `friend`, `dependent`, `acquaintance`, `rival`, or
+`nemesis`. A patron supports the subject from greater power or status; a
+friend supports them from goodwill; a dependent relies on their protection;
+an acquaintance knows them without a strong disposition; a rival opposes them
+without implacable hostility; a nemesis opposes them personally and
+implacably. The infobox groups targets by term and links to their notes.
+
+```yaml
+data:
+  socialTies:
+    being-kaldor: patron
+    being-alys: dependent
+    affiliation-silverguild: nemesis
+    kethira-note-being-kaldas: rival
+```
+
+The full Address names a target in another package. Each target has one tie:
+writing its short and full Address in the same map still names one target and is
+an error.
+
+Each tie is one-sided. The target need not name the subject back, even when
+`patron` and `dependent` would describe opposite ends of the same support.
+Kinship, household membership, organizational membership, rank, and office are
+distinct facts. Their relevant effects may appear as ties, while their details
+belong in prose, `data.affiliations`, or governance fields. A tie has no
+mechanical modifier.
+
+#### When a being was born, when it died, and how old it is
+
+**Absence asserts a fact rather than recording a gap**, and that is what these
+three fields are built around.
+
+- **`born` absent** says the being was **never born** — a construct, a spirit,
+  an elemental, a thing that was made. **`born: unknown`** says it was born and
+  the date is unrecorded, which is the commonest shape in a tree.
+- **`died` absent** says the being is **alive**, which is the common case and so
+  takes the cheapest form. **`died: unknown`** says it is dead and the date is
+  unrecorded. Both spellings of `died` mean dead.
+- **`age` is optional and is an override.** Written, it wins over anything the
+  dates say. Unwritten beside a dated `born`, it is the age that follows from
+  the date and the package's declared present — see below. Unwritten beside
+  `born: unknown` or an absent `born`, the age is unknown.
+
+Most people in a setting do not know their own birth date, so an age beside
+`born: unknown` is an ordinary complete record and not a note working around the
+schema. Where the number is somebody's estimate rather than a fact, write it
+`~34` — the same `~` a date carries. The estimate string is kept exactly as
+written; the compiler adds `ageYears` beside it, the plain number with the `~`
+stripped, for anything that needs to sort or filter on the age rather than
+read it.
+
+#### The age a dated `born` computes to
+
+A package states the day its setting stops on `data.present`, on its own
+`world` or `celestial` `place` note — see _What a body states about itself_
+under `type: place`. Against that date, a being with a dated `born` and no
+authored `age` compiles the age it implies: the two dates compared, not the
+two years subtracted, so a birthday that falls later in the year than the
+present counts one less than the years alone would say. A package that
+declares no present computes no age and says nothing about it — the same
+silence a package with no calendar mechanism meets.
+
+**An authored `age` beside a dated `born` is expected to agree with what the
+date computes.** Where it does not, `package-build lint` raises a warning
+naming both values, so a stale age left behind after a `born` was corrected
+does not go unnoticed. The warning is silent beside `born: unknown` or an
+absent `born` — there is nothing there to disagree with — and silent wherever
+the package declares no present, for the same reason no age is computed at
+all.
+
+Use `born:` for a being's birth date. The `birthday:` spelling is accepted with a diagnostic; `born` takes precedence when both are written.
+
+#### The lead image
+
+**A being's portrait is the first thing inside its `{#appearance}` section,
+always.**
+
+```markdown
+# Appearance {#appearance}
+
+![[<address>|<the being's full name>]]{float: top-left}
+```
+
+**Nothing about that embed is special.** It is an ordinary embedded image with
+an ordinary directive, and no pass treats it differently for sitting where it
+sits. What is strict is the convention: the portrait opens the appearance
+section, so a reader opening any being note finds the picture in the same place,
+and an author writing one never has to decide where it goes.
+
+**The section is the part that is not a convention.** `{#appearance}` is what
+becomes an actor's `system.appearance`, so a picture written above that heading
+is outside the section and reaches no document. The heading carries the anchor
+at **H1** — a deeper heading is not matched, and its whole section is extracted
+as empty rather than reported.
+
+The label is the being's full name. That is what a reader needs when the picture
+does not load, and what a screen reader announces in its place.
+
+**There is no `portrait` field**, at any level. A portrait is a picture of the
+subject, and a picture of the subject belongs in the prose that describes it —
+where an author can see it, move it, caption it or remove it, as with any other
+image. A field puts it somewhere only a template can reach, and every template
+then has to agree about where that is.
+
+Later images are ordinary images too — a second picture of the being, a coat of
+arms, a map of its holding — and they sit wherever the prose wants them,
+including in `{#dossier}`.
+
+**A being with no portrait writes no lead image.** There is no empty form and no
+placeholder.
+
+#### A being's embedded items
+
+`<system>.items` is a list, and each entry compiles into one embedded Item. An
+entry takes one of two shapes.
+
+**A copy of a catalogue item** names it with `model:` — an address, read by the
+same grammar every wikilink is. The entry's remaining keys are merged over the
+model, so it carries the model's values except where it says otherwise.
+
+```yaml
+sohl:
+  items:
+    - { model: skill-wpnc, system: { masteryLevelBase: 52 } }
+    - { model: sohl-sohl-weapongear-whmr }
+    - { model: sohl-sohl-weapongear-dgr, system: { shortcode: dgr2, name: Offhand dagger } }
+```
+
+| key      | required | meaning                                                       |
+| -------- | -------- | ------------------------------------------------------------- |
+| `model`  | yes      | The address of the item this entry is a copy of               |
+| `system` | no       | Values that override the model's                              |
+| `name`   | no       | A name of this entry's own, where it differs from the model's |
+| `data`   | no       | Art this entry names — see _An entry's art_ below             |
+
+**`type:` is not written beside a `model`.** The address already names the type,
+so a second statement of it is a place to be wrong, and it is refused.
+
+**The address is written at whatever length says what it means.** Within this
+package `type-shortcode` is enough; reaching another package means the full
+`package-system-type-shortcode`, since the forms are suffixes of the canonical
+address. The system segment defaults from the block the entry sits in — an entry
+under `sohl.items` defaults to `sohl` — which is why the short form names an
+**Item** here while the same string in body prose names a page.
+
+**A custom item** — one that copies nothing — states `name`, `type` **and**
+`system.shortcode`, all three required, plus whatever else its data model needs.
+It is written in **block form**, never inline, so the two kinds of entry are
+distinguishable at a glance:
+
+```yaml
+sohl:
+  items:
+    - name: Whetstone
+      type: miscgear
+      system:
+        shortcode: whetstone
+        weight: 1
+        value: 5
+        durability: 0
+```
+
+An embedded custom item writes its identity in `system.shortcode`; a top-level `shortcode` key in the embedded entry is invalid.
+
+#### An entry's art
+
+An entry is an item in every respect but where it is written, so it carries art
+by the two rules [an item note](#the-four-art-slots) does. It names an `icon`
+address under its own `data:`, and that resolves into the embedded document's
+`img`:
+
+```yaml
+sohl:
+  items:
+    - name: Quiver (leather)
+      type: miscgear
+      data:
+        icon: quiver
+      system:
+        shortcode: quiver
+```
+
+`icon` is the only slot an entry has. The other three belong to a note: two
+describe an Actor or a map, and `banner` is a page's hero image, which an
+embedded document has no page for.
+
+**Naming none is the common case, and it takes a default.** An entry copying a
+`model:` carries the catalogue item's art, and an entry copying nothing takes
+the default its type pairs in `itemBuilders` — the same default an item note of
+that type compiles with. An entry naming an address of its own overrides either.
+Writing `icon: ""` ships the document blank on purpose, and no default replaces
+it.
+
+**`data:` reaches no compiled document.** It is where a note names art, and a
+compiled Item has `img` instead; the container is read and goes no further.
+
+#### Identifying a being's embedded items
+
+Each entry in `sohl.items` compiles into one embedded Item, and its `_id` is
+derived from **what the entry is**, never from where it sits in the list:
+
+```
+_id = makeId(<the actor's id>, "<subType>:<system.shortcode>")
+```
+
+An entry's identity is its **own `system.shortcode`**. The `model:` is not it —
+a model names the item this entry is a _copy of_, and is never written to the
+document — so two entries may share one model and are then two embodiments, each
+stating its own identity:
+
+```yaml
+sohl:
+  items:
+    - model: weapongear-dgr # the catalogue's dagger
+      name: Dagger 1
+      system:
+        shortcode: dgr1 # this dagger's own identity
+    - model: weapongear-dgr
+      name: Dagger 2
+      system:
+        shortcode: dgr2
+```
+
+**Two entries resolving to one identity are a build error naming both.** Without
+their own `system.shortcode`, both daggers above carry the model's `dgr`,
+which makes them the same entity to everything that resolves by `(type,
+shortcode)` — compendium/world reconciliation, template shadowing, cohort
+membership, effect and expression references. A `name` cannot stand in: it is
+presentation, free to be localized or to diverge.
+
+**Reordering the list moves no id.** A key carrying the entry's position
+so inserting an item renumbered every id after it and a re-import created new
+documents beside the old ones — while nothing about those documents had changed,
+only their neighbours. The same is now true of a note's journal pages: an
+unanchored page is keyed on its heading, so inserting a heading leaves every
+other page's id where it was. Two sibling pages sharing a heading is likewise a
+build error, matching the `MD024` lint rule that already refuses it.
+
+A `sohl` block produces a SoHL actor of type `being`. An `hm3` block produces an HM3 actor. Its document type is **not** derived: `hm3.type` states it, and must be `character` or `creature`. A note that omits it is an error naming the note — see _The note vocabulary, and how it maps_.
+
+A SoHL "being" document is created, as will an "HM3" document.
+
+| shared source     | → sohl | → hm3               |
+| ----------------- | ------ | ------------------- |
+| `data.species`    | NA     | NA                  |
+| `data.gender`     | NA     | `system.gender`     |
+| `data.occupation` | NA     | `system.occupation` |
+
+`data.species` is a lore Address describing the being's species. HM3's
+`hm3.system.species` is independent native text; it does not inherit from
+`data.species`. The in-block `hm3.species` spelling is also accepted, with
+`hm3.system.species` taking precedence.
+
+### type: homepage
+
+The package's front page, published at `https://www.heroiclands.org/<package>/`.
+Exactly one note in a content tree declares this type, and it compiles into
+no Foundry document: it is a page and nothing else.
+
+It declares a `shortcode` — conventionally `root` — because that is what a
+link is written with: `[[homepage-root|Text]]` is an ordinary wikilink, and it
+resolves to `/<package>/`. The shortcode names the page in links; its address
+is the package root. The page heading reads `name.full` and defaults to
+`packageBuild.manifest.title`. `description` supplies the page's short
+description.
+
+In a compiled Foundry journal, a wikilink to the homepage prints its label
+as text. The homepage has no compendium document to open.
+
+The page is its body, published verbatim: no wikilink is resolved on it and
+no table expanded, so its links are markdown links, package-relative
+(`kb/rules/`) or external. An index of what the package publishes is not
+written here and is not generated anywhere — it is a `doc` note carrying a
+content table, linked from this page like any other.
+
+The homepage uses the same top-level allowlist as every addressed note. It has
+no Foundry document id; a pinned `data.id` has no role on this type.
+
+### type: vehicle
+
+Represents a conveyance able to hold goods and people moving from one place to another.
+
+| `data` property    | Values    | Description                                                              |
+| ------------------ | --------- | ------------------------------------------------------------------------ |
+| `tokenIcon`        | `Address` | What a token on the canvas wears — an `icon` address; defaults to `icon` |
+| `templatePriority` | `number`  | Template priority, _null_ = not a template                               |
+
+If `sohl` is present, this becomes a `vehicle` actor.
+
+It maps nothing beyond the shared rows above, actor row included: a vehicle
+carries a template priority and no field of its own.
+
+### type: affiliation
+
+Represents a related group of beings.
+
+Note that affiliations may have multiple parent affiliations.
+
+**A pantheon is not a subType.** It is a `faithtradition` carrying subordinate
+faith traditions — the individual religions of that pantheon name it in
+`parents`. There is no `pantheon` value, because every other subType answers
+_what kind of body is this_ while a pantheon answers _where does it sit_, and an
+enum that mixes the two makes a note choose between a kind and a level. The
+hierarchy already carries the answer, so nothing is lost by deriving it: a faith
+tradition with faith traditions beneath it is a pantheon.
+
+The same reasoning is why the three traditions are siblings. `faithtradition`,
+`arcanetradition` and `spirittradition` partition by _what a practice concerns_ —
+the divine, magic, the spirit world — and that partition is load-bearing rather
+than descriptive: a system filtering which mystical practices may associate with
+an affiliation can only be as precise as the distinction it filters on.
+
+**subType**:
+
+- guild: A sworn association of craftsmen holding monopoly over a trade within a locality.
+- order: A body of members bound by vows or a rule of life to a shared purpose.
+- polity: A sovereign body ordering the persons within a territory — states, city-states, tribal confederations. Its ranks apply to all who fall under its authority.
+- faithtradition: A tradition of belief and practice concerning the divine, whether organized or not.
+- arcanetradition: A tradition of belief and practice concerning magic and its practice, whether organized or not.
+- spirittradition: A tradition of belief and practice concerning spirits — ancestors, totems, and the numinous world — whether organized or not.
+- lineage: A body claiming common descent from a known ancestor, whose standing and obligations pass by birth — clans, houses, dynasties, septs.
+- venture: A band bound by contract or shared undertaking rather than by vow or public authority — free companies, ships' crews, trading expeditions, adventuring parties.
+- criminal: An association organized to profit from activity its host polity forbids, sustained by its own enforcement rather than by law.
+- governmental: An organ constituted by a polity to exercise some portion of its authority — ministries, chanceries, courts, exchequers. Its ranks apply only to those who serve in it.
+- fellowship: A voluntary association without vow, trade monopoly, or public authority — formed for mutual company, aid, or shared practice.
+
+**GovernanceModel**
+
+- Autocracy: a single person holds unchecked authority, however acquired
+- Monarchy: one ruler legitimated by descent, election, or sacred office
+- Oligarchy: a small closed group rules, whether by birth, wealth, or rank — membership is not
+  conferred by election and its authority is not held for a term
+- Republic: sovereignty rests in the citizen body and is exercised through offices held for a fixed
+  term by election, which a ruling class supplies the holders of in practice
+- Council: a deliberating body governs collectively with no single head
+- Democracy: the general membership decides, directly or through representatives, and any member may
+  hold office
+- Theocracy: authority derives from divine mandate and rests with its clergy
+- Meritocracy: position is earned by demonstrated skill, achievement, or expertise
+- Stratocracy: the armed force is itself the government
+- Feudal: authority flows through nested personal oaths rather than a central office
+- Confederation: autonomous members retain sovereignty under a weak common center
+- Anarchic: no formal governing authority — custom or force fills the gap
+
+**Republic, Oligarchy and Democracy are three answers to one question**, and the
+boundaries are testable rather than a matter of taste. Ask who fills the offices
+and on what terms. If a closed group holds authority outright, with no election
+and no term, it is an **Oligarchy**. If offices are elective and time-limited but
+a propertied or senatorial order supplies nearly everyone who holds them, it is a
+**Republic**. If any member may hold office and the general body decides, it is a
+**Democracy**.
+
+The distinction is not academic: it is the difference between a ladder whose top
+rungs are a class one is born or bought into, and one whose top rungs are an
+office one is voted into and then vacates. A republic's ladder therefore carries
+**both** — the civic status (Citizen) and the standing in the governing body above
+it (Senator) — because a citizen is not a member of the Senate, and conflating the
+two is the commonest way to get a non-monarchy wrong.
+
+**Rank**
+Definition of a level within the organization (e.g., Priest, Layperson, Member, Gang Leader, Master, etc.)
+
+| Property      | Values    | Description                                                                                                                          |
+| ------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `level`       | number    | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
+| `title`       | string    | Title associated with the Rank                                                                                                       |
+| `description` | string    | Description of the Rank                                                                                                              |
+| `lore`        | `Address` | The standing this rank _is_ — a `lore` note of subType `law`, shared with every other body that confers the same thing               |
+
+**A rank's `lore` is shared; its `title` is not.** A Normen kingdom calls it
+`Thrall` and a Vylarian province calls it `Slave`, and they mean one standing:
+owned outright, with no standing at law except through an owner. The title is
+what this body calls it and the description is how this body puts it, but the
+obligations and rights belong to the standing itself, so they are written once
+and cited by every ladder that confers it.
+
+That is also what makes a rank answerable across bodies. Without it, asking what
+a `Naukrátissa` may do means reading the Bethûan fleet's ladder; with it, the
+rank names the standing, and the standing says.
+
+**Standing**: aligned, unaligned, rival, nemesis
+
+| `data` property      | Values                                             | Description                                                                                    |
+| -------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `templatePriority`   | `number`                                           | Template priority, _null_ = not a template                                                     |
+| `demonym`            | `string`                                           | What a member of this affiliation is called (a Vylarian)                                       |
+| `epithet`            | `string`                                           | The by-name it is known by — a god's, an order's, a company's                                  |
+| `symbol`             | `string`                                           | Its emblem in words: a feather atop a golden scale, a chisel carving a star                    |
+| `governance.model`   | `GovernanceModel`                                  | Type of government structure, if applicable                                                    |
+| `governance.summary` | `string`                                           | summary of the governance situation                                                            |
+| `governance.ranks`   | `Rank[]`                                           | The ranks available to members of the affiliation                                              |
+| `governance.offices` | `Map<name, description \| {description, holders}>` | Official offices and their dated holders                                                       |
+| `seat`               | `Address`                                          | Where the affiliation's authority sits                                                         |
+| `domains`            | `Address[]`                                        | Places over which this affiliation holds sway                                                  |
+| `population`         | `number`                                           | Number of people in the affiliation (precision 2 significant digits).                          |
+| `economy`            | `Address[]`                                        | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default         |
+| `lore`               | `Address[]`                                        | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
+| `parents`            | `Address[]`                                        | Affiliations that this affiliation is subordinate to                                           |
+| `relations`          | `Map<Address, Standing>`                           | Standing with other affiliations, keyed by the other body's Address                            |
+
+**A faith tradition is not its god.** An `affiliation` of subType
+`faithtradition` is a _religion_ — a practice, with an ordained priesthood, a
+calendar and a body of observance — and it can outlive belief in the god
+entirely, while one god may be venerated by several religions that agree on
+nothing else. So the god is `lore` of subType `deity`, cited from the faith
+through `lore`, and never a property of it.
+
+`epithet` and `symbol` stay with the religion for the same reason, and they are
+not a faith's alone: they are what the members call the thing and what they
+carve, so a guild has them as much as a cult does. What a god _is_ — its nature,
+its domains, its aspects — belongs on the deity note, where every religion that
+venerates it can point at one account.
+
+**Every one of those describes the organisation.** A membership — which office a
+being holds, what title it bears, where it stands on the ladder — is recorded on
+the affiliation _as embedded on that being_, and nothing about it belongs in the
+catalogue entry. That is the split `governance` draws: the organisation publishes
+the ranks and offices that exist, and a membership names which of them it holds.
+
+**Rank is the organisation's, not the member's.** A bare `level: 4` on a
+membership says nothing on its own; it means _Knight_ only because the polity
+declared that rung. So the ladder is authored once, on the body that confers it,
+and a member's rank is an index into it. Level 0 is reserved for the excluded —
+outlawed, expelled, excommunicated — which is a standing the organisation still
+recognises, and so still has to define.
+
+**Offices are named, not ranked.** A Chancellor and a Marshal are both great
+officers and neither is above the other, so an office is a key with a
+description rather than a rung — and a being may hold an office at any rank, or a
+rank with no office at all.
+
+An office may remain a string description or declare a `description` and a
+`holders` list. Each holder names a `being` Address; optional `start` and `end`
+use the date forms above. Omit `end` for a current holder. Set `contested: true`
+when a holder's term may overlap another's. The build checks addresses, term
+order, and unmarked overlaps. A being with any `died` value, including
+`unknown`, cannot be named as a current holder. Office entries accept only
+`description` and `holders`; holder rows accept only `being`, `start`, `end`,
+and `contested`.
+
+```yaml
+data:
+  governance:
+    offices:
+      Chancellor:
+        description: Keeps the seal.
+        holders:
+          - being: being-aran
+            start: "datefrom vrcal 14 Vulcar 720 VR"
+            end: "datefrom vrcal 1 Lusenar 725 VR"
+          - { being: being-mara, start: "datefrom vrcal 2 Lusenar 725 VR" }
+```
+
+**`domains` is territorial, and only territorial.** Seventy-seven divine
+affiliations currently spell `domain:` the other way, holding a deity's sphere of
+influence as prose — _Love, Beauty, and Prosperity_; _Fertility, Agriculture,
+Peace, and Healing_. That sense **folds into `description`**, which those notes
+leave empty in all but one case, and it does not become a field of its own.
+
+A sphere is a characterisation, not a reference. Nothing compiles against it, no
+other note points at it, and rendering it as a list would imply a vocabulary that
+does not exist — whereas `description` is exactly the field for a one-line
+statement of what a thing is. The fuller treatment already has a home: `lore` of
+subType `deity` covers a god's nature, domains, epithets and aspects in prose.
+
+That frees the name for the territorial sense, which earns it: every affiliation
+subType holds sway somewhere, while the divine sense applies to one.
+
+**`domains` names what the affiliation holds directly**, and nothing beneath
+it. A polity whose `domains` names a region holds the region; the settlements
+within it are the region's, reached through its `contains`, and are not
+repeated here. A house holds its manors and names each; the crown holds the
+realm and names the realm. What lies below a holder is answered by the two
+hierarchies together — `place.parents` for where a place sits, and
+`affiliation.parents` for whom a holder answers to — so a subinfeudated manor
+sits in one region by the first and under a lord of another polity by the
+second, and both pages say so.
+
+The website reads `domains` across the package and every fetched index and
+writes the affiliation's page a `holdings` list — every place its `domains`
+names, each entry `{ title, url, type, subType }`, sorted by `subType` then
+`title`, and absent when `domains` names nothing. Every place it names carries
+the affiliation back in `held_by`. Both are derived; a note that writes one has
+it replaced.
+
+If `sohl` is present, this becomes an `affiliation` item.
+
+| shared source    | → sohl             | → hm3 |
+| ---------------- | ------------------ | ----- |
+| `subType`        | `system.subType`   | NA    |
+| `data.seat`      | `system.seat`      | NA    |
+| `data.domains`   | `system.domain`    | NA    |
+| `data.parents`   | `system.parents`   | NA    |
+| `data.relations` | `system.relations` | NA    |
+
+An affiliation writes SoHL common skills under `sohl.system.commonSkills` as a
+list of skill Addresses. An abbreviated value names a skill in the authoring
+package; a skill in the SoHL system package uses its complete Address:
+
+```yaml
+sohl:
+  system:
+    commonSkills:
+      - herb
+      - sohl-sohl-skill-law
+```
+
+The compiled SoHL Item stores the exact published Item UUIDs in
+`system.commonSkills`. An empty or absent list emits `[]`. A foreign target must
+come from a declared `relationships.systems` or `relationships.requires` content
+index. Each UUID uses the module and pack named by that target's published index;
+a missing skill Item or Item UUID is an error at the authored Address. The
+content index retains complete Addresses. Journal, web and book infoboxes link
+to a skill's published documentation journal when one exists and otherwise show
+its name as plain text.
+
+`governance` reaches no system field. Ranks and offices are the note's and the
+web page's — SoHL's affiliation item has nowhere to put them, and inventing a
+mapping for a field no schema declares is the drift these tables exist to catch.
+`system.society`, `system.office`, `system.title` and `system.level` are
+likewise absent here: they are filled on an embedded membership, never from a
+catalogue note's `data:`.
+
+**`system.title` is the style of address the office carries**, Ajaw or Warden,
+which a being holds by virtue of its rank. The note's page heading reads
+`name.full`. Author the style of address on the membership — the `system.title`
+of the entry in a being's `sohl.items` — or, on a catalogue note that carries
+one, at `sohl.system.title`.
+
+### type: affliction
+
+Represents an affliction.
+
+**subType**:
+
+- disease: A biological affliction: an illness or parasite that infects the body or mind (e.g. typhoid, tuberculosis, river blindness)
+- poisontoxin: A chemical affliction: a toxic substance or venom that impairs or kills the host (e.g. hemotoxin, mandrake, wasp venom)
+- maladiction: A supernatural affliction: a curse, hex, or divine/spiritual blight that assails the body, mind, or aura by arcane, divine, or spirit means. The affliction is a metaphysical agent with a course and outcome
+
+**TransmissionTypes**
+
+- none: no transmission mode
+- airborne: Transmission through the air, such as via droplets or aerosols
+- contact: Transmission through direct physical (skin) contact
+- bodyfluid: Transmission through bodily fluids: blood, saliva, etc.
+- injested: Transmission through ingestion of contaminated substances
+- proximity: Transmission through close proximity to an infected individual, but separate from airborne or direct contact modes.
+- vector: Transmission through a vector, such as an insect or animal bite
+- perception: Transmission through sensory perception, such as sight or sound
+- arcane: Transmission through arcane means
+- divine: Transmission through divine means
+- spirit: Transmission through spirit means
+
+| `data` property               | Values              | Description                                                                               |
+| ----------------------------- | ------------------- | ----------------------------------------------------------------------------------------- |
+| `templatePriority`            | `number`            | Template priority, _null_ = not a template                                                |
+| `transmission`                | `TransmissionTypes` | Method of transmission                                                                    |
+| `outcome`                     | `death \| cured`    | Result after affliction has run its course                                                |
+| `healingRate`                 | `number`            | Likelihood of positive outcome of healing test                                            |
+| `contagionIndex`              | `number`            | how contagious the disease is                                                             |
+| `outcomeTraumas`              | `SafeExpression`    | Expression returning traumas that result from affliction recovery                         |
+| `onsetDurationFormula`        | `RollFormula`       | Formula to calculate duration until onset after contracting affliction                    |
+| `onsetDurationBase`           | `number`            | That duration in seconds, stated outright instead of rolled                               |
+| `healingCheckDurationFormula` | `RollFormula`       | Formula to calculate duration until next healing check (measured from last healing check) |
+| `healingCheckDurationBase`    | `number`            | That duration in seconds, stated outright instead of rolled                               |
+| `resolutionDurationFormula`   | `RollFormula`       | Formula to calculate duration after onset to resolution                                   |
+| `resolutionDurationBase`      | `number`            | That duration in seconds, stated outright instead of rolled                               |
+
+If `sohl` is present, this becomes an `affliction` item.
+
+| shared source                      | → sohl                               | → hm3 |
+| ---------------------------------- | ------------------------------------ | ----- |
+| `subType`                          | `system.subType`                     | NA    |
+| `data.transmission`                | `system.transmission`                | NA    |
+| `data.outcome`                     | `system.outcome`                     | NA    |
+| `data.contagionIndex`              | `system.contagionIndexBase`          | NA    |
+| `data.onsetDurationFormula`        | `system.onsetDurationFormula`        | NA    |
+| `data.onsetDurationBase`           | `system.onsetDurationBase`           | NA    |
+| `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
+| `data.healingCheckDurationBase`    | `system.healingCheckDurationBase`    | NA    |
+| `data.resolutionDurationFormula`   | `system.resolutionDurationFormula`   | NA    |
+| `data.resolutionDurationBase`      | `system.resolutionDurationBase`      | NA    |
+
+**A timed phase is a triplet, and a note writes two thirds of it.** SoHL stores
+each phase as `{…DurationFormula, …DurationBase, …Date}`, and the three are
+authored differently:
+
+| third              | who writes it | what it says                                             |
+| ------------------ | ------------- | -------------------------------------------------------- |
+| `…DurationFormula` | the note      | what is **rolled** to get the interval                   |
+| `…DurationBase`    | the note      | the interval **outright**, in seconds, instead of a roll |
+| `…Date`            | play          | _when the phase actually fired_                          |
+
+Write the **formula** for a phase whose length varies — `"2d6*86400"` for an
+incubation of two-to-twelve days — and the **base** for one that does not. Both
+are intervals in **seconds**, and a bare number is a valid formula, so
+`onsetDurationFormula: 86400` and `onsetDurationBase: 86400` differ only in
+whether a roll is attempted.
+
+**Omitting either omits the key**, rather than writing a default over it. That
+matters because the data model's own `null` is what several phases fall back on:
+a trauma that sets no `healingCheckDuration*` takes the world's configured
+healing-check interval, and one that sets no `bloodLossAdvanceDurationBase` does
+not bleed at all. A compile-time `null` is still a value, and would answer those
+questions for every note in every world.
+
+**The `…Date` third is never authored.** It records when the phase fired, which
+only play can know, so `system.contractDate`, `system.onsetDate`,
+`system.treatmentDate` and `system.resolutionDate` are runtime state and a note
+that writes one fails the build. They are world times, and `0` is a valid one,
+so there is no blank a note could write either; leave them out and the data
+model's `null` stands.
+
+`data.healingRate` and `data.outcomeTraumas` are page data. SoHL reads an
+affliction’s base healing rate from `sohl.healingRateBase`. Its item declaration
+does not read `data.outcomeTraumas`.
+
+### type: armorgear
+
+Note: `data.quantity` may not be specified. Quantity is always 1.
+
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
+
+If a `sohl` property is present, a SoHL item of type "armorgear" is created.
+
+The note type is `armorgear` in both systems.
+
+| shared source     | → sohl                  | → hm3           |
+| ----------------- | ----------------------- | --------------- |
+| `data.weight`     | `system.weightBase`     | `system.weight` |
+| `data.value`      | `system.valueBase`      | `system.value`  |
+| `data.quality`    | `system.qualityBase`    | NA              |
+| `data.durability` | `system.durabilityBase` | NA              |
+
+### type: armorlocation
+
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+
+if a `hm3` property is present, an HM3 item of type "armorlocation" is created.
+
+| shared source | → sohl | → hm3 |
+| ------------- | ------ | ----- |
+| `notes`       | NA     | NA    |
+
+### type: attribute
+
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+
+if a `sohl` property is present, a SoHL item of type "attribute" is created.
+
+| shared source | → sohl | → hm3 |
+| ------------- | ------ | ----- |
+
+### type: concoctiongear
+
+**subType**:
+
+- mundane: ordinary and common in everyday use, generally simple in composition (often a single dried or otherwise prepared ingredient)
+- exotic: A complex and valuable concoction, often a mixture of different herbs and/or chemicals, with medicinal or other unique properties or effects, but not magical in nature.
+- elixir: An arcane alchemical concoction of great power.
+
+| `data` property    | Values                          | Description                                       |
+| ------------------ | ------------------------------- | ------------------------------------------------- |
+| `templatePriority` | `number`                        | Template priority, _null_ = not a template        |
+| `weight`           | `number`                        | Gear weight                                       |
+| `value`            | `number`                        | Gear value                                        |
+| `quality`          | `number`                        | Gear quality                                      |
+| `durability`       | `number`                        | Gear durability                                   |
+| `quantity`         | `number`                        | Gear quantity (default: 1)                        |
+| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)   |
+| `strength`         | `number`                        | Strength: higher the number, greater the strength |
+
+if a `sohl` property is present, a SoHL item of type "concoctiongear" is created.
+
+| shared source     | → sohl                  | → hm3 |
+| ----------------- | ----------------------- | ----- |
+| `subType`         | `system.subType`        | NA    |
+| `data.weight`     | `system.weightBase`     | NA    |
+| `data.value`      | `system.valueBase`      | NA    |
+| `data.quality`    | `system.qualityBase`    | NA    |
+| `data.durability` | `system.durabilityBase` | NA    |
+
+`data.quantity` is page data for a concoction. SoHL sets `system.quantity` to
+`1` for each compendium item.
+
+### type: containergear
+
+Note: `data.quantity` may not be specified; quantity is always set to 1.
+
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
+| `capacity`         | `number` | HM3 container capacity (in lbs)            |
+
+if a `sohl` property is present, a SoHL item of type "containergear" is created.
+
+if a `hm3` property is present, an HM3 item of type "containergear" is created.
+
+| shared source     | → sohl                  | → hm3                 |
+| ----------------- | ----------------------- | --------------------- |
+| `data.weight`     | `system.weightBase`     | `system.weight`       |
+| `data.value`      | `system.valueBase`      | `system.value`        |
+| `data.quality`    | `system.qualityBase`    | NA                    |
+| `data.durability` | `system.durabilityBase` | NA                    |
+| `data.capacity`   | NA                      | `system.capacity.max` |
+
+SoHL reads a container’s capacity in pounds from `sohl.maxCapacity`.
+
+### type: miscgear
+
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
+| `quantity`         | `number` | HM3 gear quantity (default: 1)             |
+
+if a `sohl` property is present, a SoHL item of type "miscgear" is created.
+
+if a `hm3` property is present, an HM3 item of type "miscgear" is created.
+
+| shared source     | → sohl                  | → hm3             |
+| ----------------- | ----------------------- | ----------------- |
+| `data.weight`     | `system.weightBase`     | `system.weight`   |
+| `data.value`      | `system.valueBase`      | `system.value`    |
+| `data.quality`    | `system.qualityBase`    | NA                |
+| `data.durability` | `system.durabilityBase` | NA                |
+| `data.quantity`   | NA                      | `system.quantity` |
+
+SoHL sets `system.quantity` to `1` for each compendium item.
+
+### type: mystery
+
+**subType**:
+
+- boon: A flat ±N modifier to an associated skill's mastery level, from any source.
+- boost: One or more temporary mastery boosts to an associated skill (Mastery Boost table).
+- fate: A mystery that quantifies the ability to alter destiny or fate.
+- grace: A mystery that quantifies ability to call effectually on divine favor.
+- birthsign: A mystery that describes the arcane sign under which the being was born.
+- other: A mystery that does not fit into the other predefined categories.
+- piety: A mystery that quantifies devotion to a religion.
+
+**SkillAptitude**: either a single skill
+
+| `data` property    | Values                                                                             | Description                                                    |
+| ------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `templatePriority` | `number`                                                                           | Template priority, _null_ = not a template                     |
+| `assocSkill`       | `Address`                                                                          | Associated skill                                               |
+| `assocAffiliation` | `Address`                                                                          | Associated affiliation                                         |
+| `skillAptitudes`   | `Map<Shortcode, number>`, the key a skill's shortcode or `subType:<skill-subtype>` | Bonuses and penalties, per skill or per kind of skill          |
+| `level`            | `number`                                                                           | Magnitude of the mystery                                       |
+| `charges.value`    | `number`                                                                           | Current number of charges available, _null_ = charges not used |
+| `charges.max`      | `number`                                                                           | Maximum number of charges, _null_ = no maximum                 |
+
+if a `sohl` property is present, a SoHL item of type "mystery" is created.
+
+`system.assocSkillCode` and `system.assocAffiliationCode` are authored under
+`sohl.system` as shortcodes and have no shared source; `data.assocSkill` and
+`data.assocAffiliation` name the same two notes as Addresses, for the page.
+
+| shared source         | → sohl                  | → hm3 |
+| --------------------- | ----------------------- | ----- |
+| `subType`             | `system.subType`        | NA    |
+| `data.skillAptitudes` | `system.skillAptitudes` | NA    |
+| `data.charges.value`  | `system.charges.value`  | NA    |
+| `data.charges.max`    | `system.charges.max`    | NA    |
+
+`data.level` is page data for a mystery. SoHL reads the item’s level from
+`sohl.levelBase`.
+
+### type: mysticalability
+
+**subType**:
+
+- spiritrite: A prepared ceremony by which a practitioner petitions the spirit world.
+- spiritaction: A discrete supernatural act performed through an allied or bound spirit.
+- spiritpower: A standing power conferred on its bearer by a spirit.
+- ritualaction: A prescribed ritual act performed to earn the favour of a deity.
+- divineincantation: A spoken invocation channelling the power of a deity.
+- arcaneincantation: A formally learned spell, invoked by word and gesture.
+- arcanetalent: An innate arcane knack, possessed without formal training.
+- spirittalent: An innate affinity for the spirit world, possessed without training.
+- alchemy: The preparation of substances imbued with mystical potency.
+- divination: The practice of obtaining hidden knowledge or foreknowledge by mystical means.
+
+| `data` property    | Values    | Description                                                    |
+| ------------------ | --------- | -------------------------------------------------------------- |
+| `templatePriority` | `number`  | Template priority, _null_ = not a template                     |
+| `assocSkill`       | `Address` | Associated skill                                               |
+| `assocAffiliation` | `Address` | Associated affiliation                                         |
+| `masteryLevel`     | `number`  | Mastery Level                                                  |
+| `level`            | `number`  | Magnitude of the mystery                                       |
+| `charges.value`    | `number`  | Current number of charges available, _null_ = charges not used |
+| `charges.max`      | `number`  | Maximum number of charges, _null_ = no maximum                 |
+
+if a `sohl` property is present, a SoHL item of type "mysticalability" is created.
+
+If an `hm3` property is present, an HM3 item is created, and `hm3.type` states which — `psionic`, `spell` or `invocation`. It is **authored, not derived from `subType`**: the ten mystical-ability subtypes do not partition onto HM3's three documents (a `spiritrite`, an `alchemy` and a `divination` each answer to none of them), so a derivation would be a guess with a plausible shape. A note that omits it is an error naming the note.
+
+`system.assocSkillCode` and `system.assocAffiliationCode` are authored under
+`sohl.system` as shortcodes and have no shared source; `data.assocSkill` and
+`data.assocAffiliation` name the same two notes as Addresses, for the page.
+
+| shared source        | → sohl                 | → hm3         |
+| -------------------- | ---------------------- | ------------- |
+| `subType`            | `system.subType`       | **see above** |
+| `data.charges.value` | `system.charges.value` | NA            |
+| `data.charges.max`   | `system.charges.max`   | NA            |
+
+`data.masteryLevel` and `data.level` are page data for an ability. SoHL reads
+the item’s base mastery and level from `sohl.masteryLevelBase` and
+`sohl.levelBase`.
+
+### type: projectilegear
+
+**subType**:
+
+- none
+- arrow
+- bolt
+- bullet
+- dart
+- other
+
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
+| `quantity`         | `number` | HM3 gear quantity (default: 1)             |
+
+if a `sohl` property is present, a SoHL item of type "projectilegear" is created.
+
+If an `hm3` property is present, an HM3 item of type "missilegear" is created.
+
+Note that `weapon` can also produce an HM3 `missilegear`. Since `(type, shortcode)` is a
+flat namespace, a `projectilegear` and a `weapon` sharing a shortcode would collide on the
+HM3 side while remaining distinct on the SoHL side.
+
+| shared source     | → sohl                  | → hm3             |
+| ----------------- | ----------------------- | ----------------- |
+| `subType`         | `system.subType`        | NA                |
+| `data.weight`     | `system.weightBase`     | `system.weight`   |
+| `data.value`      | `system.valueBase`      | `system.value`    |
+| `data.quality`    | `system.qualityBase`    | NA                |
+| `data.durability` | `system.durabilityBase` | NA                |
+| `data.quantity`   | NA                      | `system.quantity` |
+
+SoHL sets `system.quantity` to `1` for each compendium item.
+
+### type: skill
+
+**subType**:
+
+- social
+- nature
+- craft
+- lore
+- language
+- script
+- mystical
+- physical
+- combat
+- combattechnique
+
+| `data` property    | Values    | Description                                |
+| ------------------ | --------- | ------------------------------------------ |
+| `templatePriority` | `number`  | Template priority, _null_ = not a template |
+| `masteryLevel`     | `number`  | HM3 mastery level                          |
+| `parentSkill`      | `Address` | Parent skill this skill specializes        |
+
+if a `sohl` property is present, a SoHL item of type "skill" is created.
+
+If an `hm3` property is present, an HM3 item of type "skill" is created.
+
+Note: `hm3.system.type` (skill types) use the values "Craft", "Physical", "Communication", "Combat", "Magic", and "Ritual". These do not cleanly map to the `subType` values. Because of this, the `hm3.system.type` value must be specified with the appropriate value when defining HM3 skills.
+
+`system.parentSkillCode` is authored under `sohl.system` as the shortcode of the
+skill this one specializes, and has no shared source; `data.parentSkill` names that
+skill as an Address, for the page.
+
+| shared source       | → sohl           | → hm3                 |
+| ------------------- | ---------------- | --------------------- |
+| `subType`           | `system.subType` | See notes above       |
+| `data.masteryLevel` | NA               | `system.masteryLevel` |
+
+SoHL reads a skill’s base mastery from `sohl.masteryLevelBase`.
+
+### type: trauma
+
+**subType**:
+
+- injury: Physical harm caused by an external force.
+- fear: Emotional response to a perceived threat or danger.
+- morale: Emotional state affecting group cohesion and individual morale.
+- pall: Influence of existential chaos, death, or life-draining forces.
+- psycond: Mental and emotional disorder.
+- physcond: A persistent physical condition of the body (descriptive; e.g. albinism, a limp, poor eyesight)
+- auralshock: Severe shock to the aura, resulting in temporary loss of aura-related abilities.
+- fatigue: Physical or mental exhaustion resulting from prolonged activity or stress.
+- infection: Swelling or inflammation exacerbating an existing condition or injury, often fatal.
+- shock: A prolonged physiological state of shock lasting hours or days, following severe trauma or blood loss — distinct from the transient combat-shock states.
+- coma: A prolonged state of unconsciousness.
+
+| `data` property                   | Values        | Description                                                            |
+| --------------------------------- | ------------- | ---------------------------------------------------------------------- |
+| `templatePriority`                | `number`      | Template priority, _null_ = not a template                             |
+| `healingCheckDurationFormula`     | `RollFormula` | Formula for the interval between healing checks                        |
+| `healingCheckDurationBase`        | `number`      | That interval in seconds, stated outright instead of rolled            |
+| `bloodLossAdvanceDurationFormula` | `RollFormula` | Formula for the interval between blood-loss advances                   |
+| `bloodLossAdvanceDurationBase`    | `number`      | That interval in seconds. Setting it is what makes the wound bleed     |
+| `courseDurationFormula`           | `RollFormula` | Formula for the interval between course tests — shock, coma, infection |
+| `courseDurationBase`              | `number`      | That interval in seconds, stated outright instead of rolled            |
+
+if a `sohl` property is present, a SoHL item of type "trauma" is created.
+
+If an `hm3` property is present, an HM3 item is created. `hm3.type` must be specified as either `injury` or `trait`.
+
+| shared source                          | → sohl                                   | → hm3 |
+| -------------------------------------- | ---------------------------------------- | ----- |
+| `subType`                              | `system.subType`                         | NA    |
+| `data.healingCheckDurationFormula`     | `system.healingCheckDurationFormula`     | NA    |
+| `data.healingCheckDurationBase`        | `system.healingCheckDurationBase`        | NA    |
+| `data.bloodLossAdvanceDurationFormula` | `system.bloodLossAdvanceDurationFormula` | NA    |
+| `data.bloodLossAdvanceDurationBase`    | `system.bloodLossAdvanceDurationBase`    | NA    |
+| `data.courseDurationFormula`           | `system.courseDurationFormula`           | NA    |
+| `data.courseDurationBase`              | `system.courseDurationBase`              | NA    |
+
+**A trauma's three timed phases follow the triplet rule** stated under
+`affliction`: write the formula or the base, both in seconds, and omitting each
+leaves the key out so the data model answers. Two of them fall back to a **world
+setting** when the trauma sets neither half — the healing check and the course —
+which is why a default written here would be wrong rather than merely
+redundant. `bloodLossAdvanceDurationBase` is the switch that makes a wound
+bleed: a trauma that sets it bleeds, one that leaves it unset does not.
+
+**`system.contractDate` and `system.treatmentDate` are never authored.** They
+are the world times the injury was taken and last treated — runtime state, for
+the reason `affliction`'s four dates are — so a note that writes one fails the
+build.
+
+### type: weapongear
+
+Note: `data.quantity` may not be specified. Quantity is always 1.
+
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
+
+if a `sohl` property is present, a SoHL item of type "weapongear" is created,
+carrying every strike mode the weapon has — melee and missile alike — on
+`system.strikeModes`.
+
+If an `hm3` property is present, an HM3 item is created, and `hm3.type` states whether it is a `weapongear` or a `missilegear`. **`weapon` has no `subType`**: SoHL distinguishes a weapon's uses with strike modes rather than by kind, and HM3 has one document per usage, so nothing but the note can say which usage it describes. Every note carrying an `hm3:` block states it — the one carrying both blocks as well as the companion carrying only `hm3:`, which is usually a `missilegear` — see _One note is at most one document per system_.
+
+| shared source     | → sohl                  | → hm3           |
+| ----------------- | ----------------------- | --------------- |
+| `data.weight`     | `system.weightBase`     | `system.weight` |
+| `data.value`      | `system.valueBase`      | `system.value`  |
+| `data.quality`    | `system.qualityBase`    | NA              |
+| `data.durability` | `system.durabilityBase` | NA              |
+
+### type: lore
+
+In-world information about people, places, or concepts.
+
+**subType**:
+
+- cosmology: The structure of reality — planes, realms, creation, and the ordering of what exists.
+- deity: Individual gods and their attributed natures, domains, epithets, and aspects.
+- theology: How the divine is held to operate — worship, sacrifice, afterlife, sin and grace.
+- arcana: How magic is held to operate — mechanism, traditions, and philosophies of practice.
+- spirit: The non-divine numinous — spirits, celestials, fae, and their natures.
+- economy: How wealth moves — barter, coinage, trade networks, credit, and measure.
+- law: How obligation is ordered and enforced — citizenship, custom, courts, and tenure.
+- calendar: How time is reckoned and marked — dating, seasons, festivals, and astrology.
+- history: What has happened — eras, events, chronicles, and genealogies of rule.
+- material: Substances and their properties — minerals, reagents, herbs, and preparations.
+- folk: Related sapient beings of a single or tightly related species: kindreds, ancestries.
+- culture: A social grouping of individuals with common beliefs, mores, and values.
+- bestiary: A kind of creature that is not a people — beasts, monsters, and the made things
+  that were never born. What `folk` covers for the sapient, this covers for everything else.
+- gathering: A scheduled public occasion people travel to — a tournament or martial games, a
+  great market or fair, a religious festival, a ceremony or rite. What these share is assembly
+  on a cycle: a place, a time, and something contested or observed. Held apart from `calendar`,
+  which covers the _reckoning_ — a festival's date is calendar and the festival is not, and a
+  tournament is not a matter of time-reckoning at all — and from `culture`, which is a grouping
+  of people rather than an occasion they attend.
+
+| `data` property | Values                                                                              | Description                                                                        |
+| --------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `epoch`         | `date`                                                                              | Which in-world day the world's clock reads zero on                                 |
+| `months`        | `{ name, abbreviation?, days }[]`                                                   | The months this calendar keeps, in order — the list sums to the world's year       |
+| `weekdays`      | `{ name, abbreviation? }[]`                                                         | The days of the week it names, in order; a calendar with no week writes none       |
+| `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]`             | The seasons it marks, bounded by month or by day of year                           |
+| `eras`          | `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, end?, label? }[]` | The year-counts kept in it; a marker names one era and uses this calendar's months |
+| `dateFormats`   | `Map<slot, format>`                                                                 | Calendaria display formats for this calendar                                       |
+| `event`         | `Map<field, value>`                                                                 | A dated occurrence, with its sources, locations, reach, and relationships          |
+
+`data.event` is available on every `lore` subType. It holds structured
+chronology metadata, including the event's kind, date, sources, and the places
+it affects. The shared format checks that it is a map; a content package may
+check the details and relationships within that map. It is metadata for
+chronology tools and does not appear as an infobox row.
+
+#### What a calendar note declares
+
+**The calendar keys belong to `subType: calendar` and to no other genre of
+`lore`.** A note carrying one under any other subType is refused, and a calendar
+note that states no `months` and no `epoch` is refused too: a calendar divides
+the year and says where the count begins, and one that does neither is prose
+about time rather than a calendar.
+
+```yaml
+shortcode: commoncal
+name:
+  full: The Common Calendar
+type: lore
+subType: calendar
+data:
+  epoch: 720.1
+  months:
+    - { name: Floralis, abbreviation: Flor, days: 30 }
+    - { name: Lusenar, abbreviation: Luse, days: 31 }
+    # … ten more, summing to the world's year
+  seasons:
+    - { name: Spring, monthStart: 1, monthEnd: 3 }
+  eras:
+    - shortcode: founding
+      name: After the Founding
+      marker: VR
+      abbreviation: AF
+      proclaimedBy: vylarinmpr
+      start: 1.1
+  dateFormats: { full: "D MMMM, YYYY", yearLabel: "[Year] YYYY" }
+```
+
+`dateFormats` accepts `short`, `long`, `full`, `time`, `weekHeader`,
+`yearHeader`, `yearLabel`, and `crossCalendar`. Each value is a Calendaria
+format string. Its date tokens may appear bare; ordinary words belong in
+`[brackets]` or `{braces}` so they print literally. A bare letter run that is
+not a Calendaria token is an error. The `time12` slot is outside this
+vocabulary.
+The conversion commands use the calendar's month names and era labels;
+`dateFormats` supplies Foundry and Calendaria display patterns.
+
+**Position in the list is position in the year.** Days that belong to no month
+are a short month like any other: a five-day festival is one entry, and where it
+sits in the list is where it falls in the year. There is no intercalary
+mechanism, because there is nothing for one to do.
+
+**How long the year is, how the day divides and how the moon moves are facts
+about the world, not about a calendar**, so no calendar note states any of them
+— they are written once on the world's own `place` note and on its moon's, and
+every calendar is compiled against them. The one arithmetic check follows from
+that: `months` must sum to `year.days`, and a list that does not describes a
+different world rather than a different calendar.
+
+**An era is a way of counting years within a calendar**, so its rows sit beside
+the months. Each states its own `shortcode`, unique within the note. A calendar
+may contain several era rows, each with its own year origin. The
+`abbreviation` is its preferred short printed label; a declared marker is
+also accepted when reading a named date.
+`proclaimedBy` is optional: a reckoning whose proclaiming body is unknown, or
+whose body has no note, says so by leaving it out.
+
+`label` optionally wraps a printable date for readers. A string is used for
+positive years; a map may give `after` and `before` forms. Each form contains
+exactly one `{date}` slot. That slot receives the year magnitude and any month
+and day the date states, including a leading `~` for approximation. The
+`before` form handles a negative year without printing its minus sign. A
+missing form produces no prose label, and the machine form is displayed.
+
+```yaml
+eras:
+  - shortcode: founding
+    name: After the Founding
+    marker: VR
+    start: 1
+    label: { after: "{date} AF", before: "{date} BF" }
+```
+
+**A calendar with no week writes no `weekdays`.** An empty list and an absent
+one say the same thing, and nothing downstream shows a weekday for a calendar
+that names none.
+
+### type: map
+
+A map note has its own prose and a Foundry Scene. A map can depict a place or an encounter. Several maps can depict the same place; the map names that place with `sohl.place`, while the place note does not list its maps.
+
+**subType**:
+
+- `battlemap`: A tactical Scene built in Foundry.
+- `localmap`: A settlement or local-area Scene built in Foundry.
+- `regionalmap`: A large-scale chart with an authored image and scale.
+- `totm`: A gridless image Scene for theatre-of-the-mind play.
+
+| `data` property   | Values       | Description                                                |
+| ----------------- | ------------ | ---------------------------------------------------------- |
+| `scene`           | object       | Exported Foundry Scene for battle and local maps           |
+| `fixup`           | object[]     | Asset address replacements in an exported Scene            |
+| `bgImage`         | Address      | Background image for regional and theatre-of-the-mind maps |
+| `scale`           | object       | Regional distance and unit per grid unit                   |
+| `dimensions`      | `[int, int]` | Optional shared dimensions metadata                        |
+| `pxPerGrid`       | number       | Optional shared grid size metadata                         |
+| `navName`         | string       | Short Scene navigation name                                |
+| `levelName`       | string       | Embedded Level name                                        |
+| `backgroundColor` | string       | Colour outside the art                                     |
+| `overlay`         | string       | Foreground art path                                        |
+| `walls`           | object       | Regional wall geometry                                     |
+| `doors`           | object       | Regional door geometry                                     |
+| `lights`          | object       | Regional light geometry                                    |
+| `tiles`           | object       | Regional tile geometry                                     |
+| `sounds`          | object       | Regional sound geometry                                    |
+| `regions`         | object       | Regional region geometry                                   |
+| `notes`           | object       | Regional pin geometry                                      |
+| `place`           | Address      | Depicted place, when one exists                            |
+
+#### Battle and local maps
+
+Author the Scene in Foundry, export it, convert the export to YAML, and put the resulting object at `data.scene`. Preserve its walls, lights, tiles, regions, levels, environment, flags, and canvas settings. The export can name art from another Foundry package; that path is used as authored in Foundry. The Scene needs positive whole-number `width` and `height`, at least one Level, a valid `initialLevel` when present, and a unique 16-character `_id` on each embedded document. The build derives the top-level Scene `_id` from the map note, adds compendium keys and build metadata, and otherwise preserves the exported fields.
+
+A pin's `text` can contain `#anchor`, where the map note has a heading such as `# Big Bad Wolf {#myanchor1}`. With `text: '#myanchor1'`, the compiled pin opens the JournalEntry and page generated from this map note and displays **Big Bad Wolf**. Its position, icon, other settings, and embedded `_id` remain as exported. A missing anchor is a build error. Pins whose text does not use `#anchor` retain their exported text and references.
+
+`data.fixup` replaces exported asset paths without editing the Scene object by
+hand. Each entry has `path`, `type: address`, and `value`, an asset Address in
+the local or a fetched content index. Paths start at `data.scene` and use a
+property path with array indices or stable embedded `_id` selectors. A path
+must name one existing string or null field, and the address must resolve; any
+mistake fails the build. An `_id` selector remains stable when Foundry reorders
+an array on export.
+
+```yaml
+data:
+  fixup:
+    - { path: ".notes[NNNNNNNNNNNNNNNN].texture.src", type: address, value: sohl-none-icon-book }
+    - { path: ".sounds[0].path", type: address, value: sohl-none-audio-forest }
+```
+
+Fixups change the compiled copy only. The exported Scene in the note stays
+intact, and pin anchor binding runs after fixups. A package name such as
+`fvtt` is an ordinary address package name: it needs published asset records
+before its addresses can resolve.
+
+```yaml
+shortcode: wolfden
+name: { full: The Wolf's Den }
+type: map
+subType: battlemap
+data:
+  scene:
+    name: Wolf Den Scene
+    width: 1900
+    height: 2600
+    grid: { type: 1, size: 100, distance: 5, units: ft }
+    initialLevel: defaultLevel0000
+    levels:
+      - { _id: defaultLevel0000, background: { src: modules/maps/den.webp } }
+    notes:
+      - { _id: NNNNNNNNNNNNNNNN, text: "#myanchor1", x: 950, y: 2350 }
+---
+# Big Bad Wolf {#myanchor1}
+```
+
+When the Scene has pins, its Adventure bundle carries the Scene and the JournalEntry generated from its Markdown. Importing that bundle preserves the IDs the pins address.
+
+#### Regional maps
+
+A `regionalmap` uses `data.bgImage`, an image Address, and `sohl.dimensions: [width, height]` plus `sohl.pxPerGrid` to build a gridless Scene. `data.scale: {distance: positive number, unit: nonempty string}` sets the distance per grid unit. Its shared `data` fields can also name `overlay`, `backgroundColor`, `levelName`, `navName`, `walls`, `doors`, `lights`, `tiles`, `sounds`, `regions`, and `notes`; the latter geometry uses the map-note conventions described in the SoHL map authoring guide. `data.scene` is not used for a regional map.
+
+An SVG `data.bgImage` remains vector art on the site and in the book. The Foundry build stages a PNG at the note's stated dimensions with the installed SVG renderer; the source SVG is unchanged. Its aspect ratio must match the stated dimensions. A selected regional SVG map takes a full page in the PDF.
+
+#### Theatre-of-the-mind maps
+
+A `totm` map names its background with `data.bgImage` and its canvas size with
+`sohl.dimensions: [width, height]`. It builds a gridless Scene with token vision
+off. It needs no `sohl.pxPerGrid` or `data.scale`. The Markdown body remains the
+map's prose.
+
+### type: place
+
+**subType**:
+
+- world: A self-contained whole in which places exist — a planet, plane, or realm.
+- region: A bounded division of a world or larger region — continents, marches, uplands, provinces.
+- settlement: A place where folk dwell together — cities, towns, villages, holdings, camps.
+- site: A place significant by what was made or done there — ruins, monoliths, henges, works, battlefields.
+- structure: A single building or habitation — halls, keeps, temples, inns, towers.
+- feature: A place significant by its terrain — forests, rivers, falls, passes, fords.
+- celestial: A body observed from a world rather than located on one — a sun, a planet, a comet.
+
+| `data` property                   | Values                                              | Description                                                                  |
+| --------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `calendar`                        | `Address`                                           | Calendar note used to print this place's dates                               |
+| `demonym`                         | `string`                                            | What a person from this place is called — a Vylarian                         |
+| `purpose`                         | `placeCharacter` tag                                | The reason a settlement, site, or structure exists                           |
+| `lore`                            | `Address[]`                                         | Lore concerning this place — its peoples, its law, its calendar, its history |
+| `parents`                         | `Address[]`                                         | Enclosing places within which this place is located                          |
+| `population`                      | `number`                                            | Approximate population (precision 2 significant digits)                      |
+| `market`                          | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                      |
+| `borders`                         | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here       |
+| `routes`                          | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                           |
+| `world.equatorialCircumferenceKm` | `number`                                            | The distance round the body at its equator, in kilometres                    |
+| `world.surfaceGravityG`           | `number`                                            | Surface gravity, as a multiple of Earth's                                    |
+| `world.axialTiltDegrees`          | `number`                                            | The tilt of the axis, in degrees                                             |
+| `year.days`                       | `number`                                            | How many days the body's year holds                                          |
+| `year.hoursPerDay`                | `number`                                            | How many hours the day divides into                                          |
+| `year.minutesPerHour`             | `number`                                            | How many minutes the hour divides into                                       |
+| `year.secondsPerMinute`           | `number`                                            | How many seconds the minute divides into                                     |
+| `present`                         | `date`                                              | The day the setting stops and play begins                                    |
+| `body.diameterKm`                 | `number`                                            | The body's diameter, in kilometres                                           |
+| `body.orbitalRadiusKm`            | `number`                                            | How far it orbits from the body it circles, in kilometres                    |
+| `body.orbit`                      | `string`                                            | The orbit's shape — `circular` means the cycle never varies                  |
+| `body.inclined`                   | `boolean`                                           | Whether the orbit is inclined to the plane the world orbits in               |
+| `moon.cycle`                      | `number`                                            | How many days it takes to return to the same phase                           |
+| `moon.newOn`                      | `date`                                              | A day it was new, written in the reference calendar                          |
+| `moon.eclipses`                   | `string`                                            | `never`, `rare`, `occasional` or `frequent`                                  |
+
+#### Why a place exists
+
+`data.purpose` selects one of the place's own `placeCharacter` tags. It is
+optional on settlements, sites, and structures. A mining settlement on a coast
+can carry `tags: [mining, coastal]` and `data.purpose: mining`: the coast locates
+it; the mine explains its existence. The value must belong to the declared
+`placeCharacter` vocabulary and also appear among that note's tags. The tags
+include `ford`, `portage`, `pass`, and `well` for places founded around a crossing,
+a break in navigation, a mountain route, or scarce water. The body explains the
+specific history; the selected tag gives tables a consistent grouping value.
+
+#### What a body states about itself
+
+**The four groups above are the world's own facts, and they are legal on a
+`world` or a `celestial` note and nowhere else.** A region, a settlement, a
+site, a structure or a feature is somewhere _within_ a world and says nothing
+about the world's year.
+
+```yaml
+# the world — type: place, subType: world
+data:
+  world: { equatorialCircumferenceKm: 40000, surfaceGravityG: 1.0, axialTiltDegrees: 23.5 }
+  year: { days: 365, hoursPerDay: 24, minutesPerHour: 60, secondsPerMinute: 60 }
+  present: 720
+
+# its moon — a note of its own, because a moon is a body and not a property
+data:
+  body: { diameterKm: 3800, orbitalRadiusKm: 388600, orbit: circular, inclined: true }
+  moon: { cycle: 30, newOn: 720/1/1, eclipses: rare }
+```
+
+**`year.days` is where the year's length lives, and every calendar in the
+package is compiled against it.** A package whose notes state no `year` has no
+calendar mechanism at all: no sum is checked, and nothing is emitted. That is
+the right answer for a package building a setting whose world facts somebody
+else wrote down.
+
+**One year and one moon to a package.** Two years is two settings and nothing
+can say which one a calendar divides; a `moon` with no `year` anywhere is
+refused, because a cycle counted in days has no year to be measured against.
+
+**`present` is the day an age is computed against**, written in the grammar a
+note's dates are written in, so a setting whose present is best said in an era
+says it that way.
+
+**`world.axialTiltDegrees`, the circumference, the gravity, the moon's diameter
+and its orbital radius are read by nobody.** They are there so a reader knows
+what kind of world this is. What the build consumes is the year, the day's
+divisions, the present, the moon's cycle and epoch, and whether its orbit is
+circular and inclined.
+
+#### What a settlement's market supports
+
+`population` states how many people a settlement holds; `market` states what a
+traveller can buy there. Those are different questions — two settlements of
+eight hundred are a different proposition when one holds a weekly market and
+the other a chartered fair with a moneylender — so a note states both, either,
+or neither.
+
+The value is a **class**, not a measurement. The numbers order six steps and do
+nothing else: a `5` is not a market two fifths larger than a `3`, it is a city
+rather than a town. `package-build lint` refuses a value off the scale instead
+of rounding it onto one, so a reader can trust that a number means the same
+thing on every page.
+
+| `market` value | the settlement is | what can be had there                                                                             |
+| -------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
+| `1`            | a hamlet          | no market — what neighbours trade among themselves                                                |
+| `2`            | a village         | a weekly market: staples, a smith, what a household cannot make                                   |
+| `3`            | a town            | a regular market, most common goods, several trades working full time                             |
+| `4`            | a market town     | a chartered fair, goods carried from a week away, a moneylender                                   |
+| `5`            | a city            | anything ordinary, in quantity; foreign goods; a guild structure                                  |
+| `6`            | a great city      | the rare and the imported as a matter of course; banking; the market from which other markets buy |
+
+The key is meaningful on a settlement, and the lint checks no `subType`
+condition — as it checks none for `population`. Which places a fact says
+something about is the author's judgement, and the `data:` container is closed
+per type rather than per subType.
+
+#### Where a place is, in relation to other places
+
+`parents` states what a place is **within**. Two more properties state what
+it is **next to** and what it is **reachable from**, as data rather than as
+prose, so that two notes describing one frontier cannot quietly disagree about
+which side of it each is on:
+
+```yaml
+data:
+  borders: # places sharing a frontier
+    - { to: dunharargn, bearing: NE } # both required
+    - { to: bethuargn, bearing: W }
+  routes: # journeys from this place's centre
+    - { to: steinmark, bearing: SW, mode: land, days: 3, terrain: [road, mountains] }
+    - { to: denizara, bearing: W, mode: ship, days: 5 }
+    - { to: kethramir, bearing: E, mode: land, days: 30, terrain: [dunes], leagues: 90 }
+```
+
+- `to` — required; an `Address` naming the other place. Its type segment defaults
+  to `place` and `place` is the whole of its accepted set, so `vylar`,
+  `place-vylar` and `thalorna-none-place-vylar` name one place and a `to` naming
+  anything else is an error. **A bare shortcode names a place in this package**,
+  which is what the fully qualified form is for: naming a place in a declared
+  dependency's index, so two packages using one shortcode never answer for each
+  other.
+- `bearing` — required; where the neighbour or the destination lies from here.
+- `mode` — required on a route; how the journey is travelled.
+- `days` — required on a route; a marker meaning "about this, under normal
+  conditions", from the scale below. Any other value is an error.
+- `terrain` — optional on a route; the terrains crossed, in travel order, from
+  the registry below. Each terrain names the modes that cross it, so open sea
+  on a land route — or a road on a ship route — is an error.
+- `leagues` — optional on a route; a distance, only where the note states one.
+
+**A border is a shared frontier between areas.** Regions commonly state one;
+a settlement does so only when it actually shares a frontier with another
+place. Most settlements use `parents` for where they sit and `routes` for
+journeys between them. A pair appears in `routes` once per `mode` — a port and its
+neighbour may be three days by land and one by ship — and in `borders` once.
+**A place never borders its own parent or child**: containment is `parents`,
+and restating it as adjacency makes the two contradict each other.
+
+**Both ends state the relation, and `package-build lint` checks that they
+agree.** A border at `NE` from one side is a border at `SW` from the other; a
+route stated by land in three days from one side is stated by land in three
+days from the other, at the opposite bearing. A neighbour that states nothing
+back is a warning naming both notes — the pair is half-written, not wrong. A
+neighbour that states a different bearing, a different `days` or a different
+`mode` is an error, because one of the two notes is wrong and a reader cannot
+tell which. Every `to` must resolve to a place, every value must come from its
+closed set, and each finding is located at the entry that states it.
+
+The terrain names form one shared registry in package-build. A route crossing
+a package boundary uses the same terrain and mode rules at both ends.
+
+For every place that participates in a border or route, the map builder draws
+an itinerary from that place. A site page carries it as a linked SVG. A PDF
+book that includes the place gives its map a separate full page after the
+entry. A configured Foundry Scene pack carries a gridless map backed by a
+generated PNG, with Notes linked to importable place journals. Places with no
+relations create no itinerary output.
+
+**A relation that crosses a package boundary is written in full at both ends.**
+An omitted `<package>` segment is the package being built, in whatever note the
+value is read from — a note of this package's own, or a record a consumer fetched
+out of a dependency's index — so a short `to` names a different place in a
+different build. Only the fully qualified form names one place everywhere, which
+is why the long form is not optional for a border or a route between packages,
+and why a short `to` in a fetched record names the package being built rather
+than the package that wrote it.
+
+| `bearing` value | where the other place lies |
+| --------------- | -------------------------- |
+| `N`             | north                      |
+| `NE`            | north-east                 |
+| `E`             | east                       |
+| `SE`            | south-east                 |
+| `S`             | south                      |
+| `SW`            | south-west                 |
+| `W`             | west                       |
+| `NW`            | north-west                 |
+
+| `mode` value | travelled                    |
+| ------------ | ---------------------------- |
+| `land`       | on foot, mounted, or by cart |
+| `boat`       | on a river or a lake         |
+| `ship`       | on open sea                  |
+
+| `days` value | meaning                                      |
+| ------------ | -------------------------------------------- |
+| `1`          | a day                                        |
+| `2`          | two days                                     |
+| `3`          | three days                                   |
+| `5`          | about five days                              |
+| `10`         | a ten-day week                               |
+| `20`         | two ten-day weeks                            |
+| `30`         | three ten-day weeks                          |
+| `45`         | a month and a half                           |
+| `60`         | two months                                   |
+| `90`         | a season                                     |
+| `180`        | many months                                  |
+| `360`        | who knows — a journey nobody reckons in days |
+
+| `terrain` value | crossed by         |
+| --------------- | ------------------ |
+| `road`          | land               |
+| `track`         | land               |
+| `plain`         | land               |
+| `steppe`        | land               |
+| `hills`         | land               |
+| `mountains`     | land               |
+| `forest`        | land               |
+| `jungle`        | land               |
+| `marsh`         | land               |
+| `dunes`         | land               |
+| `desert`        | land               |
+| `ice`           | land               |
+| `coast`         | land, boat or ship |
+| `open-sea`      | ship               |
+| `river`         | boat               |
+| `lake`          | boat               |
+
+#### What lies within a place, and who holds it
+
+`parents` states what a place is within; an affiliation's `domains` states
+what it holds. The website reads both across the package and every fetched
+index and writes each place's page two lists, each entry
+`{ title, url, type, subType }` and each absent when empty:
+
+- `contains` — every place whose `parents` names this one, sorted by
+  `subType` then `title`. A region lists its settlements, sites, structures
+  and features; a settlement lists the structures within it.
+- `held_by` — every affiliation whose `domains` names this one, sorted by
+  `title`.
+
+Both are derived; a note that writes one has it replaced. **`domains` is
+never expanded**: a region held by a polity lists the polity in `held_by`, and
+a settlement within that region lists only the house or order whose `domains`
+names it — its lord's lord is reached through `affiliation.parents`.
+
+**A settlement, a site or a structure is held by someone.** One of those that
+no affiliation's `domains` names — in this package or in a fetched index — is
+a warning from `package-build lint`, `unheld land`, located at the note's
+`type:` line, so a gap in tenure shows while a note is written. A `world`, a
+`region` and a `feature` are exempt: a region is held through its polity's
+`domains`, and a river by nobody.
+
+#### Population figures
+
+`population` is an approximate count, written to two significant digits. A
+place states one, and so does an affiliation — how many people it counts,
+wherever they are. `package-build lint` reads those figures against each other
+and reports four warnings, each named by the phrase its message begins with.
+
+- **`over-held land`** — the polities whose `domains` name a place count more
+  people than the place states. A polity subordinate to another polity holding
+  the same place is already inside that polity's figure and is not counted
+  twice. A **settlement is exempt**: the polity of a city-state holds the city
+  and counts the hinterland around it, so its figure is properly the larger.
+- **`over-full region`** — the regions whose `parents` name a place count more
+  people than the place states. A region naming both its parent and its
+  grandparent counts under the nearer of the two, so a place written into two
+  levels of the hierarchy is not counted at both.
+- **`oversized settlement`** — a settlement states more people than a place
+  containing it does, whether its own region or any place above that.
+- **`disputed figure`** — a `doc` note carries a figure beside a wikilink to
+  the place or affiliation it belongs to, and the two disagree. The finding is
+  located at the number the page wrote, and a figure written twice is located
+  twice.
+
+The first three are reported on the note's own `data.population`; the fourth
+on the citation.
+
+**A figure is read as a population only where it carries `~`.** That marker is
+what separates a population from the other numbers a table puts beside a place
+— a distance, a stage count, a tally of days — so `| [[place-rgn\|X]] | ~2,000 |`
+is a claim about people and `| [[place-rgn\|X]] | 3 |` is not.
+
+**Rounding is admitted.** Two significant digits carry a half-unit of error,
+widest at the bottom of a decade, so a place whose figure falls up to five per
+cent below what it contains is not a finding.
+
+**An unstated figure is silent.** A place or affiliation with no `population`
+contributes nothing to a sum and is never the subject of a finding, so a
+half-written region is quiet rather than noisy. A fetched index carries
+`parents` and `domains` but no figure, so a dependency's places sit in the
+geography and its people are counted nowhere.
+
+**There is deliberately no urban-share rule.** The share of a region's people
+living in its named settlements cannot be measured from the notes: the
+settlement layer names the notable places and is complete nowhere, so the ratio
+reports how much of a region has been written rather than how much of it is
+urban.
+
+**A place declares what is true of its ground.** Its governing affiliations
+carry their own `domains`; maps name the place they depict through `data.place`.
+The place's `lore` links cover its peoples, calendar, law and history. Political
+languages belong to a polity's `sohl.system.commonSkills`, while the note's
+`description` provides its page summary.
+
+### type: scenario
+
+Content prepared to be played — a situation with its cast, places, and possible outcomes.
+
+**subType**:
+
+- campaign: A long arc toward a goal, spanning many adventures — carries standing cast, factions, and its own timeline.
+- adventure: A self-contained undertaking with a specific objective, playable in a few sessions.
+- encounter: A single scene or challenge, reusable within an adventure or on its own.
+
+| `data` property    | Values                                       | Description                                                                    |
+| ------------------ | -------------------------------------------- | ------------------------------------------------------------------------------ |
+| `parents`          | `Address[]`                                  | List of parent scenarios of this scenario (campaigns, etc.)                    |
+| `locations`        | `Address[]`                                  | List of locations associated with this scenario                                |
+| `cast`             | `Address[]`                                  | individuals associated with this scenario                                      |
+| `factions`         | `Address[]`                                  | Affiliations associated with this scenario                                     |
+| `follows`          | `Address[]`                                  | Prerequisite scenarios that should be completed before beginning this scenario |
+| `status`           | `draft \| playtested \| published`           | Playability status of this scenario                                            |
+| `party.size`       | `solo \| small \| standard \| large \| host` | Suggested party size (solo=1, small=2-3, standard=4-6, large=6-7, host=7+)     |
+| `party.archetypes` | `Archetype[]`                                | Archetypes of characters suitable for completion                               |
+
+### type: doc
+
+**subType**:
+
+- rules: The rules of the game, independent of medium — valid at a table with paper and dice.
+- userguide: How to operate the Foundry implementation to play by the rules.
+- reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
+- howto: A task with an outcome, written as the steps that reach it.
+- concept: An explanation of how something works and why it is shaped that way, read to understand rather than to follow.
+- settingguide: An orientation to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
+
+A `doc` declares no properties of its own.
+
+Choose `settingguide` for an entry point that stands on its own while guiding
+players and GMs into a setting. A `concept` explains one subject, a `reference`
+supports lookup, and a `userguide` explains how to operate the Foundry
+implementation. The setting guide can use ordinary SQL content tables and
+`:::secret` passages; its genre does not change its Address, journal, or page
+rendering.
+
+```markdown
+---
+shortcode: reedflatsguide
+name: { full: The Reed Flats Guide }
+type: doc
+subType: settingguide
+description: A starting point for adventures in the Reed Flats.
+---
+
+The Reed Flats are a network of marsh settlements linked by river trade.
+Their routes, customs, and rival groups shape everyday journeys.
+
+:::secret
+The old ferry route is known to the local guides.
+:::
+```
+
+The field is a genre and only a genre: it says what kind of page this is, never
+who reads it. A page written for a developer is a `howto` or a `concept` like
+any other, and the audience is the section it sits in.
+
+**A page that introduces a type is an ordinary note, named by convention.**
+Write `type: doc`, `subType: reference`, `shortcode: <type>` — so the
+affiliations introduction is `doc-affiliation`, addressed and linked like
+anything else, and typically carrying a generated table of what it introduces.
+It has no build path of its own, and it is the only kind of index there is: a
+site is its homepage and its pages, and nothing is generated between them.
+
+There is no landing page and no section. A section appears in **no address**: a
+page publishes at `/<package>/<type>-<shortcode>/`, which names no directory. A
+section is what Hugo calls a content directory, and the note format does not
+carry one.
+
+So a `doc`'s `subType` is a **genre** and nothing else, closed to the values
+above.
+
+### type: macro
+
+A script offered on the macro bar, plus the prose explaining what it does and
+when to reach for it. Produces a Foundry **Macro** and, from the same note, the
+JournalEntry every note produces — so a macro's documentation is a document a
+player can open, not a comment nobody reads.
+
+**The script is a page of the note, addressed by an anchor.** The macro's
+`command` is the first **language-tagged** JavaScript fence on the page whose
+heading carries `{#script}`:
+
+````markdown
+# Script {#script}
+
+```js
+await CONFIG.SOHL.class.Utility.currentCombatantAttack();
+```
+````
+
+Three rules follow, and each is deliberate. The anchor names the **page**, not
+the heading text, so the heading may be worded freely and
+`[[macro-autoattack#script]]` still opens exactly this page. The fence must
+be **tagged** — an untagged fence is a code sample whose language nobody stated,
+and treating it as executable would make an illustrative snippet the macro. And
+only the **first** tagged fence counts, so a note may document its macro
+with examples that are plainly not the macro. A note with no `{#script}` page,
+or no tagged fence on it, is a **build error**: a macro with no command is a
+macro-bar button that does nothing.
+
+**The executable copy is read from the raw markdown.** The journal's copy of the
+same fence has been through table expansion and wikilink conversion first, so
+the two diverge on purpose — the journal renders prose _about_ the script, while
+the macro runs exactly what the author typed.
+
+**This is not compiling data into code.** A Macro's `command` is authored source
+shipped as content and run by Foundry's own macro runner under the permission
+model that governs every macro in a world. Nothing evaluates, compiles, or
+revives anything; the compiler copies text from a fence into a JSON field.
+
+**Both settings are `sohl` properties, not `data` ones.** The compiler reads
+them with the same accessor every `sohl` field uses — the `sohl:` block first,
+then the note's top level — so `data.macroType` is not read, and a macro is not
+a journal-only note the way `place`, `lore` and `scenario` are: it produces a
+Foundry **Macro**, and these two describe that document.
+
+| `sohl` property | Values                      | Description                                                          |
+| --------------- | --------------------------- | -------------------------------------------------------------------- |
+| `macroType`     | `script`                    | The Foundry macro type. Defaults to `script`, and `chat` is an error |
+| `macroScope`    | `global \| actors \| actor` | How far the macro reaches. Defaults to `global`                      |
+
+**`macroType: chat` is an error, not an unimplemented feature.** A chat macro's
+`command` is chat text rather than source, so none of the `{#script}` fence
+rules describe it, and compiling one through this path would ship a macro whose
+body was a code block posted verbatim into chat. Chat macros as content would
+need an authoring convention of their own.
+
+The note's `data.icon` resolves the way every other note's does; a note that
+authors none takes Foundry's own `icons/svg/dice-target.svg`.
+
+### type: bundle
+
+A bundle of notes to be taken as a single unit — an `Adventure` in Foundry VTT.
+
+| `data` property | Values      | Description                                            |
+| --------------- | ----------- | ------------------------------------------------------ |
+| `contents`      | `Address[]` | The documents the Adventure holds; `[]` when unstated. |
+
+```yaml
+---
+type: bundle
+shortcode: hegovynvale
+name:
+  full: The Hegóvyn Vale
+data:
+  contents:
+    - map-hegovynvale
+    - miscgear-bowlcer
+    - being-aurochs
+---
+Prose describing what the bundle is for.
+```
+
+An `Adventure` carries **copies** of what it holds, not references: importing one
+creates or updates each document in the world, after which they live
+independently. So a bundle is not a folder — a folder is a live grouping that
+persists in the pack.
+
+**Each address names the note's own document.** That is the same rule `pack:`
+follows, so there is one answer and not two. A note that compiles into _two_
+documents — an item and the JournalEntry its prose became — puts the second in a
+bundle when the bundle names its `note` Address:
+`sohl-miscgear-bowlcer` is the Item, `miscgear-bowlcer` its description page.
+
+**An address that resolves to nothing fails the build.** A `folder` address is
+refused with a message of its own: a folder materialises in every pack holding
+something filed in it, so it belongs to no one pack and there is no single copy
+to take.
+
+**The note's prose becomes the Adventure's `description`**, which is what
+Foundry renders on the import card. A bundle is something you hand someone, so
+its prose belongs on the document itself — which is why, unlike an item, a
+bundle earns no separate documentation journal.
+
+Each Adventure is written to the pack the note's `pack` names — the shared
+routing field every type uses, not one of the bundle's own — defaulting to the
+configured `Adventure` pack, conventionally `adventures`. `<system>.pack`
+overrides it for that system, as it does everywhere else.
+
+**It cannot be the `adventures` companion**, though, where a repository also
+compiles map notes: that pack is written by the scenes pass, and a companion is
+written by its parent pass rather than routed to. A repository that authors
+bundles declares an Adventure pack of its own, and one that declares none is
+told so by name.
+
+**A pack's `system:` constrains what its Adventures may hold.** An `Adventure`
+has no `system` field, so a bundle spanning two systems cannot be one document
+that knows it spans them: it is one Adventure per system, and the pack each is
+written to is what carries the system. A pack declaring `system: hm3` sees the
+HM3 packs and the system-neutral ones, so a member that publishes no HM3
+document is **left out rather than failing** — and named, because an installer
+that quietly ships half its contents is worse than one that fails. A pack
+declaring no system scopes nothing away, and a member it cannot find is a dead
+address.
+
+**The bundles pass runs last**, after every pass producing what a bundle can
+hold — Item, Actor, JournalEntry, Macro and Scene. That ordering is derived from
+what the pass declares it reads, not from the order `packs:` happens to list, so
+an Adventure pack declared first still compiles last.
+
+### type: folder
+
+Foundry's `Folder` groups compiled documents. A folder note supplies its name, parent, and color. Packs name folder notes by Address.
+
+```yaml
+---
+type: folder
+shortcode: possessionscooking
+name:
+  full: Cooking
+data:
+  parent: possessionsmiscgear
+  color: "#7a4b2a"
+---
+```
+
+| `data` property | Values                                    | Description                                                                    |
+| --------------- | ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `parent`        | `Address`, or a map of them keyed by pack | The folder this one sits in — one address, or one per pack. Unset at the root. |
+| `color`         | `"#RRGGBB"`, a string                     | The folder's colour. Unset for Foundry's default.                              |
+
+A folder is addressed `<package>-none-folder-<shortcode>` — **`none`**, because a
+`Folder` is a core Foundry document like a `JournalEntry` or a `Scene`, not a
+system's. Its shortcode is [an address segment](#the-canonical-address) like
+every other, so it is strictly lowercase alphanumeric: `possessionscooking`,
+never `possessions-cooking`, which would read as two segments and resolve to
+nothing.
+
+**`color` must be quoted**, and YAML gives no third option: `color: #7a4b2a`
+parses as `null` (a `#` after a space opens a comment) and `color: 000000` parses
+as the number `0`. Write `"#RRGGBB"` to retain the string.
+
+`parent` is an address, so a dangling one is an ordinary dead-address finding
+rather than a special-cased `Unknown folder id`, and a cycle is refused. Both are
+reported when the tree is read, not when something happens to reference the
+folder that carries them.
+
+**`parent` may be a map keyed by pack**, because a folder's _identity_ is one
+thing and its _hierarchy_ is another. The same folder is deliberately filed
+under different parents in different packs: an item compendium is browsed by
+kind, a journal compendium is read by subject.
+
+```yaml
+data:
+  parent:
+    default: ~ # at the root of the items pack
+    journals: descriptions # under Rules/Descriptions in the journals pack
+```
+
+`default` is every pack that is not named; an explicit `~` under a pack key means
+_at the root there_, which is a different statement from saying nothing. A plain
+scalar — the everyday spelling, and the right one wherever the hierarchies agree
+— is exactly `{ default: <value> }`. The folder keeps **one id** across every
+pack it materialises in, which is what files a documentation journal beside the
+item it describes; only its parent differs.
+
+Every key but `default` names a **pack the package declares**, and one that names
+none is a finding of its own. It cannot be a harmless surplus: the compile asks
+the map for the pack it is writing and falls back to `default` when there is no
+such key, so a mistyped `journal:` files the folder wherever the default puts it
+— exactly the hierarchy the key was written to override, and silently.
+
+**A folder note carries no prose.** It is structure, not content, so it produces
+no documentation journal and takes no part in `docEntryTypes`.
+In a compiled Foundry journal, a wikilink to a folder prints its label as text:
+the folder can materialise in several packs and has no single compendium UUID.
+
+**It declares no pack.** Which packs a folder materialises in is derived from
+[what references it](#the-compendium-folder), and its ancestors materialise with
+it; a folder nothing references materialises nowhere.
+
+**Its Foundry `_id` is derived from its address**, stable across runs, so a new
+folder needs no invented id. An authored `id` is kept where one is present —
+which is what lets a tree sweep its folder YAML into notes without a world that
+already holds those folders losing them. Two folders claiming one id is a build
+error.
+
+The derivation is `makeId("folder", "<package>-none-folder-<shortcode>")`, and
+the namespace is **`folder`**, not the `document` one [every other note hashes
+under](#the-document-id): a folder and an item sharing a shortcode would
+otherwise derive the same id, and Foundry keys the two in separate collections
+so neither would complain. The content index publishes this value, so a consumer
+reads a folder's id rather than recomputing one.

@@ -1572,10 +1572,10 @@ like one that passed.
 
 **OPTIONS**
 
-| Option     | Type                         | Default                              | Description                               |
-| ---------- | ---------------------------- | ------------------------------------ | ----------------------------------------- |
-| `--spec`   | string                       | the shipped `docs/content-format.md` | The specification to read.                |
-| `--schema` | string, repeatable, required | —                                    | A published schema, as `<system>=<path>`. |
+| Option     | Type                         | Default                                  | Description                               |
+| ---------- | ---------------------------- | ---------------------------------------- | ----------------------------------------- |
+| `--spec`   | string                       | the shipped `engine/content-format.yaml` | The specification to read.                |
+| `--schema` | string, repeatable, required | —                                        | A published schema, as `<system>=<path>`. |
 
 **EXIT STATUS**
 
@@ -1627,7 +1627,7 @@ vocabularies differ by design until a note's data fully moves under `data:`.
 
 | Option       | Type                         | Default                                       | Description                                         |
 | ------------ | ---------------------------- | --------------------------------------------- | --------------------------------------------------- |
-| `--spec`     | string                       | the shipped `docs/content-format.md`          | The specification to read.                          |
+| `--spec`     | string                       | the shipped `engine/content-format.yaml`      | The specification to read.                          |
 | `--fields`   | string, one of `sohl`, `hm3` | the consuming repository's own `itemBuilders` | A declaration set this package ships, by system id. |
 | `--coverage` | boolean                      | `false`                                       | List, per type, the fields only one side names.     |
 
@@ -1677,10 +1677,10 @@ class of finding reaches zero.
 | ---------- | ------ | ------------------------------ | ------------------------ |
 | `root`     | string | the configured `paths.content` | Content tree to measure. |
 
-| Option     | Type    | Default                              | Description                                          |
-| ---------- | ------- | ------------------------------------ | ---------------------------------------------------- |
-| `--spec`   | string  | the shipped `docs/content-format.md` | The specification to read.                           |
-| `--strict` | boolean | `false`                              | Fail on the findings instead of only reporting them. |
+| Option     | Type    | Default                                  | Description                                          |
+| ---------- | ------- | ---------------------------------------- | ---------------------------------------------------- |
+| `--spec`   | string  | the shipped `engine/content-format.yaml` | The specification to read.                           |
+| `--strict` | boolean | `false`                                  | Fail on the findings instead of only reporting them. |
 
 **EXIT STATUS**
 

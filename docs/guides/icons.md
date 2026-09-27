@@ -48,7 +48,7 @@ Actor without `data.icon` uses its compiled default art. Write `data.icon`
 when the note needs a particular image. A portrait within the prose is an
 image embed, for example `![[image-smith-portrait|The smith]]{size: medium}`;
 it does not set a document's profile art. The
-[art-slot reference](../content-format.md#the-four-art-slots) gives each
+[art-slot reference](../reference/format-details.md#the-four-art-slots) gives each
 slot's type and document destination.
 
 ## Write an inline icon in prose

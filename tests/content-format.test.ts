@@ -17,6 +17,7 @@ import {
     CONTENT_FORMAT_PATH,
     loadContentFormat,
     parseContentFormat,
+    parseStructuredContentFormat,
 } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -33,6 +34,36 @@ const FIXTURE_SCHEMA = path.join(here, "fixtures", "content-format", "schema-soh
 
 const messages = (findings: Array<{ message: string }>) =>
     findings.map((f) => f.message).join("\n");
+
+describe("the structured format contract", () => {
+    const source = [
+        "version: 1",
+        "types:",
+        "  weapon:",
+        "    data: [weight]",
+        "    subTypes: [melee]",
+        "claims:",
+        "  - { noteType: weapon, system: sohl, source: data.weight, target: system.weightBase }",
+        "vocabularies:",
+        "  mode: [melee]",
+    ].join("\n");
+
+    it("reads types, mappings, and vocabularies with source positions", () => {
+        const format = parseStructuredContentFormat(source, { file: "format.yaml" });
+        expect(format.types.get("weapon")?.dataKeys.has("weight")).toBe(true);
+        expect(format.types.get("weapon")?.subTypes).toEqual(["melee"]);
+        expect(format.claims[0]).toMatchObject({ line: 7, noteType: "weapon" });
+        expect(format.vocabularies.get("mode")?.values).toEqual(["melee"]);
+    });
+
+    it("locates a malformed type at its declaration", () => {
+        expect(() =>
+            parseStructuredContentFormat(source.replace("data: [weight]", "data: invalid"), {
+                file: "format.yaml",
+            }),
+        ).toThrow(/format\.yaml:4:\d+: error: type weapon needs data and subTypes lists/);
+    });
+});
 
 /** A miniature specification, in the shape the real one has. */
 const MINI = [
@@ -248,7 +279,7 @@ describe("the shipped specification", () => {
 
     it("is the committed document", () => {
         expect(fs.existsSync(CONTENT_FORMAT_PATH)).toBe(true);
-        expect(CONTENT_FORMAT_PATH.endsWith(path.join("docs", "content-format.md"))).toBe(true);
+        expect(CONTENT_FORMAT_PATH.endsWith(path.join("engine", "content-format.yaml"))).toBe(true);
     });
 
     it("makes every mapping claim its tables state", () => {

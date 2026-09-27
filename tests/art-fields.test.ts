@@ -52,7 +52,7 @@ import { Bundles } from "../engine/bundles.mjs";
 import { Journals } from "../engine/journals.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SPEC = readFileSync(path.resolve(here, "../docs/content-format.md"), "utf8");
+const SPEC = readFileSync(path.resolve(here, "../docs/reference/format-details.md"), "utf8");
 
 /**
  * The default type and the accepted set *The four art slots* tabulates, keyed

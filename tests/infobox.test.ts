@@ -422,7 +422,13 @@ describe("the rendered box", () => {
  */
 function specVocabulary(name: string): string[] {
     const text = readFileSync(
-        path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "docs", "content-format.md"),
+        path.join(
+            path.dirname(fileURLToPath(import.meta.url)),
+            "..",
+            "docs",
+            "reference",
+            "format-details.md",
+        ),
         "utf8",
     );
     const values: string[] = [];
