@@ -10,6 +10,7 @@ import { collectContentIndex } from "../engine/content-index.mjs";
 import { authoredFrontmatter } from "../engine/index-records.mjs";
 import { buildJournalEntry } from "../engine/journals.mjs";
 import { buildItineraryScenes } from "../engine/itinerary-scenes.mjs";
+import { findGraphviz } from "../engine/map-graphviz.mjs";
 import { rasterizeMapSvg } from "../engine/map-raster.mjs";
 import { Scenes } from "../engine/scenes.mjs";
 
@@ -17,6 +18,7 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "itinerary-scenes-"));
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
 describe("generated itinerary Scenes", () => {
+    const renderItinerary = it.runIf(Boolean(findGraphviz("neato")));
     it.runIf(spawnSync("rsvg-convert", ["--version"]).status === 0)(
         "rasterizes authored regional SVGs into the staged package",
         () => {
@@ -47,7 +49,7 @@ describe("generated itinerary Scenes", () => {
             expect(fs.readFileSync(source, "utf8")).toContain("<svg");
         },
     );
-    it("stages raster backgrounds and pins to bundled local journals", async () => {
+    renderItinerary("stages raster backgrounds and pins to bundled local journals", async () => {
         const contentBase = path.join(root, "assets", "content");
         const journalDir = path.join(root, "build", "packs-json", "journals");
         fs.mkdirSync(contentBase, { recursive: true });
@@ -68,7 +70,11 @@ describe("generated itinerary Scenes", () => {
         for (const record of records.filter((record) => record.type === "place")) {
             const fm = authoredFrontmatter(record);
             expect(fm.id).toMatch(/^[A-Za-z0-9]{16}$/);
-            const doc = buildJournalEntry({ id: fm.id, name: fm.name.full, markdown: "A place." });
+            const doc = buildJournalEntry({
+                id: fm.id,
+                name: fm.name.full,
+                markdown: "A place.",
+            });
             fs.writeFileSync(
                 path.join(journalDir, `${record.shortcode}.json`),
                 JSON.stringify(doc),
@@ -151,7 +157,13 @@ describe("generated itinerary Scenes", () => {
             bundleSourceDirs: { JournalEntry: [journalDir] },
             config,
             packName: "scenes",
-            corpus: { records, problems: [], linkIndex: {}, contentDocs: [], sqlTables: undefined },
+            corpus: {
+                records,
+                problems: [],
+                linkIndex: {},
+                contentDocs: [],
+                sqlTables: undefined,
+            },
         });
         await pack.compile();
         expect(pack.errorCount).toBe(0);
