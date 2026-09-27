@@ -65,6 +65,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 // Leaves with no local imports of their own, so naming them here cannot close
@@ -907,9 +908,10 @@ function requireNonEmptyString(value, field) {
  *    package's id to *be* its system id, and `sohl-sohl-skill-clmb` is the
  *    honest address that results — which is the reason to prevent the ones that
  *    are avoidable.
- * 3. _Not reserved_. `packagebuild` addresses the files this toolchain ships
- *    itself, so a repository claiming the name would publish addresses that
- *    collide with them — see {@link module:engine/packages}.
+ * 3. _Not reserved for another repository_. `packagebuild` addresses assets
+ *    and documentation this toolchain ships itself. Only this repository's
+ *    documentation build can use that namespace — see
+ *    {@link module:engine/packages}.
  *
  * The type vocabulary rule reaches the **asset** types too: `icon`, `image` and
  * `audio` are types an address names exactly as it names a being, so a package
@@ -920,9 +922,11 @@ function requireNonEmptyString(value, field) {
  *   to a documentation entry: the item types plus `macro` and the map types.
  *   With {@link PACK_BY_TYPE}, {@link NOTE_VOCABULARY} and the `doc`-prefixed
  *   forms, this is the whole type vocabulary an address may write.
+ * @param {{rootDir: string, packageKind: string}} scope - The source claiming
+ *   the namespace; this toolchain owns `packagebuild` for its documentation.
  * @returns {string} The value, unchanged.
  */
-function requireContentPackage(value, docEntryTypes) {
+function requireContentPackage(value, docEntryTypes, { rootDir, packageKind }) {
     const pkg = requireNonEmptyString(value, "contentPackage");
     if (!isAddressSegment(pkg)) {
         fail(
@@ -936,7 +940,12 @@ function requireContentPackage(value, docEntryTypes) {
                 "than merely ugly. `harn-adventures` became `harnadventures`",
         );
     }
-    if (isReservedPackage(pkg)) {
+    // This toolchain's own documentation shares the asset namespace it owns.
+    // Other repositories cannot claim that namespace.
+    const ownDocumentation =
+        packageKind === DOCUMENTATION_KIND &&
+        path.resolve(rootDir) === path.dirname(fileURLToPath(import.meta.url));
+    if (isReservedPackage(pkg) && !ownDocumentation) {
         fail(
             "contentPackage",
             `is \`${pkg}\`, which is a reserved package name. ` +
@@ -2727,7 +2736,10 @@ export function defineConfig(config) {
 
     return Object.freeze({
         rootDir,
-        contentPackage: requireContentPackage(input.contentPackage, docEntryTypes),
+        contentPackage: requireContentPackage(input.contentPackage, docEntryTypes, {
+            rootDir,
+            packageKind,
+        }),
         foundryPackage,
         // `package.json`'s own address and byline. `homepage` is checked by
         // `checkHomepage` in `config.mjs`.

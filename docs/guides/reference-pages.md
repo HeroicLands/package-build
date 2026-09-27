@@ -1,3 +1,10 @@
+---
+shortcode: guidesreferencepages
+name: { full: "Reference pages and content indexes" }
+type: doc
+subType: howto
+---
+
 # Reference pages and content indexes
 
 A reference page gives readers an entry point into a group of notes. Author it

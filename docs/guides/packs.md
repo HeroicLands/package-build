@@ -1,3 +1,10 @@
+---
+shortcode: guidespacks
+name: { full: "Compendium packs" }
+type: doc
+subType: howto
+---
+
 # Compendium packs
 
 A Foundry content package declares its compendiums in `packs:` in

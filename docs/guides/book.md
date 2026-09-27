@@ -1,3 +1,10 @@
+---
+shortcode: guidesbook
+name: { full: "Build a PDF book" }
+type: doc
+subType: howto
+---
+
 # Build a PDF book
 
 `package-build pdf` selects notes from a content package and sets them as a

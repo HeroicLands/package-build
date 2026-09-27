@@ -1,3 +1,10 @@
+---
+shortcode: authoringfirstnote
+name: { full: "Your first content note" }
+type: doc
+subType: howto
+---
+
 # Your first content note
 
 A HeroicLands content tree lives under `assets/content/`. Put notes in whatever subfolders help you work: the build discovers them recursively and identifies each by frontmatter, not by its directory. This example works in a project made by [`package-build init`](../commands.md#package-build-init-directory).

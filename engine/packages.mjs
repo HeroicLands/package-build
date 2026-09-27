@@ -25,8 +25,9 @@
  * with, which is the whole point: the alternative is every package depending on
  * one of the others just to borrow a banner.
  *
- * So nothing may create a real package that collides with the name, and its
- * resolution is special-cased, because no installed directory sits behind it.
+ * Only this toolchain's own documentation package may share the name. Other
+ * repositories cannot claim it, and asset resolution is special-cased because
+ * no installed Foundry directory sits behind it.
  *
  * This module is a **leaf with no local imports**, so the configuration
  * validator can name it without closing a cycle around `content-config.mjs`.

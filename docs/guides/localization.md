@@ -1,3 +1,10 @@
+---
+shortcode: guideslocalization
+name: { full: "Localize a Foundry package" }
+type: doc
+subType: howto
+---
+
 # Localize a Foundry package
 
 A Foundry package ships translation files under `lang/` and lists them in its

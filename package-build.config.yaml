@@ -1,0 +1,16 @@
+contentPackage: packagebuild
+packageKind: documentation
+paths:
+    content: docs
+publish:
+    site: content
+site:
+    title: Package Build Documentation
+    assets: https://cdn.heroiclands.org
+    description: Guides and reference for building HeroicLands Foundry systems, modules, and content.
+    pass: packageDocs
+    maps: false
+pdf:
+    title: Package Build Documentation
+    document: book.yaml
+    out: build/pdf

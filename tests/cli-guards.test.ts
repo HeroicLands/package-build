@@ -49,13 +49,15 @@ afterAll(() => {
 /**
  * Run the real binary and report what a caller would see.
  *
- * `PACKAGE_BUILD_CONFIG` is cleared explicitly: it overrides the upward walk,
- * so inheriting one from the environment would point every case back at a real
- * repository and quietly defeat the isolation above.
+ * The configuration path names a missing file inside the temporary directory.
+ * The toolchain itself has a repository configuration, so the module-path
+ * fallback would otherwise make these no-configuration cases use it.
  */
 function run(...args: string[]) {
-    const env = { ...process.env };
-    delete env.PACKAGE_BUILD_CONFIG;
+    const env = {
+        ...process.env,
+        PACKAGE_BUILD_CONFIG: path.join(cwd, "missing-package-build.config.yaml"),
+    };
     const r = spawnSync(process.execPath, [BIN, ...args], {
         cwd,
         env,
@@ -166,7 +168,7 @@ describe("package-build pdf's own error handling", () => {
         const { code, err } = run("pdf");
 
         expect(err).not.toMatch(/ReferenceError/);
-        expect(err).toMatch(/no package-build\.config\.yaml/);
+        expect(err).toMatch(/PACKAGE_BUILD_CONFIG names .*which does not exist/);
         expect(code).toBe(1);
     });
 
@@ -176,7 +178,7 @@ describe("package-build pdf's own error handling", () => {
         expect(err).not.toMatch(/Unknown argument/);
         // Still fails for the same configuration reason as the bare command —
         // the option parsed, and the failure is the fixture's, not the flag's.
-        expect(err).toMatch(/no package-build\.config\.yaml/);
+        expect(err).toMatch(/PACKAGE_BUILD_CONFIG names .*which does not exist/);
     });
 
     it("registers no option named the yargs-reserved `version`", () => {

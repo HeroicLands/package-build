@@ -1,3 +1,10 @@
+---
+shortcode: authoringassets
+name: { full: "Images, icons, audio, and provenance" }
+type: doc
+subType: howto
+---
+
 # Images, icons, audio, and provenance
 
 An addressable file lives under one of three roots. Subdirectories beneath each root are for author organization and can change without changing the asset Address.

@@ -1,3 +1,10 @@
+---
+shortcode: guidessystemproject
+name: { full: "Building a Foundry system" }
+type: doc
+subType: howto
+---
+
 # Building a Foundry system
 
 A system repository owns its Foundry source and its content package. The system's JavaScript, templates, styles, and localization are repository source; Markdown notes under `assets/content/` describe setting material and compile into the configured packs, site, book, and content index. Both sides are assembled by the same `package-build.config.yaml`.

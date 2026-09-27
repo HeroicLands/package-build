@@ -96,7 +96,13 @@ import { indexRecordsFor } from "./content-index.mjs";
 import { isNoteRecord, isStub, noteFile } from "./index-records.mjs";
 import { openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
-import { collectContentPages, siteGates, tableUniverse, gatesFailed } from "./site-build.mjs";
+import {
+    collectContentPages,
+    siteGates,
+    tableUniverse,
+    gatesFailed,
+    resolveSitePass,
+} from "./site-build.mjs";
 import { resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
@@ -488,6 +494,12 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      * @param {string} anchorPrefix - The entry's anchor, namespacing its sections.
      * @returns {string} Typst markup.
      */
+    const pass = resolveSitePass(resolved.site?.pass, {
+        ...resolved.site?.passOptions,
+        repoRoot: resolved.rootDir,
+        config: resolved,
+        book: true,
+    });
     const renderPage = (page, headingOffset, anchorPrefix) => {
         const src = page.relPath ?? page.base;
         const wikiErrors = [];
@@ -525,7 +537,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         });
         findings.push(...expressions.findings);
         const resolvedBody = protectCode(expressions.markdown, (text) =>
-            resolveWebWikilinks(text, linkCtx),
+            resolveWebWikilinks(pass.beforeLinks ? pass.beforeLinks(text, page) : text, linkCtx),
         );
         for (const err of wikiErrors) {
             findings.push({

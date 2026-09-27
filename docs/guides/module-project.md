@@ -1,3 +1,10 @@
+---
+shortcode: guidesmoduleproject
+name: { full: "Building a Foundry module" }
+type: doc
+subType: howto
+---
+
 # Building a Foundry module
 
 This is the path from an empty directory to a HeroicLands Foundry module with content, website, and book builds. A Foundry package also compiles notes into compendium

@@ -33,6 +33,11 @@ describe("escapeTypst", () => {
 });
 
 describe("markdownToTypst", () => {
+    it("prints inline code containing backticks without breaking Typst delimiters", () => {
+        const out = markdownToTypst("The message is `` `key` must be set.``");
+        expect(out).toContain('#raw(" `key` must be set.", block: false)');
+    });
+
     it("emits a table whose header repeats across a page break", () => {
         const out = markdownToTypst(["| A | B |", "| - | -: |", "| 1 | 2 |"].join("\n"));
         // `table.header` is what makes a long table legible; a plain first row
