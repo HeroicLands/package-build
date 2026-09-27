@@ -2,7 +2,7 @@
 
 ### Documentation
 
-All markdown will end up generating a JournalNote document: If anything appears before the first H1 header, that will be placed in an "Introduction" page, and then every H1 header will become a subsequent page. The link id of this document will be `<package>-none-<note_type>-<shortcode>`
+Markdown generates a JournalEntry: content before the first H1 becomes its "Introduction" page, and each H1 begins another page. The document Address is `<package>-note-<note_type>-<shortcode>`.
 
 An **infobox** is prepended to the entry's first page, before the prose. It is
 not a page of its own: a page is what a Foundry UUID addresses, and a summary a
@@ -51,7 +51,7 @@ system makes the page checkable — _every page carries exactly the boxes its ty
 maps to_ is an assertion the build can make, so a missing infobox is a failure
 rather than something nobody notices.
 
-For Web Pages, the entire markdown content will be converted into an HTML page, with appropriate infoboxes.
+For web pages, the full Markdown body renders as HTML with its infoboxes.
 
 ### The infobox
 
@@ -154,7 +154,7 @@ a reader reassemble one fact from two cells, and reads worst in the book, whose
 label column is a narrow small-caps rule. A medium cannot supply it either —
 appending `d` to a price means knowing which row is the price, which is the one
 thing a generic renderer must never know. A row carrying a unit is `text`,
-because a number with a unit on it is no longer a number.
+because a number with a unit is text for presentation.
 
 **What a field is called** is a **presentation overlay** on that same
 declaration, per system. It carries two things a compiler's field list cannot,
@@ -346,14 +346,14 @@ index, silently, and the index still renders. That is the same failure a
 misspelled `data:` key is, and it gets the same answer — the vocabulary
 is declared, so a near miss is a finding that names what you probably meant.
 
-| group               | applies to             | tags                                                                                                                                                                                                                                                                                                                 |
-| ------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **place kind**      | `place` / `settlement` | `city`, `city-state`, `town`, `village`, `settlement`, `port`, `fortress`, `citadel`, `castle`, `stronghold`, `garrison`, `camp`, `oasis`, `waypoint`, `post`, `precinct`, `district`, `necropolis`, `hall`, `capital`                                                                                               |
-| **place character** | `place`                | `fortified`, `temple`, `market`, `trading`, `merchant`, `mining`, `fishing`, `naval`, `military`, `imperial`, `provincial`, `coastal`, `river`, `lakeside`, `hill`, `mountain`, `valley`, `forest`, `woodland`, `inland`, `island`, `frontier`, `border`, `craft`, `caravan`, `pilgrimage`, `holy`, `sacred`, `free` |
-| **place scale**     | `place` / `region`     | `continent`                                                                                                                                                                                                                                                                                                          |
-| **being station**   | `being`                | `tradesfolk`, `common-folk`, `soldiery`, `administration`, `clergy`, `mages`, `underworld`, `dependents`, `guilded`, `unguilded`                                                                                                                                                                                     |
-| **being kind**      | `being`                | `character`, `creature`                                                                                                                                                                                                                                                                                              |
-| **state**           | any                    | `draft`                                                                                                                                                                                                                                                                                                              |
+| group               | applies to             | tags                                                                                                                                                                                                                                                                                                                                                    |
+| ------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **place kind**      | `place` / `settlement` | `city`, `city-state`, `town`, `village`, `settlement`, `port`, `fortress`, `citadel`, `castle`, `stronghold`, `garrison`, `camp`, `oasis`, `waypoint`, `post`, `precinct`, `district`, `necropolis`, `hall`, `capital`                                                                                                                                  |
+| **place character** | `place`                | `fortified`, `temple`, `market`, `trading`, `merchant`, `mining`, `fishing`, `naval`, `military`, `imperial`, `provincial`, `coastal`, `river`, `lakeside`, `hill`, `mountain`, `valley`, `forest`, `woodland`, `inland`, `island`, `frontier`, `border`, `craft`, `caravan`, `pilgrimage`, `holy`, `sacred`, `free`, `ford`, `portage`, `pass`, `well` |
+| **place scale**     | `place` / `region`     | `continent`                                                                                                                                                                                                                                                                                                                                             |
+| **being station**   | `being`                | `tradesfolk`, `common-folk`, `soldiery`, `administration`, `clergy`, `mages`, `underworld`, `dependents`, `guilded`, `unguilded`                                                                                                                                                                                                                        |
+| **being kind**      | `being`                | `character`, `creature`                                                                                                                                                                                                                                                                                                                                 |
+| **state**           | any                    | `draft`                                                                                                                                                                                                                                                                                                                                                 |
 
 **`draft` is the one tag either build reads.** It does two things and nothing
 else: a link _into_ a draft note renders marked, and the note itself states that
@@ -739,9 +739,7 @@ moved one and not the other.
 
 **No image key is one of those.** A top-level `img:` is not authored at all:
 `data.icon` is a different key holding a different kind of value, and a note
-writing `img:` is naming a file where an address belongs. `portrait:` is not
-relocated either, at any level — a portrait is an embed in the body, and the
-key that used to declare one is not a key.
+writing `img:` is naming a file where an address belongs. `portrait:` is not authorable at any level; a portrait is an embed in the body.
 
 **Two of the eight are Item-only in SoHL.** `actionDefs` and `notes` are declared
 on every SoHL Item subtype and on no SoHL Actor, so on a `being` or a `vehicle`
@@ -822,6 +820,14 @@ does not know still resolves on the website and in the book — those need only
 the name and the suffix — and has no Foundry address, which is refused rather
 than guessed.
 
+An art package that replaces another package's images can declare
+`packageBuild.assets[].bindsTo` on the relevant asset copy. Each file's basename
+then acts as a shortcode for the declared package and type. The related
+`relationships.requires[].contentIndex` supplies the address index; with that
+index enabled, an asset with no matching note is a located build error. See
+[asset bindings](configuration.md#packagebuildstagedir-and-packagebuildassets)
+for the configuration and cache requirements.
+
 **The host is configuration.** `site.assets` in `package-build.config.yaml` is
 the root the web form is joined onto, and a package-owned image on a page with
 none set is an error naming that key.
@@ -885,7 +891,7 @@ data:
 
 It is deliberately close to the retired `package:` and deliberately not the same
 word: `package:` said which _distribution_ owned a note — now the repository's
-`contentPackage`, and no longer authorable — while `pack:` says which
+`contentPackage`, and not authorable — while `pack:` says which
 _compendium_ receives its document.
 
 **It names the pack for the note's _own_ document.** A document derived from it
@@ -1002,9 +1008,8 @@ real priority** — the one SoHL's own templates ship at — not an absence.
 **Where it lands differs by system, because HM3's data model has no field for
 it.** SoHL records it in `system`; HM3 keeps it under its own flag scope,
 `flags.hm3`, and a note that is not a template writes nothing there rather than a
-`null` nothing reads. Both of HM3's passes write it — an Item's flag was missing
-until an item note's priority reached
-SoHL and stop at HM3, with nothing said on either side.
+`null` nothing reads. Both HM3 Item and Actor passes write their own flag when
+the note declares a priority.
 
 **How a winner is chosen.** Opening a Create dialog gathers every candidate
 across the world and every matching compendium, _including other modules'_. Those
@@ -1067,16 +1072,10 @@ correctly and is wrong for a folder, and wrong in a way nothing outside the
 build can detect: the result is a plausible 16-character id that resolves to
 nothing.
 
-**Why the address and not an authored string.** A note used to declare an
-opaque 16-character `id` — 6,343 of them across the four content trees — which
-said nothing its address did not, could not be read or reviewed, and was
-guaranteed by nothing: `content-lint` refuses a **duplicate address** across
-every pack of a document type, which is exactly the scope a primary document's
-id must be unique within, and it said nothing at all about a duplicate `id`. So
-the derived id inherits a guard that already exists, where the authored one had
-none. It is the same principle that turned `folder: ONXsqZAIZr2qzxTb` into
-`packFolder: <address>` above: an opaque derived identity does not belong in
-authored content.
+**The Address determines the default id.** `content-lint` refuses a duplicate
+Address across the packs of a document type, so the derived id shares that
+uniqueness scope. An author pins a document's identity with `data.id` when it
+must remain stable across an Address change.
 
 **An authored `data.id` wins**, and that is how a document's identity is
 **pinned**:
@@ -1139,27 +1138,9 @@ it — so a documentation journal is filed beside the item it describes without
 the journals pack having to declare anything. A folder nothing references
 materialises nowhere.
 
-That derivation is what makes a whole class of defect unrepresentable. The
-folder declared twice, once per pack, sits in two files free to disagree:
-`sohl-thalorna` was missing 57 of its item folders from its journal folder file
-and `sohl-kethira-basic` had no journal folder file at all, so both emitted
-documentation journals into folders their own pack never declared — silently.
-With one folder note and one address there is no second file to disagree with
-the first.
-
-> **`packFolder` was a path** for one release (`Possessions/Misc_Gear/Cooking`).
-> A path encoded the hierarchy in the value, so reparenting a folder made every
-> note naming it wrong — a structural edit became a corpus-wide rewrite. The
-> path form is **removed**, not deprecated: nothing authored it yet, which is
-> the whole reason the change was cheap enough to make.
-
-> **`folder:` was a Foundry id**, resolved against a per-pack
-> `*-folders.yaml` — five files per tree. Both halves are **retired** together
-> : the id spelling has nothing left to resolve against once the YAML is
-> gone, and the YAML has no reader once the spelling is refused. A note that
-> still writes `folder:` fails the build, naming `packFolder` and the line to
-> rewrite, rather than being ignored — a retired field left ignored reads to
-> its author as though it still works.
+One folder note and one Address supply every pack that references it.
+`data.packFolder` names a folder by Address. A top-level `folder:` key is
+refused with a finding that names `data.packFolder` and the authored line.
 
 #### The knowledgebase category
 
@@ -1343,21 +1324,11 @@ hyphenated value is reported where it wrote it:
 Trauma/Blood_Loss.md:3:1: error: `subType` "blood-loss" is not a well-formed subType — a subType is lowercase letters and digits only (^[a-z0-9]+$), the same charset a type, a shortcode and a contentPackage are held to. It is a vocabulary term the whole toolchain keys on, and one closed set away from being an address segment again, so a charset that held for every term but this one would be a rule nobody could state in a sentence
 ```
 
-One declared value broke the rule and has been renamed: a `doc`'s `user-guide`
-is now **`userguide`**. The old spelling was accepted for one transitional
-release, as a warning naming the replacement, so the 43 `sohl` notes authoring
-it were not invalidated by the release that renamed them. Every consumer tree
-has swept, so the acceptance is gone and `user-guide` is refused by the
-charset check — it contains a hyphen, which is the reason that always applied.
-No retirement-specific code outlived the sweep.
+The `doc` subType is **`userguide`**. A hyphenated `user-guide` is refused by
+the shared charset check. Shortcodes likewise contain only lowercase letters
+and digits, preserving one unambiguous Address grammar.
 
-That is a guarantee rather than an observation, and it holds: of **4,456 distinct
-shortcodes** across the four content trees, not one contains a character outside
-`[a-z0-9]`. It is load-bearing, so relaxing the charset later would break
-resolution with nothing to say so.
-
-`type/shortcode` with a slash is the legacy form, still resolved so links written
-before the vault migrated do not silently die. A slash is _unconditionally_ an
+`type/shortcode` with a slash is accepted. A slash is _unconditionally_ an
 address separator — pipe or no pipe — so an unknown type before one is an error
 rather than something to guess at.
 
@@ -1403,13 +1374,9 @@ Which of the two a field holds is the field's own declaration, stated in the
 An address that names no note **fails the build** — in the link checker,
 in the pack compilers and in the site build alike.
 
-It was a warning in the checker and, in the site build, nothing at all while any
-linkable package had no vendored manifest. The reasoning was that `[[Sunless
-Vault]]` might be a placeholder for a note somebody meant to write. That was a
-property of the **bare** form, which is retired, and the intent behind it has a
-real spelling now: a note tagged `draft` exists, resolves, compiles and
-publishes, and a link to it renders visibly marked. So an address landing
-nowhere is a typo or an omission, and both want fixing.
+A `draft` note exists, resolves, compiles and publishes; a link to it renders
+visibly marked. An Address landing nowhere is a typo or an omission and earns
+an error.
 
 There are six ways a link can fail, and each is one **error** with one message
 wherever it is met:
@@ -1424,11 +1391,9 @@ wherever it is met:
 | `ambiguous`      | _unreachable; kept for the manifest_          | —                                                      |
 | `unknown-anchor` | the address resolves; the `#section` does not | correct the anchor                                     |
 
-`ambiguous` no longer fires. An omitted segment defaults rather than wildcarding,
-so a written target expands to one canonical address and a lookup returns one
-entry or none — two claimants is a state the grammar can no longer reach. The
-reason is retained so a consumer switching on it does not break, and because a
-vendored manifest built by an older toolchain may still carry the finding.
+`ambiguous` is a reserved reason in the result vocabulary. An omitted segment
+defaults rather than wildcarding, so each written target expands to one
+canonical Address and a lookup returns one entry or none.
 
 The vocabulary and the messages live in one module (`engine/wikilink-syntax.mjs`)
 precisely because an author meets whichever build ran first. Three resolvers read
@@ -1565,19 +1530,9 @@ There is one namespace, and the pipe is required:
 **A link written without a label addresses nothing**, and the correction
 is always the same: write `[[type-shortcode|Text]]`.
 
-The bare form does not name an **alias** — a note's own display name, or one of
-the names it listed in `aliases:` — looked up within the citing note's type. It
-was measured before it was retired, and the namespace was empty in practice:
-across 8,305 wikilinks in three content trees, **not one** bare link resolved to
-a note. What the index behind it did do was fold every note's `name.full` into
-itself, so two notes of one type could not share a display name — a rules page
-and a user guide page both called "Gear" were a build failure whose every
-available fix moved a published URL.
-
-The top-level `aliases:` that fed it is **retired** and refused. The nested
-`name.aliases:` is **not**: it is reserved for a use that does not exist yet, so
-it is permitted and read by nothing — no index, no resolver, no lint rule, no
-derived address. A note carrying one behaves exactly as one without it.
+The bare form does not resolve by display name or alias. `name.aliases` is
+indexed for search and completion, while an authored link names an Address.
+A top-level `aliases:` key is refused.
 
 Requiring the label is also what makes positional parsing safe. Note names
 contain hyphens — `Grukar-ahk` is a name, not a `Grukar` of type `ahk` — so a
@@ -2422,7 +2377,7 @@ For JournalEntries, the following rules apply:
 
 - `# ... {#spoilers}`: The contents of this header go into a page which is viewable only by the GM (`CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE`).
 
-**Archetype** is often used to describe a character in broad terms. These are often useful when determining whether a character matches a particular adventure. The list of character archetypes are:
+**Archetypes** describe characters in broad terms and help match them to an adventure. The list is:
 
 - warrior: Can hold a line and win a fight.
 - skirmisher: Fights light — ambush, missile, mobility.
@@ -2462,10 +2417,11 @@ Generates a living (or undead, or spirit) being.
 | `lore`                      | `Address[]`                                    | Lore concerning this being — the people it is of, the standing it holds, the law it lives under  |
 | `homes`                     | `Address[]`                                    | Place the being calls home                                                                       |
 | `affiliations`              | `Address[]`                                    | Affilliations (e.g., arcane/divine traditions, polities, etc)                                    |
+| `socialTies`                | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                              |
 | `gender`                    | `male \| female \| other`                      | Gender of the character                                                                          |
 | `species`                   | `Address`                                      | Being's species (lore)                                                                           |
-| `born`                      | `YYYY/MM/DD \| unknown`                        | When the being was born; absent, it was never born                                               |
-| `died`                      | `YYYY/MM/DD \| unknown`                        | When the being died; absent, it is alive                                                         |
+| `born`                      | `date \| unknown`                              | When the being was born; absent, it was never born                                               |
+| `died`                      | `date \| unknown`                              | When the being died; absent, it is alive                                                         |
 | `age`                       | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                    |
 | `ageYears`                  | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this   |
 | `height`                    | `number`                                       | Height in meters                                                                                 |
@@ -2476,6 +2432,29 @@ Generates a living (or undead, or spirit) being.
 | `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
 | `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
 | `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
+
+#### The people who matter to a being
+
+`data.socialTies` records relationships that define the subject's dossier, not
+everyone the subject knows. An absent entry says nothing about that relationship.
+An acquaintance belongs here when, for example, a guard will recognize the
+subject at a gate. A father and an independent adult son can have no tie in
+either note; a daughter who relies on her father may be his `dependent`.
+
+The keys are bare Addresses with an explicit `being` or `affiliation` type.
+Values are `patron`, `friend`, `dependent`, `acquaintance`, `rival`, or
+`nemesis`. A patron supports the subject from greater power or status; a
+friend supports them from goodwill; a dependent relies on their protection;
+an acquaintance knows them without a strong disposition; a rival opposes them
+without implacable hostility; a nemesis opposes them personally and
+implacably. The infobox groups targets by term and links to their notes.
+
+Each tie is one-sided. The target need not name the subject back, even when
+`patron` and `dependent` would describe opposite ends of the same support.
+Kinship, household membership, organizational membership, rank, and office are
+distinct facts. Their relevant effects may appear as ties, while their details
+belong in prose, `data.affiliations`, or governance fields. A tie has no
+mechanical modifier.
 
 #### When a being was born, when it died, and how old it is
 
@@ -2694,11 +2673,9 @@ unanchored page is keyed on its heading, so inserting a heading leaves every
 other page's id where it was. Two sibling pages sharing a heading is likewise a
 build error, matching the `MD024` lint rule that already refuses it.
 
-If a `sohl` property is present, a SoHL actor of type "being" will be created.
+A `sohl` block produces a SoHL actor of type `being`. An `hm3` block produces an HM3 actor. Its document type is **not** derived: `hm3.type` states it, and must be `character` or `creature`. A note that omits it is an error naming the note — see _The note vocabulary, and how it maps_.
 
-If an `hm3` property is present, an HM3 actor is created. Its document type is **not** derived: `hm3.type` states it, and must be `character` or `creature`. A note that omits it is an error naming the note — see _The note vocabulary, and how it maps_.
-
-A SoHL "being" document will be created, as will an "HM3" document.
+A SoHL "being" document is created, as will an "HM3" document.
 
 | shared source     | → sohl | → hm3               |
 | ----------------- | ------ | ------------------- |
@@ -2829,8 +2806,7 @@ Definition of a level within the organization (e.g., Priest, Layperson, Member, 
 owned outright, with no standing at law except through an owner. The title is
 what this body calls it and the description is how this body puts it, but the
 obligations and rights belong to the standing itself, so they are written once
-and cited by every ladder that confers it. In the authored corpus 237 distinct
-titles across 2,602 rank entries resolve onto 43 standings.
+and cited by every ladder that confers it.
 
 That is also what makes a rank answerable across bodies. Without it, asking what
 a `Naukrátissa` may do means reading the Bethûan fleet's ladder; with it, the
@@ -3063,9 +3039,9 @@ Note: `data.quantity` may not be specified. Quantity is always 1.
 | `quality`          | `number` | Gear quality                               |
 | `durability`       | `number` | Gear durability                            |
 
-If a `sohl` property is present, a SoHL item of type "armorgear" will be created.
+If a `sohl` property is present, a SoHL item of type "armorgear" is created.
 
-The note type is `armorgear` in both cases. The `gear` suffix was briefly renamed away on the argument that it named a SoHL document subtype rather than the thing the note is about; that rename is reversed. Nothing had adopted the bare spelling — every note in every tree still writes the suffix — and dropping it from three of the five gear types while `weapongear` and `containergear` kept theirs cost more consistency than the argument bought.
+The note type is `armorgear` in both systems.
 
 | shared source     | → sohl                  | → hm3           |
 | ----------------- | ----------------------- | --------------- |
@@ -3080,7 +3056,7 @@ The note type is `armorgear` in both cases. The `gear` suffix was briefly rename
 | ------------------ | -------- | ------------------------------------------ |
 | `templatePriority` | `number` | Template priority, _null_ = not a template |
 
-if a `hm3` property is present, an HM3 item of type "armorlocation" will be created.
+if a `hm3` property is present, an HM3 item of type "armorlocation" is created.
 
 | shared source | → sohl | → hm3 |
 | ------------- | ------ | ----- |
@@ -3092,7 +3068,7 @@ if a `hm3` property is present, an HM3 item of type "armorlocation" will be crea
 | ------------------ | -------- | ------------------------------------------ |
 | `templatePriority` | `number` | Template priority, _null_ = not a template |
 
-if a `sohl` property is present, a SoHL item of type "attribute" will be created.
+if a `sohl` property is present, a SoHL item of type "attribute" is created.
 
 | shared source | → sohl | → hm3 |
 | ------------- | ------ | ----- |
@@ -3116,7 +3092,7 @@ if a `sohl` property is present, a SoHL item of type "attribute" will be created
 | `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)   |
 | `strength`         | `number`                        | Strength: higher the number, greater the strength |
 
-if a `sohl` property is present, a SoHL item of type "concoctiongear" will be created.
+if a `sohl` property is present, a SoHL item of type "concoctiongear" is created.
 
 | shared source     | → sohl                  | → hm3 |
 | ----------------- | ----------------------- | ----- |
@@ -3142,9 +3118,9 @@ Note: `data.quantity` may not be specified; quantity is always set to 1.
 | `durability`       | `number` | Gear durability                            |
 | `capacity`         | `number` | HM3 container capacity (in lbs)            |
 
-if a `sohl` property is present, a SoHL item of type "containergear" will be created.
+if a `sohl` property is present, a SoHL item of type "containergear" is created.
 
-if a `hm3` property is present, an HM3 item of type "containergear" will be created.
+if a `hm3` property is present, an HM3 item of type "containergear" is created.
 
 | shared source     | → sohl                  | → hm3                 |
 | ----------------- | ----------------------- | --------------------- |
@@ -3167,9 +3143,9 @@ SoHL reads a container’s capacity in pounds from `sohl.maxCapacity`.
 | `durability`       | `number` | Gear durability                            |
 | `quantity`         | `number` | HM3 gear quantity (default: 1)             |
 
-if a `sohl` property is present, a SoHL item of type "miscgear" will be created.
+if a `sohl` property is present, a SoHL item of type "miscgear" is created.
 
-if a `hm3` property is present, an HM3 item of type "miscgear" will be created.
+if a `hm3` property is present, an HM3 item of type "miscgear" is created.
 
 | shared source     | → sohl                  | → hm3             |
 | ----------------- | ----------------------- | ----------------- |
@@ -3205,7 +3181,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `charges.value`    | `number`                                                                           | Current number of charges available, _null_ = charges not used |
 | `charges.max`      | `number`                                                                           | Maximum number of charges, _null_ = no maximum                 |
 
-if a `sohl` property is present, a SoHL item of type "mystery" will be created.
+if a `sohl` property is present, a SoHL item of type "mystery" is created.
 
 `system.assocSkillCode` and `system.assocAffiliationCode` are authored under
 `sohl.system` as shortcodes and have no shared source; `data.assocSkill` and
@@ -3246,7 +3222,7 @@ if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 | `charges.value`    | `number`  | Current number of charges available, _null_ = charges not used |
 | `charges.max`      | `number`  | Maximum number of charges, _null_ = no maximum                 |
 
-if a `sohl` property is present, a SoHL item of type "mysticalability" will be created.
+if a `sohl` property is present, a SoHL item of type "mysticalability" is created.
 
 If an `hm3` property is present, an HM3 item is created, and `hm3.type` states which — `psionic`, `spell` or `invocation`. It is **authored, not derived from `subType`**: the ten mystical-ability subtypes do not partition onto HM3's three documents (a `spiritrite`, an `alchemy` and a `divination` each answer to none of them), so a derivation would be a guess with a plausible shape. A note that omits it is an error naming the note.
 
@@ -3284,9 +3260,9 @@ the item’s base mastery and level from `sohl.masteryLevelBase` and
 | `durability`       | `number` | Gear durability                            |
 | `quantity`         | `number` | HM3 gear quantity (default: 1)             |
 
-if a `sohl` property is present, a SoHL item of type "projectilegear" will be created.
+if a `sohl` property is present, a SoHL item of type "projectilegear" is created.
 
-If an `hm3` property is present, then an HM3 item of type "missilegear" will be created.
+If an `hm3` property is present, an HM3 item of type "missilegear" is created.
 
 Note that `weapon` can also produce an HM3 `missilegear`. Since `(type, shortcode)` is a
 flat namespace, a `projectilegear` and a `weapon` sharing a shortcode would collide on the
@@ -3324,9 +3300,9 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `masteryLevel`     | `number`  | HM3 mastery level                          |
 | `parentSkill`      | `Address` | Parent skill this skill specializes        |
 
-if a `sohl` property is present, a SoHL item of type "skill" will be created.
+if a `sohl` property is present, a SoHL item of type "skill" is created.
 
-If an `hm3` property is present, then an HM3 item of type "skill" will be created.
+If an `hm3` property is present, an HM3 item of type "skill" is created.
 
 Note: `hm3.system.type` (skill types) use the values "Craft", "Physical", "Communication", "Combat", "Magic", and "Ritual". These do not cleanly map to the `subType` values. Because of this, the `hm3.system.type` value must be specified with the appropriate value when defining HM3 skills.
 
@@ -3367,7 +3343,7 @@ SoHL reads a skill’s base mastery from `sohl.masteryLevelBase`.
 | `courseDurationFormula`           | `RollFormula` | Formula for the interval between course tests — shock, coma, infection |
 | `courseDurationBase`              | `number`      | That interval in seconds, stated outright instead of rolled            |
 
-if a `sohl` property is present, a SoHL item of type "trauma" will be created.
+if a `sohl` property is present, a SoHL item of type "trauma" is created.
 
 If an `hm3` property is present, an HM3 item is created. `hm3.type` must be specified as either `injury` or `trait`.
 
@@ -3406,7 +3382,7 @@ Note: `data.quantity` may not be specified. Quantity is always 1.
 | `quality`          | `number` | Gear quality                               |
 | `durability`       | `number` | Gear durability                            |
 
-if a `sohl` property is present, a SoHL item of type "weapongear" will be created,
+if a `sohl` property is present, a SoHL item of type "weapongear" is created,
 carrying every strike mode the weapon has — melee and missile alike — on
 `system.strikeModes`.
 
@@ -3453,6 +3429,7 @@ In-world information about people, places, or concepts.
 | `weekdays`      | `{ name, abbreviation? }[]`                                             | The days of the week it names, in order; a calendar with no week writes none      |
 | `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]` | The seasons it marks, bounded by month or by day of year                          |
 | `eras`          | `{ shortcode, name, abbreviation?, proclaimedBy?, start, end? }[]`      | The year-counts kept in it, each addressed `<calendar shortcode>.<era shortcode>` |
+| `dateFormats`   | `Map<slot, format>`                                                     | Calendaria display formats for this calendar                                      |
 | `event`         | `Map<field, value>`                                                     | A dated occurrence, with its sources, locations, reach, and relationships         |
 
 `data.event` is available on every `lore` subType. It holds structured
@@ -3463,7 +3440,7 @@ chronology tools and does not appear as an infobox row.
 
 #### What a calendar note declares
 
-**Those five keys belong to `subType: calendar` and to no other genre of
+**The calendar keys belong to `subType: calendar` and to no other genre of
 `lore`.** A note carrying one under any other subType is refused, and a calendar
 note that states no `months` and no `epoch` is refused too: a calendar divides
 the year and says where the count begins, and one that does neither is prose
@@ -3489,7 +3466,15 @@ data:
       abbreviation: AF
       proclaimedBy: vylarinmpr
       start: 1
+  dateFormats: { full: "D MMMM, YYYY", yearLabel: "[Year] YYYY" }
 ```
+
+`dateFormats` accepts `short`, `long`, `full`, `time`, `weekHeader`,
+`yearHeader`, `yearLabel`, and `crossCalendar`. Each value is a Calendaria
+format string. Its date tokens may appear bare; ordinary words belong in
+`[brackets]` or `{braces}` so they print literally. A bare letter run that is
+not a Calendaria token is an error. The `time12` slot is outside this
+vocabulary.
 
 **Position in the list is position in the year.** Days that belong to no month
 are a short month like any other: a five-day festival is one entry, and where it
@@ -3544,12 +3529,6 @@ depicts what it depicts. A place's maps are therefore derived — every map whos
 
 The three differ only in the canvas defaults derived for them, which is why they
 are subTypes of one type rather than three types.
-
-> The three are also readable as **types**, which is the shape notes in the
-> wild still carry: a note writing `type: battlemap` is reported and told what
-> to write instead, exactly as a note writing `type: character` is. A
-> consumer's `sections` config keys off the type, so it takes one `map` entry
-> rather than three.
 
 **NoteLocation** is `[GridLocation, anchor]` where the `anchor` is an anchor identified in the body of the note, and `GridLocation` represents a particular grid location on the document.
 
@@ -3619,39 +3598,17 @@ address, not filling in a Foundry field.
 
 **Two unit conventions, deliberately.** Geometry — walls, doors, lights, tiles,
 sounds, region shapes — is authored in **pixels**, Foundry's native storage,
-because a traced battlemap's walls do not lie on grid intersections (measured:
-97.8% do not). Map pins are authored in **grid squares**, commonly
+because traced walls often fall between grid intersections. Map pins are
+authored in **grid squares**, commonly
 half-integers, because that is how a person reads a position off a map. The two
 are told apart by their key: `position:` and segment or shape coordinates are
 pixels, `at:` is grid squares. Mixing them fails silently and visually in
 Foundry, so the build refuses rather than resolving.
 
-> **These fields are read from `sohl:` today, and should move to `data:`.** A
-> Scene is a core Foundry document — nothing about a map's geometry is
-> system-specific, and HM3 would want the identical Scene. Authoring it under
-> `sohl:` means a map produces nothing for a system-agnostic build and carries a
-> SoHL infobox implying a specificity it does not have. It is the same class of
-> mistake as storing the template priority in flags: the data went where the only
-> available container was, rather than where it belongs. Three notes carry it today.
-
-**A map is always a leaf.** Its frontmatter references nothing outside itself.
-`notes:` is a list of `[anchor, GridLocation]`, and each anchor names a heading in
-**this map note's own body** — never an external note. A pin therefore opens the
-map's own journal page, so the prose describing a spot on the map lives with the
-map that shows it.
-
-That constraint is the point, not an accident of the format. A map that names no
-other note can be reused by any place, any scenario and any package, and can be
-moved between them without dragging references along. It also cannot carry a
-dangling reference: only things pointing _at_ a map can break, which is the safe
-direction for the failure to run.
-
-**So the reference runs from the place.** A `place` names its maps through
-`data.maps`; the map says nothing about which places it depicts. That is the
-opposite of how the pins run, and deliberately so — the pins point inward to keep
-the map self-contained, and the place points outward because it is the thing that
-knows which maps belong to it. A keep with three floor plans is a place naming
-three maps, and none of those maps needs to know it is a keep.
+**Map pins stay within the map.** `notes:` names anchors in this map note's own
+body, so a pin opens the journal page describing that spot. `data.place` names
+the place depicted by the map when one exists. A place's map listing is derived
+from those map notes, so each map states the relationship once.
 
 ### type: place
 
@@ -3668,6 +3625,7 @@ three maps, and none of those maps needs to know it is a keep.
 | `data` property                   | Values                                              | Description                                                                  |
 | --------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `demonym`                         | `string`                                            | What a person from this place is called — a Vylarian                         |
+| `purpose`                         | `placeCharacter` tag                                | The reason a settlement, site, or structure exists                           |
 | `lore`                            | `Address[]`                                         | Lore concerning this place — its peoples, its law, its calendar, its history |
 | `parents`                         | `Address[]`                                         | Enclosing places within which this place is located                          |
 | `population`                      | `number`                                            | Approximate population (precision 2 significant digits)                      |
@@ -3689,6 +3647,17 @@ three maps, and none of those maps needs to know it is a keep.
 | `moon.cycle`                      | `number`                                            | How many days it takes to return to the same phase                           |
 | `moon.newOn`                      | `date`                                              | A day it was new, written in the reference calendar                          |
 | `moon.eclipses`                   | `string`                                            | `never`, `rare`, `occasional` or `frequent`                                  |
+
+#### Why a place exists
+
+`data.purpose` selects one of the place's own `placeCharacter` tags. It is
+optional on settlements, sites, and structures. A mining settlement on a coast
+can carry `tags: [mining, coastal]` and `data.purpose: mining`: the coast locates
+it; the mine explains its existence. The value must belong to the declared
+`placeCharacter` vocabulary and also appear among that note's tags. The tags
+include `ford`, `portage`, `pass`, and `well` for places founded around a crossing,
+a break in navigation, a mountain route, or scarce water. The body explains the
+specific history; the selected tag gives tables a consistent grouping value.
 
 #### What a body states about itself
 
@@ -3941,28 +3910,11 @@ settlement layer names the notable places and is complete nowhere, so the ratio
 reports how much of a region has been written rather than how much of it is
 urban.
 
-**A place declares only what is true of ground.** Four properties were removed
-because they were true of something else, and each removal has a home to go to.
-
-**`languages` is a fact about a polity.** A place's languages change when its
-ruler changes, which is what makes them the ruler's property — and
-`sohl.system.commonSkills` holds them. The authored corpus agrees: of 206
-places carrying `languages`, 190 were settlements and 16 were regions, and not one
-was a site, a structure or a feature. A ruin has no language.
-
-**`peoples` widens to `lore`.** It was the only lore-pointing property a place
-had, so a place with a calendar, a body of law or a local history had nowhere to
-cite it. Nothing is lost by widening: the target's own subType already
-distinguishes a `folk` from a `law`, which is the same reason `affiliation`
-carries no `pantheons`.
-
-**`summary` duplicated `description`**, which every note already has and which is
-what the page renders.
-
-**`affiliations` and `maps` were the wrong end of a relation.** `affiliations` is
-the inverse of `affiliation.domains`, and a relation authored from both ends
-drifts the moment one is edited. `maps` moves onto the map, which now names the
-place it depicts — see `type: map` below.
+**A place declares what is true of its ground.** Its governing affiliations
+carry their own `domains`; maps name the place they depict through `data.place`.
+The place's `lore` links cover its peoples, calendar, law and history. Political
+languages belong to a polity's `sohl.system.commonSkills`, while the note's
+`description` provides its page summary.
 
 ### type: scenario
 
@@ -4091,13 +4043,6 @@ Foundry **Macro**, and these two describe that document.
 | `macroType`     | `script`                    | The Foundry macro type. Defaults to `script`, and `chat` is an error |
 | `macroScope`    | `global \| actors \| actor` | How far the macro reaches. Defaults to `global`                      |
 
-> **These fields are read from `sohl:` today, and should move to `data:`.** A
-> Macro is a core Foundry document — nothing about a script's type or scope is
-> system-specific — so authoring them under `sohl:` puts them where the only
-> available container was rather than where they belong. It is the same mistake
-> the map fields make, and no authored note carries either field today, so the
-> move costs nothing.
-
 **`macroType: chat` is an error, not an unimplemented feature.** A chat macro's
 `command` is chat text rather than source, so none of the `{#script}` fence
 rules describe it, and compiling one through this path would ship a macro whose
@@ -4210,8 +4155,7 @@ nothing.
 
 **`color` must be quoted**, and YAML gives no third option: `color: #7a4b2a`
 parses as `null` (a `#` after a space opens a comment) and `color: 000000` parses
-as the number `0`. All 639 colour values across the five trees are already
-written `"#RRGGBB"`.
+as the number `0`. Write `"#RRGGBB"` to retain the string.
 
 `parent` is an address, so a dangling one is an ordinary dead-address finding
 rather than a special-cased `Unknown folder id`, and a cycle is refused. Both are

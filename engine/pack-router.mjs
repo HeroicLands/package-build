@@ -43,7 +43,7 @@
  * - A declared name that no pack answers to — or that names a pack holding
  *   another document type, or a companion pack, which no note may address —
  *   fails the build, naming the note and what it asked for. A silent fall-back
- *   to the default would be #1502 in a new costume.
+ *   to the default would publish an address into the wrong compendium.
  * - A note's **derived** documents are routed by the default of *their* type,
  *   not by the note's declaration: an item note's prose compiles into a
  *   JournalEntry, and `pack:` names where the *item* goes.
@@ -501,7 +501,7 @@ export function routerFor(config) {
  * asks where a note's document lives.
  *
  * An accessor rather than a hoisted constant, so that importing this module
- * needs no configuration (#2). {@link routerFor} keeps one router per
+ * needs no configuration. {@link routerFor} keeps one router per
  * configuration object, so repeated calls return the same instance.
  *
  * @returns {ReturnType<typeof createPackRouter>} This repository's router.

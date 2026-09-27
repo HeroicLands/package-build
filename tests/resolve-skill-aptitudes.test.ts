@@ -19,9 +19,8 @@ describe("resolveSkillAptitudes (pack builder — selector → mastery modifier)
         expect(resolveSkillAptitudes({ sohl: {} })).toEqual({});
     });
 
-    it("reads an empty list as an empty map — that is what Obsidian writes", () => {
-        // Same editor behaviour as `relation` (#8): an emptied property is
-        // serialized as `[]`, and means the item authors no aptitudes.
+    it("reads an empty list as an empty map", () => {
+        // As for `relation`, `[]` means the item authors no aptitudes.
         expect(resolveSkillAptitudes({ skillAptitudes: [] })).toEqual({});
         expect(resolveSkillAptitudes({ sohl: { skillAptitudes: [] } })).toEqual({});
     });

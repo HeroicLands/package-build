@@ -6,7 +6,7 @@
  */
 
 /**
- * The document tree a PDF is built from (#316).
+ * The document tree a PDF is built from.
  *
  * A book is a **selection**, not a rendering of the whole tree, and the three
  * things that follow from that are behaviour rather than oversights: a note no

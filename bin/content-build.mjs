@@ -24,7 +24,7 @@
  *
  * The side effects that need *configuration* live inside the command handler,
  * not at module scope, so `--version` and `--help` answer in a directory that
- * has neither a `package-build.config.yaml` nor a package manifest (#2).
+ * has neither a `package-build.config.yaml` nor a package manifest.
  * Running an actual command still resolves both, and still fails loudly when
  * either is missing.
  *
@@ -158,11 +158,11 @@ import { loadMapWorld } from "../engine/map-places.mjs";
  * knows them. It does not come out of the shipped manifest — a second
  * declaration of the same list, in a second format, with nothing checking that
  * the two agreed. The manifest is generated from this list now
- * (package-build#9), so reading it back would be a round trip through an
+ *, so reading it back would be a round trip through an
  * artifact that need not exist.
  *
  * Read on demand rather than at load, so `--version` and `--help` still answer
- * with no configuration present (#2).
+ * with no configuration present.
  *
  * @returns {Array<{name: string}>}
  */
@@ -1979,8 +1979,8 @@ function reachabilityCommand() {
  */
 async function fetchFromLocalArtifact(config, argv) {
     // Two caches, two dependency sets: an index is fetched for every declared
-    // dependency, a catalogue only for those declaring `itemCatalog: true`
-    // (#239). `--from` fills whichever of them this dependency belongs to, so
+    // dependency, a catalogue only for those declaring `itemCatalog: true`.
+    // `--from` fills whichever of them this dependency belongs to, so
     // that testing against an unreleased build behaves like a release would.
     const rels = metadataRelationships(config);
     const named = rels.map((r) => r.id).join(", ") || "none";
@@ -2307,7 +2307,7 @@ function packageCommand() {
                 // The one directory the pipeline creates rather than expects:
                 // `unpack` writes the extracted JSON there and `compile` reads
                 // it back. Created here rather than at module scope so that
-                // asking the CLI its version needs no configuration (#2).
+                // asking the CLI its version needs no configuration.
                 fs.mkdirSync(config.paths.unpack, {
                     recursive: true,
                 });

@@ -47,8 +47,7 @@ describe("matchesKind", () => {
     });
 
     it("treats an emptied map as a map", () => {
-        // Obsidian's property editor serialises a cleared map as `[]` (#8), and
-        // that means the same thing `{}` does.
+        // `[]` and `{}` both state that the map has no entries.
         expect(matchesKind({}, "map")).toBe(true);
         expect(matchesKind([], "map")).toBe(true);
         expect(matchesKind([1], "map")).toBe(false);
@@ -110,7 +109,7 @@ describe("the five failure classes", () => {
             schemas,
         });
         // The whole reason the silence mattered: a misspelling is discarded at
-        // compile with no warning (#3).
+        // compile with no warning.
         expect(messages(findings)).toContain("is not a property of a skill");
         expect(messages(findings)).toContain('Did you mean "masteryLevelBase"');
     });

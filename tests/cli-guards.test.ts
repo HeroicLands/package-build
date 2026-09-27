@@ -19,8 +19,8 @@
  * and neither survives being called as a function.
  *
  * None of them needs a configuration: every guard here must fire before any
- * command handler resolves one. That is also what keeps #2 honest — `--help`
- * and `--version` answer in a directory with no configuration at all — so the
+ * command handler resolves one. `--help` and `--version` answer in a directory
+ * with no configuration at all — so the
  * whole suite runs from a temporary directory well outside this repository,
  * where no `package-build.config.yaml` sits anywhere above.
  */

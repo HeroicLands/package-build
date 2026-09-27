@@ -14,15 +14,8 @@
 /**
  * Content tables written in SQL, queried over the content index.
  *
- * The tables were written in Dataview's query language, chosen when the corpus
- * lived in an Obsidian vault so a table rendered live while authoring. The vault
- * is gone, and what remained was a hand-written parser and evaluator for someone
- * else's language, kept faithful to semantics nothing checked it against.
- *
- * **The query is real SQL, run by DuckDB** — not a dialect maintained here. That
- * is the whole point: a partial reimplementation would accept some valid SQL and
- * silently misread the rest, which is worse than an unfamiliar language, because
- * the boundary is invisible.
+ * **The query is SQL, run by DuckDB.** Its syntax and evaluation follow the
+ * database rather than a separate parser in the toolchain.
  *
  * **What SQL cannot say, the projection says.** Rendering a table is not a
  * relational operation: which column links, and where a section breaks, are

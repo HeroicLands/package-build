@@ -37,7 +37,7 @@
  * only the derivations differ, and they differ because a code file can do its
  * own I/O while `defineConfig` deliberately does none.
  *
- * **Resolved on first read, never at import (#2).** {@link loadPackConfig}
+ * **Resolved on first read, never at import.** {@link loadPackConfig}
  * is a function rather than a module-level constant, so importing this module —
  * or the `engine` barrel, or a leaf module that happens to sit downstream of it
  * — costs nothing and requires nothing. A repository with no configuration can
@@ -705,7 +705,7 @@ let loadedFrom;
  *
  * Every engine module that needs a configured value calls this, rather than
  * hoisting one at import: that is what keeps the library importable without a
- * configuration (#2). The result is memoised, so calling it in a default
+ * configuration. The result is memoised, so calling it in a default
  * parameter — the usual spelling here — costs one property read per call.
  *
  * @returns {import("../content-config.mjs").ContentBuildConfig} The frozen configuration.

@@ -68,7 +68,7 @@ describe("retiredTopLevelKey", () => {
 
     it("keeps a nested `data:` path nested, so it addresses the same fact", () => {
         // `data.appearance.eye_color` was `appearance.eye_color` at the top
-        // level, not `eye_color`: #128 moved the container, not its leaves.
+        // level, not `eye_color`: the retired path preserves its container.
         expect(retiredTopLevelKey({ name: "data.appearance.eye_color" })).toBe(
             "appearance.eye_color",
         );

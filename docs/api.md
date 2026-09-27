@@ -636,19 +636,22 @@ A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<calendar sho
 
 A calendar is a `lore` note with `subType: calendar`, declaring the months it keeps, the weekdays it names, the seasons it marks and the eras it counts years in. How long the year is, how the day divides and how the moon moves are facts about the **world**, written on its `place` note and its moon's, and no calendar may restate them — which is why the months summing to the world's year is the only arithmetic a calendar note is held to. One definition is emitted per calendar, in array shape: Foundry core prunes the keys outside its schema, and Calendaria converts the arrays to its own keyed collections.
 
-| Export               | Signature                                             | Returns                                    | Use it when                                                                 |
-| -------------------- | ----------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------- |
-| `CALENDAR_SUBTYPE`   | `const CALENDAR_SUBTYPE`                              | —                                          | naming the `lore` subType whose notes are calendars                         |
-| `INVARIANT_SUBTYPES` | `const INVARIANT_SUBTYPES`                            | —                                          | naming the `place` subTypes a world fact may be written on                  |
-| `CALENDAR_FIELDS`    | `const CALENDAR_FIELDS`                               | —                                          | reading the closed list of what a calendar note may declare                 |
-| `INVARIANT_FIELDS`   | `const INVARIANT_FIELDS`                              | —                                          | reading the closed list of what a body may declare about itself             |
-| `checkCalendarNote`  | `checkCalendarNote(note, opts)`                       | `object[]` — findings                      | holding a `lore` note to the family and to the year the world keeps         |
-| `checkWorldFacts`    | `checkWorldFacts(note, opts)`                         | `object[]` — findings                      | holding a `place` note's world facts to one body, one year and one moon     |
-| `worldInvariants`    | `worldInvariants(index)`                              | `{year, present, moon, body, moonName, …}` | reading the year, the present and the moon a package's own notes state      |
-| `quarterDays`        | `quarterDays(daysPerYear)`                            | `number[]` — four days of the year         | asking which days the year turns on                                         |
-| `compileCalendar`    | `compileCalendar({note, invariants, contentPackage})` | `object` — the definition                  | building the one object both a core consumer and Calendaria read            |
-| `compileCalendars`   | `compileCalendars(index, opts)`                       | `{calendars, invariants}`                  | building every calendar a package declares, or none where it states no year |
-| `calendariaEnvelope` | `calendariaEnvelope(definition, opts)`                | `object` — the import envelope             | wrapping a definition for a hand import through Calendaria's settings       |
+| Export                      | Signature                                             | Returns                                    | Use it when                                                                 |
+| --------------------------- | ----------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------- |
+| `CALENDAR_SUBTYPE`          | `const CALENDAR_SUBTYPE`                              | —                                          | naming the `lore` subType whose notes are calendars                         |
+| `INVARIANT_SUBTYPES`        | `const INVARIANT_SUBTYPES`                            | —                                          | naming the `place` subTypes a world fact may be written on                  |
+| `CALENDAR_FIELDS`           | `const CALENDAR_FIELDS`                               | —                                          | reading the closed list of what a calendar note may declare                 |
+| `CALENDAR_DATE_FORMAT_KEYS` | `const CALENDAR_DATE_FORMAT_KEYS`                     | —                                          | reading the supported Calendaria display slots                              |
+| `CALENDAR_FORMAT_TOKENS`    | `const CALENDAR_FORMAT_TOKENS`                        | —                                          | checking bare date tokens in a format string                                |
+| `INVARIANT_FIELDS`          | `const INVARIANT_FIELDS`                              | —                                          | reading the closed list of what a body may declare about itself             |
+| `checkCalendarNote`         | `checkCalendarNote(note, opts)`                       | `object[]` — findings                      | holding a `lore` note to the family and to the year the world keeps         |
+| `checkCalendarDateFormats`  | `checkCalendarDateFormats(note)`                      | `object[]` — findings                      | checking display slots and escaped literal words                            |
+| `checkWorldFacts`           | `checkWorldFacts(note, opts)`                         | `object[]` — findings                      | holding a `place` note's world facts to one body, one year and one moon     |
+| `worldInvariants`           | `worldInvariants(index)`                              | `{year, present, moon, body, moonName, …}` | reading the year, the present and the moon a package's own notes state      |
+| `quarterDays`               | `quarterDays(daysPerYear)`                            | `number[]` — four days of the year         | asking which days the year turns on                                         |
+| `compileCalendar`           | `compileCalendar({note, invariants, contentPackage})` | `object` — the definition                  | building the one object both a core consumer and Calendaria read            |
+| `compileCalendars`          | `compileCalendars(index, opts)`                       | `{calendars, invariants}`                  | building every calendar a package declares, or none where it states no year |
+| `calendariaEnvelope`        | `calendariaEnvelope(definition, opts)`                | `object` — the import envelope             | wrapping a definition for a hand import through Calendaria's settings       |
 
 ### `engine.beingAge`
 
@@ -1021,7 +1024,7 @@ Wikilink resolution for the knowledgebase build. The same authored links the pac
 
 ### `engine.contentTables`
 
-Generated content tables — Obsidian **Dataview** `TABLE` queries. A catalog table (every cloth armour, every animal's abilities) is data that already lives in the frontmatter of the notes it describes. Authoring such a table by hand duplicates that data and guarantees drift, so a content body instead declares what it wants tabulated, in a fenced `dataview` block:
+Generated content tables from fenced `dataview` `TABLE` queries. A catalog table (every cloth armour, every animal's abilities) is data that already lives in the frontmatter of the notes it describes. Authoring such a table by hand duplicates that data and guarantees drift, so a content body instead declares what it wants tabulated, in a fenced `dataview` block:
 
 | Export                | Signature                                                                    | Returns                                                                                                                                                            | Use it when                                                                                                                                                                                                                 |
 | --------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -1141,7 +1144,7 @@ What a `[[…]]` **is**, before anything decides where it points. One authored l
 
 ### `engine.pdfToc`
 
-The document tree a PDF is built from, and the plan it resolves to (#316). The packs and the website both render the _whole_ content tree: every note becomes a document and a page, and the three surfaces agreeing about what the content is, is the point. **A book is not that.** It is a selection — a declared structure whose leaves pick notes out of the corpus by a `WHERE` clause, interleaved with prose that may not live in the content tree at all.
+The document tree a PDF is built from, and the plan it resolves to. The packs and the website both render the _whole_ content tree: every note becomes a document and a page, and the three surfaces agreeing about what the content is, is the point. **A book is not that.** It is a selection — a declared structure whose leaves pick notes out of the corpus by a `WHERE` clause, interleaved with prose that may not live in the content tree at all.
 
 | Export              | Signature                                  | Returns                                                                                                                                                              | Use it when                                                        |
 | ------------------- | ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |

@@ -92,10 +92,9 @@ describe("the `draft` tag is read from where it is declared", () => {
         expect(DRAFT_TAG).toBe("draft");
     });
 
-    it("reads a note's tags, however Obsidian wrote them", () => {
+    it("reads a note's tags in accepted YAML forms", () => {
         expect(isDraftNote({ tags: ["draft"] })).toBe(true);
-        // Obsidian writes a tag with a leading `#` in some contexts, and a
-        // single tag as a scalar rather than a list.
+        // A tag may have a leading `#`, and a single tag may be a scalar.
         expect(isDraftNote({ tags: "#draft" })).toBe(true);
         expect(isDraftNote({ tags: [" Draft "] })).toBe(true);
         expect(isDraftNote({ tag: ["draft"] })).toBe(true);

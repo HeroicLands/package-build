@@ -84,7 +84,7 @@
  * {@link RETIRED_FIELD_ALIASES}.
  *
  * **The third step is deletion, and it needs no code.** `image`, a map's
- * background art, is the first rename to have run all three: reported (#142),
+ * background art, illustrates all three states: reported,
  * swept, then dropped from the
  * table. Removing the entry is the whole of it — with no alias, the spelling is
  * an ordinary unknown key in the `sohl:` block, which the frontmatter lint

@@ -48,8 +48,7 @@
  *
  * **There is deliberately no third rule** requiring every note to repeat its
  * own `type-shortcode` address in a top-level `aliases:` list. It would serve
- * exactly one reader — **Obsidian**, so `[[type-shortcode]]` resolves in the
- * editor — and nothing in the build reads it: both resolvers parse the hyphen
+ * no build reader: both resolvers parse the hyphen
  * qualifier themselves. The field is retired, refused from
  * `retired-fields.mjs`.
  *

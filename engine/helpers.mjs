@@ -249,9 +249,8 @@ export function assertSuppliedCorpus(records, who) {
  * is warned about and skipped.
  *
  * Directory names in `skipDirectories` are ignored wherever they appear. The
- * walk itself knows nothing about what they mean: `Templates/` is an Obsidian
- * templater convention this repository's vault happens to use, not a property
- * of a content tree, so it is stated by the caller rather than hard-coded.
+ * walk itself knows nothing about what they mean: `Templates/` is authoring
+ * scaffolding rather than content, so the caller names it explicitly.
  *
  * @param {string} rootDir - Root of the tree to walk.
  * @param {object} opts
@@ -652,7 +651,7 @@ let cachedDefaultStats;
  * Each compiler used to hoist `const STATS = buildStats()` at module scope,
  * which read the shipped package manifest the moment the module was imported —
  * so importing a compiler required a manifest to exist even when nothing was
- * going to be compiled (#2). Deferred to first use and memoised here, the
+ * going to be compiled. Deferred to first use and memoised here, the
  * cost and the identity are what they always were; only the moment moved.
  *
  * @returns {object} The default `_stats` block, shared by every compiler.

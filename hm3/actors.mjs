@@ -170,7 +170,7 @@ function defaultActorImg(subType) {
  * and `HM3.defaultPsionicsIconName` in the system's own `config.js` — so a
  * compiled item looks like one created in the client. `weapongear` and
  * `missilegear` need no row here: a reference spelled either resolves through
- * `HM3_DEFAULT_ITEM_ART`'s own `weapongear` key (see #582), and every
+ * `HM3_DEFAULT_ITEM_ART`'s own `weapongear` key, and every
  * predefined weapon and missile in HM3's catalogue carries its own `img`.
  *
  * @type {Readonly<Record<string, string>>}

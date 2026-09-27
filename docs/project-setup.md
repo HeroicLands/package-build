@@ -27,7 +27,7 @@ acme-bestiary/
 │   ├── ISSUE_REPORTING.md        # §3 lists the same labels
 │   └── workflows/
 ├── assets/
-│   └── content/                  # authored notes — an Obsidian vault
+│   └── content/                  # authored Markdown notes
 ├── lang/
 │   └── en.json
 ├── src/                          # module JavaScript, if the package has any
@@ -55,11 +55,10 @@ The two that matter when something is wrong are `build/packs-json/`, which is
 the compiled document before Foundry ever sees it, and `build/stage/`, which is
 exactly what ships.
 
-**`assets/content/` is opened as an Obsidian vault.** There is no export step
-and no vault environment variable: the notes in the repository are the source,
-and a plain checkout builds. Dataview renders the content tables live while
-authoring, which is why the tree is arranged for humans even though `type:`
-rather than location is what routes a note.
+**`assets/content/` holds the source notes.** Edit the Markdown and YAML
+frontmatter directly; a plain checkout builds without an export step. The
+tree is arranged for readers and authors, while `type:` determines how each
+note compiles.
 
 ## `package.json`
 

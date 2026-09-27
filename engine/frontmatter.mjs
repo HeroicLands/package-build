@@ -137,11 +137,10 @@ export function sohlSystemField(fm, to, defaultValue = undefined, { legacyKey = 
  * Read a frontmatter property that is authored as a **map**, returning its
  * entries — or `null` when the note authors none.
  *
- * Obsidian's property editor serializes an **emptied map as an empty list**, so
- * a note whose map property was ever touched and cleared in the editor arrives
- * as `[]`, not `{}`. The two spellings mean the same thing — this note authors
+ * An empty map may be written as `{}` or `[]`. Both spellings mean the same
+ * thing — this note authors
  * no entries — and a build that accepted only one of them failed on notes the
- * editor itself had produced (#8; 44 affiliation notes in `sohl-thalorna`).
+ * editor itself had produced ( 44 affiliation notes in `sohl-thalorna`).
  * Normalizing the notes would fix only today's tree: the next editor touch puts
  * the empty list back.
  *
@@ -213,8 +212,7 @@ export function resolveCharges(fm) {
  * kept — an element a sign leaves untouched still beats one another sign
  * hinders, so it carries real weight when maps merge.
  *
- * An absent property, an empty map, and the empty **list** Obsidian's property
- * editor writes for a cleared map all mean the same thing — see
+ * An absent property, an empty map, and an empty list all mean the same thing — see
  * {@link readMapEntries}.
  *
  * @param {object} fm - The item frontmatter.
@@ -249,8 +247,7 @@ export function resolveSkillAptitudes(fm, ctx = "item") {
  * and be dropped silently, shipping an affiliation whose authored hostility had
  * quietly become neutrality — so it is a build error instead.
  *
- * An absent property, an empty map, and the empty **list** Obsidian's property
- * editor writes for a cleared map all mean the same thing — neutral toward
+ * An absent property, an empty map, and an empty list all mean the same thing — neutral toward
  * everyone. See {@link readMapEntries}.
  *
  * @param {object} fm - The item frontmatter.

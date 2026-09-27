@@ -58,7 +58,7 @@ const PAIRED_BUILDER = `{
  * produce this type at all.
  *
  * @param builders  The `itemBuilders` literal, as source. Defaults to the bare
- *   builder function — the shape that carries no art of its own (#7).
+ *   builder function — the shape that carries no art of its own.
  * @returns The absolute path of the consumer's `package-build.config.mjs`.
  */
 function consumerRepo(builders: string = BARE_BUILDER): string {
@@ -231,7 +231,7 @@ const RELIC_FM_NO_IMG = `{
     sohl: { power: 3, archetype: null },
 }`;
 
-describe("a consumer's own item type has default art of its own (#7)", () => {
+describe("a consumer's own item type has default art of its own", () => {
     it("falls back to the art paired with the consumer's builder", () => {
         // The whole point: no `img:` on the note, no entry in any SoHL-owned
         // table, and the item still compiles with a sensible icon.

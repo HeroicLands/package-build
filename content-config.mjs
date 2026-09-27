@@ -688,7 +688,7 @@ export function publishesContentPages(config) {
  * @property {Readonly<Record<string, string>>} itemArt  Derived: the default art
  *                                     of each entry that paired one. Sparse — a
  *                                     type absent here has no default, and a note
- *                                     of it must carry `img:` (#7).
+ *                                     of it must carry `img:`.
  * @property {Readonly<Record<string, readonly object[]>>} itemFields  Derived:
  *                                     the frontmatter fields each entry
  *                                     declared. Sparse, like `itemArt` — a type
@@ -2202,7 +2202,7 @@ function normalizePackageBuild(value) {
  * travel by different routes: `itemTypes` was derived from these keys, while
  * art was looked up in `sohl/default-item-art.mjs` — a table a consumer cannot
  * add to. A consumer's own item type was therefore configurable while its
- * default art was not, so its notes all had to carry an explicit `img:` (#7).
+ * default art was not, so its notes all had to carry an explicit `img:`.
  * Art now travels with the builder it belongs to, which is the one place a type
  * is already declared.
  *

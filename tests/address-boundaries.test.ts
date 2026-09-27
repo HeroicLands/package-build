@@ -56,7 +56,7 @@ describe("Address read and write boundaries", () => {
                 p.path.forEach((part, index) => {
                     const key = part === "*" ? 0 : part;
                     if (index === p.path.length - 1) {
-                        const text = `${p.type ?? "lore"}-sample`;
+                        const text = `${p.type ?? (p.path.join(".") === "data.socialTies" ? "being" : "lore")}-sample`;
                         owner[key] =
                             p.shape === "keys" ? { [text]: "rival" }
                             : p.shape === "list" ? [text]

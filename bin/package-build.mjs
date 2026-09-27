@@ -80,6 +80,8 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
+import { checkForeignAssetBindings } from "../engine/asset-bindings.mjs";
+import { formatDiagnostic } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
@@ -270,6 +272,14 @@ function assetsCommand() {
             if (!config.assets.length) {
                 console.log("package-build: no `packageBuild.assets` declared; nothing to stage.");
                 return;
+            }
+            const bindings = checkForeignAssetBindings(loadPackConfig(), {
+                assets: config.assets,
+            });
+            if (bindings.length) {
+                const error = new Error(bindings.map(formatDiagnostic).join("\n"));
+                error.located = true;
+                die(error);
             }
 
             let transform;

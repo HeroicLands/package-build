@@ -43,7 +43,7 @@ const SRC_IMPORT = /["'](?:@src\/|(?:\.\.\/)+src\/)/;
  * files resolved `"../../.."` and asserted about whatever happened to be there
  * — which was the system repository, because the package was vendored inside
  * it. Those assertions passed for a reason that stopped being true, and the
- * suite claimed a severance it did not have (#1).
+ * suite claimed a severance it did not have.
  */
 const ESCAPES_PACKAGE = /["'](?:\.\.\/){2,}/;
 

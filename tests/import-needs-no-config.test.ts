@@ -7,7 +7,7 @@
 
 /**
  * Nothing this package ships may read the consuming repository's configuration
- * at import (#2).
+ * at import.
  *
  * A toolchain that resolves its configuration while its modules evaluate cannot
  * answer `--version`, cannot be imported for one pure helper, and cannot be
@@ -136,7 +136,7 @@ afterAll(() => {
     fs.rmSync(sandbox, { recursive: true, force: true });
 });
 
-describe("the shipped package needs no configuration to be imported (#2)", () => {
+describe("the shipped package needs no configuration to be imported", () => {
     it("puts the copy somewhere with no configuration above it", () => {
         // Guards the guard: were a configuration reachable from the copy,
         // every case below would pass without proving anything.

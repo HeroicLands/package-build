@@ -145,7 +145,7 @@ describe("emitted but not declared — the field evaporates at load", () => {
 });
 
 describe("declared but not emitted — reported, and only for own fields", () => {
-    // content-build#3 fixed one of these by hand.
+    // the shared build fixed one of these by hand.
     it("reports a field the subtype declares that no builder writes", () => {
         const { unemitted } = compareFields({
             builders: { skill: [{ to: "subType" }] },

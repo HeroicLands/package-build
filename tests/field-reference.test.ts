@@ -40,6 +40,7 @@ import {
 } from "../engine/field-reference.mjs";
 import { defineConfig } from "../content-config.mjs";
 import { sharedPrettierOptionsFor } from "../engine/prose-config.mjs";
+import { checkText } from "../engine/content-charset.mjs";
 
 /** The page as the command writes it, trailing newline and all. */
 const page = `${renderItemFieldReference({
@@ -53,6 +54,9 @@ const page = `${renderItemFieldReference({
 })}\n`;
 
 describe("the generated page is what Prettier would write", () => {
+    it("uses only characters accepted by content charset lint", () => {
+        expect(checkText(page, "item-frontmatter.md")).toEqual([]);
+    });
     it("survives Prettier unchanged", async () => {
         const formatted = await prettier.format(page, { parser: "markdown" });
 
