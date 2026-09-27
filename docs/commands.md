@@ -1763,6 +1763,8 @@ the one these repositories write. Runs over the repository rather than the
 content tree, taking its rules from this package unless the consumer
 declares its own. `--fix` applies the fixes markdownlint can make. Reads
 every matched file; `--fix` rewrites them.
+Installed dependencies under `node_modules` are excluded even when the
+repository has no `.gitignore` or supplies its own markdownlint ignore list.
 
 **OPTIONS**
 
