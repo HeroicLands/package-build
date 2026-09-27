@@ -2531,7 +2531,8 @@ Generates a living (or undead, or spirit) being.
 | `occupation`                | `string`                                       | Name of the character's occupation                                                               |
 | `social`                    | `Map<string, unknown>`                         | The being's social profile                                                                       |
 | `stations`                  | `Address[]`                                    | Name of the stations the character belongs to                                                    |
-| `lore`                      | `Address[]`                                    | Lore concerning this being — the people it is of, the standing it holds, the law it lives under  |
+| `lore`                      | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                 |
+| `culture`                   | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                      |
 | `homes`                     | `Address[]`                                    | Place the being calls home                                                                       |
 | `affiliations`              | `Address[]`                                    | Affilliations (e.g., arcane/divine traditions, polities, etc)                                    |
 | `socialTies`                | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                              |
@@ -2559,6 +2560,18 @@ feet and inches and whole pounds, rounding metric input to the nearest inch or
 pound. Numeric values are also accepted as metres and kilograms during content
 conversion; explicit units make an authored value unambiguous. These fields
 describe a being's body. Item gear weight remains a numeric `data.weight`.
+
+`data.culture` names the culture in which a character belongs. It is one
+Address to a `type: lore`, `subType: culture` note. A named character with a
+known culture states it here; generic beings and templates can omit it.
+`data.lore` holds other lore concerning the being, such as social standing or
+law. Record the primary culture in `data.culture` only.
+
+```yaml
+data:
+  culture: lore-vedyariclt
+  lore: [lore-commonerrnk]
+```
 
 #### The people who matter to a being
 
