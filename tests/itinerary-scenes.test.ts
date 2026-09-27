@@ -31,8 +31,8 @@ describe("generated itinerary Scenes", () => {
             config: {
                 rootDir: root,
                 packageKind: "modules",
-                foundryPackage: { id: "demo" },
-                packageBuild: { stageDir: "build/stage" },
+                foundryPackage: "demo",
+                packageBuild: {},
             },
         });
         expect(foundryPath).toBe("modules/demo/assets/maps/rasterized/AAAAAAAAAAAAAAAA.png");
@@ -51,8 +51,8 @@ describe("generated itinerary Scenes", () => {
                 config: {
                     rootDir: root,
                     packageKind: "modules",
-                    foundryPackage: { id: "demo" },
-                    packageBuild: { stageDir: "build/stage" },
+                    foundryPackage: "demo",
+                    packageBuild: {},
                 },
             }),
         ).toThrow(/not 400×300/);
@@ -92,8 +92,8 @@ describe("generated itinerary Scenes", () => {
             rootDir: root,
             contentPackage: "demo",
             packageKind: "modules",
-            foundryPackage: { id: "demo" },
-            packageBuild: { stageDir: "build/stage" },
+            foundryPackage: "demo",
+            packageBuild: {},
             relationships: { systems: [], modules: [] },
             paths: { metadataCache: path.join(root, "build", "metadata-cache") },
         };
@@ -111,7 +111,9 @@ describe("generated itinerary Scenes", () => {
         const ids = new Set(result.journal.map((doc) => doc._id));
         expect(ids.size).toBe(2);
         for (const scene of result.scenes) {
-            expect(scene.levels[0].background.src).toMatch(/generated-itineraries\/from-/);
+            expect(scene.levels[0].background.src).toMatch(
+                /^modules\/demo\/assets\/maps\/generated-itineraries\/from-/,
+            );
             expect(scene.notes.every((note) => ids.has(note.entryId))).toBe(true);
             expect(scene.notes.every((note) => note.x >= 0 && note.x < scene.width)).toBe(true);
             expect(scene.notes.every((note) => note.y >= 0 && note.y < scene.height)).toBe(true);

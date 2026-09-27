@@ -5,10 +5,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { Resvg } from "@resvg/resvg-js";
+import { resolvePackageBuildConfig } from "../config.mjs";
 
 /** Rasterize an authored SVG map into the staged Foundry package. */
 export function rasterizeMapSvg({ foundryPath, width, height, sceneId, config }) {
     if (!config) throw new Error("SVG map rasterization requires the package build configuration");
+    const buildConfig = resolvePackageBuildConfig(config);
     if (![width, height].every((value) => Number.isInteger(value) && value > 0)) {
         throw new Error("an SVG map needs `sohl.dimensions: [width, height]` in whole pixels");
     }
@@ -25,7 +27,7 @@ export function rasterizeMapSvg({ foundryPath, width, height, sceneId, config })
     }
     const staged = path.resolve(
         config.rootDir,
-        config.packageBuild.stageDir,
+        buildConfig.stageDir,
         "assets/maps/rasterized",
         `${sceneId}.png`,
     );
@@ -45,5 +47,5 @@ export function rasterizeMapSvg({ foundryPath, width, height, sceneId, config })
             cause: error,
         });
     }
-    return `${config.packageKind}/${config.foundryPackage.id}/assets/maps/rasterized/${sceneId}.png`;
+    return `${buildConfig.packageKind}/${buildConfig.packageId}/assets/maps/rasterized/${sceneId}.png`;
 }
