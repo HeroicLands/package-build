@@ -57,7 +57,7 @@ import { isSystemSegment } from "../engine/systems.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.resolve(here, "..");
-const SPEC_PATH = path.join(PKG_ROOT, "docs", "content-format.md");
+const SPEC_PATH = path.join(PKG_ROOT, "docs", "reference", "format-details.md");
 const SPEC = fs.readFileSync(SPEC_PATH, "utf8");
 const SPEC_LINES = SPEC.split("\n");
 
@@ -296,7 +296,7 @@ describe("the specification names an Address and a Wikilink distinctly", () => {
             .filter(({ read }) => Boolean(read.reason))
             .map(
                 ({ address, read }) =>
-                    `docs/content-format.md:${address.line}: ${address.written} — ${read.reason}`,
+                    `docs/reference/format-details.md:${address.line}: ${address.written} — ${read.reason}`,
             );
         expect(refused).toEqual([]);
     });
@@ -311,7 +311,7 @@ describe("the specification names an Address and a Wikilink distinctly", () => {
             (address) => address.parts.length === 4 && !isSystemSegment(address.parts[1]),
         ).map(
             (address) =>
-                `docs/content-format.md:${address.line}: ${address.written} — ` +
+                `docs/reference/format-details.md:${address.line}: ${address.written} — ` +
                 `"${address.parts[1]}" is not a system`,
         );
         expect(wrong).toEqual([]);
@@ -319,7 +319,8 @@ describe("the specification names an Address and a Wikilink distinctly", () => {
 
     it("names no field's type after the bracketed prose form", () => {
         const wrong = VALUES.filter((cell) => WIKILINK_SPELLING.test(cell.value)).map(
-            (cell) => `docs/content-format.md:${cell.line}: ${cell.field} is ${cell.value}`,
+            (cell) =>
+                `docs/reference/format-details.md:${cell.line}: ${cell.field} is ${cell.value}`,
         );
         expect(wrong).toEqual([]);
     });

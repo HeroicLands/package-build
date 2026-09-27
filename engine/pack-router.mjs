@@ -236,7 +236,7 @@ export function createPackRouter(packs) {
      * asking, only a pack of that system answers, or one that declares no
      * system at all and so belongs to all of them. The type-wide default is
      * otherwise free to be a neighbour's — `actors-sohl` is what
-     * `CONTENT.md`'s two-system layout marks `default: true` — and returning it
+     * the package's two-system layout marks `default: true` — and returning it
      * to the HM3 pass would either route an HM3 document into the SoHL pack or,
      * as it actually did, have the HM3 pass see a pack name that is not its own
      * and skip every note in the tree. The second is worse: it is silent, and

@@ -18,7 +18,7 @@
  * An item note's body describes what the thing *is*. That is documentation, and
  * documentation belongs in the journals pack, so each item note compiles into a
  * JournalEntry and the item's `system.docHtml` becomes nothing but a `@UUID`
- * link to that entry's first page — the description-as-pointer convention,
+ * link to its `{#description}` page, or its first page when that anchor is absent — the description-as-pointer convention,
  * which {@link sohl.utils.descriptionLinkTarget} recognises and
  * Display Description follows.
  *
@@ -92,7 +92,7 @@ export function itemDocEntryId(itemId) {
 
 /**
  * The description an item carries in place of its prose: a `@UUID` link to the
- * first page of its item doc, and nothing else.
+ * description page of its item doc, and nothing else.
  *
  * "Nothing else" is the whole convention — a description that is *only* a link
  * is a pointer, and anything alongside it would make it ordinary prose that
@@ -104,11 +104,11 @@ export function itemDocEntryId(itemId) {
  * @param {string} name - The item's name, used as the link's label. It shows
  *   only if the target ever fails to resolve, where a broken link naming the
  *   item beats a bare UUID.
- * @param {string} firstPageId - The id of the entry's first page, from
+ * @param {string} pageId - The id of the selected entry page, from
  *   {@link journalPageId}.
  * @returns {string} The pointer to store in `system.docHtml`.
  */
-export function itemDocPointer(packageId, itemId, name, firstPageId) {
+export function itemDocPointer(packageId, itemId, name, pageId) {
     // An item doc is a *derived* document: it lands in the default
     // JournalEntry pack whatever Item pack the item itself was routed to.
     const entryUuid = compendiumUuid(
@@ -117,5 +117,5 @@ export function itemDocPointer(packageId, itemId, name, firstPageId) {
         itemDocEntryId(itemId),
         packRouter().defaultOf("JournalEntry"),
     );
-    return `@UUID[${pageUuid(entryUuid, firstPageId)}]{${name}}`;
+    return `@UUID[${pageUuid(entryUuid, pageId)}]{${name}}`;
 }

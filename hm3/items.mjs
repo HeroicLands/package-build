@@ -12,44 +12,14 @@
  */
 
 /**
- * **HM3's Item pass** — the two things about compiling a note into an HM3 Item
- * that are facts about HM3 rather than about the note format.
- *
- * Everything else is {@link module:engine/item-compiler}'s, and is the same
- * code the SoHL pass runs: which notes are claimed, which subtype each becomes,
- * which registry builds it, the authored `hm3.system` passthrough, the schema
- * check, and the compendium envelope. A second system is a map and a handful of
- * emitted keys, which is the arrangement the mapping tables build towards.
- *
- * **What HM3's compiler writes on every item: one key, and only when there is
- * something to write.** The content format gives an item's `{#appearance}`
- * section a home in HM3 — `description` — and SoHL none, since no SoHL Item
- * subtype declares such a field. So the section is rendered here and nowhere
- * else. Where a note has no such section nothing is emitted at all, which
- * matters for `armorlocation`: it is the one HM3 subtype that extends the
- * Foundry base directly, declaring neither `description` nor `notes`, so an
- * unconditional key would be a finding on every armour-location document in the
- * pack.
- *
- * **And one flag, for the fact HM3's `system` has no field for.** The template
- * priority is a shared statement — a note declaring `data.templatePriority` says
- * the same thing to both systems — but HM3 declares no `system` field for it, so
- * it lands under this system's own flag scope as `flags.hm3.templatePriority`,
- * exactly as the Actor pass writes it. Without it, an item note declaring the
- * priority compiles into a SoHL item that knows it is a template and an HM3
- * item that does not.
- *
- * **There is no HM3 equivalent of `docHtml`.** SoHL points an item at the
- * JournalEntry its prose compiled into, and HM3's data model has nowhere to put
- * such a pointer; inventing one would emit a key Foundry discards at load
- * without a word. The prose still compiles into its JournalEntry — the journals
- * pass claims every doc-carrying type regardless of system — it simply is not
- * addressed from the item.
+ * HM3's Item compiler uses the shared note-to-Item pass. It puts the pointer
+ * to the note's `{#description}` JournalEntryPage in `system.description` when
+ * the Item subtype declares that field. `armorlocation` has no description.
+ * The shared `data.templatePriority` is recorded in HM3 flags.
  *
  * @module
  */
 
-import { renderSection } from "../engine/anchored-sections.mjs";
 import { SystemItemCompiler } from "../engine/item-compiler.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 import { templateFlags } from "./template-priority.mjs";
@@ -58,7 +28,7 @@ import { templateFlags } from "./template-priority.mjs";
  * HM3's Item compile pass.
  *
  * Declares HM3's note-type → document-subtype map, which decides the notes this
- * pass claims and what each becomes, the one `system` key HM3 writes from prose,
+ * pass claims and what each becomes, the one `system` key HM3 writes as a page pointer,
  * and the template-priority flag HM3's data model has no field for. Everything
  * else is {@link module:engine/item-compiler}'s.
  */
@@ -74,28 +44,25 @@ export class Hm3Items extends SystemItemCompiler {
     /**
      * The `system` keys this pass derives from the note.
      *
-     * `description` is the note's `{#appearance}` section, rendered. A note
-     * authoring it writes into a key the compiler overwrites from prose that
-     * may say something else.
+     * `description` points to the note's `{#description}` page. A note
+     * authoring it writes into a key the compiler derives from the shared body.
      *
      * @type {readonly {key: string, from: string}[]}
      */
     static derivedSystemKeys = Object.freeze([
-        { key: "description", from: "the note's `{#appearance}` section" },
+        { key: "description", from: "the note's `{#description}` page" },
     ]);
 
     /**
-     * The `system.*` field HM3 writes on an item from the note's prose.
+     * The `system.*` field HM3 writes from the shared item-doc pointer.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {object} at - What the pass already knows about this note.
-     * @param {string} at.markdown - The note body, tables expanded and
-     *   wikilinks resolved.
+     * @param {string} at.description - The resolved JournalEntryPage pointer.
      * @returns {object} The shared `system` fields — `description`, or nothing.
      */
-    commonSystem(fm, { markdown }) {
-        const description = renderSection(markdown, "appearance");
-        return description ? { description } : {};
+    commonSystem(fm, { description }) {
+        return description && this.itemSubtype(fm) !== "armorlocation" ? { description } : {};
     }
 
     /**

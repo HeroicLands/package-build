@@ -100,7 +100,6 @@
     "files": [
         "CHANGELOG-content-build.md",
         "CHANGELOG.md",
-        "CONTENT.md",
         "README.md",
         "assets",
         "packagebuild-metadata.jsonl",
@@ -177,7 +176,7 @@
         "lint:yaml": "node bin/package-build.mjs yaml",
         "lint:labels": "node bin/package-build.mjs labels check",
         "lint:markdown:fix": "node bin/package-build.mjs markdown --fix",
-        "lint:content-format": "npm run lint:content-format:schema && npm run lint:content-format:fields",
+        "lint:content-format": "npm run lint:content-format:schema && npm run lint:content-format:fields && node ci/content-format-reference.mjs --check",
         "lint:content-format:schema": "node bin/package-build.mjs content-format schema --schema sohl=tests/fixtures/content-format/schema-sohl.json --schema hm3=tests/fixtures/content-format/schema-hm3.json",
         "lint:content-format:fields": "node bin/package-build.mjs content-format fields --fields sohl && node bin/package-build.mjs content-format fields --fields hm3",
         "changeset": "changeset",

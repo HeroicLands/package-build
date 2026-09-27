@@ -485,7 +485,13 @@ hm3:
   type: weapongear
 ---
 
+# History
+
 A soldier's blade.
+
+# Description {#description}
+
+The blade is broad and well balanced.
 `;
 
 const KNIGHT = `---
@@ -578,6 +584,11 @@ describe("one note carrying both blocks compiles a document in each system", () 
         expect(sohl.weight).toBeUndefined();
         // And the keys only one system's compiler writes stay on its side.
         expect(sohl.docHtml).toContain("@UUID[");
+        expect(hm3.description).toBe(sohl.docHtml);
+        const journal = packDocs(root, "journals").Broadsword;
+        const descriptionPage = journal.pages.find((page: any) => page.name === "Description");
+        expect(descriptionPage).toBeDefined();
+        expect(hm3.description).toContain(`JournalEntryPage.${descriptionPage._id}`);
         expect(hm3.docHtml).toBeUndefined();
         expect(hm3.strikeModes).toBeUndefined();
     });
@@ -653,6 +664,21 @@ describe("one note carrying both blocks compiles a document in each system", () 
             "Training Sword",
         ]);
     });
+});
+
+it("locates the second description anchor when an Item repeats it", () => {
+    const note = `${SWORD}\n# Other description {#description}\n`;
+    const root = dualRepo({ "Broadsword.md": note });
+    roots.push(root);
+    const result = compile(root);
+    const line = note.slice(0, note.lastIndexOf("{#description}")).split("\n").length;
+    expect(result.errors).toBeGreaterThan(0);
+    expect(result.output).toContain(
+        `Broadsword.md:${line}:21: error: weapongear failed to compile: note "Broadsword" declares the anchor {#description}`,
+    );
+    expect(result.output).toContain(
+        `Broadsword.md:${line}:21: error: journal failed to compile: note "Broadsword" declares the anchor {#description}`,
+    );
 });
 
 /**

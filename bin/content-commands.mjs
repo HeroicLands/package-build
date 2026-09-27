@@ -387,15 +387,11 @@ function docsCommand() {
  * - `schema` compares every `system.*` target the document names against the
  *   naming system's published `schema.json`. A failure means the specification
  *   and the system disagree, which is a defect in one of the two.
- * - `fields` compares the per-type tables against the field declarations that
- *   compile them, so the hand-written half cannot drift from the generated one.
- * - `notes` measures a content tree against the vocabulary the document
- *   declares per type. During the migration it is the progress bar rather
- *   than a gate, so it **reports** by default and `--strict` makes it fatal —
- *   turned on one class at a time as each slice lands.
+ * - `fields` compares declared field mappings with compiler declarations.
+ * - `notes` measures authored notes against the declared vocabulary.
  *
- * Both read the committed document rather than a transcription of it, so
- * editing `docs/content-format.md` changes what they assert.
+ * The shipped contract is `engine/content-format.yaml`; guide layout does not
+ * participate in validation.
  *
  * @returns {object} The yargs command module.
  */
@@ -445,7 +441,7 @@ function contentFormatSchemaCommand() {
         builder: (yargs) => {
             yargs.option("spec", {
                 describe:
-                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                    "The format contract to read. Defaults to the engine/content-format.yaml this package ships.",
                 type: "string",
             });
             yargs.option("schema", {
@@ -553,7 +549,7 @@ function contentFormatFieldsCommand() {
         builder: (yargs) => {
             yargs.option("spec", {
                 describe:
-                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                    "The format contract to read. Defaults to the engine/content-format.yaml this package ships.",
                 type: "string",
             });
             yargs.option("fields", {
@@ -642,7 +638,7 @@ function contentFormatNotesCommand() {
             });
             yargs.option("spec", {
                 describe:
-                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                    "The format contract to read. Defaults to the engine/content-format.yaml this package ships.",
                 type: "string",
             });
             yargs.option("strict", {
