@@ -330,7 +330,7 @@ function emitLegend(lines, scale) {
  */
 function placeAttrs(place, analysis, scale) {
     const onCycle = analysis.cycleNodes.has(place.shortcode);
-    const noParent = place.parents.length === 0 && place.shortcode !== analysis.world;
+    const noParent = place.parents.length === 0 && !analysis.worlds.includes(place.shortcode);
     return styleAttrs(place.subType ?? "settlement", {
         scale,
         label: place.name,
@@ -399,7 +399,10 @@ export function treeDot({
     scale = 1,
     drawPolities = true,
 }) {
-    const world = analysis.world;
+    const world =
+        root === undefined ? analysis.world
+        : analysis.worlds.includes(root) ? root
+        : places.get(root)?.parents.find((parent) => analysis.worlds.includes(parent));
     let included;
     let scopeLabel;
     let worldIsContext = false;
@@ -439,7 +442,7 @@ export function treeDot({
     lines.push('  edge [fontname="Helvetica", fontsize=8];');
     const heading =
         title ??
-        `${scopeLabel ?? (world ? places.get(world)?.name : "The world")} — containment tree`;
+        `${scopeLabel ?? (world ? places.get(world)?.name : "The worlds")} — containment tree`;
     lines.push(`  label=${dotString(heading)};`);
     lines.push('  labelloc=t; fontsize=18; fontname="Helvetica-Bold";');
     lines.push("");

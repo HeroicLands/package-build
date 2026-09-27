@@ -963,6 +963,14 @@ export function bookTypstPreamble() {
             '    place(top, float: true, scope: "parent", clearance: 0.7em)[#body]\n' +
             "  }\n" +
             "}",
+        "#let book-place-map(title, path) = {\n" +
+            "  page(columns: 1)[\n" +
+            "    #set par(justify: false, first-line-indent: 0em)\n" +
+            '    #text(size: 18pt, weight: "bold", fill: book-head)[#title]\n' +
+            "    #v(0.4cm)\n" +
+            '    #image(path, width: 100%, height: book-text-height - 2cm, fit: "contain")\n' +
+            "  ]\n" +
+            "}",
         // Wide content spans the page, and how it spans depends on how tall it
         // is: a float is unbreakable and silently overflows, so anything taller
         // than a page takes pages of its own instead.
@@ -1077,6 +1085,8 @@ export function bookTypstPreamble() {
  *   declared it → the staged file's path, relative to the `.typ`. A declared
  *   banner this map does not carry has no file the compiler can open, so the
  *   plate draws without a picture.
+ * @param {Map<string, {path: string, title: string}>} [opts.maps] - An entry
+ *   anchor to its SVG path and page heading. Each map takes a page after its entry.
  * @returns {string} A complete `.typ` document.
  */
 export function renderBook({
@@ -1089,6 +1099,7 @@ export function renderBook({
     version = "",
     preamble = "",
     banners = new Map(),
+    maps = new Map(),
 } = {}) {
     // The two halves of one superfamily, chosen together: matched metrics are
     // most of why the sans can carry every heading over a serif body without
@@ -1234,6 +1245,13 @@ export function renderBook({
         const body = bodies.get(entry.anchor);
         if (body) {
             out.push(body);
+            out.push("");
+        }
+        const map = maps.get(entry.anchor);
+        if (map) {
+            out.push(
+                `#book-place-map([${escapeTypst(map.title)}], "${escapeTypstString(map.path)}")`,
+            );
             out.push("");
         }
     }

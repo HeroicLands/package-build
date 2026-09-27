@@ -104,6 +104,21 @@ describe("map note types", () => {
         expect(isMapType(undefined)).toBe(false);
     });
 
+    it("builds a theatre-of-the-mind Scene from an image and dimensions", () => {
+        const scene = buildSceneDoc(
+            {
+                ...makeNote({ dimensions: [1200, 800], pxPerGrid: undefined }),
+                subType: "totm",
+            },
+            makeCtx(),
+        );
+        expect(scene.width).toBe(1200);
+        expect(scene.height).toBe(800);
+        expect(scene.grid.type).toBe(0);
+        expect(scene.grid.size).toBe(100);
+        expect(scene.levels[0].background.src).toBe("systems/sohl/assets/images/parchment.jpg");
+    });
+
     it("names each retired spelling, rather than routing it to the items pack", () => {
         for (const old of ["battlemap", "localmap", "regionalmap"]) {
             expect(RETIRED_TYPES[old], old).toBe("map");
@@ -137,6 +152,24 @@ describe("map note types", () => {
         expect(() => profileOf("dungeonmap")).toThrow(/unknown map subtype/i);
         // The type is not the profile's key any more, so it is no answer either.
         expect(() => profileOf("map")).toThrow(/unknown map subtype/i);
+    });
+
+    it("sets an authored regional scale and rejects malformed scales", () => {
+        const regional = {
+            ...makeNote(),
+            subType: "regionalmap",
+            data: { bgImage: "parchment", scale: { distance: 5, unit: "leagues" } },
+        };
+        const scene = buildSceneDoc(regional, makeCtx());
+        expect(scene.grid.type).toBe(0);
+        expect(scene.grid.distance).toBe(5);
+        expect(scene.grid.units).toBe("leagues");
+        expect(() =>
+            buildSceneDoc(
+                { ...regional, data: { bgImage: "parchment", scale: { distance: 0 } } },
+                makeCtx(),
+            ),
+        ).toThrow(/data.scale/);
     });
 
     it("is one of the doc-carrying types, so its prose gets a JournalEntry", () => {

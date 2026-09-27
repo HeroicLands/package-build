@@ -1414,10 +1414,14 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     map: Object.freeze({
         stubbable: true,
-        // One type, three subTypes: they differ only in the canvas defaults
-        // derived for them, which is precisely what a subType decides.
-        subTypes: Object.freeze(["battlemap", "localmap", "regionalmap"]),
+        // The subType classifies the map; `data.scene` carries its canvas.
+        subTypes: Object.freeze(["battlemap", "localmap", "regionalmap", "totm"]),
         data: Object.freeze([
+            {
+                name: "scene",
+                ...ANY,
+                describe: "A Foundry Scene export with all its authored fields.",
+            },
             // A Scene has no `img`, so the shared art key reaches nothing here:
             // a map's background is its own slot, and an `image` address.
             {
@@ -1426,6 +1430,11 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "image",
                 accepts: ART_SLOTS.find((slot) => slot.key === "bgImage").accepts,
                 describe: "The map's background art — an `image` address.",
+            },
+            {
+                name: "scale",
+                ...ANY,
+                describe: "Regional map distance per grid unit: {distance, unit}.",
             },
             {
                 name: "dimensions",

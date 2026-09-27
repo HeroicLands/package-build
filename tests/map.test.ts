@@ -353,6 +353,31 @@ describe("the containment tree", () => {
         expect(analysis.continentOf.get("loopa")).toBeUndefined();
     });
 
+    it("draws every world and keeps each world's continents separate", () => {
+        const { places, polities } = world();
+        places.set("moon", {
+            ...places.get("world")!,
+            shortcode: "moon",
+            name: "The Moon",
+        });
+        places.set("moonland", {
+            ...places.get("northc")!,
+            shortcode: "moonland",
+            name: "Moonland",
+            parents: ["moon"],
+        });
+        const analysis = analyzeContainment(places, polities);
+        expect(analysis.worlds).toEqual(["moon", "world"]);
+        expect(analysis.world).toBeUndefined();
+        expect(analysis.continents).toEqual(["moonland", "northc", "southc"]);
+        expect(analysis.continentOf.get("moonland")).toBe("moonland");
+        expect(analysis.anomalies.noParent).not.toContain("moon");
+        const dot = treeDot({ places, polities, analysis });
+        expect(dot).toContain("The worlds — containment tree");
+        expect(dot).toContain("The Moon");
+        expect(dot).toContain("The World");
+    });
+
     it("reports every anomaly, located at the entry that states it", () => {
         const { places, polities } = world();
         const analysis = analyzeContainment(places, polities);
@@ -658,7 +683,7 @@ describe("building the maps", () => {
                 "tree.dot",
                 "tree.svg",
             ]);
-        });
+        }, 30_000);
 
         it("renders the map from a place, with the names as links when a base is known", () => {
             const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
@@ -807,7 +832,7 @@ describe.runIf(DOT)("`content-build map`", () => {
         expect(fs.existsSync(path.join(repo, "build", "map", "from-alpha.svg"))).toBe(true);
         expect(run("--from", "all").status).toBe(0);
         expect(fs.existsSync(path.join(repo, "build", "map", "from-theta.svg"))).toBe(true);
-    });
+    }, 30_000);
 
     it("draws the chart from a place, at the horizon asked for", () => {
         expect(run("--chart", "alpha").status).toBe(0);

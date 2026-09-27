@@ -14,10 +14,7 @@ import path from "node:path";
 // because the pack-build scripts live outside the `@src` alias tree.
 import { Scenes } from "../engine/scenes.mjs";
 
-/**
- * Two map notes of one place, so the pass has something to cross-reference: a
- * stair on the ground floor teleports to a stair on the loft.
- */
+/** Two exported Scenes of one place, with one pin bound to Markdown. */
 const GROUND = `---
 name:
   full: Test Ground Floor
@@ -28,31 +25,32 @@ subType: battlemap
 sohl:
   place: testplace
   placeName: Test Place
-  dimensions: [512, 512]
-  pxPerGrid: 64
-  locations:
-    common-room: { at: [4, 4] }
-  walls:
-    shell:
-      blocks: [movement, sight]
-      segments:
-        - [64, 64, 448, 64]
-  regions:
-    stair-foot:
-      name: Stair Foot
-      shapes:
-        - rect: [352, 352, 96, 96]
-      behaviors:
-        up:
-          teleportToken:
-            to: { map: testloft, region: stair-head }
 data:
-  bgImage: parchment
+  scene:
+    name: Test Ground Floor
+    width: 512
+    height: 512
+    grid: { type: 1, size: 64, distance: 5, units: ft }
+    initialLevel: defaultLevel0000
+    levels:
+      - { _id: defaultLevel0000, background: { src: maps/parchment.webp } }
+    walls:
+      - { _id: WWWWWWWWWWWWWWWW, c: [64, 64, 448, 64] }
+    notes:
+      - { _id: NNNNNNNNNNNNNNNN, text: '#common-room', x: 256, y: 256 }
+    regions:
+      - _id: RRRRRRRRRRRRRRRR
+        name: Stair Foot
+        behaviors:
+          - _id: CCCCCCCCCCCCCCCC
+            type: teleportToken
+            system:
+              destinations: [Scene.BBBBBBBBBBBBBBBB.Region.SSSSSSSSSSSSSSSS]
 ---
 
 Prose before the first heading becomes the map's own page.
 
-# Common Room
+# Common Room {#common-room}
 
 A room.
 `;
@@ -66,19 +64,17 @@ type: map
 subType: battlemap
 sohl:
   place: testplace
-  dimensions: [512, 512]
-  pxPerGrid: 64
-  regions:
-    stair-head:
-      name: Stair Head
-      shapes:
-        - rect: [352, 352, 96, 96]
-      behaviors:
-        down:
-          trigger:
-            events: [tokenEnter]
 data:
-  bgImage: parchment
+  scene:
+    name: Test Loft
+    width: 512
+    height: 512
+    grid: { type: 1, size: 64, distance: 5, units: ft }
+    initialLevel: defaultLevel0000
+    levels:
+      - { _id: defaultLevel0000, background: { src: maps/parchment.webp } }
+    regions:
+      - { _id: SSSSSSSSSSSSSSSS, name: Stair Head, behaviors: [] }
 ---
 
 The loft.
@@ -104,11 +100,6 @@ beforeAll(async () => {
     fs.mkdirSync(content, { recursive: true });
     fs.writeFileSync(path.join(content, "Ground.md"), GROUND);
     fs.writeFileSync(path.join(content, "Loft.md"), LOFT);
-    // The file both maps name as their background. An art address resolves
-    // through the index, so a fixture that names one has to ship it.
-    const assets = path.join(tmp, "assets");
-    fs.mkdirSync(path.join(assets, "images"), { recursive: true });
-    fs.writeFileSync(path.join(assets, "images", "parchment.webp"), "webp");
 
     sceneDir = path.join(tmp, "scenes");
     adventureDir = path.join(tmp, "adventures");
@@ -118,7 +109,7 @@ beforeAll(async () => {
     const pack = new Scenes({
         skipDirectories: [],
         contentBase: content,
-        assetsBase: assets,
+        assetsBase: path.join(tmp, "assets"),
         dest: sceneDir,
         companionDests: { adventures: adventureDir },
     });
@@ -162,7 +153,7 @@ describe("the scenes pass", () => {
         expect(build).toBeGreaterThanOrEqual(353);
     });
 
-    it("resolves a cross-map teleport address to the other scene's region", () => {
+    it("preserves a cross-map teleport from the exported Scene", () => {
         const scenes = read(sceneDir);
         const loft = scenes["Test Loft"];
         const stairHead = loft.regions.find((r: any) => r.name === "Stair Head");
@@ -191,7 +182,7 @@ describe("the scenes pass", () => {
     it("points each pin at a page the bundled journal actually holds", () => {
         const ground = read(sceneDir)["Test Ground Floor"];
         const adventure = read(adventureDir)["Test Place"];
-        const entry = adventure.journal.find((j: any) => j._id === ground.journal);
+        const entry = adventure.journal.find((j: any) => j._id === ground.notes[0].entryId);
         const pageIds = entry.pages.map((p: any) => p._id);
         expect(ground.notes).toHaveLength(1);
         expect(pageIds).toContain(ground.notes[0].pageId);

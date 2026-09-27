@@ -584,6 +584,7 @@ async function generatePack(
         // for the same reason `itemsSourceDirs` is, and scoped to this
         // pack's system so a bundle holds the catalogue it is compiled for.
         bundleSourceDirs: bundleSourceJsonDirs(config, system ?? null),
+        config,
         folderResolver: resolver,
         // One answer to "which files are the corpus?", from the configuration
         // this build resolved rather than from the working directory.

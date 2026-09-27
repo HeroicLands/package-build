@@ -72,6 +72,11 @@ import { packRouter } from "./pack-router.mjs";
 import { foundryPackageId } from "./content-package.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
 import { behaviorDocId, buildScene, isMapType, regionDocId } from "./map-notes.mjs";
+import { buildItineraryScenes } from "./itinerary-scenes.mjs";
+import { emitDiagnostic } from "./diagnostics.mjs";
+import { rasterizeMapSvg } from "./map-raster.mjs";
+import { artSlot } from "./art-fields.mjs";
+import { buildExportedScene } from "./exported-scene.mjs";
 
 /**
  * Every SoHL action name this build knows about, for the `action:` warning on a
@@ -127,6 +132,7 @@ export function collectKnownActionNames(repoRoot) {
 export class Scenes extends BasePackCompiler {
     static id = "scenes";
     static label = "map";
+    static readsPackOutputOf = Object.freeze(["JournalEntry"]);
 
     /**
      * A map note's `bgImage` is its background art, and it is **required**: the
@@ -157,8 +163,12 @@ export class Scenes extends BasePackCompiler {
         companionDests = {},
         folderResolver = () => null,
         repoRoot = process.cwd(),
+        config,
+        packName,
+        bundleSourceDirs = {},
+        corpus,
     }) {
-        super({ contentBase, assetsBase, dest, folderResolver, skipDirectories });
+        super({ contentBase, assetsBase, dest, folderResolver, skipDirectories, packName, corpus });
         if (!companionDests.adventures) {
             throw new Error("Scenes compiler requires an `adventures` companion destination");
         }
@@ -170,6 +180,9 @@ export class Scenes extends BasePackCompiler {
             value: repoRoot,
             writable: false,
         });
+        this.mapConfig = config;
+        this.packName = packName;
+        this.journalSourceDirs = bundleSourceDirs.JournalEntry ?? [];
     }
 
     /**
@@ -424,28 +437,58 @@ export class Scenes extends BasePackCompiler {
         const { value: authoredFolder } = folderField(fm);
         const folder = this.folderResolver(authoredFolder, { isAddress: true });
         const warnings = [];
-        const scene = buildScene(fm, {
-            packageId: foundryPackageId(),
-            // The art resolver, so the map pass turns an address into the path
-            // each surface serves without holding an index of its own. `accepts`
-            // is threaded through so `bgImage`, one of the four declared art
-            // slots, is held to its own accepted set here exactly as it is
-            // through `artPath`.
-            art: (value, key, type, accepts) => this.artPathOf(value, key, type, accepts),
-            name,
-            folder,
-            stats: this.stats,
-            journalEntryId: entryId,
-            // A map note's prose is a derived JournalEntry: it lands in the
-            // default JournalEntry pack, not in whichever Scene pack the map
-            // itself was routed to.
-            // This compile's router, as everywhere else in this pass.
-            journalPack: this.#packRouter.defaultOf("JournalEntry"),
-            pageIds: hasBody ? this.#pageIds(markdown, entryId, name) : new Map(),
-            knownActions: this.knownActions,
-            warnings,
-            ...this.#resolvers(this.index, this.effectsByAddress, fm.shortcode),
-        });
+        if (fm.data?.scene && fm.subType === "regionalmap") {
+            throw new Error("`data.scene` is for battlemap and localmap notes");
+        }
+        const bgImage =
+            fm.data?.scene ?
+                null
+            :   this.artPathOf(fm.data?.bgImage, "bgImage", "image", artSlot("bgImage")?.accepts);
+        if (
+            bgImage?.toLowerCase().endsWith(".svg") &&
+            (!["regionalmap", "totm"].includes(fm.subType) ||
+                (fm.subType === "regionalmap" && !fm.data?.scale))
+        ) {
+            throw new Error("an SVG map needs `subType: regionalmap` and `data.scale`");
+        }
+        const raster =
+            bgImage?.toLowerCase().endsWith(".svg") ?
+                rasterizeMapSvg({
+                    foundryPath: bgImage,
+                    width: fm.sohl?.dimensions?.[0],
+                    height: fm.sohl?.dimensions?.[1],
+                    sceneId: fm.id,
+                    config: this.mapConfig,
+                })
+            :   null;
+        const scene =
+            fm.data?.scene ?
+                buildExportedScene(fm, markdown, { journalEntryId: entryId, stats: this.stats })
+            :   buildScene(fm, {
+                    packageId: foundryPackageId(),
+                    // The art resolver, so the map pass turns an address into the path
+                    // each surface serves without holding an index of its own. `accepts`
+                    // is threaded through so `bgImage`, one of the four declared art
+                    // slots, is held to its own accepted set here exactly as it is
+                    // through `artPath`.
+                    art: (value, key, type, accepts) =>
+                        key === "bgImage" && raster ?
+                            raster
+                        :   this.artPathOf(value, key, type, accepts),
+                    name,
+                    folder,
+                    stats: this.stats,
+                    journalEntryId: entryId,
+                    // A map note's prose is a derived JournalEntry: it lands in the
+                    // default JournalEntry pack, not in whichever Scene pack the map
+                    // itself was routed to.
+                    // This compile's router, as everywhere else in this pass.
+                    journalPack: this.#packRouter.defaultOf("JournalEntry"),
+                    pageIds: hasBody ? this.#pageIds(markdown, entryId, name) : new Map(),
+                    knownActions: this.knownActions,
+                    warnings,
+                    ...this.#resolvers(this.index, this.effectsByAddress, fm.shortcode),
+                });
         for (const message of warnings) {
             // Named by file, like every other note diagnostic. A map
             // warning is about the note's frontmatter, which carries no
@@ -479,7 +522,7 @@ export class Scenes extends BasePackCompiler {
             this.places.set(placeKey, {
                 key: placeKey,
                 name: sohlField(fm, "placeName", null) || name,
-                img: this.artPath(fm, "bgImage"),
+                img: fm.data?.scene ? null : this.artPath(fm, "bgImage"),
                 pinned: false,
                 scenes: [],
                 journal: [],
@@ -488,7 +531,7 @@ export class Scenes extends BasePackCompiler {
         const place = this.places.get(placeKey);
         place.scenes.push(stripAdventureKeys(scene));
         if (journal) place.journal.push(stripAdventureKeys(journal));
-        if (Object.keys(fm.sohl?.locations ?? {}).length) {
+        if (scene.notes?.length || Object.keys(fm.sohl?.locations ?? {}).length) {
             place.pinned = true;
         }
         return scene;
@@ -500,8 +543,36 @@ export class Scenes extends BasePackCompiler {
      *
      * @returns {Promise<void>}
      */
-    async finish() {
+    async finish(stats) {
         this.adventureCount = 0;
+        const firstScenePack = this.mapConfig?.packs.find((pack) => pack.type === "Scene")?.name;
+        if (this.mapConfig && this.packName === firstScenePack) {
+            const generated = buildItineraryScenes({
+                config: this.mapConfig,
+                records: this.corpus.records,
+                contentBase: this.contentBase,
+                journalSourceDirs: this.journalSourceDirs,
+                stats: this.stats,
+            });
+            for (const finding of generated.findings) emitDiagnostic(finding);
+            if (generated.scenes.length) {
+                const place = {
+                    key: "generated-itineraries",
+                    name: "Itinerary Maps",
+                    img: null,
+                    pinned: true,
+                    scenes: [],
+                    journal: generated.journal,
+                };
+                for (const scene of generated.scenes) {
+                    this.writeEntry(scene);
+                    place.scenes.push(stripAdventureKeys(scene));
+                }
+                this.places.set(place.key, place);
+                stats.compiled += generated.scenes.length;
+                this.compiledCount = stats.compiled;
+            }
+        }
         for (const place of this.places.values()) {
             // A scene that references nothing ships fine as a plain `scenes`
             // entry; only pins need the id-preserving import an Adventure gives.

@@ -113,6 +113,12 @@ export const MAP_SUBTYPE_PROFILES = Object.freeze({
         fog: { mode: 0 /* DISABLED */ },
         padding: 0,
     }),
+    totm: Object.freeze({
+        grid: { type: 0 /* GRIDLESS */, distance: 1, units: "" },
+        tokenVision: false,
+        fog: { mode: 0 /* DISABLED */ },
+        padding: 0,
+    }),
 });
 
 /**
@@ -894,6 +900,23 @@ export function buildScene(fm, ctx) {
     const sceneId = fm.id;
     if (!sceneId) throw new Error("a map note needs an `id`");
     const profile = mapProfile(fm.subType);
+    const scale = fm.data?.scale;
+    if (scale !== undefined) {
+        if (
+            fm.subType !== "regionalmap" ||
+            !scale ||
+            typeof scale !== "object" ||
+            Array.isArray(scale) ||
+            Object.keys(scale).some((key) => !["distance", "unit"].includes(key)) ||
+            !(Number.isFinite(scale.distance) && scale.distance > 0) ||
+            typeof scale.unit !== "string" ||
+            !scale.unit.trim()
+        ) {
+            throw new Error(
+                "`data.scale` on a regionalmap is {distance: positive number, unit: nonempty string}",
+            );
+        }
+    }
 
     const dimensions = sohl.dimensions;
     if (
@@ -903,7 +926,7 @@ export function buildScene(fm, ctx) {
     ) {
         throw new Error("`dimensions` is [width, height] in whole pixels — the map's own size");
     }
-    const pxPerGrid = sohl.pxPerGrid;
+    const pxPerGrid = fm.subType === "totm" ? 100 : sohl.pxPerGrid;
     if (!Number.isInteger(pxPerGrid) || pxPerGrid <= 0) {
         throw new Error(
             "`pxPerGrid` is the whole number of pixels per grid square, and must " +
@@ -933,8 +956,8 @@ export function buildScene(fm, ctx) {
         grid: {
             type: profile.grid.type,
             size: pxPerGrid,
-            distance: profile.grid.distance,
-            units: profile.grid.units,
+            distance: scale?.distance ?? profile.grid.distance,
+            units: scale?.unit ?? profile.grid.units,
         },
         tokenVision: profile.tokenVision,
         fog: { mode: profile.fog.mode },

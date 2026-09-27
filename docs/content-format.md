@@ -3555,115 +3555,75 @@ that names none.
 
 ### type: map
 
-A map — the visual rendering of a place or an encounter, plus the pinned
-locations described in its own body. Produces a Foundry **Scene**, and a web page carrying the map image
-and its description.
-
-A map is a note in its own right rather than a property of a `place`, for three
-reasons. A place commonly has **several** maps — a floor per level of a keep, or
-a feature's detail map alongside its local-area map — and a scene nested in a
-place could only ever be one. A Scene is a substantial document in itself: walls,
-doors, lights, tiles, sounds, region shapes and pins, authored in two deliberate
-unit conventions. And a map has prose and named locations of its own, which makes
-it a document rather than a field.
-
-A map may also exist with no place at all — an ambush on a road is an encounter
-map and not a named location.
-
-**The place is named on the map, not the other way round.** A place commonly has
-several maps, so listing them from the place is the end that goes stale; naming
-the place from the map is the end that cannot, because a map is written once and
-depicts what it depicts. A place's maps are therefore derived — every map whose
-`place` is this one — and the relation exists in exactly one place.
+A map note has its own prose and a Foundry Scene. A map can depict a place or an encounter. Several maps can depict the same place; the map names that place with `sohl.place`, while the place note does not list its maps.
 
 **subType**:
 
-- battlemap: Tactical scale, for a scene played out square by square.
-- localmap: Roughly a kilometre across — a settlement, a holding, a small valley.
-- regionalmap: Large scale, covering a region or a journey between places.
+- `battlemap`: A tactical Scene built in Foundry.
+- `localmap`: A settlement or local-area Scene built in Foundry.
+- `regionalmap`: A large-scale chart with an authored image and scale.
+- `totm`: A gridless image Scene for theatre-of-the-mind play.
 
-The three differ only in the canvas defaults derived for them, which is why they
-are subTypes of one type rather than three types.
+| `data` property   | Values       | Description                                                |
+| ----------------- | ------------ | ---------------------------------------------------------- |
+| `scene`           | object       | Exported Foundry Scene for battle and local maps           |
+| `bgImage`         | Address      | Background image for regional and theatre-of-the-mind maps |
+| `scale`           | object       | Regional distance and unit per grid unit                   |
+| `dimensions`      | `[int, int]` | Optional shared dimensions metadata                        |
+| `pxPerGrid`       | number       | Optional shared grid size metadata                         |
+| `navName`         | string       | Short Scene navigation name                                |
+| `levelName`       | string       | Embedded Level name                                        |
+| `backgroundColor` | string       | Colour outside the art                                     |
+| `overlay`         | string       | Foreground art path                                        |
+| `walls`           | object       | Regional wall geometry                                     |
+| `doors`           | object       | Regional door geometry                                     |
+| `lights`          | object       | Regional light geometry                                    |
+| `tiles`           | object       | Regional tile geometry                                     |
+| `sounds`          | object       | Regional sound geometry                                    |
+| `regions`         | object       | Regional region geometry                                   |
+| `notes`           | object       | Regional pin geometry                                      |
+| `place`           | Address      | Depicted place, when one exists                            |
 
-**NoteLocation** is `[GridLocation, anchor]` where the `anchor` is an anchor identified in the body of the note, and `GridLocation` represents a particular grid location on the document.
+#### Battle and local maps
 
-The `data:` fields, of which three are required:
+Author the Scene in Foundry, export it, convert the export to YAML, and put the resulting object at `data.scene`. Preserve its walls, lights, tiles, regions, levels, environment, flags, and canvas settings. The export can name art from another Foundry package; that path is used as authored in Foundry. The Scene needs positive whole-number `width` and `height`, at least one Level, a valid `initialLevel` when present, and a unique 16-character `_id` on each embedded document. The build derives the top-level Scene `_id` from the map note, adds compendium keys and build metadata, and otherwise preserves the exported fields.
 
-| `data` property   | Values           | Description                                                                                                                                                  |
-| ----------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bgImage`         | `Address`        | **Required.** The map art — an `image` address. Becomes the level's `background.src`, what tokens stand on                                                   |
-| `dimensions`      | `[int, int]`     | **Required.** `[width, height]` in whole pixels, the art's own size                                                                                          |
-| `pxPerGrid`       | `integer`        | **Required.** Whole pixels per grid square; must match the art                                                                                               |
-| `navName`         | `string`         | Short name for Foundry's scene navigation bar                                                                                                                |
-| `levelName`       | `string`         | The name of the embedded level. Defaults to `Ground`                                                                                                         |
-| `backgroundColor` | `ColorHexValue`  | Shown where the art does not reach. Defaults to `#999999`                                                                                                    |
-| `overlay`         | `string`         | Path to **foreground** art                                                                                                                                   |
-| `walls`           | `WallSegment[]`  | List of wall segments                                                                                                                                        |
-| `doors`           | `Door[]`         | List of doors                                                                                                                                                |
-| `lights`          | `Light[]`        | List of lights                                                                                                                                               |
-| `tiles`           | `Tile[]`         | List of tiles, each naming its art in `image`                                                                                                                |
-| `sounds`          | `Sound[]`        | List of sounds, each naming its clip in `audio`                                                                                                              |
-| `regions`         | `SceneRegion[]`  | List of scene regions                                                                                                                                        |
-| `place`           | `Address`        | The place this map depicts. Optional, because an encounter map depicts no named place — but that is the exception, and a map without one is a map of nowhere |
-| `notes`           | `NoteLocation[]` | grid coordinates of note markers mapped to anchors in this document                                                                                          |
+A pin's `text` can contain `#anchor`, where the map note has a heading such as `# Big Bad Wolf {#myanchor1}`. With `text: '#myanchor1'`, the compiled pin opens the JournalEntry and page generated from this map note and displays **Big Bad Wolf**. Its position, icon, other settings, and embedded `_id` remain as exported. A missing anchor is a build error. Pins whose text does not use `#anchor` retain their exported text and references.
 
-Everything else a Scene holds is **derived**, not authored: padding, grid type,
-grid distance and units, token vision and fog mode all come from the subType, and
-ids, ordering and elevation are synthesised. A map note carries the map's
-essence, not a Scene's schema — the same division a weapon note makes against an
-Item's.
+```yaml
+shortcode: wolfden
+name: { full: The Wolf's Den }
+type: map
+subType: battlemap
+data:
+  scene:
+    name: Wolf Den Scene
+    width: 1900
+    height: 2600
+    grid: { type: 1, size: 100, distance: 5, units: ft }
+    initialLevel: defaultLevel0000
+    levels:
+      - { _id: defaultLevel0000, background: { src: modules/maps/den.webp } }
+    notes:
+      - { _id: NNNNNNNNNNNNNNNN, text: "#myanchor1", x: 950, y: 2350 }
+---
+# Big Bad Wolf {#myanchor1}
+```
 
-**`levels:` is never authored, and must never be.** A Scene has to ship at least
-one Level or it has no map at all, and nothing supplies one after the fact: the
-client-side `_preCreate` that would create it does not run during offline pack
-compilation, and the server-side migration shim is version-gated on
-`_stats.coreVersion`, so a pack stamped 14.x or later skips it entirely. The
-single Level is synthesised from `bgImage`, `overlay`, `levelName` and
-`backgroundColor`.
+When the Scene has pins, its Adventure bundle carries the Scene and the JournalEntry generated from its Markdown. Importing that bundle preserves the IDs the pins address.
 
-> **`bgImage` is an `Address` under `data:`, as every other type's artwork is.**
-> Art is not system-specific — a Scene is a core Foundry document, and a second
-> system would want the identical art — so the field sits under `data:` rather
-> than inside a system block.
->
-> **A map has no `img`.** `bgImage` is the only key naming a map's background,
-> and a note writing `img:` or `data.img:` is refused. The two are not
-> alternative spellings: `img` is a Foundry destination and no Scene has one.
+#### Regional maps
 
-**Every art key inside a map is an address, and each is named for the type it
-reaches.** A map's geometry is authored in Foundry's own units, and its art is
-not authored in Foundry's own paths.
+A `regionalmap` uses `data.bgImage`, an image Address, and `sohl.dimensions: [width, height]` plus `sohl.pxPerGrid` to build a gridless Scene. `data.scale: {distance: positive number, unit: nonempty string}` sets the distance per grid unit. Its shared `data` fields can also name `overlay`, `backgroundColor`, `levelName`, `navName`, `walls`, `doors`, `lights`, `tiles`, `sounds`, `regions`, and `notes`; the latter geometry uses the map-note conventions described in the SoHL map authoring guide. `data.scene` is not used for a regional map.
 
-| authored             | default type | emitted as                   |
-| -------------------- | ------------ | ---------------------------- |
-| `data.bgImage`       | `image`      | the level's `background.src` |
-| `tiles.<key>.image`  | `image`      | the tile's `texture.src`     |
-| `sounds.<key>.audio` | `audio`      | the `AmbientSound`'s `path`  |
+An SVG `data.bgImage` remains vector art on the site and in the book. The Foundry build stages a PNG at the note's stated dimensions with `rsvg-convert`; the source SVG is unchanged. A selected regional SVG map takes a full page in the PDF.
 
-Naming each key for the type it references is what makes the default worth
-having: `audio:` reaches an `audio` address without a note ever writing the
-type segment. Where a tile places a glyph rather than artwork it qualifies —
-`image: sohl-none-icon-chest` — which is the ordinary short-form ladder rather
-than an exception to it.
+#### Theatre-of-the-mind maps
 
-**The authored key and the emitted field differ where Foundry's name differs.**
-An `AmbientSound` stores its clip in `path`, and that is what the compiled
-document carries; the note writes `audio` because the note is naming an
-address, not filling in a Foundry field.
-
-**Two unit conventions, deliberately.** Geometry — walls, doors, lights, tiles,
-sounds, region shapes — is authored in **pixels**, Foundry's native storage,
-because traced walls often fall between grid intersections. Map pins are
-authored in **grid squares**, commonly
-half-integers, because that is how a person reads a position off a map. The two
-are told apart by their key: `position:` and segment or shape coordinates are
-pixels, `at:` is grid squares. Mixing them fails silently and visually in
-Foundry, so the build refuses rather than resolving.
-
-**Map pins stay within the map.** `notes:` names anchors in this map note's own
-body, so a pin opens the journal page describing that spot. `data.place` names
-the place depicted by the map when one exists. A place's map listing is derived
-from those map notes, so each map states the relationship once.
+A `totm` map names its background with `data.bgImage` and its canvas size with
+`sohl.dimensions: [width, height]`. It builds a gridless Scene with token vision
+off. It needs no `sohl.pxPerGrid` or `data.scale`. The Markdown body remains the
+map's prose.
 
 ### type: place
 
@@ -3816,9 +3776,10 @@ data:
   on a land route — or a road on a ship route — is an error.
 - `leagues` — optional on a route; a distance, only where the note states one.
 
-**Regions border; settlements are days apart.** A frontier is a fact about two
-regions, and a journey is a fact about two places a traveller sets out from and
-arrives at. A pair appears in `routes` once per `mode` — a port and its
+**A border is a shared frontier between areas.** Regions commonly state one;
+a settlement does so only when it actually shares a frontier with another
+place. Most settlements use `parents` for where they sit and `routes` for
+journeys between them. A pair appears in `routes` once per `mode` — a port and its
 neighbour may be three days by land and one by ship — and in `borders` once.
 **A place never borders its own parent or child**: containment is `parents`,
 and restating it as adjacency makes the two contradict each other.
@@ -3832,6 +3793,16 @@ neighbour that states a different bearing, a different `days` or a different
 `mode` is an error, because one of the two notes is wrong and a reader cannot
 tell which. Every `to` must resolve to a place, every value must come from its
 closed set, and each finding is located at the entry that states it.
+
+The terrain names form one shared registry in package-build. A route crossing
+a package boundary uses the same terrain and mode rules at both ends.
+
+For every place that participates in a border or route, the map builder draws
+an itinerary from that place. A site page carries it as a linked SVG. A PDF
+book that includes the place gives its map a separate full page after the
+entry. A configured Foundry Scene pack carries a gridless map backed by a
+generated PNG, with Notes linked to importable place journals. Places with no
+relations create no itinerary output.
 
 **A relation that crosses a package boundary is written in full at both ends.**
 An omitted `<package>` segment is the package being built, in whatever note the

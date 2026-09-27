@@ -1277,7 +1277,9 @@ is from a closed set: the eight bearings, `land | boat | ship`, a days scale of
 terrain names the modes that cross it. Every `to` must be the shortcode of a
 place, here or in a fetched index. The other end must state the pair back —
 at the opposite bearing, and for a route by the same mode in the same days.
-A neighbour stating nothing is a warning naming both notes; one stating a
+A settlement states a border only when it shares a frontier; most settlements
+use `parents` for location and `routes` for journeys. The terrain registry is
+shared across packages. A neighbour stating nothing is a warning naming both notes; one stating a
 different bearing, mode or days is an error, as is a border to the note's own
 parent or child, or a pair listed twice by one mode. Each finding lands on the
 entry that states it. The keys, the sets and the days scale are specified under
@@ -2683,6 +2685,21 @@ What the build guarantees:
 `map` is derived, never authored: a note that writes one has it replaced when
 the build draws a map, and dropped when there is none to draw.
 
+The same relations supply a PDF book's full-page vector map immediately after
+each selected place entry. When a Scene pack is configured, they also supply
+gridless Foundry Scenes with raster backgrounds and pins to journals in an
+Adventure. A place from a dependency receives a pin through an importable
+journal link when its published index includes a JournalEntry UUID. An
+authored `regionalmap` with SVG art keeps the SVG for site and book while the
+Foundry build stages a PNG. Its `data.scale` states the distance and unit per
+grid unit.
+
+Battle and local maps can carry a Foundry Scene export in `data.scene`. The
+Scene's canvas and embedded documents stay as authored. A pin whose text is
+`#anchor` opens the JournalEntry page with that heading in the map note and
+displays the heading text. A `totm` map uses a background image and dimensions
+to create a gridless Scene for theatre-of-the-mind play.
+
 ### Why the output location is fixed
 
 The content mount is a build artifact and is **deleted on every run**, so that a
@@ -2802,6 +2819,10 @@ column measure and breaks between its sections, and a table wider than three
 columns is set across the page. Two columns are print's answer and print's
 alone — a scrolling page has no fixed viewport, so the website keeps one
 measure with a side rail.
+
+An itinerary map uses a separate full-width page after its place entry. The
+vector drawing fits the printable area and carries a heading naming the
+viewpoint. A selected authored regional SVG map takes a page in the same way.
 
 A note's `description:` sets as an epigraph between short rules under the
 plate. It disappears rather than leave a shell: a note with no description has
