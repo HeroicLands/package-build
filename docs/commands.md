@@ -1929,12 +1929,8 @@ index — this package's records and every declared dependency's fetched
 index — so a consumer's map draws its dependencies' places beside its own
 and no note is opened except to locate a finding. Everything lands under
 `build/map/`, always the `.dot` beside the `.svg`, so a drawing can be
-re-rendered, diffed or read without the index. GraphViz draws: `dot` (or
-`twopi`, `neato`) for the tree, `neato` for the others. It is a build-time
-tool of this command alone; when the engine a run needs is not installed
-the command says so, names what to install, and stops. A build that asks
-for maps as one step of a larger job — a site build — writes the `.dot`
-files, emits one warning and skips the renderings rather than failing.
+re-rendered, diffed or read without the index. The npm-installed Graphviz runtime draws with `dot` (or `twopi`, `neato`)
+for the tree and `neato` for the other drawings.
 
 The containment tree draws every `world` note as a separate root. A map from a
 place follows that place's own relations, so another world in the package does
@@ -1944,7 +1940,7 @@ Site builds put a linked SVG in each eligible place page. PDF builds put a
 vector map on its own page immediately after each selected place entry with
 relations. A configured Scene pack stages PNG backgrounds and emits gridless
 itinerary Scenes and an Adventure containing the journals their pins open.
-`rsvg-convert` is also required when an authored `regionalmap` uses SVG art.
+The installed SVG renderer also stages PNG backgrounds for authored regional SVG maps.
 
 Battle and local map notes can carry a Foundry Scene export under `data.scene`.
 The pack compiler preserves its fields and binds pins marked `#anchor` to pages
@@ -2080,8 +2076,7 @@ page can inline the SVG. Without it the names are plain text.
 
 1 when no drawing is asked for, when a `--from`, `--chart` or `--root`
 names no place, when `--horizon` is not a marker of the days scale, when
-the GraphViz engine a drawing needs is not installed, when a
-dependency's index cannot be read, when a note the index cannot record is
+the renderer fails, when a dependency's index cannot be read, when a note the index cannot record is
 met, on any error finding from `--tree` (a place with no parent, a parent
 that does not resolve, a cycle), or on any other thrown error. Otherwise 0
 — the warnings are reported and never fail the command.
@@ -2101,7 +2096,7 @@ $ content-build map --chart takheperurgn --horizon 90
 […] 394 place(s) → 1 drawing(s) under build/map
 
 $ content-build map --travel
-[…] GraphViz's `neato` is not installed, and `content-build map` draws with it; install GraphViz (`brew install graphviz` on macOS, `apt-get install graphviz` on Debian or Ubuntu) and run the command again
+[…] 394 place(s) → 1 drawing(s) under build/map
 ```
 
 **SEE ALSO**

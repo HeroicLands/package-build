@@ -958,9 +958,8 @@ every place that states a border or a route or is named in one, lays it beside
 the page as `from-<shortcode>.svg`, and names the file in the page's front
 matter as `map`, which the theme inlines so every place name on it is a link
 to that place's page. A place with no relation carries no map and no key.
-GraphViz draws; when it is not installed the build says so once, as a
-warning, and writes every page as it would without maps — a site never fails
-for want of one. `false` draws nothing and asks nothing of GraphViz.
+The Graphviz runtime installed with package-build draws the maps. `false`
+draws nothing.
 
 ```yaml
 site:
@@ -1041,8 +1040,7 @@ two switches that disagree about whether it publishes its content tree.
 
 Each selected place with a border or route receives a dedicated full-page
 vector itinerary after its entry. A selected authored regional SVG map also
-prints on its own page. GraphViz's `neato` draws itineraries; when it is absent,
-the build reports one warning and prints the entries without map pages.
+prints on its own page. The npm-installed Graphviz runtime draws itineraries.
 
 ```yaml
 pdf:

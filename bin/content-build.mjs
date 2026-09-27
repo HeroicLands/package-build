@@ -1531,7 +1531,7 @@ function pdfCommand() {
  * wikilink resolution, code-fence protection and the foreign-manifest merge —
  * happens here, from configuration. So does the Hugo configuration: the whole
  * source tree Hugo reads lands under `build/hugo/`, and the consumer's script
- * runs Hugo over it. With `site.maps` on and GraphViz installed, every place
+ * runs Hugo over it. With `site.maps` on, every place
  * page with a border or a route carries the map from that place.
  *
  * **The Hugo configuration is generated before anything is written.** Its
@@ -1674,10 +1674,7 @@ function siteCommand() {
                     return;
                 }
 
-                // What drawing the maps found: warnings, every one. A site
-                // never fails for want of a map, so none of these touches the
-                // exit code — GraphViz absent is one line naming what to
-                // install, and every page is written as it would be without.
+                // Relation warnings do not fail a site build.
                 for (const f of result.mapFindings) emitDiagnostic(f);
 
                 const s = result.stats;
@@ -1707,8 +1704,7 @@ function siteCommand() {
  * check, whose anomalies are reported as findings), the map from a place
  * from its `borders` and `routes` (`--from`), the chart from a place — the
  * same drawing at a larger horizon (`--chart`, `--horizon`) — and the whole
- * route graph (`--travel`). GraphViz draws; when it is absent the command
- * says what to install and stops.
+ * route graph (`--travel`). The installed Graphviz runtime draws each map.
  *
  * @returns {object} The yargs command module.
  */

@@ -23,10 +23,8 @@
  * and every `href` in it composes `<base><slug>/` the way every other href
  * the build renders does.
  *
- * GraphViz draws, and a site never fails for want of a map: when the engine is
- * absent the build says so once, as a warning, and writes every page as it
- * would without maps. `site.maps: false` says the site carries none and asks
- * nothing of GraphViz.
+ * The npm Graphviz runtime draws each map. `site.maps: false` says the site
+ * carries none and skips map rendering.
  *
  * The drawings land under `build/map/site/` — beside the author's own
  * drawings under `build/map/`, and apart from them, because the site's
@@ -40,7 +38,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { buildMaps, relatedPlaces } from "./map-build.mjs";
-import { GRAPHVIZ_INSTALL, findGraphviz } from "./map-graphviz.mjs";
 import { mapWorld } from "./map-places.mjs";
 
 /**
@@ -49,13 +46,6 @@ import { mapWorld } from "./map-places.mjs";
  * @type {string}
  */
 export const SITE_MAP_DIR = "build/map/site";
-
-/**
- * The engine the map from a place is drawn with.
- *
- * @type {string}
- */
-const ENGINE = "neato";
 
 /**
  * A drawing as the page writer receives it.
@@ -106,38 +96,18 @@ export function inlineSvg(svg) {
  * @param {object} opts.config - The resolved configuration.
  * @param {string} opts.base - The site base every page is served under,
  *   ending in a slash: what every name in a drawing links through.
- * @param {(engine: string) => string|undefined} [opts.locate] - How the
- *   engine's binary is found; the real lookup by default.
  * @returns {{maps: Map<string, SiteMap>, findings: Array<{file: string,
  *   line?: number, column?: number, severity: "error"|"warning",
  *   message: string}>}} The drawings, keyed by the URL of the page each
- *   belongs to, and what the drawing found — one warning naming what to
- *   install when GraphViz is absent, and a warning for each relation that
- *   names no place.
+ *   belongs to, and warnings for relations that name no place.
  */
-export function drawSiteMaps({ records, foreignIndex, config, base, locate = findGraphviz }) {
+export function drawSiteMaps({ records, foreignIndex, config, base }) {
     /** @type {Map<string, SiteMap>} */
     const maps = new Map();
     const outDir = path.join(config.rootDir, ...SITE_MAP_DIR.split("/"));
     // Every run draws afresh: a place that lost its relations must not keep
     // the map an earlier run drew.
     fs.rmSync(outDir, { recursive: true, force: true });
-
-    if (!locate(ENGINE)) {
-        return {
-            maps,
-            findings: [
-                {
-                    file: config.rootDir,
-                    severity: "warning",
-                    message:
-                        `GraphViz's \`${ENGINE}\` is not installed, so no place page carries ` +
-                        `the map from that place; ${GRAPHVIZ_INSTALL} to draw them, or set ` +
-                        "`site.maps: false` to say the site carries none",
-                },
-            ],
-        };
-    }
 
     const world = mapWorld({
         records,
@@ -152,7 +122,7 @@ export function drawSiteMaps({ records, foreignIndex, config, base, locate = fin
     const centres = relatedPlaces(world.places).filter((s) => world.places.get(s)?.local);
     if (centres.length === 0) return { maps, findings: [] };
 
-    const { findings } = buildMaps({ world, outDir, from: centres, locate });
+    const { findings } = buildMaps({ world, outDir, from: centres });
     for (const centre of centres) {
         const place = world.places.get(centre);
         if (!place?.url) continue;

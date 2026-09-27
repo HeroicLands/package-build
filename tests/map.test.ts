@@ -27,7 +27,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { indexRecordsFor } from "../engine/content-index.mjs";
-import { findGraphviz, GRAPHVIZ_ENGINES } from "../engine/map-graphviz.mjs";
+import { GRAPHVIZ_ENGINES, renderDot } from "../engine/map-graphviz.mjs";
 import {
     analyzeContainment,
     containmentFindings,
@@ -40,9 +40,6 @@ import { layoutChart, layoutFrom, rimRadius, travelGraph } from "../engine/map-l
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "content-build.mjs");
-
-/** Whether GraphViz is reachable, which the rendering cases need. */
-const DOT = findGraphviz("dot");
 
 /* ---------------------------------------------------------------------- */
 /*  Fixture                                                               */
@@ -626,45 +623,28 @@ describe("the route graph, as DOT", () => {
 /* ---------------------------------------------------------------------- */
 
 describe("building the maps", () => {
-    it("names a missing GraphViz plainly, with what to install", () => {
+    it("renders with the npm Graphviz runtime", () => {
         expect(GRAPHVIZ_ENGINES).toEqual(["dot", "twopi", "neato"]);
         const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
+        const result = buildMaps({ world: world(), outDir: out, from: ["alpha"] });
+        expect(result.written.map((file) => path.basename(file))).toEqual([
+            "from-alpha.dot",
+            "from-alpha.svg",
+        ]);
+        expect(fs.readFileSync(path.join(out, "from-alpha.svg"), "utf8")).toContain("<svg");
         expect(() =>
-            buildMaps({
-                world: world(),
-                outDir: out,
-                tree: true,
-                locate: () => undefined,
+            renderDot(path.join(out, "from-alpha.dot"), path.join(out, "bad.svg"), {
+                engine: "bad",
             }),
-        ).toThrow(/GraphViz.*dot.*install/i);
+        ).toThrow(/Unsupported Graphviz engine/);
+        const warned = path.join(out, "warned.dot");
+        fs.writeFileSync(warned, "graph G { a [shape=bogus]; }");
+        expect(renderDot(warned, path.join(out, "warned.svg"), { engine: "dot" }).warnings).toMatch(
+            /unknown shape bogus/,
+        );
     });
 
-    it("skips the rendering with one warning when told to, and still writes the .dot", () => {
-        const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
-        const result = buildMaps({
-            world: world(),
-            outDir: out,
-            from: ["alpha"],
-            locate: () => undefined,
-            requireGraphviz: false,
-        });
-        expect(fs.existsSync(path.join(out, "from-alpha.dot"))).toBe(true);
-        expect(fs.existsSync(path.join(out, "from-alpha.svg"))).toBe(false);
-        const warnings = result.findings.filter((f) => /GraphViz/.test(f.message));
-        expect(warnings).toHaveLength(1);
-        expect(warnings[0].severity).toBe("warning");
-    });
-
-    it("finds GraphViz where it is installed, or nowhere", () => {
-        for (const engine of GRAPHVIZ_ENGINES) {
-            const found = findGraphviz(engine);
-            if (found) expect(path.basename(found)).toBe(engine);
-        }
-        expect(findGraphviz("dot", { env: { PATH: "" }, fallbacks: [] })).toBeUndefined();
-        expect(() => findGraphviz("gnuplot")).toThrow(/gnuplot/);
-    });
-
-    describe.runIf(DOT)("with GraphViz installed", () => {
+    describe("with Graphviz available through npm", () => {
         it("renders the tree, one file per continent, beside its .dot", () => {
             const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
             const result = buildMaps({ world: world(), outDir: out, tree: true });
@@ -803,7 +783,7 @@ describe("building the maps", () => {
 /*  The command                                                           */
 /* ---------------------------------------------------------------------- */
 
-describe.runIf(DOT)("`content-build map`", () => {
+describe("`content-build map`", () => {
     function run(...args: string[]) {
         return spawnSync(process.execPath, [CLI, "map", ...args], {
             cwd: repo,

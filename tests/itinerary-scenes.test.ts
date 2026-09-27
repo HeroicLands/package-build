@@ -4,13 +4,11 @@ import { afterAll, describe, expect, it } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { authoredFrontmatter } from "../engine/index-records.mjs";
 import { buildJournalEntry } from "../engine/journals.mjs";
 import { buildItineraryScenes } from "../engine/itinerary-scenes.mjs";
-import { findGraphviz } from "../engine/map-graphviz.mjs";
 import { rasterizeMapSvg } from "../engine/map-raster.mjs";
 import { Scenes } from "../engine/scenes.mjs";
 
@@ -18,38 +16,48 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), "itinerary-scenes-"));
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
 describe("generated itinerary Scenes", () => {
-    const renderItinerary = it.runIf(Boolean(findGraphviz("neato")));
-    it.runIf(spawnSync("rsvg-convert", ["--version"]).status === 0)(
-        "rasterizes authored regional SVGs into the staged package",
-        () => {
-            const source = path.join(root, "assets", "images", "regional.svg");
-            fs.mkdirSync(path.dirname(source), { recursive: true });
-            fs.writeFileSync(
-                source,
-                '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="red"/></svg>',
-            );
-            const foundryPath = rasterizeMapSvg({
+    it("rasterizes authored regional SVGs into the staged package", () => {
+        const source = path.join(root, "assets", "images", "regional.svg");
+        fs.mkdirSync(path.dirname(source), { recursive: true });
+        fs.writeFileSync(
+            source,
+            '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="red"/></svg>',
+        );
+        const foundryPath = rasterizeMapSvg({
+            foundryPath: "modules/demo/assets/images/regional.svg",
+            width: 400,
+            height: 200,
+            sceneId: "AAAAAAAAAAAAAAAA",
+            config: {
+                rootDir: root,
+                packageKind: "modules",
+                foundryPackage: { id: "demo" },
+                packageBuild: { stageDir: "build/stage" },
+            },
+        });
+        expect(foundryPath).toBe("modules/demo/assets/maps/rasterized/AAAAAAAAAAAAAAAA.png");
+        const png = fs.readFileSync(
+            path.join(root, "build/stage/assets/maps/rasterized/AAAAAAAAAAAAAAAA.png"),
+        );
+        expect(png.readUInt32BE(16)).toBe(400);
+        expect(png.readUInt32BE(20)).toBe(200);
+        expect(fs.readFileSync(source, "utf8")).toContain("<svg");
+        expect(() =>
+            rasterizeMapSvg({
                 foundryPath: "modules/demo/assets/images/regional.svg",
                 width: 400,
-                height: 200,
-                sceneId: "AAAAAAAAAAAAAAAA",
+                height: 300,
+                sceneId: "BBBBBBBBBBBBBBBB",
                 config: {
                     rootDir: root,
                     packageKind: "modules",
                     foundryPackage: { id: "demo" },
                     packageBuild: { stageDir: "build/stage" },
                 },
-            });
-            expect(foundryPath).toBe("modules/demo/assets/maps/rasterized/AAAAAAAAAAAAAAAA.png");
-            const png = fs.readFileSync(
-                path.join(root, "build/stage/assets/maps/rasterized/AAAAAAAAAAAAAAAA.png"),
-            );
-            expect(png.readUInt32BE(16)).toBe(400);
-            expect(png.readUInt32BE(20)).toBe(200);
-            expect(fs.readFileSync(source, "utf8")).toContain("<svg");
-        },
-    );
-    renderItinerary("stages raster backgrounds and pins to bundled local journals", async () => {
+            }),
+        ).toThrow(/not 400×300/);
+    });
+    it("stages raster backgrounds and pins to bundled local journals", async () => {
         const contentBase = path.join(root, "assets", "content");
         const journalDir = path.join(root, "build", "packs-json", "journals");
         fs.mkdirSync(contentBase, { recursive: true });
@@ -178,39 +186,37 @@ describe("generated itinerary Scenes", () => {
         expect(adventure.scenes).toHaveLength(2);
         expect(adventure.journal).toHaveLength(2);
 
-        if (spawnSync("rsvg-convert", ["--version"]).status === 0) {
-            const svg = path.join(root, "assets/images/regional.svg");
-            fs.mkdirSync(path.dirname(svg), { recursive: true });
-            fs.writeFileSync(
-                svg,
-                '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="red"/></svg>',
-            );
-            (pack as any).artPathOf = () => "modules/demo/assets/images/regional.svg";
-            const authored = pack.compileNote(
-                {
-                    id: "MMMMMMMMMMMMMMMM",
-                    shortcode: "regional",
-                    type: "map",
-                    subType: "regionalmap",
-                    name: { full: "Regional Map" },
-                    data: {
-                        bgImage: "regional",
-                        scale: { distance: 5, unit: "leagues" },
-                    },
-                    sohl: { dimensions: [400, 200], pxPerGrid: 100 },
+        const svg = path.join(root, "assets/images/regional.svg");
+        fs.mkdirSync(path.dirname(svg), { recursive: true });
+        fs.writeFileSync(
+            svg,
+            '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><rect width="200" height="100" fill="red"/></svg>',
+        );
+        (pack as any).artPathOf = () => "modules/demo/assets/images/regional.svg";
+        const authored = pack.compileNote(
+            {
+                id: "MMMMMMMMMMMMMMMM",
+                shortcode: "regional",
+                type: "map",
+                subType: "regionalmap",
+                name: { full: "Regional Map" },
+                data: {
+                    bgImage: "regional",
+                    scale: { distance: 5, unit: "leagues" },
                 },
-                "",
-            ) as any;
-            expect(authored.levels[0].background.src).toBe(
-                "modules/demo/assets/maps/rasterized/MMMMMMMMMMMMMMMM.png",
-            );
-            expect(authored.grid.distance).toBe(5);
-            expect(authored.grid.units).toBe("leagues");
-            expect(
-                fs.existsSync(
-                    path.join(root, "build/stage/assets/maps/rasterized/MMMMMMMMMMMMMMMM.png"),
-                ),
-            ).toBe(true);
-        }
+                sohl: { dimensions: [400, 200], pxPerGrid: 100 },
+            },
+            "",
+        ) as any;
+        expect(authored.levels[0].background.src).toBe(
+            "modules/demo/assets/maps/rasterized/MMMMMMMMMMMMMMMM.png",
+        );
+        expect(authored.grid.distance).toBe(5);
+        expect(authored.grid.units).toBe("leagues");
+        expect(
+            fs.existsSync(
+                path.join(root, "build/stage/assets/maps/rasterized/MMMMMMMMMMMMMMMM.png"),
+            ),
+        ).toBe(true);
     });
 });

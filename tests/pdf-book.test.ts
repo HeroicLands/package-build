@@ -5,13 +5,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { findGraphviz } from "../engine/map-graphviz.mjs";
 
 const ROOT = path.resolve(__dirname, "..");
 
 /** Whether a Typst compiler is reachable, which the PDF-level cases need. */
 const HAS_TYPST = spawnSync("typst", ["--version"], { encoding: "utf8" }).status === 0;
-const HAS_NEATO = Boolean(findGraphviz("neato"));
 
 let root = "";
 
@@ -351,17 +349,11 @@ describe("full-page place maps", () => {
         const dist = path.join(dir, "build", "dist");
         const typ = fs.readdirSync(dist).find((f) => f.endsWith(".typ"))!;
         const source = fs.readFileSync(path.join(dist, typ), "utf8");
-        if (HAS_NEATO) {
-            expect(source).toContain('#book-place-map([From here: alpha], "maps/from-alpha.svg")');
-            expect(source).toContain('#book-place-map([From here: beta], "maps/from-beta.svg")');
-            expect(fs.readFileSync(path.join(dist, "maps", "from-alpha.svg"), "utf8")).toContain(
-                "<svg",
-            );
-        } else {
-            expect(source).not.toContain("maps/from-alpha.svg");
-            expect(source).not.toContain("maps/from-beta.svg");
-            expect(out).toContain("GraphViz");
-        }
+        expect(source).toContain('#book-place-map([From here: alpha], "maps/from-alpha.svg")');
+        expect(source).toContain('#book-place-map([From here: beta], "maps/from-beta.svg")');
+        expect(fs.readFileSync(path.join(dist, "maps", "from-alpha.svg"), "utf8")).toContain(
+            "<svg",
+        );
         expect(source).not.toContain("maps/from-gamma.svg");
         expect(source).toContain('#book-place-map([Regional Chart], "assets/images/regional.svg")');
 
@@ -377,13 +369,9 @@ describe("full-page place maps", () => {
                     .stdout.split("\f")
                     .filter((page: string) => page.trim());
                 const alphaMap = pages.find((page: string) => page.includes("From here: alpha"));
-                if (HAS_NEATO) {
-                    expect(alphaMap).toBeDefined();
-                    expect(alphaMap).not.toContain("A place.");
-                }
-                expect(pages.filter((page: string) => page.includes("From here:"))).toHaveLength(
-                    HAS_NEATO ? 2 : 0,
-                );
+                expect(alphaMap).toBeDefined();
+                expect(alphaMap).not.toContain("A place.");
+                expect(pages.filter((page: string) => page.includes("From here:"))).toHaveLength(2);
                 expect(pages.some((page: string) => page.includes("Regional Chart"))).toBe(true);
             }
         }

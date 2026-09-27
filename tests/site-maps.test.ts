@@ -13,8 +13,7 @@
  * a leaf bundle, `from-<shortcode>.svg` sits beside its `index.md`, and the
  * front matter names the file as `map`. A place with no relation, and every
  * page that is not a place, is written flat as before and carries no `map`
- * key. `site.maps: false` draws nothing; GraphViz absent draws nothing and
- * says so once, without failing the build.
+ * key. `site.maps: false` draws nothing.
  *
  * The fixture is a homepage, two places that border each other, a third with
  * no relation, and a being.
@@ -28,11 +27,7 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed, pageDestination } from "../engine/site-build.mjs";
-import { findGraphviz } from "../engine/map-graphviz.mjs";
 import { SITE_MAP_DIR, inlineSvg } from "../engine/site-maps.mjs";
-
-/** Whether GraphViz is reachable, which the drawing cases need. */
-const NEATO = findGraphviz("neato");
 
 let root: string;
 
@@ -157,7 +152,7 @@ describe("a page with a map is a leaf bundle; every other page is flat", () => {
     });
 });
 
-describe.runIf(NEATO)("every related place's page carries the map from it", () => {
+describe("every related place's page carries the map from it", () => {
     let result: ReturnType<typeof buildSite>;
 
     beforeAll(() => {
@@ -236,24 +231,6 @@ describe.runIf(NEATO)("every related place's page carries the map from it", () =
         expect(Object.hasOwn(published("place-alpha.md"), "map")).toBe(false);
         expect(off.stats?.maps).toBe(0);
         expect(off.mapFindings).toEqual([]);
-    });
-});
-
-describe("with GraphViz absent", () => {
-    it("says so once, writes every page as it is without maps, and fails nothing", () => {
-        const result = buildSite({ config: config(), locate: () => undefined });
-        expect(gatesFailed(result.gates)).toBe(false);
-        expect(result.mapFindings).toHaveLength(1);
-        expect(result.mapFindings[0].severity).toBe("warning");
-        expect(result.mapFindings[0].message).toMatch(/GraphViz/);
-        expect(result.mapFindings[0].message).toMatch(/site\.maps/);
-        expect(result.mapFindings[0].file).toBe(root);
-        expect(result.stats?.maps).toBe(0);
-        const files = emitted();
-        expect(files.filter((f) => f.endsWith(".svg"))).toEqual([]);
-        expect(files).toContain("place-alpha.md");
-        expect(Object.hasOwn(published("place-alpha.md"), "map")).toBe(false);
-        expect(fs.existsSync(path.join(root, SITE_MAP_DIR))).toBe(false);
     });
 });
 

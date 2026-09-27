@@ -4,7 +4,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { Resvg } from "@resvg/resvg-js";
 
 /** Rasterize an authored SVG map into the staged Foundry package. */
 export function rasterizeMapSvg({ foundryPath, width, height, sceneId, config }) {
@@ -30,17 +30,20 @@ export function rasterizeMapSvg({ foundryPath, width, height, sceneId, config })
         `${sceneId}.png`,
     );
     fs.mkdirSync(path.dirname(staged), { recursive: true });
-    const args = ["--width", String(width), "--height", String(height), "--output", staged, source];
-    const result = spawnSync("rsvg-convert", args, { encoding: "utf8" });
-    if (result.error?.code === "ENOENT") {
-        throw new Error(
-            "SVG Scene backgrounds need `rsvg-convert` (install `librsvg` with Homebrew or the system package manager)",
-        );
-    }
-    if (result.error || result.status !== 0) {
-        throw new Error(
-            `could not rasterize map SVG "${foundryPath}": ${result.error?.message ?? String(result.stderr).trim()}`,
-        );
+    try {
+        const image = new Resvg(fs.readFileSync(source), {
+            fitTo: { mode: "width", value: width },
+        }).render();
+        if (image.height !== height) {
+            throw new Error(
+                `the SVG is ${width}×${image.height} at the stated width, not ${width}×${height}`,
+            );
+        }
+        fs.writeFileSync(staged, image.asPng());
+    } catch (error) {
+        throw new Error(`could not rasterize map SVG "${foundryPath}": ${error.message}`, {
+            cause: error,
+        });
     }
     return `${config.packageKind}/${config.foundryPackage.id}/assets/maps/rasterized/${sceneId}.png`;
 }
