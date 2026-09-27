@@ -567,6 +567,7 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
     const { fm, slug } = page;
     const data = {
         ...fm,
+        ...(isPlainObject(fm.data) ? { data: { ...fm.data } } : {}),
         // Spread after the note's own frontmatter. Guarded because
         // `package: undefined` is not a value YAML can carry.
         ...(page.pkg ? { package: page.pkg } : {}),
@@ -675,6 +676,96 @@ export function pageDestination(page, { bundle = false } = {}) {
     return bundle ? `${page.slug}/index.md` : `${page.slug}.md`;
 }
 
+/** Transform one content page without writing the site mount. */
+export function renderSitePage(
+    page,
+    {
+        index,
+        foreign,
+        universe,
+        pass = {},
+        decorate,
+        linkable = (d) => Boolean(d.fm.shortcode),
+        sqlTables,
+        config,
+        artIndex,
+    },
+) {
+    const tableErrors = [];
+    const secretErrors = [];
+    const wikiErrors = [];
+    const imageErrors = [];
+    const resolved = [];
+    const src = page.relPath ?? page.base;
+    const ctx = wikiContext(index, {
+        src,
+        file: page.file,
+        type: page.fm.type ?? null,
+        errors: wikiErrors,
+        foreignIndex: foreign.index,
+        assets: artIndex,
+        resolved,
+    });
+
+    const seenImages = new Map();
+    const webSrc = (src) => {
+        const occurrence = (seenImages.get(src) ?? 0) + 1;
+        seenImages.set(src, occurrence);
+        const problem = pathnameProblem(src);
+        if (problem) {
+            imageErrors.push({ file: page.file, src, occurrence, message: problem });
+            return src;
+        }
+        const forms = resolvePathname(src, config);
+        if (!forms || forms.web !== null) return forms?.web ?? src;
+        imageErrors.push({
+            file: page.file,
+            src,
+            occurrence,
+            message:
+                `\`${src}\` names a file the \`${forms.package}\` package ships, and ` +
+                "no asset host is configured to serve it from — set `site.assets` in " +
+                "package-build.config.yaml. Emitted as authored, the address resolves " +
+                "against the page's own URL, which is nowhere",
+        });
+        return src;
+    };
+    const artSrc = (value, type, accepts) => artPathname(artIndex, value, type, accepts).pathname;
+    const resolve = (text) => {
+        let transformed = pass.beforeLinks ? pass.beforeLinks(text, page) : text;
+        transformed = resolveWebWikilinks(transformed, ctx);
+        return renderImageFigures(transformed, webSrc);
+    };
+
+    const { markdown, errors } = expandContentTables(page.body, {
+        docs: universe.get(page.pkg) ?? [],
+        linkable,
+        source: src,
+        sqlTables: sqlTables?.get(page.file),
+        self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
+    });
+    tableErrors.push(...errors);
+    const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
+    const secrets = renderSecretBlocks(protectCode(markdown, resolve), "web");
+    for (const error of renderSecretBlocks(page.body, "book").errors)
+        secretErrors.push({
+            file: page.file,
+            line: (page.bodyLine ?? 1) + error.line - 1,
+            column: error.column,
+            message: error.message,
+        });
+    return {
+        page,
+        body: secrets.markdown,
+        data,
+        resolved,
+        tableErrors,
+        secretErrors,
+        wikiErrors,
+        imageErrors,
+    };
+}
+
 /**
  * Renders and writes every page.
  *
@@ -731,6 +822,8 @@ export function renderPages(pages, options) {
         records = [],
         homepages = [],
         maps = new Map(),
+        write = true,
+        capture = false,
     } = options;
 
     // The address space the art slots and the body's embeds resolve against:
@@ -770,108 +863,24 @@ export function renderPages(pages, options) {
     /** @type {Array<{page: object, body: string, data: object}>} */
     const rendered = [];
 
-    /**
-     * The address the website serves for one authored pathname.
-     *
-     * A pathname the rule refuses, and a package-owned one with no asset host
-     * to resolve against, are both reported and emitted as authored: a page
-     * still publishes, with a picture the reader can see is missing, and the
-     * build exits non-zero. The occurrence count is what lets the command find
-     * the literal in the note and report a line and a column, the way a
-     * wikilink finding is located.
-     *
-     * @param {string} file - The note, for the finding.
-     * @returns {(src: string) => string} The resolver for that note's images.
-     */
-    const webAddresses = (file) => {
-        /** @type {Map<string, number>} */
-        const seen = new Map();
-        return (src) => {
-            const occurrence = (seen.get(src) ?? 0) + 1;
-            seen.set(src, occurrence);
-            const problem = pathnameProblem(src);
-            if (problem) {
-                imageErrors.push({ file, src, occurrence, message: problem });
-                return src;
-            }
-            const forms = resolvePathname(src, config);
-            if (!forms || forms.web !== null) return forms?.web ?? src;
-            imageErrors.push({
-                file,
-                src,
-                occurrence,
-                message:
-                    `\`${src}\` names a file the \`${forms.package}\` package ships, and ` +
-                    "no asset host is configured to serve it from — set `site.assets` in " +
-                    "package-build.config.yaml. Emitted as authored, the address resolves " +
-                    "against the page's own URL, which is nowhere",
-            });
-            return src;
-        };
-    };
-
     for (const page of pages) {
-        // The page's path in the tree an author edits, below the content
-        // root.
-        const src = page.relPath ?? page.base;
-        // Every index entry a link on this page resolved to.
-        const resolved = [];
-        const ctx = wikiContext(index, {
-            src,
-            file: page.file,
-            type: page.fm.type ?? null,
-            errors: wikiErrors,
-            foreignIndex: foreign.index,
-            assets: artIndex,
-            resolved,
-        });
-
-        const webSrc = webAddresses(page.file);
-        const artSrc = (value, type, accepts) =>
-            artPathname(artIndex, value, type, accepts).pathname;
-        const resolve = (text) => {
-            let t = text;
-            if (pass.beforeLinks) t = pass.beforeLinks(t, page);
-            t = resolveWebWikilinks(t, ctx);
-            // Last, so a consumer's own rewrites see the image as the note
-            // wrote it rather than as a figure. Hugo is handed markdown, not a
-            // rendered page, so a `{…}` directive left in the body would reach
-            // the reader as its own literal braces.
-            return renderImageFigures(t, webSrc);
-        };
-
-        const { markdown: body, errors } = expandContentTables(page.body, {
-            docs: universe.get(page.pkg) ?? [],
+        const result = renderSitePage(page, {
+            index,
+            foreign,
+            universe,
+            pass,
+            decorate,
             linkable,
-            source: src,
-            // Prepared before this render began — DuckDB is async and this
-            // is not. Keyed by the note's own file, absolute here as in
-            // every other pass, so the three cannot disagree about a note.
-            sqlTables: sqlTables?.get(page.file),
-            self: {
-                fm: searchableFrontmatter(page.fm, page.pkg),
-                path: page.relPath,
-            },
+            sqlTables,
+            config,
+            artIndex,
         });
-        tableErrors.push(...errors);
-
-        const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
-        const resolvedBody = protectCode(body, resolve);
-        const secrets = renderSecretBlocks(resolvedBody, "web");
-        for (const error of renderSecretBlocks(page.body, "book").errors) {
-            secretErrors.push({
-                file: page.file,
-                line: (page.bodyLine ?? 1) + error.line - 1,
-                column: error.column,
-                message: error.message,
-            });
-        }
-        rendered.push({ page, body: secrets.markdown, data });
-        // A resolved target with no URL is a pack-only package's address:
-        // real, and nowhere on the web, so not an edge.
-        for (const hit of resolved) {
-            if (hit.url) edges.push([page.url, hit.url]);
-        }
+        tableErrors.push(...result.tableErrors);
+        secretErrors.push(...result.secretErrors);
+        wikiErrors.push(...result.wikiErrors);
+        imageErrors.push(...result.imageErrors);
+        rendered.push({ page, body: result.body, data: result.data });
+        for (const hit of result.resolved) if (hit.url) edges.push([page.url, hit.url]);
     }
 
     const related = relatedPages(edges, entries);
@@ -884,19 +893,23 @@ export function renderPages(pages, options) {
     ]);
 
     let withMap = 0;
+    const outputs = capture === true ? new Map() : null;
     for (const { page, body, data } of rendered) {
         const block = related.get(page.url);
         if (block) data.related = block;
         Object.assign(data, holdings.get(page.url));
         const map = maps.get(page.url);
-        const dest = path.join(outRoot, pageDestination(page, { bundle: Boolean(map) }));
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
         if (map) {
-            fs.copyFileSync(map.file, path.join(path.dirname(dest), map.name));
             data.map = map.name;
             withMap += 1;
         }
-        fs.writeFileSync(dest, matter.stringify(body, encodeAddresses(data)));
+        if (write) {
+            const dest = path.join(outRoot, pageDestination(page, { bundle: Boolean(map) }));
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            if (map) fs.copyFileSync(map.file, path.join(path.dirname(dest), map.name));
+            fs.writeFileSync(dest, matter.stringify(body, encodeAddresses(data)));
+        }
+        if (outputs) outputs.set(page.file, { markdown: body, frontmatter: data });
         byKind[page.kind] = (byKind[page.kind] ?? 0) + 1;
     }
 
@@ -909,6 +922,7 @@ export function renderPages(pages, options) {
         imageErrors,
         related,
         maps: withMap,
+        ...(capture ? { ...(outputs ? { outputs } : {}), edges, entries } : {}),
     };
 }
 
@@ -944,6 +958,18 @@ export function resolveSitePass(name, options) {
         );
     }
     return factory()(options);
+}
+
+/** The site frontmatter decoration shared by the site writer and page preview. */
+export function sitePageDecorator(config, index) {
+    const router = routerFor(config);
+    return (data, page) => {
+        if (isBeing(page.fm)) data.sohl = deriveBeingInfo(page.fm.sohl, index.refIndex);
+        data.infoboxes = noteInfoboxes(page.fm, {
+            resolve: (ref, hint) => resolveInfoboxRef(index, ref, hint),
+            router,
+        });
+    };
 }
 
 /**
@@ -1173,19 +1199,7 @@ export function buildSite({ config, sqlTables, locate } = {}) {
         // Asking in a consumer's script is how one came to still be checking
         // `character` and `creature` months after they were retired, and to
         // publish 95 pages with empty sidebars for months without noticing.
-        decorate: (data, page) => {
-            if (isBeing(page.fm)) {
-                data.sohl = deriveBeingInfo(page.fm.sohl, gates.index.refIndex);
-            }
-            // The declared infobox, travelling in the page's own front matter.
-            // The site theme draws it; what it holds is settled here, so the
-            // same panel reaches the website, a compendium journal and the
-            // book from one definition.
-            data.infoboxes = noteInfoboxes(page.fm, {
-                resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
-                router: routerFor(resolved),
-            });
-        },
+        decorate: sitePageDecorator(resolved, gates.index),
     });
 
     // Last, and outside the mount: the package's front page is not part of the

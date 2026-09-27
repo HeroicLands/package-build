@@ -590,6 +590,46 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
     );
 }
 
+/** Derive every index record belonging to one parsed note. */
+export function indexRecordsForNote({
+    frontmatter,
+    body,
+    bodyLine,
+    relPath,
+    absPath,
+    contentPackage,
+    manifest,
+    addressContext,
+}) {
+    resolveNoteId(frontmatter, { pkg: contentPackage });
+    const record = buildIndexRecord({
+        frontmatter,
+        body,
+        bodyLine,
+        relPath,
+        absPath,
+        contentPackage,
+        manifest,
+        addressContext,
+    });
+    const records = [decodeIndexAddresses(record, addressContext ?? { package: contentPackage })];
+    const address = noteAddress(frontmatter, contentPackage);
+    const doc = foundryEntries({ frontmatter, address, body, manifest })?.doc;
+    if (doc?.key && address) {
+        records.push(
+            buildDocRecord({
+                frontmatter,
+                address,
+                entry: doc,
+                file: record.file,
+                contentPackage,
+                anchors: record.anchors ?? [],
+            }),
+        );
+    }
+    return records;
+}
+
 /**
  * Read a content tree into index records, in the order they will be written.
  *
@@ -648,23 +688,20 @@ export function collectContentIndex(
     for (const { frontmatter, body, bodyLine, absPath } of notes) {
         const fm = frontmatter ?? {};
         applyComputedBeingAge(fm, present);
-        // The id the note's document is filed under, resolved before
-        // the record is built so the index publishes the address *and* the id
-        // that address derives.
-        resolveNoteId(fm, { pkg: contentPackage });
         const relPath = path.relative(contentBase, absPath);
-        let record;
         try {
-            record = buildIndexRecord({
-                frontmatter: fm,
-                relPath,
-                absPath,
-                contentPackage,
-                body,
-                bodyLine,
-                manifest,
-                addressContext,
-            });
+            records.push(
+                ...indexRecordsForNote({
+                    frontmatter: fm,
+                    relPath,
+                    absPath,
+                    contentPackage,
+                    body,
+                    bodyLine,
+                    manifest,
+                    addressContext,
+                }),
+            );
         } catch (err) {
             if (fm.shortcode && !isAddressSegment(fm.shortcode) && err.keyPath) {
                 err.identity = { type: fm.type, shortcode: fm.shortcode };
@@ -692,26 +729,6 @@ export function collectContentIndex(
                 ...(err.identity ? { identity: err.identity } : {}),
             });
             continue;
-        }
-        records.push(decodeIndexAddresses(record, addressContext ?? { package: contentPackage }));
-
-        // An item note is two documents, so it is two records. Derived from
-        // the address the note *would* hold rather than from the one its
-        // record carries, because a stub withholds its own address; the second
-        // record says whether the journal beside the item was made.
-        const address = noteAddress(fm, contentPackage);
-        const doc = foundryEntries({ frontmatter: fm, address, body, manifest })?.doc;
-        if (doc?.key && address) {
-            records.push(
-                buildDocRecord({
-                    frontmatter: fm,
-                    address,
-                    entry: doc,
-                    file: record.file,
-                    contentPackage,
-                    anchors: record.anchors ?? [],
-                }),
-            );
         }
     }
 
