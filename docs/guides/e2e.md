@@ -41,21 +41,47 @@ the world is named from the package and includes a GM and active scene. A
 module package is enabled in that world. The harness does not supply a
 Cypress test suite; `suite.run` and `suite.open` name the repository's own.
 
-## Give tests their own data root
+## Keep local settings in `.env.local`
 
-Set `FOUNDRYVTT_TEST_DATA` to a local directory reserved for this harness:
+Create `.env.local` at the repository root with a data directory reserved for
+this harness and a Foundry license available to the test container:
+
+```dotenv
+FOUNDRYVTT_TEST_DATA=/path/to/isolated-foundry-test-data
+FOUNDRYVTT_TEST_LICENSE_KEY=replace-with-test-license-key
+```
+
+Keep `.env.local` ignored by git; it holds machine-specific paths and real
+credentials. `package-build init` creates this basic `.gitignore` skeleton:
+
+```gitignore
+node_modules
+/build/
+/nogit/
+/.env*
+/.DS_Store
+/.claude/
+*.tgz
+```
+
+`/.env*` covers `.env.local`, `.env`, and other local environment files.
+`/build/` keeps generated indexes, packs, site files, and books out of commits;
+`/nogit/` reserves local scratch. The CLI reads `.env.local` from the
+configured repository root before
+`.env`. Values already set in the shell take precedence over both files, and
+`.env.local` takes precedence over `.env`. A separate git worktree needs its
+own `.env.local` because that ignored file is not copied with the branch.
+`FOUNDRYVTT_TEST_VERSION` can also be set here to select a Foundry build for
+routine runs. With the local settings in place, seed the world:
 
 ```bash
-export FOUNDRYVTT_TEST_DATA=/path/to/isolated-foundry-test-data
 package-build e2e seed
 ```
 
 The seed command writes the disposable world beneath that data root. It
 replaces the seeded world with the same ID each time. The harness refuses a
 root shared with another Foundry stage, so test seeding cannot overwrite a
-development or production world. `FOUNDRYVTT_TEST_VERSION` and
-`FOUNDRYVTT_TEST_LICENSE_KEY` can select the Foundry build and license for
-the `test` container. `.env.local` and `.env` are read by the CLI.
+development or production world.
 
 ## Run the whole suite
 
