@@ -772,18 +772,19 @@ Any other key under `docs.itemFields` is refused:
 
 **Type:** object · **Optional** · every key defaults to nothing published:
 
-| Key                | Type     | Default                                     |
-| ------------------ | -------- | ------------------------------------------- |
-| `site.base`        | string   | `""`                                        |
-| `site.assets`      | string   | `""`, but required for `package-build site` |
-| `site.description` | string   | `""`, but required for `package-build site` |
-| `site.packages`    | string[] | `[]`                                        |
-| `site.pass`        | string   | `""`                                        |
-| `site.passOptions` | object   | `{}`                                        |
-| `site.notfound`    | object   | `null`                                      |
-| `site.hugo`        | object   | `{}`                                        |
-| `site.search`      | boolean  | `true`                                      |
-| `site.maps`        | boolean  | `true`                                      |
+| Key                | Type     | Default                                      |
+| ------------------ | -------- | -------------------------------------------- |
+| `site.base`        | string   | `""`                                         |
+| `site.title`       | string   | `""`, required when no manifest title exists |
+| `site.assets`      | string   | `""`, but required for `package-build site`  |
+| `site.description` | string   | `""`, but required for `package-build site`  |
+| `site.packages`    | string[] | `[]`                                         |
+| `site.pass`        | string   | `""`                                         |
+| `site.passOptions` | object   | `{}`                                         |
+| `site.notfound`    | object   | `null`                                       |
+| `site.hugo`        | object   | `{}`                                         |
+| `site.search`      | boolean  | `true`                                       |
+| `site.maps`        | boolean  | `true`                                       |
 
 How much of a package reaches the web at all is **not** here — it is
 [`publish.site`](#publish). `site` is framing: which named pass bundle
@@ -857,11 +858,14 @@ The generated Hugo configuration carries the same host as
 The two are one value read by two readers: the toolchain emits it into a
 page, and the theme joins it onto anything the toolchain left relative.
 
+`site.title` gives a documentation package its website title. For a Foundry
+package, the site reads `packageBuild.manifest.title` when `site.title` is
+absent.
+
 `site.description` is the site's `<meta name="description">` — one plain
 sentence, distinct from the Foundry package browser's pitch
 ([`packageBuild.manifest.descriptionHtml`](#packagebuildmanifest), which
-allows HTML). Required for `package-build site`, the way `packageBuild.manifest.title`
-is:
+allows HTML). Required for `package-build site`, the way its title is:
 
 > ``package-build config: `site.description` is not declared, and the site's `<meta name="description">` reads from it.``
 
@@ -989,7 +993,7 @@ in it has one source, and that source is where it is edited:
 | Key                               | Derived from                                                                                                                                            |
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `baseURL`                         | `package.json` `homepage`, checked by `checkHomepage` — an absolute URL ending `/<contentPackage>/`                                                     |
-| `title`                           | `packageBuild.manifest.title`, which is required                                                                                                        |
+| `title`                           | `site.title` when declared, otherwise `packageBuild.manifest.title`                                                                                     |
 | `locale`                          | the organisation's locale, `en-us`, in `engine/site-config.mjs`                                                                                         |
 | `publishDir`                      | `contentPackage`, under the deployment root `build/site` — written relative to `build/hugo/`, so `../site/<contentPackage>`                             |
 | `contentDir`                      | the fixed content mount, `build/hugo/content` — written as `content`                                                                                    |
@@ -1015,10 +1019,9 @@ A missing theme names the package to install:
 
 > `@heroiclands/hugo-theme is not installed anywhere above <rootDir> — add it to `devDependencies`and run`npm ci``
 
-And a site's title reads from the manifest's, so a configuration declaring
-none fails the site build:
+The site needs a title from `site.title` or the package manifest:
 
-> ``package-build config: `packageBuild.manifest.title` is not declared, and the site's `title` reads from it.``
+> ``package-build config: declare `site.title` or `packageBuild.manifest.title` for the site's title.``
 
 `params.description` reads from `site.description` the same way, and fails
 the same way when it is absent:

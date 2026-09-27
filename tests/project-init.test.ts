@@ -73,7 +73,8 @@ describe("package-build init", () => {
                 fs.readFileSync(path.join(named, "package-build.config.yaml"), "utf8"),
             );
             expect(pkg.scripts["build:site"]).toContain("site-root");
-            expect(pkg.scripts["serve:site"]).toContain("hugo server");
+            expect(pkg.scripts["serve:site"]).toContain("serve:site-html");
+            expect(pkg.scripts["serve:site-html"]).toContain("hugo server");
             expect(pkg.scripts["build:book"]).toBe("package-build pdf");
             expect(config.publish.site).toBe("content");
             expect(config.pdf.document).toBe("book.yaml");

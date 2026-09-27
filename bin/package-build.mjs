@@ -189,7 +189,8 @@ function initCommand() {
                 name: path.basename(root),
                 title: path
                     .basename(root)
-                    .split("-")
+                    .replaceAll("-", " ")
+                    .split(" ")
                     .map((word) => word[0]?.toUpperCase() + word.slice(1))
                     .join(" "),
                 kind: "modules",

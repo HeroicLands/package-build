@@ -1,8 +1,30 @@
 # Getting started
 
-This is the path from an empty directory to a HeroicLands package that builds:
-a repository whose notes compile into Foundry compendium packs, whose manifest
-Foundry can install, and whose release archive is ready to attach to a tag.
+This is the path from an empty directory to a HeroicLands package with content,
+website, and book builds. A Foundry package also compiles notes into compendium
+packs and generates an installable manifest.
+
+## Create a project
+
+Run `init` from a global installation or use npm to fetch the scoped package
+for one invocation:
+
+```bash
+npm exec --package=@heroiclands/package-build -- package-build init acme-bestiary --kind modules --name acme-bestiary --title "Acme Bestiary" --description "Creatures of the reed flats." --author "Acme" --license original
+cd acme-bestiary
+npm install
+npm run lint
+```
+
+The generated project includes a homepage, an introduction, a website build,
+and a book build. Run `npm run build:site` to produce the site,
+`npm run serve:site` to view it locally, or `npm run build:book` for a PDF.
+Those commands require Hugo Extended and Typst respectively. Run
+`package-build init --check` to inspect the project without changing it. See
+[`init`](commands.md#package-build-init-directory) for the package kinds,
+interactive prompts, and collision rules.
+
+The steps below explain each generated file and how to configure it by hand.
 
 It assumes you know the constellation's conventions — `~/dev/HeroicLands`, the
 branch and pull request rules, the shared Prettier configuration, the git hooks

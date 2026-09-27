@@ -14,8 +14,11 @@ import prettier from "prettier";
 import prettierConfig from "../prettier-config.mjs";
 import { CONFIG_FILENAMES, configFromData } from "./pack-config.mjs";
 import { checkLabelRegistry } from "../labels.mjs";
+import { formatNoteFrontmatter } from "./note-format.mjs";
 
+/** Package kinds the initializer can create. */
 export const INIT_KINDS = Object.freeze(["systems", "modules", "documentation"]);
+/** License templates the initializer can create. */
 export const INIT_LICENSES = Object.freeze(["original", "fan"]);
 
 const REQUIRED_SCRIPTS = Object.freeze([
@@ -45,7 +48,7 @@ export function validateInitAnswers(answers) {
     for (const key of ["name", "title", "description", "author"]) {
         if (!nonempty(answers[key])) throw new Error(`init: --${key} is required`);
     }
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(answers.name)) {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(answers.name)) {
         throw new Error("init: --name must be lowercase letters, digits, and internal hyphens");
     }
     const contentPackage = answers.name.replaceAll("-", "");
@@ -69,7 +72,7 @@ export function validateInitAnswers(answers) {
 function projectScripts(answers) {
     const scripts = {
         prepare:
-            "git config core.hooksPath node_modules/@heroiclands/package-build/githooks || true",
+            "if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git config core.hooksPath node_modules/@heroiclands/package-build/githooks; fi",
         clean: "package-build clean",
         distclean: "package-build clean --distclean",
         build: "npm ci && npm run build:noci",
@@ -81,8 +84,8 @@ function projectScripts(answers) {
         "build:site-root": "package-build site-root",
         "build:site":
             "run-s build:deps build:content-index build:site-content build:site-html build:site-root",
-        "serve:site":
-            "npm run build:deps && npm run build:site-content && hugo server --source build/hugo",
+        "serve:site": "run-s build:deps build:content-index build:site-content serve:site-html",
+        "serve:site-html": "hugo server --source build/hugo",
         "build:book": "package-build pdf",
         lint: "run-s lint:format lint:markdown lint:addresses lint:content-links lint:labels",
         "lint:format": "package-build format",
@@ -136,6 +139,7 @@ function projectConfig(answers) {
     config.publish = { site: "content", address: { prefix: "" } };
     config.pdf = { title: answers.title, document: "book.yaml", out: "build/pdf" };
     config.site = {
+        ...(answers.kind === "documentation" ? { title: answers.title } : {}),
         assets: "https://cdn.heroiclands.org",
         description: answers.description,
     };
@@ -148,7 +152,7 @@ function projectConfig(answers) {
             ],
             manifest: {
                 title: answers.title,
-                description: answers.description,
+                descriptionHtml: answers.description,
                 authors: [{ name: answers.author }],
                 license: "LICENSE.md",
                 readme: "README.md",
@@ -166,7 +170,6 @@ function projectManifest(answers) {
         name: answers.name,
         version: "0.1.0",
         private: true,
-        description: answers.description,
         author: answers.author,
         license:
             answers.license === "original" ?
@@ -334,12 +337,13 @@ export async function renderProject(answers) {
             result.set(file, source);
             continue;
         }
+        const formatted = await prettier.format(source, {
+            ...prettierConfig,
+            filepath: file,
+        });
         result.set(
             file,
-            await prettier.format(source, {
-                ...prettierConfig,
-                filepath: file,
-            }),
+            file.startsWith("assets/content/") ? formatNoteFrontmatter(formatted) : formatted,
         );
     }
     return result;
