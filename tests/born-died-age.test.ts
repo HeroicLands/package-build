@@ -94,7 +94,7 @@ describe("a being's dates", () => {
         const age = (dataFields("being", NOTE_VOCABULARY) ?? []).find((f: any) => f.name === "age");
         expect(age).toBeDefined();
         expect((age as any).required).toBeFalsy();
-        expect(lintNote(note("being", { data: { born: "689/6/19" } }), opts)).toEqual([]);
+        expect(lintNote(note("being", { data: { born: "689.169" } }), opts)).toEqual([]);
     });
 
     it("accepts an age written as a number and as an estimate", () => {

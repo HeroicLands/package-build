@@ -12,8 +12,12 @@ import { parseAddress } from "../engine/address.mjs";
 import { dateFromCalendar, dateToCalendar } from "../engine/date-conversion.mjs";
 
 const months = Array.from({ length: 12 }, (_, i) => ({
-    name: `Month ${i + 1}`,
-    days: i === 11 ? 35 : 30,
+    name: i === 3 ? "Taranis" : `Month ${i + 1}`,
+    days:
+        i === 1 ? 31
+        : i === 3 ? 29
+        : i === 11 ? 35
+        : 30,
 }));
 const index = {
     notes: [
@@ -29,7 +33,8 @@ const index = {
                         {
                             shortcode: "founding",
                             marker: "VR",
-                            start: 1,
+                            abbreviation: "VR",
+                            start: "1.1",
                             label: { after: "{date} AF", before: "{date} BF" },
                         },
                     ],
@@ -65,15 +70,67 @@ describe("printable reckoning dates", () => {
     const lr = context.markers.get("LR");
 
     it("converts exact days in both directions and keeps the era in the output", () => {
-        expect(dateFromCalendar("vrcal", "VR(720/5/14)", context)).toBe("720.134");
-        expect(dateFromCalendar("vrcal", "720/5/14", context)).toBe("720.134");
-        expect(dateToCalendar("vrcal", "720.134:120305", context)).toBe("VR(720/5/14:120305)");
-        expect(dateFromCalendar("vrcal", "VR(720/5/14:120305)", context)).toBe("720.134:120305");
-        expect(() => dateFromCalendar("latercal", "VR(720/5/14)", context)).toThrow(
-            /different calendar/,
+        expect(dateFromCalendar("vrcal", "23 Taranis 326 VR", context)).toBe("326.114");
+        expect(dateToCalendar("vrcal", "326.114", context)).toBe("23 Taranis 326 VR");
+        expect(dateFromCalendar("vrcal", "~23 Taranis 326 VR", context)).toBe("~326.114");
+        expect(dateToCalendar("vrcal", "~326.114", context)).toBe("~23 Taranis 326 VR");
+        expect(parseNoteDate("datefrom vrcal 23 Taranis 326 VR", context).date).toMatchObject({
+            canonicalYear: 326,
+            canonicalDay: 114,
+        });
+        expect(parseNoteDate("~datefrom vrcal 23 Taranis 326 VR", context).date).toMatchObject({
+            canonicalYear: 326,
+            canonicalDay: 114,
+            approximate: true,
+        });
+        expect(dateFromCalendar("vrcal", "14 Month 5 720 VR", context)).toBe("720.134");
+        expect(dateToCalendar("vrcal", "720.134:120305", context)).toBe(
+            "14 Month 5 720 VR 12:03:05",
         );
-        expect(() => dateFromCalendar("vrcal", "VR(720/5)", context)).toThrow(/precise to the day/);
+        expect(dateFromCalendar("vrcal", "14 Month 5 720 VR 12:03:05", context)).toBe(
+            "720.134:120305",
+        );
+        expect(() => dateFromCalendar("latercal", "14 Month 5 720 VR", context)).toThrow(
+            /unknown era/,
+        );
+        expect(() => dateFromCalendar("vrcal", "Month 5 720 VR", context)).toThrow(
+            /precise to the day/,
+        );
         expect(() => dateToCalendar("latercal", "740.134", context)).toThrow(/outside calendar/);
+    });
+
+    it("accepts only canonical or named frontmatter dates and preserves approximation", () => {
+        for (const input of [
+            "326.114",
+            "-300.1",
+            "326.114:143005",
+            "~326.114",
+            "datefrom vrcal 326 VR",
+            "~datefrom vrcal 23 Taranis 326 VR",
+            "unknown",
+        ]) {
+            const result = parseNoteDate(input, { ...context, field: "data.born" });
+            expect(result.findings.filter((finding) => finding.severity === "error")).toEqual([]);
+            expect(result.date).not.toBeNull();
+        }
+        for (const input of [
+            "326",
+            "326/4/23",
+            "VR(326/4/23)",
+            "326 vrcal.founding",
+            "datefrom vrcal 326/4/23 VR",
+        ]) {
+            const result = parseNoteDate(input, { ...context, field: "data.born" });
+            expect(result.date).toBeNull();
+            expect(result.findings.some((finding) => finding.severity === "error")).toBe(true);
+        }
+        expect(
+            parseNoteDate("~326.114", { ...context, field: "data.born" }).date?.approximate,
+        ).toBe(true);
+        expect(
+            parseNoteDate("~datefrom vrcal 23 Taranis 326 VR", { ...context, field: "data.born" })
+                .date?.approximate,
+        ).toBe(true);
     });
 
     it("inverts every signed year without producing year zero", () => {
@@ -87,41 +144,43 @@ describe("printable reckoning dates", () => {
 
     it("round trips positive and negative years with precision and labels", () => {
         for (const authored of [
-            "VR(720)",
-            "VR(720/5)",
-            "VR(720/5/14)",
-            "VR(-1/12/30)",
-            "VR(~-480)",
+            "datefrom vrcal 720 VR",
+            "datefrom vrcal Month 5 720 VR",
+            "datefrom vrcal 14 Month 5 720 VR",
+            "datefrom vrcal 30 Month 12 -1 VR",
+            "~datefrom vrcal -480 VR",
         ]) {
             const parsed = parseNoteDate(authored, context);
             expect(parsed.findings.filter((f) => f.severity === "error")).toEqual([]);
             const printed = formatNoteDate(parsed.date, vr, 365);
-            expect(printed?.text).toBe(authored);
+            expect(printed?.text).toContain("VR");
             expect(printed?.year).not.toBe(0);
-            expect(parseNoteDate(printed?.text, context).date?.canonicalYear).toBe(
-                parsed.date?.canonicalYear,
-            );
+            expect(
+                parseNoteDate(`datefrom vrcal ${printed?.text}`, context).date?.canonicalYear,
+            ).toBe(parsed.date?.canonicalYear);
         }
-        expect(formatNoteDate(parseNoteDate("VR(-1)", context).date, vr, 365)?.prose).toBe("1 BF");
-        expect(formatNoteDate(parseNoteDate("VR(~720)", context).date, vr, 365)?.prose).toBe(
-            "~720 AF",
-        );
+        expect(
+            formatNoteDate(parseNoteDate("datefrom vrcal -1 VR", context).date, vr, 365)?.prose,
+        ).toBe("1 BF");
+        expect(
+            formatNoteDate(parseNoteDate("~datefrom vrcal 720 VR", context).date, vr, 365)?.prose,
+        ).toBe("~720 AF");
         expect(formatNoteDate(parseNoteDate("unknown", context).date, vr, 365)).toBeNull();
     });
 
     it("selects one era, converts its year, and leaves gaps without a claimed count", () => {
-        const date = parseNoteDate("VR(720/5/14)", context).date;
+        const date = parseNoteDate("datefrom vrcal 14 Month 5 720 VR", context).date;
         expect(eraCovering(date, [lr], 365)).toBe(lr);
         const printed = formatNoteDate(date, lr, 365);
-        expect(printed?.text).toBe("LR(20/5/14)");
+        expect(printed?.text).toBe("14 Month 5 20 LR");
         expect(printed?.prose).toBe("Year 20/5/14 of the Later Count");
-        const gap = parseNoteDate("VR(740/5/14)", context).date;
+        const gap = parseNoteDate("datefrom vrcal 14 Month 5 740 VR", context).date;
         expect(eraCovering(gap, [lr], 365)).toBeNull();
-        expect(formatNoteDate(gap, null, 365)?.text).toBe("VR(740/5/14)");
+        expect(formatNoteDate(gap, null, 365)?.text).toBe("datefrom vrcal 14 Month 5 740 VR");
     });
 
     it("refuses overlapping claims rather than choosing one", () => {
-        const date = parseNoteDate("VR(720/5/14)", context).date;
+        const date = parseNoteDate("datefrom vrcal 14 Month 5 720 VR", context).date;
         expect(() => eraCovering(date, [vr, { ...lr, era: "other", firstEra: true }], 365)).toThrow(
             /overlapping eras/,
         );
@@ -132,7 +191,7 @@ describe("printable reckoning dates", () => {
             shortcode: "aran",
             type: "being",
             name: { full: "Aran" },
-            data: { born: "VR(720/5/14)", died: "unknown" },
+            data: { born: "datefrom vrcal 14 Month 5 720 VR", died: "unknown" },
         };
         const resolved = resolvedDateFields(fm, context);
         const record = buildIndexRecord({
@@ -161,7 +220,7 @@ describe("printable reckoning dates", () => {
                     types: new Set(["lore"]),
                     packages: new Set(["thalorna"]),
                 }),
-                born: "VR(720/5/14)",
+                born: "datefrom vrcal 14 Month 5 720 VR",
             },
         };
         expect(noteInfobox(fm, { dates: context }).sections[0].rows).toContainEqual({
@@ -173,8 +232,10 @@ describe("printable reckoning dates", () => {
 
     it("preserves clock time when converting a canonical day", () => {
         const dated = parseNoteDate("720.134:143005", context).date;
-        expect(formatNoteDate(dated, lr, 365)?.text).toBe("LR(20/5/14:143005)");
-        expect(parseNoteDate("LR(20/5/14:143005)", context).date).toMatchObject({
+        expect(formatNoteDate(dated, lr, 365)?.text).toBe("14 Month 5 20 LR 14:30:05");
+        expect(
+            parseNoteDate("datefrom latercal 14 Month 5 20 LR 14:30:05", context).date,
+        ).toMatchObject({
             canonicalYear: 720,
             canonicalDay: 134,
             seconds: 52205,

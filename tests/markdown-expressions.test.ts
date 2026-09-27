@@ -29,7 +29,7 @@ const dates = {
                                 {
                                     shortcode: "founding",
                                     marker: "VR",
-                                    start: 1,
+                                    start: "1.1",
                                     label: { after: "{date} AF", before: "{date} BF" },
                                 },
                             ],

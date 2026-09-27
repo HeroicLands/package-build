@@ -10,8 +10,9 @@
 
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { canonicalDayOffset, daysInMonth } from "./calendars.mjs";
-import { parseNoteDate } from "./note-dates.mjs";
-import { renderAddress } from "./address-render.mjs";
+import { DATEFROM_PATTERN, parseNoteDate } from "./note-dates.mjs";
+import { eraNames } from "./calendar-human.mjs";
+import { addressSuffixes, renderAddress } from "./address-render.mjs";
 
 /**
  * Resolve every declared reckoning marker against its calendar and era start.
@@ -75,6 +76,8 @@ export function resolveReckoningMarkers(index, daysPerYear) {
                 calendar: fm.data,
                 marker: era.marker,
                 calendarShortcode: fm.shortcode,
+                name: era.name,
+                abbreviation: era.abbreviation,
                 label: era.label,
                 start: era.start,
                 end: era.end,
@@ -134,9 +137,34 @@ export function resolveReckoningMarkers(index, daysPerYear) {
         const source = typeof row.start === "string" ? row.start.trim() : "";
         const marker = /^([A-Z][A-Z0-9]*)\(/.exec(source)?.[1];
         const qualifier = /\s+([^\s]+\.[^\s]+)$/.exec(source)?.[1];
+        const conversion = DATEFROM_PATTERN.exec(source);
+        const convertedRef = conversion?.[1];
+        const convertedDate = conversion?.[2];
+        const convertedRows =
+            convertedRef ?
+                [...declared.values()].filter((candidate) => {
+                    const fm = candidate.note.fm ?? candidate.note.frontmatter ?? candidate.note;
+                    const pkg = fm.package ?? candidate.note.package ?? index?.contentPackage;
+                    if (!pkg) return convertedRef === candidate.calendarShortcode;
+                    return addressSuffixes({
+                        package: pkg,
+                        system: "note",
+                        type: "lore",
+                        shortcode: candidate.calendarShortcode,
+                    }).includes(convertedRef);
+                })
+            :   [];
+        const convertedTargets = convertedRows.filter((candidate) =>
+            eraNames(candidate).some((name) =>
+                convertedDate?.toLowerCase().endsWith(` ${name.toLowerCase()}`),
+            ),
+        );
+        if (convertedTargets.length === 0 && convertedRows.length === 1)
+            convertedTargets.push(convertedRows[0]);
         const dependency =
             marker ? markerKeys.get(marker)
             : qualifier ? qualifiers.get(qualifier)
+            : convertedTargets.length === 1 ? convertedTargets[0].key
             : null;
         if (dependency && !failed.has(key)) resolve(dependency);
         if (!failed.has(key)) {
@@ -162,6 +190,8 @@ export function resolveReckoningMarkers(index, daysPerYear) {
                     firstEra: row.position === 0,
                     calendar: row.calendar,
                     calendarShortcode: row.calendarShortcode,
+                    name: row.name,
+                    abbreviation: row.abbreviation,
                     label: row.label,
                     epochYear: parsed.date.canonicalYear,
                     epochDay: parsed.date.canonicalDay ?? 1,

@@ -217,10 +217,11 @@ package-build datefrom <calendar> <date>
 
 Reads the current content tree, resolves its world year and calendar eras, and
 prints `<year>.<day>[:HHMMSS]` to standard output. `<calendar>` is a calendar
-shortcode, full Address, or addressed era. A date in a calendar with multiple
-eras must identify its era with a marker or addressed qualifier. A calendar
-with one era also accepts a bare calendar day. A date must specify a day;
+shortcode, full Address, or addressed era. The date uses the calendar's month
+name and era label, for example `23 Taranis 326 VR`. A date in a calendar with
+multiple eras must identify its era. A date must specify a day;
 year-only and month-only dates do not identify one canonical day.
+Prefix the date with `~` to preserve an approximate value.
 
 **OPTIONS**
 
@@ -234,8 +235,8 @@ or the date cannot be resolved to one day. Otherwise 0.
 **EXAMPLES**
 
 ```
-$ package-build datefrom vrcal 'VR(720/5/14)'
-720.134
+$ package-build datefrom vrcal '23 Taranis 326 VR'
+326.114
 ```
 
 **SEE ALSO**
@@ -257,8 +258,9 @@ package-build dateto <calendar> <canonical-date>
 **DESCRIPTION**
 
 Reads the current content tree, selects the era covering the canonical day, and
-prints the calendar date with its era marker or addressed qualifier. The input
-is `<year>.<day>[:HHMMSS]`. A date in a gap between eras has no conversion.
+prints the date with its named month and era label. The input is
+`<year>.<day>[:HHMMSS]`, optionally prefixed with `~`. A date in a gap between
+eras has no conversion.
 
 **OPTIONS**
 
@@ -272,8 +274,8 @@ or no era covers that day. Otherwise 0.
 **EXAMPLES**
 
 ```
-$ package-build dateto vrcal 720.134
-VR(720/5/14)
+$ package-build dateto vrcal 326.114
+23 Taranis 326 VR
 ```
 
 **SEE ALSO**

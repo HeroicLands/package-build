@@ -49,7 +49,7 @@ describe("dated office holders", () => {
                 {
                     Chancellor: {
                         description: "Keeps the seal.",
-                        holders: [{ being: "being-aran", start: 720 }],
+                        holders: [{ being: "being-aran", start: "720.1" }],
                     },
                 },
                 { "thalorna-note-being-aran": { fm: { data: {} } } },
@@ -64,7 +64,7 @@ describe("dated office holders", () => {
                     {
                         Chancellor: {
                             description: "Keeps the seal.",
-                            holders: [{ being: "being-aran", start: 720 }],
+                            holders: [{ being: "being-aran", start: "720.1" }],
                         },
                     },
                     { "thalorna-note-being-aran": { fm: { data: { died } } } },

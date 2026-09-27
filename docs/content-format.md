@@ -326,51 +326,54 @@ flow collection is formatted into one of those forms; folded collections are
 not used. `content-build format --write` applies this rule and the top-level
 order without changing the Markdown body.
 
-#### Dates and reckoning markers
+#### Dates and calendars
 
 A calendar names and orders the days within a year. An **era** states where its
 year count begins. Several eras may use one calendar; each has its own origin.
-An era may declare a short, uppercase `marker` for authored dates. The marker
-selects that era and the calendar whose months interpret the date inside it:
+Every frontmatter date uses either a canonical day or a named calendar date:
 
 ```yaml
 data:
-  born: VR(676/12/5)
+  born: datefrom vrcal 23 Taranis 326 VR
+  died: ~326.114
 ```
 
-`VR` is a marker declared on an era row of the Common Calendar. `VR(720/5/14)`
-means its year 720, fifth month, fourteenth day. `VR(720/5)` states month
-precision, and `VR(720)` states year precision. The parser retains that
-precision; it does not invent a first day when the author only knows a year.
-`VR(~-480)` keeps an approximate year. A date whose occurrence is known but
-whose value is not recorded is `unknown`, with no marker.
-An exact day may include 24-hour time, such as `VR(720/5/14:143005)`.
+`datefrom` takes a calendar shortcode or Address, followed by a date in that
+calendar. The date may name a day and month (`23 Taranis 326 VR`), a month and
+year (`Taranis 326 VR`), or a year (`326 VR`). Its era label is required when
+the calendar has several eras. Month names and their abbreviations come from
+the calendar note; an era's `abbreviation`, `name`, marker, or shortcode names
+it. The conversion retains year or month precision when no exact day is given.
+A 24-hour time follows an exact day, such as `23 Taranis 326 VR 14:30:05`.
 
 The calendar-neutral spelling is `<year>.<day>[:HHMMSS]`: `720.136` names day
 136 of canonical year 720, and `720.136:143005` adds 14:30:05. The dot means
 **day of year**, not a month. Its day must fit the world's `data.year.days`,
-and its time must fit a 24-hour day. A bare year is also accepted. Unmarked
-slash dates are accepted as calendar-neutral numeric month/day values; their
-month division has no named calendar, so use a marker when the month is part
-of a people's reckoning.
+and its time must fit a 24-hour day. A negative canonical year is valid.
+Prefix either form with `~` to mark it approximate, as in `~326.114` or
+`~datefrom vrcal 23 Taranis 326 VR`. `unknown` states that an occurrence is
+known but its date is not recorded, in fields that permit it. No other
+frontmatter date form is valid.
 
 `package-build datefrom <calendar> <date>` prints the canonical day for a
 calendar date. `package-build dateto <calendar> <canonical-date>` prints the
 calendar date in the era covering that day. The calendar argument is its
-shortcode or Address. A date in a calendar with multiple eras names its era
-with a marker or addressed qualifier; the result of `dateto` includes that
-era. A gap between eras has no calendar date to print. Both commands read the
-current note tree and print only the converted value on success.
+shortcode or Address. `datefrom` reads the named calendar form; `dateto` prints
+its named month and era. A gap between eras has no calendar date to print.
+Both commands read the current note tree and print only the converted value
+on success.
 
 An era's `start` locates its first year on the canonical timeline. It may be
-written canonically, such as `start: 1`, or in another declared era. The build
+written canonically, such as `start: 1.1`, or in another declared era. The build
 resolves these dependencies across calendar notes and reports cycles, unknown
 eras, and dates outside an era's `end`. A year-precision start anchors the
 reckoning at the first day of that canonical year for conversion; it does not
-date the event that gave the era its name. A marker must be unique across the
-corpus and contain uppercase letters or digits, beginning with a letter. A
+date the event that gave the era its name. A marker, when declared, is unique
+across the corpus and contains uppercase letters or digits, beginning with a
+letter. A
 year-precision end includes the whole named year. Month and day values are
-bounded by the named era's calendar months; bare dates remain calendar-neutral.
+bounded by the named era's calendar months; canonical dates remain
+calendar-neutral.
 
 Eras in one calendar are listed by increasing `start`. The first era also
 names years before its start with negative numbers: if its year 1 begins in
@@ -382,10 +385,10 @@ that calendar. The authored note dates and the neutral timeline follow this
 rule; the compiled calendar definition retains the format required by its
 Foundry consumers.
 
-An era without a marker is addressed as `<calendar shortcode>.<era shortcode>`;
-`720/5/14 commoncal.founding` is an example. A full note address also works
-when calendar shortcodes occur in more than one package. A short qualifier
-that names more than one era is an error. The content index and generated page
+An era is addressed as `<calendar shortcode>.<era shortcode>` where a
+qualified reference is needed. A full calendar Address works when calendar
+shortcodes occur in more than one package. An ambiguous reference is an error.
+The content index and generated page
 frontmatter carry `resolvedDates` for a being's `born` and `died`, and for a
 lore note's `data.event.when` and `until`. Each record retains the authored
 `text`, precision, approximation, and, when known, its canonical year, day,
@@ -3007,8 +3010,10 @@ data:
       Chancellor:
         description: Keeps the seal.
         holders:
-          - { being: being-aran, start: "VR(720/5/14)", end: "VR(725/2/1)" }
-          - { being: being-mara, start: "VR(725/2/2)" }
+          - being: being-aran
+            start: "datefrom vrcal 14 Vulcar 720 VR"
+            end: "datefrom vrcal 1 Lusenar 725 VR"
+          - { being: being-mara, start: "datefrom vrcal 2 Lusenar 725 VR" }
 ```
 
 **`domains` is territorial, and only territorial.** Seventy-seven divine
@@ -3601,7 +3606,7 @@ name:
 type: lore
 subType: calendar
 data:
-  epoch: VR(720/1/1)
+  epoch: 720.1
   months:
     - { name: Floralis, abbreviation: Flor, days: 30 }
     - { name: Lusenar, abbreviation: Luse, days: 31 }
@@ -3614,7 +3619,7 @@ data:
       marker: VR
       abbreviation: AF
       proclaimedBy: vylarinmpr
-      start: 1
+      start: 1.1
   dateFormats: { full: "D MMMM, YYYY", yearLabel: "[Year] YYYY" }
 ```
 
@@ -3624,6 +3629,8 @@ format string. Its date tokens may appear bare; ordinary words belong in
 `[brackets]` or `{braces}` so they print literally. A bare letter run that is
 not a Calendaria token is an error. The `time12` slot is outside this
 vocabulary.
+The conversion commands use the calendar's month names and era labels;
+`dateFormats` supplies Foundry and Calendaria display patterns.
 
 **Position in the list is position in the year.** Days that belong to no month
 are a short month like any other: a five-day festival is one entry, and where it
@@ -3638,10 +3645,10 @@ that: `months` must sum to `year.days`, and a list that does not describes a
 different world rather than a different calendar.
 
 **An era is a way of counting years within a calendar**, so its rows sit beside
-the months. Each states its own `shortcode`, unique within the note. A date
-names an era with its marker, such as `VR(720/5/14)`. A calendar may contain
-several era rows, each with its own marker and year origin. The marker is an
-authoring identifier; the `abbreviation` is its printed label.
+the months. Each states its own `shortcode`, unique within the note. A calendar
+may contain several era rows, each with its own year origin. The
+`abbreviation` is its preferred short printed label; a declared marker is
+also accepted when reading a named date.
 `proclaimedBy` is optional: a reckoning whose proclaiming body is unknown, or
 whose body has no note, says so by leaving it out.
 

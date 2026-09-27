@@ -42,13 +42,13 @@ data:
     fs.writeFileSync(
         path.join(root, "assets/content/Calendar.md"),
         `---
-shortcode: commoncal
+shortcode: vrcal
 name: { full: Common Calendar }
 type: lore
 subType: calendar
 data:
-  months: [{ name: First, days: 30 }, { name: Second, days: 335 }]
-  eras: [{ shortcode: founding, marker: VR, start: 1 }]
+  months: [{ name: First, days: 30 }, { name: Second, days: 31 }, { name: Third, days: 30 }, { name: Taranis, days: 31 }, { name: Fifth, days: 243 }]
+  eras: [{ shortcode: founding, marker: VR, abbreviation: VR, start: 1.1 }]
 ---
 `,
     );
@@ -66,16 +66,16 @@ function run(...args: string[]) {
 
 describe("date conversion commands", () => {
     it("prints only the exact converted value", () => {
-        const from = run("datefrom", "commoncal", "VR(1/2/4)");
+        const from = run("datefrom", "vrcal", "23 Taranis 326 VR");
         expect(from.status).toBe(0);
-        expect(from.stdout).toBe("1.34\n");
-        const to = run("dateto", "commoncal", "1.34:120305");
+        expect(from.stdout).toBe("326.114\n");
+        const to = run("dateto", "vrcal", "326.114");
         expect(to.status).toBe(0);
-        expect(to.stdout).toBe("VR(1/2/4:120305)\n");
+        expect(to.stdout).toBe("23 Taranis 326 VR\n");
     });
 
     it("rejects a date without a day", () => {
-        const result = run("datefrom", "commoncal", "VR(1/2)");
+        const result = run("datefrom", "vrcal", "326 VR");
         expect(result.status).toBe(1);
         expect(result.stderr).toContain("precise to the day");
     });

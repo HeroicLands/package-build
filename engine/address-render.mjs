@@ -12,3 +12,15 @@ export function renderAddress(tuple) {
     assertSystemSegment(system, `the address of ${type}-${shortcode}`);
     return `${pkg}-${system}-${type}-${shortcode}`.toLowerCase();
 }
+
+/** Render every written suffix of one complete Address. */
+export function addressSuffixes(tuple) {
+    const full = renderAddress(tuple);
+    const { system, type, shortcode } = tuple;
+    return [
+        String(shortcode).toLowerCase(),
+        [type, shortcode].join("-").toLowerCase(),
+        [system, type, shortcode].join("-").toLowerCase(),
+        full,
+    ];
+}

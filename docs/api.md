@@ -628,23 +628,24 @@ The neutral day spelling is `<year>.<day>[:HHMMSS]`. The pure conversion functio
 
 ### `engine.noteDates`
 
-A date on a note is one authored string. `<year>.<day>[:HHMMSS]` names a calendar-neutral day; `VR(720/5/14)` names an era marker and a date in that era's calendar. A marker or addressed era is resolved from calendar notes in the corpus and contributes a canonical year, day, span and sort key. Print `prose ?? text`, order on `sort`, and do arithmetic on `canonicalYear`. The literal `unknown` has no sort key or canonical year. Unmarked slash dates and addressed era qualifiers are accepted by the parser; a caller supplies the corpus maps and world year length when it needs an era resolved. `resolvedDateFields` supplies identical derived records to JSONL and generated page frontmatter.
+A date on a note is one authored string. `<year>.<day>[:HHMMSS]` names a calendar-neutral day; `datefrom vrcal 23 Taranis 326 VR` names a calendar, a named month, and an era. Either form may begin with `~` for an approximate date. A resolved calendar date carries a canonical year, day, span and sort key. Print `prose ?? text`, order on `sort`, and do arithmetic on `canonicalYear`. The literal `unknown` has no sort key or canonical year. `resolvedDateFields` supplies identical derived records to JSONL and generated page frontmatter.
 
 | Export                  | Signature                                        | Returns                                            | Use it when                                                    |
 | ----------------------- | ------------------------------------------------ | -------------------------------------------------- | -------------------------------------------------------------- |
 | `UNKNOWN_DATE`          | `const UNKNOWN_DATE`                             | —                                                  | naming the literal that says a date is not recorded            |
 | `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`                        | —                                                  | matching the date grammar directly                             |
+| `DATEFROM_PATTERN`      | `const DATEFROM_PATTERN`                         | —                                                  | recognizing a named calendar conversion in frontmatter         |
 | `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`                    | —                                                  | checking that a string is an era qualifier a date could carry  |
 | `parseNoteDate`         | `parseNoteDate(value, options)`                  | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned   |
 | `eraCovering`           | `eraCovering(date, eras, daysPerYear)`           | one era or `null`; throws on overlap               | selecting the era covering a resolved date's full precision    |
-| `formatNoteDate`        | `formatNoteDate(date, era, daysPerYear)`         | `{era, year, text, prose}` or `null`               | printing a resolved date in a chosen era or its authored form  |
+| `formatNoteDate`        | `formatNoteDate(date, era, daysPerYear)`         | `{era, year, month, day, text, prose}` or `null`   | printing a resolved date in a chosen era or its authored form  |
 | `formatDateInCalendar`  | `formatDateInCalendar(date, reference, context)` | printable record or `null`                         | selecting a calendar's era and printing a resolved date in it  |
 | `calendarEras`          | `calendarEras(reference, context)`               | ordered era records                                | resolving an addressed calendar or one of its eras             |
 | `resolvedDateFields`    | `resolvedDateFields(fm, context)`                | map of normalized dates                            | deriving being and lore event date records for index and pages |
 
 ### `engine.dateConversion`
 
-The exact-day conversion functions use the corpus reckoning context. A calendar with several eras requires an era in the authored date. They reject dates outside the selected calendar and gaps between its eras.
+The exact-day conversion functions use the corpus reckoning context. A calendar with several eras requires an era in the named date. They reject dates outside the selected calendar and gaps between its eras. Approximate input keeps its `~` prefix in the result.
 
 | Export             | Signature                                           | Returns               | Use it when                                   |
 | ------------------ | --------------------------------------------------- | --------------------- | --------------------------------------------- |

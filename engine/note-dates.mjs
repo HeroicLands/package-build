@@ -15,21 +15,19 @@
  * Parse authored note dates into records used by content checks and renderers.
  *
  * A neutral day is `<year>.<day>[:HHMMSS]`, where `day` is an ordinal within
- * the world's year. A marked date is `<marker>(<year>[/<month>[/<day>]])`.
- * The marker selects one era and its calendar's ordered month list; the era's
- * start places its year one on the neutral timeline. A bare year is year
- * precision, and `unknown` is unordered. The parser also accepts unmarked
- * slash dates and addressed era qualifiers.
+ * the world's year. A named date is `datefrom <calendar> <date>`; its calendar
+ * and era resolve the value on the neutral timeline. Either form accepts a
+ * leading `~` for approximation. `unknown` is unordered.
  *
  * `text` keeps the authored spelling. `canonicalYear` and `sort` are set for
- * neutral and resolved marked dates. A marked date also carries
- * `canonicalDay`, the ordinal day within its neutral year. An addressed era
- * qualifier carries no resolved year until a caller supplies its era facts.
+ * neutral and resolved named dates. Resolved dates also carry `canonicalDay`,
+ * the ordinal day within the neutral year.
  *
  * @module
  */
 
 import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
+import { addressedCalendarDate } from "./calendar-human.mjs";
 import {
     calendarStructure,
     canonicalDateFromOffset,
@@ -82,6 +80,9 @@ export const ERA_QUALIFIER_PATTERN = new RegExp(`^${ERA}$`);
 export const NOTE_DATE_PATTERN = new RegExp(
     `^(~)?\\s*(-?\\d+)(?:/(\\d+)(?:/(\\d+)(?::(\\d{6}))?)?)?(?:\\s+(${ERA}))?$`,
 );
+
+/** A calendar conversion written as a frontmatter date value. */
+export const DATEFROM_PATTERN = /^datefrom\s+(\S+)\s+(.+)$/;
 
 /** A day written with no month — ungrammatical, and worth its own sentence. */
 const DAY_WITHOUT_MONTH_PATTERN = /^(?:~)?\s*-?\d+\/\/\d+(?:\s+\S+)?$/;
@@ -136,7 +137,7 @@ function unknownRecord() {
  * @param {boolean} [options.ignoreEraBounds=false] - Parse a calendar row's
  *   own boundary in a referenced era without applying that era's note span.
  * @param {number} [options.daysPerYear] - The world's year length, required for
- *   canonical days and marked dates.
+ *   canonical days and named dates.
  * @param {string} [options.field] - The key that carried it, named in every
  *   message. Omitted, a message names the value alone.
  * @param {boolean} [options.allowUnknown=true] - Whether `"unknown"` is a
@@ -186,7 +187,7 @@ export function parseNoteDate(value, options) {
         return { date: null, findings };
     };
 
-    const resolveEra = (parsed, reckoning, label, marker) => {
+    const resolveEra = (parsed, reckoning, label) => {
         if (!ignoreEraBounds && parsed.year < 0 && reckoning.firstEra === false)
             return refuse(
                 `${subject} counts backward from ${label}, but only the first era of a calendar may do so`,
@@ -227,7 +228,6 @@ export function parseNoteDate(value, options) {
                 text,
                 era: reckoning.era,
                 qualifier: reckoning.qualifier,
-                ...(marker ? { marker } : {}),
                 canonicalYear: canonical.year,
                 canonicalDay: canonical.day,
                 spanDays,
@@ -250,37 +250,46 @@ export function parseNoteDate(value, options) {
     }
 
     const trimmed = text.trim();
-    const marked = /^([A-Z][A-Z0-9]*)\((.*)\)$/.exec(trimmed);
-    if (marked) {
-        const [, marker, payload] = marked;
-        const reckoning = markers?.get(marker);
-        if (!reckoning) return refuse(`${subject} names unknown reckoning marker ${marker}`);
-        const parsed = parseNoteDate(payload, {
-            calendar: reckoning.calendar,
-            field,
-            allowUnknown: false,
-            file,
-            raw,
-            keyPath,
-        });
-        if (parsed.findings.some((finding) => finding.severity === "error") || !parsed.date)
-            return { date: null, findings: parsed.findings };
-        findings.push(...parsed.findings);
-        if (!parsed.date.known)
-            return refuse(`${subject} wraps an unknown date; write \`unknown\` by itself`);
-        if (parsed.date.era !== null)
-            return refuse(
-                `${subject} names two reckonings; the payload of ${marker} is a calendar date`,
+    const approximateInput = trimmed.startsWith("~");
+    const unmarked = approximateInput ? trimmed.slice(1).trim() : trimmed;
+    const conversion = DATEFROM_PATTERN.exec(unmarked);
+    if (conversion) {
+        try {
+            const [, reference, human] = conversion;
+            const addressed = addressedCalendarDate(
+                human.trim(),
+                calendarEras(reference, { eras }),
             );
-        if (parsed.date.canonicalDay !== undefined)
-            return refuse(
-                `${subject} puts a canonical day inside ${marker}; write its calendar month and day`,
-            );
-        return resolveEra(parsed.date, reckoning, `reckoning marker ${marker}`, marker);
+            if (!addressed) return refuse(`${subject} needs a named calendar date`);
+            const parsed = parseNoteDate(`${approximateInput ? "~" : ""}${addressed}`, {
+                markers,
+                eras,
+                daysPerYear,
+                ignoreEraBounds,
+                allowUnknown: false,
+                file,
+                raw,
+                keyPath,
+            });
+            if (!parsed.date || parsed.findings.some((item) => item.severity === "error"))
+                return parsed;
+            return { date: { ...parsed.date, text }, findings: parsed.findings };
+        } catch (err) {
+            return refuse(`${subject} cannot resolve its calendar date: ${err.message}`);
+        }
     }
-
-    if (trimmed.includes(".")) {
-        const canonical = parseCanonicalDate(trimmed, daysPerYear);
+    if (/^-?0+\.\d+(?::\d{6})?$/.test(unmarked))
+        return refuse(
+            `${subject} writes year 0, and no reckoning has one — the years either ` +
+                `side of an epoch are -1 and 1`,
+        );
+    if (field && !/^-?\d+\.\d+(?::\d{6})?$/.test(unmarked))
+        return refuse(
+            `${subject} is not a frontmatter date — write ` +
+                "`<year>.<day>[:HHMMSS]` or `datefrom <calendar> <date>`",
+        );
+    if (unmarked.includes(".")) {
+        const canonical = parseCanonicalDate(unmarked, daysPerYear ?? Number.MAX_SAFE_INTEGER);
         if (canonical) {
             return {
                 date: {
@@ -290,15 +299,17 @@ export function parseNoteDate(value, options) {
                     year: canonical.year,
                     month: null,
                     day: canonical.day,
-                    approximate: false,
+                    approximate: approximateInput,
                     precision: "day",
                     canonicalYear: canonical.year,
                     canonicalDay: canonical.day,
                     spanDays: 1,
                     ...(canonical.seconds === undefined ? {} : { seconds: canonical.seconds }),
                     sort:
-                        canonical.year +
-                        (canonical.day - 1 + (canonical.seconds ?? 0) / 86400) / daysPerYear,
+                        Number.isSafeInteger(daysPerYear) ?
+                            canonical.year +
+                            (canonical.day - 1 + (canonical.seconds ?? 0) / 86400) / daysPerYear
+                        :   null,
                 },
                 findings,
             };
@@ -338,7 +349,7 @@ export function parseNoteDate(value, options) {
         return refuse(
             `${subject} is not a date — write ` +
                 `\`<year>.<day>[:HHMMSS]\` or ` +
-                `\`<marker>(<year>[/<month>[/<day>]])\``,
+                `\`datefrom <calendar> <date>\``,
         );
     }
 
@@ -544,19 +555,18 @@ export function formatNoteDate(date, era, daysPerYear) {
                 return null;
         } else day = named.day;
     }
-    const sign = year < 0 ? "-" : "";
     const clock =
         date.seconds === undefined ?
             ""
-        :   `:${String(Math.floor(date.seconds / 3600)).padStart(2, "0")}` +
-            `${String(Math.floor(date.seconds / 60) % 60).padStart(2, "0")}` +
+        :   ` ${String(Math.floor(date.seconds / 3600)).padStart(2, "0")}:` +
+            `${String(Math.floor(date.seconds / 60) % 60).padStart(2, "0")}:` +
             `${String(date.seconds % 60).padStart(2, "0")}`;
-    const digits = `${Math.abs(year)}${month === null ? "" : `/${month}`}${day === null ? "" : `/${day}${clock}`}`;
-    const numeric = `${date.approximate ? "~" : ""}${sign}${digits}`;
-    const text =
-        target.marker ? `${target.marker}(${numeric})`
-        : target.qualifier ? `${numeric} ${target.qualifier}`
-        : numeric;
+    const monthName =
+        month === null ? null : calendarStructure(target.calendar).months?.[month - 1]?.name;
+    const eraName =
+        target.abbreviation || target.marker || target.name || target.era.split(".").at(-1);
+    const text = `${date.approximate ? "~" : ""}${day === null ? "" : `${day} `}${monthName ? `${monthName} ` : ""}${year} ${eraName}${clock}`;
+    const digits = `${Math.abs(year)}${month === null ? "" : `/${month}`}${day === null ? "" : `/${day}${clock.replaceAll(":", "").replace(/^ /, ":")}`}`;
     const label =
         typeof target.label === "string" ?
             target.label
@@ -565,7 +575,7 @@ export function formatNoteDate(date, era, daysPerYear) {
         typeof label === "string" && label.includes("{date}") ?
             label.replace("{date}", `${date.approximate ? "~" : ""}${digits}`)
         :   null;
-    return { era, year, text, prose };
+    return { era, year, month, day, text, prose };
 }
 
 /** Normalize a note's declared dates for indexes and generated pages. */
