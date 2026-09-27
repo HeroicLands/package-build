@@ -111,7 +111,8 @@ import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
 import { protectCode } from "./code-fences.mjs";
-import { imageSourcesIn } from "./content-images.mjs";
+import { imagesIn, parseImageDirective } from "./content-images.mjs";
+import { PDF_IMAGE_INCHES, resamplePdfImages } from "./pdf-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import {
     createParser,
@@ -429,6 +430,8 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
 
     /** @type {Map<string, string>} Authored address → the staged file's path. */
     const images = new Map();
+    /** @type {Map<string, {from: string, to: string, relative: string, file: string, widthInches: number}>} */
+    const imageCandidates = new Map();
     /** @type {Set<string>} Addresses already looked for, staged or not. */
     const seenImages = new Set();
 
@@ -444,7 +447,12 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      * @returns {void}
      */
     const stageImages = (body, file) => {
-        for (const src of imageSourcesIn(body)) {
+        for (const image of imagesIn(body)) {
+            const src = image.src;
+            const size = parseImageDirective(image.directive).size;
+            const widthInches = PDF_IMAGE_INCHES[size] ?? PDF_IMAGE_INCHES.auto;
+            const existing = imageCandidates.get(src);
+            if (existing) existing.widthInches = Math.max(existing.widthInches, widthInches);
             if (seenImages.has(src)) continue;
             seenImages.add(src);
             // An **error**, where a picture the book cannot carry is a warning:
@@ -483,6 +491,12 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 continue;
             }
             images.set(src, staged.to);
+            imageCandidates.set(src, {
+                ...staged,
+                relative: path.relative(resolved.rootDir, staged.from),
+                file,
+                widthInches,
+            });
         }
     };
 
@@ -662,6 +676,16 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     });
 
     const banners = stageBanners(plan.entries, resolved, outDir, findings);
+    for (const [declared, to] of banners) {
+        const from = path.resolve(resolved.rootDir, declared);
+        imageCandidates.set(`banner:${declared}`, {
+            from,
+            to,
+            relative: path.relative(resolved.rootDir, from),
+            file: resolved.pdf.document,
+            widthInches: 8.5,
+        });
+    }
 
     /** @type {Map<string, {path: string, title: string}>} Entry anchor → map page. */
     const maps = new Map();
@@ -737,18 +761,39 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const pdfPath = path.join(outDir, stem);
     fs.writeFileSync(typPath, source);
 
+    const imageReports =
+        resolved.pdf.images ?
+            await resamplePdfImages(imageCandidates, resolved.pdf.images, outDir)
+        :   [];
+
     const stats = { ...plan.stats, entries: plan.entries.length, bytes: source.length };
     if (!compile) {
-        return { built: true, reason: null, findings, typ: typPath, pdf: null, stats };
+        return {
+            built: true,
+            reason: null,
+            findings,
+            imageReports,
+            typ: typPath,
+            pdf: null,
+            stats,
+        };
     }
 
     const compiled = compileTypst(typPath, pdfPath, resolved.pdf);
     findings.push(...compiled.findings);
     if (!compiled.ok) {
         findings.push({ file: typPath, severity: "error", message: compiled.message });
-        return { built: false, reason: null, findings, typ: typPath, pdf: null, stats };
+        return {
+            built: false,
+            reason: null,
+            findings,
+            imageReports,
+            typ: typPath,
+            pdf: null,
+            stats,
+        };
     }
-    return { built: true, reason: null, findings, typ: typPath, pdf: pdfPath, stats };
+    return { built: true, reason: null, findings, imageReports, typ: typPath, pdf: pdfPath, stats };
 }
 
 /**

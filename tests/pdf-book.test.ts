@@ -5,6 +5,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import sharp from "sharp";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -118,6 +120,51 @@ function build(dir: string, ...args: string[]) {
 afterAll(() => {
     if (root) fs.rmSync(root, { recursive: true, force: true });
 });
+
+it.skipIf(!HAS_TYPST)(
+    "reduces a book's embedded raster image while keeping authored art",
+    async () => {
+        const dir = makeRepo("content");
+        try {
+            const imageDir = path.join(dir, "assets", "images");
+            fs.mkdirSync(imageDir, { recursive: true });
+            const image = path.join(imageDir, "portrait.webp");
+            const source = await sharp(randomBytes(900 * 600 * 3), {
+                raw: { width: 900, height: 600, channels: 3 },
+            })
+                .webp({ quality: 95 })
+                .toBuffer();
+            fs.writeFileSync(image, source);
+            fs.appendFileSync(
+                path.join(dir, "assets/content/Gear/dagger.md"),
+                "\n![Portrait](images/portrait.webp){size: medium}\n",
+            );
+
+            const first = build(dir);
+            expect(first.status, first.out).toBe(0);
+            const dist = path.join(dir, "build", "dist");
+            const pdf = path.join(
+                dist,
+                fs.readdirSync(dist).find((file) => file.endsWith(".pdf"))!,
+            );
+            const originalBytes = fs.statSync(pdf).size;
+            expect(fs.readFileSync(path.join(dist, "assets/images/portrait.webp"))).toEqual(source);
+
+            fs.appendFileSync(path.join(dir, "package-build.config.yaml"), "    images: {}\n");
+            const second = build(dir);
+            expect(second.status, second.out).toBe(0);
+            const reducedBytes = fs.statSync(pdf).size;
+            expect(reducedBytes).toBeLessThan(originalBytes);
+            expect(
+                (await sharp(path.join(dist, "assets/images/portrait.webp")).metadata()).width,
+            ).toBe(Math.round((3.2 / 2.54) * 150));
+            expect(fs.readFileSync(image)).toEqual(source);
+            expect(second.out).toContain("book image assets/images/portrait.webp");
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    },
+);
 
 describe("the homepage fence", () => {
     // The criterion most likely to be regressed by a later refactor, and the
