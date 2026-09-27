@@ -61,7 +61,8 @@ and credentials. Keep it ignored by git:
 
 ```dotenv
 FOUNDRYVTT_DEV_DATA=/path/to/foundry-data
-FOUNDRYVTT_DEV_LICENSE_KEY=replace-with-dev-license-key
+FOUNDRYVTT_QA_DATA=yourhost:/srv/docker/data/foundryvtt-qa
+FOUNDRYVTT_PROD_DATA=yourhost:/srv/docker/data/foundryvtt-prod
 ```
 
 The CLI loads `.env.local` before `.env`. A variable already in the shell takes
@@ -75,7 +76,10 @@ package-build container dev status
 package-build container dev restart
 ```
 
-The data root can be a local path or a `[user@]host:/path` SFTP destination.
+The data root can be an absolute local path or a `[user@]host:/absolute/path`
+SFTP destination. The CLI appends `Data/systems/<id>` or `Data/modules/<id>`
+for the package. Paths in `.env.local` are literal: `~` and shell variables
+are not expanded. Keep stage paths pointed at distinct Foundry data roots.
 The deploy command stages a complete copy beside the installed package and
 swaps it into place, so it does not rewrite open LevelDB files one by one.
 For a remote destination it uses the SSH agent unless the stage names an
