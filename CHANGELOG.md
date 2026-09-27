@@ -1,5 +1,31 @@
 # @heroiclands/package-build
 
+## 22.15.0
+
+### Minor Changes
+
+**Place maps** — Site pages, books, and Foundry itinerary Scenes render their maps with the installed build package, without a separate Graphviz installation.
+
+**Regional maps** — Foundry stages authored SVG backgrounds as PNGs without a separate SVG converter.
+
+**Content relationships**
+
+- A being's social ties now reject two entries naming the same target, even when one uses a shorter address.
+
+### Patch Changes
+
+**Content dates**
+
+- Notes can name a calendar era with a short marker such as `VR(720/5/14)`, while canonical dates use year and day of year.
+
+**Place maps** — Books give mapped places a full-page itinerary, and Foundry offers gridless itinerary Scenes with linked place journals.
+
+**Regional maps** — Hand-drawn SVG charts appear in books and use raster backgrounds in Foundry while retaining their stated scale.
+
+**Scenes** — Battle and local maps can use full Foundry Scene exports, with marked pins opening their note's journal pages and asset fixups resolving paths.
+
+**Theatre of the mind** — Image-led maps can create gridless Scenes for narration-focused play.
+
 ## 22.14.4
 
 ### Patch Changes
