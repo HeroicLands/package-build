@@ -60,6 +60,7 @@ import matter from "gray-matter";
 
 import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
+import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
 import { renderImageFigures } from "./content-images.mjs";
@@ -79,6 +80,7 @@ import { indexRecordsFor } from "./content-index.mjs";
 // reuses `collectContentPages`'s pages, so wiring it here reaches the book too.
 import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
+import { resolvedDateFields } from "./note-dates.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 // The one statement of what an empty body means, shared with the index.
 import { isStubNote } from "./note-state.mjs";
@@ -693,6 +695,7 @@ export function renderSitePage(
     },
 ) {
     const tableErrors = [];
+    const expressionErrors = [];
     const secretErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
@@ -746,8 +749,16 @@ export function renderSitePage(
         self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
     });
     tableErrors.push(...errors);
+    const expressions = renderMarkdownExpressions(markdown, {
+        fm: page.fm,
+        dates: index.dateContext,
+        file: page.file,
+        bodyLine: page.bodyLine,
+        sqlResults: sqlTables?.inline?.get(page.file),
+    });
+    expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
-    const secrets = renderSecretBlocks(protectCode(markdown, resolve), "web");
+    const secrets = renderSecretBlocks(protectCode(expressions.markdown, resolve), "web");
     for (const error of renderSecretBlocks(page.body, "book").errors)
         secretErrors.push({
             file: page.file,
@@ -761,6 +772,7 @@ export function renderSitePage(
         data,
         resolved,
         tableErrors,
+        expressionErrors,
         secretErrors,
         wikiErrors,
         imageErrors,
@@ -836,6 +848,7 @@ export function renderPages(pages, options) {
     });
 
     const tableErrors = [];
+    const expressionErrors = [];
     const secretErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
@@ -877,6 +890,7 @@ export function renderPages(pages, options) {
             artIndex,
         });
         tableErrors.push(...result.tableErrors);
+        expressionErrors.push(...result.expressionErrors);
         secretErrors.push(...result.secretErrors);
         wikiErrors.push(...result.wikiErrors);
         imageErrors.push(...result.imageErrors);
@@ -918,6 +932,7 @@ export function renderPages(pages, options) {
         written: pages.length,
         byKind,
         tableErrors,
+        expressionErrors,
         secretErrors,
         wikiErrors,
         imageErrors,
@@ -965,10 +980,13 @@ export function resolveSitePass(name, options) {
 export function sitePageDecorator(config, index) {
     const router = routerFor(config);
     return (data, page) => {
+        const resolvedDates = resolvedDateFields(page.fm, index.dateContext);
+        if (Object.keys(resolvedDates).length) data.resolvedDates = resolvedDates;
         if (isBeing(page.fm)) data.sohl = deriveBeingInfo(page.fm.sohl, index.refIndex);
         data.infoboxes = noteInfoboxes(page.fm, {
             resolve: (ref, hint) => resolveInfoboxRef(index, ref, hint),
             router,
+            dates: index.dateContext,
         });
     };
 }
@@ -1088,6 +1106,7 @@ export function buildSite({ config, sqlTables } = {}) {
             gates: { ...emptyGates(), homepages: homepageFindings },
             manifests: null,
             tableErrors: [],
+            expressionErrors: [],
             secretErrors: [],
             wikiErrors: [],
             imageErrors: [],
@@ -1108,6 +1127,7 @@ export function buildSite({ config, sqlTables } = {}) {
             gates: emptyGates(),
             manifests: null,
             tableErrors: [],
+            expressionErrors: [],
             secretErrors: [],
             wikiErrors: [],
             imageErrors: [],
@@ -1154,6 +1174,7 @@ export function buildSite({ config, sqlTables } = {}) {
             gates,
             stats: null,
             tableErrors: [],
+            expressionErrors: [],
             secretErrors: [],
             wikiErrors: [],
             imageErrors: [],
@@ -1209,6 +1230,7 @@ export function buildSite({ config, sqlTables } = {}) {
     return {
         gates,
         tableErrors: rendered.tableErrors,
+        expressionErrors: rendered.expressionErrors,
         secretErrors: rendered.secretErrors,
         wikiErrors: rendered.wikiErrors,
         imageErrors: rendered.imageErrors,

@@ -399,6 +399,27 @@ describe("the consumer's own passes are named, not imported", () => {
 });
 
 describe("buildSite end to end", () => {
+    it("expands Markdown expressions from frontmatter and prepared SQL", () => {
+        const file = note(
+            "Rules/Expressions.md",
+            "type: doc\nsubType: rules\nshortcode: expressions\nname:\n    full: Expressions",
+            '{{name.full}} counts {{sql "SELECT 7 AS n"}} things.\n',
+        );
+        const prepared = new Map() as any;
+        prepared.inline = new Map([[file, new Map([["SELECT 7 AS n", { value: 7 }]])]]);
+        try {
+            const result = buildSite({ config: configFor(), sqlTables: prepared });
+            expect(result.expressionErrors).toEqual([]);
+            const page = fs.readFileSync(
+                path.join(root, "build/hugo/content/kb/doc-expressions.md"),
+                "utf8",
+            );
+            expect(page).toContain("Expressions counts 7 things.");
+        } finally {
+            fs.rmSync(file);
+        }
+    });
+
     it("publishes secret passages as expandable prose and locates malformed fences", () => {
         const file = note(
             "Rules/Secrets.md",

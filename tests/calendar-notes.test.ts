@@ -98,7 +98,7 @@ function worldNote(data: Record<string, unknown> = {}) {
             name: { full: "The World of Thalorna" },
             data: {
                 year: { days: 365, hoursPerDay: 24, minutesPerHour: 60, secondsPerMinute: 60 },
-                present: "720",
+                present: "720.1",
                 ...data,
             },
         },
@@ -121,7 +121,7 @@ function moonNote(data: Record<string, unknown> = {}) {
                     orbit: "circular",
                     inclined: true,
                 },
-                moon: { cycle: 30, newOn: "720/1/1", eclipses: "rare" },
+                moon: { cycle: 30, newOn: "720.1", eclipses: "rare" },
                 ...data,
             },
         },
@@ -131,6 +131,12 @@ function moonNote(data: Record<string, unknown> = {}) {
 
 /** A calendar note, with whatever `data:` a case is about. */
 function calendarNote(data: Record<string, unknown> = {}, file = "Common_Calendar.md") {
+    const authored = { epoch: "720.1", months: COMMON_MONTHS, ...data };
+    if (Array.isArray(authored.eras))
+        authored.eras = authored.eras.map((era) => ({
+            ...era,
+            ...(typeof era.start === "number" ? { start: `${era.start}.1` } : {}),
+        }));
     return note(
         {
             type: "lore",
@@ -138,7 +144,7 @@ function calendarNote(data: Record<string, unknown> = {}, file = "Common_Calenda
             shortcode: "commoncal",
             name: { full: "The Common Calendar" },
             description: "The reckoning eight polities keep.",
-            data: { epoch: "720/1/1", months: COMMON_MONTHS, ...data },
+            data: authored,
         },
         file,
     );
@@ -239,7 +245,7 @@ describe("the family belongs to a calendar note and to no other lore note", () =
             subType: "history",
             shortcode: "vylarinfnd",
             name: { full: "The Founding" },
-            data: { epoch: "720/1/1", months: COMMON_MONTHS, eras: [] },
+            data: { epoch: "720.1", months: COMMON_MONTHS, eras: [] },
         });
         const findings = checkCalendarNote(history, { index: index(worldNote(), history) });
         expect(findings.map((f) => f.severity)).toEqual(["error", "error", "error"]);
@@ -277,6 +283,30 @@ describe("the family belongs to a calendar note and to no other lore note", () =
         const unnamed = calendarNote({ eras: [{ name: "After the Founding", start: 1 }] });
         const findings = checkCalendarNote(unnamed, { index: index(worldNote(), unnamed) });
         expect(findings[0].message).toContain("`<calendar shortcode>.<era shortcode>`");
+    });
+
+    it("checks an era's optional printable label", () => {
+        const valid = calendarNote({
+            eras: [
+                {
+                    shortcode: "founding",
+                    start: 1,
+                    label: { after: "{date} AF", before: "{date} BF" },
+                },
+            ],
+        });
+        expect(checkCalendarNote(valid, { index: index(worldNote(), valid) })).toEqual([]);
+        const invalid = calendarNote({
+            eras: [{ shortcode: "founding", start: 1, label: { after: "AF", other: "{date}" } }],
+        });
+        expect(
+            checkCalendarNote(invalid, { index: index(worldNote(), invalid) }).map(
+                (f) => f.message,
+            ),
+        ).toEqual([
+            expect.stringContaining("exactly one {date}"),
+            expect.stringContaining("after or before"),
+        ]);
     });
 });
 
@@ -342,7 +372,7 @@ describe("a world fact is written on a body", () => {
         const wrong = worldNote({ present: "midsummer" });
         const findings = checkWorldFacts(wrong, { index: index(wrong) });
         expect(findings.map((f) => f.severity)).toEqual(["error"]);
-        expect(findings[0].message).toContain("is not a date");
+        expect(findings[0].message).toContain("is not a frontmatter date");
     });
 
     it("refuses `unknown` as a present, because a setting has one", () => {
@@ -602,7 +632,7 @@ describe("every key the vocabulary declares reaches the definition", () => {
     const invariants = worldInvariants(index(worldNote(), moonNote()));
     /** A note writing every key the family declares, so nothing is untested. */
     const full = {
-        epoch: "720/1/1",
+        epoch: "720.1",
         months: COMMON_MONTHS,
         weekdays: [{ name: "Oneday", abbreviation: "On" }],
         seasons: [{ name: "Spring", monthStart: 1, monthEnd: 3 }],

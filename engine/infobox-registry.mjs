@@ -115,13 +115,14 @@ export function compilesSystemDocument(fm, map, router) {
  * @throws {Error} When the built set disagrees with what the note's type maps
  *   to — see {@link module:engine/infobox.assertInfoboxSet}.
  */
-export function noteInfoboxes(fm, { resolve, router = packRouter() } = {}) {
+export function noteInfoboxes(fm, { resolve, router = packRouter(), dates } = {}) {
     const boxes = buildInfoboxes(fm, {
         maps: KNOWN_DOCUMENT_SUBTYPE_MAPS,
         providers: KNOWN_INFOBOXES,
         compilesDocument: (note, map) => compilesSystemDocument(note, map, router),
         resolveField: resolveFieldValue,
         resolve,
+        dates,
     });
     return /** @type {object[]} */ (
         assertInfoboxSet(boxes, fm, { maps: KNOWN_DOCUMENT_SUBTYPE_MAPS })

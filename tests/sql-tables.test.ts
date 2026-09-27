@@ -11,11 +11,13 @@ import {
     RENDER_ALIASES,
     findSqlBlocks,
     openNotesDatabase,
+    prepareInlineSqlExpressions,
     prepareSqlTables,
     renderSqlTable,
     runSqlQuery,
 } from "../engine/sql-tables.mjs";
 import { expandContentTables } from "../engine/content-tables.mjs";
+import { renderMarkdownExpressions } from "../engine/markdown-expressions.mjs";
 
 /** A miniature content index: two note types, one with a nested system block. */
 const RECORDS = [
@@ -67,6 +69,17 @@ afterAll(async () => {
 });
 
 describe("finding `sql` directives", () => {
+    it("answers scalar SQL in Markdown through the content index", async () => {
+        const body = 'There are {{sql "SELECT COUNT(*) FROM notes"}} notes.';
+        const prepared = await prepareInlineSqlExpressions(db, [
+            { source: "N.md", markdown: body, frontmatter: {} },
+        ]);
+        expect(renderMarkdownExpressions(body, { sqlResults: prepared.get("N.md") })).toEqual({
+            markdown: "There are 3 notes.",
+            findings: [],
+        });
+    });
+
     it("finds a sql fence and leaves every other fence alone", () => {
         const blocks = findSqlBlocks(
             "```sql\nSELECT 1\n```\n\n```js\nconst sql = 1;\n```\n\n```dataview\nTABLE\n```\n",

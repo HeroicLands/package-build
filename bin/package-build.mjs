@@ -50,6 +50,8 @@
  *   npx package-build clean [--distclean]
  *   npx package-build assets
  *   npx package-build calendars --calendaria-version <version>
+ *   npx package-build datefrom <calendar> <date>
+ *   npx package-build dateto <calendar> <canonical-date>
  *   npx package-build manifest
  *   npx package-build lang check
  *   npx package-build lang coverage [--unused]
@@ -90,6 +92,9 @@ import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pac
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
 import { emitCalendarArtifacts } from "../engine/calendar-artifacts.mjs";
+import { dateFromCalendar, dateToCalendar } from "../engine/date-conversion.mjs";
+import { walkMarkdownTree } from "../engine/helpers.mjs";
+import { reckoningContext } from "../engine/reckoning-markers.mjs";
 import { SCHEMA_ARTIFACT_FILE } from "../engine/foreign-catalog.mjs";
 import { validateLangSource } from "../lang.mjs";
 import { checkLabelRegistry } from "../labels.mjs";
@@ -336,6 +341,65 @@ function calendarsCommand() {
                 calendariaVersion: args.calendariaVersion,
             });
             console.log(`✅ ${result.calendars} calendars emitted (${result.files} files).`);
+        }),
+    };
+}
+
+/** Read the current content tree so conversion uses its authored calendars. */
+function calendarConversionContext() {
+    const config = loadPackConfig();
+    if (!fs.existsSync(config.paths.content))
+        throw new Error(`no content tree at ${config.paths.content}`);
+    const notes = [
+        ...walkMarkdownTree(config.paths.content, {
+            skipDirectories: config.skipDirectories,
+        }),
+    ].map(({ frontmatter, absPath }) => ({ fm: frontmatter, file: absPath }));
+    const context = reckoningContext({ notes });
+    const error = context.findings.find((finding) => finding.severity === "error");
+    if (error) throw Object.assign(new Error(formatDiagnostic(error)), { located: true });
+    if (!Number.isSafeInteger(context.daysPerYear) || context.daysPerYear < 1)
+        throw new Error("the content tree needs a world with data.year.days");
+    return context;
+}
+
+/** Convert a calendar day to the world's canonical year and day. */
+function datefromCommand() {
+    return {
+        command: "datefrom <calendar> <date>",
+        describe: "Convert a calendar date to its canonical value",
+        builder: (y) =>
+            y
+                .positional("calendar", {
+                    type: "string",
+                    describe: "Calendar Address or shortcode",
+                })
+                .positional("date", { type: "string", describe: "Day in that calendar" }),
+        handler: handler((args) => {
+            console.log(dateFromCalendar(args.calendar, args.date, calendarConversionContext()));
+        }),
+    };
+}
+
+/** Express a canonical day in the covering era of a calendar. */
+function datetoCommand() {
+    return {
+        command: "dateto <calendar> <canonical-date>",
+        describe: "Convert a canonical day to a calendar date",
+        builder: (y) =>
+            y
+                .positional("calendar", {
+                    type: "string",
+                    describe: "Calendar Address or shortcode",
+                })
+                .positional("canonical-date", {
+                    type: "string",
+                    describe: "Canonical <year>.<day>[:HHMMSS]",
+                }),
+        handler: handler((args) => {
+            console.log(
+                dateToCalendar(args.calendar, args.canonicalDate, calendarConversionContext()),
+            );
         }),
     };
 }
@@ -1411,6 +1475,8 @@ yargs(hideBin(process.argv))
     .command(cleanCommand())
     .command(assetsCommand())
     .command(calendarsCommand())
+    .command(datefromCommand())
+    .command(datetoCommand())
     .command(manifestCommand())
     .command(siteRootCommand())
     .command(schemaCommand())

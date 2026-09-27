@@ -145,7 +145,7 @@ export const CALENDAR_FIELDS = Object.freeze([
     },
     {
         name: "eras",
-        shape: "list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, end? }`",
+        shape: "list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, end?, label? }`",
         kind: "list",
         describe:
             "The year-counts kept in this calendar. A marker names one era and uses these months.",
@@ -669,6 +669,35 @@ function checkEraShortcodes(note) {
             );
         }
         seen.add(shortcode);
+        if (era.label === undefined) return;
+        const label = era.label;
+        const forms = typeof label === "string" ? { after: label } : label;
+        if (!forms || typeof forms !== "object" || Array.isArray(forms)) {
+            findings.push(
+                atData(
+                    note,
+                    ["eras", position, "label"],
+                    "error",
+                    "an era label is a string or an {after, before} map",
+                ),
+            );
+            return;
+        }
+        for (const [key, value] of Object.entries(forms)) {
+            if (
+                !["after", "before"].includes(key) ||
+                typeof value !== "string" ||
+                value.split("{date}").length !== 2
+            )
+                findings.push(
+                    atData(
+                        note,
+                        ["eras", position, "label", key],
+                        "error",
+                        "an era label uses after or before with exactly one {date} slot",
+                    ),
+                );
+        }
     });
     return findings;
 }
@@ -752,8 +781,16 @@ function eraEntries(eras, dateContext = {}) {
     for (const era of Array.isArray(eras) ? eras : []) {
         const shortcode = String(era?.shortcode ?? "");
         if (!shortcode) continue;
-        const start = parseNoteDate(era?.start, { ...dateContext, allowUnknown: false }).date;
-        const end = parseNoteDate(era?.end, { ...dateContext, allowUnknown: false }).date;
+        const start = parseNoteDate(era?.start, {
+            ...dateContext,
+            allowUnknown: false,
+            ignoreEraBounds: true,
+        }).date;
+        const end = parseNoteDate(era?.end, {
+            ...dateContext,
+            allowUnknown: false,
+            ignoreEraBounds: true,
+        }).date;
         entries[shortcode] = written({
             name: String(era?.name ?? ""),
             abbreviation: era?.abbreviation === undefined ? undefined : String(era.abbreviation),

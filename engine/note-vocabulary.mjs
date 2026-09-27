@@ -97,6 +97,8 @@ import {
 // question, asked the way `checkPlace` and `checkCalendarNote` are.
 import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
+import { checkDatedOffices } from "./office-holders.mjs";
+import { checkCalendarChoice } from "./calendar-choice.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
@@ -744,6 +746,14 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "unrecorded. Absent, the being was never born.",
             },
             {
+                name: "calendar",
+                ...LINK,
+                ref: "lore",
+                accepts: ["lore"],
+                check: checkCalendarChoice,
+                describe: "Calendar used to display this being's dates.",
+            },
+            {
                 name: "died",
                 ...TEXT,
                 check: checkBeingDate("died"),
@@ -849,7 +859,8 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "governance.offices",
                 ...ANY,
-                describe: "The named offices it appoints, each with what the office does.",
+                check: checkDatedOffices,
+                describe: "Named offices, each with a description and optional dated holders.",
             },
             {
                 name: "seat",
@@ -1286,6 +1297,14 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
         check: checkPlace,
         data: Object.freeze([
+            {
+                name: "calendar",
+                ...LINK,
+                ref: "lore",
+                accepts: ["lore"],
+                check: checkCalendarChoice,
+                describe: "Calendar used to display this place's dates.",
+            },
             {
                 name: "demonym",
                 ...TEXT,

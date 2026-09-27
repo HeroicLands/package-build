@@ -63,6 +63,7 @@
 
 import { authoredFrontmatter } from "./index-records.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { cloneAddressState } from "./address-values.mjs";
 import fs from "fs";
 import path from "path";
@@ -644,7 +645,20 @@ export class BasePackCompiler {
             bodyLine,
             sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
         });
-        const { markdown, unresolved } = convertNoteWikilinks(tabulated, {
+        const expressions = renderMarkdownExpressions(tabulated, {
+            fm,
+            dates: reckoningContext(this.linkIndex),
+            sqlResults: absPath ? this.sqlTables?.inline?.get(absPath) : undefined,
+            file: absPath,
+            bodyLine,
+        });
+        if (expressions.findings.length) {
+            const finding = expressions.findings[0];
+            const error = new Error(finding.message);
+            error.position = { line: finding.line, column: finding.column };
+            throw error;
+        }
+        const { markdown, unresolved } = convertNoteWikilinks(expressions.markdown, {
             type: fm.type,
             id: fm.id,
             // Where this note is, so a link that resolves nowhere is reported

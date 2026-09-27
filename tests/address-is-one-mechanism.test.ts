@@ -67,7 +67,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.dirname(HERE);
 
 /** The module that owns the grammar, and the only one exempt from the scan. */
-const OWNER = "engine/address.mjs";
+const OWNER = "engine/address-render.mjs";
 
 /**
  * The words that mark an expression as naming part of an Address.

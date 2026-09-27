@@ -1627,6 +1627,9 @@ function siteCommand() {
                         message: e.reason,
                     });
                 }
+                for (const e of result.expressionErrors) {
+                    emitDiagnostic(e);
+                }
                 for (const e of result.secretErrors) {
                     emitDiagnostic({ ...e, severity: "error" });
                 }
@@ -1666,6 +1669,7 @@ function siteCommand() {
                 }
                 if (
                     result.tableErrors.length ||
+                    result.expressionErrors.length ||
                     result.secretErrors.length ||
                     result.wikiErrors.length ||
                     result.imageErrors.length

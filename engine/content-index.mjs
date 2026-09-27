@@ -152,6 +152,7 @@ import { isDraftNote } from "./note-vocabulary.mjs";
 // a record is built, so the index carries it without the note being written to.
 import { applyComputedBeingAge, presentAmongFrontmatters } from "./being-age.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
+import { resolvedDateFields } from "./note-dates.mjs";
 
 export {
     authoredFrontmatter,
@@ -461,6 +462,7 @@ export function buildIndexRecord({
     bodyLine,
     manifest,
     addressContext,
+    dateContext,
 }) {
     assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage);
 
@@ -494,11 +496,13 @@ export function buildIndexRecord({
     // its file is what the author edits and what every diagnostic names, and
     // its `id` is the identity every diagnostic and every table reads.
     const stub = isStubNote(frontmatter, body);
+    const resolvedDates = dateContext ? resolvedDateFields(frontmatter, dateContext) : {};
 
     return /** @type {Record<string, any>} */ (
         decodeIndexAddresses(
             {
                 ...frontmatter,
+                ...(Object.keys(resolvedDates).length ? { resolvedDates } : {}),
                 package: contentPackage,
                 address: stub ? null : address,
                 nameAscii: asciiName(frontmatter?.name?.full),
@@ -609,6 +613,7 @@ export function indexRecordsForNote({
     contentPackage,
     manifest,
     addressContext,
+    dateContext,
 }) {
     resolveNoteId(frontmatter, { pkg: contentPackage });
     const record = buildIndexRecord({
@@ -620,6 +625,7 @@ export function indexRecordsForNote({
         contentPackage,
         manifest,
         addressContext,
+        dateContext,
     });
     const records = [decodeIndexAddresses(record, addressContext ?? { package: contentPackage })];
     const address = noteAddress(frontmatter, contentPackage);
@@ -710,6 +716,7 @@ export function collectContentIndex(
                     bodyLine,
                     manifest,
                     addressContext,
+                    dateContext: dates,
                 }),
             );
         } catch (err) {
