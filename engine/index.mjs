@@ -130,6 +130,9 @@ export * as calendars from "./calendars.mjs";
 /** A note's dates: one authored string, one grammar, one record shape. */
 export * as noteDates from "./note-dates.mjs";
 
+/** Era markers resolved from calendar notes in a corpus. */
+export * as reckoningMarkers from "./reckoning-markers.mjs";
+
 /** Calendars as notes: what one may declare, and the definition emitted from it. */
 export * as calendarNotes from "./calendar-notes.mjs";
 

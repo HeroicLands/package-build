@@ -12,93 +12,34 @@
  */
 
 /**
- * **A date on a note: one authored string, one grammar, one record.**
+ * Parse authored note dates into records used by content checks and renderers.
  *
- * ```text
- * [~] [-] YYYY [/ MM [/ DD]] [ ERA ]
+ * A neutral day is `<year>.<day>[:HHMMSS]`, where `day` is an ordinal within
+ * the world's year. A marked date is `<marker>(<year>[/<month>[/<day>]])`.
+ * The marker selects one era and its calendar's ordered month list; the era's
+ * start places its year one on the neutral timeline. A bare year is year
+ * precision, and `unknown` is unordered. The parser also accepts unmarked
+ * slash dates and addressed era qualifiers.
  *
- * ERA : (?:[a-z0-9]+-){0,3}[a-z0-9]+ . [a-z0-9]+
- * ```
- *
- * - `~` — approximate. It marks the value and does not change what it parses
- *   to, so a renderer can print `c. -2110` from the same number it sorts on.
- *   It precedes the sign: `~-2500`, never `-~2500`.
- * - `-` — before the epoch the year is counted from. There is no year zero, so
- *   `-1` sits immediately before `1`.
- * - `YYYY` — required.
- * - `MM`, `DD` — optional, in that order.
- * - `ERA` — a calendar's address plus `.<era shortcode>`, in the four address
- *   forms {@link ERA_QUALIFIER_PATTERN} admits. Omitted, the date sits on the
- *   canonical axis and is attributed to nobody.
- *
- * **Precision falls out of how much is written.** `-984` is a year, `689/6` a
- * month, `689/6/19` a day. There is no precision vocabulary, so there is
- * nothing to fall out of step with the value it describes.
- *
- * ## A trailing token is only ever an era
- *
- * It has exactly one shape and it always contains exactly one dot, so **a
- * trailing token at all means the value needs the corpus, and no token means
- * it is already on the axis** — which is readable off the string, before
- * anything is resolved.
- *
- * ## The rule to copy: print `text`, order on `sort`, do arithmetic on `canonicalYear`
- *
- * Every parsed date carries all three, because neither the string nor the
- * number is cheap to derive from the other at read time:
- *
- * ```yaml
- * text: "689/6/19"   # authored, verbatim — what a page prints
- * known: true        # what a query branches on
- * era: null          # the reckoning named, or null for the canonical axis
- * year: 689          # as authored, signed, within its own reckoning
- * month: 6           # null where unwritten
- * day: 19            # null where unwritten
- * approximate: false # the `~`
- * precision: day     # derived: day | month | year
- * canonicalYear: 689 # signed — arithmetic
- * sort: 689.0619     # total order across mixed precision — sorting
- * ```
- *
- * `era` is `null` for a bare value and there is no substitute for it: the
- * canonical axis is not a reckoning anybody keeps and has no address, so
- * filling the field would state an identification that is not true.
- *
- * ## A number is written only where there is one to write
- *
- * A date naming an era carries the qualifier and **no `canonicalYear` and no
- * `sort` keys at all** until the era is resolved against the corpus. They are
- * absent rather than null, because a record carrying `known: true` beside a
- * null year and a null sort is indistinguishable from the `unknown` record
- * below — which is the one shape whose confusion is invisible in the output.
- *
- * ## `unknown` is a value, and it is unordered
- *
- * `"unknown"` says the thing happened and the date is not recorded. It parses
- * to the same record with the year half empty — `known: false`, and **a null
- * `canonicalYear` and a null `sort`**.
- *
- * Both shortcuts past that are silently wrong. Normalising it to `0` sorts the
- * ancient dead into the year immediately before the epoch; treating it as a
- * null year and letting a comparison default it sorts them into the present,
- * beside the living. So anything that orders or filters on a date leaves an
- * unknown one out of the ordering and reports it as its own group, and a range
- * filter never matches it, because the record does not claim a year and a
- * filter must not claim one for it.
- *
- * ## Absence is not a finding, and neither is a bare value
- *
- * An absent value is a fact about the subject rather than a gap, so parsing
- * nothing yields nothing and reports nothing. A bare value is the canonical
- * axis, always, and it is silent: an unattributed date is the honest form for
- * a date an author is placing rather than a record somebody in the setting
- * kept.
+ * `text` keeps the authored spelling. `canonicalYear` and `sort` are set for
+ * neutral and resolved marked dates. A marked date also carries
+ * `canonicalDay`, the ordinal day within its neutral year. An addressed era
+ * qualifier carries no resolved year until a caller supplies its era facts.
  *
  * @module
  */
 
 import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
-import { calendarStructure, canonicalYear, dateSortKey, daysInMonth } from "./calendars.mjs";
+import {
+    calendarStructure,
+    canonicalDateFromOffset,
+    canonicalDayOffset,
+    canonicalYear,
+    dateSortKey,
+    dayOfYear,
+    daysInMonth,
+    parseCanonicalDate,
+} from "./calendars.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 /**
@@ -186,6 +127,10 @@ function unknownRecord() {
  *   the value is written in, as its note declares it. Its ordered month list
  *   bounds a written month and a written day, the day against the length of
  *   the month it names. A calendar that declares no list bounds nothing.
+ * @param {Map<string, object>} [options.markers] - Resolved era markers from
+ *   the corpus, each carrying its calendar and canonical start.
+ * @param {number} [options.daysPerYear] - The world's year length, required for
+ *   canonical days and marked dates.
  * @param {string} [options.field] - The key that carried it, named in every
  *   message. Omitted, a message names the value alone.
  * @param {boolean} [options.allowUnknown=true] - Whether `"unknown"` is a
@@ -199,7 +144,16 @@ function unknownRecord() {
  *   the value is absent or refused, and every finding the value earned.
  */
 export function parseNoteDate(value, options) {
-    const { calendar, field, allowUnknown = true, file, raw, keyPath } = options ?? {};
+    const {
+        calendar,
+        markers,
+        daysPerYear,
+        field,
+        allowUnknown = true,
+        file,
+        raw,
+        keyPath,
+    } = options ?? {};
     const findings = [];
 
     // Absence is a fact about the subject, not a gap — nothing to parse and
@@ -235,6 +189,86 @@ export function parseNoteDate(value, options) {
     }
 
     const trimmed = text.trim();
+    const marked = /^([A-Z][A-Z0-9]*)\((.*)\)$/.exec(trimmed);
+    if (marked) {
+        const [, marker, payload] = marked;
+        const reckoning = markers?.get(marker);
+        if (!reckoning) return refuse(`${subject} names unknown reckoning marker ${marker}`);
+        if (!Number.isSafeInteger(daysPerYear) || daysPerYear < 1)
+            return refuse(`${subject} needs the world's year length to resolve ${marker}`);
+        const parsed = parseNoteDate(payload, {
+            calendar: reckoning.calendar,
+            field,
+            allowUnknown: false,
+            file,
+            raw,
+            keyPath,
+        });
+        if (parsed.findings.some((finding) => finding.severity === "error") || !parsed.date)
+            return { date: null, findings: parsed.findings };
+        if (!parsed.date.known)
+            return refuse(`${subject} wraps an unknown date; write \`unknown\` by itself`);
+        if (parsed.date.era !== null)
+            return refuse(
+                `${subject} names two reckonings; the payload of ${marker} is a calendar date`,
+            );
+        if (parsed.date.canonicalDay !== undefined)
+            return refuse(
+                `${subject} puts a canonical day inside ${marker}; write its calendar month and day`,
+            );
+        const { months } = calendarStructure(reckoning.calendar);
+        if (!months) return refuse(`${subject} names ${marker}, whose calendar declares no months`);
+        const ordinal = dayOfYear(months, parsed.date.month ?? 1, parsed.date.day ?? 1);
+        const start = canonicalDayOffset(reckoning.epochYear, reckoning.epochDay, 1, daysPerYear);
+        const yearOffset = parsed.date.year > 0 ? parsed.date.year - 1 : parsed.date.year;
+        const offset = start + yearOffset * daysPerYear + ordinal - 1;
+        if (!Number.isSafeInteger(offset))
+            return refuse(`${subject} lies outside the supported canonical day range`);
+        if (reckoning.endOffset !== undefined && offset > reckoning.endOffset)
+            return refuse(`${subject} lies after the end of reckoning marker ${marker}`);
+        const canonical = canonicalDateFromOffset(offset, 1, daysPerYear);
+        return {
+            date: {
+                ...parsed.date,
+                text,
+                era: reckoning.era,
+                marker,
+                canonicalYear: canonical.year,
+                canonicalDay: canonical.day,
+                sort: canonical.year + (canonical.day - 1) / daysPerYear,
+            },
+            findings: parsed.findings,
+        };
+    }
+
+    if (trimmed.includes(".")) {
+        const canonical = parseCanonicalDate(trimmed, daysPerYear);
+        if (canonical) {
+            return {
+                date: {
+                    text,
+                    known: true,
+                    era: null,
+                    year: canonical.year,
+                    month: null,
+                    day: canonical.day,
+                    approximate: false,
+                    precision: "day",
+                    canonicalYear: canonical.year,
+                    canonicalDay: canonical.day,
+                    ...(canonical.seconds === undefined ? {} : { seconds: canonical.seconds }),
+                    sort:
+                        canonical.year +
+                        (canonical.day - 1 + (canonical.seconds ?? 0) / 86400) / daysPerYear,
+                },
+                findings,
+            };
+        }
+        if (/^-?\d+\.\d+/.test(trimmed))
+            return refuse(
+                `${subject} is not a canonical date — write \`<year>.<day>[:HHMMSS]\` with a day inside the world's year`,
+            );
+    }
     const match = NOTE_DATE_PATTERN.exec(trimmed);
     if (!match) {
         if (DAY_WITHOUT_MONTH_PATTERN.test(trimmed)) {
@@ -264,10 +298,8 @@ export function parseNoteDate(value, options) {
         }
         return refuse(
             `${subject} is not a date — write ` +
-                `\`[~][-]YYYY[/MM[/DD]] [<calendar shortcode>.<era shortcode>]\`: ` +
-                `a year, negative where it falls before the epoch it is counted ` +
-                `from, optionally a month and a day, and an era where the date is a ` +
-                `reckoning somebody kept`,
+                `\`<year>.<day>[:HHMMSS]\` or ` +
+                `\`<marker>(<year>[/<month>[/<day>]])\``,
         );
     }
 
@@ -276,6 +308,14 @@ export function parseNoteDate(value, options) {
     const year = Number(yearText);
     const month = monthText === undefined ? null : Number(monthText);
     const day = dayText === undefined ? null : Number(dayText);
+    if (
+        !Number.isSafeInteger(year) ||
+        (month !== null && !Number.isSafeInteger(month)) ||
+        (day !== null && !Number.isSafeInteger(day))
+    )
+        return refuse(
+            `${subject} needs whole year, month, and day numbers inside the supported range`,
+        );
 
     // No year zero, in any reckoning: the years either side of an epoch are -1
     // and 1. `-0` is the same year written the other way and is refused with it.

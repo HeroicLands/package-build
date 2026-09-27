@@ -324,6 +324,25 @@ export function dayOfYear(months, month, day) {
 }
 
 /**
+ * Recover a calendar's month and day from an ordinal day of its year.
+ *
+ * @param {readonly CalendarMonth[]} months - The ordered month list.
+ * @param {number} ordinal - Day of year, starting at one.
+ * @returns {{month: number, day: number}|null} The named day, or `null` outside the year.
+ */
+export function monthDayOfYear(months, ordinal) {
+    if (!Number.isSafeInteger(ordinal) || ordinal < 1) return null;
+    let remaining = ordinal;
+    for (let position = 0; position < months.length; position++) {
+        const length = Number(months[position]?.days);
+        if (!Number.isSafeInteger(length) || length < 1) return null;
+        if (remaining <= length) return { month: position + 1, day: remaining };
+        remaining -= length;
+    }
+    return null;
+}
+
+/**
  * How far into its cycle a moon is on a given day.
  *
  * **Floored, not truncated.** JavaScript's `%` takes the dividend's sign, so a

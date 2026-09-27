@@ -99,6 +99,7 @@ import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
 import { SOCIAL_TIES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 import { checkHeld } from "./holdings.mjs";
 import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 // What trade a settlement supports — the scale and the check that holds a
@@ -371,8 +372,9 @@ function checkPlace(note, opts) {
 
 /** Validate a being's authored date using the shared note-date grammar. */
 function checkBeingDate(key) {
-    return (note) =>
+    return (note, { index } = {}) =>
         parseNoteDate(note.fm?.data?.[key], {
+            ...reckoningContext(index),
             field: `data.${key}`,
             file: note.file,
             raw: note.raw,

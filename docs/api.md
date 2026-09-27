@@ -621,6 +621,7 @@ The neutral day spelling is `<year>.<day>[:HHMMSS]`. The pure conversion functio
 | `daysInYear`              | `daysInYear(months)`                                       | `number`                               | asking what a month list claims the year is                                     |
 | `monthStarts`             | `monthStarts(months)`                                      | `number[]`                             | reading the same sum as a sequence, which is what an ordering error moves       |
 | `dayOfYear`               | `dayOfYear(months, month, day)`                            | `number`                               | placing a written month and day in the year                                     |
+| `monthDayOfYear`          | `monthDayOfYear(months, ordinal)`                          | `{month, day}` or `null`               | reading an ordinal day in a calendar's month layout                             |
 | `lunarPhase`              | `lunarPhase(day, epochDay, cycle)`                         | `number` — `0` to `cycle - 1`          | asking how far into its cycle a moon is, on either side of the epoch            |
 | `canonicalDayOffset`      | `canonicalDayOffset(year, day, originYear, daysPerYear)`   | signed whole-day offset                | placing a canonical date against a chosen origin                                |
 | `canonicalDateFromOffset` | `canonicalDateFromOffset(offset, originYear, daysPerYear)` | `{year, day}`                          | recovering a canonical date, including days before the origin                   |
@@ -629,7 +630,7 @@ The neutral day spelling is `<year>.<day>[:HHMMSS]`. The pure conversion functio
 
 ### `engine.noteDates`
 
-A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<calendar shortcode>.<era shortcode>]` — and every field holding one parses through a single grammar into a single record. Print `text`, order on `sort`, do arithmetic on `canonicalYear`. A bare value sits on the canonical axis and carries `era: null`; one naming an era carries the qualifier and no `canonicalYear` or `sort` keys at all until the era is resolved against the corpus. The literal `unknown` parses to the same record with the year half empty, carrying a null `sort` and a null `canonicalYear`, so nothing can order it to one end of a list.
+A date on a note is one authored string. `<year>.<day>[:HHMMSS]` names a calendar-neutral day; `VR(720/5/14)` names an era marker and a date in that era's calendar. A marker is resolved from calendar notes in the corpus and contributes a canonical year, day, and sort key. Print `text`, order on `sort`, and do arithmetic on `canonicalYear`. The literal `unknown` has no sort key or canonical year. Unmarked slash dates and the addressed era qualifier are also accepted by the parser; a caller supplies the corpus marker map and world year length when it needs a marker resolved.
 
 | Export                  | Signature                       | Returns                                            | Use it when                                                   |
 | ----------------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
@@ -637,6 +638,15 @@ A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<calendar sho
 | `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`       | —                                                  | matching the date grammar directly                            |
 | `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`   | —                                                  | checking that a string is an era qualifier a date could carry |
 | `parseNoteDate`         | `parseNoteDate(value, options)` | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned  |
+
+### `engine.reckoningMarkers`
+
+The corpus registry maps each declared marker to exactly one era and its calendar. An era start may use the canonical axis or a marker already resolvable from the corpus; duplicate markers and cycles are findings.
+
+| Export                    | Signature                                     | Returns                            | Use it when                                                 |
+| ------------------------- | --------------------------------------------- | ---------------------------------- | ----------------------------------------------------------- |
+| `resolveReckoningMarkers` | `resolveReckoningMarkers(index, daysPerYear)` | `{markers, findings}`              | resolving authored era markers and their starts             |
+| `reckoningContext`        | `reckoningContext(index)`                     | `{markers, daysPerYear, findings}` | sharing one resolved date context across checks on a corpus |
 
 ### `engine.calendarNotes`
 

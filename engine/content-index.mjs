@@ -151,6 +151,7 @@ import { isDraftNote } from "./note-vocabulary.mjs";
 // an unknown one — filled in against the package's own declared present before
 // a record is built, so the index carries it without the note being written to.
 import { applyComputedBeingAge, presentAmongFrontmatters } from "./being-age.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 
 export {
     authoredFrontmatter,
@@ -692,10 +693,11 @@ export function collectContentIndex(
     // this same walk states one — the whole tree is already in memory, so no
     // second read is needed to answer a question about all of it.
     const present = presentAmongFrontmatters(notes.map((n) => n.frontmatter));
+    const dates = reckoningContext({ notes: notes.map((n) => n.frontmatter) });
 
     for (const { frontmatter, body, bodyLine, absPath } of notes) {
         const fm = frontmatter ?? {};
-        applyComputedBeingAge(fm, present);
+        applyComputedBeingAge(fm, present, dates);
         const relPath = path.relative(contentBase, absPath);
         try {
             records.push(

@@ -100,6 +100,7 @@ import { locateFrontmatterKey } from "./retired-fields.mjs";
 // present before this pass reads `data:` for anything else — see
 // `engine/being-age.mjs`.
 import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 
 /**
  * The tallies one pass accumulates while walking the tree.
@@ -1078,6 +1079,7 @@ export class BasePackCompiler {
         // to have the body anyway. So the read is one this pass was already
         // making; what it no longer does is decide for itself which files to
         // make it over.
+        const dates = reckoningContext({ notes: this.corpus.records });
         for (const record of this.corpus.records) {
             if (!isNoteRecord(record)) continue;
             const absPath = noteFile(this.contentBase, record);
@@ -1091,7 +1093,7 @@ export class BasePackCompiler {
                 stats.skippedOther++;
                 continue;
             }
-            applyComputedBeingAge(fm, this.worldPresent);
+            applyComputedBeingAge(fm, this.worldPresent, dates);
             // The retired frontmatter fields, refused before `selects` so a
             // note is answered whichever pass would have claimed it — and
             // whatever the declared value says.
