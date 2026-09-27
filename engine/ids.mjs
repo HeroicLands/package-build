@@ -62,7 +62,7 @@ export const MAP_TYPES = Object.freeze(new Set(["map"]));
  *
  * @type {readonly string[]}
  */
-export const MAP_SUBTYPES = Object.freeze(["battlemap", "localmap", "regionalmap"]);
+export const MAP_SUBTYPES = Object.freeze(["battlemap", "localmap", "regionalmap", "totm"]);
 
 /**
  * Content types whose whole document **is** a JournalEntry.

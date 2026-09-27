@@ -165,6 +165,8 @@ function agreesWithKind(kind: string, cell: string): boolean {
 const ANY_KIND_FIELDS = [
     "affiliation.governance.offices",
     "map.walls",
+    "map.scale",
+    "map.scene",
     "map.doors",
     "map.lights",
     "map.tiles",

@@ -100,7 +100,7 @@ import { collectContentPages, siteGates, tableUniverse, gatesFailed } from "./si
 import { resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
-import { assetAddressIndex } from "./art-fields.mjs";
+import { artPathname, assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
 import { protectCode } from "./code-fences.mjs";
@@ -118,6 +118,9 @@ import { isDraftNote } from "./note-vocabulary.mjs";
 import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
+import { buildMaps, relatedPlaces } from "./map-build.mjs";
+import { findGraphviz, GRAPHVIZ_INSTALL } from "./map-graphviz.mjs";
+import { mapWorld } from "./map-places.mjs";
 
 /**
  * The file on disk an authored image pathname names, or `null`.
@@ -637,6 +640,73 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
 
     const banners = stageBanners(plan.entries, resolved, outDir, findings);
 
+    /** @type {Map<string, {path: string, title: string}>} Entry anchor → map page. */
+    const maps = new Map();
+    const world = mapWorld({
+        records,
+        foreignIndex: gates.foreign.index,
+        contentBase,
+        config: resolved,
+    });
+    const related = new Set(relatedPlaces(world.places));
+    const mapDir = path.join(outDir, "maps");
+    fs.rmSync(mapDir, { recursive: true, force: true });
+    const mappedEntries = plan.entries.filter(
+        (entry) =>
+            entry.kind === "note" &&
+            entry.record?.type === "place" &&
+            related.has(String(entry.record.shortcode ?? "").toLowerCase()),
+    );
+    if (mappedEntries.length) {
+        const binary = findGraphviz("neato");
+        if (!binary) {
+            findings.push({
+                file: resolved.pdf.document,
+                severity: "warning",
+                message: `GraphViz's \`neato\` is not installed, so the book carries no place maps; ${GRAPHVIZ_INSTALL} to draw them`,
+            });
+        } else {
+            const centres = [...new Set(mappedEntries.map((entry) => entry.record.shortcode))];
+            const drawn = buildMaps({
+                world,
+                outDir: mapDir,
+                from: centres,
+                locate: () => binary,
+            });
+            findings.push(...drawn.findings);
+            for (const entry of mappedEntries) {
+                maps.set(entry.anchor, {
+                    path: `maps/from-${entry.record.shortcode}.svg`,
+                    title: `From here: ${entry.record.name?.full ?? entry.record.shortcode}`,
+                });
+            }
+        }
+    }
+    for (const entry of plan.entries) {
+        if (entry.kind !== "note" || entry.record?.type !== "map") continue;
+        if (entry.record.subType !== "regionalmap") continue;
+        const image = entry.record.data?.bgImage;
+        if (!image) continue;
+        const found = artPathname(assets, image, "image", ["image", "icon"]);
+        if (!found.pathname) {
+            findings.push({
+                file: noteFile(contentBase, entry.record),
+                severity: "warning",
+                message: `the regional map's background "${image}" cannot be resolved for the book`,
+            });
+            continue;
+        }
+        const staged = stagedImagePath(found.pathname, resolved);
+        if (!staged || !staged.from.toLowerCase().endsWith(".svg")) continue;
+        const target = path.join(outDir, staged.to);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(staged.from, target);
+        maps.set(entry.anchor, {
+            path: staged.to,
+            title: entry.record.name?.full ?? entry.record.shortcode,
+        });
+    }
+
     const assembled = renderBook({
         plan,
         bodies,
@@ -647,6 +717,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         version,
         preamble: infoboxTypstPreamble(),
         banners,
+        maps,
     });
     // Last, over the whole document: a reference can only be checked once every
     // declaration is in one string, and Typst treats a dangling one as fatal.

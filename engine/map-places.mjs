@@ -332,7 +332,8 @@ export function mapWorld({ records, foreignIndex, contentBase, base, config }) {
  * What `parents` says about the world's shape.
  *
  * @typedef {object} Containment
- * @property {string|undefined} world - The one `subType: world` place.
+ * @property {string|undefined} world - The world when exactly one is present.
+ * @property {string[]} worlds - Every `subType: world` place, sorted.
  * @property {string[]} continents - Regions parented directly on the world,
  *   in name order.
  * @property {Map<string, string>} continentOf - Each place's continent, for
@@ -412,8 +413,12 @@ function findCycles(places) {
  * @returns {Containment} The analysis.
  */
 export function analyzeContainment(places, polities = []) {
-    const worlds = [...places.values()].filter((p) => p.subType === "world");
-    const world = worlds[0]?.shortcode;
+    const worlds = [...places.values()]
+        .filter((p) => p.subType === "world")
+        .map((p) => p.shortcode)
+        .sort();
+    const world = worlds.length === 1 ? worlds[0] : undefined;
+    const worldSet = new Set(worlds);
 
     /** @type {Map<string, string[]>} */
     const children = new Map();
@@ -431,8 +436,8 @@ export function analyzeContainment(places, polities = []) {
     const resolve = (sc, visiting) => {
         if (continentOf.has(sc)) return continentOf.get(sc);
         const place = places.get(sc);
-        if (!place || sc === world || visiting.has(sc)) return undefined;
-        if (place.subType === "region" && world !== undefined && place.parents.includes(world)) {
+        if (!place || worldSet.has(sc) || visiting.has(sc)) return undefined;
+        if (place.subType === "region" && place.parents.some((parent) => worldSet.has(parent))) {
             continentOf.set(sc, sc);
             return sc;
         }
@@ -476,7 +481,7 @@ export function analyzeContainment(places, polities = []) {
     };
     for (const sc of [...places.keys()].sort()) {
         const place = /** @type {MapPlace} */ (places.get(sc));
-        if (place.parents.length === 0 && sc !== world) anomalies.noParent.push(sc);
+        if (place.parents.length === 0 && !worldSet.has(sc)) anomalies.noParent.push(sc);
         if (place.parents.length > 1) anomalies.multiParent.push(sc);
         if (place.local && place.subType === "region" && place.hasPackFolder === false) {
             anomalies.regionNoPackFolder.push(sc);
@@ -492,6 +497,7 @@ export function analyzeContainment(places, polities = []) {
 
     return {
         world,
+        worlds,
         continents,
         continentOf,
         children,

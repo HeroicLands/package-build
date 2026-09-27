@@ -315,3 +315,66 @@ describe.runIf(HAS_TYPST)("the compiled PDF", () => {
         expect(pdf.toString("latin1")).toMatch(/\+LibertinusSans/);
     });
 });
+
+describe("full-page place maps", () => {
+    it("stages vector itineraries only for selected places with relations", () => {
+        const dir = makeRepo("content");
+        const placeDir = path.join(dir, "assets", "content", "Places");
+        fs.mkdirSync(placeDir, { recursive: true });
+        const place = (name: string, relation: string) =>
+            fs.writeFileSync(
+                path.join(placeDir, `${name}.md`),
+                `---\nshortcode: ${name}\nname: { full: ${name} }\ntype: place\nsubType: settlement\n${relation}---\n\nA place.\n`,
+            );
+        place("alpha", "data:\n  routes:\n    - { to: beta, bearing: E, mode: land, days: 1 }\n");
+        place("beta", "data:\n  routes:\n    - { to: alpha, bearing: W, mode: land, days: 1 }\n");
+        place("gamma", "");
+        const artDir = path.join(dir, "assets", "images");
+        fs.mkdirSync(artDir, { recursive: true });
+        fs.writeFileSync(
+            path.join(artDir, "regional.svg"),
+            '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><text x="10" y="30">Regional Chart</text></svg>',
+        );
+        fs.writeFileSync(
+            path.join(placeDir, "Regional_Chart.md"),
+            "---\nshortcode: regionalchart\nname: { full: Regional Chart }\ntype: map\nsubType: regionalmap\ndata:\n  bgImage: regional\n  scale: { distance: 5, unit: leagues }\n---\n\nA chart.\n",
+        );
+        fs.writeFileSync(
+            path.join(dir, "book.yaml"),
+            "contents:\n  - sectionName: Places\n    contents:\n      - filter: \"type = 'place'\"\n      - filter: \"type = 'map'\"\n",
+        );
+
+        const { out, status } = build(dir, "--no-compile");
+        expect(status, out).toBe(0);
+        const dist = path.join(dir, "build", "dist");
+        const typ = fs.readdirSync(dist).find((f) => f.endsWith(".typ"))!;
+        const source = fs.readFileSync(path.join(dist, typ), "utf8");
+        expect(source).toContain('#book-place-map([From here: alpha], "maps/from-alpha.svg")');
+        expect(source).toContain('#book-place-map([From here: beta], "maps/from-beta.svg")');
+        expect(source).not.toContain("maps/from-gamma.svg");
+        expect(source).toContain('#book-place-map([Regional Chart], "assets/images/regional.svg")');
+        expect(fs.readFileSync(path.join(dist, "maps", "from-alpha.svg"), "utf8")).toContain(
+            "<svg",
+        );
+
+        if (HAS_TYPST) {
+            const compiled = build(dir);
+            expect(compiled.status, compiled.out).toBe(0);
+            const pdf = fs.readdirSync(dist).find((f) => f.endsWith(".pdf"));
+            expect(pdf).toBeDefined();
+            if (spawnSync("pdftotext", ["-v"]).status === 0) {
+                const pages = spawnSync("pdftotext", ["-layout", path.join(dist, pdf!), "-"], {
+                    encoding: "utf8",
+                })
+                    .stdout.split("\f")
+                    .filter((page: string) => page.trim());
+                const alphaMap = pages.find((page: string) => page.includes("From here: alpha"));
+                expect(alphaMap).toBeDefined();
+                expect(alphaMap).not.toContain("A place.");
+                expect(pages.filter((page: string) => page.includes("From here:"))).toHaveLength(2);
+                expect(pages.some((page: string) => page.includes("Regional Chart"))).toBe(true);
+            }
+        }
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+});

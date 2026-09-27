@@ -164,10 +164,14 @@ sohl:
   archetype: null
   place: foreignplace
   placeName: Foreign Place
-  dimensions: [512, 512]
-  pxPerGrid: 64
 data:
-  bgImage: parchment
+  scene:
+    name: Foreign Map
+    width: 512
+    height: 512
+    initialLevel: defaultLevel0000
+    levels:
+      - { _id: defaultLevel0000, background: { src: maps/parchment.webp } }
 ---
 
 A map belonging to the configured content package.

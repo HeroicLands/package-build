@@ -1039,6 +1039,11 @@ is [`publish.site`](#publish), the same switch that gates the website —
 `content` builds one, `homepage` does not, so a package cannot end up with
 two switches that disagree about whether it publishes its content tree.
 
+Each selected place with a border or route receives a dedicated full-page
+vector itinerary after its entry. A selected authored regional SVG map also
+prints on its own page. GraphViz's `neato` draws itineraries; when it is absent,
+the build reports one warning and prints the entries without map pages.
+
 ```yaml
 pdf:
   title: The Hârn Ensemble

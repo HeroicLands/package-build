@@ -1936,6 +1936,23 @@ the command says so, names what to install, and stops. A build that asks
 for maps as one step of a larger job — a site build — writes the `.dot`
 files, emits one warning and skips the renderings rather than failing.
 
+The containment tree draws every `world` note as a separate root. A map from a
+place follows that place's own relations, so another world in the package does
+not change its viewpoint.
+
+Site builds put a linked SVG in each eligible place page. PDF builds put a
+vector map on its own page immediately after each selected place entry with
+relations. A configured Scene pack stages PNG backgrounds and emits gridless
+itinerary Scenes and an Adventure containing the journals their pins open.
+`rsvg-convert` is also required when an authored `regionalmap` uses SVG art.
+
+Battle and local map notes can carry a Foundry Scene export under `data.scene`.
+The pack compiler preserves its fields and binds pins marked `#anchor` to pages
+from the map note's Markdown. A `totm` map uses an image Address and canvas
+dimensions to make a gridless Scene.
+`data.fixup` resolves asset Addresses into selected fields of an exported Scene;
+a missing path or asset is a build error.
+
 The four drawings, any of which may be asked for in one run:
 
 **`--tree`** — the author's check. The containment tree from `data.parents`,
