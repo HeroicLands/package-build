@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 22.14.4
+
+### Patch Changes
+
+**Illustrations** — Named image sizes set the display width on pages and in books. Images without a size use their natural dimensions within the available space.
+
 ## 22.14.3
 
 ### Patch Changes
