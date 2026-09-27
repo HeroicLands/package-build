@@ -99,6 +99,7 @@ import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
+import { checkCultureChoice } from "./culture-choice.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
@@ -702,8 +703,15 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "lore",
                 accepts: ["lore"],
                 describe:
-                    "Lore concerning this being — the people it is of, the standing it " +
-                    "holds, the law it lives under.",
+                    "Lore concerning this being, such as the standing it holds or the law it lives under.",
+            },
+            {
+                name: "culture",
+                ...LINK,
+                ref: "lore",
+                accepts: ["lore"],
+                check: checkCultureChoice,
+                describe: "The being's primary culture, as a culture lore note.",
             },
             {
                 name: "homes",

@@ -660,6 +660,16 @@ The exact-day conversion functions use the corpus reckoning context. A calendar 
 | --------------------- | ------------------------------------ | -------- | ----------------------------------------------- |
 | `checkCalendarChoice` | `checkCalendarChoice(note, options)` | findings | validating a being's or place's chosen calendar |
 
+### `engine.cultureChoice`
+
+`checkCultureChoice(note, { index })` checks that a being's `data.culture`
+Address resolves to a lore note with `subType: culture`. The being vocabulary
+invokes the check during frontmatter lint.
+
+| Export               | Signature                           | Returns  | Use it when                               |
+| -------------------- | ----------------------------------- | -------- | ----------------------------------------- |
+| `checkCultureChoice` | `checkCultureChoice(note, options)` | findings | validating a being's primary culture note |
+
 ### `engine.markdownExpressions`
 
 `renderMarkdownExpressions(body, { fm, dates, sqlResults, file, bodyLine })` expands scalar frontmatter references and registered Handlebars helpers outside Markdown code. The `dateformat` helper uses `formatDateInCalendar`; `gt`, `gte`, `lt`, `lte`, `eq`, `and`, `or`, and `not` evaluate explicit comparisons. The `sql` helper reads a prepared scalar result, which must contain one row and one column. `sqlQueriesInMarkdown` discovers SQL calls, including nested calls; `prepareInlineSqlExpressions` evaluates them through the same DuckDB connection as SQL tables. The renderer returns `{ markdown, findings }`, with source positions for invalid expressions. Site, Foundry and PDF passes invoke it after generated tables expand and before links resolve. Hugo shortcodes remain literal for the site renderer.
