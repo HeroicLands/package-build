@@ -2488,6 +2488,19 @@ an acquaintance knows them without a strong disposition; a rival opposes them
 without implacable hostility; a nemesis opposes them personally and
 implacably. The infobox groups targets by term and links to their notes.
 
+```yaml
+data:
+  socialTies:
+    being-kaldor: patron
+    being-alys: dependent
+    affiliation-silverguild: nemesis
+    kethira-note-being-kaldas: rival
+```
+
+The full Address names a target in another package. Each target has one tie:
+writing its short and full Address in the same map still names one target and is
+an error.
+
 Each tie is one-sided. The target need not name the subject back, even when
 `patron` and `dependent` would describe opposite ends of the same support.
 Kinship, household membership, organizational membership, rank, and office are

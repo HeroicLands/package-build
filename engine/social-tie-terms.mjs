@@ -9,3 +9,6 @@ export const SOCIAL_TIES = Object.freeze([
     { term: "rival", meaning: "Opposes the subject without implacable hostility." },
     { term: "nemesis", meaning: "Opposes the subject personally and implacably." },
 ]);
+
+/** The note types a being can name as a social tie. */
+export const SOCIAL_TIE_TARGET_TYPES = Object.freeze(["being", "affiliation"]);

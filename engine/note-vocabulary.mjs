@@ -97,7 +97,7 @@ import {
 // question, asked the way `checkPlace` and `checkCalendarNote` are.
 import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
-import { SOCIAL_TIES } from "./social-tie-terms.mjs";
+import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { checkHeld } from "./holdings.mjs";
@@ -721,7 +721,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "socialTies",
                 kind: "map",
                 keyKind: "address",
-                accepts: ["being", "affiliation"],
+                accepts: SOCIAL_TIE_TARGET_TYPES,
                 terms: SOCIAL_TIES,
                 shape: "a map keyed by Address",
                 check: checkSocialTies,
