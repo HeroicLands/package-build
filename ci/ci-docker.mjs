@@ -194,7 +194,7 @@ function main() {
         "--rm",
         ...(native ? [] : ["--platform", "linux/amd64"]),
         "-v",
-        `${dir}:/work`,
+        `${dir}:/source:ro`,
         // The step runner comes from this package, not from the export: the
         // repository under test does not carry it, and should not have to.
         "-v",
@@ -202,8 +202,11 @@ function main() {
         "-w",
         "/work",
         image,
-        "node",
-        "/ci/ci-steps.mjs",
+        "sh",
+        "-c",
+        // Run from the container's own filesystem. Some generators create
+        // files that Docker Desktop cannot read back through a macOS mount.
+        "mkdir -p /work && cp -a /source/. /work && exec node /ci/ci-steps.mjs",
     ]);
 
     fs.rmSync(dir, { recursive: true, force: true });
