@@ -158,11 +158,9 @@ export function buildWikilinkIndex(
 
         uuidByDoc.set(
             d,
-            // A note declaring `pack: none` compiles into no document, so it
-            // has no address in any compendium: a link to it is a page on the
-            // web and prose in a journal. Recorded as an entry with no UUIDs
-            // rather than left out, so the address still resolves and a link
-            // to it is never reported as dead.
+            // A note with no single Foundry document has no compendium UUID:
+            // a link to it retains its label in a journal. Keep the indexed
+            // address so the link resolves without a dead-link finding.
             d.none ?
                 { uuid: undefined, docUuid: undefined }
             :   {
@@ -526,12 +524,8 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
             docUuid: compendiumUuid(index.packageId, "doc", itemDocEntryId(doc.id), doc.docPack),
         };
         const entryUuid = itemDoc ? addresses.docUuid : addresses.uuid;
-        // The target is a note that compiles into no document — `pack: none`.
-        // The address is real and the page exists on the web, so this is not
-        // a dead link and must not fail the build; but a compendium has
-        // nothing to open, so the reader gets the prose and no `@UUID`. The
-        // mirror of what the website does for an address that publishes a
-        // document and no page.
+        // The target has no single Foundry document. Its address is real, but
+        // a compendium has nothing to open, so the reader gets the label.
         if (entryUuid === undefined) return text;
         const entryId = itemDoc ? itemDocEntryId(doc.id) : doc.id;
         const isJournal = itemDoc || packForType(doc.type).docType === "JournalEntry";

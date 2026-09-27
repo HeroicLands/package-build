@@ -363,6 +363,48 @@ describe("generatePacksJson — `pack: none` on a type that compiles an Item", (
     });
 });
 
+describe("a compiled wikilink to a note with no Foundry document", () => {
+    it("shows a homepage link's label without an Item UUID", async () => {
+        const root = repo({
+            "homepage.md": `---
+name:
+  full: Home
+shortcode: root
+type: homepage
+---
+
+Welcome.
+`,
+            "Dev_Docs/Combat.md": doc("Combat", "combat", "", "See [[homepage-root|Home]]."),
+        });
+        roots.push(root);
+        const { errors } = await compile(root, [{ name: "journals", type: "JournalEntry" }]);
+        expect(errors).toBe(0);
+        const page = packDocs(root, "journals")["Combat"].pages[0].text.content;
+        expect(page).toContain("See Home.");
+        expect(page).not.toContain("@UUID[");
+    });
+
+    it("shows a folder link's label without inventing a unique Folder UUID", async () => {
+        const root = repo({
+            "Folders/Guides.md": `---
+name:
+  full: Guides
+shortcode: guides
+type: folder
+---
+`,
+            "Dev_Docs/Combat.md": doc("Combat", "combat", "", "See [[folder-guides|Guides]]."),
+        });
+        roots.push(root);
+        const { errors } = await compile(root, [{ name: "journals", type: "JournalEntry" }]);
+        expect(errors).toBe(0);
+        const page = packDocs(root, "journals")["Combat"].pages[0].text.content;
+        expect(page).toContain("See Guides.");
+        expect(page).not.toContain("@UUID[");
+    });
+});
+
 describe("unclaimedNoteFindings — a `pack: none` note is not unclaimed", () => {
     it("reports nothing for a `doc` declaring none, even with no JournalEntry pack", () => {
         const root = repo({

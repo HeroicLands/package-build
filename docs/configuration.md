@@ -643,6 +643,19 @@ packs:
 
 `packs` itself:
 
+The list's order is the order shown in the Foundry manifest. Compilation
+orders its passes by what each compiler reads: for example, Item packs run
+before an Actor pack that embeds their Items, regardless of their positions
+in this list. A run restricted to `content-build package compile <name>`
+requires any pack whose compiled output it reads to be included in the run
+or already present under `build/packs-json/`. If that output is absent, the
+command names the required pack and asks for a whole-package compile or for
+that pack to be compiled first.
+
+`packs[].ownership` is not a pack-spec key. The configuration rejects it;
+neither the compiled pack nor the manifest receives an ownership value from
+this list.
+
 > ``package-build config: `packs` must be an array.``
 
 A package may declare **no** packs. A module that ships assets and compiles
@@ -1224,6 +1237,11 @@ this tree never cites — so `deps fetch` fetches nothing for it and a wikilink
 into it fails, naming the key, rather than resolving against a stale
 declaration or an index nobody fetched:
 
+Run `content-build deps fetch` before compiling content that addresses a
+declared dependency's notes or embeds its Items. Compilation reads the cached
+index and Item catalogue for the declared version; it does not fetch them on
+demand.
+
 > ``package-build config: `relationships.<kind>[<index>].contentIndex` must be true or false.``
 
 > ``package-build config: `relationships.<kind>[<index>].contentIndex` cannot be false together with `itemCatalog: true` — a catalogue is fetched from the same index.``
@@ -1358,6 +1376,11 @@ among several, `""` for one whose site is nothing but its content. It must
 end in a slash when set (a missing one would silently fuse the prefix to
 the first section) and must not begin with one (which would make the
 recorded address package-absolute):
+
+The site build uses this prefix for its Hugo source mount. Published note
+addresses and content-index paths stay relative to the package root; the
+manifest's package homepage also stays at that root. A page staged under
+`kb/` can therefore publish at `/<contentPackage>/<type>-<shortcode>/`.
 
 > ``package-build config: `publish.address` must be an object.``
 
@@ -1513,6 +1536,12 @@ that has a wrong answer rather than an unknown one: a key the build
 **derives** must not also be authored, since the authored value would be
 silently overwritten and the two would be free to disagree with nothing to
 say so.
+
+`packageBuild.manifest.packFolders` groups declared packs in Foundry's pack
+browser. When it is set, a folder naming a pack absent from `packs` is an
+error at that folder's pack name. A declared pack named by no folder is a
+warning at `packFolders`: it still ships at the root. With no `packFolders`
+declaration, all packs ship at the root without a finding.
 
 `packageBuild.manifest.descriptionHtml` is the exception worth calling out on
 its own: it is not forbidden, it **is** how `description` is authored. It is
