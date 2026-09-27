@@ -498,6 +498,23 @@ describe("content-build markdown", () => {
         expect(r.findings).toEqual([]);
     });
 
+    it("never lints dependencies even without a gitignore", async () => {
+        write("a.md", "# Title\n\nClean text.\n");
+        write("node_modules/dep/README.md", "# One\n\n### Three\n");
+        const r = await lintMarkdown(root);
+        expect(r.findings).toEqual([]);
+        expect(r.exitCode).toBe(0);
+    });
+
+    it("keeps dependencies excluded when a consumer overrides ignores", async () => {
+        write("a.md", "# Title\n\nClean text.\n");
+        write("node_modules/dep/README.md", "# One\n\n### Three\n");
+        write(".markdownlint-cli2.jsonc", JSON.stringify({ ignores: [] }));
+        const r = await lintMarkdown(root);
+        expect(r.findings).toEqual([]);
+        expect(r.exitCode).toBe(0);
+    });
+
     it("lets a consumer's own markdownlint config win", async () => {
         write("a.md", "Some *emphasis* here.\n");
         write(

@@ -419,7 +419,8 @@ function toDiagnostic(directory, result) {
  * and every per-rule option; but its `ignores` *replaces*
  * {@link MARKDOWN_IGNORES} rather than extending it, so such a file must restate
  * every shared entry it still wants. Omitting `CHANGELOG.md` there silently
- * starts linting a generated file.
+ * starts linting a generated file. `node_modules` stays excluded by the
+ * command's glob even when a consumer replaces `ignores`.
  *
  * @param {string} root - Repository to lint.
  * @param {object} [opts]
@@ -445,7 +446,7 @@ export async function lintMarkdown(root, opts = {}) {
         collected.push(...results);
     };
 
-    const argv = [...(paths?.length ? paths : MARKDOWN_GLOBS)];
+    const argv = [...(paths?.length ? paths : MARKDOWN_GLOBS), "!**/node_modules/**"];
     if (fix) argv.push("--fix");
 
     const exitCode = await run({

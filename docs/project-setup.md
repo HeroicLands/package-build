@@ -337,8 +337,8 @@ to markdownlint directly, and a repository that declares nothing gets it. A
 with one trap worth knowing before writing one. A consumer file overrides the
 shared configuration **key by key, and each key wholesale**: declaring only
 `ignores` keeps every rule intact but _replaces_ the shared ignore list rather
-than extending it, so such a file must restate every shared entry it still
-wants.
+than extending it, so such a file must restate `CHANGELOG.md` if it still wants
+that file excluded. The command always excludes `node_modules`.
 
 ## `.prettierignore`
 
