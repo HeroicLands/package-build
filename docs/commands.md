@@ -157,6 +157,50 @@ $ package-build assets
 
 [Configuration](configuration.md).
 
+### `package-build calendars`
+
+**NAME**
+
+Emit calendar definitions and Calendaria import files from the content index.
+
+**SYNOPSIS**
+
+```
+package-build calendars --calendaria-version <version>
+```
+
+**DESCRIPTION**
+
+Reads the package's current JSONL content index and writes
+`build/calendars/<shortcode>.json` and
+`build/calendars/<shortcode>.calendaria.json` for each calendar note. The
+import file contains the same definition and a fixed `exportedAt` sentinel,
+making both files reproducible. A package with no calendars gets an empty
+`build/calendars/` directory. Run `content-build content-index` after changing
+notes and before this command. Stage the generated directory with
+`packageBuild.assets` when the Foundry package should ship it.
+
+**OPTIONS**
+
+`--calendaria-version` is required and identifies the Calendaria
+import format targeted by the envelope. It has the form `major.minor.patch`.
+
+**EXIT STATUS**
+
+1 if the index is missing or invalid, a calendar shortcode is invalid or
+duplicated, a calendar has no world year, or the version is invalid. Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build calendars --calendaria-version 1.4.2
+✅ 5 calendars emitted (10 files).
+```
+
+**SEE ALSO**
+
+`content-build content-index`, [Getting started](getting-started.md).
+
 ### `package-build schema`
 
 **NAME**

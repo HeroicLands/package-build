@@ -49,6 +49,7 @@
  * Usage:
  *   npx package-build clean [--distclean]
  *   npx package-build assets
+ *   npx package-build calendars --calendaria-version <version>
  *   npx package-build manifest
  *   npx package-build lang check
  *   npx package-build lang coverage [--unused]
@@ -88,6 +89,7 @@ import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
+import { emitCalendarArtifacts } from "../engine/calendar-artifacts.mjs";
 import { SCHEMA_ARTIFACT_FILE } from "../engine/foreign-catalog.mjs";
 import { validateLangSource } from "../lang.mjs";
 import { checkLabelRegistry } from "../labels.mjs";
@@ -312,6 +314,28 @@ function assetsCommand() {
                 transform,
             });
             console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
+        }),
+    };
+}
+
+/** Emit the package's calendar definitions from its content index. */
+function calendarsCommand() {
+    return {
+        command: "calendars",
+        describe: "Emit calendar definitions and Calendaria import files",
+        builder: (y) =>
+            y.option("calendaria-version", {
+                type: "string",
+                demandOption: true,
+                describe: "Calendaria import format version",
+            }),
+        handler: handler((args) => {
+            const config = loadPackConfig();
+            const result = emitCalendarArtifacts({
+                config,
+                calendariaVersion: args.calendariaVersion,
+            });
+            console.log(`✅ ${result.calendars} calendars emitted (${result.files} files).`);
         }),
     };
 }
@@ -1386,6 +1410,7 @@ yargs(hideBin(process.argv))
     .scriptName("package-build")
     .command(cleanCommand())
     .command(assetsCommand())
+    .command(calendarsCommand())
     .command(manifestCommand())
     .command(siteRootCommand())
     .command(schemaCommand())

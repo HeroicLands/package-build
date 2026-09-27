@@ -669,6 +669,20 @@ A calendar is a `lore` note with `subType: calendar`, declaring the months it ke
 | `compileCalendars`          | `compileCalendars(index, opts)`                       | `{calendars, invariants}`                  | building every calendar a package declares, or none where it states no year |
 | `calendariaEnvelope`        | `calendariaEnvelope(definition, opts)`                | `object` — the import envelope             | wrapping a definition for a hand import through Calendaria's settings       |
 
+### `engine.calendarArtifacts`
+
+`emitCalendarArtifacts` reads the package's current content index and writes
+calendar files under `build/calendars/`. Each calendar produces a definition
+and an import envelope containing that same definition. The command line entry
+point is `package-build calendars --calendaria-version <version>`; run
+`content-build content-index` first. The generated import envelope carries a
+fixed ISO `exportedAt` sentinel so repeated builds of unchanged source emit
+identical bytes.
+
+| Export                  | Signature                                            | Returns                         | Use it when                                          |
+| ----------------------- | ---------------------------------------------------- | ------------------------------- | ---------------------------------------------------- |
+| `emitCalendarArtifacts` | `emitCalendarArtifacts({config, calendariaVersion})` | `{directory, calendars, files}` | writing calendar files for a package's Foundry stage |
+
 ### `engine.beingAge`
 
 The middle state of a being's `age`: absent beside a dated `born`, it is computed against the package's declared present — the two dates compared, not the two years subtracted, so a birthday later in the year than the present counts one less. `applyComputedBeingAge` fills it in on the frontmatter object a pass already holds, never on the note; `checkBeingAge` is `being`'s `NOTE_VOCABULARY` check, raising a warning where an authored `age` disagrees with what a dated `born` computes to. An estimate's `~` is read the way a date's is: the authored string stays verbatim, and `ageYears` carries the magnitude beside it.
