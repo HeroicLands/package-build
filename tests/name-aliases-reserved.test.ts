@@ -254,6 +254,7 @@ describe("it reaches no derived address", () => {
                     contentPackage: "demo",
                     foundryPackage: "demo-module",
                     packageKind: "modules",
+                    compatibility: { minimum: "14.359" },
                     stats: { lastModifiedBy: "demobuilder0000" },
                     packs: [{ name: "journals", type: "JournalEntry" }],
                     publish: { site: "content", address: { prefix: "kb/" } },

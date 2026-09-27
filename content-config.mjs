@@ -2718,6 +2718,9 @@ export function defineConfig(config) {
     const docEntryTypes = Object.freeze(
         new Set([...itemTypes, ...ACTOR_TYPES, "macro", ...MAP_TYPES]),
     );
+    const compatibility = normalizeCompatibility(input.compatibility, "compatibility");
+    if (!documentation && compatibility === null)
+        fail("compatibility.minimum", "is required for a Foundry package");
 
     return Object.freeze({
         rootDir,
@@ -2797,7 +2800,7 @@ export function defineConfig(config) {
         docs: normalizeDocs(input.docs),
         site: normalizeSite(input.site),
         pdf: normalizePdf(input.pdf, rootDir),
-        compatibility: normalizeCompatibility(input.compatibility, "compatibility"),
+        compatibility,
         relationships: normalizeRelationships(input.relationships),
         systems,
         requiresSystem,

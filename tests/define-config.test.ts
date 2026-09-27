@@ -368,7 +368,7 @@ describe("defineConfig — the layout a consumer supplies", () => {
 
     it("keeps `minimum` mandatory, since it is stamped into every document", () => {
         const { compatibility: _drop, ...without } = minimal();
-        expect(defineConfig(without).compatibility).toBeNull();
+        expect(() => defineConfig(without)).toThrow(/compatibility\.minimum/);
 
         expect(() => defineConfig({ ...minimal(), compatibility: { verified: "14.4" } })).toThrow(
             /compatibility\.minimum/,

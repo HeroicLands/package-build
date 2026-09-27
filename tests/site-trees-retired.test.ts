@@ -34,6 +34,7 @@ function minimal(overrides: Record<string, unknown> = {}) {
         contentPackage: "acme",
         foundryPackage: "acme",
         packageKind: "systems",
+        compatibility: { minimum: "14.359" },
         stats: { lastModifiedBy: "acmebuilder0000" },
         packs: [{ name: "items", type: "Item" }],
         ...overrides,
@@ -163,6 +164,7 @@ describe("the mount a site build writes is pinned", () => {
                 contentPackage: "demo",
                 foundryPackage: "demo",
                 packageKind: "modules",
+                compatibility: { minimum: "14.359" },
                 stats: { lastModifiedBy: "demobuilder0000" },
                 packs: [
                     { name: "items", type: "Item" },

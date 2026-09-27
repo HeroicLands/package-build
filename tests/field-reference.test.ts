@@ -341,6 +341,7 @@ describe("`docs.itemFields.frontmatter` in configuration", () => {
             contentPackage: "acme",
             foundryPackage: "acme",
             packageKind: "systems",
+            compatibility: { minimum: "14.359" },
             stats: { lastModifiedBy: "acmebuilder0000" },
             packs: [{ name: "items", type: "Item" }],
             docs: { itemFields },

@@ -47,6 +47,7 @@ const thalorna = defineConfig({
     contentPackage: "thalorna",
     foundryPackage: "sohl-thalorna",
     packageKind: "modules",
+    compatibility: { minimum: "14.359" },
     stats: { lastModifiedBy: "thalornabuild000" },
     packs: [{ name: "items", type: "Item" }],
     relationships: { systems: [{ id: "sohl", type: "system" }] },
