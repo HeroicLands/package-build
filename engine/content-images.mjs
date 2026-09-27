@@ -25,7 +25,8 @@
  * simple case needs no spelling. {@link IMAGE_CLASSES} holds the one class
  * there is. **Position is `float:`**, and {@link IMAGE_FLOATS} holds the five
  * values it takes. **Named size is `size:`**, and {@link IMAGE_SIZES} holds its
- * values. Size is parsed but does not change the figure's current presentation.
+ * values. The HTML surfaces receive a size class; the book receives a print
+ * measure.
  *
  * All three are closed, and an unrecognised value is **refused with a located
  * diagnostic** rather than ignored. Ignoring is the failure worth preventing:
@@ -105,7 +106,7 @@ export const IMAGE_CLASSES = Object.freeze({
     },
 });
 
-/** The named sizes an image directive accepts without applying a display size. */
+/** The named sizes an image directive accepts. */
 export const IMAGE_SIZES = Object.freeze([
     "auto",
     "small",
@@ -326,16 +327,17 @@ export function parseImageDirective(raw) {
 /**
  * The classes a figure carries, from a parsed directive.
  *
- * @param {{classes?: string[], float?: string}} [directive] - As parsed.
+ * @param {{classes?: string[], size?: string, float?: string}} [directive] - As parsed.
  * @returns {string} A space-separated class list, always naming
  *   {@link IMAGE_FIGURE_CLASS} first.
  */
-export function figureClasses({ classes = [], float = "" } = {}) {
+export function figureClasses({ classes = [], size = "auto", float = "" } = {}) {
     const names = [IMAGE_FIGURE_CLASS];
     for (const name of classes) {
         const spec = IMAGE_CLASSES[/** @type {keyof typeof IMAGE_CLASSES} */ (name)];
         if (spec) names.push(spec.class);
     }
+    if (size !== "auto" && IMAGE_SIZES.includes(size)) names.push(`note-image-size-${size}`);
     const position = IMAGE_FLOATS[/** @type {keyof typeof IMAGE_FLOATS} */ (float)];
     if (position) names.push(position.class);
     return names.join(" ");
@@ -367,13 +369,14 @@ export function escapeHtml(text) {
  * @param {string} image.src - The address, resolved for the surface.
  * @param {string} [image.alt] - The alt text, which is also the caption.
  * @param {string[]} [image.classes] - Width classes, from the directive.
+ * @param {string} [image.size] - Named display size, from the directive.
  * @param {string} [image.float] - The float position, from the directive.
  * @returns {string} The figure, as one HTML block.
  */
-export function imageFigureHtml({ src, alt = "", classes = [], float = "" }) {
+export function imageFigureHtml({ src, alt = "", classes = [], size = "auto", float = "" }) {
     const caption = alt ? `\n<figcaption>${escapeHtml(alt)}</figcaption>` : "";
     return (
-        `<figure class="${figureClasses({ classes, float })}">\n` +
+        `<figure class="${figureClasses({ classes, size, float })}">\n` +
         `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">${caption}\n` +
         `</figure>`
     );
@@ -644,10 +647,16 @@ export function renderImageFigures(body, resolveSrc = (src) => src) {
     let last = 0;
     for (const image of imagesIn(text)) {
         if (!image.block || imageSourceProblem(image.src) || image.title) continue;
-        const { classes, float, problems } = parseImageDirective(image.directive);
+        const { classes, size, float, problems } = parseImageDirective(image.directive);
         if (problems.length) continue;
         out += text.slice(last, image.index);
-        out += imageFigureHtml({ src: resolveSrc(image.src), alt: image.alt, classes, float });
+        out += imageFigureHtml({
+            src: resolveSrc(image.src),
+            alt: image.alt,
+            classes,
+            size,
+            float,
+        });
         last = image.index + image.length;
     }
     return out + text.slice(last);
@@ -696,6 +705,7 @@ export function imagePlugin(resolveSrc = (src) => src) {
                 src: resolveSrc(token.attrGet("src") ?? ""),
                 alt: token.content ?? "",
                 classes: token.meta.classes,
+                size: token.meta.size,
                 float: token.meta.float,
             })}\n`;
         };
@@ -733,12 +743,12 @@ function attachImageDirectives(tokens) {
             directive = brace[0];
         }
 
-        const { classes, float, problems } = parseImageDirective(directive);
+        const { classes, size, float, problems } = parseImageDirective(directive);
         // Not ours to consume: leaving the braces in place is what makes an
         // unrecognised value visible on the page instead of passing as ordinary.
         if (problems.length) continue;
 
-        image.meta = { ...(image.meta ?? {}), block: true, classes, float };
+        image.meta = { ...(image.meta ?? {}), block: true, classes, size, float };
         if (trailing) trailing.content = trailing.content.slice(directive.length);
         // The figure is a block, so the paragraph that held it renders nothing.
         tokens[i].hidden = true;

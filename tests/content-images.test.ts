@@ -36,7 +36,7 @@ import {
     parseImageDirective,
     renderImageFigures,
 } from "../engine/content-images.mjs";
-import { markdownToTypst } from "../engine/pdf-render.mjs";
+import { BOOK_IMAGE_WIDTHS, bookTypstPreamble, markdownToTypst } from "../engine/pdf-render.mjs";
 
 const render = (markdown: string) =>
     new MarkdownIt({ html: true }).use(imagePlugin()).render(markdown);
@@ -309,10 +309,11 @@ describe("the book prints the picture at the measure the class names", () => {
     const images = new Map([["images/m.webp", "assets/images/m.webp"]]);
     const typst = (markdown: string) => markdownToTypst(markdown, { images });
 
-    it("sets an image with no marker as a block one column wide", () => {
+    it("sets an image with no marker at intrinsic width within the column", () => {
         const out = typst("![A map](images/m.webp)\n");
-        expect(out).toContain('#image("assets/images/m.webp", width: 100%)');
-        expect(out).toContain("#block(width: 100%");
+        expect(out).toContain('#book-image("assets/images/m.webp", requested: auto');
+        expect(bookTypstPreamble()).toContain("let natural = measure(image(path))");
+        expect(bookTypstPreamble()).toContain("calc.min(target, size.width");
         expect(out).not.toContain("#place(");
     });
 
@@ -351,38 +352,44 @@ describe("the book prints the picture at the measure the class names", () => {
     });
 });
 
-describe("named sizes are accepted without changing presentation", () => {
+describe("named sizes reach every renderer", () => {
     const plain = "![A map](images/m.webp){float: top-left}\n";
     const images = new Map([["images/m.webp", "assets/images/m.webp"]]);
     const withSize = (size: string) => `![A map](images/m.webp){size: ${size}, float: top-left}\n`;
 
-    it("keeps the website figure identical and consumes the directive", () => {
+    it("emits one HTML size class for every bounded or page-sized name", () => {
         for (const size of IMAGE_SIZES) {
-            expect(renderImageFigures(withSize(size))).toBe(renderImageFigures(plain));
-            expect(renderImageFigures(withSize(size))).not.toContain("size:");
+            const html = renderImageFigures(withSize(size));
+            if (size === "auto") expect(html).toBe(renderImageFigures(plain));
+            else expect(html).toContain(`note-image-size-${size}`);
+            expect(html).not.toContain("{size:");
         }
     });
 
-    it("keeps the Foundry figure identical and consumes the directive", () => {
+    it("hands Foundry the same size classes as the website", () => {
         for (const size of IMAGE_SIZES) {
-            expect(render(withSize(size))).toBe(render(plain));
-            expect(render(withSize(size))).not.toContain("size:");
+            expect(render(withSize(size)).trim()).toBe(renderImageFigures(withSize(size)).trim());
         }
     });
 
-    it("keeps the book figure identical", () => {
+    it("maps every declared size to a print request", () => {
+        expect(Object.keys(BOOK_IMAGE_WIDTHS)).toEqual(IMAGE_SIZES);
         for (const size of IMAGE_SIZES) {
-            expect(markdownToTypst(withSize(size), { images })).toBe(
-                markdownToTypst(plain, { images }),
-            );
+            const out = markdownToTypst(withSize(size), { images });
+            expect(out).toContain(`requested: ${BOOK_IMAGE_WIDTHS[size]}`);
+            expect(out.includes('scope: "parent"')).toBe(size === "full-width");
         }
     });
 
-    it("keeps the full-width class behavior intact", () => {
+    it("keeps the page-width class while honoring a bounded inner size", () => {
         const baseline = "![A map](images/m.webp){.full-width}\n";
         const withSize = "![A map](images/m.webp){.full-width, size: medium}\n";
-        expect(renderImageFigures(withSize)).toBe(renderImageFigures(baseline));
-        expect(render(withSize)).toBe(render(baseline));
-        expect(markdownToTypst(withSize, { images })).toBe(markdownToTypst(baseline, { images }));
+        expect(renderImageFigures(withSize)).toContain(
+            "note-image-full-width note-image-size-medium",
+        );
+        expect(render(withSize)).toContain("note-image-full-width note-image-size-medium");
+        expect(markdownToTypst(withSize, { images })).toContain("requested: 3.2cm");
+        expect(markdownToTypst(withSize, { images })).toContain("#book-figure[");
+        expect(markdownToTypst(baseline, { images })).toContain("requested: auto");
     });
 });

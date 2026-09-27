@@ -66,6 +66,16 @@ import MarkdownIt from "markdown-it";
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
 import { iconPlugin, ICON_PATTERN } from "./content-icons.mjs";
 import { IMAGE_CLASSES, IMAGE_FLOATS, imagePlugin } from "./content-images.mjs";
+
+/** Requested print width for every named image size. */
+export const BOOK_IMAGE_WIDTHS = Object.freeze({
+    auto: "auto",
+    small: "1.6cm",
+    medium: "3.2cm",
+    large: "5.6cm",
+    xlarge: "8cm",
+    "full-width": '"full-width"',
+});
 import { slugify } from "./content-slug.mjs";
 
 /**
@@ -706,17 +716,19 @@ function renderLink(href, inner, ctx) {
  */
 function renderImage(token, ctx) {
     const alt = token.content || token.attrGet?.("alt") || "";
-    const caption =
-        alt ? `\n  #text(size: 7.6pt, style: "italic", fill: luma(45%))[${escapeTypst(alt)}]` : "";
+    const caption = alt ? `[${escapeTypst(alt)}]` : "none";
     const staged = ctx.images.get(token.attrGet?.("src") ?? "");
-    if (!staged) return caption ? `\n#block(below: 0.6em)[${caption}\n]\n\n` : "";
+    if (!staged)
+        return alt ?
+                `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic", fill: luma(45%))${caption}]\n\n`
+            :   "";
 
-    const figure =
-        `#block(width: 100%, below: 0.6em)[\n` +
-        `  #image("${escapeTypstString(staged)}", width: 100%)${caption}\n]`;
+    const size = BOOK_IMAGE_WIDTHS[token.meta?.size] ?? BOOK_IMAGE_WIDTHS.auto;
+    const figure = `#book-image("${escapeTypstString(staged)}", requested: ${size}, caption: ${caption})`;
 
     const width = token.meta?.classes?.[0];
-    const scope = IMAGE_CLASSES[width]?.scope ?? "column";
+    const scope =
+        token.meta?.size === "full-width" ? "parent" : (IMAGE_CLASSES[width]?.scope ?? "column");
     const float = IMAGE_FLOATS[token.meta?.float];
     // In the flow where it was written: no class asking for the page, and no
     // position asking for the top or the bottom of the column.
@@ -804,6 +816,17 @@ export function bookTypstPreamble() {
         "#let book-page-height = 11in",
         "#let book-text-width = book-page-width - 2 * book-margin",
         "#let book-text-height = book-page-height - 2 * book-margin",
+        // Use the file's natural measure for auto. Every requested width is
+        // bounded by the available measure and by the height of a page.
+        "#let book-image(path, requested: auto, caption: none) = layout(size => {\n" +
+            "  let natural = measure(image(path))\n" +
+            '  let target = if requested == auto { natural.width } else if requested == "full-width" { size.width } else { requested }\n' +
+            "  let width = calc.min(target, size.width, book-text-height * 0.8 * (natural.width / natural.height))\n" +
+            "  block(width: width, below: 0.6em)[\n" +
+            '    #image(path, width: 100%, fit: "contain")\n' +
+            '    #if caption != none { text(size: 7.6pt, style: "italic", fill: luma(45%))[#caption] }\n' +
+            "  ]\n" +
+            "})",
         // The title sets short of the measure, so a plate's last line does not
         // run to the trimmed edge of the paper.
         "#let book-title-measure = book-text-width - 2.5cm",

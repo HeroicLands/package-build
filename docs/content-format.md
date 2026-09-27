@@ -2066,10 +2066,10 @@ place for those words and this is it.
 
 ##### Width is a class, and the ordinary width carries no marker
 
-| `class` value | book          | website            | Foundry journal  |
-| ------------- | ------------- | ------------------ | ---------------- |
-| _(none)_      | one column    | the text measure   | the page measure |
-| `.full-width` | the full page | full content width | full page width  |
+| `class` value | book                          | website            | Foundry journal |
+| ------------- | ----------------------------- | ------------------ | --------------- |
+| _(none)_      | natural width within a column | natural width      | natural width   |
+| `.full-width` | page measure                  | full content width | full page width |
 
 The simple case needs no spelling, which is why the ordinary width has no name.
 
@@ -2080,21 +2080,24 @@ refused.
 
 ##### Named size is `size:`
 
-| `size` value | display                  |
-| ------------ | ------------------------ |
-| `auto`       | same as omitting `size:` |
-| `small`      | same as omitting `size:` |
-| `medium`     | same as omitting `size:` |
-| `large`      | same as omitting `size:` |
-| `xlarge`     | same as omitting `size:` |
-| `full-width` | same as omitting `size:` |
+| `size` value | website and Foundry | book         |
+| ------------ | ------------------- | ------------ |
+| `auto`       | natural size        | natural size |
+| `small`      | 64 CSS pixels       | 1.6 cm       |
+| `medium`     | 128 CSS pixels      | 3.2 cm       |
+| `large`      | 256 CSS pixels      | 5.6 cm       |
+| `xlarge`     | 512 CSS pixels      | 8 cm         |
+| `full-width` | content measure     | page measure |
 
-The parser accepts and records these names for Markdown images and embedded
-assets. **A `size:` value does not change the displayed dimensions** on the
-website, in Foundry, or in the book. With no `size:`, the parser records `auto`;
-the existing rendering rules apply. In particular, book images occupy a column
-unless they carry `.full-width`. A `size:` may sit before or after `float:` in
-the same directive, and neither changes the other's behavior.
+These are maximum display widths for Markdown images and embedded assets;
+height follows the file's aspect ratio. The available column, page, or browser
+measure caps every size, and print also caps image height within the page.
+Omitting `size:` means `auto`, which uses the file's natural dimensions within
+those bounds. `full-width` spans the book's page rather than one column. The
+`.full-width` class also grants page scope in print; when it accompanies a
+bounded `size:`, the image keeps that bounded width inside the page figure.
+A `size:` may sit before or after `float:` in the same directive, and neither
+changes the other's behavior.
 
 ##### Position is `float:`
 
