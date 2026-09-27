@@ -6,6 +6,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { resolvePackageBuildConfig } from "../config.mjs";
 
 import { buildMaps, relatedPlaces } from "./map-build.mjs";
 import { renderDot } from "./map-graphviz.mjs";
@@ -74,6 +75,7 @@ export function buildItineraryScenes({
     stats,
     foreign = loadForeignIndexes(config, [config.contentPackage]),
 }) {
+    const buildConfig = resolvePackageBuildConfig(config);
     const world = mapWorld({ records, foreignIndex: foreign.index, contentBase, config });
     const centres = relatedPlaces(world.places).filter((sc) => world.places.get(sc)?.local);
     const findings = foreign.stale.map((stale) => ({
@@ -83,7 +85,7 @@ export function buildItineraryScenes({
     }));
     const assetDir = path.resolve(
         config.rootDir,
-        config.packageBuild.stageDir,
+        buildConfig.stageDir,
         "assets/maps/generated-itineraries",
     );
     fs.rmSync(assetDir, { recursive: true, force: true });
@@ -112,7 +114,7 @@ export function buildItineraryScenes({
         const [width, height] = pngDimensions(png);
         const positions = pinPositions(fs.readFileSync(plain, "utf8"), width, height);
         const sceneId = makeId("itinerary-scene", `${config.contentPackage}:${centre}`);
-        const src = `${config.packageKind}/${config.foundryPackage.id}/assets/maps/generated-itineraries/from-${centre}.png`;
+        const src = `${buildConfig.packageKind}/${buildConfig.packageId}/assets/maps/generated-itineraries/from-${centre}.png`;
         const scene = buildScene(
             {
                 id: sceneId,
