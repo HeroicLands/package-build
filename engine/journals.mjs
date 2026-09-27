@@ -75,7 +75,7 @@ import { draftNoticeFor } from "./draft-notice.mjs";
  * a split. Content before the first H1 (if non-empty) becomes a leading
  * page. Each H1 yields a page whose name is the heading
  * text (with any `{#anchor-id}` suffix stripped out and surfaced as
- * `anchorId`).
+ * `anchorSlug`).
  *
  * `leadName` names that leading page. A journal note's is "Introduction",
  * because it introduces the pages that follow. An item doc's is the item — a
@@ -83,7 +83,10 @@ import { draftNoticeFor } from "./draft-notice.mjs";
  * calling that page "Introduction" would label the description as a preamble to
  * nothing.
  *
- * Returns an array of `{ name, anchorId, markdown }` in document order.
+ * @param {string} body - Markdown body to split.
+ * @param {string} [leadName] - Name of the page before the first heading.
+ * @returns {Array<{name: string, anchorSlug: string|null, level: number,
+ *   markdown: string}>} Pages in document order.
  */
 export function splitPages(body, leadName = "Introduction") {
     const lines = body.split("\n");
