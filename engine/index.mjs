@@ -139,6 +139,9 @@ export * as markdownExpressions from "./markdown-expressions.mjs";
 /** A being's or place's chosen calendar note. */
 export * as calendarChoice from "./calendar-choice.mjs";
 
+/** A being's primary culture Address, checked against lore subtype. */
+export * as cultureChoice from "./culture-choice.mjs";
+
 /** Era markers resolved from calendar notes in a corpus. */
 export * as reckoningMarkers from "./reckoning-markers.mjs";
 

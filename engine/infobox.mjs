@@ -120,6 +120,7 @@ import { readAliasedField } from "./retired-fields.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
 import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
+import { displayBeingHeight, displayBeingWeight } from "./being-measurements.mjs";
 
 /**
  * How a section arranges what it holds.
@@ -301,8 +302,8 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     "being.ageYears": Object.freeze({
         withheld: "the `age` row's own machinery, not a second fact about the subject",
     }),
-    "being.height": Object.freeze({ group: "appearance", phrase: heightPhrase }),
-    "being.weight": Object.freeze({ group: "appearance", phrase: weightPhrase }),
+    "being.height": Object.freeze({ group: "appearance", phrase: displayBeingHeight }),
+    "being.weight": Object.freeze({ group: "appearance", phrase: displayBeingWeight }),
     "being.frame": Object.freeze({ group: "appearance", phrase: (v) => `${v} frame` }),
     "being.appearance.eye_color": Object.freeze({
         group: "appearance",
@@ -348,18 +349,6 @@ export function overlayFor(presentation, type, name) {
 
 /** What a composed group's row is called. @type {Readonly<Record<string, string>>} */
 const GROUP_LABELS = Object.freeze({ appearance: "Appearance" });
-
-/** Metres as feet and inches, which is how the corpus reads a height. */
-function heightPhrase(metres) {
-    const inches = Math.round(Number(metres) * 39.3701);
-    const feet = Math.floor(inches / 12);
-    return `${feet}′ ${inches - feet * 12}″`;
-}
-
-/** Kilograms as pounds, which is how the corpus reads a weight. */
-function weightPhrase(kilograms) {
-    return `${Math.round(Number(kilograms) * 2.20462)} lbs`;
-}
 
 /** Whether a value is a plain mapping. */
 function isMapping(value) {

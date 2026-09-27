@@ -99,10 +99,16 @@ import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
+import { checkCultureChoice } from "./culture-choice.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { checkHeld } from "./holdings.mjs";
+import {
+    checkBeingMeasurement,
+    parseBeingHeight,
+    parseBeingWeight,
+} from "./being-measurements.mjs";
 import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 // What trade a settlement supports — the scale and the check that holds a
 // value to it, read rather than restated, so the reference below and the
@@ -702,8 +708,15 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "lore",
                 accepts: ["lore"],
                 describe:
-                    "Lore concerning this being — the people it is of, the standing it " +
-                    "holds, the law it lives under.",
+                    "Lore concerning this being, such as the standing it holds or the law it lives under.",
+            },
+            {
+                name: "culture",
+                ...LINK,
+                ref: "lore",
+                accepts: ["lore"],
+                check: checkCultureChoice,
+                describe: "The being's primary culture, as a culture lore note.",
             },
             {
                 name: "homes",
@@ -780,8 +793,20 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "Written by the compiler beside an `age` estimate — the `~` stripped, " +
                     "the magnitude alone. A note never authors this.",
             },
-            { name: "height", ...NUM, describe: "Height in metres." },
-            { name: "weight", ...NUM, describe: "Weight in kilograms." },
+            {
+                name: "height",
+                shape: "metres or feet and inches",
+                kind: "string",
+                check: (note) => checkBeingMeasurement(note, "height", parseBeingHeight),
+                describe: "Height in metres or feet and inches.",
+            },
+            {
+                name: "weight",
+                shape: "kilograms or pounds",
+                kind: "string",
+                check: (note) => checkBeingMeasurement(note, "weight", parseBeingWeight),
+                describe: "Body weight in kilograms or pounds.",
+            },
             {
                 name: "frame",
                 ...TEXT,
