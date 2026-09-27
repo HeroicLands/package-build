@@ -788,12 +788,14 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "height",
                 shape: "metres or feet and inches",
+                kind: "string",
                 check: (note) => checkBeingMeasurement(note, "height", parseBeingHeight),
                 describe: "Height in metres or feet and inches.",
             },
             {
                 name: "weight",
                 shape: "kilograms or pounds",
+                kind: "string",
                 check: (note) => checkBeingMeasurement(note, "weight", parseBeingWeight),
                 describe: "Body weight in kilograms or pounds.",
             },
