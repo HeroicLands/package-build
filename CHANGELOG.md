@@ -1,5 +1,25 @@
 # @heroiclands/package-build
 
+## 22.14.3
+
+### Patch Changes
+
+Editors can preview a content page from unsaved text, including its tables, links, images, and GM passages.
+
+Setting orientation pages can be authored as setting guides, with the same links, tables, and GM passages as other guides.
+
+**Content authoring**
+
+- Beings can describe defining social ties, and place notes can identify their practical purpose.
+- Calendar notes can set their own display formats, and being birth and death dates receive date validation.
+- Structured place and affiliation relationships appear as linked rows in the infobox.
+
+**Published output**
+
+- Content indexes identify each system's Actor document separately when a note produces more than one.
+- Alternative art builds report image names that have no matching note in the related package.
+- Site search archives include every indexed page.
+
 ## 22.14.2
 
 ### Patch Changes
