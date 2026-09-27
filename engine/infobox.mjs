@@ -575,6 +575,7 @@ function structuredRows(field, raw, resolve, label, fm) {
     }
     if (isMapping(raw) && !isAddressTuple(raw)) {
         const groups = new Map();
+        const seen = new Set();
         for (const [target, relation] of Object.entries(raw)) {
             if (!hasValue(target) || !hasValue(relation) || isMapping(relation)) continue;
             const term = String(relation);
@@ -591,6 +592,9 @@ function structuredRows(field, raw, resolve, label, fm) {
                 );
                 if (address.reason || (field.accepts && !field.accepts.includes(address.type)))
                     continue;
+                const canonical = renderAddress(address);
+                if (seen.has(canonical)) continue;
+                seen.add(canonical);
             }
             const links = groups.get(term) ?? [];
             links.push(linkValue(target, resolve, { type: field.ref }));

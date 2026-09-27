@@ -14,6 +14,7 @@ const index = {
             "thalorna-note-being-foe",
             "thalorna-note-affiliation-guild",
             "kethira-note-being-kin",
+            "kethira-note-being-ally",
         ]).has(address),
 };
 const note = (socialTies: unknown) => ({
@@ -55,6 +56,48 @@ describe("defining social ties", () => {
         expect(checkSocialTies(note({ "being-ally": "unknown" }), { index })).toEqual([
             expect.objectContaining({ file: "subject.md", line: 6, column: 5, severity: "error" }),
         ]);
+    });
+
+    it("rejects two spellings of one target on the later key", () => {
+        const subject = note({
+            "being-ally": "friend",
+            "thalorna-note-being-ally": "nemesis",
+        });
+        subject.raw = `---\nshortcode: subject\ntype: being\ndata:\n  socialTies:\n    being-ally: friend\n    thalorna-note-being-ally: nemesis\n---`;
+        expect(checkSocialTies(subject, { index })).toEqual([
+            expect.objectContaining({
+                file: "subject.md",
+                line: 7,
+                column: 5,
+                severity: "error",
+                message: expect.stringMatching(/same target.*being-ally/),
+            }),
+        ]);
+    });
+
+    it("keeps identically named targets in different packages distinct", () => {
+        expect(
+            checkSocialTies(
+                note({ "being-ally": "friend", "kethira-note-being-ally": "nemesis" }),
+                { index },
+            ),
+        ).toEqual([]);
+    });
+
+    it("renders one row for a target written in short and full forms", () => {
+        const rows = noteInfobox({
+            type: "being",
+            package: "thalorna",
+            name: { full: "Subject" },
+            data: {
+                socialTies: {
+                    "being-ally": "friend",
+                    "thalorna-note-being-ally": "nemesis",
+                },
+            },
+        }).sections[0].rows;
+        expect(rows.filter((row: { label: string }) => row.label === "Friend")).toHaveLength(1);
+        expect(rows.some((row: { label: string }) => row.label === "Nemesis")).toBe(false);
     });
 
     it("shows one linked row per used term and omits empty maps", () => {
