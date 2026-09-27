@@ -1,5 +1,13 @@
 # @heroiclands/package-build
 
+## 22.15.1
+
+### Patch Changes
+
+**Maps**
+
+- Scene packs build with the default staging directory, and generated map backgrounds point to the correct Foundry package.
+
 ## 22.15.0
 
 ### Minor Changes
