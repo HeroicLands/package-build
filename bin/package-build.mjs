@@ -78,6 +78,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { createInterface } from "node:readline/promises";
 import { globSync } from "glob";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -117,6 +118,12 @@ import { deployStage } from "../deploy.mjs";
 import { CONTAINER_ACTIONS, containerAction } from "../container.mjs";
 import { E2E_MODES, e2eFast, e2eRun, e2eSweep, seedTestWorld } from "../e2e.mjs";
 import { reportFindings } from "./report.mjs";
+import {
+    checkProject,
+    initializeProject,
+    INIT_KINDS,
+    INIT_LICENSES,
+} from "../engine/project-init.mjs";
 import { registerContentCommands } from "./content-commands.mjs";
 
 /**
@@ -126,6 +133,111 @@ import { registerContentCommands } from "./content-commands.mjs";
  * them are still on the screen.
  */
 const ADVISORY_PREVIEW = 20;
+
+/** Initialize a repository from anywhere, including outside a Git checkout. */
+function initCommand() {
+    return {
+        command: "init [directory]",
+        describe: "Create or check a content package with site and book targets",
+        builder: (y) =>
+            y
+                .positional("directory", {
+                    type: "string",
+                    describe: "Directory to initialize or check (default: current directory)",
+                })
+                .option("check", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Check an existing package without writing files",
+                })
+                .option("kind", {
+                    type: "string",
+                    choices: INIT_KINDS,
+                    describe: "Package kind",
+                })
+                .option("name", { type: "string", describe: "npm and Foundry package name" })
+                .option("title", { type: "string", describe: "Human-readable package title" })
+                .option("description", { type: "string", describe: "Package and site description" })
+                .option("author", { type: "string", describe: "Author credited in the package" })
+                .option("license", {
+                    type: "string",
+                    choices: INIT_LICENSES,
+                    describe: "Original or unofficial fan-material license template",
+                })
+                .option("core-minimum", {
+                    type: "string",
+                    default: "14.359",
+                    describe: "Minimum Foundry core version for a Foundry package",
+                })
+                .option("core-verified", {
+                    type: "string",
+                    default: "14.364",
+                    describe: "Verified Foundry core version for a Foundry package",
+                }),
+        handler: handler(async (args) => {
+            const root = path.resolve(args.directory ?? process.cwd());
+            if (args.check) {
+                const findings = checkProject(root);
+                for (const { file, message } of findings) {
+                    console.error(`${path.join(root, file)}: error: ${message}`);
+                }
+                if (findings.length) process.exitCode = 1;
+                else console.log(`package-build: ${root} is ready to build.`);
+                return;
+            }
+            const defaults = {
+                name: path.basename(root),
+                title: path
+                    .basename(root)
+                    .replaceAll("-", " ")
+                    .split(" ")
+                    .map((word) => word[0]?.toUpperCase() + word.slice(1))
+                    .join(" "),
+                kind: "modules",
+                license: "original",
+            };
+            const answers = {
+                name: args.name,
+                title: args.title,
+                description: args.description,
+                author: args.author,
+                kind: args.kind,
+                license: args.license,
+            };
+            const questions = ["name", "title", "description", "author", "kind", "license"];
+            if (questions.some((key) => !answers[key])) {
+                if (!process.stdin.isTTY) {
+                    const missing = questions.filter((key) => !answers[key]);
+                    throw new Error(
+                        `init: supply ${missing.map((key) => `--${key}`).join(", ")} when input is not interactive`,
+                    );
+                }
+                const input = createInterface({ input: process.stdin, output: process.stdout });
+                try {
+                    for (const key of questions) {
+                        if (answers[key]) continue;
+                        const fallback = defaults[key];
+                        const value = await input.question(
+                            `${key}${fallback ? ` [${fallback}]` : ""}: `,
+                        );
+                        answers[key] = value.trim() || fallback;
+                    }
+                } finally {
+                    input.close();
+                }
+            }
+            const files = await initializeProject(root, {
+                ...answers,
+                version: ownVersion(),
+                coreMinimum: args.coreMinimum,
+                coreVerified: args.coreVerified,
+            });
+            console.log(`package-build: created ${files.length} files in ${root}.`);
+            console.log("Run `npm install`, then `npm run lint`.");
+            console.log("Use `npm run build:site`, `npm run serve:site`, or `npm run build:book`.");
+        }),
+    };
+}
 
 /**
  * This package's own version, for `--version`.
@@ -1474,6 +1586,7 @@ function bumpCommand() {
 registerContentCommands(
     yargs(hideBin(process.argv))
         .scriptName("package-build")
+        .command(initCommand())
         .command(cleanCommand())
         .command(assetsCommand())
         .command(calendarsCommand())
