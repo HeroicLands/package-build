@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { buildMaps, relatedPlaces } from "./map-build.mjs";
-import { findGraphviz, GRAPHVIZ_INSTALL, renderDot } from "./map-graphviz.mjs";
+import { renderDot } from "./map-graphviz.mjs";
 import { mapWorld } from "./map-places.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { authoredFrontmatter, isNoteRecord } from "./index-records.mjs";
@@ -89,19 +89,9 @@ export function buildItineraryScenes({
     fs.rmSync(assetDir, { recursive: true, force: true });
     if (!centres.length) return { scenes: [], journal: [], findings };
 
-    const binary = findGraphviz("neato");
-    if (!binary) {
-        findings.push({
-            file: contentBase,
-            severity: "warning",
-            message: `GraphViz's \`neato\` is not installed, so no itinerary Scenes are compiled; ${GRAPHVIZ_INSTALL} to draw them`,
-        });
-        return { scenes: [], journal: [], findings };
-    }
-
     const outDir = path.resolve(config.rootDir, "build/map/foundry");
     fs.rmSync(outDir, { recursive: true, force: true });
-    const drawn = buildMaps({ world, outDir, from: centres, locate: () => binary });
+    const drawn = buildMaps({ world, outDir, from: centres });
     findings.push(...drawn.findings);
     fs.mkdirSync(assetDir, { recursive: true });
 
@@ -117,8 +107,8 @@ export function buildItineraryScenes({
         const dot = path.join(outDir, `from-${centre}.dot`);
         const png = path.join(assetDir, `from-${centre}.png`);
         const plain = path.join(outDir, `from-${centre}.plain`);
-        renderDot(dot, png, { binary, format: "png", args: ["-n2", "-Gdpi=150"] });
-        renderDot(dot, plain, { binary, format: "plain", args: ["-n2"] });
+        renderDot(dot, png, { engine: "neato", format: "png", nop: 2, dpi: 150 });
+        renderDot(dot, plain, { engine: "neato", format: "plain", nop: 2 });
         const [width, height] = pngDimensions(png);
         const positions = pinPositions(fs.readFileSync(plain, "utf8"), width, height);
         const sceneId = makeId("itinerary-scene", `${config.contentPackage}:${centre}`);

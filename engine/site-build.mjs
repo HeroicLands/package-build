@@ -989,15 +989,12 @@ export function sitePageDecorator(config, index) {
  *   {@link module:engine/sql-tables.prepareSqlTables}. A page authoring an
  *   `sql` directive with none prepared is a table error: nothing here runs a
  *   query.
- * @param {(engine: string) => string|undefined} [options.locate] - How a
- *   GraphViz engine's binary is found, for the maps; the real lookup by
- *   default.
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
  *   wikiErrors: object[], imageErrors: object[], mapFindings: object[],
  *   manifests: object|null}} `mapFindings` is what drawing the maps found —
  *   warnings, never a reason to fail the build.
  */
-export function buildSite({ config, sqlTables, locate } = {}) {
+export function buildSite({ config, sqlTables } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
@@ -1181,7 +1178,6 @@ export function buildSite({ config, sqlTables, locate } = {}) {
                 foreignIndex: gates.foreign.index,
                 config: resolved,
                 base,
-                ...(locate ? { locate } : {}),
             })
         :   { maps: new Map(), findings: [] };
 

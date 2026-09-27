@@ -119,7 +119,6 @@ import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-r
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
 import { buildMaps, relatedPlaces } from "./map-build.mjs";
-import { findGraphviz, GRAPHVIZ_INSTALL } from "./map-graphviz.mjs";
 import { mapWorld } from "./map-places.mjs";
 
 /**
@@ -658,28 +657,14 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             related.has(String(entry.record.shortcode ?? "").toLowerCase()),
     );
     if (mappedEntries.length) {
-        const binary = findGraphviz("neato");
-        if (!binary) {
-            findings.push({
-                file: resolved.pdf.document,
-                severity: "warning",
-                message: `GraphViz's \`neato\` is not installed, so the book carries no place maps; ${GRAPHVIZ_INSTALL} to draw them`,
+        const centres = [...new Set(mappedEntries.map((entry) => entry.record.shortcode))];
+        const drawn = buildMaps({ world, outDir: mapDir, from: centres });
+        findings.push(...drawn.findings);
+        for (const entry of mappedEntries) {
+            maps.set(entry.anchor, {
+                path: `maps/from-${entry.record.shortcode}.svg`,
+                title: `From here: ${entry.record.name?.full ?? entry.record.shortcode}`,
             });
-        } else {
-            const centres = [...new Set(mappedEntries.map((entry) => entry.record.shortcode))];
-            const drawn = buildMaps({
-                world,
-                outDir: mapDir,
-                from: centres,
-                locate: () => binary,
-            });
-            findings.push(...drawn.findings);
-            for (const entry of mappedEntries) {
-                maps.set(entry.anchor, {
-                    path: `maps/from-${entry.record.shortcode}.svg`,
-                    title: `From here: ${entry.record.name?.full ?? entry.record.shortcode}`,
-                });
-            }
         }
     }
     for (const entry of plan.entries) {

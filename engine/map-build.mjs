@@ -29,10 +29,7 @@
  * - **`travel`** — the whole route graph, `travel.svg`.
  *
  * Every rendering is written beside the `.dot` it was drawn from, and the
- * `.dot` is written first: with GraphViz absent the command either stops with
- * an error naming what to install, or — where the caller asked it to — writes
- * the `.dot` files, returns one warning, and skips the rendering, which is
- * what a site build asking for maps does rather than fail.
+ * `.dot` is written first.
  *
  * A build never mutates its inputs: nothing here reads a note except to
  * locate a finding, and everything lands under the output directory.
@@ -44,7 +41,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { fromDot, travelDot, treeDot } from "./map-dot.mjs";
-import { findGraphviz, graphvizMissingMessage, renderDot } from "./map-graphviz.mjs";
+import { renderDot } from "./map-graphviz.mjs";
 import { CHART_HORIZON_DAYS, layoutChart, layoutFrom, travelGraph } from "./map-layout.mjs";
 import { TRAVEL_DAYS } from "./place-relations.mjs";
 import { analyzeContainment, containmentFindings } from "./map-places.mjs";
@@ -106,17 +103,11 @@ export function relatedPlaces(places) {
  * @param {number} [opts.ranksep] - The tree's `ranksep`, inches.
  * @param {number} [opts.scale=1] - Multiplies every node's size and font.
  * @param {boolean} [opts.polities=true] - Whether the tree draws polities.
- * @param {(engine: string) => string|undefined} [opts.locate] - How a GraphViz
- *   engine's binary is found; the real lookup by default.
- * @param {boolean} [opts.requireGraphviz=true] - Whether a missing engine is
- *   an error. False, the `.dot` files are written, the renderings skipped,
- *   and one warning returned.
  * @returns {{written: string[], findings: Array<{file: string, line?: number,
- *   column?: number, severity: "error"|"warning", message: string}>,
- *   skipped: boolean}} What was written, what was found, and whether the
- *   rendering was skipped for want of GraphViz.
+ *   column?: number, severity: "error"|"warning", message: string}>}} What was
+ *   written and what was found.
  * @throws {Error} When no mode is asked for, a named place is not one, the
- *   horizon is not a marker of the scale, or GraphViz is required and absent.
+ *   horizon is not a marker of the scale.
  */
 export function buildMaps({
     world,
@@ -133,8 +124,6 @@ export function buildMaps({
     ranksep,
     scale = 1,
     polities = true,
-    locate = findGraphviz,
-    requireGraphviz = true,
 }) {
     if (!tree && from.length === 0 && chart.length === 0 && !travel) {
         throw new Error(
@@ -148,39 +137,15 @@ export function buildMaps({
     }
     const { places } = world;
 
-    // Every binary this run needs, found once and before anything is drawn,
-    // so a missing one is reported before a directory is touched.
-    const engines = new Set();
-    if (tree) engines.add(engine);
-    if (from.length || chart.length || travel) engines.add("neato");
-    /** @type {Map<string, string>} */
-    const binaries = new Map();
     const findings = [];
-    let skipped = false;
-    for (const name of engines) {
-        const binary = locate(name);
-        if (binary) binaries.set(name, binary);
-        else if (requireGraphviz) throw new Error(graphvizMissingMessage(name));
-        else if (!skipped) {
-            skipped = true;
-            findings.push({
-                file: outDir,
-                severity: "warning",
-                message: `${graphvizMissingMessage(name)}; the .dot files are written and the renderings skipped`,
-            });
-        }
-    }
-
     fs.mkdirSync(outDir, { recursive: true });
     const written = [];
-    const emit = (name, dot, engineName, args = []) => {
+    const emit = (name, dot, engineName, nop) => {
         const dotPath = path.join(outDir, `${name}.dot`);
         fs.writeFileSync(dotPath, dot);
         written.push(dotPath);
-        const binary = binaries.get(engineName);
-        if (!binary) return;
         const svgPath = path.join(outDir, `${name}.svg`);
-        const { warnings } = renderDot(dotPath, svgPath, { binary, args });
+        const { warnings } = renderDot(dotPath, svgPath, { engine: engineName, nop });
         written.push(svgPath);
         if (warnings) {
             findings.push({ file: dotPath, severity: "warning", message: warnings });
@@ -226,7 +191,7 @@ export function buildMaps({
                 message: `place "${place}" names "${to}" in a border or a route, and no place declares that shortcode; the map centred on "${centre}" leaves it out`,
             });
         }
-        emit(`from-${centre}`, fromDot(layout, places, { scale }), "neato", ["-n2"]);
+        emit(`from-${centre}`, fromDot(layout, places, { scale }), "neato", 2);
     }
 
     const viewpoints = chart.includes(FROM_ALL) ? relatedPlaces(places) : chart;
@@ -239,7 +204,7 @@ export function buildMaps({
                 message: `place "${place}" names "${to}" in a border or a route, and no place declares that shortcode; the chart centred on "${centre}" leaves it out`,
             });
         }
-        emit(`chart-${centre}`, fromDot(layout, places, { scale }), "neato", ["-n2"]);
+        emit(`chart-${centre}`, fromDot(layout, places, { scale }), "neato", 2);
     }
 
     if (travel) {
@@ -254,7 +219,7 @@ export function buildMaps({
         emit("travel", travelDot(graph, places, { scale }), "neato");
     }
 
-    return { written, findings, skipped };
+    return { written, findings };
 }
 
 /**

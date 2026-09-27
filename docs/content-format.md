@@ -3637,7 +3637,7 @@ When the Scene has pins, its Adventure bundle carries the Scene and the JournalE
 
 A `regionalmap` uses `data.bgImage`, an image Address, and `sohl.dimensions: [width, height]` plus `sohl.pxPerGrid` to build a gridless Scene. `data.scale: {distance: positive number, unit: nonempty string}` sets the distance per grid unit. Its shared `data` fields can also name `overlay`, `backgroundColor`, `levelName`, `navName`, `walls`, `doors`, `lights`, `tiles`, `sounds`, `regions`, and `notes`; the latter geometry uses the map-note conventions described in the SoHL map authoring guide. `data.scene` is not used for a regional map.
 
-An SVG `data.bgImage` remains vector art on the site and in the book. The Foundry build stages a PNG at the note's stated dimensions with `rsvg-convert`; the source SVG is unchanged. A selected regional SVG map takes a full page in the PDF.
+An SVG `data.bgImage` remains vector art on the site and in the book. The Foundry build stages a PNG at the note's stated dimensions with the installed SVG renderer; the source SVG is unchanged. Its aspect ratio must match the stated dimensions. A selected regional SVG map takes a full page in the PDF.
 
 #### Theatre-of-the-mind maps
 

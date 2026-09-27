@@ -558,36 +558,33 @@ The drawings of `content-build map` as DOT text, sharing one style table: shape,
 
 ### `engine.mapGraphviz`
 
-GraphViz, as the map command reaches it: a build-time tool of that command alone, found once, named plainly when absent, and run over a `.dot` file the command keeps beside the rendering.
+The npm-installed Graphviz runtime draws SVG maps and supplies the plain positions used by Foundry itinerary pins. PNG backgrounds are rasterized from the same SVG layout. The `.dot` source stays beside each rendering.
 
-| Export                   | Signature                                               | Returns             | Use it when                                                                                |
-| ------------------------ | ------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
-| `GRAPHVIZ_ENGINES`       | `const GRAPHVIZ_ENGINES`                                | `readonly string[]` | the engines the map command may ask for — `dot`, `twopi`, `neato`                          |
-| `GRAPHVIZ_INSTALL`       | `const GRAPHVIZ_INSTALL`                                | `string`            | what installs GraphViz, as the clause every "not installed" message ends with              |
-| `findGraphviz`           | `findGraphviz(engine, { env, fallbacks })`              | `string\|undefined` | finding an engine's binary on `PATH` or in the directories a package manager installs into |
-| `graphvizMissingMessage` | `graphvizMissingMessage(engine)`                        | `string`            | saying an engine is not installed, and what installs it                                    |
-| `renderDot`              | `renderDot(dotPath, outPath, { binary, format, args })` | `{warnings}`        | rendering a `.dot` file, the engine's warnings returned and a non-zero exit thrown         |
+| Export             | Signature                                                   | Returns             | Use it when                                            |
+| ------------------ | ----------------------------------------------------------- | ------------------- | ------------------------------------------------------ |
+| `GRAPHVIZ_ENGINES` | `const GRAPHVIZ_ENGINES`                                    | `readonly string[]` | choosing `dot`, `twopi`, or `neato`                    |
+| `renderDot`        | `renderDot(dotPath, outPath, { engine, format, nop, dpi })` | `{warnings}`        | rendering a DOT source to SVG, plain positions, or PNG |
 
 ### `engine.mapBuild`
 
-`content-build map` as a function: the drawings written under an output directory, always the `.dot` beside the `.svg`, the tree's anomalies returned as findings, and a missing GraphViz either an error or — for a build that would rather skip — one warning.
+`content-build map` as a function: drawings written under an output directory, with each `.dot` beside its `.svg` and tree anomalies returned as findings.
 
-| Export          | Signature                                                                                                                                             | Returns                        | Use it when                                                                   |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------- |
-| `MAP_DIR`       | `const MAP_DIR`                                                                                                                                       | `string`                       | where the maps land below a package's root, `build/map`                       |
-| `FROM_ALL`      | `const FROM_ALL`                                                                                                                                      | `string`                       | the `--from` or `--chart` value that means every place with a relation, `all` |
-| `relatedPlaces` | `relatedPlaces(places)`                                                                                                                               | `string[]`                     | every place that states, or is named in, a border or a route                  |
-| `buildMaps`     | `buildMaps({ world, outDir, tree, root, from, chart, horizon, travel, engine, rankdir, nodesep, ranksep, scale, polities, locate, requireGraphviz })` | `{written, findings, skipped}` | drawing any of the four from a loaded world                                   |
+| Export          | Signature                                                                                                                    | Returns               | Use it when                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| `MAP_DIR`       | `const MAP_DIR`                                                                                                              | `string`              | where the maps land below a package's root, `build/map`                       |
+| `FROM_ALL`      | `const FROM_ALL`                                                                                                             | `string`              | the `--from` or `--chart` value that means every place with a relation, `all` |
+| `relatedPlaces` | `relatedPlaces(places)`                                                                                                      | `string[]`            | every place that states, or is named in, a border or a route                  |
+| `buildMaps`     | `buildMaps({ world, outDir, tree, root, from, chart, horizon, travel, engine, rankdir, nodesep, ranksep, scale, polities })` | `{written, findings}` | drawing any of the four from a loaded world                                   |
 
 ### `engine.siteMaps`
 
-The map from each place, drawn for the site: `content-build site` draws the map from every place of this package that states, or is named in, a border or a route — with the site's base, so every name links through it — and the page writer lays each drawing beside its page as `from-<shortcode>.svg` and names it in the front matter as `map`. GraphViz absent is one warning and no map; `site.maps: false` draws none.
+The map from each place, drawn for the site: `content-build site` draws the map from every place of this package that states, or is named in, a border or a route — with the site's base, so every name links through it — and the page writer lays each drawing beside its page as `from-<shortcode>.svg` and names it in the front matter as `map`. `site.maps: false` draws none.
 
-| Export         | Signature                                                       | Returns            | Use it when                                                                                                     |
-| -------------- | --------------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------- |
-| `SITE_MAP_DIR` | `const SITE_MAP_DIR`                                            | `string`           | where the site build draws below a package's root, `build/map/site`                                             |
-| `inlineSvg`    | `inlineSvg(svg)`                                                | `string`           | rewriting a GraphViz SVG for inlining — no prologue, no comment, no `xlink:`, the root sized by `viewBox` alone |
-| `drawSiteMaps` | `drawSiteMaps({ records, foreignIndex, config, base, locate })` | `{maps, findings}` | drawing the map from every related place of this package, keyed by the URL of the page that carries it          |
+| Export         | Signature                                               | Returns            | Use it when                                                                                                     |
+| -------------- | ------------------------------------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------------- |
+| `SITE_MAP_DIR` | `const SITE_MAP_DIR`                                    | `string`           | where the site build draws below a package's root, `build/map/site`                                             |
+| `inlineSvg`    | `inlineSvg(svg)`                                        | `string`           | rewriting a GraphViz SVG for inlining — no prologue, no comment, no `xlink:`, the root sized by `viewBox` alone |
+| `drawSiteMaps` | `drawSiteMaps({ records, foreignIndex, config, base })` | `{maps, findings}` | drawing the map from every related place of this package, keyed by the URL of the page that carries it          |
 
 ### `engine.systems`
 
@@ -894,7 +891,7 @@ Publishing a content tree as a website. Compiling a content tree into compendium
 | `renderPages`         | `function renderPages(pages, options)`            | {{written: number, byKind: Record<string, number>, tableErrors: object[], wikiErrors: object[]}}                                       | Renders and writes every page.                                                                                        |
 | `resolveSitePass`     | `function resolveSitePass(name, options)`         | {{beforeLinks?: Function}} The bundle.                                                                                                 | Resolves `site.pass` to its bundle.                                                                                   |
 | `sitePageDecorator`   | `sitePageDecorator(config, index)`                | Function                                                                                                                               | Add the site's infobox and being metadata to a rendered page.                                                         |
-| `buildSite`           | `buildSite({ config, sqlTables, locate })`        | {{gates: object, stats: object\|null, tableErrors: object[], wikiErrors: object[], mapFindings: object[], manifests: object\|null}}    | Builds a Hugo content tree from a content tree, and reports what it found.                                            |
+| `buildSite`           | `buildSite({ config, sqlTables })`                | {{gates: object, stats: object\|null, tableErrors: object[], wikiErrors: object[], mapFindings: object[], manifests: object\|null}}    | Builds a Hugo content tree from a content tree, and reports what it found.                                            |
 
 ### `engine.sitePreview`
 
