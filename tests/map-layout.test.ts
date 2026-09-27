@@ -6,7 +6,7 @@
  */
 
 /**
- * The layout maths behind `content-build map --from` and `--chart`, tested
+ * The layout maths behind `package-build map --from` and `--chart`, tested
  * without GraphViz: a bearing is an angle with north up and east right, a
  * days marker is a ring, the rings are log-spaced, two hops compose into one
  * bearing only where they agree, and a longer chain composes as long as no

@@ -356,7 +356,7 @@ describe("the `addresses` command's own guards", () => {
         path.dirname(fileURLToPath(import.meta.url)),
         "..",
         "bin",
-        "content-build.mjs",
+        "package-build.mjs",
     );
 
     function run(...args: string[]) {

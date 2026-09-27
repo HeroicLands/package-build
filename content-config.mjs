@@ -539,7 +539,7 @@ export function publishesContentPages(config) {
  *
  * @typedef {object} DocsSpec
  * @property {DocPageSpec} [itemFields]  The item-frontmatter reference,
- *                                       rendered by `content-build docs
+ *                                       rendered by `package-build docs
  *                                       item-fields`.
  */
 
@@ -1588,7 +1588,7 @@ export const DERIVED_HUGO_KEYS = Object.freeze({
     "params.brand": "the organisation's brand links, in `engine/site-config.mjs`",
     "params.notfound": "`site.notfound`",
     "markup.goldmark.renderer.unsafe": "the toolchain, whose pages carry raw HTML",
-    menu: "the navigation `content-build deps fetch` caches from heroiclands.org",
+    menu: "the navigation `package-build deps fetch` caches from heroiclands.org",
 });
 
 /**
@@ -1706,7 +1706,7 @@ const SITE_INDEX_MESSAGE =
  * Everything here is *framing*: which named pass bundle supplies the
  * repository's own body rewrites, and the residue of the generated Hugo
  * configuration that is genuinely this repository's own. Where the Hugo tree
- * is written is not a choice: `content-build site` writes it under
+ * is written is not a choice: `package-build site` writes it under
  * `build/hugo/`, and a `site.out` is refused by name. How a page gets its
  * **address** is deliberately not here either — that is `publish.address`,
  * shared with the link manifest so the two cannot disagree about where a
@@ -1714,7 +1714,7 @@ const SITE_INDEX_MESSAGE =
  *
  * Two switches sit here, both on by default. `search` is whether
  * `package-build site-root` writes a search index beside the rendered pages.
- * `maps` is whether `content-build site` draws the map from each place that
+ * `maps` is whether `package-build site` draws the map from each place that
  * states a border or a route and writes it into that place's page — a site
  * carries both unless it says otherwise.
  *

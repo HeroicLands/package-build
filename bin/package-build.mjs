@@ -124,6 +124,7 @@ import {
     INIT_KINDS,
     INIT_LICENSES,
 } from "../engine/project-init.mjs";
+import { registerContentCommands } from "./content-commands.mjs";
 
 /**
  * How many unreferenced keys a run prints before it summarizes the rest.
@@ -540,7 +541,7 @@ async function formatGenerated(text, filepath) {
 /**
  * `schema` — publish this package's DataModel field sets as `schema.json`.
  *
- * The producing half of the check `content-build lint` runs: Foundry discards
+ * The producing half of the check `package-build lint` runs: Foundry discards
  * an unknown `system` key at construction and says nothing, so a content build
  * needs to know what a document will actually receive. It cannot ask a
  * running Foundry, and it cannot read `defineSchema()` from a sibling checkout,
@@ -622,7 +623,7 @@ function manifestCommand() {
                 die(
                     `\`packageKind: ${shared.packageKind}\` ships no Foundry ` +
                         `package, so there is no manifest to generate. The site ` +
-                        `and the book are built by \`content-build\`.`,
+                        `and the book are built by \`package-build\`.`,
                 );
             }
             const packageJson = readPackageJson(config);
@@ -1581,30 +1582,36 @@ function bumpCommand() {
     };
 }
 
-yargs(hideBin(process.argv))
-    .scriptName("package-build")
-    .command(initCommand())
-    .command(cleanCommand())
-    .command(assetsCommand())
-    .command(calendarsCommand())
-    .command(datefromCommand())
-    .command(datetoCommand())
-    .command(manifestCommand())
-    .command(siteRootCommand())
-    .command(schemaCommand())
-    .command(langCommand())
-    .command(labelsCommand())
-    .command(bumpCommand())
-    .command(yamlCommand())
-    .command(changelogCommand())
-    .command(bundleCommand())
-    .command(releaseCommand())
-    .command(deployCommand())
-    .command(containerCommand())
-    .command(e2eCommand())
+registerContentCommands(
+    yargs(hideBin(process.argv))
+        .scriptName("package-build")
+        .command(initCommand())
+        .command(cleanCommand())
+        .command(assetsCommand())
+        .command(calendarsCommand())
+        .command(datefromCommand())
+        .command(datetoCommand())
+        .command(manifestCommand())
+        .command(siteRootCommand())
+        .command(schemaCommand())
+        .command(langCommand())
+        .command(labelsCommand())
+        .command(bumpCommand())
+        .command(yamlCommand())
+        .command(changelogCommand())
+        .command(bundleCommand())
+        .command(releaseCommand())
+        .command(deployCommand())
+        .command(containerCommand())
+        .command(e2eCommand()),
+)
     .demandCommand(1, "Name a command.")
     .strict()
     .version(ownVersion())
     .help()
     .alias("help", "h")
-    .fail((message, err) => die(err ?? message)).argv;
+    .epilog("Run package-build <command> --help for that command's actions and options.")
+    .fail((message, err, cli) => {
+        if (!err) cli.showHelp("error");
+        die(err ?? message);
+    }).argv;

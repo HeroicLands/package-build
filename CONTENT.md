@@ -161,7 +161,7 @@ packs:
     # one, which is rarely what a package that declined to name one meant.
     system: null
 
-# How this repository frames the pages `content-build docs` generates. The
+# How this repository frames the pages `package-build docs` generates. The
 # tables come from the itemBuilders registry and are the same everywhere; the
 # heading, the filing and what a reader is told first are this repository's.
 docs:
@@ -193,7 +193,7 @@ publish:
   address:
     prefix: kb/
 
-# How this repository frames the website `content-build site` publishes.
+# How this repository frames the website `package-build site` publishes.
 # Framing only: addresses come from `publish.address` above.
 site:
   assets: https://cdn.heroiclands.org
@@ -283,15 +283,15 @@ What follows from the kind:
   package it does not install.
 - **`package-build manifest` refuses**, rather than emitting a `module.json`
   advertising an installable package with no id, no packs and no compatibility
-  range. So does `content-build package compile`, which would otherwise exit 0
+  range. So does `package-build package compile`, which would otherwise exit 0
   having compiled nothing.
 - **Notes need no `id:`.** An id is derived from a note's address, and a
   hand-assigned one is only ever a pin for a document that already shipped —
   which needs a compendium, and there is none.
 - **The note vocabulary is `doc` and `homepage`.** Every other type exists to
   become a Foundry document, so a note carrying one has no destination;
-  `content-build lint` reports it at its `type:` line.
-- **A content index is still published.** `content-build content-index` emits
+  `package-build lint` reports it at its `type:` line.
+- **A content index is still published.** `package-build content-index` emits
   `<contentPackage>-metadata.jsonl` exactly as it does elsewhere, so another
   package can resolve an address into this one and a wikilink from its notes can
   reach a page here.
@@ -354,8 +354,8 @@ instead:
 assets/content/Gear/Axe.md:12:1: error: `package: sohl` is a retired frontmatter field — delete it. A note's package is this repository's configured `contentPackage` ("sohl", in package-build.config.yaml), and every note in the tree belongs to it.
 ```
 
-`content-build lint` reports every such note in one pass; `content-build
-package compile` and `content-build content-index` refuse the tree.
+`package-build lint` reports every such note in one pass; `package-build
+package compile` and `package-build content-index` refuse the tree.
 
 A generated table that scopes itself with `WHERE … and package = "<pkg>"` keeps
 working: the package is **synthesised** into what the table search sees,
@@ -535,7 +535,7 @@ Set `PACKAGE_BUILD_CONFIG` to point at the file explicitly if a consumer keeps
 it somewhere else; it skips both walks.
 
 **The configuration is resolved on first read, never at import.** Every module
-here can be imported — and `content-build --version` and `--help` answered — in a
+here can be imported — and `package-build --version` and `--help` answered — in a
 directory with no `package-build.config.yaml` and no Foundry package manifest, so
 a consumer can reach for one pure helper (`engine/content-address`,
 `engine/wikilinks`) without standing up a pack build. Anything derived from
@@ -704,7 +704,7 @@ consumer registering a compiler of its own declares its dependencies the same
 way; a type no pack of which is declared is simply not waited for.
 
 **Compiling one pack by name is the case ordering cannot answer.**
-`content-build package compile <name>` runs the pass you asked for and no other,
+`package-build package compile <name>` runs the pass you asked for and no other,
 so a dependency that is neither in the run nor already on disk is reported
 rather than ordered around:
 
@@ -1051,18 +1051,18 @@ address space; with two systems in the tree that space stops being one, because
 ## Command line
 
 ```
-npx content-build package <compile|unpack|clean> [pack] [entry]
-npx content-build docs item-fields [--out <path>] [--title <title>]
-npx content-build lint [root] [--no-references]
-npx content-build content-format schema --schema <system>=<path>
-npx content-build content-format notes [root] [--strict]
-npx content-build links [root] [--manifests <dir>]
-npx content-build format [paths..] [--write]
-npx content-build markdown [paths..] [--fix]
-npx content-build content-index [root] [--out <dir>]
-npx content-build site
-npx content-build reachability <dir> [file] [--index <shortcode>]
-npx content-build addresses diff --from <zip|dir> [--strict]
+npx package-build package <compile|unpack|clean> [pack] [entry]
+npx package-build docs item-fields [--out <path>] [--title <title>]
+npx package-build lint [root] [--no-references]
+npx package-build content-format schema --schema <system>=<path>
+npx package-build content-format notes [root] [--strict]
+npx package-build links [root] [--manifests <dir>]
+npx package-build format [paths..] [--write]
+npx package-build markdown [paths..] [--fix]
+npx package-build content-index [root] [--out <dir>]
+npx package-build site
+npx package-build reachability <dir> [file] [--index <shortcode>]
+npx package-build addresses diff --from <zip|dir> [--strict]
 ```
 
 | Command          | What it does                                                                                                                                                            |
@@ -1092,8 +1092,8 @@ and `--help` still answer in a directory with no configuration at all.
 ## Linting a content tree
 
 ```bash
-npx content-build lint            # the configured `paths.content`
-npx content-build lint some/tree  # or a tree named outright
+npx package-build lint            # the configured `paths.content`
+npx package-build lint some/tree  # or a tree named outright
 ```
 
 Checks the three rules every note's **identity** is authored against, and reports
@@ -1171,14 +1171,14 @@ than flagged:
   thalorna: 2572 notes — 2089 full, 464 draft, 19 stub
   ```
 
-  `content-build content-index` prints the same line, so the ratio of written to
+  `package-build content-index` prints the same line, so the ratio of written to
   unwritten is visible on every build rather than discovered in a year.
 
 #### Adopting it
 
 A package with no empty-bodied note is unaffected. A package that has them:
 
-1. Take the release and run `content-build lint`. Act on the stub findings — a
+1. Take the release and run `package-build lint`. Act on the stub findings — a
    `description` on every stub, and no stub tagged `draft`.
 2. Change the `sql` fences that **should** see stubs from `FROM notes` to
    `FROM entries`. The ones that would gain rows are warned about at the fence,
@@ -1208,8 +1208,8 @@ either would publish the wrong front page while reporting success, which is
 exactly what a warning tolerates.
 
 **Where it fires: `lint` _and_ `site`.** No single command reaches every
-package — `HarnMaster-3-FoundryVTT` runs `content-build site` and no
-`content-build lint`; `sohl-thalorna` runs `content-build lint` and its own site
+package — `HarnMaster-3-FoundryVTT` runs `package-build site` and no
+`package-build lint`; `sohl-thalorna` runs `package-build lint` and its own site
 builder — so a rule in one of them is a rule two of the six packages do not
 have. Both call the same function, so there is one rule and two call sites
 rather than two rules. In the site build it runs **before the output tree is
@@ -1326,7 +1326,7 @@ under `type: place` in `docs/content-format.md`.
 
 Nothing here writes. A check reports and an author fixes.
 
-**`content-build map` draws what those keys state.** `--tree` is the author's
+**`package-build map` draws what those keys state.** `--tree` is the author's
 check of `parents` — the containment tree, clustered by continent, with a
 place no parent reaches, a parent no place declares and a cycle flagged red
 and reported as findings. `--from <shortcode>` is the reader's map: the place
@@ -1388,7 +1388,7 @@ key HM3's declares, and a block that borrowed its neighbour's field names would
 accept the one mistake this check exists to report. The **note schemas** cover
 the rest — `being` above all, which is an actor type and sits in no item
 registry — and they belong to one system, SoHL, because that is the vocabulary
-`content-build` is built with.
+`package-build` is built with.
 
 A type neither source names — `mysticalability` is SoHL's, `invocation` is
 HM3's — is a type that system says nothing about, and its block is left alone on
@@ -1399,7 +1399,7 @@ system data, so it has no system block and none is invented for it.
 **A block whose vocabulary nothing states is said out loud.** A package
 declaring a system other than SoHL and no `itemBuilders` registry for it has
 nothing that can say what that block may carry, so the block goes unchecked — and
-`content-build lint` reports that once, naming the system and the registry to
+`package-build lint` reports that once, naming the system and the registry to
 declare, because a check that quietly does nothing is indistinguishable from one
 that passed. `harn-ensemble` is the tree that gets it today: its `sohl:` block is
 checked, and its `hm3:` waits on `itemBuilders: [hm3, sohl]`.
@@ -1593,15 +1593,15 @@ make every new theme parameter wait on a package-build release. `aliases` is
 not in the class either — it is a retired field, refused on every note
 whatever its type.
 
-**Where it fires: `content-build lint` only.** Unlike a rule about the shape of
+**Where it fires: `package-build lint` only.** Unlike a rule about the shape of
 the _tree_, which the site build has its own reason to gate on, this is a
-_frontmatter-schema_ rule and `content-build site` runs none of them — wiring in
+_frontmatter-schema_ rule and `package-build site` runs none of them — wiring in
 one type's field rule would have the site build refuse `id` on a homepage while
 accepting `weight: heavy` on a weapon. The site build does refuse a homepage it
 cannot address, because a link to it could not resolve otherwise, and it
 reports that beside the count so the finding reaches `publish.site: homepage`
 mode as well. The remaining gap is `HarnMaster-3-FoundryVTT`, which runs no
-`content-build lint` at all and so receives no frontmatter finding of any kind;
+`package-build lint` at all and so receives no frontmatter finding of any kind;
 that is a missing script in that repository, not a rule to duplicate one at a
 time.
 
@@ -1677,7 +1677,7 @@ prose the moment either was edited, which is the failure they exist to prevent.
 ### `content-format schema` — the specification against a published schema
 
 ```bash
-npx content-build content-format schema --schema sohl=./schema.json
+npx package-build content-format schema --schema sohl=./schema.json
 ```
 
 Every `system.*` target the document names must appear in the naming system's
@@ -1703,8 +1703,8 @@ claims, and a check that skipped them in silence would read as one that passed.
 ### `content-format notes` — a content tree against the declared vocabulary
 
 ```bash
-npx content-build content-format notes            # the configured `paths.content`
-npx content-build content-format notes --strict   # and fail on what it finds
+npx package-build content-format notes            # the configured `paths.content`
+npx package-build content-format notes --strict   # and fail on what it finds
 ```
 
 Measures every authored note against the per-type `data` tables, and counts the
@@ -1726,16 +1726,16 @@ reaches zero.
 
 What it deliberately leaves alone is a key inside a system block that the format
 says nothing about. Those regions are closed against _the system's_ schema, not
-against this document, and `content-build lint` already checks them against the
+against this document, and `package-build lint` already checks them against the
 declared fields.
 
 ## Prose: formatting and markdown
 
 ```bash
-npx content-build format             # check the whole repository
-npx content-build format --write     # rewrite what is not formatted
-npx content-build markdown           # lint every markdown file
-npx content-build markdown --fix     # apply the fixes markdownlint can make
+npx package-build format             # check the whole repository
+npx package-build format --write     # rewrite what is not formatted
+npx package-build markdown           # lint every markdown file
+npx package-build markdown --fix     # apply the fixes markdownlint can make
 ```
 
 Two conventions every content repository writes to, declared once here so a note
@@ -1789,7 +1789,7 @@ fix is the one-line re-export below.
 None of this fails a run. A deliberate local choice still wins — it just stops
 being silent.
 
-Neither tool's file discovery is reimplemented, so `content-build format --check`
+Neither tool's file discovery is reimplemented, so `package-build format --check`
 and a bare `prettier --check .` report the same thing. A file Prettier cannot
 parse is a **finding**, with its position — not a crash that costs the report on
 every other file.
@@ -1870,7 +1870,7 @@ looked for at all.
 Every package emits one file naming every note it publishes:
 
 ```bash
-npx content-build content-index         # the configured tree and output directory
+npx package-build content-index         # the configured tree and output directory
 ```
 
 `<contentPackage>-metadata.jsonl` holds one JSON record per line, keyed by the
@@ -1902,8 +1902,8 @@ exist, which is the silent dead link this whole mechanism exists to prevent.
 Declare what you depend on, and fetch it:
 
 ```bash
-npx content-build deps fetch                    # every declared dependency
-npx content-build deps fetch --from ../sohl     # from a local build, unreleased
+npx package-build deps fetch                    # every declared dependency
+npx package-build deps fetch --from ../sohl     # from a local build, unreleased
 ```
 
 ```yaml
@@ -2020,7 +2020,7 @@ round-trip.
 ```
 
 `(type, shortcode)` names one note within a package — that is the rule
-`content-build lint` enforces — so the URL is **unique by construction**. There
+`package-build lint` enforces — so the URL is **unique by construction**. There
 is no collision check behind it, there never can be one to fail, and renaming a
 note changes nothing: no part of the address comes from a display string.
 
@@ -2121,7 +2121,7 @@ tree, which is how eight dead Bestiary tables came to ship for weeks unnoticed.
 `content-index` publishes the walk:
 
 ```bash
-npx content-build content-index
+npx package-build content-index
 # sohl → build/content-index/sohl.jsonl (1606 notes, 1578 KiB)
 ```
 
@@ -2363,7 +2363,7 @@ indistinguishable from one built against a mis-pointed tree.
 ## Publishing a website
 
 ```bash
-npx content-build site               # the configured tree, under build/hugo/
+npx package-build site               # the configured tree, under build/hugo/
 ```
 
 The sibling of `package compile`: the same content tree, rendered as pages
@@ -2389,8 +2389,8 @@ title: HârnMaster Kethira Basic # optional; defaults to packageBuild.manifest.t
 What the module is, which system it needs, how to install it.
 ```
 
-A package declares **exactly one** of these, and both `content-build lint` and
-`content-build site` require it — see
+A package declares **exactly one** of these, and both `package-build lint` and
+`package-build site` require it — see
 [Exactly one homepage](#exactly-one-homepage).
 
 That is the whole envelope. A homepage **compiles into no compendium
@@ -2480,7 +2480,7 @@ site:
 | `notfound`    | The wording of the "page not found" page; the generated `params.notfound`.                                                                                                                                                                            |
 | `hugo`        | A mapping deep-merged over the generated Hugo configuration, last. Every key the generator writes is refused here — see `docs/configuration.md`.                                                                                                      |
 
-Where the tree is written is not among them. `content-build site` writes the
+Where the tree is written is not among them. `package-build site` writes the
 whole Hugo source tree under `build/hugo/` — the generated `hugo.toml`, the
 content mount at `build/hugo/content/`, Hugo's cache — and the consumer's
 script runs `hugo --source build/hugo` over it. The generated file's every
@@ -2652,7 +2652,7 @@ replaced. The theme renders each list as a table on the page.
 ### A place page carries the map from that place
 
 A place that states a border or a route, or is named in one, has a map from
-it — the drawing `content-build map --from` makes, with the place at the
+it — the drawing `package-build map --from` makes, with the place at the
 centre and each neighbour at its bearing. The site build draws that map for
 every such place and writes it with the page: the page is a leaf bundle,
 `place-<shortcode>/index.md`, the drawing sits beside it as
@@ -2723,7 +2723,7 @@ GitHub addresses. Neither rewrite can fail a build; an unknown `{@link}` degrade
 to a code span.
 
 `symbolMap` is resolved **against the repository root**, not the process cwd, so
-`content-build site` reads the same map whatever directory it was invoked from.
+`package-build site` reads the same map whatever directory it was invoked from.
 Leaving it unset is the legitimate empty case — every `{@link}` degrades, and
 nothing is reported. Setting it to a path that cannot be read, cannot be parsed,
 or does not hold a name → page object **fails the build**, naming the file and
@@ -2757,13 +2757,13 @@ calls were not.
 ## Publishing a book
 
 The third surface the content tree publishes, beside the compendium packs and
-the website: one PDF, built by `content-build pdf` and by `package-build release`.
+the website: one PDF, built by `package-build pdf` and by `package-build release`.
 
 ```bash
-npx content-build pdf                    # build it where `pdf.out` says
-npx content-build pdf --out build/book   # somewhere else
-npx content-build pdf --no-compile       # emit the Typst source and stop
-npx content-build pdf --version 1.4.0    # stamp a version on the title page
+npx package-build pdf                    # build it where `pdf.out` says
+npx package-build pdf --out build/book   # somewhere else
+npx package-build pdf --no-compile       # emit the Typst source and stop
+npx package-build pdf --version 1.4.0    # stamp a version on the title page
 ```
 
 ### A book is a selection, not a rendering of everything
@@ -2987,7 +2987,7 @@ anchor should not take a thousand-page book down at the last step.
 
 A PDF embeds the faces it sets, so every character in the corpus is a claim on
 the book's typeface — and Typst does not warn about a missing glyph, it falls
-back and exits 0. That is why `content-build lint` holds content to a charset,
+back and exits 0. That is why `package-build lint` holds content to a charset,
 and why `:icon-…:` names an icon rather than pasting one. Both exist for this
 surface. See _Prose: formatting and markdown_.
 
@@ -2995,8 +2995,8 @@ surface. See _Prose: formatting and markdown_.
 
 ```bash
 gh release download v0.8.2 -p system.zip -D build/baseline
-npx content-build addresses diff --from build/baseline/system.zip
-npx content-build addresses diff --from build/baseline/system.zip --strict
+npx package-build addresses diff --from build/baseline/system.zip
+npx package-build addresses diff --from build/baseline/system.zip --strict
 ```
 
 A package's `(type, shortcode)` addresses are a **published interface**. Every
@@ -3064,7 +3064,7 @@ form every C-family compiler, `tsc` and ESLint already use, so an editor, a CI
 annotator or a `grep` parses it with no knowledge of this build:
 
 ```text
-assets/content/Regions/Capital_Nome.md:43:635: error: address [[place-kenbetpat]] resolves to no note — no package publishes it. Fix the shortcode, or declare the package that does as a dependency and run `content-build deps fetch` — in "The Capital Nome".
+assets/content/Regions/Capital_Nome.md:43:635: error: address [[place-kenbetpat]] resolves to no note — no package publishes it. Fix the shortcode, or declare the package that does as a dependency and run `package-build deps fetch` — in "The Capital Nome".
 ```
 
 `file:line:column: severity: message`. The path is relative to the working

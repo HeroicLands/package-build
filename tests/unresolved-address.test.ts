@@ -20,7 +20,7 @@
  *
  * | resolver | module | what it produces |
  * | --- | --- | --- |
- * | the checker | `content-links.mjs` | `content-build links` findings |
+ * | the checker | `content-links.mjs` | `package-build links` findings |
  * | the pack build | `wikilinks.mjs` + `helpers.mjs` | a Foundry `@UUID` |
  * | the site build | `web-wikilinks.mjs` | a page URL |
  *
@@ -53,7 +53,7 @@ import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
 import { convertNoteWikilinks } from "../engine/helpers.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const BIN = path.join(HERE, "..", "bin", "content-build.mjs");
+const BIN = path.join(HERE, "..", "bin", "package-build.mjs");
 
 /** A throwaway directory tree, described as `{ relPath: contents }`. */
 function tree(files: Record<string, string>, prefix = "unresolved-address-"): string {
@@ -671,7 +671,7 @@ describe("a package declared `contentIndex: false`, in all three", () => {
 /*  The command line                                                      */
 /* ---------------------------------------------------------------------- */
 
-describe("`content-build links` refuses a tree with an unresolved address", () => {
+describe("`package-build links` refuses a tree with an unresolved address", () => {
     /**
      * A throwaway consumer repository: the smallest configuration that
      * resolves, plus a content tree with one dead address.

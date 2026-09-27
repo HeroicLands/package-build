@@ -86,7 +86,7 @@ import { fileURLToPath } from "node:url";
  * The specification this package ships.
  *
  * Resolved from this module rather than from the working directory: a consumer
- * runs `content-build content-format` inside its own repository, and the
+ * runs `package-build content-format` inside its own repository, and the
  * document it should be checked against is the one that came with the toolchain
  * version it resolved — the same rule `--version` follows.
  *

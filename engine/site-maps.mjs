@@ -15,7 +15,7 @@
  * The maps a site build writes into its place pages.
  *
  * A place that states, or is named in, a border or a route has a map from it
- * — the drawing `content-build map --from` makes — and the site build draws
+ * — the drawing `package-build map --from` makes — and the site build draws
  * that map for every such place of this package and hands each one to the
  * page writer, which lays it beside the page as `from-<shortcode>.svg` and
  * names it in the front matter as `map`. The theme inlines it, so its place

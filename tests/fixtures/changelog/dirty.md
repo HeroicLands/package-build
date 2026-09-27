@@ -25,12 +25,12 @@
   145", and the CI comment explains why `lint:format` was left out of the build:
   a gate that cannot go green teaches everyone to merge past a red check.
 
-  It can go green now. **103 files formatted**, and `content-build format` and a
+  It can go green now. **103 files formatted**, and `package-build format` and a
   raw `prettier --check` both report the tree clean.
 
   **Two things had to be fixed for that to be true.**
 
-  **A Prettier config file.** There wasn't one. `content-build format` applies the
+  **A Prettier config file.** There wasn't one. `package-build format` applies the
   shared options directly, so the lint chain was correct — but Prettier's editor
   integrations and a bare `npx prettier` resolve a config _file_, and fall back to
   Prettier's own defaults when they find none. That meant format-on-save was
@@ -53,7 +53,7 @@
   that are fine. The note there also says what the fix is never to be — removing a
   conditional attribute to please the formatter.
 
-  **Verification.** 138 tests pass; `content-build format` reports clean over 145
+  **Verification.** 138 tests pass; `package-build format` reports clean over 145
   files; `prettier --check .` reports clean.
 
   **Bump**
@@ -230,7 +230,7 @@
 
   **What was missing**
 
-  There was no `lint` and no `format` script, and no `content-build lint`
+  There was no `lint` and no `format` script, and no `package-build lint`
   anywhere. The lint-shaped scripts were `lint:lang`, `lint:packs` and
   `lint:roundtrip`, none of which reads `assets/content/`, so no frontmatter
   finding of any kind reached this repository — not the schema check, not the
@@ -248,7 +248,7 @@
   **The toolchain bump is what makes the linter usable here**
 
   `@heroiclands/package-build` moves from `^5.0.0` to `^6.0.0`. On 5.0.0
-  `content-build lint` fails this tree outright — _"assets/content: holds no
+  `package-build lint` fails this tree outright — _"assets/content: holds no
   keyed content, so every rule here is vacuous"_ — because its guard tested
   `byKey.size === 0`, and a tree carrying notes but no _keyed_ content read as an
   absent tree. This repository compiles its compendium from committed JSON rather
@@ -394,7 +394,7 @@
   half of the toolchain, and every release in the range is a content-pass change:
   4.0.0 retires the `package:` and `draft:` frontmatter fields, 3.4.0 and 3.3.0
   change what the Markdown compilers emit. This repository has no `assets/content`
-  tree, declares no `itemBuilders`, and wires none of the `content-build` commands
+  tree, declares no `itemBuilders`, and wires none of the `package-build` commands
   into a script, so none of that code runs here. `manifest.mjs` and `stage.mjs`
   import nothing from the content engine, and the modules behind `assets`,
   `deploy` and the whole end-to-end harness are byte-identical between the two
@@ -441,7 +441,7 @@
     uses only the packaging half of the toolchain — its compendium content is
     committed JSON under `assets/packs/` — so this is not a content tree and the
     site build walks it for exactly one thing.
-  - `npm run build:site` wires `content-build site`, which nothing here invoked
+  - `npm run build:site` wires `package-build site`, which nothing here invoked
     before. It emits one file, `site/content/_index.md`, and that tree is a build
     artifact and gitignored. `site.out` is required rather than defaulted: the
     output directory is wiped on every run, and an unset value would resolve to
@@ -494,7 +494,7 @@
   expected to fill this system's own inherited machinery.
 
   **Shipped in the archive, not merely committed.** A module that depends on this
-  system reads the copy `content-build deps fetch` caches from the release it
+  system reads the copy `package-build deps fetch` caches from the release it
   pins, so the comparison happens against the version that module targets rather
   than whatever this repository's `main` holds today.
 
@@ -536,7 +536,7 @@
   syndicate.
 
   **`build:site` renders as well as compiles** — `build:site-content`
-  (`content-build site`) then `build:site-html` (Hugo). It stays out of
+  (`package-build site`) then `build:site-html` (Hugo). It stays out of
   `build:noci`, deliberately: the homepage is not part of what Foundry loads, and
   the packaging build must keep producing exactly what it produced before. It
   does — `build/stage` still holds 540 files, 538 of them byte-identical to the

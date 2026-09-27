@@ -6,7 +6,7 @@
  */
 
 /**
- * `content-build map` draws what the place notes state, reading the content
+ * `package-build map` draws what the place notes state, reading the content
  * index rather than the notes: the containment tree from `parents`, the map
  * from each place from `borders` and `routes`, the chart from a place at a
  * larger horizon, and the whole route graph.
@@ -39,7 +39,7 @@ import { buildMaps } from "../engine/map-build.mjs";
 import { layoutChart, layoutFrom, rimRadius, travelGraph } from "../engine/map-layout.mjs";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-const CLI = path.join(PKG_ROOT, "bin", "content-build.mjs");
+const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
 /* ---------------------------------------------------------------------- */
 /*  Fixture                                                               */
@@ -783,7 +783,7 @@ describe("building the maps", () => {
 /*  The command                                                           */
 /* ---------------------------------------------------------------------- */
 
-describe("`content-build map`", () => {
+describe("`package-build map`", () => {
     function run(...args: string[]) {
         return spawnSync(process.execPath, [CLI, "map", ...args], {
             cwd: repo,

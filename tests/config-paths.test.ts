@@ -36,7 +36,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 // Two directories inside this package, used only as *different* launch
 // directories. The cwd-independence check below needs somewhere to run from,
 // not any particular repository — it used to reach the host repository root and
-// a `packages/content-build` path beneath it, which only existed while this
+// a `packages/package-build` path beneath it, which only existed while this
 // package was vendored inside the system repository.
 const PKG_ROOT = path.resolve(HERE, "..");
 const PKG_SUBDIR = path.join(PKG_ROOT, "engine");

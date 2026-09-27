@@ -32,7 +32,7 @@ function readIndex(file) {
     const display = path.relative(process.cwd(), file) || file;
     if (!fs.existsSync(file)) {
         const error = new Error(
-            `${display}: error: content index is absent; run content-build content-index`,
+            `${display}: error: content index is absent; run package-build content-index`,
         );
         error.located = true;
         throw error;

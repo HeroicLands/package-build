@@ -98,11 +98,11 @@ function makeRepo(mode: string, withPdf = true, withTree = true): string {
     return dir;
 }
 
-/** Run `content-build pdf` against a fixture repository. */
+/** Run `package-build pdf` against a fixture repository. */
 function build(dir: string, ...args: string[]) {
     const r = spawnSync(
         process.execPath,
-        [path.join(ROOT, "bin", "content-build.mjs"), "pdf", ...args],
+        [path.join(ROOT, "bin", "package-build.mjs"), "pdf", ...args],
         {
             cwd: dir,
             env: {

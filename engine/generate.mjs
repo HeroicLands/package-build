@@ -430,7 +430,7 @@ export function orderPassesByDependency(packs) {
  * would produce them is not in it.
  *
  * Ordering answers the whole-package build; a run restricted to one pack
- * (`content-build package compile <name>`) cannot conjure the passes it left
+ * (`package-build package compile <name>`) cannot conjure the passes it left
  * out. Where their output is already on disk from an earlier run that is fine
  * — it is how compiling one pack at a time is meant to work — so this reports
  * only what is genuinely absent, and names the pack that would write it rather
@@ -573,7 +573,7 @@ async function generatePack(
         // The catalogue of a package this repository depends on but does
         // not contain, for a repository that authors beings without
         // holding the items they are assembled from. Cache-only: a cold
-        // cache throws naming `content-build deps fetch` rather than
+        // cache throws naming `package-build deps fetch` rather than
         // downloading inside a compile. Scoped to this pack's system for the
         // reason the local half is: both halves answer one lookup, so a
         // dependency shipping two systems' items would otherwise supply the

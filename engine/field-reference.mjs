@@ -248,7 +248,7 @@ function workedExample(type, fields) {
 export function renderItemFieldReference({
     title = "Item Note Frontmatter",
     preamble = [],
-    generatedBy = "the content-build field reference generator",
+    generatedBy = "the package-build field reference generator",
     config = loadPackConfig(),
 } = {}) {
     const declared = config.itemFields ?? {};

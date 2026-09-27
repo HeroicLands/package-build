@@ -42,7 +42,7 @@
  * documentation entry reuses its document's folder verbatim.
  *
  * Not a standalone script — exports the `Journals` compiler class, imported
- * and driven by `packages/content-build/engine/generate.mjs` (via `npm run build:compiledb`).
+ * and driven by `packages/package-build/engine/generate.mjs` (via `npm run build:compiledb`).
  *
  * The walk itself — filtering by type, expanding tables, converting
  * wikilinks, writing the JSON and counting errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module

@@ -78,7 +78,7 @@ hand-authored manifest to keep in step.
 **One thing about the examples.** Every block below is a real file or a real
 transcript. Fenced examples render at the two-space indentation markdown itself
 uses, which is not the four the shared Prettier configuration gives a `.json` or
-`.yaml` file — so copy the content and let `content-build format --write` settle
+`.yaml` file — so copy the content and let `package-build format --write` settle
 the whitespace, rather than transcribing it. Step 6 is where that becomes part
 of the routine.
 
@@ -127,7 +127,7 @@ Five of those keys are load-bearing:
 - **`private: true`** because a package built by this toolchain ships as a
   Foundry release archive, not to npm.
 
-Let `content-build format --write` set the indentation once this file exists:
+Let `package-build format --write` set the indentation once this file exists:
 npm matches `package.json`'s existing indentation when it writes
 `package-lock.json`, so a formatted `package.json` produces a formatted
 lockfile, and neither needs a `.prettierignore` entry for the life of the
@@ -139,17 +139,17 @@ repository.
 npm install --save-dev @heroiclands/package-build
 ```
 
-That installs `package-build`, the packaging half, and `content-build`, the
-content half, into `node_modules/.bin`. Run them through `npx`, or wire them into npm scripts as
+That installs the `package-build` executable into `node_modules/.bin`. Run it
+through `npx`, or wire it into npm scripts as
 [`project-setup.md`](project-setup.md) describes.
 
 **How it worked:** `npx package-build --version` prints the installed version.
-`--version` and `--help` are the only invocations that do not read a
-configuration file. Every other one resolves `package-build.config.yaml` first,
-by walking up from the working directory, and fails loudly when it finds none:
+`--version` and `--help` need no configuration. Commands that build a package
+resolve `package-build.config.yaml` by walking up from the working directory
+and report when it is missing:
 
 ```console
-$ npx content-build package compile
+$ npx package-build package compile
 [ERROR]: package-build: no package-build.config.yaml or package-build.config.yml or package-build.config.mjs found at or above /path/to/acme-bestiary, nor at or above /path/to/acme-bestiary/node_modules/@heroiclands/package-build/engine. A consuming repository declares its build in one file at its root; set PACKAGE_BUILD_CONFIG to name it elsewhere.
 ```
 
@@ -161,7 +161,7 @@ These come before the first check rather than after it, because the checks read
 them.
 
 `.gitignore` is what keeps generated trees out of the prose checks: both
-`content-build format` and `content-build markdown` consult a repository's
+`package-build format` and `package-build markdown` consult a repository's
 ignore files, so a `build/` that is not named here is a build whose own output
 gets reported as unformatted.
 
@@ -192,7 +192,7 @@ unignored.
 export { default } from "@heroiclands/package-build/prettier";
 ```
 
-`content-build format` applies the shared options whether or not this file
+`package-build format` applies the shared options whether or not this file
 exists, so the lint chain is correct without it. Nothing else is: an editor's
 format-on-save and a bare `npx prettier --write .` resolve a _config file_, and
 finding none they fall back to Prettier's own defaults — a different print width
@@ -200,8 +200,8 @@ against the same tree, so the editor and the lint chain take turns rewriting
 each other's work. The toolchain says so when the file is missing:
 
 ```console
-$ npx content-build format
-warning: this repository declares no Prettier configuration, so `content-build format` applies the shared conventions while an editor and a bare `npx prettier` apply Prettier's own to the same tree; declare them in a prettier.config.mjs — export { default } from "@heroiclands/package-build/prettier";
+$ npx package-build format
+warning: this repository declares no Prettier configuration, so `package-build format` applies the shared conventions while an editor and a bare `npx prettier` apply Prettier's own to the same tree; declare them in a prettier.config.mjs — export { default } from "@heroiclands/package-build/prettier";
 ```
 
 Any filename Prettier resolves works, `prettier.config.js` included; this is the
@@ -258,7 +258,7 @@ than authored.
 configuration to the content tree.
 
 ```console
-$ npx content-build package compile
+$ npx package-build package compile
 [ERROR]: Content tree not found at /path/to/acme-bestiary/assets/content.
 [ERROR]: Pack JSON generation reported 1 error(s); refusing to compile packs from incomplete output.
 ```
@@ -270,7 +270,7 @@ The configuration validated. There is simply nothing to compile yet.
 Two notes: the package homepage, and one piece of content.
 
 **Every package's tree holds exactly one `type: homepage` note.** It is the
-package's front page, authored rather than generated, and `content-build lint`
+package's front page, authored rather than generated, and `package-build lint`
 requires it. It compiles to a page and to no Foundry document.
 
 `assets/content/homepage.md`:
@@ -380,38 +380,38 @@ widths for the website, Foundry, and book. See
 Four checks, and they are quick enough to run continuously while authoring.
 
 ```bash
-npx content-build lint      # addresses and frontmatter
-npx content-build links     # every wikilink resolves
-npx content-build format    # the shared Prettier options
-npx content-build markdown  # the shared markdownlint rule set
+npx package-build lint      # addresses and frontmatter
+npx package-build links     # every wikilink resolves
+npx package-build format    # the shared Prettier options
+npx package-build markdown  # the shared markdownlint rule set
 ```
 
 **How it worked:**
 
 ```console
-$ npx content-build lint
+$ npx package-build lint
 [INFO]: Addresses and frontmatter are well-formed (2 address(es) across 2 note(s)).
 
-$ npx content-build links
+$ npx package-build links
 [INFO]: 2 notes: every link is a labelled address, every anchor link lands and every address resolves (0 cross-package reference(s) via manifest), no wikilink in frontmatter, every homepage address resolvable.
 
-$ npx content-build markdown
+$ npx package-build markdown
 [INFO]: Markdown is clean.
 ```
 
-`content-build format` reports rather than fixes, which is what a CI gate wants;
+`package-build format` reports rather than fixes, which is what a CI gate wants;
 `--write` is the fixing form. Transcribe a file's whitespace by hand and the
 reporting form names it:
 
 ```console
-$ npx content-build format
-package-build.config.yaml: error: is not formatted; run `content-build format --write` to fix it
+$ npx package-build format
+package-build.config.yaml: error: is not formatted; run `package-build format --write` to fix it
 [ERROR]: 1 of 6 file(s) are not formatted.
 
-$ npx content-build format --write
+$ npx package-build format --write
 [INFO]: Formatted 1 of 6 file(s).
 
-$ npx content-build format
+$ npx package-build format
 [INFO]: Formatting is clean (6 file(s)).
 ```
 
@@ -423,10 +423,10 @@ wrong, followed by a line, a column, a severity and a message — the contract
 [`diagnostics.md`](diagnostics.md) describes. A field that cannot be known is
 dropped rather than guessed, so a finding about a whole file names only the file.
 
-Forget the homepage and `content-build lint` says so by name:
+Forget the homepage and `package-build lint` says so by name:
 
 ```console
-$ npx content-build lint
+$ npx package-build lint
 assets/content: error: holds no `type: homepage` note, so package "bestiary" publishes nothing at its own address /bestiary/ — a package's front page is one authored note in this tree, routed by `type:` rather than by filename
 [ERROR]: 1 finding(s) across 1 note(s).
 ```
@@ -434,7 +434,7 @@ assets/content: error: holds no `type: homepage` note, so package "bestiary" pub
 ## Step 7 — compile the packs
 
 ```bash
-npx content-build package compile
+npx package-build package compile
 ```
 
 ```console
@@ -538,10 +538,10 @@ water fear the [[lore-fenadder|fen adder]] more.
 ```
 
 ```console
-$ npx content-build links
+$ npx package-build links
 [INFO]: 3 notes: every link is a labelled address, every anchor link lands and every address resolves (0 cross-package reference(s) via manifest), no wikilink in frontmatter, every homepage address resolvable.
 
-$ npx content-build package compile
+$ npx package-build package compile
 [INFO]: Compiled 2 journal entries (0 documentation entries)
 ```
 
@@ -719,7 +719,7 @@ checking:
 ## Step 10 — publish the content index
 
 ```console
-$ npx content-build content-index
+$ npx package-build content-index
 [INFO]: bestiary → build/content-index/bestiary-metadata.jsonl (3 notes, 1 KiB)
 ```
 
@@ -799,13 +799,13 @@ The eleven steps above are the order you need them the _first_ time. Thereafter
 the build is one chain, and this is the order it runs in:
 
 ```bash
-npx content-build format        # the prose checks
-npx content-build markdown
-npx content-build lint          # the content checks
-npx content-build links
-npx content-build content-index # the index the manifest advertises
+npx package-build format        # the prose checks
+npx package-build markdown
+npx package-build lint          # the content checks
+npx package-build links
+npx package-build content-index # the index the manifest advertises
 npx package-build assets        # the stage: the shipped files
-npx content-build package compile
+npx package-build package compile
 npx package-build manifest      # the stage: the manifest
 npx package-build release       # the archive
 ```
@@ -839,8 +839,8 @@ None of them is needed to build a package.
 from step 5 — at `https://www.heroiclands.org/<contentPackage>/`. Add that
 address to `package.json` as `homepage`, with a `description` and an `author`
 beside it; add `@heroiclands/hugo-theme` under `devDependencies`; and add a
-`packageBuild.manifest.title`. Then `content-build deps fetch` caches the
-organisation's navigation, and `content-build site` writes the whole Hugo
+`packageBuild.manifest.title`. Then `package-build deps fetch` caches the
+organisation's navigation, and `package-build site` writes the whole Hugo
 source tree under `build/hugo/` — the configuration generated from those
 values, and the content mount — for `hugo --source build/hugo` to render
 into `build/site/<contentPackage>/`. There is no Hugo configuration to
@@ -853,7 +853,7 @@ package publishes is a `doc` note carrying a content table.
 [`project-setup.md`](project-setup.md) gives the npm scripts.
 
 **Another package's content.** Declare a dependency under `relationships`, and
-`content-build deps fetch` caches that release's published content index so
+`package-build deps fetch` caches that release's published content index so
 `[[…]]` links into it resolve. A relationship marked `itemCatalog: true` also
 caches the release's Item packs, which is what lets a being embed items by
 `(type, shortcode)`. Fetching never happens during a compile: a cold cache
@@ -885,7 +885,7 @@ becomes required, with `site: content` — publishing the tree is the whole of
 what the package does.
 
 So a documentation package's configuration is steps 1 through 6 with a different
-`packageKind`, plus a `site:` block, and then `content-build site` in place of
+`packageKind`, plus a `site:` block, and then `package-build site` in place of
 steps 7 through 11. [`configuration.md`](configuration.md) carries the refusal
 message for every key; [`commands.md`](commands.md) covers the two commands such
-a package lives on, `content-build site` and `content-build pdf`.
+a package lives on, `package-build site` and `package-build pdf`.

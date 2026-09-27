@@ -7,8 +7,8 @@ validates the object, fills every optional key with its default, and returns a
 deeply frozen copy. It performs no I/O and knows nothing about any particular
 package's content — the configuration is data, and the compilers read it.
 
-The reserved `packageBuild:` section belongs to the packaging half of the
-toolchain and is validated separately, by `resolvePackageBuildConfig` in
+The reserved `packageBuild:` section holds packaging settings and is validated
+by `resolvePackageBuildConfig` in
 `config.mjs`. `content-config.mjs` checks only that the section is a mapping
 and hands it back frozen; its own key-by-key reference is
 [below](#the-packagebuild-section).
@@ -170,7 +170,7 @@ declares none.
 `homepage` is not itself checked against `contentPackage` by `defineConfig`.
 `checkHomepage` in `config.mjs` is the check: `homepage` is required
 unconditionally — every package publishes a site — and must be an absolute
-URL whose path ends `/<contentPackage>/`. `content-build site` makes it
+URL whose path ends `/<contentPackage>/`. `package-build site` makes it
 before the generated `baseURL` is written, so a missing or mismatched
 `homepage` is a finding on every site build:
 
@@ -352,7 +352,7 @@ optional (either of npm's forms) in an `.mjs` one.
 
 Which kind of package this repository builds. `systems` and `modules` are the
 two Foundry answers — also the directory Foundry installs the package under,
-and what `assetRoot` and the packaging half's `artifact` (`system` or
+and what `assetRoot` and the release `artifact` (`system` or
 `module`) are derived from. `documentation` is the answer "not a Foundry
 package at all": it publishes a site and a book from its notes, installs into
 no Foundry data directory and compiles no compendium.
@@ -646,7 +646,7 @@ packs:
 The list's order is the order shown in the Foundry manifest. Compilation
 orders its passes by what each compiler reads: for example, Item packs run
 before an Actor pack that embeds their Items, regardless of their positions
-in this list. A run restricted to `content-build package compile <name>`
+in this list. A run restricted to `package-build package compile <name>`
 requires any pack whose compiled output it reads to be included in the run
 or already present under `build/packs-json/`. If that output is absent, the
 command names the required pack and asks for a whole-package compile or for
@@ -737,7 +737,7 @@ How this repository frames the documentation pages it generates.
 > ``package-build config: `docs.<key>` is not a recognized option (expected one of: itemFields).``
 
 `docs.itemFields` frames the item-frontmatter reference rendered by
-`content-build docs item-fields` — the tables come from the `itemBuilders`
+`package-build docs item-fields` — the tables come from the `itemBuilders`
 registry and are the same wherever rendered; everything here is the
 consumer's: heading, orientation, where the page is filed.
 
@@ -760,7 +760,7 @@ consumer's: heading, orientation, where the page is filed.
 > ``package-build config: `docs.itemFields.preamble[<index>]` must be a string.``
 
 `frontmatter` is deep-merged over the note envelope written when `out` is
-under the content tree — see [`content-build docs item-fields`](commands.md#content-build-docs-item-fields):
+under the content tree — see [`package-build docs item-fields`](commands.md#package-build-docs-item-fields):
 
 > ``package-build config: `docs.itemFields.frontmatter` must be a mapping.``
 
@@ -775,8 +775,8 @@ Any other key under `docs.itemFields` is refused:
 | Key                | Type     | Default                                     |
 | ------------------ | -------- | ------------------------------------------- |
 | `site.base`        | string   | `""`                                        |
-| `site.assets`      | string   | `""`, but required for `content-build site` |
-| `site.description` | string   | `""`, but required for `content-build site` |
+| `site.assets`      | string   | `""`, but required for `package-build site` |
+| `site.description` | string   | `""`, but required for `package-build site` |
 | `site.packages`    | string[] | `[]`                                        |
 | `site.pass`        | string   | `""`                                        |
 | `site.passOptions` | object   | `{}`                                        |
@@ -823,7 +823,7 @@ listing renders is a content table's to say:
 
 > ``package-build config: `site.list` is retired — a site is its homepage and its pages, and any index between them is a `doc` note: write one with `type: doc`, a `shortcode` and `pack: none`, carrying a content table over the notes it lists, and link it from the homepage. Nothing is generated between the homepage and the pages, so delete the key.``
 
-Where the Hugo tree is written is not a choice. `content-build site` writes
+Where the Hugo tree is written is not a choice. `package-build site` writes
 the whole Hugo source tree under `build/hugo/` — the generated `hugo.toml`,
 the content mount at `build/hugo/content/`, Hugo's own cache — as a sibling
 of the deployment root `build/site/`, so nothing Hugo reads lands in what is
@@ -846,7 +846,7 @@ Absolute, and the trailing slash is trimmed:
 
 > ``package-build config: `site.assets` must be an absolute `http://` or `https://` address — it is the host every package's imagery is served from, and a relative value resolves against whichever page happens to carry the image.``
 
-`content-build site` refuses to generate a configuration with no
+`package-build site` refuses to generate a configuration with no
 `site.assets` at all — there is no defensible default, because the theme
 resolves every relative asset against it:
 
@@ -860,7 +860,7 @@ page, and the theme joins it onto anything the toolchain left relative.
 `site.description` is the site's `<meta name="description">` — one plain
 sentence, distinct from the Foundry package browser's pitch
 ([`packageBuild.manifest.descriptionHtml`](#packagebuildmanifest), which
-allows HTML). Required for `content-build site`, the way `packageBuild.manifest.title`
+allows HTML). Required for `package-build site`, the way `packageBuild.manifest.title`
 is:
 
 > ``package-build config: `site.description` is not declared, and the site's `<meta name="description">` reads from it.``
@@ -965,7 +965,7 @@ site:
 > ``package-build config: `site.search` must be a boolean.``
 
 `site.maps` is whether every place page carries the map from that place. On
-by default: `content-build site` draws the map `content-build map --from`
+by default: `package-build site` draws the map `package-build map --from`
 draws — the place's borders and routes, each neighbour at its bearing — for
 every place that states a border or a route or is named in one, lays it beside
 the page as `from-<shortcode>.svg`, and names the file in the page's front
@@ -983,7 +983,7 @@ site:
 
 ### The generated Hugo configuration
 
-`content-build site` writes `build/hugo/hugo.toml` on every run. Every value
+`package-build site` writes `build/hugo/hugo.toml` on every run. Every value
 in it has one source, and that source is where it is edited:
 
 | Key                               | Derived from                                                                                                                                            |
@@ -1004,12 +1004,12 @@ in it has one source, and that source is where it is edited:
 | `params.brand`                    | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                       |
 | `params.notfound`                 | `site.notfound`; absent when undeclared                                                                                                                 |
 | `markup.goldmark.renderer.unsafe` | the toolchain, whose pages carry raw HTML — a `<figure>` for every image, a `<span>` marking an unresolved link                                         |
-| `menu`                            | the navigation `content-build deps fetch` caches from `https://www.heroiclands.org/nav.json`, entry for entry, a dropdown's entries as `parent` entries |
+| `menu`                            | the navigation `package-build deps fetch` caches from `https://www.heroiclands.org/nav.json`, entry for entry, a dropdown's entries as `parent` entries |
 
 The site build reads the navigation from the cache only. A cold cache is an
 error naming the command that fills it:
 
-> `the site navigation has not been fetched. Run `content-build deps fetch` first.`
+> `the site navigation has not been fetched. Run `package-build deps fetch` first.`
 
 A missing theme names the package to install:
 
@@ -1236,7 +1236,7 @@ this tree never cites — so `deps fetch` fetches nothing for it and a wikilink
 into it fails, naming the key, rather than resolving against a stale
 declaration or an index nobody fetched:
 
-Run `content-build deps fetch` before compiling content that addresses a
+Run `package-build deps fetch` before compiling content that addresses a
 declared dependency's notes or embeds its Items. Compilation reads the cached
 index and Item catalogue for the declared version; it does not fetch them on
 demand.
@@ -1440,13 +1440,10 @@ and [`package-build changelog group`](commands.md#package-build-changelog-group)
 
 ## The `packageBuild` section
 
-Validated by `resolvePackageBuildConfig` in `config.mjs`, not by
-`content-config.mjs`. The two halves split by **input** — the content half
-reads the content tree, this one reads `lang/`, `styles/`, `src/`, the
-assets and the manifest template — and neither validates the other's keys.
-`packageBuild` is an ordinary section of the one configuration file; the
-split exists only to stop one key being checked twice against two
-disagreeing ideas of what it means.
+Validated by `resolvePackageBuildConfig` in `config.mjs`. Content settings
+are validated by `content-config.mjs`; packaging settings live in the
+`packageBuild` section of the same configuration file. Each key has one
+validator.
 
 ```yaml
 packageBuild:
@@ -1511,7 +1508,7 @@ filename, without the extension, as a foreign Address shortcode. `package`
 and `type` are required; `system` defaults to `note`. The relationship with
 that package must provide a content index for the build to check the binding.
 The check reads the cached index, reports an unresolved file as an error, and
-does not fetch during compilation. Run `content-build deps fetch` to fill a
+does not fetch during compilation. Run `package-build deps fetch` to fill a
 cold cache.
 
 ### `packageBuild.assetTransform` and `packageBuild.manifestFlags`

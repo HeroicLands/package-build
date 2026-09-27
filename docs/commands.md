@@ -1,16 +1,15 @@
 # Command reference
 
-`@heroiclands/package-build` ships two build binaries. `package-build` is the
-packaging half — clean, stage, check, package, deploy, run a Foundry
-container, drive the end-to-end suite. `content-build` is the content half —
-compile a note tree into compendium packs, check it, publish it as a site or a
-book, and manage the caches a build resolves other packages through.
+`@heroiclands/package-build` ships the `package-build` command. It checks and
+compiles content, builds sites and books, stages packages, writes manifests,
+and manages release and deployment tasks.
 
-Both read `package-build.config.yaml` from the repository root — see
-[Configuration](configuration.md) for every key. Neither reads it for
-`--version` or `--help`: those two answer in a directory with no
-configuration at all, and every other invocation resolves the configuration
-and fails loudly when it is missing or wrong.
+The commands read `package-build.config.yaml` from the repository root — see
+[Configuration](configuration.md) for every key. `--version` and `--help`
+work in a directory with no configuration. Commands that need a package
+resolve its configuration and report missing or invalid values.
+`package-build --help` lists every command; `package-build <command> --help`
+shows its actions and options.
 
 Each command below reads like a manual page: **NAME**, **SYNOPSIS**,
 **DESCRIPTION**, **OPTIONS**, **EXIT STATUS**, **EXAMPLES**, **SEE ALSO**, in
@@ -21,7 +20,7 @@ says so under **OPTIONS** rather than omitting the section.
 
 **Every finding is `file:line:column: severity: message`**, the path starting
 the line — the diagnostic contract this package's own build tooling emits and
-that both build binaries' content-side commands use for anything found in a
+that content commands use for anything found in a
 specific file. A field that cannot be known is dropped rather than guessed:
 `file:line:` when the column means nothing, `file:` when only the file is
 known. See [Diagnostics](diagnostics.md) for the full contract.
@@ -32,34 +31,24 @@ do. 1 is failure: a configuration error, a missing prerequisite, or findings
 that the command treats as errors. Each command's own **EXIT STATUS** states
 exactly what makes its run a 1.
 
-**`package-build` has one failure path for everything **`.fail()`** does not
-handle specially: every thrown error, from any command, is caught, printed as
-one line — `package-build: <message>`, or the bare diagnostic when the error
-already carries its own `file:line:column:` — and turned into exit code 1. A
-command that additionally emits findings of its own (`lang coverage`, `yaml`,
-`bundle check`, …) is called out below.**
+Packaging handlers report a thrown error as `package-build: <message>`, or as
+the bare diagnostic when it already has a location. Content handlers report
+their own failures, with ordinary failures prefixed by loglevel and located
+diagnostics unprefixed. Both forms exit 1. A parse error from an unknown flag,
+missing option, or invalid action also exits 1.
 
-**`content-build` has no such umbrella.** Each command catches its own errors,
-logs them (prefixed `[timestamp] [LEVEL]:` for ordinary failures, unprefixed
-for a located diagnostic) and sets `process.exitCode = 1`; a command-line
-parse error — an unknown flag, a missing required option, an action outside
-its `choices` — is reported by yargs' own default handler and also exits 1.
-
-**Both binaries are `strict()` and `demandCommand(1, …)`.** An unknown
-command or option is refused rather than ignored, and running either with no
-command prints usage and exits 1 rather than silently doing nothing — the
-failure mode that let a typo in a build script pass the step it was meant to
-run. The one exception is `package-build e2e <action>`, which relaxes to
+The command uses `strict()` and `demandCommand(1, …)`. An unknown
+command or option is refused rather than ignored, and running it with no
+command prints usage and exits 1. `package-build e2e <action>` relaxes to
 `.strict(false)` for everything after the action, because that belongs to the
 suite or the fast loop and this command line must not judge it.
 
-**`--help` / `-h` and `--version` are global, not per-command.** Both
-binaries register them once on their own top-level parser
-(`.version(ownVersion())`, `.help()`, `.alias("help", "h")`); no command below
-lists them among its own options.
+**`--help` / `-h` and `--version` are global.** The parser registers them
+once, and `--help` can be used with any command for its own actions and options.
+The command entries below list only their own options.
 
 **`PACKAGE_BUILD_CONFIG`** names the configuration file explicitly instead of
-the walk up from the working directory both binaries otherwise do — the only
+the walk up from the working directory the CLI otherwise does — the only
 environment variable the toolchain itself reads for configuration
 resolution. `deploy`, `container` and `e2e` additionally read `FOUNDRYVTT_*`,
 documented where each applies.
@@ -70,7 +59,7 @@ behaviour where they appear below; read the command, not the name.
 
 ---
 
-## `package-build`
+## Package and release operations
 
 ### `package-build init [directory]`
 
@@ -256,7 +245,7 @@ Reads the package's current JSONL content index and writes
 `build/calendars/<shortcode>.calendaria.json` for each calendar note. The
 import file contains the same definition and a fixed `exportedAt` sentinel,
 making both files reproducible. A package with no calendars gets an empty
-`build/calendars/` directory. Run `content-build content-index` after changing
+`build/calendars/` directory. Run `package-build content-index` after changing
 notes and before this command. Stage the generated directory with
 `packageBuild.assets` when the Foundry package should ship it.
 
@@ -279,7 +268,7 @@ $ package-build calendars --calendaria-version 1.4.2
 
 **SEE ALSO**
 
-`content-build content-index`, [Getting started](getting-started.md).
+`package-build content-index`, [Getting started](getting-started.md).
 
 ### `package-build datefrom`
 
@@ -377,13 +366,13 @@ package-build schema
 **DESCRIPTION**
 
 Publishes the registries named in `packageBuild.schema` as `schema.json`, read
-by `content-build content-format schema` and, in a consuming package, by
-`content-build lint`'s emitted-versus-declared check. A repository that
+by `package-build content-format schema` and, in a consuming package, by
+`package-build lint`'s emitted-versus-declared check. A repository that
 declares no registries has nothing to publish. Reads the registries
 `packageBuild.schema` names; writes `build/schema.json`. A release publishes
 it beside the archive and the manifest when `packageBuild.assets` names
 `build/schema.json` (see `package-build release`); a module's
-`content-build deps fetch` keeps the copy from the archive it downloads.
+`package-build deps fetch` keeps the copy from the archive it downloads.
 
 **OPTIONS**
 
@@ -403,7 +392,7 @@ package-build: no `packageBuild.schema` declared; nothing to publish.
 
 **SEE ALSO**
 
-`content-build content-format schema`, `content-build lint [root]`,
+`package-build content-format schema`, `package-build lint [root]`,
 `package-build release`, [Configuration](configuration.md).
 
 ### `package-build manifest`
@@ -436,7 +425,7 @@ manifest carries the title Foundry requires for installation.
 reads to install a package, and a documentation package is not one —
 emitting `module.json` for it would advertise an installable package with no
 packs, no compatibility range and no id. Its site is built by
-`content-build site`, and its book by `content-build pdf`.
+`package-build site`, and its book by `package-build pdf`.
 
 **OPTIONS**
 
@@ -457,12 +446,12 @@ $ package-build manifest
 ✅ Wrote build/stage/module.json (10 keys, 2 packs).
 
 $ package-build manifest   # packageKind: documentation
-package-build: `packageKind: documentation` ships no Foundry package, so there is no manifest to generate. The site and the book are built by `content-build`.
+package-build: `packageKind: documentation` ships no Foundry package, so there is no manifest to generate. The site and the book are built by `package-build`.
 ```
 
 **SEE ALSO**
 
-`content-build site`, `content-build pdf`, `package-build bundle check`,
+`package-build site`, `package-build pdf`, `package-build bundle check`,
 [Configuration](configuration.md).
 
 ### `package-build site-root`
@@ -552,7 +541,7 @@ Search is off (`site.search: false`), so no index was written.
 
 **SEE ALSO**
 
-`content-build site`, [Configuration](configuration.md).
+`package-build site`, [Configuration](configuration.md).
 
 `package-build lang <action>` asks three independent questions about this
 repository's localization, each blind to what the others see: `check`,
@@ -1050,7 +1039,7 @@ advertises (`flags.metadataUrl`) and, when the stage carries one,
 `schema.json` — a repository that names `build/schema.json` in
 `packageBuild.assets` gets it released beside the archive; one that does not
 gets none. When the package publishes content (`publish.site: content`), it
-also builds the content-tree book (see `content-build pdf`) and reports it
+also builds the content-tree book (see `package-build pdf`) and reports it
 alongside the archive; `--no-pdf` skips that step for a release that has a
 tree but does not want the book this time. A book that fails to build is
 reported, never fatal — the archive above is the release regardless. Reads
@@ -1079,7 +1068,7 @@ $ package-build release
 
 **SEE ALSO**
 
-`content-build pdf`, `package-build schema`, [Configuration](configuration.md).
+`package-build pdf`, `package-build schema`, [Configuration](configuration.md).
 
 ### `package-build deploy <stage>`
 
@@ -1271,9 +1260,9 @@ package-build: This repository declares no end-to-end suite to `run`. Name one u
 
 ---
 
-## `content-build`
+## Content operations
 
-### `content-build package <action> [pack] [entry]`
+### `package-build package <action> [pack] [entry]`
 
 **NAME**
 
@@ -1283,9 +1272,9 @@ process.
 **SYNOPSIS**
 
 ```
-content-build package compile [pack]
-content-build package unpack [pack] [entry]
-content-build package clean [pack] [entry]
+package-build package compile [pack]
+package-build package unpack [pack] [entry]
+package-build package clean [pack] [entry]
 ```
 
 **DESCRIPTION**
@@ -1305,8 +1294,8 @@ the staged LevelDB packs.
 `unpack` and `clean` alike. A package of that kind declares no packs by
 rule, so there is nothing to compile, unpack or clean; a run that exited 0
 having done nothing would be the quiet failure this toolchain refuses
-everywhere else. Its site is built by `content-build site`, and its book by
-`content-build pdf`.
+everywhere else. Its site is built by `package-build site`, and its book by
+`package-build pdf`.
 
 **OPTIONS**
 
@@ -1327,10 +1316,10 @@ step to report against. 1 on any other thrown error. Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build package compile   # packageKind: documentation
-[…] ERROR: `packageKind: documentation` compiles no compendium, so there is nothing to compile. Build its site with `content-build site` and its book with `content-build pdf`.
+$ package-build package compile   # packageKind: documentation
+[…] ERROR: `packageKind: documentation` compiles no compendium, so there is nothing to compile. Build its site with `package-build site` and its book with `package-build pdf`.
 
-$ content-build package compile
+$ package-build package compile
 […] Content tree: 4 note(s) at /private/tmp/pb-docs-demo-410/assets/content
 […] Pack items: /private/tmp/pb-docs-demo-410/assets/content → …/build/packs-json/items
 […] Compiled 0 items:
@@ -1340,7 +1329,7 @@ $ content-build package compile
 […] Pack journals: compiling to LevelDB at …/build/stage/packs/journals
 […] Pack compilation complete.
 
-$ content-build package unpack
+$ package-build package unpack
 […] Extracting pack items
 […] Extracting pack journals
 Wrote welcome.json
@@ -1348,10 +1337,10 @@ Wrote welcome.json
 
 **SEE ALSO**
 
-`content-build site`, `content-build pdf`, `content-build addresses diff`,
+`package-build site`, `package-build pdf`, `package-build addresses diff`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
-### `content-build deps fetch`
+### `package-build deps fetch`
 
 **NAME**
 
@@ -1360,7 +1349,7 @@ Fill the caches a build resolves other packages through.
 **SYNOPSIS**
 
 ```
-content-build deps fetch [--from <zip|dir>] [--id <id>]
+package-build deps fetch [--from <zip|dir>] [--id <id>]
 ```
 
 **DESCRIPTION**
@@ -1404,20 +1393,20 @@ including when the repository declares no dependencies at all.
 **EXAMPLES**
 
 ```
-$ content-build deps fetch
+$ package-build deps fetch
 […] Fetched the site navigation to build/cache/navigation/nav.json.
 […] No relationship declares `itemCatalog: true`; nothing to fetch.
 […] This package declares no dependencies.
 
-$ content-build deps fetch --from build/dist/module.zip
+$ package-build deps fetch --from build/dist/module.zip
 […] ERROR: --from needs --id when a package declares several dependencies (declared: none)
 ```
 
 **SEE ALSO**
 
-`content-build site`, `content-build addresses diff`, [Configuration](configuration.md).
+`package-build site`, `package-build addresses diff`, [Configuration](configuration.md).
 
-### `content-build docs item-fields`
+### `package-build docs item-fields`
 
 **NAME**
 
@@ -1426,7 +1415,7 @@ Render this repository's item-frontmatter reference.
 **SYNOPSIS**
 
 ```
-content-build docs item-fields [--out <path>] [--check] [--title <title>]
+package-build docs item-fields [--out <path>] [--check] [--title <title>]
 ```
 
 **DESCRIPTION**
@@ -1485,10 +1474,10 @@ body alone, with no frontmatter, exactly as before.
 **EXAMPLES**
 
 ```
-$ content-build docs item-fields --out docs/item-fields.md --title "Demo Item Fields"
+$ package-build docs item-fields --out docs/item-fields.md --title "Demo Item Fields"
 […] Wrote docs/item-fields.md
 
-$ content-build docs item-fields --out docs/item-fields.md --title "Demo Item Fields" --check
+$ package-build docs item-fields --out docs/item-fields.md --title "Demo Item Fields" --check
 […] docs/item-fields.md is up to date.
 ```
 
@@ -1496,7 +1485,7 @@ $ content-build docs item-fields --out docs/item-fields.md --title "Demo Item Fi
 
 [Configuration](configuration.md).
 
-### `content-build lint [root]`
+### `package-build lint [root]`
 
 **NAME**
 
@@ -1505,7 +1494,7 @@ Check a content tree's addresses and frontmatter without compiling it.
 **SYNOPSIS**
 
 ```
-content-build lint [root] [--no-references]
+package-build lint [root] [--no-references]
 ```
 
 **DESCRIPTION**
@@ -1541,27 +1530,27 @@ itself could not be built for any note. Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build lint
+$ package-build lint
 […] No `itemBuilders` registry declares the vocabulary of `demo`, so that system's block is unchecked — a key inside one is discarded at compile with no warning. Declare `itemBuilders: [demo]`.
-[…] No published schema for demo@1.0.0, so emitted `system` fields are unchecked. A system generates its own; a module gets one from `content-build deps fetch`.
+[…] No published schema for demo@1.0.0, so emitted `system` fields are unchecked. A system generates its own; a module gets one from `package-build deps fetch`.
 […] Addresses and frontmatter are well-formed (4 address(es) across 4 note(s)).
 ```
 
 **SEE ALSO**
 
-`content-build links [root]`, `content-build reachability <dir> [file]`,
-`content-build content-format schema`, `content-build content-format fields`,
-`content-build content-format notes`, [Diagnostics](diagnostics.md),
+`package-build links [root]`, `package-build reachability <dir> [file]`,
+`package-build content-format schema`, `package-build content-format fields`,
+`package-build content-format notes`, [Diagnostics](diagnostics.md),
 [Configuration](configuration.md).
 
-`content-build content-format <action>` checks `docs/content-format.md` —
+`package-build content-format <action>` checks `docs/content-format.md` —
 the content-format specification this package ships — against reality, in
 three ways that fail for different reasons at different times: `schema`,
 `fields` and `notes`, one section below per action. All three read the
 specification named by `--spec`, defaulting to the one this package ships,
 and write nothing.
 
-### `content-build content-format schema`
+### `package-build content-format schema`
 
 **NAME**
 
@@ -1570,7 +1559,7 @@ Compare the content-format specification against a published schema.
 **SYNOPSIS**
 
 ```
-content-build content-format schema --schema <system>=<path> [--schema <system>=<path> ...] [--spec <path>]
+package-build content-format schema --schema <system>=<path> [--schema <system>=<path> ...] [--spec <path>]
 ```
 
 **DESCRIPTION**
@@ -1596,17 +1585,17 @@ like one that passed.
 **EXAMPLES**
 
 ```
-$ content-build content-format schema --schema sohl=schema.json
+$ package-build content-format schema --schema sohl=schema.json
 […] 19 claim(s) about hm3 are unchecked — no schema was supplied for it, so nothing here confirms them.
 […] 76 mapping claim(s) confirmed against the supplied schemas.
 ```
 
 **SEE ALSO**
 
-`content-build content-format fields`, `content-build content-format notes`,
+`package-build content-format fields`, `package-build content-format notes`,
 `package-build schema`, [Configuration](configuration.md).
 
-### `content-build content-format fields`
+### `package-build content-format fields`
 
 **NAME**
 
@@ -1616,7 +1605,7 @@ declarations.
 **SYNOPSIS**
 
 ```
-content-build content-format fields [--fields <system>] [--coverage] [--spec <path>]
+package-build content-format fields [--fields <system>] [--coverage] [--spec <path>]
 ```
 
 **DESCRIPTION**
@@ -1650,7 +1639,7 @@ declaration that compiles it. Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build content-format fields --fields sohl --coverage
+$ package-build content-format fields --fields sohl --coverage
 […] 13 type(s) compared against sohl's declarations (56 field pair(s)).
 […] 12 type(s) the format declares are out of reach — no `itemBuilders` entry covers them: being, homepage, vehicle, armorlocation, lore, map, place, scenario, doc, macro, bundle, folder.
 […] affiliation: format only [demonym, economy, epithet, governance, lore, population, symbol, templatePriority], declaration only [commonSkills, level, office, society, subType, title]
@@ -1658,10 +1647,10 @@ $ content-build content-format fields --fields sohl --coverage
 
 **SEE ALSO**
 
-`content-build content-format schema`, `content-build content-format notes`,
+`package-build content-format schema`, `package-build content-format notes`,
 [Configuration](configuration.md).
 
-### `content-build content-format notes`
+### `package-build content-format notes`
 
 **NAME**
 
@@ -1670,7 +1659,7 @@ Measure a content tree against the specification's vocabulary.
 **SYNOPSIS**
 
 ```
-content-build content-format notes [root] [--strict] [--spec <path>]
+package-build content-format notes [root] [--strict] [--spec <path>]
 ```
 
 **DESCRIPTION**
@@ -1702,17 +1691,17 @@ Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build content-format notes
+$ package-build content-format notes
 […] 0 finding(s) across 4 note(s) measured against docs/content-format.md.
 ```
 
 **SEE ALSO**
 
-`content-build content-format schema`, `content-build content-format fields`,
-`content-build lint [root]`, [Diagnostics](diagnostics.md),
+`package-build content-format schema`, `package-build content-format fields`,
+`package-build lint [root]`, [Diagnostics](diagnostics.md),
 [Configuration](configuration.md).
 
-### `content-build links [root]`
+### `package-build links [root]`
 
 **NAME**
 
@@ -1721,7 +1710,7 @@ Check that every link in a content tree lands.
 **SYNOPSIS**
 
 ```
-content-build links [root]
+package-build links [root]
 ```
 
 **DESCRIPTION**
@@ -1732,7 +1721,7 @@ retired — every link is an address), a wikilink authored in frontmatter
 (which is data and is never resolved), and a package homepage's markdown
 links and `landing:` addresses, which are published verbatim and use no
 wikilink at all. Also reports a vendored foreign-package content index that
-has drifted out of reach, naming `content-build deps fetch` as the fix.
+has drifted out of reach, naming `package-build deps fetch` as the fix.
 Reads the content tree named by `root`, defaulting to `paths.content`, and
 the cached content indexes of any declared dependency; writes nothing.
 
@@ -1751,17 +1740,17 @@ found. Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build links
+$ package-build links
 […] 2 notes: every link is a labelled address, every anchor link lands and every address resolves (0 cross-package reference(s) via manifest), no wikilink in frontmatter, every homepage address resolvable.
 ```
 
 **SEE ALSO**
 
-`content-build lint [root]`, `content-build reachability <dir> [file]`,
-`content-build deps fetch`, [Diagnostics](diagnostics.md),
+`package-build lint [root]`, `package-build reachability <dir> [file]`,
+`package-build deps fetch`, [Diagnostics](diagnostics.md),
 [Configuration](configuration.md).
 
-### `content-build format [paths..]`
+### `package-build format [paths..]`
 
 **NAME**
 
@@ -1770,7 +1759,7 @@ Check formatting with the shared Prettier configuration.
 **SYNOPSIS**
 
 ```
-content-build format [paths..] [--write]
+package-build format [paths..] [--write]
 ```
 
 **DESCRIPTION**
@@ -1808,24 +1797,24 @@ Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build format
-warning: this repository declares no Prettier configuration, so `content-build format` applies the shared conventions while an editor and a bare `npx prettier` apply Prettier's own to the same tree; declare them in a prettier.config.mjs — export { default } from "@heroiclands/package-build/prettier";
-build/dist/module.json: error: is not formatted; run `content-build format --write` to fix it
+$ package-build format
+warning: this repository declares no Prettier configuration, so `package-build format` applies the shared conventions while an editor and a bare `npx prettier` apply Prettier's own to the same tree; declare them in a prettier.config.mjs — export { default } from "@heroiclands/package-build/prettier";
+build/dist/module.json: error: is not formatted; run `package-build format --write` to fix it
 […]
 […] ERROR: 10 of 15 file(s) are not formatted.
 
-$ content-build format --write
+$ package-build format --write
 […] Formatted 10 of 15 file(s).
 
-$ content-build format
+$ package-build format
 […] Formatting is clean (15 file(s)).
 ```
 
 **SEE ALSO**
 
-`content-build markdown [paths..]`, [Diagnostics](diagnostics.md).
+`package-build markdown [paths..]`, [Diagnostics](diagnostics.md).
 
-### `content-build markdown [paths..]`
+### `package-build markdown [paths..]`
 
 **NAME**
 
@@ -1834,7 +1823,7 @@ Lint markdown with the shared markdownlint rule set.
 **SYNOPSIS**
 
 ```
-content-build markdown [paths..] [--fix]
+package-build markdown [paths..] [--fix]
 ```
 
 **DESCRIPTION**
@@ -1867,15 +1856,15 @@ exists at all). Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build markdown
+$ package-build markdown
 […] Markdown is clean.
 ```
 
 **SEE ALSO**
 
-`content-build format [paths..]`, [Diagnostics](diagnostics.md).
+`package-build format [paths..]`, [Diagnostics](diagnostics.md).
 
-### `content-build content-index [root]`
+### `package-build content-index [root]`
 
 **NAME**
 
@@ -1884,7 +1873,7 @@ Emit this package's note index as JSON Lines.
 **SYNOPSIS**
 
 ```
-content-build content-index [root] [--out <dir>]
+package-build content-index [root] [--out <dir>]
 ```
 
 **DESCRIPTION**
@@ -1917,16 +1906,16 @@ into `--out`, defaulting to the configured `paths.contentIndex`.
 **EXAMPLES**
 
 ```
-$ content-build content-index
+$ package-build content-index
 […] demo → build/content-index/demo-metadata.jsonl (4 notes, 2 KiB)
 ```
 
 **SEE ALSO**
 
-`content-build site`, `content-build pdf`, `content-build deps fetch`,
+`package-build site`, `package-build pdf`, `package-build deps fetch`,
 [Configuration](configuration.md).
 
-### `content-build site`
+### `package-build site`
 
 **NAME**
 
@@ -1935,7 +1924,7 @@ Build the Hugo source tree from the content tree.
 **SYNOPSIS**
 
 ```
-content-build site
+package-build site
 ```
 
 **DESCRIPTION**
@@ -1989,7 +1978,7 @@ None.
 
 1 if `package.json` declares no `homepage`, or one that does not end
 `/<contentPackage>/`; if `packageBuild.manifest.title` is undeclared; if the
-navigation has not been fetched (`content-build deps fetch` fills the cache
+navigation has not been fetched (`package-build deps fetch` fills the cache
 and is named in the message); or if `@heroiclands/hugo-theme` is not
 installed. 1 if any gate fires — no homepage or two competing for it, a
 frontmatter wikilink, an address that cannot be derived, a stale or
@@ -1999,20 +1988,20 @@ failed to expand, or a dead wikilink. Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build site
+$ package-build site
 […] wrote 1 homepage(s) + 1 content page(s) to build/hugo/content
 […] wrote build/hugo/hugo.toml
 
-$ content-build site
-[…] ERROR: the site navigation has not been fetched. Run `content-build deps fetch` first.
+$ package-build site
+[…] ERROR: the site navigation has not been fetched. Run `package-build deps fetch` first.
 ```
 
 **SEE ALSO**
 
-`content-build deps fetch`, `package-build site-root`, `content-build package <action> [pack] [entry]`, `content-build pdf`, `content-build content-index [root]`,
+`package-build deps fetch`, `package-build site-root`, `package-build package <action> [pack] [entry]`, `package-build pdf`, `package-build content-index [root]`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
-### `content-build pdf`
+### `package-build pdf`
 
 **NAME**
 
@@ -2021,7 +2010,7 @@ Build the book the content tree publishes as.
 **SYNOPSIS**
 
 ```
-content-build pdf [--out <path>] [--book-version <version>] [--compile]
+package-build pdf [--out <path>] [--book-version <version>] [--compile]
 ```
 
 **DESCRIPTION**
@@ -2058,19 +2047,19 @@ matched nothing, for instance) are reported but never fail the command.
 **EXAMPLES**
 
 ```
-$ content-build pdf
+$ package-build pdf
 […] No book built: no `pdf:` block is configured, so this package publishes no book
 
-$ content-build pdf --no-compile
+$ package-build pdf --no-compile
 demo-book: error: the document tree named by `pdf.document` cannot be read
 ```
 
 **SEE ALSO**
 
-`content-build site`, `content-build package <action> [pack] [entry]`,
+`package-build site`, `package-build package <action> [pack] [entry]`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
-### `content-build map`
+### `package-build map`
 
 **NAME**
 
@@ -2080,12 +2069,12 @@ route graph.
 **SYNOPSIS**
 
 ```
-content-build map --tree [--root <shortcode>] [--engine dot|twopi|neato] [--rankdir TB|LR|BT|RL]
+package-build map --tree [--root <shortcode>] [--engine dot|twopi|neato] [--rankdir TB|LR|BT|RL]
                   [--nodesep <inches>] [--ranksep <inches>] [--no-polities]
-content-build map --from <shortcode>.. | --from all
-content-build map --chart <shortcode>.. | --chart all [--horizon <days>]
-content-build map --travel
-content-build map [...] [--scale <factor>] [--base <url>] [--out <dir>]
+package-build map --from <shortcode>.. | --from all
+package-build map --chart <shortcode>.. | --chart all [--horizon <days>]
+package-build map --travel
+package-build map [...] [--scale <factor>] [--base <url>] [--out <dir>]
 ```
 
 **DESCRIPTION**
@@ -2250,28 +2239,28 @@ that does not resolve, a cycle), or on any other thrown error. Otherwise 0
 **EXAMPLES**
 
 ```
-$ content-build map --tree
+$ package-build map --tree
 assets/content/Regions/Sea.md:16:5: warning: place "innersea" has more than one parent (northc, southc), which is legal for a sea between continents or a region split between two, and worth a look otherwise
 assets/content/Regions/Marches/Lost_Fort.md:9:14: error: place "lostfort" names parent "marchs", which does not resolve to any place in this package or a fetched index
 […] 394 place(s) → 7 drawing(s) under build/map
 
-$ content-build map --from dunharargn --base /thalorna/
+$ package-build map --from dunharargn --base /thalorna/
 […] 394 place(s) → 1 drawing(s) under build/map
 
-$ content-build map --chart takheperurgn --horizon 90
+$ package-build map --chart takheperurgn --horizon 90
 […] 394 place(s) → 1 drawing(s) under build/map
 
-$ content-build map --travel
+$ package-build map --travel
 […] 394 place(s) → 1 drawing(s) under build/map
 ```
 
 **SEE ALSO**
 
-`content-build lint [root]` (which checks `borders` and `routes` from both
-ends), `content-build deps fetch`, `content-build content-index [root]`,
+`package-build lint [root]` (which checks `borders` and `routes` from both
+ends), `package-build deps fetch`, `package-build content-index [root]`,
 [Content format](content-format.md), [Diagnostics](diagnostics.md).
 
-### `content-build reachability <dir> [file]`
+### `package-build reachability <dir> [file]`
 
 **NAME**
 
@@ -2280,7 +2269,7 @@ Check that every document in a corpus is reachable by reading.
 **SYNOPSIS**
 
 ```
-content-build reachability <dir> [file] [--index <shortcode> ...] [--root <path>]
+package-build reachability <dir> [file] [--index <shortcode> ...] [--root <path>]
 ```
 
 **DESCRIPTION**
@@ -2315,19 +2304,19 @@ in the corpus is unreachable from the entry page. Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build reachability Guide
+$ package-build reachability Guide
 […] All 2 document(s) in Guide are reachable from README.md.
 
-$ content-build reachability assets/content
+$ package-build reachability assets/content
 […] ERROR: no note at assets/content/README.md, so the corpus has no page to be read from
 ```
 
 **SEE ALSO**
 
-`content-build links [root]`, `content-build lint [root]`, [Diagnostics](diagnostics.md),
+`package-build links [root]`, `package-build lint [root]`, [Diagnostics](diagnostics.md),
 [Configuration](configuration.md).
 
-### `content-build addresses diff`
+### `package-build addresses diff`
 
 **NAME**
 
@@ -2336,7 +2325,7 @@ Report every published address a build no longer publishes.
 **SYNOPSIS**
 
 ```
-content-build addresses diff --from <zip|dir> [--strict]
+package-build addresses diff --from <zip|dir> [--strict]
 ```
 
 **DESCRIPTION**
@@ -2378,11 +2367,11 @@ this repository declaring no Item pack at all to diff). Otherwise 0.
 **EXAMPLES**
 
 ```
-$ content-build addresses diff --from build/dist/module.zip
+$ package-build addresses diff --from build/dist/module.zip
 […] ERROR: demo-package@1.0.0: pack "items" is declared at packs/items, which the package does not contain
 ```
 
 **SEE ALSO**
 
-`content-build package <action> [pack] [entry]`, `content-build deps fetch`,
+`package-build package <action> [pack] [entry]`, `package-build deps fetch`,
 [Diagnostics](diagnostics.md).

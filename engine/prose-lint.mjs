@@ -25,7 +25,7 @@
  * it formats and what an ignore file excludes, through `getFileInfo`;
  * markdownlint expands its own globs and honours `.gitignore` itself. A second
  * implementation of either would drift from the tool it stands in for, and the
- * whole point of the command is that `content-build format --check` and a bare
+ * whole point of the command is that `package-build format --check` and a bare
  * `prettier --check .` report the same thing.
  *
  * @module
@@ -244,7 +244,7 @@ export async function checkFormatting(root, opts = {}) {
                     // No line or column: Prettier's answer is about the whole
                     // file, and the rule is to drop a field rather than
                     // invent one.
-                    message: "is not formatted; run `content-build format --write` to fix it",
+                    message: "is not formatted; run `package-build format --write` to fix it",
                 });
             }
         } catch (err) {
@@ -300,7 +300,7 @@ function divergenceMessage({ key, shared, local }, scope = "") {
  *
  * The no-configuration case is the sharper one and is reported even though the
  * command itself behaves correctly there: with no config file the shared
- * conventions reach `content-build format` and reach *nothing else*, so an
+ * conventions reach `package-build format` and reach *nothing else*, so an
  * editor's format-on-save and a bare `npx prettier --check .` apply Prettier's
  * own defaults to the same tree, and the two take turns rewriting the same
  * lines. That is not hypothetical — it is what the config files in
@@ -327,7 +327,7 @@ export async function checkPrettierConventions(root, opts = {}) {
                 {
                     severity: "warning",
                     message:
-                        "this repository declares no Prettier configuration, so `content-build " +
+                        "this repository declares no Prettier configuration, so `package-build " +
                         "format` applies the shared conventions while an editor and a bare `npx " +
                         "prettier` apply Prettier's own to the same tree; declare them in a " +
                         `prettier.config.mjs — ${SHARED_CONFIG_RE_EXPORT}`,

@@ -393,7 +393,7 @@ export function packFolderFindings({ packFolders, packs = [] }) {
  * package.
  *
  * `relationships` is the one manifest block with a second reader.
- * `@heroiclands/content-build` consumes it too, and v1.8.0 added
+ * `@heroiclands/package-build` consumes it too, and v1.8.0 added
  * `itemCatalog: true` as an opt-in on a declared dependency: it selects that
  * package's Item packs as a resolution
  * source for the actors pass. That is an instruction to the build, not a fact
@@ -408,7 +408,7 @@ export function packFolderFindings({ packFolders, packs = [] }) {
  * unlikely to be the last.
  *
  * A list is enough, and needs no prefix agreed between the two packages,
- * because the input is already closed: content-build normalises a relationship
+ * because the input is already closed: package-build normalises a relationship
  * to `id`, `type`, `manifest`, `compatibility` and its own build keys, and
  * rejects anything else at configuration time. A key that reaches here is one
  * the toolchain itself put there.
@@ -429,7 +429,7 @@ export const BUILD_ONLY_RELATIONSHIP_KEYS = Object.freeze(["itemCatalog"]);
  * unread: a key Foundry adds later should not need a release of this package.
  *
  * @param {Record<string, unknown>} relationships - The declared block, as
- *   content-build resolved it.
+ *   package-build resolved it.
  * @returns {Record<string, unknown>} It, without the build-only keys.
  */
 export function publishedRelationships(relationships) {

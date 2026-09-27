@@ -104,7 +104,7 @@ export function toDiagnostics(findings, { file }) {
  *   Optional only when every finding carries its own.
  * @param {(d: object) => void} [opts.emit] - How to emit one diagnostic.
  *   Injectable so a test can capture the emitted shape without reaching for
- *   the console; defaults to content-build's `emitDiagnostic`, which writes
+ *   the console; defaults to package-build's `emitDiagnostic`, which writes
  *   both severities to stderr.
  * @returns {number} How many diagnostics were errors — the count a command
  *   turns into its exit code.

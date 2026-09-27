@@ -482,7 +482,7 @@ describe("what a build does with it", () => {
     it("stays silent for a package with no schema to check against", () => {
         // A module pinning a system released before the artifact existed —
         // which is every satellite on sohl 0.8.2 today. Silence here, and one
-        // line from `content-build lint` saying the check did not run.
+        // line from `package-build lint` saying the check did not run.
         const compiler = items();
         const doc = compiler.buildEntry(skillNote({}), "");
         expect(

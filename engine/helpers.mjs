@@ -12,7 +12,7 @@
  */
 
 /**
- * Shared helpers for the pack compilers in `packages/content-build/`.
+ * Shared helpers for the pack compilers in `packages/package-build/`.
  *
  * The HeroicLands vault is authoritative for compendium item data. Pack
  * compilers walk the vault, read markdown files with YAML frontmatter, and
@@ -817,7 +817,7 @@ export function buildContentLinkIndex(
         }
         throw new Error(
             "Cross-package links cannot be resolved from an unusable index; " +
-                "re-run `content-build deps fetch`.",
+                "re-run `package-build deps fetch`.",
         );
     }
     log.debug(

@@ -822,7 +822,7 @@ export class BasePackCompiler {
      * a line rather than at a note.
      *
      * Silent where nothing can answer — no published schema, or a subtype the
-     * artifact does not name. `content-build lint` says that out loud once for
+     * artifact does not name. `package-build lint` says that out loud once for
      * the whole build rather than once per note.
      *
      * @param {object} fm - The note's frontmatter.
