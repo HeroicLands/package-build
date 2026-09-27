@@ -112,8 +112,9 @@ The `fonts` values are family names; `fonts.path` is a directory to search.
 invocation ignores system-installed fonts, so a machine's font collection
 does not silently change the book. Check a chosen font's coverage for the
 characters in the notes: Typst can substitute a face and still exit
-successfully. The [icons guide](icons.md) covers the names written in notes
-and the font registry.
+successfully. The [content format](../content-format.md) covers icon names
+written in notes; the [configuration reference](../configuration.md) covers
+the font registry.
 
 ## Build and inspect
 
