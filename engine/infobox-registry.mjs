@@ -111,6 +111,7 @@ export function compilesSystemDocument(fm, map, router) {
  *   Resolves a reference to `{name, url?, uuid?, address?, subType?}`.
  * @param {object} [options.router] - The pack router deciding which system
  *   compiles a document for this note. Defaults to the consuming repository's.
+ * @param {object} [options.dates] - Calendar conversion context.
  * @returns {object[]} The boxes, in the order every medium renders them.
  * @throws {Error} When the built set disagrees with what the note's type maps
  *   to — see {@link module:engine/infobox.assertInfoboxSet}.

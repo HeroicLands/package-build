@@ -42,6 +42,9 @@ export * as systemBlock from "./system-block.mjs";
 /** Fenced-code detection, so a rewrite never edits a code block. */
 export * as codeFences from "./code-fences.mjs";
 
+/** Format generated text using the destination's Prettier configuration. */
+export { formatGenerated } from "./format-generated.mjs";
+
 /** The `sohl:` frontmatter readers, shared by every content package. */
 export * as frontmatter from "./frontmatter.mjs";
 

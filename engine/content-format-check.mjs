@@ -141,7 +141,7 @@ export function declaredPaths(artifact) {
  * mappings" instead of "on a `weapongear`". Reading `on a \`the shared
  * mappings\`` would be the alternative, and a diagnostic is prose.
  *
- * @param {object} finding - `{system, systemVersion, noteType, source, target, shared}`.
+ * @param {{system: string, systemVersion: string, noteType: string, source: string, target: string, shared: boolean}} finding - The unresolved mapping.
  * @returns {string} The message.
  */
 export function undeclaredTargetMessage({
@@ -468,7 +468,7 @@ function under(path, prefix) {
 /**
  * What an author is told when the specification and the declaration disagree.
  *
- * @param {object} finding - `{noteType, source, target, name, to}`.
+ * @param {{noteType: string, source: string, target: string, name: string, to: string}} finding - The differing mapping.
  * @returns {string} The message.
  */
 export function fieldDriftMessage({ noteType, source, target, name, to }) {

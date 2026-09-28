@@ -855,6 +855,7 @@ function moonEntries(moon, body, name, months, dateContext = {}) {
  * @param {string} [opts.contentPackage] - The package shipping the note, which
  *   is a fact about the tree rather than about the note: a note never declares
  *   its own package.
+ * @param {object} [opts.dateContext] - Calendar conversion context.
  * @returns {object} The definition.
  */
 export function compileCalendar({ note, invariants, contentPackage, dateContext = {} }) {

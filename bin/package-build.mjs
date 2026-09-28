@@ -120,6 +120,7 @@ import { deployStage } from "../deploy.mjs";
 import { CONTAINER_ACTIONS, containerAction } from "../container.mjs";
 import { E2E_MODES, e2eFast, e2eRun, e2eSweep, seedTestWorld } from "../e2e.mjs";
 import { reportFindings } from "./report.mjs";
+import { formatGenerated } from "../engine/format-generated.mjs";
 import {
     checkProject,
     initializeProject,
@@ -147,7 +148,7 @@ function ciCommand() {
                 default: false,
                 describe: "Run in the current working tree without Docker",
             }),
-        handler: handler((args) => {
+        handler: handler(async (args) => {
             const script = fileURLToPath(
                 new URL(
                     args.native ? "../ci/ci-steps.mjs" : "../ci/ci-docker.mjs",
@@ -569,26 +570,45 @@ function datetoCommand() {
     };
 }
 
-/**
- * Format generated text the way the repository formats everything else.
- *
- * Not cosmetic. A generated file that Prettier would reformat leaves
- * `lint:format` and the generator's own `--check` each demanding what the other
- * forbids, and the repository cannot be made green. Resolving the config from
- * the *output path* is what makes one implementation here serve repositories
- * with different Prettier settings.
- *
- * Imported on use, as `prose-lint.mjs` does, so that commands which never
- * format do not pay to load it.
- *
- * @param {string} text - The unformatted content.
- * @param {string} filepath - Where it will be written.
- * @returns {Promise<string>} The formatted content.
- */
-async function formatGenerated(text, filepath) {
-    const prettier = await import("prettier");
-    const config = await prettier.resolveConfig(filepath);
-    return prettier.format(text, { ...config, filepath });
+/** Check a project's declarations with library checks enabled. */
+function typesCheckCommand() {
+    return {
+        command: "check",
+        describe: "Check project declaration files with TypeScript library checks enabled",
+        builder: (yargs) =>
+            yargs
+                .option("project", {
+                    describe: "TypeScript project file.",
+                    type: "string",
+                    default: "tsconfig.json",
+                })
+                .option("exports", {
+                    describe: "Include every declaration entry point in package.json exports.",
+                    type: "boolean",
+                    default: false,
+                }),
+        handler: handler(async (args) => {
+            const { checkDeclarations } = await import("../engine/declaration-check.mjs");
+            const findings = checkDeclarations(args.project, { exports: args.exports }).map(
+                (finding) => ({
+                    ...finding,
+                    file: path.relative(process.cwd(), finding.file),
+                }),
+            );
+            if (reportFindings(findings, {}) > 0) process.exitCode = 1;
+            else console.log("Package declarations are valid.");
+        }),
+    };
+}
+
+/** Check project declaration files. */
+function typesCommand() {
+    return {
+        command: "types <action>",
+        describe: "Check TypeScript declarations",
+        builder: (yargs) => yargs.command(typesCheckCommand()).demandCommand(1).strict(),
+        handler: () => {},
+    };
 }
 
 /**
@@ -1648,6 +1668,7 @@ registerContentCommands(
         .command(datetoCommand())
         .command(manifestCommand())
         .command(siteRootCommand())
+        .command(typesCommand())
         .command(schemaCommand())
         .command(langCommand())
         .command(labelsCommand())

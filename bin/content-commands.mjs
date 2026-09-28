@@ -63,6 +63,7 @@ import {
 } from "../engine/metadata-index.mjs";
 import { fetchNavigation, generateHugoConfig, writeHugoConfig } from "../engine/site-config.mjs";
 import { renderItemFieldReference, renderItemFieldsPage } from "../engine/field-reference.mjs";
+import { checkDocLinks, checkDocIndex } from "../engine/docs-checks.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
@@ -297,16 +298,21 @@ function withIndexPreflight(command, shouldCheck = () => true) {
 function docsCommand() {
     return {
         command: "docs <action>",
-        describe: "Generate documentation from the configured registries",
+        describe: "Generate and check project documentation",
         builder: (yargs) => {
             // Required and honoured, not optional and unread:
             // the handler rendered the item-field reference whatever it was
             // given, so the positional constrained what could be typed and
             // selected nothing.
             yargs.positional("action", {
-                describe: "The document to render.",
+                describe: "The documentation action.",
                 type: "string",
-                choices: ["item-fields"],
+                choices: ["item-fields", "links", "index"],
+            });
+            yargs.option("root", {
+                describe: "Documentation root for the links and index checks.",
+                type: "string",
+                default: "docs",
             });
             yargs.option("out", {
                 describe: "Write to this file instead of the configured location.",
@@ -325,6 +331,26 @@ function docsCommand() {
         handler: (argv) => {
             try {
                 const { action, title, check } = argv;
+                if (action === "links" || action === "index") {
+                    const requestedRoot = path.resolve(argv.root);
+                    const root =
+                        fs.existsSync(requestedRoot) ?
+                            fs.realpathSync(requestedRoot)
+                        :   requestedRoot;
+                    const findings = action === "links" ? checkDocLinks(root) : checkDocIndex(root);
+                    for (const finding of findings) {
+                        emitDiagnostic({
+                            ...finding,
+                            file: path.relative(process.cwd(), finding.file),
+                        });
+                    }
+                    if (findings.length) process.exitCode = 1;
+                    else
+                        log.info(
+                            `Documentation ${action} check passed for ${path.relative(process.cwd(), root) || "."}.`,
+                        );
+                    return;
+                }
                 // Dispatched on, so a second document added here cannot
                 // silently render the first. yargs' `choices` has already
                 // rejected anything unlisted, so the default is unreachable by
