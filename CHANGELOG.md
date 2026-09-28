@@ -1,5 +1,100 @@
 # @heroiclands/package-build
 
+## 22.16.0
+
+### Minor Changes
+
+**SoHL API**
+
+- Being summaries are available through the infobox API; the unused being information derivation is not exported.
+- Frontmatter dates use canonical days or named calendar dates, with an optional `~` for approximation.
+- Calendar dates can be converted to and from the world's canonical dates with `datefrom` and `dateto`.
+- Notes can express dates in a chosen calendar, including the appropriate era, in prose and infoboxes.
+- Markdown expressions can insert frontmatter values, formatted dates, comparisons, and scalar SQL results.
+- Dated office holders are checked for valid terms and overlapping claims.
+- A Foundry package must declare a title before its manifest is generated, so the package can be installed.
+
+**Content authoring**
+
+- Notes use braced `key=value` attributes for images, inline icons, SQL tables, and captions; invalid or outdated syntax reports a source location.
+- Inline `:::info` and `:::warn` boxes appear in journals, web pages, and books.
+- Footnotes and definition lists render in journals, web pages, and books; footnotes appear with the page where they are referenced.
+- Content tables use SQL queries; unsupported table directives produce an error.
+
+**Population checks**
+
+- Population checks include figures from dependency packages when their published indexes carry them.
+
+**Publishing**
+
+- Sites and books follow the authored content tree; remove `publish.site` from package configurations, since declaring it now causes a configuration error.
+
+**Books**
+
+- PDF books size raster illustrations for 300 dpi printing, and map backgrounds fill landscape pages.
+- Foundry packages must declare their minimum supported core version before a build starts, with one error at the configuration file when it is missing.
+
+**Command line** — Use `package-build` for content checks, compendium builds, websites, books, and release tasks. Update scripts that invoke `content-build`.
+
+### Patch Changes
+
+- Journal links to a package homepage or folder display their names instead of opening a nonexistent compendium entry.
+- Lore notes can describe customs such as rites, observances, and other shared practices.
+- Captions give tables, figures, code, and prose numbered labels that readers can follow from links. Uncaptioned wide book tables stay after their introduction.
+- Beings can name their primary culture directly, and an invalid culture reference receives a clear content error.
+- Markdown checks skip installed dependencies even when the package has no ignore file or overrides its markdownlint ignore list.
+
+**Books**
+
+- Inline icons with a named size print at that size in the PDF.
+- Draft and unresolved note links display readable status cues instead of HTML markup.
+
+**Project setup**
+
+- Create a content package with website and book targets through `package-build init`, or check an existing package with `init --check`.
+- Documentation packages can set `site.title` to build a website without a Foundry manifest.
+
+**Authoring guidance**
+
+- The documentation now gives separate starting paths for systems, modules, and content notes, with a complete note-type reference and worked examples for links, assets, dates, and markup.
+- Beings can state height and weight with metric or imperial units, and their appearance displays in feet, inches, and pounds.
+
+**Authoring**
+
+- Analyze one note or a content collection on demand for difficult sentences and simpler word choices, with source locations and suggested replacements.
+
+**Documentation and books**
+
+- The guides are available as a browsable website and PDF book.
+- Inline code containing backticks prints correctly in PDF books.
+
+**SoHL content**
+
+- Afflictions can carry an onset macro and outcome traumas into their game documents.
+- Skills can adopt parent mastery, while traumas can carry infection, lasting impairment, and treatment modifiers.
+
+**Content builds**
+
+- A missing dependency content index is reported before content processing begins.
+
+**Foundry packages**
+
+- Newly initialized projects clear the package stage before each full build, so renamed or deleted assets do not remain in local packages.
+
+**Content authoring**
+
+- GM-tagged notes stay out of public websites and books and appear in Foundry only through private compendiums.
+- Inline SQL counts can be written as words or grouped numerals; invalid scalar results point to their source.
+- Site previews resolve links produced by SQL tables.
+- Package builds accept npm descriptions without a misleading warning.
+
+**Item descriptions**
+
+- SoHL and HM3 Items now point to the same description page when the note marks it with `{#description}`; existing notes continue to use their first page.
+- Project documentation can check its relative links, heading anchors, and index coverage.
+- TypeScript declaration checks can validate project files and published entry points.
+- Generators can format their output with the destination's Prettier settings.
+
 ## 22.15.1
 
 ### Patch Changes
