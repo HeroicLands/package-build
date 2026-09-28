@@ -219,9 +219,9 @@ describe("expandContentTables reports where its output came from", () => {
     const NOTE = [
         "Before the table.", // body line 0
         "", // 1
-        "```dataview", // 2
-        "TABLE name", // 3
-        "FROM #doc", // 4
+        "```sql", // 2
+        "SELECT name.full AS Name", // 3
+        "FROM notes", // 4
         "```", // 5
         "", // 6
         "After the table.", // 7
@@ -229,8 +229,15 @@ describe("expandContentTables reports where its output came from", () => {
 
     it("maps every emitted line back to the line it came from", () => {
         const { markdown, lineMap } = expandContentTables(NOTE, {
-            docs: [],
             source: "Probe",
+            sqlTables: [
+                {
+                    markdown: "| Name |\n| --- |\n| A |",
+                    rows: 1,
+                    allowEmpty: false,
+                    stubsExcluded: 0,
+                },
+            ],
         });
         const out = markdown.split("\n");
         expect(lineMap).toHaveLength(out.length);
@@ -248,8 +255,15 @@ describe("expandContentTables reports where its output came from", () => {
 
     it("marks a generated row, and blames the directive that made it", () => {
         const { markdown, lineMap } = expandContentTables(NOTE, {
-            docs: [],
             source: "Probe",
+            sqlTables: [
+                {
+                    markdown: "| Name |\n| --- |\n| A |",
+                    rows: 1,
+                    allowEmpty: false,
+                    stubsExcluded: 0,
+                },
+            ],
         });
         const generated = markdown
             .split("\n")

@@ -147,6 +147,8 @@
         "loglevel": "^1.9.2",
         "loglevel-plugin-prefix": "^0.8.4",
         "markdown-it": "^15.0.0",
+        "markdown-it-deflist": "^4.0.0",
+        "markdown-it-footnote": "^4.0.0",
         "markdownlint-cli2": "^0.23.3",
         "pagefind": "^1.5.2",
         "prettier": "^3.9.6",

@@ -101,6 +101,7 @@ import { artPathname, assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { scanAdmonitions } from "./content-admonitions.mjs";
 import { numberCaptions, scanCaptions } from "./content-captions.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imagesIn, parseImageDirective } from "./content-images.mjs";
@@ -619,6 +620,15 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 message: error.message,
             });
         }
+        for (const error of scanAdmonitions(page.body).errors) {
+            findings.push({
+                file: page.file,
+                line: (page.bodyLine ?? 1) + error.line - 1,
+                column: error.column,
+                severity: "error",
+                message: error.message,
+            });
+        }
         stageImages(secrets.markdown, page.file, columns);
         const prose = markdownToTypst(secrets.markdown, {
             md,
@@ -706,7 +716,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         });
     }
 
-    const front = resolved.pdf.front.map((file) => {
+    const front = resolved.pdf.front.map((file, index) => {
         try {
             const text = fs.readFileSync(file, "utf8");
             stageImages(text, file, 1);
@@ -715,6 +725,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 links: plan.links,
                 glyphs,
                 images,
+                footnotePrefix: `footnote-front-${index + 1}`,
                 captions: frontCaptions.get(file),
             });
         } catch {

@@ -12,7 +12,7 @@ An Address names content independently of its filename or folder. Its full form 
 ```markdown
 [[lore-harbor|Harbor]]
 [[thalorna-note-lore-harbor|]]
-![[icon-harbor|Harbor emblem]]{float: top-left, size: medium}
+![[icon-harbor|Harbor emblem]]{float=top-left size=medium}
 ```
 
 The part after `|` is the displayed link text or an embed's alternative text. An empty label uses the target's current name in a regular link and marks an embed decorative. A missing pipe is an error. Search may use `name.full` and aliases; authored links use Addresses. The [Address reference](../reference/format-details.md#addresses) explains short forms, package qualification, and ambiguity diagnostics.
@@ -42,7 +42,7 @@ A caption fence labels the next Markdown block. Give it an ID so prose can refer
 ````markdown
 Refer to [[#trade|]] for the market routes.
 
-:::caption id="trade"
+:::caption {#trade}
 Regional trade routes
 :::
 
@@ -66,6 +66,54 @@ The harbor master is working for the smugglers.
 ```
 
 Players who deliberately inspect source or generated output may see it; the block is a presentation distinction, not access control. The [detailed reference](../reference/format-details.md#what-a-note-produces) describes each medium's handling.
+
+Use `:::info` for a neutral note and `:::warn` for a caution. Both render as
+labelled, colored boxes on the web and in Foundry, and as print boxes in a book:
+
+```markdown
+:::warn
+The bridge closes during the spring flood.
+:::
+```
+
+An optional `{#id}` gives the box an HTML anchor. These blocks need a closing
+`:::` and cannot be nested.
+
+## Footnotes and definition lists
+
+Write a footnote reference as `[^id]` and its definition as `[^id]: text`.
+The ID can be a number or word without spaces or tabs. It connects the
+reference to its definition within one Markdown note; another note can reuse
+the same ID for a different footnote. Rendered markers are numbers assigned in
+the order of first reference, including when the authored ID is a word.
+
+```markdown
+The road is passable in summer.[^season] The bridge has a toll.[^2]
+
+[^season]: Spring flooding closes it for several weeks.
+
+[^2]: The toll is collected at the eastern gate.
+```
+
+Definitions can appear anywhere at the top level of the note. Indent a
+following paragraph or code block by four spaces to include it in the same
+footnote. Keep definitions outside lists, block quotes, and tables. On the web,
+linked footnotes appear in a Footnotes section at the bottom of the HTML page.
+In Foundry, each JournalEntryPage places its referenced footnotes in a Footnotes
+section at the bottom of that page; definitions remain available across pages
+of the same note. In a book, footnotes appear in smaller type at the bottom of
+the page that contains their reference.
+
+A definition list gives a term one or more definitions:
+
+```markdown
+Janapada
+: A territorial community with its own institutions.
+: Also the land associated with that community.
+```
+
+The web and Foundry render a definition list with HTML `<dl>`, `<dt>`, and
+`<dd>` elements. The book renders it as a term list.
 
 ## Tables and expressions
 

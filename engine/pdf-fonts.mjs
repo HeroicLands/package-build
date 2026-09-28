@@ -37,7 +37,7 @@
  * ## Nothing here fails a build
  *
  * A font that cannot be read, or a name it does not carry, is a **finding** and
- * the icon falls back to its literal `:icon-…:` text. That is the failure mode
+ * the icon falls back to its literal `:icon …:` text. That is the failure mode
  * {@link module:engine/content-icons} was designed around — visible on the
  * page, where an author is looking — and it is strictly better than a tofu box
  * or a silently missing glyph.
@@ -399,7 +399,7 @@ export function resolveIconGlyphs(registry, iconFonts = {}, findings = []) {
                 file: font.file,
                 severity: "warning",
                 message:
-                    `\`:icon-${name}:\` asks for glyph \`${glyphName}\`, which ` +
+                    `\`:icon ${name}:\` asks for glyph \`${glyphName}\`, which ` +
                     `${path0(font.file)} does not carry — it prints as its name`,
             });
             continue;

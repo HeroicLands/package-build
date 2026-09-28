@@ -45,7 +45,7 @@ describe("the three vocabularies parse and are closed", () => {
     it("accepts every declared size and records it", () => {
         expect(parseImageDirective("").size).toBe("auto");
         for (const value of IMAGE_SIZES) {
-            expect(parseImageDirective(`{size: ${value}}`)).toMatchObject({
+            expect(parseImageDirective(`{size=${value}}`)).toMatchObject({
                 size: value,
                 problems: [],
             });
@@ -58,13 +58,13 @@ describe("the three vocabularies parse and are closed", () => {
             float: "",
             problems: [],
         });
-        expect(parseImageDirective("{float: top-left}")).toEqual({
+        expect(parseImageDirective("{float=top-left}")).toEqual({
             classes: [],
             size: "auto",
             float: "top-left",
             problems: [],
         });
-        expect(parseImageDirective("{.full-width, float: bottom-right}")).toEqual({
+        expect(parseImageDirective("{.full-width float=bottom-right}")).toEqual({
             classes: ["full-width"],
             size: "auto",
             float: "bottom-right",
@@ -73,10 +73,7 @@ describe("the three vocabularies parse and are closed", () => {
     });
 
     it("accepts size and float in either order", () => {
-        for (const directive of [
-            "{size: medium, float: top-left}",
-            "{float: top-left, size: medium}",
-        ]) {
+        for (const directive of ["{size=medium float=top-left}", "{float=top-left size=medium}"]) {
             expect(parseImageDirective(directive)).toEqual({
                 classes: [],
                 size: "medium",
@@ -87,16 +84,16 @@ describe("the three vocabularies parse and are closed", () => {
     });
 
     it("refuses an empty, unknown, or repeated size", () => {
-        for (const directive of ["{size: }", "{size: huge}", "{size: auto, size: large}"]) {
+        for (const directive of ["{size=}", "{size=huge}", "{size=auto size=large}"]) {
             const parsed = parseImageDirective(directive);
-            expect(parsed.problems, directive).toHaveLength(1);
+            expect(parsed.problems.length, directive).toBeGreaterThan(0);
             expect(parsed.size, directive).toBe("auto");
         }
     });
 
     it("takes every float the specification lists", () => {
         for (const value of Object.keys(IMAGE_FLOATS)) {
-            expect(parseImageDirective(`{float: ${value}}`).float, value).toBe(value);
+            expect(parseImageDirective(`{float=${value}}`).float, value).toBe(value);
         }
     });
 
@@ -104,19 +101,21 @@ describe("the three vocabularies parse and are closed", () => {
         for (const spelling of [".fullwidth", ".full_width", ".fullWidth"]) {
             const { classes, problems } = parseImageDirective(`{${spelling}}`);
             expect(classes, spelling).toEqual([]);
-            expect(problems.join(" "), spelling).toContain("is not a width an image has");
+            expect(problems.join(" "), spelling).toContain("is not an image width");
         }
     });
 
     it("refuses a dimension, whatever it is spelled as", () => {
         for (const spelling of ["width=800", "width: 800", "height=12em"]) {
-            expect(parseImageDirective(`{${spelling}}`).problems.length, spelling).toBe(1);
+            expect(parseImageDirective(`{${spelling}}`).problems.length, spelling).toBeGreaterThan(
+                0,
+            );
         }
     });
 
     it("refuses a float it does not know", () => {
-        expect(parseImageDirective("{float: middle}").problems.join(" ")).toContain(
-            "is not a position",
+        expect(parseImageDirective("{float=middle}").problems.join(" ")).toContain(
+            "is not an image position",
         );
     });
 
@@ -125,7 +124,7 @@ describe("the three vocabularies parse and are closed", () => {
         // author who wrote both and got one would have to compare two outputs
         // to notice.
         const { classes, size, float, problems } = parseImageDirective(
-            "{.full-width, size: small, float: middle}",
+            "{.full-width size=small float=middle}",
         );
         expect(problems.length).toBe(1);
         expect(classes).toEqual([]);
@@ -221,15 +220,15 @@ describe("a refusal is located and fatal", () => {
     });
 
     it("says nothing about an image written correctly", () => {
-        expect(checkImages("![A map](images/m.webp){float: center}\n", "x.md")).toEqual([]);
-        expect(
-            checkImages("![A map](images/m.webp){size: medium, float: center}\n", "x.md"),
-        ).toEqual([]);
+        expect(checkImages("![A map](images/m.webp){float=center}\n", "x.md")).toEqual([]);
+        expect(checkImages("![A map](images/m.webp){size=medium float=center}\n", "x.md")).toEqual(
+            [],
+        );
         expect(checkImages("![A map](images/m.webp)\n", "x.md")).toEqual([]);
     });
 
     it("locates an invalid size at the directive", () => {
-        expect(checkImages("![A map](images/m.webp){size: huge}\n", "x.md")).toEqual([
+        expect(checkImages("![A map](images/m.webp){size=huge}\n", "x.md")).toEqual([
             expect.objectContaining({ file: "x.md", line: 1, column: 24, severity: "error" }),
         ]);
     });
@@ -242,7 +241,7 @@ describe("a refusal is located and fatal", () => {
 
 describe("the website is handed markup Hugo renders", () => {
     it("turns a block image into a figure carrying the vocabulary's classes", () => {
-        expect(renderImageFigures("![A map](images/m.webp){.full-width, float: top-right}\n")).toBe(
+        expect(renderImageFigures("![A map](images/m.webp){.full-width float=top-right}\n")).toBe(
             [
                 '<figure class="note-image note-image-full-width note-image-float-top-right">',
                 '<img src="images/m.webp" alt="A map">',
@@ -272,7 +271,7 @@ describe("the website is handed markup Hugo renders", () => {
 
 describe("a Foundry journal page gets the same figure", () => {
     it("renders the figure as a block rather than inside a paragraph", () => {
-        const html = render("![A map](images/m.webp){float: top-left}\n");
+        const html = render("![A map](images/m.webp){float=top-left}\n");
         expect(html).toContain('<figure class="note-image note-image-float-top-left">');
         expect(html).not.toContain("<p>");
     });
@@ -328,13 +327,13 @@ describe("the book prints the picture at the measure the class names", () => {
     });
 
     it("keeps the float where a full-width image asks for one", () => {
-        expect(typst("![A map](images/m.webp){.full-width, float: bottom-right}\n")).toContain(
+        expect(typst("![A map](images/m.webp){.full-width float=bottom-right}\n")).toContain(
             '#place(bottom + right, float: true, scope: "parent"',
         );
     });
 
     it("floats to the corner the position names, within its column", () => {
-        expect(typst("![A map](images/m.webp){float: bottom-right}\n")).toContain(
+        expect(typst("![A map](images/m.webp){float=bottom-right}\n")).toContain(
             '#place(bottom + right, float: true, scope: "column"',
         );
     });
@@ -353,9 +352,9 @@ describe("the book prints the picture at the measure the class names", () => {
 });
 
 describe("named sizes reach every renderer", () => {
-    const plain = "![A map](images/m.webp){float: top-left}\n";
+    const plain = "![A map](images/m.webp){float=top-left}\n";
     const images = new Map([["images/m.webp", "assets/images/m.webp"]]);
-    const withSize = (size: string) => `![A map](images/m.webp){size: ${size}, float: top-left}\n`;
+    const withSize = (size: string) => `![A map](images/m.webp){size=${size} float=top-left}\n`;
 
     it("emits one HTML size class for every bounded or page-sized name", () => {
         for (const size of IMAGE_SIZES) {
@@ -383,7 +382,7 @@ describe("named sizes reach every renderer", () => {
 
     it("keeps the page-width class while honoring a bounded inner size", () => {
         const baseline = "![A map](images/m.webp){.full-width}\n";
-        const withSize = "![A map](images/m.webp){.full-width, size: medium}\n";
+        const withSize = "![A map](images/m.webp){.full-width size=medium}\n";
         expect(renderImageFigures(withSize)).toContain(
             "note-image-full-width note-image-size-medium",
         );

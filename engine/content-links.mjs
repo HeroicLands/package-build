@@ -80,7 +80,6 @@ import { ownDocumentSystem } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
-import { searchableFrontmatter } from "./note-package.mjs";
 import {
     blockSystem,
     canonicalKey,
@@ -302,18 +301,8 @@ export function buildLinkIndex(
         foreign: foreign.index,
     };
 
-    /** The searchable universe a `dataview` table draws its rows from. */
-    const tableDocs = notes.map((n) => ({
-        // Package present for a `WHERE … package = "…"` clause, synthesised
-        // rather than authored — see {@link searchableFrontmatter}.
-        fm: searchableFrontmatter(n.fm, pkg),
-        path: n.rel,
-        tld: n.rel.split("/")[0],
-        folder: path.dirname(n.rel).split("/").pop(),
-    }));
-
     /**
-     * One note's body with its `dataview` and `sql` tables expanded.
+     * One note's body with its SQL tables expanded.
      *
      * The body every body-level check reads, so a link and an embed in one note
      * are found in the same text — a generated table is as free to carry either
@@ -324,12 +313,8 @@ export function buildLinkIndex(
      */
     function expandedBody(note) {
         const body = note.body;
-        if (!/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:dataview|sql)\b/im.test(body)) return body;
+        if (!/^[ \t]*(?:`{3,}|~{3,})[ \t]*sql\b/im.test(body)) return body;
         return expandContentTables(body, {
-            // Unfiltered: every note in the tree is this package's, so
-            // there is no other package's note to exclude.
-            docs: tableDocs,
-            linkable: (d) => Boolean(d.fm.shortcode),
             source: note.file,
             // A `sql` table's links are checked like an authored one's, so
             // its rows are prepared ahead of this walk — see
@@ -393,7 +378,7 @@ export function buildLinkIndex(
     }
 
     /**
-     * Every wikilink in a note body, with its `dataview` tables expanded.
+     * Every wikilink in a note body, with its SQL tables expanded.
      *
      * An `![[…]]` embed is not one: it names a file rather than a note, and
      * {@link module:engine/wikilink-syntax.WIKILINK} excludes it so that no

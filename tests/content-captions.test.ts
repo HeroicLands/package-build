@@ -11,7 +11,7 @@ import { markdownToTypst } from "../engine/pdf-render.mjs";
 import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
 
 const directive = (id: string, text: string, block: string) =>
-    `:::caption id="${id}"\n${text}\n:::\n\n${block}\n`;
+    `:::caption {#${id}}\n${text}\n:::\n\n${block}\n`;
 
 describe("caption directives", () => {
     it("classifies the following rendered block and numbers each category", () => {
@@ -105,16 +105,14 @@ describe("caption directives", () => {
     });
 
     it("reports missing targets, duplicate ids, and unclosed directives", () => {
-        expect(scanCaptions(':::caption id="empty"\nCaption\n:::').errors[0].message).toContain(
+        expect(scanCaptions(":::caption {#empty}\nCaption\n:::").errors[0].message).toContain(
             "following block",
         );
         expect(
             scanCaptions(directive("same", "One", "First.") + directive("same", "Two", "Second."))
                 .errors[0].message,
         ).toContain("duplicate");
-        expect(scanCaptions(':::caption id="open"\nCaption').errors[0].message).toContain(
-            "closing",
-        );
+        expect(scanCaptions(":::caption {#open}\nCaption").errors[0].message).toContain("closing");
         expect(
             scanCaptions("# Heading {#same}\n\n" + directive("same", "Caption", "Text.")).errors[0]
                 .message,

@@ -141,7 +141,7 @@ it.skipIf(!HAS_TYPST)(
             fs.writeFileSync(image, source);
             fs.appendFileSync(
                 path.join(dir, "assets/content/Gear/dagger.md"),
-                "\n![Portrait](images/portrait.webp){size: medium}\n",
+                "\n![Portrait](images/portrait.webp){size=medium}\n",
             );
 
             const built = build(dir);

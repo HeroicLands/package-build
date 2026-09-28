@@ -51,7 +51,7 @@
  *
  * ## Icons
  *
- * `:icon-star-outline:` is parsed by the *same* {@link module:engine/content-icons.iconPlugin}
+ * `:icon star-outline:` is parsed by the *same* {@link module:engine/content-icons.iconPlugin}
  * the journals and the website use — one rule, three surfaces — and only the
  * output differs. The glyph is resolved from the font file the consumer named,
  * because the registry deliberately holds no codepoints; when no font is
@@ -62,6 +62,8 @@
  */
 
 import MarkdownIt from "markdown-it";
+import footnotePlugin from "markdown-it-footnote";
+import deflistPlugin from "markdown-it-deflist";
 
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
 import { iconPlugin, ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
@@ -78,6 +80,8 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
 });
 import { slugify } from "./content-slug.mjs";
 import { scanCaptions } from "./content-captions.mjs";
+import { scanAdmonitions } from "./content-admonitions.mjs";
+import { separateFootnotes } from "./content-footnotes.mjs";
 
 /**
  * Characters that mean something to Typst's markup parser.
@@ -155,6 +159,8 @@ export function labelFor(anchor) {
  */
 export function createParser(registry) {
     const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
+    md.use(footnotePlugin);
+    md.use(deflistPlugin);
     md.use(iconPlugin(registry));
     // The same plugin the HTML surfaces use, so one directive is read once and
     // three renderers read the same `meta` off the same token.
@@ -193,7 +199,47 @@ export function markdownToTypst(markdown, opts = {}) {
         headingOffset = 0,
         anchorPrefix = "",
     } = opts;
-    const source = String(markdown ?? "");
+    const separated =
+        opts.footnoteDefinitions === undefined ? separateFootnotes(String(markdown ?? "")) : null;
+    const source = separated?.markdown ?? String(markdown ?? "");
+    const definitions = opts.footnoteDefinitions ?? separated?.definitions ?? "";
+    const footnoteState = opts.footnoteState ?? { seen: new Set() };
+    const sharedOptions = { ...opts, footnoteDefinitions: definitions, footnoteState };
+    if (!opts.insideAdmonition) {
+        const { blocks } = scanAdmonitions(source);
+        if (blocks.length) {
+            const lines = source.split("\n");
+            const output = [];
+            let cursor = 0;
+            for (const block of blocks) {
+                output.push(
+                    markdownToTypst(lines.slice(cursor, block.start).join("\n"), {
+                        ...sharedOptions,
+                        insideAdmonition: true,
+                    }),
+                );
+                const color = block.kind === "warn" ? "#9a6700" : "#2f6f9f";
+                const background = block.kind === "warn" ? "#fff5db" : "#eef6fb";
+                const label = block.kind === "warn" ? "Warning" : "Info";
+                const symbol = block.kind === "warn" ? "!" : "i";
+                const content = markdownToTypst(block.body, {
+                    ...sharedOptions,
+                    insideAdmonition: true,
+                });
+                output.push(
+                    `\n#block(width: 100%, fill: rgb("${background}"), stroke: (left: 2pt + rgb("${color}")), inset: 8pt, above: 0.7em, below: 0.7em)[#text(fill: rgb("${color}"), weight: "bold")[${symbol} ${label}]\n\n${content}]\n`,
+                );
+                cursor = block.end + 1;
+            }
+            output.push(
+                markdownToTypst(lines.slice(cursor).join("\n"), {
+                    ...sharedOptions,
+                    insideAdmonition: true,
+                }),
+            );
+            return output.join("\n");
+        }
+    }
     // One map for the whole body, not one per block: a heading inside a
     // blockquote or a list item shares the entry's anchor namespace with every
     // other heading in the same body, because `sectionLabel` scopes by entry
@@ -206,6 +252,8 @@ export function markdownToTypst(markdown, opts = {}) {
         headingOffset,
         anchorPrefix,
         seen: new Map(),
+        footnoteState,
+        footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
     };
     const lines = source.split("\n");
     const localCaptions = scanCaptions(source).captions;
@@ -213,15 +261,20 @@ export function markdownToTypst(markdown, opts = {}) {
         (opts.captions ?? localCaptions).map((caption) => [caption.id, caption]),
     );
     const captions = localCaptions.map((caption) => numbered.get(caption.id) ?? caption);
-    if (!captions.length) return renderTokens(md.parse(source, {}), ctx);
+    if (!captions.length) return renderMarkdownSegment(source, md, ctx, definitions);
     const out = [];
     let cursor = 0;
     for (const caption of captions) {
-        out.push(renderTokens(md.parse(lines.slice(cursor, caption.line - 1).join("\n"), {}), ctx));
+        out.push(
+            renderMarkdownSegment(
+                lines.slice(cursor, caption.line - 1).join("\n"),
+                md,
+                ctx,
+                definitions,
+            ),
+        );
         const block = lines.slice(caption.blockStart, caption.blockEnd).join("\n");
-        const tokens = md.parse(block, {});
-        const content = renderTokens(tokens, { ...ctx, caption });
-        out.push(content);
+        out.push(renderMarkdownSegment(block, md, { ...ctx, caption }, definitions));
         if (caption.kind !== "table" && caption.kind !== "figure") {
             out.push(
                 `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]] <${sectionLabel(anchorPrefix, slugify(caption.id))}>\n\n`,
@@ -229,8 +282,27 @@ export function markdownToTypst(markdown, opts = {}) {
         }
         cursor = caption.blockEnd;
     }
-    out.push(renderTokens(md.parse(lines.slice(cursor).join("\n"), {}), ctx));
+    out.push(renderMarkdownSegment(lines.slice(cursor).join("\n"), md, ctx, definitions));
     return out.filter(Boolean).join("\n\n");
+}
+
+/** Render one fragment with the note's footnote definitions available. */
+function renderMarkdownSegment(source, md, ctx, definitions) {
+    const input = definitions ? `${source}\n\n${definitions}` : source;
+    const tokens = md.parse(input, {});
+    const footnoteStart = tokens.findIndex((token) => token.type === "footnote_block_open");
+    const visible = footnoteStart < 0 ? tokens : tokens.slice(0, footnoteStart);
+    const footnotes = new Map();
+    if (footnoteStart >= 0) {
+        for (let at = footnoteStart + 1; at < tokens.length; at++) {
+            if (tokens[at].type !== "footnote_open") continue;
+            const id = tokens[at].meta.id;
+            const start = at + 1;
+            while (at < tokens.length && tokens[at].type !== "footnote_close") at++;
+            footnotes.set(id, tokens.slice(start, at));
+        }
+    }
+    return renderTokens(visible, { ...ctx, footnotes });
 }
 
 /**
@@ -317,6 +389,29 @@ function renderBlock(tokens, i, out, ctx) {
             const fn = token.type === "bullet_list_open" ? "list" : "enum";
             const items = listItems(tokens, i + 1, end, ctx);
             out.push(`\n#${fn}(${items.map((it) => `[${it}]`).join(", ")})\n\n`);
+            return end - i + 1;
+        }
+        case "dl_open": {
+            const end = matching(tokens, i, "dl_open", "dl_close");
+            const entries = [];
+            let at = i + 1;
+            while (at < end) {
+                if (tokens[at].type !== "dt_open") {
+                    at++;
+                    continue;
+                }
+                const termEnd = matching(tokens, at, "dt_open", "dt_close");
+                const term = renderTokens(tokens.slice(at + 1, termEnd), ctx);
+                at = termEnd + 1;
+                const definitions = [];
+                while (at < end && tokens[at].type === "dd_open") {
+                    const definitionEnd = matching(tokens, at, "dd_open", "dd_close");
+                    definitions.push(renderTokens(tokens.slice(at + 1, definitionEnd), ctx));
+                    at = definitionEnd + 1;
+                }
+                entries.push(`terms.item([${term}],[${definitions.join("\n\n")}])`);
+            }
+            out.push(`\n#terms(${entries.join(", ")})\n\n`);
             return end - i + 1;
         }
         case "table_open": {
@@ -624,6 +719,21 @@ function renderInline(token, ctx) {
             case "heroiclands_icon":
                 out.push(renderIcon(child, ctx));
                 break;
+            case "footnote_ref": {
+                const label = child.meta?.label ?? String(child.meta?.id ?? "");
+                const key = `${ctx.footnotePrefix}-${slugify(label)}`;
+                const body = ctx.footnotes?.get(child.meta?.id);
+                if (!body) {
+                    out.push(escapeTypst(`[^${label}]`));
+                    break;
+                }
+                if (ctx.footnoteState.seen.has(key)) out.push(`#footnote(<${key}>)`);
+                else {
+                    ctx.footnoteState.seen.add(key);
+                    out.push(`#footnote[${renderTokens(body, ctx)}] <${key}>`);
+                }
+                break;
+            }
             case "link_open": {
                 const close = childMatching(children, i, "link_open", "link_close");
                 const inner = renderInline({ children: children.slice(i + 1, close) }, ctx);
@@ -729,7 +839,7 @@ function renderLink(href, inner, ctx) {
  * the figure at the top of the fresh one, where nothing is above it to displace
  * it and nothing that follows it can print first.
  *
- * A `.full-width` image that **also states a `float:`** is asking for a float,
+ * A `.full-width` image that **also states a `float`** is asking for a float,
  * and keeps one — deferral is the honest consequence of the request.
  *
  * ## A float occupies the measure
@@ -789,7 +899,7 @@ function renderImage(token, ctx) {
 function renderIcon(token, ctx) {
     const name = token?.meta?.name ?? "";
     const glyph = ctx.glyphs.get(name);
-    if (!glyph) return escapeTypst(`:icon-${name}:`);
+    if (!glyph) return escapeTypst(`:icon ${name}:`);
     const scale = ICON_SIZES[token?.meta?.attrs?.size]?.scale;
     const size = scale ? `, size: ${scale}em` : "";
     return `#text(font: "${escapeTypstString(glyph.font)}"${size})[\\u{${glyph.codepoint.toString(16)}}]`;
@@ -1164,6 +1274,7 @@ export function renderBook({
     out.push(
         `#set text(font: "${escapeTypstString(serif)}", size: 9.6pt, fill: book-ink, lang: "en")`,
     );
+    out.push("#show footnote.entry: set text(size: 7.8pt)");
     out.push("#set par(justify: true, leading: 0.55em, first-line-indent: 1.2em)");
     // The first-line indent is what separates one paragraph of running prose
     // from the next, and inside a list item the marker already does that. An

@@ -25,7 +25,18 @@ Start with [your first note](authoring/first-note.md). It explains the smallest 
 
 A nonempty note body creates one system-agnostic Foundry JournalEntry. Content before the first H1 becomes an introduction page; every H1 starts another JournalEntryPage. A lower-level heading with an explicit `{#anchor}` starts a page too, so a link can address it. The same prose becomes a web page and can be selected for a book. The content index records the note and its frontmatter for queries and navigation.
 
-A `:::caption id="anchor"` fence labels the next prose, code, table, or image block. Its anchor makes the block addressable; `[[#anchor|]]` displays the generated kind and number, such as **Figure 12**. Foundry gives the captioned block a JournalEntryPage. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references) for the syntax.
+A `:::caption {#anchor}` fence labels the next prose, code, table, or image block. Its anchor makes the block addressable; `[[#anchor|]]` displays the generated kind and number, such as **Figure 12**. Foundry gives the captioned block a JournalEntryPage. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references) for the syntax.
+
+Body extensions use braces with space-separated `key=value` attributes:
+`![[icon-harbor|Harbor]]{float=top-left size=medium}` and an SQL fence with
+`{allow-empty=true}` are examples. Inline font glyphs use the package's icon
+registry, as in `:icon warning:{size=lg}`; image icons use asset Addresses.
+`:::info` and `:::warn` add labelled boxes within the prose. The
+[links and markup guide](authoring/links-and-markup.md) gives the complete syntax.
+Footnotes use `[^id]` references and `[^id]:` definitions, with numeric output
+markers scoped to each note. Definition lists use a term followed by one or
+more `: definition` lines. See [footnotes and definition lists](authoring/links-and-markup.md#footnotes-and-definition-lists)
+for examples and placement in journals, web pages, and books.
 
 An inline `{{sql "SELECT COUNT(*) FROM notes"}}` expression inserts one scalar query result. Use `{{words (sql "SELECT COUNT(*) FROM notes")}}` for a count in running prose, or `{{digits (sql "SELECT COUNT(*) FROM entries")}}` for grouped numerals. The query must return exactly one row and one column with a nonempty value; a mismatch is a located build error. Prefix `\{{` to show the syntax literally. The [expression reference](reference/format-details.md#dates-and-calendars) describes the helpers and the available SQL relations.
 

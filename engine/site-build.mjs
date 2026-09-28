@@ -63,6 +63,7 @@ import { protectCode } from "./code-fences.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { renderAdmonitions, scanAdmonitions } from "./content-admonitions.mjs";
 import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
@@ -767,7 +768,8 @@ export function renderSitePage(
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
     const secrets = renderSecretBlocks(protectCode(expressions.markdown, resolve), "web");
-    const captioned = renderCaptionBlocks(secrets.markdown);
+    const admonitions = renderAdmonitions(secrets.markdown);
+    const captioned = renderCaptionBlocks(admonitions.markdown);
     for (const error of captionScan.errors)
         captionErrors.push({
             file: page.file,
@@ -776,6 +778,13 @@ export function renderSitePage(
             message: error.message,
         });
     for (const error of renderSecretBlocks(page.body, "book").errors)
+        secretErrors.push({
+            file: page.file,
+            line: (page.bodyLine ?? 1) + error.line - 1,
+            column: error.column,
+            message: error.message,
+        });
+    for (const error of scanAdmonitions(page.body).errors)
         secretErrors.push({
             file: page.file,
             line: (page.bodyLine ?? 1) + error.line - 1,
@@ -803,7 +812,7 @@ export function renderSitePage(
  * compilers use:
  *
  * 1. **Tables expand first**, and outside code-fence protection. A table is
- *    authored as a fenced `dataview` block, which `protectCode` would otherwise
+ *    authored as a fenced `sql` block, which `protectCode` would otherwise
  *    stash away before the expander saw it. Expanding first leaves an ordinary
  *    markdown table to walk, with every other fence still protected.
  * 2. **Then, inside protection**: the consumer's `beforeLinks` pass, then

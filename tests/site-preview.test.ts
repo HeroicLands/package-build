@@ -108,7 +108,7 @@ it("uses live frontmatter and SQL only for the active note, and keeps failed ren
     );
     const saved = source.replace(
         "Hello.\n",
-        "[[doc-other|Other]]\n\n![Portrait](images/portrait.webp){float: top-left, size: medium}\n\n```md\n[[doc-missing|literal example]]\n```\n\n```sql\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'doc' ORDER BY name.full\n```\n\n:::secret\nGM information.\n:::\n",
+        "[[doc-other|Other]]\n\n![Portrait](images/portrait.webp){float=top-left size=medium}\n\n```md\n[[doc-missing|literal example]]\n```\n\n```sql\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'doc' ORDER BY name.full\n```\n\n:::secret\nGM information.\n:::\n",
     );
     fs.writeFileSync(file, saved);
     const db = await openNotesDatabase(indexRecordsFor({ config: conf }));

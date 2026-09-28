@@ -43,10 +43,10 @@ describe("markdownToTypst", () => {
         const glyphs = new Map([["star", { font: "Icon Font", codepoint: 0xf005 }]]);
         const entry = registry.icons.star;
 
-        expect(markdownToTypst(":icon-star:", { registry, glyphs })).not.toContain("size:");
+        expect(markdownToTypst(":icon star:", { registry, glyphs })).not.toContain("size:");
         for (const [size, specification] of Object.entries(ICON_SIZES)) {
             expect(iconHtml(entry, { size }, registry)).toContain(specification.class);
-            expect(markdownToTypst(`:icon-star:{size: ${size}}`, { registry, glyphs })).toContain(
+            expect(markdownToTypst(`:icon star:{size=${size}}`, { registry, glyphs })).toContain(
                 `size: ${specification.scale}em`,
             );
         }
@@ -178,8 +178,8 @@ describe("markdownToTypst", () => {
 
     it("sets an unknown icon as its own name rather than dropping it", () => {
         // The visible failure `content-icons` was designed to produce.
-        const out = markdownToTypst("press :icon-nonesuch: now");
-        expect(out).toContain(":icon-nonesuch:");
+        const out = markdownToTypst("press :icon nonesuch: now");
+        expect(out).toContain(":icon nonesuch:");
     });
 });
 
