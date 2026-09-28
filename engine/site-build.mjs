@@ -70,7 +70,6 @@ import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { formatUnaddressableFinding, unaddressableForeignPackages } from "./metadata-index.mjs";
-import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
@@ -989,7 +988,6 @@ export function sitePageDecorator(config, index) {
     return (data, page) => {
         const resolvedDates = resolvedDateFields(page.fm, index.dateContext);
         if (Object.keys(resolvedDates).length) data.resolvedDates = resolvedDates;
-        if (isBeing(page.fm)) data.sohl = deriveBeingInfo(page.fm.sohl, index.refIndex);
         data.infoboxes = noteInfoboxes(page.fm, {
             resolve: (ref, hint) => resolveInfoboxRef(index, ref, hint),
             router,

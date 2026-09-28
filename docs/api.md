@@ -1426,14 +1426,12 @@ The SoHL-specific half of the toolchain: the knowledge of the Song of Heroic Lan
 Every module beneath `./sohl` is also reachable as its own entry point, e.g. `@heroiclands/package-build/sohl/being-info`.
 
 ```js
-import { isBeing, GEAR_TYPE_TO_KEY, deriveBeingInfo } from "@heroiclands/package-build/sohl";
+import { isBeing, GEAR_TYPE_TO_KEY } from "@heroiclands/package-build/sohl";
 
 console.log(isBeing({ type: "being" }));
 // -> true
 console.log(GEAR_TYPE_TO_KEY.weapongear);
 // -> "weapons"
-console.log(deriveBeingInfo({ items: [] }, new Map()));
-// -> { items: [] }
 ```
 
 ### `sohl.itemBuilders`
@@ -1498,15 +1496,14 @@ The `sohl` knowledgebase's own body pass: a rewrite driven by a TypeDoc symbol m
 
 ### Flat exports (not under a namespace)
 
-| Export                  | Signature                      | Returns                           | Use it when                                                                                                                                                                                       |
-| ----------------------- | ------------------------------ | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DEFAULT_ITEM_ART`      | `const DEFAULT_ITEM_ART`       | —                                 | reading the full map of default item artwork keyed by SoHL Item document subtype — the single source both the compendium builder and the runtime `SohlItem.getDefaultArtwork` read                |
-| `defaultItemArt`        | `defaultItemArt(type)`         | `string` — the default image path | getting the default art path for a document subtype, throwing (fail-fast) rather than defaulting silently when the type is unknown                                                                |
-| `AFFILIATION_STANDINGS` | `const AFFILIATION_STANDINGS`  | —                                 | reading the closed set of stances an authored `relation` map may use between two affiliations                                                                                                     |
-| `BEING_TYPE`            | `const BEING_TYPE`             | —                                 | the one note `type` value (`"being"`) whose pages carry a being info block; the retired `character`/`creature` spellings are deliberately not accepted here                                       |
-| `GEAR_TYPE_TO_KEY`      | `const GEAR_TYPE_TO_KEY`       | —                                 | mapping a gear note type (`weapongear`, `armorgear`, …) to the sidebar heading it displays under (`weapons`, `armor`, …)                                                                          |
-| `isBeing`               | `isBeing(fm)`                  | `boolean`                         | checking whether a note's frontmatter describes a being, using the one shared definition instead of a per-repository copy                                                                         |
-| `deriveBeingInfo`       | `deriveBeingInfo(sohl, index)` | `object\|null\|undefined`         | deriving a being's info-block fields (`skills`, `gear`, `spells`, `talents`) from its raw embedded `sohl.items[]`, resolved against a content index; authored values always win over derived ones |
+| Export                  | Signature                     | Returns                           | Use it when                                                                                                                                                                        |
+| ----------------------- | ----------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DEFAULT_ITEM_ART`      | `const DEFAULT_ITEM_ART`      | —                                 | reading the full map of default item artwork keyed by SoHL Item document subtype — the single source both the compendium builder and the runtime `SohlItem.getDefaultArtwork` read |
+| `defaultItemArt`        | `defaultItemArt(type)`        | `string` — the default image path | getting the default art path for a document subtype, throwing (fail-fast) rather than defaulting silently when the type is unknown                                                 |
+| `AFFILIATION_STANDINGS` | `const AFFILIATION_STANDINGS` | —                                 | reading the closed set of stances an authored `relation` map may use between two affiliations                                                                                      |
+| `BEING_TYPE`            | `const BEING_TYPE`            | —                                 | identifying the note type `"being"`                                                                                                                                                |
+| `GEAR_TYPE_TO_KEY`      | `const GEAR_TYPE_TO_KEY`      | —                                 | mapping each gear note type to its infobox group                                                                                                                                   |
+| `isBeing`               | `isBeing(fm)`                 | `boolean`                         | checking whether a note's frontmatter describes a being                                                                                                                            |
 
 ## `./hm3`
 

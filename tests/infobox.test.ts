@@ -49,7 +49,13 @@ import {
     presentValue,
     requiredInfoboxIds,
 } from "../engine/infobox.mjs";
-import { SOHL_FIELD_PRESENTATION, UNSTATED, decodeItem, strikeModes } from "../sohl/infobox.mjs";
+import {
+    SOHL_FIELD_PRESENTATION,
+    UNSTATED,
+    beingSections,
+    decodeItem,
+    strikeModes,
+} from "../sohl/infobox.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { infoboxesToHtml, infoboxesToTypst, sectionHasContent } from "../engine/infobox-render.mjs";
 import { compilesSystemDocument, noteInfoboxes } from "../engine/infobox-registry.mjs";
@@ -977,6 +983,37 @@ describe("a sentinel is an absence, not a value", () => {
 });
 
 describe("decodeItem — what one `sohl.items` entry names", () => {
+    it("shows model-addressed skills and equipment in a being's infobox", () => {
+        const sections = beingSections(
+            {
+                type: "being",
+                sohl: {
+                    items: [
+                        {
+                            model: "demo-sohl-skill-melee",
+                            system: { masteryLevelBase: 75 },
+                        },
+                        { model: "demo-sohl-weapongear-dagger" },
+                    ],
+                },
+            },
+            {
+                block: "sohl",
+                resolve: (ref: { type: string }) => ({
+                    name: ref.type === "skill" ? "Melee" : "Dagger",
+                }),
+            },
+        );
+        expect(sections.find((section: { id: string }) => section.id === "skills")).toMatchObject({
+            groups: [{ entries: [{ text: "Melee 75" }] }],
+        });
+        expect(
+            sections.find((section: { id: string }) => section.id === "equipment"),
+        ).toMatchObject({
+            groups: [{ entries: [{ text: "Dagger" }] }],
+        });
+    });
+
     it("prefers the explicit `type` and `shortcode` over `model`", () => {
         expect(
             decodeItem({
