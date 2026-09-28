@@ -1712,82 +1712,118 @@ $ package-build docs item-fields --out docs/item-fields.md --title "Demo Item Fi
 
 [Configuration](configuration.md).
 
-### `package-build prose lint [path]`
+### `package-build prose lint [path]` and `prose score [path]`
 
 **NAME**
 
-Analyze note prose for readability and simpler wording.
+Review sentence readability or score each note against a package's prose bands.
 
 **SYNOPSIS**
 
 ```text
-package-build prose lint [path] [--age <years>] [--threshold <count>] [--min-words <count>]
+package-build prose lint [path] [--age <years>] [--threshold <count>] [--min-words <count>] [--rules readability|simplify|all] [--fail-on-warning]
+package-build prose score [path] [--min-words <count>] [--fail-outside]
 ```
 
 **DESCRIPTION**
 
-Run this command from the package root to review the readable prose in one
-Markdown note or a content tree. Pass a note path while editing that note;
-omit it to review the configured `paths.content` tree. A directory path scans
-its Markdown files recursively and honors `skipDirectories`. A file path
-analyzes that file alone, even if it sits in an excluded directory. The command
-reads source files and writes nothing. It is an optional editorial check:
-`package-build lint` and the normal lint scripts do not run it.
+Run the `lint` or `score` action from the package root. Pass a Markdown note while editing;
+omit the path to read the configured `paths.content` tree. A directory path
+scans Markdown files recursively and honors `skipDirectories`. A file path
+analyzes that file alone, even in an excluded directory. Both actions read
+source files and write nothing. They are optional editorial checks and are
+outside `package-build lint` and the normal build.
 
 Set defaults in `package-build.config.yaml` under `packageBuild.proseLint`:
 
 ```yaml
 packageBuild:
-  proseLint: { age: 21, threshold: 5, minWords: 8 }
+  proseLint: { age: 21, threshold: 5, minWords: 8, rules: readability }
+  proseScore:
+    minWords: 80
+    bands:
+      flesch: { min: 45, max: 80 }
+      syllablesPerWord: { max: 1.65 }
 ```
 
-No configuration is required; the values above are the defaults. `age` is the
+No configuration is required. `proseLint` uses the defaults shown. The
+`proseScore` default is `minWords: 80` with no bands; the example bands express
+one package's editorial preference, not a toolchain standard. `age` is the
 intended reader's age in years. `threshold` is the number of seven readability
 algorithms that must classify a sentence as difficult before it is reported.
 For example, a threshold of 5 reports a sentence if five or more algorithms
-flag it; a threshold of 7 reports only unanimous findings. `minWords` excludes
-shorter sentences from readability analysis. Each setting is a positive integer,
-and `threshold` must be at most 7. CLI options override individual settings:
-`--min-words` overrides `minWords`, while `--age` and `--threshold` override
-their matching keys.
+flag it; a threshold of 7 reports only unanimous findings. Lint's `minWords`
+excludes shorter sentences. `rules: readability` reports difficult sentences;
+`simplify` reports wording suggestions; `all` reports both. The CLI options
+override individual settings. Lint numeric settings are positive integers;
+`threshold` is at most 7.
 
-The command analyzes Markdown prose with `retext-english`,
-`retext-readability`, and `retext-simplify`; `retext-stringify` completes the
-text pipeline. YAML frontmatter, code blocks, wikilink addresses, and inline
-expressions are excluded. Each suggestion is a warning with a file, line,
+Lint analyzes Markdown paragraphs, including those in blockquotes, with `retext-english` and the selected
+readability or simplify rules; `retext-stringify` completes the text pipeline.
+Frontmatter, headings, lists, GFM tables, code blocks and inline code, image
+embeds, wikilinks, and inline expressions are excluded. The body of an ordinary
+directive such as `:::info` remains prose; SQL directive bodies are excluded.
+Each suggestion is a warning with a file, line,
 column, rule ID, confidence, offending sentence, and `expected` replacement
 list. The source location marks the difficult sentence or the specific phrase
 that could be simplified. Readability confidence is the number of algorithms
 that found the sentence difficult, out of seven. Simplify suggestions have no
 numeric confidence score, so they say `unscored`. `expected` lists suggested
 replacements; `[]` means the rule offers no replacement and may recommend
-deleting a word or rewriting a sentence. Suggestions are advisory, are never
-applied automatically, and do not make the command fail. Unreadable paths and
-invalid options do.
+deleting a word or rewriting a sentence. Suggestions are advisory and are
+never applied automatically. `--fail-on-warning` makes a selected rule's
+suggestions an explicit exit-code gate.
+
+Score uses the same paragraph selection. It reports Flesch reading ease,
+syllables per word, mean and longest sentence length, unfamiliar-word percentage
+against the Dale–Chall list, and nominalizations per thousand words. A
+nominalization is counted by its word ending (`-tion`, `-sion`, `-ment`,
+`-ness`, `-ity`, `-ance`, `-ence`, or `-ism`); this is a mechanical count, not a
+grammar judgment. Coverage is the percentage of readable body words included
+in the score: headings and lists count toward the body but are not scored.
+Review low-coverage notes in context. A note with fewer than score's `minWords`
+is reported as insufficient and is not compared with bands.
+
+Under `packageBuild.proseScore.bands`, any of `flesch`, `syllablesPerWord`,
+`meanSentenceWords`, `longestSentenceWords`, `unfamiliarWordPercent`, and
+`nominalizationsPer1000Words` may set `min`, `max`, or both. Limits are finite
+numbers and a minimum cannot exceed a maximum. Violations are warnings. The
+directory summary pools sentence, word, and syllable counts across sufficiently
+long notes before computing Flesch; it is not an average of note scores.
+`--fail-outside` makes band violations an explicit gate. No band is enforced
+until the package declares it.
 
 **OPTIONS**
 
-| Input         | Default                    | Meaning                                  |
-| ------------- | -------------------------- | ---------------------------------------- |
-| `path`        | configured `paths.content` | Markdown file or content tree            |
-| `--age`       | 21                         | Reader age in years                      |
-| `--threshold` | 5                          | Number of readability algorithms (1–7)   |
-| `--min-words` | 8                          | Minimum words for readability assessment |
+| Input               | Default                    | Meaning                                      |
+| ------------------- | -------------------------- | -------------------------------------------- |
+| `path`              | configured `paths.content` | Markdown file or content tree                |
+| `--age`             | 21                         | Lint reader age in years                     |
+| `--threshold`       | 5                          | Lint readability algorithms required (1–7)   |
+| `--rules`           | `readability`              | Lint rules: `readability`, `simplify`, `all` |
+| `--min-words`       | 8 lint; 80 score           | Minimum words per sentence or note           |
+| `--fail-on-warning` | false                      | Fail lint on selected rule findings          |
+| `--fail-outside`    | false                      | Fail score when a note crosses a band        |
 
 **EXIT STATUS**
 
-0 after reporting suggestions; 1 for invalid options or unreadable paths.
+0 after an advisory report; 1 for invalid options, unreadable paths, or an
+explicit failure condition.
 
 **EXAMPLES**
 
 ```bash
 package-build prose lint assets/content/Lore/Harbor.md
+package-build prose lint assets/content/Lore/Harbor.md --rules simplify
+package-build prose lint assets/content/Lore/Harbor.md --fail-on-warning
 package-build prose lint
 package-build prose lint assets/content --age 18 --threshold 6 --min-words 10
+package-build prose score assets/content/Lore/Harbor.md
+package-build prose score assets/content/Lore --fail-outside
 ```
 
-For a note whose fifth line says `The utilization is very high.`, the command
-can report:
+For a note whose fifth line says `The utilization is very high.`, lint with
+`--rules simplify` can report:
 
 ```text
 assets/content/Lore/Harbor.md:5:5: warning: retext-simplify/utilization: confidence=unscored; sentence="The utilization is very high."; expected=["use"]; Unexpected `utilization`, use `use` instead

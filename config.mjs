@@ -76,6 +76,7 @@ const SECTION_KEYS = [
     "container",
     "e2e",
     "proseLint",
+    "proseScore",
 ];
 
 /**
@@ -528,7 +529,8 @@ function normalizeExceptions(value, field, where) {
  *
  * @typedef {object} PackageBuildConfig
  * @property {string} rootDir        The repository root, from package-build.
- * @property {{age: number, threshold: number, minWords: number}} proseLint Optional prose analysis settings.
+ * @property {{age: number, threshold: number, minWords: number, rules: string}} proseLint Optional prose lint settings.
+ * @property {{minWords: number, bands: Record<string, {min?: number, max?: number}>}} proseScore Optional note score settings.
  * @property {string} packageKind    `systems` or `modules`.
  * @property {string} packageId      The Foundry package id.
  * @property {string} artifact       Derived: `system` or `module`.
@@ -693,9 +695,20 @@ export function resolvePackageBuildConfig(shared) {
 
     const proseLint = section.proseLint ?? {};
     if (!isMapping(proseLint)) fail("packageBuild.proseLint", "must be a mapping");
-    rejectUnknownKeys(proseLint, ["age", "threshold", "minWords"], "packageBuild.proseLint.");
-    const proseOptions = { age: 21, threshold: 5, minWords: 8 };
+    rejectUnknownKeys(
+        proseLint,
+        ["age", "threshold", "minWords", "rules"],
+        "packageBuild.proseLint.",
+    );
+    const proseOptions = { age: 21, threshold: 5, minWords: 8, rules: "readability" };
     for (const [key, value] of Object.entries(proseLint)) {
+        if (key === "rules") {
+            if (!["readability", "simplify", "all"].includes(value)) {
+                fail("packageBuild.proseLint.rules", "must be readability, simplify, or all");
+            }
+            proseOptions.rules = value;
+            continue;
+        }
         const upper = key === "threshold" ? 7 : Infinity;
         if (!Number.isInteger(value) || value < 1 || value > upper) {
             fail(
@@ -706,6 +719,43 @@ export function resolvePackageBuildConfig(shared) {
             );
         }
         proseOptions[key] = value;
+    }
+
+    const proseScore = section.proseScore ?? {};
+    if (!isMapping(proseScore)) fail("packageBuild.proseScore", "must be a mapping");
+    rejectUnknownKeys(proseScore, ["minWords", "bands"], "packageBuild.proseScore.");
+    const scoreMinWords = proseScore.minWords ?? 80;
+    if (!Number.isInteger(scoreMinWords) || scoreMinWords < 1) {
+        fail("packageBuild.proseScore.minWords", "must be a positive integer");
+    }
+    const bands = proseScore.bands ?? {};
+    if (!isMapping(bands)) fail("packageBuild.proseScore.bands", "must be a mapping");
+    const scoreMetrics = [
+        "flesch",
+        "syllablesPerWord",
+        "meanSentenceWords",
+        "longestSentenceWords",
+        "unfamiliarWordPercent",
+        "nominalizationsPer1000Words",
+    ];
+    rejectUnknownKeys(bands, scoreMetrics, "packageBuild.proseScore.bands.");
+    const scoreBands = {};
+    for (const [metric, band] of Object.entries(bands)) {
+        const where = `packageBuild.proseScore.bands.${metric}`;
+        if (!isMapping(band)) fail(where, "must be a mapping");
+        rejectUnknownKeys(band, ["min", "max"], `${where}.`);
+        if (band.min === undefined && band.max === undefined) {
+            fail(where, "must specify min, max, or both");
+        }
+        for (const [limit, value] of Object.entries(band)) {
+            if (typeof value !== "number" || !Number.isFinite(value)) {
+                fail(`${where}.${limit}`, "must be a finite number");
+            }
+        }
+        if (band.min !== undefined && band.max !== undefined && band.min > band.max) {
+            fail(where, "min must not exceed max");
+        }
+        scoreBands[metric] = Object.freeze({ ...band });
     }
 
     if (section.assets !== undefined && !Array.isArray(section.assets)) {
@@ -809,6 +859,7 @@ export function resolvePackageBuildConfig(shared) {
     return Object.freeze({
         rootDir: shared.rootDir,
         proseLint: Object.freeze(proseOptions),
+        proseScore: Object.freeze({ minWords: scoreMinWords, bands: Object.freeze(scoreBands) }),
         // Where the package is assembled before it is zipped or deployed. Every
         // asset destination is relative to it, so a repository's table says
         // `lang`, not `build/stage/lang` — the latter is what each consumer's

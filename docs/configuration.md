@@ -1457,37 +1457,64 @@ packageBuild:
     envPrefix: SOHL
 ```
 
-| Key                                                                                        | Type                                        | Required | Default                                |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------- | -------- | -------------------------------------- |
-| [`packageBuild.stageDir`](#packagebuildstagedir-and-packagebuildassets)                    | string                                      | no       | `build/stage`                          |
-| [`packageBuild.assets`](#packagebuildstagedir-and-packagebuildassets)                      | array                                       | no       | `[]`                                   |
-| [`packageBuild.assetTransform`](#packagebuildassettransform-and-packagebuildmanifestflags) | string (path to a module)                   | no       | `null`                                 |
-| [`packageBuild.manifest`](#packagebuildmanifest)                                           | object, pass-through                        | no       | `{}`                                   |
-| [`packageBuild.manifestFlags`](#packagebuildassettransform-and-packagebuildmanifestflags)  | string (path to a module)                   | no       | `null`                                 |
-| [`packageBuild.schema`](#packagebuildschema)                                               | object (`{documentType: {from, registry}}`) | no       | `[]`                                   |
-| [`packageBuild.clean`](#packagebuildclean)                                                 | object                                      | no       | `{extra: []}`                          |
-| [`packageBuild.lang`](#packagebuildlang)                                                   | object                                      | no       | see below                              |
-| [`packageBuild.deploy`](#packagebuilddeploy)                                               | object                                      | no       | `{envPrefix: "SOHL"}`                  |
-| [`packageBuild.release`](#packagebuildrelease)                                             | object                                      | no       | `{artifact: <from packageKind>}`       |
-| [`packageBuild.bundle`](#packagebuildbundle)                                               | object                                      | no       | `{entry: "<foundryPackage>.mjs"}`      |
-| [`packageBuild.container`](#packagebuildcontainer)                                         | object                                      | no       | see below                              |
-| [`packageBuild.e2e`](#packagebuilde2e)                                                     | object                                      | no       | see below                              |
-| [`packageBuild.proseLint`](#packagebuildproselint)                                         | object                                      | no       | `{age: 21, threshold: 5, minWords: 8}` |
+| Key                                                                                        | Type                                        | Required | Default                                                    |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------- | -------- | ---------------------------------------------------------- |
+| [`packageBuild.stageDir`](#packagebuildstagedir-and-packagebuildassets)                    | string                                      | no       | `build/stage`                                              |
+| [`packageBuild.assets`](#packagebuildstagedir-and-packagebuildassets)                      | array                                       | no       | `[]`                                                       |
+| [`packageBuild.assetTransform`](#packagebuildassettransform-and-packagebuildmanifestflags) | string (path to a module)                   | no       | `null`                                                     |
+| [`packageBuild.manifest`](#packagebuildmanifest)                                           | object, pass-through                        | no       | `{}`                                                       |
+| [`packageBuild.manifestFlags`](#packagebuildassettransform-and-packagebuildmanifestflags)  | string (path to a module)                   | no       | `null`                                                     |
+| [`packageBuild.schema`](#packagebuildschema)                                               | object (`{documentType: {from, registry}}`) | no       | `[]`                                                       |
+| [`packageBuild.clean`](#packagebuildclean)                                                 | object                                      | no       | `{extra: []}`                                              |
+| [`packageBuild.lang`](#packagebuildlang)                                                   | object                                      | no       | see below                                                  |
+| [`packageBuild.deploy`](#packagebuilddeploy)                                               | object                                      | no       | `{envPrefix: "SOHL"}`                                      |
+| [`packageBuild.release`](#packagebuildrelease)                                             | object                                      | no       | `{artifact: <from packageKind>}`                           |
+| [`packageBuild.bundle`](#packagebuildbundle)                                               | object                                      | no       | `{entry: "<foundryPackage>.mjs"}`                          |
+| [`packageBuild.container`](#packagebuildcontainer)                                         | object                                      | no       | see below                                                  |
+| [`packageBuild.e2e`](#packagebuilde2e)                                                     | object                                      | no       | see below                                                  |
+| [`packageBuild.proseLint`](#packagebuildproselint)                                         | object                                      | no       | `{age: 21, threshold: 5, minWords: 8, rules: readability}` |
+| [`packageBuild.proseScore`](#packagebuildprosescore)                                       | object                                      | no       | `{minWords: 80, bands: {}}`                                |
 
-> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, manifest, manifestFlags, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint).``
+> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, manifest, manifestFlags, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore).``
 
 ### `packageBuild.proseLint`
 
-Optional defaults for [`package-build prose lint`](commands.md#package-build-prose-lint-path).
+Optional defaults for [`package-build prose lint`](commands.md#package-build-prose-lint-path-and-prose-score-path).
 `age` is the reader age, `threshold` is the number of readability algorithms
 required to flag a sentence (1–7), and `minWords` is the minimum sentence
-length. Each setting is a positive integer; command-line options can override
-them for one analysis.
+length. `rules` is `readability`, `simplify`, or `all`. Each numeric setting is
+a positive integer; command-line options can override them for one analysis.
 
 ```yaml
 packageBuild:
-  proseLint: { age: 21, threshold: 5, minWords: 8 }
+  proseLint: { age: 21, threshold: 5, minWords: 8, rules: readability }
 ```
+
+### `packageBuild.proseScore`
+
+Optional defaults for [`package-build prose score`](commands.md#package-build-prose-lint-path-and-prose-score-path).
+`minWords` is the minimum number of analyzed words for a note to receive a
+score. `bands` states the package's acceptable range for any reported metric;
+there are no default bands. Each band has `min`, `max`, or both, as finite
+numbers. An omitted bound is open. The score report stays advisory unless
+`--fail-outside` is requested.
+
+```yaml
+packageBuild:
+  proseScore:
+    minWords: 80
+    bands:
+      flesch: { min: 45, max: 80 }
+      syllablesPerWord: { max: 1.65 }
+      meanSentenceWords: { max: 28 }
+      longestSentenceWords: { max: 55 }
+      unfamiliarWordPercent: { max: 35 }
+      nominalizationsPer1000Words: { max: 30 }
+```
+
+Flesch is a reading-ease score, so a value below its minimum is harder prose
+and one above its maximum is simpler prose. These sample bounds are editorial
+choices for illustration. `--min-words` overrides `minWords` for one score run.
 
 ### `packageBuild.stageDir` and `packageBuild.assets`
 

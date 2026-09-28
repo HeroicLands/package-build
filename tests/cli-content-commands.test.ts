@@ -87,7 +87,46 @@ describe("a content command reaches the content", () => {
         const file = path.join(root, "assets", "content", "Prose.md");
         fs.writeFileSync(file, "---\nshortcode: utilization\n---\n\nThe utilization is high.\n");
         try {
-            const result = spawnSync(process.execPath, [CLI, "prose", "lint", file], {
+            const result = spawnSync(
+                process.execPath,
+                [CLI, "prose", "lint", file, "--rules", "simplify"],
+                {
+                    cwd: root,
+                    env: {
+                        ...process.env,
+                        PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
+                    },
+                    encoding: "utf8",
+                },
+            );
+            expect(result.status).toBe(0);
+            expect(result.stderr).toMatch(/Prose\.md:5:5: warning: retext-simplify\/utilization:/);
+            expect(result.stderr).toContain('expected=["use"]');
+            const gated = spawnSync(
+                process.execPath,
+                [CLI, "prose", "lint", file, "--rules", "simplify", "--fail-on-warning"],
+                {
+                    cwd: root,
+                    env: {
+                        ...process.env,
+                        PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
+                    },
+                    encoding: "utf8",
+                },
+            );
+            expect(gated.status).toBe(1);
+        } finally {
+            fs.rmSync(file, { force: true });
+        }
+    });
+
+    it("scores one note without failing unless band failure is explicitly requested", () => {
+        const file = path.join(root, "assets", "content", "Prose.md");
+        const scoreConfig = path.join(root, "package-build.score.config.yaml");
+        fs.writeFileSync(file, "The cat sat on the mat. The dog ran to the gate.\n");
+        try {
+            const args = [CLI, "prose", "score", file, "--min-words", "5"];
+            const result = spawnSync(process.execPath, args, {
                 cwd: root,
                 env: {
                     ...process.env,
@@ -96,10 +135,24 @@ describe("a content command reaches the content", () => {
                 encoding: "utf8",
             });
             expect(result.status).toBe(0);
-            expect(result.stderr).toMatch(/Prose\.md:5:5: warning: retext-simplify\/utilization:/);
-            expect(result.stderr).toContain('expected=["use"]');
+            expect(result.stdout).toContain("flesch=");
+            expect(result.stdout).toContain("coverage=");
+            expect(result.stdout).toContain("Total: 1 scored");
+            fs.writeFileSync(
+                scoreConfig,
+                fs.readFileSync(path.join(root, "package-build.config.yaml"), "utf8") +
+                    "\npackageBuild:\n  proseScore:\n    bands:\n      flesch: { max: 80 }\n",
+            );
+            const gated = spawnSync(process.execPath, [...args, "--fail-outside"], {
+                cwd: root,
+                env: { ...process.env, PACKAGE_BUILD_CONFIG: scoreConfig },
+                encoding: "utf8",
+            });
+            expect(gated.status).toBe(1);
+            expect(gated.stderr).toContain("prose-score/band:");
         } finally {
             fs.rmSync(file, { force: true });
+            fs.rmSync(scoreConfig, { force: true });
         }
     });
 
