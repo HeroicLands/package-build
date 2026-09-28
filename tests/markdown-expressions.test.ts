@@ -25,12 +25,19 @@ const dates = {
                         type: "lore",
                         subType: "calendar",
                         data: {
+                            epoch: "1.1",
                             months,
                             eras: [
                                 {
+                                    shortcode: "before",
+                                    name: "Before",
+                                    abbreviation: "BF",
+                                    start: null,
+                                },
+                                {
                                     shortcode: "founding",
                                     marker: "VR",
-                                    start: "1.1",
+                                    start: 1,
                                     label: { after: "{date} AF", before: "{date} BF" },
                                 },
                             ],
@@ -54,11 +61,11 @@ describe("Markdown expressions", () => {
     });
 
     it("accepts an era qualifier and a frontmatter date argument", () => {
-        const result = renderMarkdownExpressions('{{dateformat "vrcal.founding" data.born}}', {
+        const result = renderMarkdownExpressions('{{dateformat "vrcal.before" data.born}}', {
             fm: { data: { born: "-300.25" } },
             dates,
         });
-        expect(result).toEqual({ markdown: "301/1/25 BF", findings: [] });
+        expect(result).toEqual({ markdown: "25 Month 1 300 BF", findings: [] });
     });
 
     it("uses the note's calendar Address as a helper argument", () => {

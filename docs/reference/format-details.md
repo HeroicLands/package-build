@@ -335,100 +335,21 @@ order without changing the Markdown body.
 
 #### Dates and calendars
 
-A calendar names and orders the days within a year. An **era** states where its
-year count begins. Several eras may use one calendar; each has its own origin.
-Every frontmatter date uses either a canonical year or day, or a named calendar date:
+A canonical date is `<year>[.<day>[:HHMMSS]]`. The day is one-based within the world's year. `720` covers the whole year; `720.136` covers that day; `720.136:143005` identifies one second. Negative years are valid. Prefix either form with `~` to express uncertainty beyond its written interval. `unknown` is allowed only in fields that accept an unknown occurrence.
 
-```yaml
-data:
-  born: datefrom vrcal 23 Taranis 326 VR
-  died: ~326.114
-```
+A named date uses `datefrom <calendar> <date>`, where the final text follows the calendar's `data.formats.std` pattern, or its first named pattern when `std` is absent. For example, a calendar with `std: "D MMMM [yearInEra] G"` reads `datefrom commoncal 23 Floralis 326 VR`, `datefrom commoncal Floralis 326 VR`, and `datefrom commoncal 326 VR`. Omitting the day or month retains month or year precision in frontmatter. The CLI `datefrom` command requires a day to produce one canonical day. The calendar argument is a shortcode or Address. A time follows the day only when specified in the pattern, or as a trailing `HH:mm:ss` when the pattern has no clock tokens. A named date with an era-relative year names its era.
 
-`datefrom` takes a calendar shortcode or Address, followed by a date in that
-calendar. The date may name a day and month (`23 Taranis 326 VR`), a month and
-year (`Taranis 326 VR`), or a year (`326 VR`). Its era label is required when
-the calendar has several eras. Month names and their abbreviations come from
-the calendar note; an era's `abbreviation`, `name`, marker, or shortcode names
-it. The conversion retains year or month precision when no day is given.
-A 24-hour time follows a day, such as `23 Taranis 326 VR 14:30:05`.
+`data.epoch` on a calendar is a canonical `<year>.<day>`: the day on which **calendar year 1, day 1** occurs. It cannot be year-only, approximate, or expressed through its own calendar. `data.moon.newOn` also locates a particular day. The `data.eras[].start` values are `null` or positive **calendar years**. Exactly one null era covers dates before calendar year 1, and exactly one era starts at year 1. Further era starts are distinct positive integers. Numeric start order determines era boundaries, regardless of array order. The null era numbers its years backwards; later eras begin at their own displayed year 1. An era may have a unique uppercase `marker` for resolving authored dates.
 
-The calendar-neutral spelling is `<year>[.<day>[:HHMMSS]]`: `720` spans
-canonical year 720, `720.136` spans its day 136, and `720.136:143005` identifies
-14:30:05 on that day. The dot means **day of year**, not a month. Its day must
-fit the world's `data.year.days`, and its time must fit a 24-hour day. A
-negative canonical year is valid. Only a value with a clock time identifies an
-exact time. Prefix either form with `~` to add uncertainty beyond the written
-interval, as in `~720`, `~326.114`, or `~datefrom vrcal 23 Taranis 326 VR`.
-The normalized record keeps the written precision and the `~` marker
-separately. `unknown` states that an occurrence is known but its date is not
-recorded, in fields that permit it. No other frontmatter date form is valid.
-
-`data.epoch` and `data.moon.newOn` locate a day and require day precision. An
-era's `start` may identify a year; conversion locates the beginning of that
-era's first year at the start of the named year.
-
-`package-build datefrom <calendar> <date>` prints the canonical day for a
-calendar date. `package-build dateto <calendar> <canonical-date>` prints the
-calendar date in the era covering that day. The calendar argument is its
-shortcode or Address. `datefrom` reads the named calendar form; `dateto` prints
-its named month and era. A gap between eras has no calendar date to print.
-Both commands read the current note tree and print only the converted value
-on success.
-
-An era's `start` locates its first year on the canonical timeline. It may be
-written canonically, such as `start: 1.1`, or in another declared era. The build
-resolves these dependencies across calendar notes and reports cycles, unknown
-eras, and dates outside an era's `end`. A year-precision start anchors the
-reckoning at the first day of that canonical year for conversion; it does not
-date the event that gave the era its name. A marker, when declared, is unique
-across the corpus and contains uppercase letters or digits, beginning with a
-letter. A
-year-precision end includes the whole named year. Month and day values are
-bounded by the named era's calendar months; canonical dates remain
-calendar-neutral.
-
-Eras in one calendar are listed by increasing `start`. The first era also
-names years before its start with negative numbers: if its year 1 begins in
-canonical year `-200`, its year `-100` corresponds to canonical year `-300`.
-Later eras count forward from their own year 1; a negative year in a later era
-is refused. The next era's start closes the preceding era on the day before it
-begins. An explicit earlier `end` leaves a gap, whose dates have no era in
-that calendar. The authored note dates and the neutral timeline follow this
-rule; the compiled calendar definition retains the format required by its
-Foundry consumers.
-
-An era is addressed as `<calendar shortcode>.<era shortcode>` where a
-qualified reference is needed. A full calendar Address works when calendar
-shortcodes occur in more than one package. An ambiguous reference is an error.
-The content index and generated page
-frontmatter carry `resolvedDates` for a being's `born` and `died`, and for a
-lore note's `data.event.when` and `until`. Each record retains the authored
-`text`, precision, approximation, and, when known, its canonical year, day,
-span, and sort value. An `unknown` date has no sortable year. A labelled era
-also supplies `prose` for display; otherwise `prose` is null.
-
-To print a date in another calendar, select the single era whose span contains
-the date. Dates before the first era's start select that era's negative count.
-A gap selects no era and keeps the authored date. Overlapping era declarations
-are an error. The printable form keeps year, month, day, and `~`
-at the precision the author supplied. Years on either side of an era's origin
-are `-1` and `1`; there is no year zero. A page's infobox displays the date in
-its authored era, using that era's prose label when one is declared.
-
-A being or place may set `data.calendar` to the Address of a `lore` note with
-`subType: calendar`. A being's infobox prints its dates in the era active in
-that calendar; a place's infobox prints its `present` there. When no calendar
-is named, it prints the date's authored era.
-Clock time is preserved in either form.
+`package-build datefrom <calendar> <date>` reads the default calendar pattern and prints a canonical day. `package-build dateto <calendar> <canonical-date>` prints the day in the covering era; `--format <name>` chooses another named output pattern. The [authoring guide](../authoring/dates-and-calendars.md) gives a complete example.
 
 Markdown prose accepts inline `{{...}}` expressions. A property path reads
 the note's frontmatter, and `dateformat` converts a date to the reckoning used by a
 specified calendar. The first argument names a calendar note by shortcode or
 Address, or one of its eras by `<calendar>.<era>`. Use a full Address when a
 short name is ambiguous. The second argument is a canonical date or a
-frontmatter property holding a date. A gap in the calendar's eras prints the
-canonical date. An explicit era that does not cover the date is an error.
+frontmatter property holding a date. An optional third argument names an output
+format from the calendar note. An explicit era that does not cover the date is an error.
 
 ```markdown
 {{name.full}} was born on {{dateformat "vrcal" data.born}}.
@@ -3627,102 +3548,94 @@ the setting itself, rather than instructions or other apparatus for the GM.
   tournament is not a matter of time-reckoning at all — and from `culture`, which is a grouping
   of people rather than an occasion they attend.
 
-| `data` property | Values                                                                              | Description                                                                        |
-| --------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `epoch`         | day-precision `date`                                                                | Which in-world day the world's clock reads zero on                                 |
-| `months`        | `{ name, abbreviation?, days }[]`                                                   | The months this calendar keeps, in order — the list sums to the world's year       |
-| `weekdays`      | `{ name, abbreviation? }[]`                                                         | The days of the week it names, in order; a calendar with no week writes none       |
-| `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]`             | The seasons it marks, bounded by month or by day of year                           |
-| `eras`          | `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, end?, label? }[]` | The year-counts kept in it; a marker names one era and uses this calendar's months |
-| `dateFormats`   | `Map<slot, format>`                                                                 | Calendaria display formats for this calendar                                       |
-| `event`         | `Map<field, value>`                                                                 | A dated occurrence, with its sources, locations, reach, and relationships          |
+| `data` property | Values                                                                        | Description                                                  |
+| --------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `epoch`         | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1         |
+| `months`        | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year           |
+| `weekdays`      | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously |
+| `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]`       | Named parts of the year                                      |
+| `eras`          | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year        |
+| `formats`       | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default           |
+| `event`         | map                                                                           | A dated occurrence and its chronology metadata               |
 
-`data.event` is available on every `lore` subType. It holds structured
-chronology metadata, including the event's kind, date, sources, and the places
-it affects. The shared format checks that it is a map; a content package may
-check the details and relationships within that map. It is metadata for
-chronology tools and does not appear as an infobox row.
+`data.event` is available on every `lore` subType. It holds structured chronology metadata, including an event's kind, date, sources, and affected places. The shared format checks that it is a map; a content package can check its details. It does not appear as an infobox row.
 
-#### What a calendar note declares
+#### Calendar note structure
 
-**The calendar keys belong to `subType: calendar` and to no other genre of
-`lore`.** A note carrying one under any other subType is refused, and a calendar
-note that states no `months` and no `epoch` is refused too: a calendar divides
-the year and says where the count begins, and one that does neither is prose
-about time rather than a calendar.
+The calendar keys belong to `subType: calendar`. A calendar declares `months`, `epoch`, and `eras`. The world's `place` note declares the year length; the calendar's months sum to that length. A calendar with no week omits `weekdays`.
 
 ```yaml
 shortcode: commoncal
-name:
-  full: The Common Calendar
+name: { full: The Common Calendar }
 type: lore
 subType: calendar
 data:
-  epoch: 720.1
+  epoch: 1.1
   months:
-    - { name: Floralis, abbreviation: Flor, days: 30 }
-    - { name: Lusenar, abbreviation: Luse, days: 31 }
-    # … ten more, summing to the world's year
-  seasons:
-    - { name: Spring, monthStart: 1, monthEnd: 3 }
+    - { name: Floralis, abbreviation: Flor, days: 180 }
+    - { name: Janar, abbreviation: Jana, days: 185 }
+  weekdays:
+    - { name: Newday, abbreviation: New }
+    - { name: Tillday, abbreviation: Til }
+  formats:
+    std: "D MMMM [yearInEra] G"
+    long: "EEEE, D MMMM [yearInEra] G"
   eras:
-    - shortcode: founding
-      name: After the Founding
-      marker: VR
-      abbreviation: AF
-      proclaimedBy: vylarinmpr
-      start: 1.1
-  dateFormats: { full: "D MMMM, YYYY", yearLabel: "[Year] YYYY" }
+    - { shortcode: bvr, name: Before Vylarian Reckoning, abbreviation: BVR, start: null }
+    - { shortcode: vr, name: Vylarian Reckoning, abbreviation: VR, start: 1 }
+    - { shortcode: later, name: Later Reckoning, abbreviation: LR, start: 701 }
 ```
 
-`dateFormats` accepts `short`, `long`, `full`, `time`, `weekHeader`,
-`yearHeader`, `yearLabel`, and `crossCalendar`. Each value is a Calendaria
-format string. Its date tokens may appear bare; ordinary words belong in
-`[brackets]` or `{braces}` so they print literally. A bare letter run that is
-not a Calendaria token is an error. The `time12` slot is outside this
-vocabulary.
-The conversion commands use the calendar's month names and era labels;
-`dateFormats` supplies Foundry and Calendaria display patterns.
+`data.epoch` anchors calendar year 1, day 1 to a canonical day. An epoch of `1.1` makes the calendar's first day canonical `1.1`; an epoch of `720.1` makes it canonical `720.1`. The epoch is day-precise and uses canonical spelling, never `datefrom`.
 
-**Position in the list is position in the year.** Days that belong to no month
-are a short month like any other: a five-day festival is one entry, and where it
-sits in the list is where it falls in the year. There is no intercalary
-mechanism, because there is nothing for one to do.
+`data.eras` contains exactly one `start: null` row and one `start: 1` row. Other starts are distinct positive integer calendar years. Starts are sorted numerically, irrespective of array order. Each era ends before the next start. The null era covers earlier years and counts them backwards: with `epoch: 1.1`, canonical `-50.2` prints as `2 Floralis 50 BVR`. At calendar year 701, the later era begins at its own displayed year 1. An era's `shortcode` is unique within the note; `marker` is unique across the corpus and uses uppercase letters and digits, beginning with a letter. `proclaimedBy` may identify the body that began a reckoning.
 
-**How long the year is, how the day divides and how the moon moves are facts
-about the world, not about a calendar**, so no calendar note states any of them
-— they are written once on the world's own `place` note and on its moon's, and
-every calendar is compiled against them. The one arithmetic check follows from
-that: `months` must sum to `year.days`, and a list that does not describes a
-different world rather than a different calendar.
+Each weekday's zero-based ordinal is its position in the array. The weekday cycle starts with the first day of calendar year 1 and continues through month and year boundaries. Each month is in year order, including short festival months. `seasons` can bound a season by month or day of year.
 
-**An era is a way of counting years within a calendar**, so its rows sit beside
-the months. Each states its own `shortcode`, unique within the note. A calendar
-may contain several era rows, each with its own year origin. The
-`abbreviation` is its preferred short printed label; a declared marker is
-also accepted when reading a named date.
-`proclaimedBy` is optional: a reckoning whose proclaiming body is unknown, or
-whose body has no note, says so by leaving it out.
+`formats` holds any number of named patterns. `std` is the default for `datefrom`, `dateto`, and `dateformat`; when no `std` is present, the first pattern is the default. `dateto --format <name>` and `{{dateformat "commoncal" data.born "long"}}` select another output pattern. The default must identify one day: it needs `Y`, `YYYY`, or `[yearInEra]`; `DDD` or both a month and day token; and an era label if it uses `[yearInEra]`. `YY` alone cannot identify a year. The default may use clock tokens. Display-only tokens are valid in other named patterns, but package-build's date printer raises an error for tokens that require Calendaria runtime state, such as a moon phase, cycle, or climate zone.
 
-`label` optionally wraps a printable date for readers. A string is used for
-positive years; a map may give `after` and `before` forms. Each form contains
-exactly one `{date}` slot. That slot receives the year magnitude and any month
-and day the date states, including a leading `~` for approximation. The
-`before` form handles a negative year without printing its minus sign. A
-missing form produces no prose label, and the machine form is displayed.
+When printing a year or month without a day, package-build omits finer fields from the selected pattern. A year-only date does not acquire the weekday, month, day, or time of its first day merely because the pattern names them.
 
-```yaml
-eras:
-  - shortcode: founding
-    name: After the Founding
-    marker: VR
-    start: 1
-    label: { after: "{date} AF", before: "{date} BF" }
-```
+The default pattern is sent to Calendaria as `dateFormats.short`; named `long` and `full` patterns fill those display slots. The names `time`, `time12`, `weekHeader`, `yearHeader`, `yearLabel`, and `crossCalendar` also fill Calendaria's matching slots. Other names remain available to package-build's `dateto --format` and `dateformat`.
 
-**A calendar with no week writes no `weekdays`.** An empty list and an absent
-one say the same thing, and nothing downstream shows a weekday for a calendar
-that names none.
+The emitted Calendaria definition contains the eras with numeric starts. The `start: null` era is part of package-build's date conversion; Calendaria's `startYear` and `endYear` fields do not express a year count that runs backwards from year 1.
+
+#### Calendar format tokens
+
+Patterns use [Calendaria's format vocabulary](https://github.com/Sayshal/Calendaria/blob/main/scripts/utils/formatting/format-utils.mjs). Case matters. Bare tokens are substituted; put literal words in square brackets or braces, as in `[Year] YYYY`. Fixed-width tokens need no separator (`YYYYMMDD`); variable-width numeric tokens need a separator or fixed-width neighbor in a readable default pattern. Unknown bare letter runs are errors. Custom tokens use brackets or braces. A custom token can include a fallback after `|`, such as `[moon|Unknown]`; the fallback prints when the primary value is empty.
+
+| Token                                                             | Calendaria value                                                        |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| `Y`, `YY`, `YYYY`                                                 | Calendar year; final two characters; year padded to four characters     |
+| `M`, `MM`, `Mo`                                                   | Month number; padded month number; ordinal month number                 |
+| `MMM`, `MMMM`                                                     | Abbreviated and full month name                                         |
+| `D`, `DD`, `Do`                                                   | Day of month; padded day; ordinal day                                   |
+| `DDD`                                                             | Day of year, padded to three digits                                     |
+| `E`, `EE`, `EEE`, `EEEE`, `EEEEE`                                 | Abbreviated weekday; full weekday for `EEEE`; initial for `EEEEE`       |
+| `e`, `d`, `dd`, `ddd`, `dddd`                                     | Zero-based weekday index; two-letter, abbreviated, or full weekday name |
+| `w`, `ww`, `W`                                                    | Week of year; padded week of year; week of month                        |
+| `G`, `GG`, `GGG`, `GGGG`                                          | Abbreviated era; full era name for `GGGG`                               |
+| `Q`, `QQ`, `QQQ`, `QQQQ`                                          | Season number; padded number; abbreviation; full name                   |
+| `z`, `zzzz`                                                       | Active climate-zone abbreviation and name                               |
+| `H`, `HH`, `h`, `hh`                                              | 24-hour hour, padded; 12-hour hour, padded                              |
+| `m`, `mm`, `s`, `ss`                                              | Minute or second, plain and padded                                      |
+| `A`, `a`                                                          | Meridiem abbreviation, uppercase or lowercase                           |
+| `[yearName]`                                                      | Name assigned to the calendar year                                      |
+| `[namedWeek]`, `[namedWeekAbbr]`                                  | Named week and its abbreviation                                         |
+| `[namedDay]`, `[namedDayAbbr]`                                    | Named day and its abbreviation                                          |
+| `[era]`, `[eraAbbr]`                                              | Full era name and abbreviation                                          |
+| `[yearInEra]`, `[yearInEraOrdinal]`                               | Era-relative year and its ordinal spelling                              |
+| `[era=N]`, `[eraAbbr=N]`, `[yearInEra=N]`, `[yearInEraOrdinal=N]` | The named value from zero-based matching era index `N`                  |
+| `[season]`, `[seasonAbbr]`                                        | Full season name and abbreviation                                       |
+| `[meridiemFull]`                                                  | Full meridiem name                                                      |
+| `[moon]`, `[moonIcon]`                                            | Moon phase name and icon for the default moon                           |
+| `[moon=selector]`, `[moonIcon=selector]`                          | Moon phase name or icon for a selected moon                             |
+| `[ch]`, `[chAbbr]`                                                | Canonical hour name and abbreviation                                    |
+| `[cycle]`, `[cycleName]`, `[cycleRoman]`, `[cycleYear]`           | Calendar cycle number, name, Roman numeral, and cycle year              |
+| `[cycle=N]`, `[cycleName=N]`, `[cycleRoman=N]`                    | Values from zero-based cycle index `N`                                  |
+| `[approxTime]`, `[approxDate]`                                    | Calendaria's approximate time and date wording                          |
+
+Braced custom forms such as `{era}` are equivalent to bracketed custom forms. A bare `M` is the month, while lowercase `m` is the minute; lowercase `d` is the zero-based weekday index, while uppercase `D` is the day of month. The tokens in a readable default pattern are restricted to calendar year, era, month, day, and clock tokens so the compiler can parse an authored `datefrom` value without runtime state.
 
 ### type: map
 

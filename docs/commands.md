@@ -382,9 +382,10 @@ package-build datefrom <calendar> <date>
 
 Reads the current content tree, resolves its world year and calendar eras, and
 prints `<year>.<day>[:HHMMSS]` to standard output. `<calendar>` is a calendar
-shortcode, full Address, or addressed era. The date uses the calendar's month
-name and era label, for example `23 Taranis 326 VR`. A date in a calendar with
-multiple eras must identify its era. A date must specify a day;
+shortcode, full Address, or addressed era. The date follows the calendar's
+`data.formats.std` pattern, or its first named pattern when `std` is absent.
+For example, `D MMMM [yearInEra] G` reads `23 Taranis 326 VR`. An era-relative
+year must identify its era. A date must specify a day;
 year-only and month-only dates do not identify one canonical day.
 Prefix the date with `~` to preserve an approximate value.
 
@@ -417,19 +418,20 @@ Express a canonical day in an authored calendar.
 **SYNOPSIS**
 
 ```
-package-build dateto <calendar> <canonical-date>
+package-build dateto <calendar> <canonical-date> [--format <name>]
 ```
 
 **DESCRIPTION**
 
 Reads the current content tree, selects the era covering the canonical day, and
-prints the date with its named month and era label. The input is
+prints the date using `data.formats.std`, or the first named pattern if `std`
+is absent. The input is
 `<year>.<day>[:HHMMSS]`, optionally prefixed with `~`. A date in a gap between
 eras has no conversion.
 
 **OPTIONS**
 
-None.
+`--format` selects another named pattern from the calendar note; pass its name as the value.
 
 **EXIT STATUS**
 

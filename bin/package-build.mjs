@@ -540,7 +540,10 @@ function datefromCommand() {
                     type: "string",
                     describe: "Calendar Address or shortcode",
                 })
-                .positional("date", { type: "string", describe: "Day in that calendar" }),
+                .positional("date", {
+                    type: "string",
+                    describe: "Day written in that calendar's std format (or first named format)",
+                }),
         handler: handler((args) => {
             console.log(dateFromCalendar(args.calendar, args.date, calendarConversionContext()));
         }),
@@ -561,10 +564,19 @@ function datetoCommand() {
                 .positional("canonical-date", {
                     type: "string",
                     describe: "Canonical <year>.<day>[:HHMMSS]",
+                })
+                .option("format", {
+                    type: "string",
+                    describe: "Named calendar format; defaults to std or the first declared format",
                 }),
         handler: handler((args) => {
             console.log(
-                dateToCalendar(args.calendar, args.canonicalDate, calendarConversionContext()),
+                dateToCalendar(
+                    args.calendar,
+                    args.canonicalDate,
+                    calendarConversionContext(),
+                    args.format,
+                ),
             );
         }),
     };

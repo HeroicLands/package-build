@@ -31,6 +31,11 @@
 import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
 import { addressedCalendarDate } from "./calendar-human.mjs";
 import {
+    calendarFormatHasClock,
+    formatCalendarPattern,
+    selectCalendarFormat,
+} from "./calendar-format.mjs";
+import {
     calendarStructure,
     canonicalDateFromOffset,
     canonicalDayOffset,
@@ -190,10 +195,7 @@ export function parseNoteDate(value, options) {
     };
 
     const resolveEra = (parsed, reckoning, label) => {
-        if (!ignoreEraBounds && parsed.year < 0 && reckoning.firstEra === false)
-            return refuse(
-                `${subject} counts backward from ${label}, but only the first era of a calendar may do so`,
-            );
+        if (parsed.year < 1) return refuse(`${subject} needs a positive year in ${label}`);
         if (!Number.isSafeInteger(daysPerYear) || daysPerYear < 1)
             return refuse(`${subject} needs the world's year length to resolve ${label}`);
         const { months } = calendarStructure(reckoning.calendar);
@@ -209,7 +211,7 @@ export function parseNoteDate(value, options) {
             );
         const ordinal = dayOfYear(months, parsed.month ?? 1, parsed.day ?? 1);
         const start = canonicalDayOffset(reckoning.epochYear, reckoning.epochDay, 1, daysPerYear);
-        const yearOffset = parsed.year > 0 ? parsed.year - 1 : parsed.year;
+        const yearOffset = reckoning.beforeEra ? -parsed.year : parsed.year - 1;
         const offset = start + yearOffset * daysPerYear + ordinal - 1;
         if (!Number.isSafeInteger(offset))
             return refuse(`${subject} lies outside the supported canonical day range`);
@@ -303,13 +305,13 @@ export function parseNoteDate(value, options) {
                     day: canonical.day,
                     approximate: approximateInput,
                     precision: "day",
-                    canonicalYear: canonical.year,
+                    canonicalYear: canonicalYear(canonical.year),
                     canonicalDay: canonical.day,
                     spanDays: 1,
                     ...(canonical.seconds === undefined ? {} : { seconds: canonical.seconds }),
                     sort:
                         Number.isSafeInteger(daysPerYear) ?
-                            canonical.year +
+                            canonicalYear(canonical.year) +
                             (canonical.day - 1 + (canonical.seconds ?? 0) / 86400) / daysPerYear
                         :   null,
                 },
@@ -517,17 +519,17 @@ export function calendarEras(reference, context) {
 }
 
 /** Print a resolved date using the era active in one addressed calendar. */
-export function formatDateInCalendar(date, reference, context) {
+export function formatDateInCalendar(date, reference, context, formatName) {
     const eras = calendarEras(reference, context);
     const chosen = eraCovering(date, eras, context?.daysPerYear);
     const name = String(reference ?? "");
     if (context?.eras?.get(name)?.era && chosen === null)
         throw new RangeError(`date falls outside calendar era ${name}`);
-    return formatNoteDate(date, chosen, context?.daysPerYear);
+    return formatNoteDate(date, chosen, context?.daysPerYear, formatName);
 }
 
 /** Print a resolved date in one era, retaining its authored precision. */
-export function formatNoteDate(date, era, daysPerYear) {
+export function formatNoteDate(date, era, daysPerYear, formatName) {
     if (!date?.known || !Number.isSafeInteger(date.canonicalYear)) return null;
     if (!era) return { era: null, year: eraYear(date.canonicalYear), text: date.text, prose: null };
     if (!Number.isSafeInteger(daysPerYear) || !Number.isSafeInteger(date.spanDays)) return null;
@@ -540,7 +542,8 @@ export function formatNoteDate(date, era, daysPerYear) {
         canonicalDayOffset(target.epochYear, target.epochDay ?? 1, 1, daysPerYear);
     const delta = start - epoch;
     const cycle = Math.floor(delta / daysPerYear);
-    const year = cycle >= 0 ? cycle + 1 : cycle;
+    const year = target.beforeEra ? -cycle : cycle + 1;
+    if (year < 1) return null;
     if (Math.floor((delta + date.spanDays - 1) / daysPerYear) !== cycle) return null;
 
     let month = null;
@@ -567,14 +570,37 @@ export function formatNoteDate(date, era, daysPerYear) {
         month === null ? null : calendarStructure(target.calendar).months?.[month - 1]?.name;
     const eraName =
         target.abbreviation || target.marker || target.name || target.era.split(".").at(-1);
-    const text = `${date.approximate ? "~" : ""}${day === null ? "" : `${day} `}${monthName ? `${monthName} ` : ""}${year} ${eraName}${clock}`;
+    let text = `${date.approximate ? "~" : ""}${day === null ? "" : `${day} `}${monthName ? `${monthName} ` : ""}${year} ${eraName}${clock}`;
+    if (target.calendar?.formats) {
+        const { pattern } = selectCalendarFormat(target.calendar, formatName);
+        const hasClock = calendarFormatHasClock(pattern);
+        const rendered = formatCalendarPattern(
+            pattern,
+            {
+                calendar: target.calendar,
+                era: target,
+                eraYear: year,
+                calendarYear: target.beforeEra ? -year : target.startYear + year - 1,
+                month,
+                day,
+                dayOfYear: (((delta % daysPerYear) + daysPerYear) % daysPerYear) + 1,
+                seconds: date.seconds,
+                canonicalOffset: start,
+                calendarEpochOffset: target.calendarEpochOffset,
+            },
+            date.precision,
+            date.seconds !== undefined,
+        );
+        text = `${date.approximate ? "~" : ""}${rendered}${date.seconds !== undefined && !hasClock ? clock : ""}`;
+    }
     const digits = `${Math.abs(year)}${month === null ? "" : `/${month}`}${day === null ? "" : `/${day}${clock.replaceAll(":", "").replace(/^ /, ":")}`}`;
     const label =
         typeof target.label === "string" ?
             target.label
         :   target.label?.[year < 0 ? "before" : "after"];
     const prose =
-        typeof label === "string" && label.includes("{date}") ?
+        target.calendar?.formats ? null
+        : typeof label === "string" && label.includes("{date}") ?
             label.replace("{date}", `${date.approximate ? "~" : ""}${digits}`)
         :   null;
     return { era, year, month, day, text, prose };

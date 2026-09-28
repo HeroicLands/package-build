@@ -237,7 +237,7 @@ types:
             - weekdays
             - seasons
             - eras
-            - dateFormats
+            - formats
             - event
         subTypes:
             - cosmology
