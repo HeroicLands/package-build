@@ -118,6 +118,16 @@ Deterministic document ids, derived by hashing rather than stored, so compile pa
 | `compendiumUuid`       | `compendiumUuid(packageId, type, id, packName)` | `string` — `Compendium.<packageId>.<pack>.<DocumentType>.<id>` | composing a document's full compendium UUID in the one place it is spelled                 |
 | `pageUuid`             | `pageUuid(entryUuid, pageId)`                   | `string` — the page's UUID                                     | composing the UUID of a JournalEntry page                                                  |
 
+### `engine.formatGenerated`
+
+`formatGenerated(text, filepath)` returns a promise for text formatted with
+the Prettier configuration that applies to the destination path. Generators
+can write the result directly without introducing formatting drift.
+
+| Export            | Signature                         | Returns           | Use it when                   |
+| ----------------- | --------------------------------- | ----------------- | ----------------------------- |
+| `formatGenerated` | `formatGenerated(text, filepath)` | `Promise<string>` | writing a generated text file |
+
 ### `engine.systemBlock`
 
 The per-system frontmatter block: how one note feeds more than one game system through properties named after that system (`<system>.system`, `<system>.type`, `<system>.img`, `<system>.items` on actors). Resolves a field's value through the block, the shared top level, and a retiring position in that order, and merges an authored `<system>.system` onto a compiler-built one without disturbing what the builder already wrote.
@@ -430,7 +440,7 @@ The three states of a note — **stub**, **draft**, **full** — and the one obs
 | `journalHasContent`   | `journalHasContent(body)`                   | `boolean`                               | asking whether the JournalEntry a body compiles into would hold anything, which is what decides whether one is made at all |
 | `PLACEHOLDER_PHRASES` | `const PLACEHOLDER_PHRASES`                 | `ReadonlyArray<string>`                 | reading the phrases that stand in for prose nobody has written                                                             |
 | `placeholderBody`     | `placeholderBody(body)`                     | `Array<{phrase: string, line: number}>` | finding a body that reduces to nothing but placeholders, which is an abandoned draft rather than a stub                    |
-| `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting the prose a reader meets, with a wikilink counting as the one word it renders                                     |
+| `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting rendered prose, with wikilinks as one word and closed dashes, slashes, and ellipses separating adjacent words     |
 
 ### `engine.draftNotice`
 
@@ -924,7 +934,10 @@ The toolchain's own content index — the files it ships, addressed. Every other
 
 ### `engine.siteBuild`
 
-Publishing a content tree as a website. Compiling a content tree into compendium packs is `package-build package compile`. Publishing the _same tree_ as a website was a script each consumer wrote for itself — 473 code lines in `sohl` and 462 in `sohl-thalorna`, 87 of them identical — and the copies drifted in ways neither repository could see. `sohl-thalorna` reimplemented four things this package already exported, not because it needed different behaviour but because its script predates the extraction. That is the failure a command removes: a consumer cannot accidentally reimplement one.
+Publishing a content tree as a website. `collectContentPages` gathers authored
+pages and link findings, while `collectHomepages` gathers package homepages.
+`writeHomepages` places those homepages at each package's site root. The same
+content tree can also compile into Foundry compendium packs.
 
 | Export                | Signature                                         | Returns                                                                                                                                  | Use it when                                                                                                           |
 | --------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -1211,7 +1224,9 @@ What a `[[…]]` **is**, before anything decides where it points. One authored l
 
 ### `engine.siteIndex`
 
-**The address index a site build resolves its wikilinks against.** Every consumer that publishes a content tree as a website has to answer the same question — given `[[Something]]`, which page? — and every one of them answered it with its own copy of the same 150 lines. `sohl`'s and `sohl-thalorna`'s site builds still share 147 identical lines of it, comments and indentation aside. This is that shared half, lifted out whole.
+**The address index a site build resolves its wikilinks against.**
+`buildSiteIndex` gathers addressable pages and ambiguity findings. `wikiContext`
+provides the per-page context used when resolving a link such as `[[Something]]`.
 
 | Export              | Signature                                          | Returns                                                                                                                        | Use it when                                                                                                  |
 | ------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
@@ -1614,9 +1629,8 @@ const config = defineConfig({
 | `DEFAULT_PATHS`            | `const DEFAULT_PATHS`              | —                                                          | reading the conventional directory layout a build reads from and writes to, relative to `rootDir`                                                                                                                                        |
 | `DEFAULT_ADDRESS_SCHEME`   | `const DEFAULT_ADDRESS_SCHEME`     | —                                                          | reading an unconfigured repository's address-scheme defaults (`prefix`, where the content tree mounts inside the package)                                                                                                                |
 | `RETIRED_ADDRESS_KEYS`     | `const RETIRED_ADDRESS_KEYS`       | —                                                          | reading which address-scheme keys a configuration may no longer declare (e.g. `landing`) — declaring one is a refusal, not a silent no-op                                                                                                |
-| `SITE_MODES`               | `const SITE_MODES`                 | —                                                          | reading the publishing modes `publish.site` may name, weakest first                                                                                                                                                                      |
 | `DERIVED_SYSTEM_VERSION`   | `const DERIVED_SYSTEM_VERSION`     | —                                                          | the loader-only symbol key `defineConfig` uses internally to receive a resolved system version; not something a configuration author writes                                                                                              |
-| `publishesContentPages`    | `publishesContentPages(config)`    | `boolean`                                                  | checking whether a resolved configuration publishes the pages its content tree compiles to — the one question the site build and the content index both need answered identically                                                        |
+| `publishesContentPages`    | `publishesContentPages(config)`    | `boolean`                                                  | checking whether the authored content tree contains notes beyond its homepage, shared by site, PDF, index, and Foundry address emission                                                                                                  |
 | `DERIVED_HUGO_KEYS`        | `const DERIVED_HUGO_KEYS`          | —                                                          | reading which Hugo keys `site.hugo` may not declare because the site build generates them, each naming its source (declaring one is an error naming the key); a dotted key covers everything beneath it                                  |
 
 ## `./config`
@@ -1888,6 +1902,7 @@ console.log(missingSources([["does/not/exist", "x"]]));
 | `missingSources`      | `missingSources(entries, cwd = process.cwd())`                               | `string[]`                         | checking a whole `[source, dest]` list for absent sources up front, so every problem is reported at once rather than one rebuild at a time |
 | `copyTree`            | `copyTree(src, dest, { transform } = {})`                                    | `number` — files written           | recursively copying a file or directory, optionally rewriting each file's content as it's staged instead of copying bytes verbatim         |
 | `stageAssets`         | `stageAssets(entries, { cwd = process.cwd(), transform } = {})`              | `{entries: number, files: number}` | copying every listed `[source, dest]` pair into the stage, refusing to start at all if any source is absent                                |
+| `resetStage`          | `resetStage(root, stageDir)`                                                 | `boolean` — whether stage existed  | clearing the assembled package before a complete build while preserving other generated outputs                                            |
 | `cleanBuildArtifacts` | `cleanBuildArtifacts(root, { extra = [], includeNodeModules = false } = {})` | `string[]` — directories removed   | removing the build artefacts a repository regenerates, safely repeatable since an already-clean directory is not an error                  |
 
 ## `./templates`

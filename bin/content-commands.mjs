@@ -63,6 +63,7 @@ import {
 } from "../engine/metadata-index.mjs";
 import { fetchNavigation, generateHugoConfig, writeHugoConfig } from "../engine/site-config.mjs";
 import { renderItemFieldReference, renderItemFieldsPage } from "../engine/field-reference.mjs";
+import { checkDocLinks, checkDocIndex } from "../engine/docs-checks.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
@@ -96,6 +97,8 @@ import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
+import { lintProse } from "../engine/readability-lint.mjs";
+import { loadPackageBuildConfig } from "../config.mjs";
 import {
     authoredFrontmatter,
     emitContentIndex,
@@ -219,6 +222,7 @@ export function registerContentCommands(cli) {
         .command(depsCommand())
         .command(docsCommand())
         .command(withIndexPreflight(lintCommand()))
+        .command(proseCommand())
         .command(contentFormatCommand())
         .command(withIndexPreflight(linksCommand()))
         .command(formatCommand())
@@ -234,6 +238,59 @@ export function registerContentCommands(cli) {
         .command(withIndexPreflight(mapCommand()))
         .command(withIndexPreflight(reachabilityCommand()))
         .command(addressesCommand());
+}
+
+/** Opt-in readability and plain-language suggestions for Markdown notes. */
+function proseCommand() {
+    return {
+        command: "prose <action> [path]",
+        describe: "Analyze note prose on demand",
+        builder: (yargs) =>
+            yargs
+                .positional("action", { choices: ["lint"], describe: "Analyze prose" })
+                .positional("path", {
+                    type: "string",
+                    describe: "One Markdown file or a content tree",
+                })
+                .option("age", { type: "number", describe: "Reader age" })
+                .option("threshold", {
+                    type: "number",
+                    describe: "Readability algorithms required (1–7)",
+                })
+                .option("min-words", { type: "number", describe: "Minimum words per sentence" }),
+        handler: async (argv) => {
+            try {
+                const config = loadPackConfig();
+                const defaults = loadPackageBuildConfig().proseLint;
+                const options = {
+                    age: argv.age ?? defaults.age,
+                    threshold: argv.threshold ?? defaults.threshold,
+                    minWords: argv.minWords ?? defaults.minWords,
+                };
+                for (const [key, value] of Object.entries(options)) {
+                    if (
+                        !Number.isInteger(value) ||
+                        value < 1 ||
+                        (key === "threshold" && value > 7)
+                    ) {
+                        throw new TypeError(
+                            `${key} must be ${key === "threshold" ? "an integer from 1 to 7" : "a positive integer"}`,
+                        );
+                    }
+                }
+                const findings = await lintProse(
+                    argv.path ?? config.paths.content,
+                    options,
+                    config.skipDirectories,
+                );
+                for (const finding of findings) emitDiagnostic(finding);
+                log.info(`${findings.length} prose suggestion(s).`);
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
 }
 
 /** Check declared dependency indexes before an index-consuming command does any work. */
@@ -297,16 +354,21 @@ function withIndexPreflight(command, shouldCheck = () => true) {
 function docsCommand() {
     return {
         command: "docs <action>",
-        describe: "Generate documentation from the configured registries",
+        describe: "Generate and check project documentation",
         builder: (yargs) => {
             // Required and honoured, not optional and unread:
             // the handler rendered the item-field reference whatever it was
             // given, so the positional constrained what could be typed and
             // selected nothing.
             yargs.positional("action", {
-                describe: "The document to render.",
+                describe: "The documentation action.",
                 type: "string",
-                choices: ["item-fields"],
+                choices: ["item-fields", "links", "index"],
+            });
+            yargs.option("root", {
+                describe: "Documentation root for the links and index checks.",
+                type: "string",
+                default: "docs",
             });
             yargs.option("out", {
                 describe: "Write to this file instead of the configured location.",
@@ -325,6 +387,26 @@ function docsCommand() {
         handler: (argv) => {
             try {
                 const { action, title, check } = argv;
+                if (action === "links" || action === "index") {
+                    const requestedRoot = path.resolve(argv.root);
+                    const root =
+                        fs.existsSync(requestedRoot) ?
+                            fs.realpathSync(requestedRoot)
+                        :   requestedRoot;
+                    const findings = action === "links" ? checkDocLinks(root) : checkDocIndex(root);
+                    for (const finding of findings) {
+                        emitDiagnostic({
+                            ...finding,
+                            file: path.relative(process.cwd(), finding.file),
+                        });
+                    }
+                    if (findings.length) process.exitCode = 1;
+                    else
+                        log.info(
+                            `Documentation ${action} check passed for ${path.relative(process.cwd(), root) || "."}.`,
+                        );
+                    return;
+                }
                 // Dispatched on, so a second document added here cannot
                 // silently render the first. yargs' `choices` has already
                 // rejected anything unlisted, so the default is unreachable by

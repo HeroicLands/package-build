@@ -151,6 +151,7 @@ export function findSqlBlocks(markdown) {
  * @param {string} [opts.dir] - Directory for the temporary file.
  * @param {Array<{id: string, file: string}>} [opts.dependencies] - Each
  *   declared dependency's cached index, attached as a schema named `id`.
+ * @param {object} [opts.addressContext] - Address resolution context.
  * @returns {Promise<{query: (sql: string) => Promise<object[]>,
  *   close: () => Promise<void>}>} The open database.
  */
@@ -468,6 +469,7 @@ function cellText(value, column) {
  * @param {(ref: string) => boolean} [opts.linkable] - Whether an address can be
  *   linked to; defaults to linking any non-empty `_ref`.
  * @param {number} [opts.sectionLevel=2] - Heading level for `_section`.
+ * @param {object} [opts.addressContext] - Address resolution context.
  * @returns {string} The markdown.
  */
 export function renderSqlTable(

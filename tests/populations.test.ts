@@ -37,6 +37,24 @@ import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 
+describe("fetched population figures", () => {
+    it("reads a published figure and stays silent on an older index", () => {
+        expect(
+            foreignNode("thalorna-note-place-haven", {
+                type: "place",
+                name: "Haven",
+                population: 1200,
+            })?.population,
+        ).toBe(1200);
+        expect(
+            foreignNode("thalorna-note-place-haven", {
+                type: "place",
+                name: "Haven",
+            })?.population,
+        ).toBeUndefined();
+    });
+});
+
 /* ---------------------------------------------------------------------- */
 /*  Fixtures                                                              */
 /* ---------------------------------------------------------------------- */

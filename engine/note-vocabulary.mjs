@@ -1277,20 +1277,21 @@ export const NOTE_VOCABULARY = Object.freeze({
     lore: Object.freeze({
         stubbable: true,
         subTypes: Object.freeze([
-            "cosmology",
-            "deity",
-            "theology",
-            "arcana",
-            "spirit",
-            "economy",
-            "law",
-            "calendar",
-            "history",
-            "material",
-            "folk",
-            "culture",
-            "bestiary",
-            "gathering",
+            "cosmology", // The structure and origin of reality.
+            "deity", // An individual god and its attributed nature.
+            "theology", // Beliefs about divinity, worship, and the afterlife.
+            "arcana", // Beliefs and traditions concerning magic.
+            "spirit", // Non-divine supernatural beings and their natures.
+            "economy", // Trade, money, and the movement of wealth.
+            "law", // Obligations, rights, courts, and tenure.
+            "calendar", // The reckoning and marking of time.
+            "history", // Events, eras, and chronicles of the past.
+            "material", // Physical constituents and their qualities, including regional varieties.
+            "folk", // A kindred or ancestry of related sapient beings.
+            "culture", // A people sharing beliefs, mores, and values.
+            "custom", // How a people practices a rite, observance, or usage.
+            "bestiary", // A kind of creature that is not a people.
+            "gathering", // A recurring public assembly, such as a fair or tournament.
         ]),
         // A lore note is prose, and what it *is* about is its subType — with
         // one exception. A calendar is a division of the year, and a division

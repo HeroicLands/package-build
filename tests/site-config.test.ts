@@ -123,7 +123,7 @@ function configFor(overrides: Record<string, unknown> = {}, site: Record<string,
         stats: { lastModifiedBy: "demobuilder0000" },
         packs: [{ name: "items", type: "Item" }],
         packageBuild: { manifest: { title: "The Demo Module" } },
-        publish: { site: "homepage", address: { prefix: "" } },
+        publish: { address: { prefix: "" } },
         site: {
             assets: "https://cdn.example.org",
             description: "A demonstration module.",
@@ -273,10 +273,9 @@ describe("the generated configuration", () => {
     it("disables section, taxonomy, term and RSS on every site", () => {
         expect(DISABLE_KINDS).toEqual(["section", "taxonomy", "term", "RSS"]);
         expect(generated().disableKinds).toEqual([...DISABLE_KINDS]);
-        expect(
-            generated({}, { publish: { site: "content", address: { prefix: "kb/" } } })
-                .disableKinds,
-        ).toEqual([...DISABLE_KINDS]);
+        expect(generated({}, { publish: { address: { prefix: "kb/" } } }).disableKinds).toEqual([
+            ...DISABLE_KINDS,
+        ]);
     });
 
     it("passes the renderer the raw HTML the toolchain emits", () => {

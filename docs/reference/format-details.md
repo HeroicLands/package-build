@@ -903,15 +903,15 @@ and the whole of it is the suffix.
 ![A shield](sohl/assets/icons/noun/shield.svg) <!-- the sohl package's -->
 ```
 
-The four forms, for a `thalorna` note (the `thalorna` package ships as the
-Foundry module `sohl-thalorna`) writing `images/map.webp`:
+The four forms, for a `harnensemble` note (the `harnensemble` content package
+ships as the Foundry module `harn-ensemble`) writing `images/map.webp`:
 
-| Surface     | Address                                                  |
-| ----------- | -------------------------------------------------------- |
-| **Foundry** | `modules/sohl-thalorna/assets/images/map.webp`           |
-| **Local**   | `assets/images/map.webp`                                 |
-| **Web**     | `https://cdn.heroiclands.org/thalorna/images/map.webp`   |
-| **Book**    | `assets/images/map.webp`, staged beside the Typst source |
+| Surface     | Address                                                    |
+| ----------- | ---------------------------------------------------------- |
+| **Foundry** | `modules/harn-ensemble/assets/images/map.webp`             |
+| **Local**   | `assets/images/map.webp`                                   |
+| **Web**     | `https://cdn.heroiclands.org/harnensemble/images/map.webp` |
+| **Book**    | `assets/images/map.webp`, staged beside the Typst source   |
 
 And for the same note writing `sohl/assets/icons/noun/shield.svg`, a file the
 system ships and this repository does not hold:
@@ -923,11 +923,12 @@ system ships and this repository does not hold:
 | **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`  |
 | **Book**    | not carried — a build stages only what this package ships |
 
-**The package's name is not its Foundry id.** `thalorna` is what the content is
-called, what a note writes, and what the website serves it under.
-`sohl-thalorna` is what Foundry installs the module as, and it appears in the
-Foundry form alone. The two words are the same for `sohl` and for `hm3`, which
-is exactly why they are kept apart here.
+**The content package name and Foundry id are separate values.**
+`harnensemble` is what the content is called, what a note writes, and what the
+website serves it under.
+`harn-ensemble` is what Foundry installs the module as, and it appears in the
+Foundry form alone. The two values happen to match for `thalorna`, `sohl`, and
+`hm3`.
 
 Which packages a build can resolve is derived from its configuration: its own
 `contentPackage`, every game system it compiles content for (`systems:`,
@@ -1764,15 +1765,14 @@ the package happened to record one.
 package holding the bytes, so the path is that package's path and each consumer
 joins its own root onto it:
 
-| Consumer | `thalorna-none-image-thorn` resolves to                            |
-| -------- | ------------------------------------------------------------------ |
-| Web      | `<cdn base>/thalorna/images/beings/characters/thorn.webp`          |
-| Book     | `<asset base>/thalorna/images/beings/characters/thorn.webp`        |
-| Foundry  | `modules/sohl-thalorna/assets/images/beings/characters/thorn.webp` |
+| Consumer | `thalorna-none-image-thorn` resolves to                       |
+| -------- | ------------------------------------------------------------- |
+| Web      | `<cdn base>/thalorna/images/beings/characters/thorn.webp`     |
+| Book     | `<asset base>/thalorna/images/beings/characters/thorn.webp`   |
+| Foundry  | `modules/thalorna/assets/images/beings/characters/thorn.webp` |
 
-Foundry names a **Foundry package id** rather than a content package, because
-the two are distinct — they are equal in the system only by coincidence, and in
-`sohl-thalorna` they differ.
+Foundry paths use the **Foundry package id**. The two values are both `thalorna`
+for this image; `harnensemble` content uses `harn-ensemble` in its Foundry paths.
 
 ##### Where provenance comes from
 
@@ -3178,6 +3178,7 @@ If `sohl` is present, this becomes an `affliction` item.
 | `data.transmission`                | `system.transmission`                | NA    |
 | `data.outcome`                     | `system.outcome`                     | NA    |
 | `data.contagionIndex`              | `system.contagionIndexBase`          | NA    |
+| `data.outcomeTraumas`              | `system.outcomeTraumas`              | NA    |
 | `data.onsetDurationFormula`        | `system.onsetDurationFormula`        | NA    |
 | `data.onsetDurationBase`           | `system.onsetDurationBase`           | NA    |
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
@@ -3215,9 +3216,10 @@ that writes one fails the build. They are world times, and `0` is a valid one,
 so there is no blank a note could write either; leave them out and the data
 model's `null` stands.
 
-`data.healingRate` and `data.outcomeTraumas` are page data. SoHL reads an
-affliction’s base healing rate from `sohl.healingRateBase`. Its item declaration
-does not read `data.outcomeTraumas`.
+`data.healingRate` is page data. SoHL reads an affliction's base healing rate
+from `sohl.healingRateBase`. `data.outcomeTraumas` supplies the SoHL expression
+for traumas produced by the affliction's outcome. The optional
+`sohl.onsetMacroUuid` names a macro run when symptoms begin.
 
 ### type: armorgear
 
@@ -3589,7 +3591,8 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 
 ### type: lore
 
-In-world information about people, places, or concepts.
+In-world knowledge a sage in the setting could study or know. A lore note describes
+the setting itself, rather than instructions or other apparatus for the GM.
 
 **subType**:
 
@@ -3602,9 +3605,11 @@ In-world information about people, places, or concepts.
 - law: How obligation is ordered and enforced — citizenship, custom, courts, and tenure.
 - calendar: How time is reckoned and marked — dating, seasons, festivals, and astrology.
 - history: What has happened — eras, events, chronicles, and genealogies of rule.
-- material: Substances and their properties — minerals, reagents, herbs, and preparations.
+- material: A physical constituent, such as mithril, buckram, or silk, and its qualities,
+  including durability, value, and regional varieties.
 - folk: Related sapient beings of a single or tightly related species: kindreds, ancestries.
 - culture: A social grouping of individuals with common beliefs, mores, and values.
+- custom: How a people does a thing — a rite, observance, or usage.
 - bestiary: A kind of creature that is not a people — beasts, monsters, and the made things
   that were never born. What `folk` covers for the sapient, this covers for everything else.
 - gathering: A scheduled public occasion people travel to — a tournament or martial games, a
@@ -4107,8 +4112,8 @@ cent below what it contains is not a finding.
 **An unstated figure is silent.** A place or affiliation with no `population`
 contributes nothing to a sum and is never the subject of a finding, so a
 half-written region is quiet rather than noisy. A fetched index carries
-`parents` and `domains` but no figure, so a dependency's places sit in the
-geography and its people are counted nowhere.
+`population` alongside `parents` and `domains` when its author stated a
+figure. An older fetched index with no figure remains silent.
 
 **There is deliberately no urban-share rule.** The share of a region's people
 living in its named settlements cannot be measured from the notes: the

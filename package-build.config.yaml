@@ -2,8 +2,6 @@ contentPackage: packagebuild
 packageKind: documentation
 paths:
     content: docs
-publish:
-    site: content
 site:
     title: Package Build Documentation
     assets: https://cdn.heroiclands.org

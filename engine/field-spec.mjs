@@ -161,6 +161,9 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   which is a Shortcode at both ends and resolves nothing.
  * @property {any|((fm: object) => any)} [value] - For a field with no `name`:
  *   the constant, or a function deriving it from the frontmatter.
+ * @property {(fm: object, out: object) => boolean} [when] - Emit this field
+ *   only when the note and fields already built meet the condition. The path
+ *   remains declared for schema checks and authoring validation.
  * @property {boolean} [omitWhenAbsent] - **The key is left out entirely when
  *   the note does not carry the field**, rather than written from a
  *   declared default.
@@ -460,6 +463,7 @@ export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetired
     return function buildDeclaredSystem(fm) {
         const out = {};
         for (const field of fields) {
+            if (field.when && !field.when(fm, out)) continue;
             // A runtime-only field is not this builder's to write. It is
             // declared so that the path is *claimed* — so the verbatim
             // passthrough leaves it alone and the refusal has a name — not so

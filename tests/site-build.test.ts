@@ -99,10 +99,7 @@ function configFor(site: Record<string, unknown> = {}) {
             { name: "items", type: "Item" },
             { name: "journals", type: "JournalEntry" },
         ],
-        publish: {
-            site: "content",
-            address: { prefix: "kb/" },
-        },
+        publish: { address: { prefix: "kb/" } },
         site: { ...site },
     });
 }
@@ -343,7 +340,7 @@ describe("the output root is fixed, which is what makes wiping it safe", () => {
                 lastModifiedBy: "demobuilder0000",
             },
             packs: [{ name: "items", type: "Item" }],
-            publish: { site: "content" },
+            publish: {},
         });
         const result = buildSite({ config });
         expect(result.stats?.out).toBe(path.join(sandbox, "build/hugo/content"));

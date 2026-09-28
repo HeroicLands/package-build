@@ -288,11 +288,8 @@ export function collectContentPages(contentBase, ctx) {
 /**
  * The package's homepage notes — the authored page at `/<contentPackage>/`.
  *
- * A separate walk from {@link collectContentPages} rather than a branch inside
- * it, because in homepage-only mode it is the **whole** of the site build: the
- * content tree is never read for pages at all, so the licensing constraint two
- * packages ship under is a property of the code path rather than of a
- * configuration that happens to be empty.
+ * A separate collection from {@link collectContentPages} keeps the homepage
+ * at the package root and leaves content pages at their note addresses.
  *
  * Returned as a list rather than as the one note there should be, because the
  * count is what {@link checkHomepageCount} judges — this walk reports
@@ -300,8 +297,7 @@ export function collectContentPages(contentBase, ctx) {
  *
  * A homepage that declares no `shortcode` has no address, and is
  * reported rather than written: it is the same finding a content page's missing
- * shortcode produces, and it has to be available in homepage-only mode, where
- * no other gate runs.
+ * shortcode produces, and it is reported even when the tree has no other notes.
  *
  * **It is still counted.** An unaddressable homepage is a homepage — dropping
  * it from the list would make {@link checkHomepageCount} report a tree with one
@@ -334,13 +330,10 @@ export function collectHomepages(contentBase, ctx) {
  *
  * Its own writer, deliberately small. A homepage is authored markdown published
  * verbatim — no table expansion and no link resolution — so routing it through
- * {@link renderPages} would buy it a pipeline it has no input for, and would
- * make homepage-only mode depend on the index, the foreign manifests and the
- * table universe that mode exists to not build.
+ * {@link renderPages} would give it a pipeline it does not use.
  *
  * **Verbatim is the answer, not a gap.** A homepage's links could not be
- * *resolved* here without giving `homepage` mode the index its licensing fence
- * exists to not build, so they are **checked** instead:
+ * *resolved* here, so they are **checked** instead:
  * {@link auditHomepageLinks} reads the body's markdown links, and reports a
  * wikilink on the page rather than resolving one.
  *
@@ -353,8 +346,8 @@ export function collectHomepages(contentBase, ctx) {
  * both sides of the link graph: a content page reaches it through
  * `[[homepage-root|Text]]`, and its own markdown links name content pages. So
  * it carries the same `related` block every content page does — handed in by
- * the caller, since the graph is read off the content render and homepage-only
- * mode has none.
+ * the caller, since the graph is read off the content render and a tree with
+ * only a homepage has no such graph.
  *
  * @param {string} outRoot - The package's site root — the content mount's
  *   root, `build/hugo/content`, one level above the mount itself.
@@ -364,7 +357,7 @@ export function collectHomepages(contentBase, ctx) {
  * @param {object} [options] - Options.
  * @param {import("./related-pages.mjs").Related} [options.related] - The
  *   homepage's backlinks and mentions. Absent where nothing connects to it,
- *   and in homepage-only mode, where no link resolves.
+ *   and when the tree contains only a homepage, where no content link resolves.
  * @returns {number} How many pages were written.
  */
 export function writeHomepages(outRoot, pages, config, { related } = {}) {
@@ -404,6 +397,7 @@ export function writeHomepages(outRoot, pages, config, { related } = {}) {
  *   collection.
  * @param {object} options
  * @param {object} options.config - The resolved build configuration.
+ * @param {object[]} options.records - Content-index records.
  * @returns {object} The gate results and, when they pass, the built index.
  */
 export function siteGates(pages, findings, { config, records }) {
@@ -1037,9 +1031,7 @@ export function buildSite({ config, sqlTables } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
-    // Homepage-only or homepage-plus-content. The floor is the homepage,
-    // so this decides whether the *content* surfaces are published, never
-    // whether anything is.
+    // A tree containing only the homepage has no content pages to publish.
     const publishesContent = publishesContentPages(resolved);
 
     // Where the package is served, and where its content mounts inside it. The
@@ -1062,12 +1054,12 @@ export function buildSite({ config, sqlTables } = {}) {
     const out =
         publishesContent ?
             path.join(outBase, scheme.prefix.replace(/\/$/, ""))
-            // Homepage-only has no content mount, so the package's root *is*
+            // A tree containing only the homepage has no content mount, so its root is
             // the output root.
         :   outBase;
     // The homepage publishes at `/<contentPackage>/`, so its file goes at the
     // package's own root — one level above the content mount, and the same
-    // directory in homepage-only mode.
+    // directory when the tree contains only a homepage.
     const homeRoot = publishesContent ? outBase : out;
 
     const packages = new Set(site.packages.length ? site.packages : [resolved.contentPackage]);
@@ -1098,12 +1090,8 @@ export function buildSite({ config, sqlTables } = {}) {
     const collected = collectHomepages(resolved.paths.content, ctx);
     const homepages = collected.pages;
 
-    // Exactly one homepage, and checked here — before the output tree is
-    // cleared and before either mode branches. Before the clear, because
-    // a gate that fired after it would have destroyed a good site to report a
-    // bad tree. Before the branch, because the requirement does not vary by
-    // mode: `publish.site` chooses whether the *content* surfaces are
-    // published, and the homepage is the floor beneath both.
+    // Check for exactly one homepage before clearing the output tree, so a
+    // malformed tree does not destroy the last good site.
     //
     // The count is judged first, and alone when it fires: a tree with two
     // homepages does not need to be told about each one's address as well, and
@@ -1113,7 +1101,7 @@ export function buildSite({ config, sqlTables } = {}) {
         contentPackage: resolved.contentPackage,
     });
     // A homepage that cannot be addressed is reported in the same place, and
-    // reaches homepage-only mode — which runs no other gate at all.
+    // also applies when the tree contains only a homepage.
     const homepageFindings =
         counted.length ? counted : (
             collected.addressFindings.map((f) => ({

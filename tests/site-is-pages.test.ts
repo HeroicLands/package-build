@@ -231,7 +231,7 @@ describe("the homepage is written as the mount's `_index.md`", () => {
                 { name: "journals", type: "JournalEntry" },
             ],
             packageBuild: { manifest: { title: "The Demo Module" } },
-            publish: { site: "content", address: { prefix: "kb/" } },
+            publish: { address: { prefix: "kb/" } },
             ...overrides,
         } as ContentBuildConfigInput);
 
@@ -324,14 +324,6 @@ describe("the homepage is written as the mount's `_index.md`", () => {
         );
         expect(page).toContain("[the front page](/demo/)");
         expect(page).not.toContain("homepage-root/");
-    });
-
-    it("is the whole of a homepage-only site, at the root", () => {
-        const result = buildSite({
-            config: configFor({ publish: { site: "homepage", address: { prefix: "kb/" } } }),
-        });
-        expect(result.stats?.homepages).toBe(1);
-        expect(emitted(path.join(root, "build/hugo/content"))).toEqual(["_index.md"]);
     });
 
     it("reports no `hasTags` — a tag is a field a content table filters on", () => {
