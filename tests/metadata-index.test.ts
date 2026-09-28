@@ -332,6 +332,22 @@ describe("resolving foreign addresses from cached indexes", () => {
         expect(entry.package).toBe("thalorna");
     });
 
+    it("carries an authored population and leaves older indexes without a figure", () => {
+        cacheIndex("thalorna", "0.1.0", [
+            record({ data: { population: 1200 } }),
+            record({
+                shortcode: "unfigured",
+                address: {
+                    slug: "affiliation-unfigured",
+                    canonical: "thalorna-note-affiliation-unfigured",
+                },
+            }),
+        ]);
+        const { index } = loadForeignIndexes(config(), ["sohl"]);
+        expect(index.get("thalorna-note-affiliation-aerarimmpr")?.population).toBe(1200);
+        expect(index.get("thalorna-note-affiliation-unfigured")?.population).toBeUndefined();
+    });
+
     // A note compiling into two systems' documents holds a block per system,
     // and the key's own system segment says which one this address names.
     it("resolves an existing foreign page's none-system identity without a Foundry journal", () => {
