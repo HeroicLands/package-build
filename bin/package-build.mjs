@@ -78,7 +78,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 import { globSync } from "glob";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -133,6 +135,38 @@ import { registerContentCommands } from "./content-commands.mjs";
  * them are still on the screen.
  */
 const ADVISORY_PREVIEW = 20;
+
+/** Replay pull-request workflow commands in Docker or on the host. */
+function ciCommand() {
+    return {
+        command: "ci",
+        describe: "Replay pull-request workflow commands",
+        builder: (y) =>
+            y.option("native", {
+                type: "boolean",
+                default: false,
+                describe: "Run in the current working tree without Docker",
+            }),
+        handler: handler((args) => {
+            const script = fileURLToPath(
+                new URL(
+                    args.native ? "../ci/ci-steps.mjs" : "../ci/ci-docker.mjs",
+                    import.meta.url,
+                ),
+            );
+            const top = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+                encoding: "utf8",
+            });
+            const root = top.status === 0 ? top.stdout.trim() : process.cwd();
+            const result = spawnSync(process.execPath, [script], {
+                cwd: root,
+                stdio: "inherit",
+            });
+            if (result.error) throw result.error;
+            if (result.status !== 0) process.exitCode = 1;
+        }),
+    };
+}
 
 /** Initialize a repository from anywhere, including outside a Git checkout. */
 function initCommand() {
@@ -1587,6 +1621,7 @@ registerContentCommands(
     yargs(hideBin(process.argv))
         .scriptName("package-build")
         .command(initCommand())
+        .command(ciCommand())
         .command(cleanCommand())
         .command(assetsCommand())
         .command(calendarsCommand())
