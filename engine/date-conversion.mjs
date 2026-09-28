@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
-import { formatCanonicalDate, parseCanonicalDate } from "./calendars.mjs";
+import { eraYear, formatCanonicalDate, parseCanonicalDate } from "./calendars.mjs";
 import { addressedCalendarDate } from "./calendar-human.mjs";
 import { calendarEras, eraCovering, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
 
@@ -23,13 +23,13 @@ export function dateFromCalendar(reference, value, context) {
     if (eraCovering(date, eras, context.daysPerYear) !== context.eras.get(date.qualifier))
         throw new RangeError(`date falls outside calendar ${reference}`);
     return `${date.approximate ? "~" : ""}${formatCanonicalDate(
-        { year: date.canonicalYear, day: date.canonicalDay, seconds: date.seconds },
+        { year: eraYear(date.canonicalYear), day: date.canonicalDay, seconds: date.seconds },
         context.daysPerYear,
     )}`;
 }
 
 /** Convert a canonical day to the date in the covering era of a calendar. */
-export function dateToCalendar(reference, value, context) {
+export function dateToCalendar(reference, value, context, formatName) {
     const text = String(value ?? "");
     const canonical = parseCanonicalDate(
         text.startsWith("~") ? text.slice(1) : text,
@@ -40,7 +40,7 @@ export function dateToCalendar(reference, value, context) {
     const parsed = parseNoteDate(value, context).date;
     const era = eraCovering(parsed, calendarEras(reference, context), context.daysPerYear);
     if (!era) throw new RangeError(`canonical date falls outside calendar ${reference}`);
-    const printed = formatNoteDate(parsed, era, context.daysPerYear);
+    const printed = formatNoteDate(parsed, era, context.daysPerYear, formatName);
     if (!printed || printed.day === null)
         throw new RangeError(`canonical date cannot be expressed in calendar ${reference}`);
     return printed.text;

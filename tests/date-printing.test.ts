@@ -28,13 +28,15 @@ const index = {
                 type: "lore",
                 subType: "calendar",
                 data: {
+                    epoch: "1.1",
                     months,
                     eras: [
+                        { shortcode: "before", name: "Before", abbreviation: "BF", start: null },
                         {
                             shortcode: "founding",
                             marker: "VR",
                             abbreviation: "VR",
-                            start: "1.1",
+                            start: 1,
                             label: { after: "{date} AF", before: "{date} BF" },
                         },
                     ],
@@ -48,13 +50,15 @@ const index = {
                 type: "lore",
                 subType: "calendar",
                 data: {
+                    epoch: "1.1",
                     months,
                     eras: [
+                        { shortcode: "before", name: "Before", abbreviation: "BL", start: null },
+                        { shortcode: "early", name: "Early", abbreviation: "ER", start: 1 },
                         {
                             shortcode: "later",
                             marker: "LR",
-                            start: "701.1",
-                            end: "730.365",
+                            start: 701,
                             label: "Year {date} of the Later Count",
                         },
                     ],
@@ -96,7 +100,7 @@ describe("printable reckoning dates", () => {
         expect(() => dateFromCalendar("vrcal", "Month 5 720 VR", context)).toThrow(
             /precise to the day/,
         );
-        expect(() => dateToCalendar("latercal", "740.134", context)).toThrow(/outside calendar/);
+        expect(dateToCalendar("latercal", "740.134", context)).toBe("14 Month 5 40 LR");
     });
 
     it("accepts only canonical or named frontmatter dates and preserves approximation", () => {
@@ -170,20 +174,28 @@ describe("printable reckoning dates", () => {
             "datefrom vrcal 720 VR",
             "datefrom vrcal Month 5 720 VR",
             "datefrom vrcal 14 Month 5 720 VR",
-            "datefrom vrcal 30 Month 12 -1 VR",
-            "~datefrom vrcal -480 VR",
+            "datefrom vrcal 30 Month 12 1 BF",
+            "~datefrom vrcal 480 BF",
         ]) {
             const parsed = parseNoteDate(authored, context);
             expect(parsed.findings.filter((f) => f.severity === "error")).toEqual([]);
-            const printed = formatNoteDate(parsed.date, vr, 365);
-            expect(printed?.text).toContain("VR");
+            const printed = formatNoteDate(
+                parsed.date,
+                context.eras.get(parsed.date.qualifier),
+                365,
+            );
+            expect(printed?.text).toMatch(/VR|BF/);
             expect(printed?.year).not.toBe(0);
             expect(
                 parseNoteDate(`datefrom vrcal ${printed?.text}`, context).date?.canonicalYear,
             ).toBe(parsed.date?.canonicalYear);
         }
         expect(
-            formatNoteDate(parseNoteDate("datefrom vrcal -1 VR", context).date, vr, 365)?.prose,
+            formatNoteDate(
+                parseNoteDate("datefrom vrcal 1 BF", context).date,
+                context.eras.get("vrcal.before"),
+                365,
+            )?.text,
         ).toBe("1 BF");
         expect(
             formatNoteDate(parseNoteDate("~datefrom vrcal 720 VR", context).date, vr, 365)?.prose,
@@ -212,15 +224,15 @@ describe("printable reckoning dates", () => {
         );
     });
 
-    it("selects one era, converts its year, and leaves gaps without a claimed count", () => {
+    it("selects one era and converts its year without a gap between eras", () => {
         const date = parseNoteDate("datefrom vrcal 14 Month 5 720 VR", context).date;
         expect(eraCovering(date, [lr], 365)).toBe(lr);
         const printed = formatNoteDate(date, lr, 365);
         expect(printed?.text).toBe("14 Month 5 20 LR");
         expect(printed?.prose).toBe("Year 20/5/14 of the Later Count");
-        const gap = parseNoteDate("datefrom vrcal 14 Month 5 740 VR", context).date;
-        expect(eraCovering(gap, [lr], 365)).toBeNull();
-        expect(formatNoteDate(gap, null, 365)?.text).toBe("datefrom vrcal 14 Month 5 740 VR");
+        const later = parseNoteDate("datefrom vrcal 14 Month 5 740 VR", context).date;
+        expect(eraCovering(later, [lr], 365)).toBe(lr);
+        expect(formatNoteDate(later, lr, 365)?.text).toBe("14 Month 5 40 LR");
     });
 
     it("refuses overlapping claims rather than choosing one", () => {

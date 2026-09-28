@@ -623,7 +623,7 @@ The closed registry of system ids, and the `none` that stands for no system at a
 
 ### `engine.calendars`
 
-The axis every date normalises onto, the arithmetic over a calendar's month list, and the moon. A reckoning is an **era** declared on the note about the calendar that counts those years, and its epoch is the `start` written on that row — nothing is registered in configuration. The year conversion is piecewise on the sign, because the authored numbering has no year zero while the normalised value does: authored `-1` is `0`, and `-1` and `1` are adjacent. `lunarPhase` takes a floored modulo for the same reason the conversion branches: a truncated one is right on one side of an epoch and wrong on the other.
+The axis every date normalises onto, the arithmetic over a calendar's month list, and the moon. A calendar's `data.epoch` anchors its year 1, day 1 on that axis; its eras declare in-calendar start years. The year conversion is piecewise on the sign, because the authored numbering has no year zero while the normalised value does: authored `-1` is `0`, and `-1` and `1` are adjacent. `lunarPhase` uses a floored modulo on either side of the epoch.
 
 The neutral day spelling is `<year>.<day>[:HHMMSS]`. The pure conversion functions take the world's year length and an explicit origin year, so their arithmetic names no month or era. A caller supplies those values from its content; no setting year is baked into the toolchain.
 
@@ -649,27 +649,27 @@ The neutral day spelling is `<year>.<day>[:HHMMSS]`. The pure conversion functio
 
 A date on a note is one authored scalar. `<year>[.<day>[:HHMMSS]]` names a calendar-neutral year, day, or second; `datefrom vrcal 23 Taranis 326 VR` names a calendar, a named month, and an era. Year and day values span their written interval; a clock time identifies a second. Either form may begin with `~` for uncertainty beyond that interval. The `approximate` field records that explicit marker, while `precision` and `seconds` describe the interval or time. A resolved date carries a canonical year, span, and sort key; a neutral year has no `canonicalDay`, while day-precision dates have one. Print `prose ?? text`, order on `sort`, and do arithmetic on `canonicalYear`. The literal `unknown` has no sort key or canonical year. `resolvedDateFields` supplies identical derived records to JSONL and generated page frontmatter.
 
-| Export                  | Signature                                        | Returns                                            | Use it when                                                    |
-| ----------------------- | ------------------------------------------------ | -------------------------------------------------- | -------------------------------------------------------------- |
-| `UNKNOWN_DATE`          | `const UNKNOWN_DATE`                             | —                                                  | naming the literal that says a date is not recorded            |
-| `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`                        | —                                                  | matching the date grammar directly                             |
-| `DATEFROM_PATTERN`      | `const DATEFROM_PATTERN`                         | —                                                  | recognizing a named calendar conversion in frontmatter         |
-| `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`                    | —                                                  | checking that a string is an era qualifier a date could carry  |
-| `parseNoteDate`         | `parseNoteDate(value, options)`                  | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned   |
-| `eraCovering`           | `eraCovering(date, eras, daysPerYear)`           | one era or `null`; throws on overlap               | selecting the era covering a resolved date's full precision    |
-| `formatNoteDate`        | `formatNoteDate(date, era, daysPerYear)`         | `{era, year, month, day, text, prose}` or `null`   | printing a resolved date in a chosen era or its authored form  |
-| `formatDateInCalendar`  | `formatDateInCalendar(date, reference, context)` | printable record or `null`                         | selecting a calendar's era and printing a resolved date in it  |
-| `calendarEras`          | `calendarEras(reference, context)`               | ordered era records                                | resolving an addressed calendar or one of its eras             |
-| `resolvedDateFields`    | `resolvedDateFields(fm, context)`                | map of normalized dates                            | deriving being and lore event date records for index and pages |
+| Export                  | Signature                                                     | Returns                                            | Use it when                                                    |
+| ----------------------- | ------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------- |
+| `UNKNOWN_DATE`          | `const UNKNOWN_DATE`                                          | —                                                  | naming the literal that says a date is not recorded            |
+| `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`                                     | —                                                  | matching the date grammar directly                             |
+| `DATEFROM_PATTERN`      | `const DATEFROM_PATTERN`                                      | —                                                  | recognizing a named calendar conversion in frontmatter         |
+| `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`                                 | —                                                  | checking that a string is an era qualifier a date could carry  |
+| `parseNoteDate`         | `parseNoteDate(value, options)`                               | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned   |
+| `eraCovering`           | `eraCovering(date, eras, daysPerYear)`                        | one era or `null`; throws on overlap               | selecting the era covering a resolved date's full precision    |
+| `formatNoteDate`        | `formatNoteDate(date, era, daysPerYear, formatName?)`         | `{era, year, month, day, text, prose}` or `null`   | printing a resolved date in a chosen era or its authored form  |
+| `formatDateInCalendar`  | `formatDateInCalendar(date, reference, context, formatName?)` | printable record or `null`                         | selecting a calendar's era and printing a resolved date in it  |
+| `calendarEras`          | `calendarEras(reference, context)`                            | ordered era records                                | resolving an addressed calendar or one of its eras             |
+| `resolvedDateFields`    | `resolvedDateFields(fm, context)`                             | map of normalized dates                            | deriving being and lore event date records for index and pages |
 
 ### `engine.dateConversion`
 
-The exact-day conversion functions use the corpus reckoning context. A calendar with several eras requires an era in the named date. They reject dates outside the selected calendar and gaps between its eras. Approximate input keeps its `~` prefix in the result.
+The exact-day conversion functions use the corpus reckoning context. `dateFromCalendar` reads the `std` pattern, or the first named pattern. An era-relative year needs its era label. They reject dates outside the selected era; approximate input keeps its `~` prefix.
 
-| Export             | Signature                                           | Returns               | Use it when                                   |
-| ------------------ | --------------------------------------------------- | --------------------- | --------------------------------------------- |
-| `dateFromCalendar` | `dateFromCalendar(reference, value, context)`       | canonical date string | converting one calendar day to the world axis |
-| `dateToCalendar`   | `dateToCalendar(reference, canonicalDate, context)` | calendar date string  | expressing one canonical day in a calendar    |
+| Export             | Signature                                                        | Returns               | Use it when                                   |
+| ------------------ | ---------------------------------------------------------------- | --------------------- | --------------------------------------------- |
+| `dateFromCalendar` | `dateFromCalendar(reference, value, context)`                    | canonical date string | converting one calendar day to the world axis |
+| `dateToCalendar`   | `dateToCalendar(reference, canonicalDate, context, formatName?)` | calendar date string  | expressing one canonical day in a calendar    |
 
 ### `engine.calendarChoice`
 
@@ -700,7 +700,7 @@ invokes the check during frontmatter lint.
 
 ### `engine.reckoningMarkers`
 
-The corpus registry maps every declared era to its calendar and each marker to exactly one era. Era starts may use the canonical axis or another declared era. Within one calendar, starts increase; the next start bounds the preceding era unless an explicit end leaves a gap. The first era also covers dates before its start and counts them with negative years. Later eras accept only forward year counts. Unknown eras, duplicate markers, invalid bounds, overlapping eras and dependency cycles are findings. Short qualifiers are ambiguous when they name eras in several packages; a full address selects one. This registry governs note dates; calendar definitions emitted for Foundry retain their consumer format.
+The corpus registry anchors each calendar's year 1, day 1 to its canonical `data.epoch` and maps every declared era to that calendar. Exactly one `start: null` era covers earlier years and counts backwards; exactly one `start: 1` era begins the forward count. Other starts are distinct positive calendar years. Numeric order determines bounds, irrespective of array order. Duplicate starts and markers, missing required eras, and invalid epochs are findings. Short qualifiers are ambiguous when they name eras in several packages; a full Address selects one.
 
 | Export                    | Signature                                     | Returns                                  | Use it when                                                 |
 | ------------------------- | --------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
@@ -720,7 +720,7 @@ A calendar is a `lore` note with `subType: calendar`, declaring the months it ke
 | `CALENDAR_FORMAT_TOKENS`    | `const CALENDAR_FORMAT_TOKENS`                        | —                                          | checking bare date tokens in a format string                                |
 | `INVARIANT_FIELDS`          | `const INVARIANT_FIELDS`                              | —                                          | reading the closed list of what a body may declare about itself             |
 | `checkCalendarNote`         | `checkCalendarNote(note, opts)`                       | `object[]` — findings                      | holding a `lore` note to the family and to the year the world keeps         |
-| `checkCalendarDateFormats`  | `checkCalendarDateFormats(note)`                      | `object[]` — findings                      | checking display slots and escaped literal words                            |
+| `checkCalendarDateFormats`  | `checkCalendarDateFormats(note)`                      | `object[]` — findings                      | checking named patterns and the readable default                            |
 | `checkWorldFacts`           | `checkWorldFacts(note, opts)`                         | `object[]` — findings                      | holding a `place` note's world facts to one body, one year and one moon     |
 | `worldInvariants`           | `worldInvariants(index)`                              | `{year, present, moon, body, moonName, …}` | reading the year, the present and the moon a package's own notes state      |
 | `quarterDays`               | `quarterDays(daysPerYear)`                            | `number[]` — four days of the year         | asking which days the year turns on                                         |

@@ -80,7 +80,7 @@ export function renderMarkdownExpressions(
         if (result.error) throw new RangeError(`SQL expression failed: ${result.error}`);
         return result.value;
     });
-    engine.registerHelper("dateformat", (calendar, authored) => {
+    engine.registerHelper("dateformat", (calendar, authored, formatOrOptions) => {
         if (
             !(typeof calendar === "string" || isAddressTuple(calendar)) ||
             !["string", "number"].includes(typeof authored)
@@ -93,6 +93,7 @@ export function renderMarkdownExpressions(
             parsed.date,
             isAddressTuple(calendar) ? renderAddress(calendar) : calendar,
             dates,
+            typeof formatOrOptions === "string" ? formatOrOptions : undefined,
         );
         if (!printable) throw new RangeError(`date cannot be printed in calendar ${calendar}`);
         return printable.prose ?? printable.text;

@@ -134,4 +134,4 @@ The index contains {{digits (sql "SELECT COUNT(*) FROM entries")}} entries.
 {{and (gt 3 5) (lt 4 2)}}
 ```
 
-Use `{{dateformat data.calendar data.born}}` when the note supplies a calendar Address. SQL fences produce tables; the `sql` helper returns one value for an inline expression. Wrap a numeric result in `words` for running prose or `digits` for a grouped numeral. See [date rules](dates-and-calendars.md) and [SQL details](../reference/format-details.md#content-tables) for query options.
+Use `{{dateformat data.calendar data.born}}` when the note supplies a calendar Address. A third argument selects a named output pattern, as in `{{dateformat data.calendar data.born "long"}}`. SQL fences produce tables; the `sql` helper returns one value for an inline expression. Wrap a numeric result in `words` for running prose or `digits` for a grouped numeral. See [date rules](dates-and-calendars.md) and [SQL details](../reference/format-details.md#content-tables) for query options.

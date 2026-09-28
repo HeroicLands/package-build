@@ -47,8 +47,10 @@ name: { full: Common Calendar }
 type: lore
 subType: calendar
 data:
+  epoch: 1.1
   months: [{ name: First, days: 30 }, { name: Second, days: 31 }, { name: Third, days: 30 }, { name: Taranis, days: 31 }, { name: Fifth, days: 243 }]
-  eras: [{ shortcode: founding, marker: VR, abbreviation: VR, start: 1.1 }]
+  formats: { std: "D MMMM [yearInEra] G", long: "DD MMMM [yearInEra] G" }
+  eras: [{ shortcode: before, name: Before, abbreviation: BVR, start: null }, { shortcode: founding, name: Founding, marker: VR, abbreviation: VR, start: 1 }]
 ---
 `,
     );
@@ -72,6 +74,9 @@ describe("date conversion commands", () => {
         const to = run("dateto", "vrcal", "326.114");
         expect(to.status).toBe(0);
         expect(to.stdout).toBe("23 Taranis 326 VR\n");
+        const long = run("dateto", "vrcal", "326.94", "--format", "long");
+        expect(long.status).toBe(0);
+        expect(long.stdout).toBe("03 Taranis 326 VR\n");
     });
 
     it("rejects a date without a day", () => {

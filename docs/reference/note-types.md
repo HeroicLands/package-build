@@ -406,15 +406,16 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 Lore records in-world knowledge. A `culture` describes a people; a `custom` describes how they practice a rite, observance, or usage. A `material` describes a physical constituent and its qualities, which may vary by region. See the [lore subtype definitions](format-details.md#type-lore) for the complete vocabulary.
 
-| Field              | Shape                                                                                     | Meaning                                                                                                                              |
-| ------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `data.epoch`       | a day-precision date                                                                      | Which in-world day the world's clock reads zero on — `720.1`.                                                                        |
-| `data.months`      | list of `{ name, abbreviation?, days }`                                                   | The months this calendar keeps, in order — position in the list is position in the year, and the day counts sum to the world's year. |
-| `data.weekdays`    | list of `{ name, abbreviation? }`                                                         | The days of the week this calendar names, in order. A calendar with no week writes none.                                             |
-| `data.seasons`     | list of `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }`             | The seasons this calendar marks, bounded by month or by day of year.                                                                 |
-| `data.eras`        | list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, end?, label? }` | The year-counts kept in this calendar. A marker names one era and uses these months.                                                 |
-| `data.dateFormats` | map of short, long, full, time, weekHeader, yearHeader, yearLabel, crossCalendar strings  | How this calendar writes dates and time in each display context.                                                                     |
-| `data.event`       | event metadata map                                                                        | A dated occurrence and its relationships to other events and places.                                                                 |
+| Field            | Shape                                                                               | Meaning                                                                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.epoch`     | a canonical `<year>.<day>`                                                          | Canonical day when calendar year 1, day 1 begins — `1.1`.                                                                            |
+| `data.months`    | list of `{ name, abbreviation?, days }`                                             | The months this calendar keeps, in order — position in the list is position in the year, and the day counts sum to the world's year. |
+| `data.weekdays`  | list of `{ name, abbreviation? }`                                                   | The days of the week this calendar names, in order. A calendar with no week writes none.                                             |
+| `data.seasons`   | list of `{ name, abbreviation?, start }`                                            | The seasons this calendar marks, starting on numbered days of the year.                                                              |
+| `data.namedDays` | list of `{ name, abbreviation?, day }`                                              | Names assigned to particular days of the year.                                                                                       |
+| `data.eras`      | list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, label? }` | The year-counts kept in this calendar. A marker names one era and uses these months.                                                 |
+| `data.formats`   | map of named Calendaria format strings                                              | Named patterns for reading and writing this calendar's dates.                                                                        |
+| `data.event`     | event metadata map                                                                  | A dated occurrence and its relationships to other events and places.                                                                 |
 
 ### map
 

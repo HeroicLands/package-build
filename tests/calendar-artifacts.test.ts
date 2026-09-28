@@ -47,7 +47,14 @@ function calendar(shortcode: string, file = `${shortcode}.md`) {
         subType: "calendar",
         shortcode,
         name: { full: shortcode },
-        data: { epoch: "720.1", months: [{ name: "Year", days: 365 }] },
+        data: {
+            epoch: "720.1",
+            months: [{ name: "Year", days: 365 }],
+            eras: [
+                { shortcode: "before", name: "Before", start: null },
+                { shortcode: "present", name: "Present", start: 1 },
+            ],
+        },
     });
 }
 
@@ -86,7 +93,7 @@ describe("calendar artifact emission", () => {
             );
             expect(envelope.calendarData).toEqual(definition);
             expect(envelope.exportedAt).toBe("1970-01-01T00:00:00.000Z");
-            expect(definition.years.yearZero).toBe(720);
+            expect(definition.years.yearZero).toBe(1);
             expect(definition.days.daysPerYear).toBe(365);
         }
         emitCalendarArtifacts({ config, calendariaVersion: "1.4.2" });

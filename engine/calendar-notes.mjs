@@ -64,7 +64,20 @@
  * @module
  */
 
-import { dayOfYear, daysInYear, monthDayOfYear } from "./calendars.mjs";
+import {
+    canonicalDayOffset,
+    canonicalYear,
+    dayOfYear,
+    daysInYear,
+    monthDayOfYear,
+    parseCanonicalDate,
+} from "./calendars.mjs";
+import {
+    CALENDAR_FORMAT_TOKENS,
+    calendarFormatSyntaxError,
+    readableCalendarFormatError,
+    selectCalendarFormat,
+} from "./calendar-format.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
@@ -89,6 +102,7 @@ export const CALENDAR_DATE_FORMAT_KEYS = Object.freeze([
     "long",
     "full",
     "time",
+    "time12",
     "weekHeader",
     "yearHeader",
     "yearLabel",
@@ -96,13 +110,7 @@ export const CALENDAR_DATE_FORMAT_KEYS = Object.freeze([
 ]);
 
 /** Bare date tokens Calendaria substitutes inside authored format strings. */
-export const CALENDAR_FORMAT_TOKENS = Object.freeze(
-    new Set(
-        "YYYY YY Y MMMM MMM MM Mo M EEEEE EEEE EEE EE E dddd ddd dd Do DDD DD D d e GGGG GGG GG G QQQQ QQQ QQ Q zzzz z ww w W HH H hh h mm m ss s A a".split(
-            " ",
-        ),
-    ),
-);
+export { CALENDAR_FORMAT_TOKENS };
 
 /**
  * The `data:` keys a calendar note may write — the closed list, in authored
@@ -117,9 +125,9 @@ export const CALENDAR_FORMAT_TOKENS = Object.freeze(
 export const CALENDAR_FIELDS = Object.freeze([
     {
         name: "epoch",
-        shape: "a day-precision date",
+        shape: "a canonical `<year>.<day>`",
         kind: "string",
-        describe: "Which in-world day the world's clock reads zero on — `720.1`.",
+        describe: "Canonical day when calendar year 1, day 1 begins — `1.1`.",
     },
     {
         name: "months",
@@ -139,22 +147,28 @@ export const CALENDAR_FIELDS = Object.freeze([
     },
     {
         name: "seasons",
-        shape: "list of `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }`",
+        shape: "list of `{ name, abbreviation?, start }`",
         kind: "list",
-        describe: "The seasons this calendar marks, bounded by month or by day of year.",
+        describe: "The seasons this calendar marks, starting on numbered days of the year.",
+    },
+    {
+        name: "namedDays",
+        shape: "list of `{ name, abbreviation?, day }`",
+        kind: "list",
+        describe: "Names assigned to particular days of the year.",
     },
     {
         name: "eras",
-        shape: "list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, end?, label? }`",
+        shape: "list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, label? }`",
         kind: "list",
         describe:
             "The year-counts kept in this calendar. A marker names one era and uses these months.",
     },
     {
-        name: "dateFormats",
-        shape: "map of short, long, full, time, weekHeader, yearHeader, yearLabel, crossCalendar strings",
+        name: "formats",
+        shape: "map of named Calendaria format strings",
         kind: "map",
-        describe: "How this calendar writes dates and time in each display context.",
+        describe: "Named patterns for reading and writing this calendar's dates.",
     },
 ]);
 
@@ -363,46 +377,132 @@ function atData(note, keyPath, severity, message) {
     };
 }
 
-/** Check each authored format slot and every unescaped letter run in it. */
+/** Check each named pattern and the standard pattern's readable fields. */
 export function checkCalendarDateFormats(note) {
-    const formats = dataOf(note).dateFormats;
-    if (formats === undefined || formats === null) return [];
-    if (typeof formats !== "object" || Array.isArray(formats)) return [];
+    const formats = dataOf(note).formats;
+    if (formats === undefined) return [];
+    if (typeof formats !== "object" || Array.isArray(formats) || !Object.keys(formats).length)
+        return [
+            atData(note, ["formats"], "error", "data.formats needs at least one named pattern"),
+        ];
     const findings = [];
     for (const [slot, value] of Object.entries(formats)) {
-        if (!CALENDAR_DATE_FORMAT_KEYS.includes(slot)) {
+        if (!/^[A-Za-z][A-Za-z0-9]*$/.test(slot)) {
             findings.push(
                 atData(
                     note,
-                    ["dateFormats", slot],
+                    ["formats", slot],
                     "error",
-                    `data.dateFormats.${slot} is not a calendar display format; choose ${CALENDAR_DATE_FORMAT_KEYS.join(", ")}`,
+                    `data.formats.${slot} needs a name made of letters and digits`,
                 ),
             );
             continue;
         }
         if (typeof value !== "string") {
             findings.push(
-                atData(
-                    note,
-                    ["dateFormats", slot],
-                    "error",
-                    `data.dateFormats.${slot} must be a string`,
-                ),
+                atData(note, ["formats", slot], "error", `data.formats.${slot} must be a string`),
             );
             continue;
         }
-        const bare = value.replace(/\[[^\]]*\]|\{[^}]*\}/g, " ");
-        for (const run of bare.match(/\p{L}+/gu) ?? []) {
-            if (CALENDAR_FORMAT_TOKENS.has(run)) continue;
-            findings.push(
-                atData(
-                    note,
-                    ["dateFormats", slot],
-                    "error",
-                    `data.dateFormats.${slot} has unescaped letter run ${JSON.stringify(run)}; write literal words in brackets, or use a Calendaria date token`,
-                ),
-            );
+        const syntaxError = calendarFormatSyntaxError(value);
+        if (syntaxError) findings.push(atData(note, ["formats", slot], "error", syntaxError));
+    }
+    const standard = Object.hasOwn(formats, "std") ? "std" : Object.keys(formats)[0];
+    if (typeof formats[standard] === "string") {
+        const error = readableCalendarFormatError(formats[standard]);
+        if (error) findings.push(atData(note, ["formats", standard], "error", error));
+    }
+    return findings;
+}
+
+/** Validate ordered, one-based season starts and named day positions. */
+function checkCalendarDayNames(note, daysPerYear) {
+    const data = dataOf(note);
+    const findings = [];
+    const seasons = data.seasons;
+    if (seasons !== undefined && !Array.isArray(seasons))
+        findings.push(atData(note, ["seasons"], "error", "data.seasons must be a list"));
+    if (Array.isArray(seasons)) {
+        let prior = 0;
+        for (const [position, season] of seasons.entries()) {
+            const start = season?.start;
+            if (typeof season?.name !== "string" || !season.name.trim())
+                findings.push(
+                    atData(note, ["seasons", position, "name"], "error", "a season needs a name"),
+                );
+            if (
+                !Number.isSafeInteger(start) ||
+                start <= prior ||
+                (Number.isSafeInteger(daysPerYear) && start > daysPerYear)
+            )
+                findings.push(
+                    atData(
+                        note,
+                        ["seasons", position, "start"],
+                        "error",
+                        "season starts must increase within the year",
+                    ),
+                );
+            if (
+                Object.keys(season ?? {}).some(
+                    (key) => !["name", "abbreviation", "start"].includes(key),
+                )
+            )
+                findings.push(
+                    atData(
+                        note,
+                        ["seasons", position],
+                        "error",
+                        "a season uses only name, abbreviation, and start",
+                    ),
+                );
+            prior = start;
+        }
+    }
+    const namedDays = data.namedDays;
+    if (namedDays !== undefined && !Array.isArray(namedDays))
+        findings.push(atData(note, ["namedDays"], "error", "data.namedDays must be a list"));
+    if (Array.isArray(namedDays)) {
+        const seen = new Set();
+        for (const [position, namedDay] of namedDays.entries()) {
+            if (typeof namedDay?.name !== "string" || !namedDay.name.trim())
+                findings.push(
+                    atData(
+                        note,
+                        ["namedDays", position, "name"],
+                        "error",
+                        "a named day needs a name",
+                    ),
+                );
+            const day = namedDay?.day;
+            if (
+                !Number.isSafeInteger(day) ||
+                day < 1 ||
+                (Number.isSafeInteger(daysPerYear) && day > daysPerYear) ||
+                seen.has(day)
+            )
+                findings.push(
+                    atData(
+                        note,
+                        ["namedDays", position, "day"],
+                        "error",
+                        "named days need distinct days within the year",
+                    ),
+                );
+            if (
+                Object.keys(namedDay ?? {}).some(
+                    (key) => !["name", "abbreviation", "day"].includes(key),
+                )
+            )
+                findings.push(
+                    atData(
+                        note,
+                        ["namedDays", position],
+                        "error",
+                        "a named day uses only name, abbreviation, and day",
+                    ),
+                );
+            seen.add(day);
         }
     }
     return findings;
@@ -567,7 +667,7 @@ export function checkCalendarNote(note, { index } = {}) {
         return findings;
     }
 
-    for (const required of ["months", "epoch"]) {
+    for (const required of ["months", "epoch", "eras"]) {
         if (written.includes(required)) continue;
         findings.push({
             file: note.file,
@@ -580,6 +680,16 @@ export function checkCalendarNote(note, { index } = {}) {
     }
 
     if (written.includes("epoch")) {
+        const epochText = String(dataOf(note).epoch);
+        if (!/^-?\d+\.\d+$/.test(epochText) || /^-?0+\./.test(epochText))
+            findings.push(
+                atData(
+                    note,
+                    ["epoch"],
+                    "error",
+                    "data.epoch is a canonical <year>.<day> for calendar year 1, day 1",
+                ),
+            );
         const parsed = parseNoteDate(dataOf(note).epoch, {
             ...reckoningContext(index),
             field: "data.epoch",
@@ -601,7 +711,22 @@ export function checkCalendarNote(note, { index } = {}) {
     }
 
     findings.push(...checkMonthSum(note, index));
+    findings.push(...checkCalendarDayNames(note, worldInvariants(index).year?.days));
     findings.push(...checkEraShortcodes(note));
+    for (const [position, day] of (Array.isArray(dataOf(note).weekdays) ?
+        dataOf(note).weekdays
+    :   []
+    ).entries()) {
+        if (day?.ordinal !== undefined)
+            findings.push(
+                atData(
+                    note,
+                    ["weekdays", position, "ordinal"],
+                    "error",
+                    "weekday order is its array position, starting at zero; omit ordinal",
+                ),
+            );
+    }
     findings.push(
         ...reckoningContext(index).findings.filter((finding) => finding.file === note.file),
     );
@@ -765,7 +890,7 @@ function monthValues(months) {
     );
 }
 
-/** A weekday's name, abbreviation and position. An empty list stays empty. */
+/** Calendaria stores a one-based ordinal; the authored order remains zero-based. */
 function weekdayValues(weekdays) {
     return (Array.isArray(weekdays) ? weekdays : []).map((day, position) =>
         written({
@@ -776,42 +901,47 @@ function weekdayValues(weekdays) {
     );
 }
 
-/** A season's name and whichever pair of bounds the note wrote. */
-function seasonValues(seasons) {
-    return (Array.isArray(seasons) ? seasons : []).map((season) =>
+/** A season's one-based start becomes an inclusive zero-based Calendaria range. */
+function seasonValues(seasons, daysPerYear) {
+    return (Array.isArray(seasons) ? seasons : []).map((season, position, rows) =>
         written({
             name: String(season?.name ?? ""),
             abbreviation:
                 season?.abbreviation === undefined ? undefined : String(season.abbreviation),
-            monthStart: season?.monthStart,
-            monthEnd: season?.monthEnd,
-            dayStart: season?.dayStart,
-            dayEnd: season?.dayEnd,
+            dayStart: season.start - 1,
+            dayEnd:
+                position + 1 < rows.length ? rows[position + 1].start - 2
+                : rows[0].start === 1 ? daysPerYear - 1
+                : rows[0].start - 2,
+        }),
+    );
+}
+
+/** A named day uses Calendaria's one-based year day number. */
+function namedDayValues(namedDays) {
+    return (Array.isArray(namedDays) ? namedDays : []).map((day) =>
+        written({
+            name: day.name,
+            abbreviation: day.abbreviation,
+            dayNumber: day.day,
         }),
     );
 }
 
 /** The era rows, keyed by shortcode, with the addressing segments dropped. */
-function eraEntries(eras, dateContext = {}) {
+function eraEntries(eras) {
     const entries = {};
-    for (const era of Array.isArray(eras) ? eras : []) {
+    const dated = (Array.isArray(eras) ? eras : [])
+        .filter((era) => Number.isSafeInteger(era?.start) && era.start >= 1)
+        .sort((a, b) => a.start - b.start);
+    for (const [position, era] of dated.entries()) {
         const shortcode = String(era?.shortcode ?? "");
         if (!shortcode) continue;
-        const start = parseNoteDate(era?.start, {
-            ...dateContext,
-            allowUnknown: false,
-            ignoreEraBounds: true,
-        }).date;
-        const end = parseNoteDate(era?.end, {
-            ...dateContext,
-            allowUnknown: false,
-            ignoreEraBounds: true,
-        }).date;
         entries[shortcode] = written({
             name: String(era?.name ?? ""),
             abbreviation: era?.abbreviation === undefined ? undefined : String(era.abbreviation),
-            start: era?.start === undefined ? undefined : String(start?.year ?? era.start),
-            end: era?.end === undefined ? undefined : String(end?.year ?? era.end),
+            startYear: era.start,
+            endYear: dated[position + 1] ? dated[position + 1].start - 1 : null,
         });
     }
     return entries;
@@ -880,8 +1010,26 @@ export function compileCalendar({ note, invariants, contentPackage, dateContext 
     const data = dataOf(note);
     const year = invariants?.year ?? {};
     const months = Array.isArray(data.months) ? data.months : [];
-    const epoch = parseNoteDate(data.epoch, { ...dateContext, allowUnknown: false }).date;
-    if (epoch && epoch.precision !== "day") throw new RangeError("data.epoch needs a specific day");
+    const dayNameError = checkCalendarDayNames(note, year.days)[0];
+    if (dayNameError) throw new RangeError(dayNameError.message);
+    const starts = Array.isArray(data.eras) ? data.eras.map((era) => era?.start) : [];
+    if (
+        starts.filter((start) => start === null).length !== 1 ||
+        starts.filter((start) => start === 1).length !== 1 ||
+        starts.some((start) => start !== null && (!Number.isSafeInteger(start) || start < 1)) ||
+        new Set(starts).size !== starts.length
+    )
+        throw new RangeError(
+            "data.eras needs one null start, one year-one start, and distinct positive year starts",
+        );
+    const formatError = checkCalendarDateFormats(note).find(
+        (finding) => finding.severity === "error",
+    );
+    if (formatError) throw new RangeError(formatError.message);
+    const epoch = parseCanonicalDate(String(data.epoch ?? ""), year.days);
+    if (!epoch || epoch.year === 0 || epoch.seconds !== undefined)
+        throw new RangeError("data.epoch needs a canonical <year>.<day> specific day");
+    const epochOffset = canonicalDayOffset(canonicalYear(epoch.year), epoch.day, 1, year.days);
     const shortcode = String(note.fm?.shortcode ?? "");
     const name = String(note.fm?.name?.full ?? "");
     const description = String(note.fm?.description ?? "");
@@ -898,9 +1046,8 @@ export function compileCalendar({ note, invariants, contentPackage, dateContext 
         name,
         description,
         years: {
-            // The year the epoch falls in is the year a reader is shown at the
-            // world's own zero.
-            yearZero: epoch?.year ?? 0,
+            // Internal year zero displays as calendar year one at the epoch.
+            yearZero: 1,
             // Required, non-nullable and with no initial, so it must be
             // written; with no weekdays it indexes nothing and 0 is the only
             // defensible value.
@@ -912,19 +1059,34 @@ export function compileCalendar({ note, invariants, contentPackage, dateContext 
         months: { values: monthValues(months) },
         days: written({
             values: weekdayValues(data.weekdays),
+            names: namedDayValues(data.namedDays),
             daysPerYear: year.days,
             hoursPerDay: year.hoursPerDay,
             minutesPerHour: year.minutesPerHour,
             secondsPerMinute: year.secondsPerMinute,
         }),
-        seasons: { values: seasonValues(data.seasons) },
-        // How far into the year the world's zero falls. `1/1` is none.
-        epochDayOffset:
-            epoch && months.length ?
-                (epoch.canonicalDay ?? dayOfYear(months, epoch.month ?? 1, epoch.day ?? 1)) - 1
-            :   0,
-        eras: eraEntries(data.eras, dateContext),
-        dateFormats: data.dateFormats,
+        seasons: { values: seasonValues(data.seasons, year.days) },
+        // Shift world time so the authored epoch is calendar year one, day one.
+        epochDayOffset: epochOffset === 0 ? 0 : -epochOffset,
+        eras: eraEntries(data.eras),
+        dateFormats:
+            data.formats && Object.keys(data.formats).length ?
+                written({
+                    short: selectCalendarFormat(data).pattern,
+                    long: data.formats.long ?? selectCalendarFormat(data).pattern,
+                    full:
+                        data.formats.full ??
+                        data.formats.long ??
+                        selectCalendarFormat(data).pattern,
+                    ...Object.fromEntries(
+                        CALENDAR_DATE_FORMAT_KEYS.filter(
+                            (key) => !["short", "long", "full"].includes(key),
+                        )
+                            .filter((key) => data.formats[key] !== undefined)
+                            .map((key) => [key, data.formats[key]]),
+                    ),
+                })
+            :   undefined,
         moons: moons ?? undefined,
         metadata: written({
             id: shortcode || undefined,
