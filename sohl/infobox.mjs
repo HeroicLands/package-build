@@ -148,6 +148,7 @@ export const SOHL_FIELD_PRESENTATION = Object.freeze({
     improveFlag: Object.freeze({
         withheld: "character-sheet machinery — whether the item is flagged for improvement",
     }),
+    "trauma.treatmentModifierBase": Object.freeze({ label: "Treatment modifier" }),
     facing: Object.freeze({
         withheld: "a body-location layout, which has no summary shape",
     }),

@@ -3178,6 +3178,7 @@ If `sohl` is present, this becomes an `affliction` item.
 | `data.transmission`                | `system.transmission`                | NA    |
 | `data.outcome`                     | `system.outcome`                     | NA    |
 | `data.contagionIndex`              | `system.contagionIndexBase`          | NA    |
+| `data.outcomeTraumas`              | `system.outcomeTraumas`              | NA    |
 | `data.onsetDurationFormula`        | `system.onsetDurationFormula`        | NA    |
 | `data.onsetDurationBase`           | `system.onsetDurationBase`           | NA    |
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
@@ -3215,9 +3216,10 @@ that writes one fails the build. They are world times, and `0` is a valid one,
 so there is no blank a note could write either; leave them out and the data
 model's `null` stands.
 
-`data.healingRate` and `data.outcomeTraumas` are page data. SoHL reads an
-affliction’s base healing rate from `sohl.healingRateBase`. Its item declaration
-does not read `data.outcomeTraumas`.
+`data.healingRate` is page data. SoHL reads an affliction's base healing rate
+from `sohl.healingRateBase`. `data.outcomeTraumas` supplies the SoHL expression
+for traumas produced by the affliction's outcome. The optional
+`sohl.onsetMacroUuid` names a macro run when symptoms begin.
 
 ### type: armorgear
 
