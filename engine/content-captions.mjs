@@ -3,11 +3,13 @@
  */
 
 import MarkdownIt from "markdown-it";
+import footnotePlugin from "markdown-it-footnote";
+import deflistPlugin from "markdown-it-deflist";
 
 import { slugify } from "./content-slug.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
 
-const parser = new MarkdownIt({ html: true });
+const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
 const OPEN = /^:::caption\s+(\{[^}\n]*\})\s*$/;
 const CAPTION_LINE = /^:::caption\b/;
 const CLOSE = /^:::\s*$/;

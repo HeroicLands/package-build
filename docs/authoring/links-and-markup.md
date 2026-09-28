@@ -79,6 +79,42 @@ The bridge closes during the spring flood.
 An optional `{#id}` gives the box an HTML anchor. These blocks need a closing
 `:::` and cannot be nested.
 
+## Footnotes and definition lists
+
+Write a footnote reference as `[^id]` and its definition as `[^id]: text`.
+The ID can be a number or word without spaces or tabs. It connects the
+reference to its definition within one Markdown note; another note can reuse
+the same ID for a different footnote. Rendered markers are numbers assigned in
+the order of first reference, including when the authored ID is a word.
+
+```markdown
+The road is passable in summer.[^season] The bridge has a toll.[^2]
+
+[^season]: Spring flooding closes it for several weeks.
+
+[^2]: The toll is collected at the eastern gate.
+```
+
+Definitions can appear anywhere at the top level of the note. Indent a
+following paragraph or code block by four spaces to include it in the same
+footnote. Keep definitions outside lists, block quotes, and tables. On the web,
+linked footnotes appear in a Footnotes section at the bottom of the HTML page.
+In Foundry, each JournalEntryPage places its referenced footnotes in a Footnotes
+section at the bottom of that page; definitions remain available across pages
+of the same note. In a book, footnotes appear in smaller type at the bottom of
+the page that contains their reference.
+
+A definition list gives a term one or more definitions:
+
+```markdown
+Janapada
+: A territorial community with its own institutions.
+: Also the land associated with that community.
+```
+
+The web and Foundry render a definition list with HTML `<dl>`, `<dt>`, and
+`<dd>` elements. The book renders it as a term list.
+
 ## Tables and expressions
 
 Use a SQL fence to render a table from the content index. The table reads frontmatter from indexed notes. A zero-row result is an error unless the fence explicitly permits an empty result.

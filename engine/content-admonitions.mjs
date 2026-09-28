@@ -1,9 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 import MarkdownIt from "markdown-it";
+import footnotePlugin from "markdown-it-footnote";
+import deflistPlugin from "markdown-it-deflist";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
 
-const parser = new MarkdownIt({ html: true });
+const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
 const OPEN = /^:::(info|warn)(?:\s+(.*))?\s*$/;
 const CLOSE = /^:::\s*$/;
 const STYLES = Object.freeze({

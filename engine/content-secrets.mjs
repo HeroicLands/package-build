@@ -4,8 +4,10 @@
 
 import crypto from "node:crypto";
 import markdownit from "markdown-it";
+import footnotePlugin from "markdown-it-footnote";
+import deflistPlugin from "markdown-it-deflist";
 
-const webMarkdown = markdownit({ html: true });
+const webMarkdown = markdownit({ html: true }).use(footnotePlugin).use(deflistPlugin);
 
 /**
  * Render whole-line `:::secret` blocks for one publishing surface.

@@ -37,6 +37,8 @@ import path from "path";
 import yaml from "yaml";
 import unidecode from "unidecode";
 import markdownit from "markdown-it";
+import footnotePlugin from "markdown-it-footnote";
+import deflistPlugin from "markdown-it-deflist";
 import { iconPlugin } from "./content-icons.mjs";
 import { imagePlugin, imagesIn } from "./content-images.mjs";
 import { resolveEmbeds } from "./content-embeds.mjs";
@@ -90,6 +92,8 @@ export {
  * the two HTML surfaces and be silently dropped by the third.
  */
 export const md = markdownit({ html: true })
+    .use(footnotePlugin)
+    .use(deflistPlugin)
     .use(
         // Resolved per render, not at import: this constant is built before any
         // configuration is read, and a package's own icons live in the
@@ -128,8 +132,27 @@ export const md = markdownit({ html: true })
         }),
     );
 
+md.renderer.rules.footnote_block_open = () =>
+    '<section class="footnotes"><h2>Footnotes</h2><ol class="footnotes-list">\n';
+md.renderer.rules.footnote_caption = (tokens, idx, _options, env) => {
+    const meta = tokens[idx].meta;
+    const number = env.footnoteNumbers?.get(meta.label) ?? meta.id + 1;
+    return `[${number}${meta.subId > 0 ? `:${meta.subId}` : ""}]`;
+};
+md.renderer.rules.footnote_anchor_name = (tokens, idx, _options, env) => {
+    const meta = tokens[idx].meta;
+    const number = env.footnoteNumbers?.get(meta.label) ?? meta.id + 1;
+    return `${env.docId ? `-${env.docId}-` : ""}${number}`;
+};
+md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
+    const meta = tokens[idx].meta;
+    const number = env.footnoteNumbers?.get(meta.label) ?? meta.id + 1;
+    const id = renderer.rules.footnote_anchor_name(tokens, idx, options, env, renderer);
+    return `<li id="fn${id}" class="footnote-item" value="${number}">`;
+};
+
 /** Render a note body with Foundry's secret section markup. */
-export function renderFoundryMarkdown(body, captions) {
+export function renderFoundryMarkdown(body, captions, footnoteNumbers, docId) {
     const { markdown } = renderSecretBlocks(body, "foundry", (inner) => md.render(inner));
     const admonitions = renderAdmonitions(markdown, (inner) => md.render(inner));
     const captioned = renderCaptionBlocks(
@@ -137,7 +160,7 @@ export function renderFoundryMarkdown(body, captions) {
         (block) => md.render(block),
         captions,
     );
-    return md.render(captioned.markdown);
+    return md.render(captioned.markdown, { footnoteNumbers, docId });
 }
 
 /**

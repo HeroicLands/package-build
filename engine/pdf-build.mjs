@@ -715,7 +715,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         });
     }
 
-    const front = resolved.pdf.front.map((file) => {
+    const front = resolved.pdf.front.map((file, index) => {
         try {
             const text = fs.readFileSync(file, "utf8");
             stageImages(text, file, 1);
@@ -724,6 +724,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 links: plan.links,
                 glyphs,
                 images,
+                footnotePrefix: `footnote-front-${index + 1}`,
                 captions: frontCaptions.get(file),
             });
         } catch {

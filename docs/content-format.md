@@ -33,6 +33,10 @@ Body extensions use braces with space-separated `key=value` attributes:
 registry, as in `:icon warning:{size=lg}`; image icons use asset Addresses.
 `:::info` and `:::warn` add labelled boxes within the prose. The
 [links and markup guide](authoring/links-and-markup.md) gives the complete syntax.
+Footnotes use `[^id]` references and `[^id]:` definitions, with numeric output
+markers scoped to each note. Definition lists use a term followed by one or
+more `: definition` lines. See [footnotes and definition lists](authoring/links-and-markup.md#footnotes-and-definition-lists)
+for examples and placement in journals, web pages, and books.
 
 A note can also produce a system document: an Actor, Item, Scene, or Macro according to its type and system blocks. The `sohl:` and `hm3:` blocks supply game-specific mechanics and overrides; they do not create separate prose. The JournalEntry is shared between systems.
 

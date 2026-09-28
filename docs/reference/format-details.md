@@ -2140,6 +2140,13 @@ carrying both blocks, whose SoHL strike modes describe every usage at once. So
 
 The following special markdown sequences are recognized:
 
+Footnotes use `[^id]` references and `[^id]:` definitions. Identifiers are
+local to a note; rendered markers are sequential numbers. A Foundry page
+collects its referenced footnotes in a Footnotes section at the bottom of that
+JournalEntryPage, while a book places them at the bottom of the page of
+reference. A term followed by `: definition` lines creates a definition list.
+See the [authoring examples](../authoring/links-and-markup.md#footnotes-and-definition-lists).
+
 ```
 # Heading {#id .class1 .class2 attr="value"}
 ```

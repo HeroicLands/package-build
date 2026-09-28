@@ -57,6 +57,7 @@ import {
     resolveName,
     defaultStats,
     renderFoundryMarkdown,
+    md,
     folderField,
 } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
@@ -69,6 +70,7 @@ import { JOURNAL_TYPES } from "./ids.mjs";
 import { journalHasContent } from "./note-state.mjs";
 import { draftNoticeFor } from "./draft-notice.mjs";
 import { scanCaptions } from "./content-captions.mjs";
+import { separateFootnotes } from "./content-footnotes.mjs";
 
 /**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
@@ -90,8 +92,9 @@ import { scanCaptions } from "./content-captions.mjs";
  *   markdown: string}>} Pages in document order.
  */
 export function splitPages(body, leadName = "Introduction") {
-    const lines = body.split("\n");
-    const captions = scanCaptions(body).captions;
+    const { markdown, definitions } = separateFootnotes(body);
+    const lines = markdown.split("\n");
+    const captions = scanCaptions(markdown).captions;
     const captionStarts = new Map(captions.map((caption) => [caption.line - 1, caption]));
     const captionedHeadings = new Set(
         captions
@@ -170,6 +173,9 @@ export function splitPages(body, leadName = "Introduction") {
         });
     }
 
+    if (definitions) {
+        for (const page of pages) page.markdown += `\n\n${definitions}`;
+    }
     return pages;
 }
 
@@ -280,6 +286,14 @@ export function buildPages(rawPages, entryId, noteName, captions) {
         );
     }
     assertUniquePages(rawPages, noteName);
+    const footnoteNumbers = new Map();
+    for (const page of rawPages) {
+        const env = {};
+        md.parse(page.markdown ?? "", env);
+        for (const { label } of env.footnotes?.list ?? []) {
+            if (!footnoteNumbers.has(label)) footnoteNumbers.set(label, footnoteNumbers.size + 1);
+        }
+    }
     return rawPages.map((page) => {
         const pageId = journalPageId(entryId, page);
         return {
@@ -289,7 +303,10 @@ export function buildPages(rawPages, entryId, noteName, captions) {
             title: { show: true, level: page.level ?? 1 },
             text: {
                 format: 1,
-                content: page.markdown ? renderFoundryMarkdown(page.markdown, captions) : "",
+                content:
+                    page.markdown ?
+                        renderFoundryMarkdown(page.markdown, captions, footnoteNumbers, pageId)
+                    :   "",
             },
             _key: `!journal.pages!${entryId}.${pageId}`,
         };
