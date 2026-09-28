@@ -1,5 +1,20 @@
 # @heroiclands/package-build
 
+## 22.17.0
+
+### Minor Changes
+
+**Calendar dates**
+
+- Calendar notes anchor their first year to a canonical day, count eras from calendar years, and include an era for dates before year one.
+- Named calendar formats control how dates print; the standard format also controls how authored calendar dates are read.
+- Calendars can name special days and divide the year into seasons, with those names available in formatted dates.
+
+**Content dates**
+
+- A date written as a year covers that whole year; a written day covers that day, and a clock time identifies a moment.
+- Calendar starting days and moon phase references require a day so their dates cannot silently shift to the first day of a year.
+
 ## 22.16.0
 
 ### Minor Changes
