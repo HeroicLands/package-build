@@ -16,15 +16,15 @@
  * no way to say. A directive in the curly-attribute convention Pandoc and
  * Kramdown use closes that:
  *
- *     ![Brànwâal Dôrgaar](images/beings/branwldrgr-portrait.webp){float: top-left}
+ *     ![Brànwâal Dôrgaar](images/beings/branwldrgr-portrait.webp){float=top-left}
  *     ![Map of Thalorna](images/map.webp){.full-width}
  *
  * ## Three closed vocabularies, and closed is the point
  *
  * **Width is a class**, and the ordinary width carries no marker at all — the
  * simple case needs no spelling. {@link IMAGE_CLASSES} holds the one class
- * there is. **Position is `float:`**, and {@link IMAGE_FLOATS} holds the five
- * values it takes. **Named size is `size:`**, and {@link IMAGE_SIZES} holds its
+ * there is. **Position is `float`**, and {@link IMAGE_FLOATS} holds the five
+ * values it takes. **Named size is `size`**, and {@link IMAGE_SIZES} holds its
  * values. The HTML surfaces receive a size class; the book receives a print
  * measure.
  *
@@ -77,6 +77,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
+import { parseExtensionAttributes } from "./extension-attributes.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 import { foundryAddressProblem, pathnameProblem, servesFoundry } from "./pathnames.mjs";
 
@@ -117,7 +118,7 @@ export const IMAGE_SIZES = Object.freeze([
 ]);
 
 /**
- * The `float:` positions an image may take, and where each puts it.
+ * The `float` positions an image may take, and where each puts it.
  *
  * `align` is the Typst alignment the float is placed at. **Print cannot wrap
  * text around an arbitrary shape**: a Typst float occupies the column measure,
@@ -235,7 +236,6 @@ export function parseImageDirective(raw) {
     /** @type {string[]} */
     const classes = [];
     let size = "auto";
-    let sizeSeen = false;
     let float = "";
     /** @type {string[]} */
     const problems = [];
@@ -245,75 +245,23 @@ export function parseImageDirective(raw) {
         .replace(/\}$/, "");
     if (!inner.trim()) return { classes, size, float, problems };
 
-    // Split on commas, not whitespace: `float: top-left` is one pair with a
-    // space in it, and the space after the colon is the spelling people write.
-    for (const part of inner
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)) {
-        if (part.startsWith(".")) {
-            const name = part.slice(1);
-            if (!Object.prototype.hasOwnProperty.call(IMAGE_CLASSES, name)) {
-                problems.push(
-                    `\`.${name}\` is not a width an image has — the width there is ` +
-                        `is \`.${Object.keys(IMAGE_CLASSES).join("`, `.")}\`, and an image ` +
-                        "with no class at all is the ordinary width",
-                );
-                continue;
-            }
-            if (classes.includes(name)) {
-                problems.push(`\`.${name}\` is written twice, and an image has one width`);
-                continue;
-            }
-            classes.push(name);
-            continue;
-        }
-
-        const colon = part.indexOf(":");
-        if (colon === -1) {
-            problems.push(
-                `\`${part}\` is neither a width class nor \`size: <name>\` or ` +
-                    "`float: <position>` — an image states its width as a class and its position as `float:`, " +
-                    "and it states no dimensions at all",
-            );
-            continue;
-        }
-        const key = part.slice(0, colon).trim();
-        const value = part.slice(colon + 1).trim();
+    const parsed = parseExtensionAttributes(inner);
+    problems.push(...parsed.problems);
+    if (parsed.id) problems.push("an image does not accept an id");
+    for (const name of parsed.classes) {
+        if (!Object.hasOwn(IMAGE_CLASSES, name)) problems.push(`.${name} is not an image width`);
+        else classes.push(name);
+    }
+    for (const [key, value] of Object.entries(parsed.values)) {
         if (key === "size") {
-            if (!IMAGE_SIZES.includes(value)) {
-                problems.push(
-                    `\`size: ${value}\` is not a size — the ones there are: ${IMAGE_SIZES.join(", ")}`,
-                );
-                continue;
-            }
-            if (sizeSeen) {
-                problems.push("`size:` is written twice, and an image has one named size");
-                continue;
-            }
-            size = value;
-            sizeSeen = true;
-            continue;
-        }
-        if (key !== "float") {
-            problems.push(
-                `\`${key}\` is not an image attribute — use \`size\` or \`float\`, ` +
-                    "and width is a class rather than an attribute",
-            );
-            continue;
-        }
-        if (!Object.prototype.hasOwnProperty.call(IMAGE_FLOATS, value)) {
-            problems.push(
-                `\`float: ${value}\` is not a position — the ones there are: ` +
-                    `${Object.keys(IMAGE_FLOATS).join(", ")}`,
-            );
-            continue;
-        }
-        if (float) {
-            problems.push("`float:` is written twice, and an image sits in one place");
-            continue;
-        }
-        float = value;
+            if (!IMAGE_SIZES.includes(value))
+                problems.push(`size=${value} is not a named image size`);
+            else size = value;
+        } else if (key === "float") {
+            if (!Object.hasOwn(IMAGE_FLOATS, value))
+                problems.push(`float=${value} is not an image position`);
+            else float = value;
+        } else problems.push(`${key} is not an image attribute`);
     }
 
     if (classes.length > 1) {
@@ -666,7 +614,7 @@ export function renderImageFigures(body, resolveSrc = (src) => src) {
  * A markdown-it plugin that reads an image's directive and renders its figure.
  *
  * **A core rule, not an inline one.** markdown-it's own `image` rule consumes
- * `![alt](src)` and leaves `{float: top-left}` behind as text, and a rule
+ * `![alt](src)` and leaves `{float=top-left}` behind as text, and a rule
  * running before it would have to re-implement link parsing to find the brace.
  * Reading the token stream afterwards costs one pass and re-implements nothing.
  *

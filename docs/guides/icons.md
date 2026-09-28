@@ -53,7 +53,7 @@ four slots. A pathname with slashes or an extension is not an art-slot address.
 An Item without `data.icon` uses its builder's configured default art. An
 Actor without `data.icon` uses its compiled default art. Write `data.icon`
 when the note needs a particular image. A portrait within the prose is an
-image embed, for example `![[image-smith-portrait|The smith]]{size: medium}`;
+image embed, for example `![[image-smith-portrait|The smith]]{size=medium}`;
 it does not set a document's profile art. The
 [art-slot reference](../reference/format-details.md#the-four-art-slots) gives each
 slot's type and document destination.
@@ -75,19 +75,21 @@ icons:
 With one family, each icon uses it automatically. With several families, set
 `defaultFamily` or give an entry `family`. The package supplies the stylesheet
 and font that these declarations name; an empty registry supplies no glyphs.
-The registry key uses lowercase letters, digits, and hyphens.
+The registry key uses lowercase letters, digits, and hyphens. This name is a glyph key in the local registry, not a content Address.
 
 ```markdown
-Check the :icon-warning: marker before opening the gate.
+Check the :icon warning: marker before opening the gate.
 
-The larger :icon-warning:{size: 2x} marks a hazardous passage.
+The larger :icon warning:{size=2x} marks a hazardous passage.
 ```
 
-Inline sizes are `lg`, `xl`, `2x`, and `3x`. They enlarge the glyph relative to
-running text on the web and in the PDF. A missing registry name remains
-visible as its literal `:icon-name:` text and produces a warning with the
-note's position. Invalid attributes also produce warnings. In HTML, a known
-name renders as an icon element with an accessible label.
+The `size` attribute is a closed list: `lg`, `xl`, `2x`, and `3x`. These values
+enlarge the glyph relative to running text on the web and in the PDF. The
+glyph name must be declared in this package's `icons` registry; there is no
+global closed list of names. An unknown name remains visible as literal
+`:icon name:` text and produces a warning at the note's position. Invalid
+attributes produce errors. In HTML, a known name renders as an icon element
+with an accessible label.
 
 For a PDF, point `pdf.iconFonts` at the font file for each family used in the
 book:

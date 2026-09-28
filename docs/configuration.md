@@ -603,7 +603,7 @@ Every icon name is checked against the charset a note may write between the
 colons — lowercase letters, digits and hyphens, the same charset an address
 segment uses:
 
-> ``package-build config: `icons.icons.Bad_Name` is not a name a note can write — `:icon-…:` takes lowercase letters, digits and hyphens, the charset an address segment uses.``
+> ``package-build config: `icons.icons.Bad_Name` is not a name a note can write — `:icon …:` takes lowercase letters, digits and hyphens, the charset an address segment uses.``
 
 `defaultFamily`, if set, must name a family the registry actually declares:
 

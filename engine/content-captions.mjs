@@ -5,9 +5,10 @@
 import MarkdownIt from "markdown-it";
 
 import { slugify } from "./content-slug.mjs";
+import { parseExtensionAttributes } from "./extension-attributes.mjs";
 
 const parser = new MarkdownIt({ html: true });
-const OPEN = /^:::caption\s+id="([A-Za-z][A-Za-z0-9_-]*)"\s*$/;
+const OPEN = /^:::caption\s+(\{[^}\n]*\})\s*$/;
 const CAPTION_LINE = /^:::caption\b/;
 const CLOSE = /^:::\s*$/;
 
@@ -63,10 +64,24 @@ export function scanCaptions(source) {
         if (!CAPTION_LINE.test(line)) continue;
         const open = OPEN.exec(line);
         if (!open) {
-            errors.push({ line: i + 1, column: 1, message: 'caption needs id="anchor"' });
+            errors.push({ line: i + 1, column: 1, message: "caption needs {#anchor} attributes" });
             continue;
         }
-        const id = open[1];
+        const attributes = parseExtensionAttributes(open[1].slice(1, -1));
+        if (
+            attributes.problems.length ||
+            !attributes.id ||
+            attributes.classes.length ||
+            Object.keys(attributes.values).length
+        ) {
+            errors.push({
+                line: i + 1,
+                column: 1,
+                message: attributes.problems[0] ?? "caption accepts only {#anchor}",
+            });
+            continue;
+        }
+        const id = attributes.id;
         const start = i;
         let close = i + 1;
         while (close < lines.length && !CLOSE.test(lines[close])) close++;
@@ -101,7 +116,7 @@ export function scanCaptions(source) {
         const block = lines.slice(next, blockEnd).join("\n");
         const kind =
             first.type === "table_open" ? "table"
-            : first.type === "fence" && /^\s*(?:sql|dataview)\b/i.test(first.info ?? "") ? "table"
+            : first.type === "fence" && /^\s*sql\b/i.test(first.info ?? "") ? "table"
             : first.type === "fence" || first.type === "code_block" ? "code"
             : /^(?:!\[|!\[\[|<figure\b|<img\b)/.test(block.trim()) ? "figure"
             : "prose";

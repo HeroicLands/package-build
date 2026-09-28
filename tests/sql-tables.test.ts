@@ -96,10 +96,15 @@ describe("finding `sql` directives", () => {
     });
 
     it("reads `allow-empty` and `section-level` off the fence, not the query", () => {
-        const [block] = findSqlBlocks("```sql :allow-empty :section-level 3\nSELECT 1\n```\n");
+        const [block] = findSqlBlocks("```sql {allow-empty=true section-level=3}\nSELECT 1\n```\n");
 
         expect(block.allowEmpty).toBe(true);
         expect(block.sectionLevel).toBe(3);
+    });
+
+    it("requires literal Boolean values", () => {
+        const [block] = findSqlBlocks("```sql {allow-empty=yes}\nSELECT 1\n```\n");
+        expect(block.problems).toContain("allow-empty needs the literal value true or false");
     });
 
     it("defaults to a level-2 section heading and a required table", () => {
@@ -293,7 +298,7 @@ describe("preparing directives ahead of expansion", () => {
 
         expect(await errs(dead)).toHaveLength(1);
         expect((await errs(dead))[0].reason).toMatch(/selects no notes/);
-        expect(await errs(dead.replace("```sql", "```sql :allow-empty"))).toEqual([]);
+        expect(await errs(dead.replace("```sql", "```sql {allow-empty=true}"))).toEqual([]);
     });
 
     it("renders the header and rule for a result selecting nothing", async () => {
@@ -301,7 +306,7 @@ describe("preparing directives ahead of expansion", () => {
         // an empty table under it says the query ran and matched nothing; a
         // heading with nothing under it reads as a page that failed to build.
         const dead =
-            "```sql :allow-empty\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'creature'\n```\n";
+            "```sql {allow-empty=true}\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'creature'\n```\n";
         const prepared = await prepareSqlTables(db, [{ source: "N.md", markdown: dead }]);
         const { markdown, errors } = expandContentTables(dead, {
             source: "N.md",
@@ -353,17 +358,12 @@ describe("preparing directives ahead of expansion", () => {
     });
 });
 
-describe("the retiring language", () => {
-    it("still expands, and is reported as a warning rather than an error", () => {
-        const body =
-            '```dataview\nTABLE WITHOUT ID name.full AS "Name"\nWHERE type = "skill"\n```\n';
-        const { errors, warnings } = expandContentTables(body, {
-            source: "N.md",
-            docs: [{ fm: { type: "skill", shortcode: "clmb", name: { full: "Climbing" } } }],
-        });
-
-        expect(errors).toEqual([]);
-        expect(warnings).toHaveLength(1);
-        expect(warnings[0].reason).toMatch(/`dataview`.*replaced by `sql`/);
+describe("unsupported table language", () => {
+    it("reports a located error", () => {
+        const body = "```dataview\nTABLE name.full\n```\n";
+        const { errors, warnings } = expandContentTables(body, { source: "N.md" });
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatchObject({ source: "N.md", line: 0, column: 1 });
+        expect(warnings).toEqual([]);
     });
 });

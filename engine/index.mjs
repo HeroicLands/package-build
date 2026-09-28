@@ -235,7 +235,7 @@ export * as contentLinks from "./content-links.mjs";
 /** Wikilinks resolved to a **web URL** — the site half of the pair below. */
 export * as webWikilinks from "./web-wikilinks.mjs";
 
-/** Dataview-style content tables, expanded into markdown at compile time. */
+/** Prepared SQL content tables, expanded into Markdown at compile time. */
 export * as contentTables from "./content-tables.mjs";
 
 /** Markdown parsing, stats, folders, images, and the wikilink index. */

@@ -1262,7 +1262,7 @@ function normalizeIcons(value, rootDir) {
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
             fail(
                 `${where}.icons.${name}`,
-                "is not a name a note can write — `:icon-…:` takes lowercase " +
+                "is not a name a note can write — `:icon …:` takes lowercase " +
                     "letters, digits and hyphens, the charset an address segment uses",
             );
         }
@@ -1866,7 +1866,7 @@ function normalizePdf(value, rootDir) {
         });
     }
 
-    // Family name to the font file carrying its glyphs, for `:icon-…:`. A file
+    // Family name to the font file carrying its glyphs, for `:icon …:`. A file
     // rather than a codepoint, because the font's own tables are the only
     // trustworthy source of which glyph a name resolves to — see
     // {@link module:engine/content-icons}, which states the style and the name

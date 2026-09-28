@@ -43,12 +43,8 @@
  * carries. There is no value that makes writing it correct, so the diagnostic
  * says what to write instead rather than which value to change.
  *
- * **One `package` survives, and it is synthesised.** A `dataview` table scopes
- * itself with `WHERE … and package = "<pkg>"`, and that clause resolves against
- * frontmatter like any other field. {@link searchableFrontmatter} supplies the
- * derived value to the search so the 45 authored clauses across `sohl` and
- * `thalorna` keep matching. It is a *search* value, never an authored one, and
- * it is never written back to a note.
+ * SQL queries can refer to the configured package. Search readers receive that
+ * derived value without adding a field to authored frontmatter.
  *
  * @module
  */
@@ -57,26 +53,10 @@ import { contentPackage } from "./content-package.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 
 /**
- * A note's frontmatter as a generated table searches it — its package present,
- * though no note declares one.
- *
- * A `dataview` query resolves `package` out of frontmatter like any other
- * field, so a collection note that scopes itself with `WHERE … and package =
- * "sohl"` would match nothing now that the field is gone, and would render an
- * **empty table** in silence. Supplying the derived value here is what kept the
- * sweep mechanical rather than a trap — and a query that never mentions
- * `package` is unaffected either way.
- *
- * The frontmatter is copied rather than written into: it is the note's own
- * parsed object, shared with every other reader, and the derived package is a
- * property of *this search*, not of the note.
- *
+ * A copy of frontmatter carrying the configured package for query evaluation.
  * @param {object|null|undefined} fm - Parsed frontmatter.
- * @param {string} [configured] - The package this build compiles. Defaults to
- *   the configured `contentPackage`; passed explicitly by callers that already
- *   carry it in a context object, so a caller's configuration drives every read.
- * @returns {object|null|undefined} A shallow copy carrying the derived package,
- *   or whatever was passed when it is not frontmatter at all.
+ * @param {string} [configured] - The package this build compiles.
+ * @returns {object|null|undefined} Frontmatter with a derived package value.
  */
 export function searchableFrontmatter(fm, configured) {
     if (!fm || typeof fm !== "object") return fm;

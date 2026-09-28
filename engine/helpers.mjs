@@ -46,7 +46,6 @@ import log from "loglevel";
 import { loadPackConfig } from "./pack-config.mjs";
 import { declaresNoPack, packRouter } from "./pack-router.mjs";
 import { contentPackage, foundryPackageId } from "./content-package.mjs";
-import { searchableFrontmatter } from "./note-package.mjs";
 import { PACKAGE_BASE } from "./content-address.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
@@ -64,6 +63,7 @@ import { isDraftNote } from "./note-vocabulary.mjs";
 import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { renderAdmonitions } from "./content-admonitions.mjs";
 import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
@@ -131,7 +131,12 @@ export const md = markdownit({ html: true })
 /** Render a note body with Foundry's secret section markup. */
 export function renderFoundryMarkdown(body, captions) {
     const { markdown } = renderSecretBlocks(body, "foundry", (inner) => md.render(inner));
-    const captioned = renderCaptionBlocks(markdown, (block) => md.render(block), captions);
+    const admonitions = renderAdmonitions(markdown, (inner) => md.render(inner));
+    const captioned = renderCaptionBlocks(
+        admonitions.markdown,
+        (block) => md.render(block),
+        captions,
+    );
     return md.render(captioned.markdown);
 }
 
@@ -990,108 +995,21 @@ export function convertNoteWikilinks(
 /* ------------------------------------------------------------------------ */
 
 /**
- * Every note in the content tree, in the shape the `dataview` table expander
- * searches: its frontmatter plus where it sits in the tree. Ordered by path so
- * a table that leaves rows tied still emits identically on every build.
- *
- * @param {string} contentBase - Root of the content tree.
- * @param {object} [opts]
- * @param {object} [opts.config] - The resolved build configuration; loaded when
- *   omitted.
- * @param {readonly object[]} [opts.records] - The corpus, derived once per
- *   compile and handed in. Required: see {@link assertSuppliedCorpus}.
- * @returns {Array<{fm: object, path: string, tld: string, folder: string,
- *   absPath: string}>}
+ * Expand prepared SQL tables before resolving wikilinks in generated cells.
+ * @param {string} body - The note body.
+ * @param {object} ctx - Source and prepared query results.
+ * @param {string} ctx.name - Name used in diagnostics.
+ * @param {number} [ctx.bodyLine] - The first body line in the source file.
+ * @param {object[]} [ctx.sqlTables] - Prepared SQL results in document order.
+ * @returns {{markdown: string, lineMap: Array<{line: number, generated: boolean}>}}
  */
-export function collectContentDocs(contentBase, { config, records } = {}) {
-    const docs = [];
-    const resolved = config ?? loadPackConfig();
-    assertSuppliedCorpus(records, "collectContentDocs");
-    for (const record of records) {
-        if (!isNoteRecord(record)) continue;
-        const fm = authoredFrontmatter(record);
-        const absPath = noteFile(contentBase, record);
-        const segments = String(record.file.path).split("/");
-        docs.push({
-            // With its package supplied for a `WHERE … package = "…"` query —
-            // synthesised from the configuration this build resolved, since no
-            // note declares it and the ambient one is a different
-            // configuration in a worktree or under `PACKAGE_BUILD_CONFIG`.
-            fm: searchableFrontmatter(fm, resolved.contentPackage),
-            // POSIX-separated and relative to the content root — what a
-            // `path:` search term globs, on every platform.
-            path: segments.join("/"),
-            tld: segments[0],
-            folder: segments[segments.length - 2] ?? segments[0],
-            absPath,
-        });
-    }
-    docs.sort((a, b) =>
-        a.absPath < b.absPath ? -1
-        : a.absPath > b.absPath ? 1
-        : 0,
-    );
-    log.debug(`Content table index: ${docs.length} searchable note(s)`);
-    return docs;
-}
-
-/**
- * A note is linkable from a generated table cell when it carries the identity
- * {@link convertWikilinks} addresses it by — a `type` and a `shortcode`. Every
- * type routes to a pack ({@link packForType}), so nothing else can make a note
- * unlinkable; a note missing either renders as plain text rather than shipping a
- * literal wikilink into a journal.
- */
-const packLinkable = (doc) => Boolean(doc.fm?.shortcode) && Boolean(doc.fm?.type);
-
-/**
- * Expand the fenced `dataview` tables in one note's markdown, before wikilinks
- * are resolved — so a generated cell may itself be a wikilink.
- *
- * A table searches the whole tree, which is one package's notes and nothing
- * else — so there is no longer a package to scope on. It used to filter, back
- * when a tree could hold several packages' notes and `package:` said which was
- * which; that field is retired and the filter with it.
- *
- * @param {string} body - The note's markdown body.
- * @param {object} ctx
- * @param {Array<object>} ctx.docs - From {@link collectContentDocs}.
- * @param {string} ctx.name - The note, for the error message.
- * @param {object} [ctx.fm] - The source note's frontmatter, which is what a
- *   query's `this` reads. Its entry in `docs` supplies the path as well.
- * @param {number} [ctx.bodyLine] - 1-based file line of the body's first line,
- *   so a failing directive can be reported at its position in the file.
- * @param {object[]} [ctx.sqlTables] - This note's prepared `sql` results, in
- *   document order, from
- *   {@link module:engine/sql-tables.prepareSqlTables}. An `sql` directive with
- *   no prepared result fails the note: nothing here runs a query.
- * @returns {{markdown: string, lineMap: Array<{line: number,
- *   generated: boolean}>}} The body with every table expanded, and where each
- *   emitted line came from — which is what lets a diagnostic about the
- *   expanded body name an authored position.
- * @throws {Error} When a query is malformed or unsupported — the note fails to
- *   compile rather than shipping a table-shaped hole. The error carries
- *   `position`, the directive's own line.
- */
-export function expandNoteTables(body, { docs, name, fm, bodyLine, sqlTables }) {
-    const self =
-        fm ?
-            (docs.find((d) => d.fm?.id && d.fm.id === fm.id) ?? {
-                fm: searchableFrontmatter(fm),
-            })
-        :   undefined;
+export function expandNoteTables(body, { name, bodyLine, sqlTables }) {
     const { markdown, errors, lineMap } = expandContentTables(body ?? "", {
-        docs,
-        linkable: packLinkable,
         source: name,
-        self,
         sqlTables,
     });
     if (errors.length) {
         const err = new Error(errors.map((e) => `content table — ${e.reason}`).join("; "));
-        // The first failing directive's line. Reporting one position for a
-        // message that may name several is honest here: a caller opens the
-        // file at the first thing to fix, and the message lists the rest.
         if (bodyLine !== undefined && errors[0].line !== undefined) {
             err.position = { line: bodyLine + errors[0].line };
         }

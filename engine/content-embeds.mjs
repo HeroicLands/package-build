@@ -23,8 +23,8 @@
  *
  * ## An embed resolves to an ordinary image, and that is the whole design
  *
- * `![[thorn|Thorn]]{float: top-left}` becomes
- * `![Thorn](thalorna/assets/images/beings/thorn.webp){float: top-left}` in the
+ * `![[thorn|Thorn]]{float=top-left}` becomes
+ * `![Thorn](thalorna/assets/images/beings/thorn.webp){float=top-left}` in the
  * source text, before any surface renders it. Everything downstream is machinery
  * that already exists: {@link module:engine/content-images.imagePlugin} draws the
  * figure for a Foundry journal and for the book's Typst walk,

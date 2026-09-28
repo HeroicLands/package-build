@@ -25,7 +25,14 @@ Start with [your first note](authoring/first-note.md). It explains the smallest 
 
 A nonempty note body creates one system-agnostic Foundry JournalEntry. Content before the first H1 becomes an introduction page; every H1 starts another JournalEntryPage. A lower-level heading with an explicit `{#anchor}` starts a page too, so a link can address it. The same prose becomes a web page and can be selected for a book. The content index records the note and its frontmatter for queries and navigation.
 
-A `:::caption id="anchor"` fence labels the next prose, code, table, or image block. Its anchor makes the block addressable; `[[#anchor|]]` displays the generated kind and number, such as **Figure 12**. Foundry gives the captioned block a JournalEntryPage. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references) for the syntax.
+A `:::caption {#anchor}` fence labels the next prose, code, table, or image block. Its anchor makes the block addressable; `[[#anchor|]]` displays the generated kind and number, such as **Figure 12**. Foundry gives the captioned block a JournalEntryPage. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references) for the syntax.
+
+Body extensions use braces with space-separated `key=value` attributes:
+`![[icon-harbor|Harbor]]{float=top-left size=medium}` and an SQL fence with
+`{allow-empty=true}` are examples. Inline font glyphs use the package's icon
+registry, as in `:icon warning:{size=lg}`; image icons use asset Addresses.
+`:::info` and `:::warn` add labelled boxes within the prose. The
+[links and markup guide](authoring/links-and-markup.md) gives the complete syntax.
 
 A note can also produce a system document: an Actor, Item, Scene, or Macro according to its type and system blocks. The `sohl:` and `hm3:` blocks supply game-specific mechanics and overrides; they do not create separate prose. The JournalEntry is shared between systems.
 

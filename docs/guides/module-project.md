@@ -391,11 +391,11 @@ An image stands in its own paragraph. Its directive accepts a named size and a
 position together:
 
 ```markdown
-![[icon-anubis|Anubis]]{size: medium, float: top-left}
+![[icon-anubis|Anubis]]{size=medium float=top-left}
 ```
 
 The accepted sizes are `auto`, `small`, `medium`, `large`, `xlarge`, and
-`full-width`. Omitting `size:` means `auto`, which uses the image's natural
+`full-width`. Omitting `size` means `auto`, which uses the image's natural
 dimensions within the available measure. The other names set maximum display
 widths for the website, Foundry, and book. See
 [Images](../authoring/assets.md) for the surface sizes and layout rules.

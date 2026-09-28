@@ -33,8 +33,7 @@
  * one type is ordinary authoring. Any format that fixes a column set would turn
  * that authoring into a schema migration, so nothing here selects, flattens, or
  * renames — a reader addresses `sohl.body.weight.base` because that is what the
- * note says, which is also, not by accident, exactly what a `dataview` query
- * writes.
+ * note says, which a SQL query can address directly.
  *
  * **JSON Lines rather than a database.** The artifact has to survive its build
  * and be usable by anything — a person with `jq`, an editor, a CI check,

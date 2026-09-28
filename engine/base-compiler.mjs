@@ -63,6 +63,7 @@
 
 import { authoredFrontmatter } from "./index-records.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { scanAdmonitions } from "./content-admonitions.mjs";
 import { scanCaptions } from "./content-captions.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { cloneAddressState } from "./address-values.mjs";
@@ -602,7 +603,6 @@ export class BasePackCompiler {
         // that converts no prose still compiles a document that carries art.
         this.linkIndex = this.corpus.linkIndex;
         if (this.constructor.convertsWikilinks) {
-            this.contentDocs = this.corpus.contentDocs;
             this.sqlTables = this.corpus.sqlTables;
         }
         // The package's declared present, read once from the same corpus — so
@@ -624,7 +624,8 @@ export class BasePackCompiler {
      *   that does not convert.
      */
     convertBody(fm, body) {
-        const secretError = renderSecretBlocks(body, "book").errors[0];
+        const secretError =
+            renderSecretBlocks(body, "book").errors[0] ?? scanAdmonitions(body).errors[0];
         if (secretError) {
             const error = new Error(secretError.message);
             error.position = {
@@ -640,9 +641,7 @@ export class BasePackCompiler {
         const name = resolveName(fm);
         const { absPath, bodyLine, bodyColumn } = this.currentNote ?? {};
         const { markdown: tabulated, lineMap } = expandNoteTables(body, {
-            docs: this.contentDocs,
             name,
-            fm,
             bodyLine,
             sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
         });

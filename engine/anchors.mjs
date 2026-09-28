@@ -40,7 +40,7 @@ import { scanCaptions } from "./content-captions.mjs";
 const HEADING = /^\s*(#{1,6})\s+(.+?)\s*#*\s*$/;
 const ANCHOR = /^(.*?)\s*\{#([^}]+)\}\s*$/;
 /**
- * The `{#slug}` and `:::caption id="slug"` anchors a note declares.
+ * The `{#slug}` and `:::caption {#slug}` anchors a note declares.
  *
  * A bare `#` heading starts a journal page without declaring a slug. Captioned
  * blocks declare a slug and start an addressable journal page.

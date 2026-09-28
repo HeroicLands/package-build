@@ -18,11 +18,11 @@ An addressable file lives under one of three roots. Subdirectories beneath each 
 The file's name without its extension is its shortcode; the root determines the type. Asset Addresses use system `none`. A regular link defaults to `note`, but `![[icon-harbor|Harbor emblem]]` defaults to `none`. Image and icon addresses used by `data.icon`, `data.banner`, and other art fields also default to `none`. Those fields name the asset as a bare Address, without wikilink brackets.
 
 ```markdown
-![[image-harbor-map|Map of the harbor]]{size: large}
-![[icon-harbor|Harbor emblem]]{float: top-left, size: medium}
+![[image-harbor-map|Map of the harbor]]{size=large}
+![[icon-harbor|Harbor emblem]]{float=top-left size=medium}
 ```
 
-The embed's label is alternative text. `![[icon-harbor|]]` is decorative. `size: auto` follows the file's natural size; named sizes let web, Foundry, and book choose suitable dimensions. Use `.full-width` for an image intended to span the available measure. The [image reference](../reference/format-details.md#images) lists the closed directive values.
+The embed's label is alternative text. `![[icon-harbor|]]` is decorative. `size=auto` follows the file's natural size; named sizes let web, Foundry, and book choose suitable dimensions. Use `.full-width` for an image intended to span the available measure. The [image reference](../reference/format-details.md#images) lists the closed directive values.
 
 ## Ownership and source records
 

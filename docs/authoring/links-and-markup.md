@@ -12,7 +12,7 @@ An Address names content independently of its filename or folder. Its full form 
 ```markdown
 [[lore-harbor|Harbor]]
 [[thalorna-note-lore-harbor|]]
-![[icon-harbor|Harbor emblem]]{float: top-left, size: medium}
+![[icon-harbor|Harbor emblem]]{float=top-left size=medium}
 ```
 
 The part after `|` is the displayed link text or an embed's alternative text. An empty label uses the target's current name in a regular link and marks an embed decorative. A missing pipe is an error. Search may use `name.full` and aliases; authored links use Addresses. The [Address reference](../reference/format-details.md#addresses) explains short forms, package qualification, and ambiguity diagnostics.
@@ -42,7 +42,7 @@ A caption fence labels the next Markdown block. Give it an ID so prose can refer
 ````markdown
 Refer to [[#trade|]] for the market routes.
 
-:::caption id="trade"
+:::caption {#trade}
 Regional trade routes
 :::
 
@@ -66,6 +66,18 @@ The harbor master is working for the smugglers.
 ```
 
 Players who deliberately inspect source or generated output may see it; the block is a presentation distinction, not access control. The [detailed reference](../reference/format-details.md#what-a-note-produces) describes each medium's handling.
+
+Use `:::info` for a neutral note and `:::warn` for a caution. Both render as
+labelled, colored boxes on the web and in Foundry, and as print boxes in a book:
+
+```markdown
+:::warn
+The bridge closes during the spring flood.
+:::
+```
+
+An optional `{#id}` gives the box an HTML anchor. These blocks need a closing
+`:::` and cannot be nested.
 
 ## Tables and expressions
 

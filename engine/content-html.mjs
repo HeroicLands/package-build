@@ -15,7 +15,7 @@
  * Raw HTML in a note's prose, reported.
  *
  * **A note is markdown.** What markdown cannot say, a note does not say — it
- * gets a construct every surface can render, the way `:icon-…:` replaces a
+ * gets a construct every surface can render, the way `:icon …:` replaces a
  * pasted glyph.
  *
  * ## There is no route from `<p>` to a book

@@ -101,6 +101,7 @@ import { artPathname, assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { scanAdmonitions } from "./content-admonitions.mjs";
 import { numberCaptions, scanCaptions } from "./content-captions.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imagesIn, parseImageDirective } from "./content-images.mjs";
@@ -610,6 +611,15 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         }
         const secrets = renderSecretBlocks(resolvedBody, "book");
         for (const error of renderSecretBlocks(page.body, "book").errors) {
+            findings.push({
+                file: page.file,
+                line: (page.bodyLine ?? 1) + error.line - 1,
+                column: error.column,
+                severity: "error",
+                message: error.message,
+            });
+        }
+        for (const error of scanAdmonitions(page.body).errors) {
             findings.push({
                 file: page.file,
                 line: (page.bodyLine ?? 1) + error.line - 1,

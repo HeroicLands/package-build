@@ -51,7 +51,7 @@
  *
  * ## Icons
  *
- * `:icon-star-outline:` is parsed by the *same* {@link module:engine/content-icons.iconPlugin}
+ * `:icon star-outline:` is parsed by the *same* {@link module:engine/content-icons.iconPlugin}
  * the journals and the website use — one rule, three surfaces — and only the
  * output differs. The glyph is resolved from the font file the consumer named,
  * because the registry deliberately holds no codepoints; when no font is
@@ -78,6 +78,7 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
 });
 import { slugify } from "./content-slug.mjs";
 import { scanCaptions } from "./content-captions.mjs";
+import { scanAdmonitions } from "./content-admonitions.mjs";
 
 /**
  * Characters that mean something to Typst's markup parser.
@@ -194,6 +195,38 @@ export function markdownToTypst(markdown, opts = {}) {
         anchorPrefix = "",
     } = opts;
     const source = String(markdown ?? "");
+    if (!opts.insideAdmonition) {
+        const { blocks } = scanAdmonitions(source);
+        if (blocks.length) {
+            const lines = source.split("\n");
+            const output = [];
+            let cursor = 0;
+            for (const block of blocks) {
+                output.push(
+                    markdownToTypst(lines.slice(cursor, block.start).join("\n"), {
+                        ...opts,
+                        insideAdmonition: true,
+                    }),
+                );
+                const color = block.kind === "warn" ? "#9a6700" : "#2f6f9f";
+                const background = block.kind === "warn" ? "#fff5db" : "#eef6fb";
+                const label = block.kind === "warn" ? "Warning" : "Info";
+                const symbol = block.kind === "warn" ? "!" : "i";
+                const content = markdownToTypst(block.body, { ...opts, insideAdmonition: true });
+                output.push(
+                    `\n#block(width: 100%, fill: rgb("${background}"), stroke: (left: 2pt + rgb("${color}")), inset: 8pt, above: 0.7em, below: 0.7em)[#text(fill: rgb("${color}"), weight: "bold")[${symbol} ${label}]\n\n${content}]\n`,
+                );
+                cursor = block.end + 1;
+            }
+            output.push(
+                markdownToTypst(lines.slice(cursor).join("\n"), {
+                    ...opts,
+                    insideAdmonition: true,
+                }),
+            );
+            return output.join("\n");
+        }
+    }
     // One map for the whole body, not one per block: a heading inside a
     // blockquote or a list item shares the entry's anchor namespace with every
     // other heading in the same body, because `sectionLabel` scopes by entry
@@ -729,7 +762,7 @@ function renderLink(href, inner, ctx) {
  * the figure at the top of the fresh one, where nothing is above it to displace
  * it and nothing that follows it can print first.
  *
- * A `.full-width` image that **also states a `float:`** is asking for a float,
+ * A `.full-width` image that **also states a `float`** is asking for a float,
  * and keeps one — deferral is the honest consequence of the request.
  *
  * ## A float occupies the measure
@@ -789,7 +822,7 @@ function renderImage(token, ctx) {
 function renderIcon(token, ctx) {
     const name = token?.meta?.name ?? "";
     const glyph = ctx.glyphs.get(name);
-    if (!glyph) return escapeTypst(`:icon-${name}:`);
+    if (!glyph) return escapeTypst(`:icon ${name}:`);
     const scale = ICON_SIZES[token?.meta?.attrs?.size]?.scale;
     const size = scale ? `, size: ${scale}em` : "";
     return `#text(font: "${escapeTypstString(glyph.font)}"${size})[\\u{${glyph.codepoint.toString(16)}}]`;

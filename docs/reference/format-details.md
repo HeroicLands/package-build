@@ -1895,15 +1895,15 @@ convention.
 immediately after the closing `]]`, with no space:
 
 ```markdown
-![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
-![[branwldrgr|Brànwâal Dôrgaar]]{size: medium, float: top-left}
+![[branwldrgr|Brànwâal Dôrgaar]]{float=top-left}
+![[branwldrgr|Brànwâal Dôrgaar]]{size=medium float=top-left}
 ![[thalornamap|Map of Thalorna]]{.full-width}
-![[thalornamap|Map of Thalorna]]{.full-width, float: top-left}
-![[thalornamap|Map of Thalorna]]{float: top-left, .full-width}
+![[thalornamap|Map of Thalorna]]{.full-width float=top-left}
+![[thalornamap|Map of Thalorna]]{float=top-left .full-width}
 ```
 
-**The same parser reads both**, so an embed takes a width class, a `size:`, a
-`float:`, or a combination in any order, comma-separated — everything
+**The same parser reads both**, so an embed takes a width class, a `size`, a
+`float`, or a combination in any order, separated by spaces — everything
 [an image's directive](#width-is-a-class-and-the-ordinary-width-carries-no-marker)
 takes and nothing beyond it. The width, size, and position vocabularies are the ones
 above, and they are closed here for the same reason: a directive that is quietly
@@ -2158,8 +2158,8 @@ authored statement, three renderers, which is the single-sourcing every other
 part of this format follows.
 
 ```markdown
-![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
-![[branwldrgr|Brànwâal Dôrgaar]]{size: medium, float: top-left}
+![[branwldrgr|Brànwâal Dôrgaar]]{float=top-left}
+![[branwldrgr|Brànwâal Dôrgaar]]{size=medium float=top-left}
 
 ![Map of Thalorna](images/maps/thalorna.webp){.full-width}
 ```
@@ -2189,7 +2189,7 @@ coherent in print, and a directive carrying a class and a dimension at once
 gives one question two answers with no rule for which wins. `{width=800}` is
 refused.
 
-##### Named size is `size:`
+##### Named size is `size`
 
 | `size` value | website and Foundry | book         |
 | ------------ | ------------------- | ------------ |
@@ -2203,14 +2203,14 @@ refused.
 These are maximum display widths for Markdown images and embedded assets;
 height follows the file's aspect ratio. The available column, page, or browser
 measure caps every size, and print also caps image height within the page.
-Omitting `size:` means `auto`, which uses the file's natural dimensions within
+Omitting `size` means `auto`, which uses the file's natural dimensions within
 those bounds. `full-width` spans the book's page rather than one column. The
 `.full-width` class also grants page scope in print; when it accompanies a
-bounded `size:`, the image keeps that bounded width inside the page figure.
-A `size:` may sit before or after `float:` in the same directive, and neither
+bounded `size`, the image keeps that bounded width inside the page figure.
+A `size` may sit before or after `float` in the same directive, and neither
 changes the other's behavior.
 
-##### Position is `float:`
+##### Position is `float`
 
 | `float` value  | book                 | website and Foundry journal     |
 | -------------- | -------------------- | ------------------------------- |
@@ -2226,7 +2226,7 @@ effect — top of the column or bottom of it — while the horizontal half does
 not. The website and a Foundry journal get true CSS wrap from the same
 directive. Expect the same statement, not the same page.
 
-An image with no `float:` is an ordinary block in the flow, where it was
+An image with no `float` is an ordinary block in the flow, where it was
 written. A `.full-width` image is set at the **top of a new page**: the book is
 set in two columns, only a float spans them both, and a float is placed where
 the page has room rather than where it was written — so the page breaks before
@@ -2235,13 +2235,13 @@ picture can therefore never print above the prose that introduces it or after
 the prose that follows it, at the cost of the page before it ending short. A
 picture taller than the page takes a page of its own.
 
-A `.full-width` image that **also states a `float:`** is asking for a float and
+A `.full-width` image that **also states a `float`** is asking for a float and
 gets one, with no break before it. A float is placed where it fits, which may be
 the next page.
 
 ##### All three vocabularies are closed
 
-`{.fullwidth}`, `{.full_width}`, `{width=800}` and `{float: middle}` are
+`{.fullwidth}`, `{.full_width}`, `{width=800}` and `{float=middle}` are
 refused, located by file, line and column, and the build fails. An unrecognised
 value rendering as the ordinary width is the failure worth preventing, because
 it looks exactly like a directive that worked.
@@ -2281,37 +2281,10 @@ resolves it to what that surface serves:
 
 #### Content tables
 
-A fenced `dataview` block is replaced by the table its query selects:
+A fenced `sql` block renders a table from the content index. A query that
+selects no rows is a build error unless its fence states `{allow-empty=true}`.
 
-````markdown
-```dataview
-TABLE WITHOUT ID name.full AS "Name", shortcode AS "Code"
-WHERE type = "armorgear"
-```
-````
-
-**A query that selects nothing is a build error.** A zero-row table publishes as
-a bare header and a rule, and a stale query — a renamed type, a retired
-category, a typo'd path — is then indistinguishable from a category that is
-legitimately empty. Eight tables in one note published that way for months after
-a type rename, and no build said a word.
-
-Where a table is _meant_ to be empty, say so on the fence:
-
-````markdown
-```dataview allow-empty
-TABLE WITHOUT ID name.full AS "Name"
-WHERE type = "affliction" AND sohl.kbcat = "not-written-yet"
-```
-````
-
-The opt-in is on the fence rather than in the query because it is a statement
-about this directive, not part of the query language. Either way the table is
-still rendered — the finding is the point, not withholding the output.
-
-##### In SQL, over the content index
-
-SQL fences query the content index through DuckDB. `dataview` fences are also accepted. The SQL dialect is DuckDB's.
+SQL fences query the content index through DuckDB. The SQL dialect is DuckDB's.
 
 ````markdown
 ```sql
@@ -2390,7 +2363,7 @@ table would otherwise need: the authored `ORDER BY` decides the section order to
 **Beware `packFolder`.** It is a note's _pack_ folder, not its directory — the
 directory is `file.folder`.
 
-###### Reading another package's notes
+##### Reading another package's notes
 
 Each package this one **depends on** is attached as a schema named after it, so
 a satellite can tabulate what it builds on:
@@ -2414,41 +2387,32 @@ Which dataset a query reads is `FROM`'s job rather than a fence property. A
 fence naming a file would write a build artifact's path into the corpus, so
 renaming the artifact would mean sweeping every note that cited it.
 
-###### Header arguments
+##### Header arguments
 
-Statements _about the directive_ — as opposed to the query — are written after
-the language as **org-babel header arguments**:
+Statements _about the directive_ use the shared braced attribute syntax after
+the language name:
 
 ````markdown
-```sql :section-level 3 :allow-empty
+```sql {section-level=3 allow-empty=true}
 SELECT name.full AS "Name", sohl.kbcat AS _section
 FROM notes WHERE type = 'affliction'
 ```
 ````
 
-The language word stays first and stays plain, so GitHub, Prettier and every
-other markdown reader still highlight the block as SQL and simply ignore what
-follows.
+The language word stays first so Markdown readers recognize SQL. Attributes are
+separated by spaces. An unquoted value cannot contain spaces or braces; quote a
+value containing spaces with double quotes and escape an internal quote as
+`\"`. Boolean values are exactly `true` or `false`; other spellings are
+errors. Duplicate and unknown attributes are errors.
 
-| Argument               | What it does                                                                             |
-| ---------------------- | ---------------------------------------------------------------------------------------- |
-| `:allow-empty`         | A table selecting nothing is intended, not a stale query. Without it, empty is an error. |
-| `:section-level <1-6>` | The heading level `_section` emits. Default `2`.                                         |
+| Attribute                                   | What it does                                        |
+| ------------------------------------------- | --------------------------------------------------- |
+| `allow-empty=true`                          | Permits a query selecting no rows. Default `false`. |
+| `section-level=1` through `section-level=6` | Sets the heading level for `_section`. Default `2`. |
 
-The grammar is org's, so it extends without inventing a spelling per property:
+##### Captioned blocks
 
-- a key is `:name` **starting a word**, so a colon inside or ending one is text;
-- a value runs to the next key or the end of the line, spaces included;
-- a key with no value means `true`, which is what `:allow-empty` is;
-- a value may be `"quoted"` to hold a word that would otherwise read as a key;
-- a repeated key takes its last value.
-
-`dataview` keeps its own bare `allow-empty`; it is the retiring language and its
-grammar is frozen.
-
-###### Captioned blocks
-
-`:::caption id="anchor"` labels the next Markdown block, whether it is prose,
+`:::caption {#anchor}` labels the next Markdown block, whether it is prose,
 code, a table, or an image. The closing `:::` ends the caption text; blank lines
 between the fence and its block are allowed. The ID is unique within the note
 and contains letters, digits, `_`, or `-`, beginning with a letter. An empty
@@ -2458,7 +2422,7 @@ the opening line.
 ````markdown
 See [[#trade|]] for the market routes.
 
-:::caption id="trade"
+:::caption {#trade}
 Regional trade routes
 :::
 
@@ -2474,6 +2438,22 @@ a Markdown or expanded SQL table is a table, an image is a figure, and any other
 block is prose. The website and Foundry number each category within a note;
 the PDF numbers each category through the book. Foundry gives a captioned block
 its own JournalEntryPage, so its anchor has a page UUID.
+
+`:::info` and `:::warn` mark explanatory and cautionary boxes inline. Their
+content is Markdown, and the boxes carry a label and icon on the web, in
+Foundry, and in the book. An optional `{#id}` gives a box an HTML anchor.
+Close each with a whole-line `:::`. Empty, nested, and unclosed boxes are
+errors at the opening line.
+
+```markdown
+:::info
+The harbor remains open through winter.
+:::
+
+:::warn {#flood-warning}
+Spring floods close the eastern road.
+:::
+```
 
 ```
 :::secret
@@ -2682,7 +2662,7 @@ always.**
 ```markdown
 # Appearance {#appearance}
 
-![[<address>|<the being's full name>]]{float: top-left}
+![[<address>|<the being's full name>]]{float=top-left}
 ```
 
 **Nothing about that embed is special.** It is an ordinary embedded image with
@@ -3784,7 +3764,7 @@ data:
     name: Wolf Den Scene
     width: 1900
     height: 2600
-    grid: { type: 1, size: 100, distance: 5, units: ft }
+    grid: { type: 1 size=100 distance: 5 units: ft }
     initialLevel: defaultLevel0000
     levels:
       - { _id: defaultLevel0000, background: { src: modules/maps/den.webp } }

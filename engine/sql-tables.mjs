@@ -34,6 +34,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { FENCE_LINE, parseHeaderArgs } from "./code-fences.mjs";
+import { booleanAttribute } from "./extension-attributes.mjs";
 import { MARKET_CLASSES } from "./market-class.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
 import { sqlQueriesInMarkdown } from "./markdown-expressions.mjs";
@@ -80,7 +81,7 @@ export function findSqlBlocks(markdown) {
         const closer = new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`);
         let close = i + 1;
         while (close < lines.length && !closer.test(lines[close])) close += 1;
-        const { language, args } = parseHeaderArgs(info);
+        const { language, args, problems } = parseHeaderArgs(info);
         if (language !== "sql") {
             // Not ours, but still a fence: skip its body so a `sql` line inside
             // some other block is never read as a directive.
@@ -88,20 +89,30 @@ export function findSqlBlocks(markdown) {
             continue;
         }
         if (close >= lines.length) continue;
-        const level = Number(args["section-level"]);
+        const level = Number(args["section-level"] ?? 2);
+        const errors = [...problems];
+        for (const key of Object.keys(args)) {
+            if (!["allow-empty", "section-level"].includes(key))
+                errors.push(`${key} is not an SQL fence attribute`);
+        }
+        let allowEmpty = false;
+        if (Object.hasOwn(args, "allow-empty")) {
+            try {
+                allowEmpty = booleanAttribute(args["allow-empty"], "allow-empty");
+            } catch (error) {
+                errors.push(error.message);
+            }
+        }
+        if (!Number.isInteger(level) || level < 1 || level > 6)
+            errors.push("section-level needs an integer from 1 through 6");
         blocks.push({
             line: i,
             close,
             indent,
             query: lines.slice(i + 1, close).join("\n"),
-            // `:allow-empty` says a table selecting nothing is intended.
-            // Spelled on the fence rather than in the query because it is a
-            // statement about this directive and not part of SQL.
-            allowEmpty: args["allow-empty"] === true,
-            sectionLevel: Number.isInteger(level) && level >= 1 && level <= 6 ? level : 2,
-            // Every header argument, so a caller can read one this module makes
-            // no use of — the point of taking a real grammar rather than a
-            // regex per property.
+            allowEmpty,
+            sectionLevel: level,
+            problems: errors,
             args,
             block: lines.slice(i, close + 1).join("\n"),
         });
@@ -566,6 +577,7 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
         prepared.set(source, forNote);
         for (const block of blocks) {
             try {
+                if (block.problems.length) throw new Error(block.problems.join("; "));
                 const result = await runSqlQuery(db, block.query);
                 forNote.push({
                     markdown: renderSqlTable(result, {
