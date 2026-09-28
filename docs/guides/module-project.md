@@ -871,8 +871,8 @@ values, and the content mount — for `hugo --source build/hugo` to render
 into `build/site/<contentPackage>/`. There is no Hugo configuration to
 write: the file is generated on every run, and what is genuinely the
 package's own — the wording of its "page not found" page — goes in the
-`site:` block as `site.notfound`. Set `publish.site: content`, and the same
-command publishes the content tree's every page beside the homepage — one
+`site:` block as `site.notfound`. The same command publishes the content tree's
+every page beside the homepage — one
 page per note, and nothing generated between them; an index of what the
 package publishes is a `doc` note carrying a content table.
 [`project-setup.md`](../project-setup.md) gives the npm scripts.
@@ -905,9 +905,8 @@ and a book, and compiles no Foundry documents at all.
 Everything in steps 4 and 8 that exists to describe a Foundry package is
 **refused** there rather than ignored, each with a message saying why:
 `foundryPackage`, `stats`, `packs`, `itemBuilders`, `compatibility`,
-`relationships`, `systems`, `requiresSystem` and `docs`. In exchange, `publish`
-becomes required, with `site: content` — publishing the tree is the whole of
-what the package does.
+`relationships`, `systems`, `requiresSystem` and `docs`. The authored content
+tree supplies its site pages and book entries.
 
 So a documentation package's configuration is steps 1 through 6 with a different
 `packageKind`, plus a `site:` block, and then `package-build site` in place of

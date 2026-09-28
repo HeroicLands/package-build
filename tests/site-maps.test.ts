@@ -107,7 +107,7 @@ function config(site: Record<string, unknown> = {}) {
             { name: "items", type: "Item" },
             { name: "journals", type: "JournalEntry" },
         ],
-        publish: { site: "content", address: { prefix: "kb/" } },
+        publish: { address: { prefix: "kb/" } },
         site: { ...site },
     });
 }

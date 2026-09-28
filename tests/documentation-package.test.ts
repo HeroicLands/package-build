@@ -65,17 +65,11 @@ function minimal(rootDir = "/repo"): ContentBuildConfigInput {
         rootDir,
         contentPackage: "toolkit",
         packageKind: "documentation",
-        publish: { site: "content" },
     } as ContentBuildConfigInput;
 }
 
 /** The same configuration as YAML lines, so the loader can locate a key in it. */
-const MINIMAL_YAML = [
-    "contentPackage: toolkit",
-    "packageKind: documentation",
-    "publish:",
-    "    site: content",
-];
+const MINIMAL_YAML = ["contentPackage: toolkit", "packageKind: documentation"];
 
 /** Resolve a YAML configuration the way the loader does, and return the throw. */
 function failureFor(lines: readonly string[]): { err: Error; text: string } {
@@ -107,7 +101,7 @@ describe("what a documentation package declares", () => {
         expect(config.packageKind).toBe("documentation");
         expect(config.packs).toEqual([]);
         expect(config.packDirectories).toEqual([]);
-        expect(config.publish.site).toBe("content");
+        expect(config.publish.address.prefix).toBe("");
     });
 
     it("derives no Foundry package and no asset root", () => {
@@ -128,7 +122,7 @@ describe("what a documentation package declares", () => {
             skipDirectories: ["Templates"],
             paths: { content: "docs" },
             site: { description: "The toolkit's guides." },
-            publish: { site: "content", address: { prefix: "guide/" } },
+            publish: { address: { prefix: "guide/" } },
         } as ContentBuildConfigInput);
 
         expect(config.skipDirectories).toEqual(["Templates"]);
@@ -137,18 +131,13 @@ describe("what a documentation package declares", () => {
         expect(config.publish.address.prefix).toBe("guide/");
     });
 
-    it("refuses a `documentation` package that publishes no content", () => {
-        // The floor every other package may sit at: one authored page, no book,
-        // and — here — no compiled documents either, which is nothing at all.
-        expect(() =>
-            defineConfig({ ...minimal(), publish: undefined } as ContentBuildConfigInput),
-        ).toThrow(/`publish` is required in a `documentation` package/);
+    it("refuses a declared site mode", () => {
         expect(() =>
             defineConfig({
                 ...minimal(),
                 publish: { site: "homepage" },
             } as ContentBuildConfigInput),
-        ).toThrow(/`publish.site` must be `content`/);
+        ).toThrow(/publishing follows the authored content tree/);
     });
 });
 
@@ -324,6 +313,7 @@ function documentationRepo(): string {
         path.join(dir, `${CONFIG_BASENAME}.yaml`),
         [
             ...MINIMAL_YAML,
+            "publish:",
             "    address:",
             "        prefix: guide/",
             "site:",
