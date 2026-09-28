@@ -97,7 +97,7 @@ import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
-import { lintProse } from "../engine/readability-lint.mjs";
+import { lintProse, scoreProseTree } from "../engine/readability-lint.mjs";
 import { loadPackageBuildConfig } from "../config.mjs";
 import {
     authoredFrontmatter,
@@ -240,14 +240,14 @@ export function registerContentCommands(cli) {
         .command(addressesCommand());
 }
 
-/** Opt-in readability and plain-language suggestions for Markdown notes. */
+/** Optional sentence findings and note-level readability reports. */
 function proseCommand() {
     return {
         command: "prose <action> [path]",
         describe: "Analyze note prose on demand",
         builder: (yargs) =>
             yargs
-                .positional("action", { choices: ["lint"], describe: "Analyze prose" })
+                .positional("action", { choices: ["lint", "score"], describe: "Analyze prose" })
                 .positional("path", {
                     type: "string",
                     describe: "One Markdown file or a content tree",
@@ -257,17 +257,97 @@ function proseCommand() {
                     type: "number",
                     describe: "Readability algorithms required (1–7)",
                 })
-                .option("min-words", { type: "number", describe: "Minimum words per sentence" }),
+                .option("min-words", {
+                    type: "number",
+                    describe: "Minimum words per sentence or note",
+                })
+                .option("rules", {
+                    choices: ["readability", "simplify", "all"],
+                    describe: "Lint rule set",
+                })
+                .option("fail-on-warning", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Exit unsuccessfully when lint reports suggestions",
+                })
+                .option("fail-outside", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Exit unsuccessfully when a scored note is outside a configured band",
+                }),
         handler: async (argv) => {
             try {
                 const config = loadPackConfig();
-                const defaults = loadPackageBuildConfig().proseLint;
+                const defaults = loadPackageBuildConfig();
+                const root = argv.path ?? config.paths.content;
+                const displayFile = (file) => path.relative(process.cwd(), path.resolve(file));
+                if (argv.action === "score") {
+                    if (
+                        argv.age !== undefined ||
+                        argv.threshold !== undefined ||
+                        argv.rules !== undefined ||
+                        argv.failOnWarning
+                    ) {
+                        throw new Error(
+                            "--age, --threshold, --rules, and --fail-on-warning apply only to prose lint",
+                        );
+                    }
+                    const minWords = argv.minWords ?? defaults.proseScore.minWords;
+                    if (!Number.isInteger(minWords) || minWords < 1) {
+                        throw new Error("minWords must be a positive integer");
+                    }
+                    const result = await scoreProseTree(
+                        root,
+                        { ...defaults.proseScore, minWords },
+                        config.skipDirectories,
+                    );
+                    const fixed = (number, places = 1) => number.toFixed(places);
+                    for (const note of result.notes) {
+                        if (note.insufficient) {
+                            console.log(
+                                `${displayFile(note.file)}: insufficient prose (${note.words}/${minWords} words; coverage=${fixed(note.coveragePercent)}%)`,
+                            );
+                            continue;
+                        }
+                        const metrics = note.metrics;
+                        const detail =
+                            `flesch=${fixed(metrics.flesch)} syl/word=${fixed(metrics.syllablesPerWord, 2)} ` +
+                            `mean=${fixed(metrics.meanSentenceWords)}w longest=${note.longestSentenceWords}w ` +
+                            `unfamiliar=${fixed(metrics.unfamiliarWordPercent)}% ` +
+                            `nominalizations/1k=${fixed(metrics.nominalizationsPer1000Words)} ` +
+                            `words=${note.words} coverage=${fixed(note.coveragePercent)}%`;
+                        if (note.violations.length) {
+                            emitDiagnostic({
+                                file: displayFile(note.file),
+                                severity: "warning",
+                                message: `prose-score/band: ${detail}; ${note.violations.join(", ")}`,
+                            });
+                        } else {
+                            console.log(`${displayFile(note.file)}: ${detail}`);
+                        }
+                    }
+                    const aggregate = result.summary;
+                    console.log(
+                        `Total: ${aggregate.scored} scored, ${aggregate.insufficient} insufficient, ` +
+                            `${aggregate.outside} outside band; ${aggregate.words} words; ` +
+                            `pooled flesch=${aggregate.flesch === null ? "n/a" : fixed(aggregate.flesch)} ` +
+                            `syl/word=${aggregate.words ? fixed(aggregate.syllables / aggregate.words, 2) : "n/a"} ` +
+                            `mean=${aggregate.sentences ? fixed(aggregate.words / aggregate.sentences) : "n/a"}w ` +
+                            `unfamiliar=${aggregate.words ? fixed((100 * aggregate.unfamiliar) / aggregate.words) : "n/a"}% ` +
+                            `nominalizations/1k=${aggregate.words ? fixed((1000 * aggregate.nominalizations) / aggregate.words) : "n/a"}`,
+                    );
+                    if (argv.failOutside && aggregate.outside) process.exitCode = 1;
+                    return;
+                }
+                if (argv.failOutside) throw new Error("--fail-outside applies only to prose score");
                 const options = {
-                    age: argv.age ?? defaults.age,
-                    threshold: argv.threshold ?? defaults.threshold,
-                    minWords: argv.minWords ?? defaults.minWords,
+                    age: argv.age ?? defaults.proseLint.age,
+                    threshold: argv.threshold ?? defaults.proseLint.threshold,
+                    minWords: argv.minWords ?? defaults.proseLint.minWords,
+                    rules: argv.rules ?? defaults.proseLint.rules,
                 };
                 for (const [key, value] of Object.entries(options)) {
+                    if (key === "rules") continue;
                     if (
                         !Number.isInteger(value) ||
                         value < 1 ||
@@ -278,13 +358,12 @@ function proseCommand() {
                         );
                     }
                 }
-                const findings = await lintProse(
-                    argv.path ?? config.paths.content,
-                    options,
-                    config.skipDirectories,
-                );
-                for (const finding of findings) emitDiagnostic(finding);
+                const findings = await lintProse(root, options, config.skipDirectories);
+                for (const finding of findings) {
+                    emitDiagnostic({ ...finding, file: displayFile(finding.file) });
+                }
                 log.info(`${findings.length} prose suggestion(s).`);
+                if (argv.failOnWarning && findings.length) process.exitCode = 1;
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
