@@ -1474,6 +1474,9 @@ function pdfCommand() {
                 // resolve is an error, because the same statement is wrong in
                 // Foundry and on the website too.
                 const errors = reportFindings(result.findings, {});
+                for (const report of result.imageReports ?? []) {
+                    log.info(`${report.file}: ${report.message}`);
+                }
 
                 if (!result.built) {
                     // A reason is a deliberate no-op — the fence, an absent
