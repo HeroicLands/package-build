@@ -338,16 +338,14 @@ function declaredSystemIds(config) {
 export function packageAddresses(config) {
     /** @type {Map<string, {root: string|null, id: string|null, own: boolean}>} */
     const out = new Map();
-    if (config.contentPackage) {
-        out.set(config.contentPackage, {
-            // `assetRoot` is `<root>/<id>/assets`, and `null` for a
-            // `documentation` package — which is the same "Foundry serves no
-            // files for this" the `root` below says.
-            root: config.assetRoot ? config.packageKind : null,
-            id: config.foundryPackage ?? null,
-            own: true,
-        });
-    }
+    out.set(config.contentPackage, {
+        // `assetRoot` is `<root>/<id>/assets`, and `null` for a
+        // `documentation` package — which is the same "Foundry serves no
+        // files for this" the `root` below says.
+        root: config.assetRoot ? config.packageKind : null,
+        id: config.foundryPackage ?? null,
+        own: true,
+    });
     // The package being built wins every collision: it is the one whose files
     // this repository actually holds, and another declaration of the same name
     // describes that very package from outside.
@@ -420,7 +418,7 @@ export function resolvePathname(raw, config) {
     // reading it as this package's own would put one package's name inside
     // another's tree and report nothing.
     const named = segments.length > 2 && segments[1] === ASSETS_SEGMENT ? segments[0] : "";
-    const owner = named || (config.contentPackage ?? null);
+    const owner = named || config.contentPackage;
     const suffix = named ? segments.slice(2).join("/") : authored;
     const entry = owner ? packages.get(owner) : undefined;
     const host = String(config.site?.assets ?? "").replace(/\/+$/, "");
