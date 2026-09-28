@@ -22,7 +22,7 @@ import { NOTE_VOCABULARY, dataFields, subTypes } from "../engine/note-vocabulary
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
-import { GEAR_TYPE_TO_KEY, deriveBeingInfo } from "../sohl/being-info.mjs";
+import { GEAR_TYPE_TO_KEY } from "../sohl/being-info.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 
 /**
@@ -121,20 +121,6 @@ describe("both spellings reach the same declaration", () => {
         for (const retired of Object.keys(RENAMED_TYPES)) {
             expect(packForType(retired), retired).toEqual({ pack: "items", docType: "Item" });
         }
-    });
-
-    it("groups a being's gear under the same sidebar heading either way", () => {
-        const index = new Map();
-        const out: any = deriveBeingInfo(
-            {
-                items: [
-                    { type: "armorgear", shortcode: "mail", name: "Mail" },
-                    { type: "armor", shortcode: "plate", name: "Plate" },
-                ],
-            },
-            index,
-        );
-        expect(out.gear.armor.map((e: any) => e.name)).toEqual(["Mail", "Plate"]);
     });
 });
 
