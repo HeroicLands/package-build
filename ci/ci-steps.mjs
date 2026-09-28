@@ -69,8 +69,8 @@ const WORKFLOW_DIR = path.join(ROOT, ".github/workflows");
 /**
  * The workflow's steps, split into what can be run here and what cannot.
  *
- * @returns {{run: Array<{name: string, run: string}>, skipped: string[]}} The
- *   `run:` steps in workflow order, and the names of the `uses:` steps.
+ * @returns {{run: Array<{name: string, run: string}>, skipped: string[], files: string[]}}
+ *   Workflow files, their `run:` steps in order, and the `uses:` step names.
  * @throws {Error} When the workflow cannot be read or declares no `run:` step.
  */
 export function ciSteps() {
@@ -213,8 +213,10 @@ function main() {
         return 1;
     }
 
-    const { run, skipped } = steps;
-    console.log(`ci-steps: running ${run.length} step(s) from .github/workflows/build.yml`);
+    const { run, skipped, files } = steps;
+    console.log(
+        `ci-steps: running ${run.length} step(s) from ${files.map((file) => path.relative(ROOT, file)).join(", ")}`,
+    );
     if (skipped.length) {
         console.log(`ci-steps: not runnable here (published actions): ${skipped.join(", ")}`);
     }

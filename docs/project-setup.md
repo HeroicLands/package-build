@@ -139,11 +139,12 @@ To commit here anyway just this once, use 'git commit --no-verify'. To opt this
 repository out permanently, 'git config hooks.allowCommitOnMain true'.
 ```
 
-`pre-push` reads the step list out of `.github/workflows/build.yml` rather than
-holding its own copy, and runs it over a clean export of `HEAD` in a
-`linux/amd64` container. That last detail is the one a Mac cannot reproduce any
-other way: this filesystem is case-insensitive and the runner's is not, so a
-wrong-case import passes locally and fails there.
+`pre-push` reads the pull-request workflows and runs their commands over a
+clean export of `HEAD` in a `linux/amd64` container. Run the same check manually
+with `package-build ci`; use `package-build ci --native` to run against the
+current working tree without Docker. The container catches wrong-case imports
+that pass on a case-insensitive Mac filesystem and fail on the Linux runner.
+Published `uses:` actions are listed but run only on GitHub.
 
 ### `clean` — removing what the build wrote
 
