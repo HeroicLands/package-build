@@ -559,6 +559,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             foreignIndex: gates.foreign.index,
             assets,
         });
+        linkCtx.output = "book";
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
         // wikilink, and resolving it would make the example impossible to write.
