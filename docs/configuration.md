@@ -1221,8 +1221,8 @@ Each entry, in any of the four lists:
 
 `contentPackage` names what the other package's _content_ is called, where
 that differs from its Foundry id. A note addresses a file by the content
-package that owns it — `thalorna/assets/images/map.webp` — and the Foundry id
-(`sohl-thalorna`) appears only in the install path that pathname resolves to.
+package that owns it — `harnensemble/assets/images/map.webp` — and the Foundry id
+(`harn-ensemble`) appears only in the install path that pathname resolves to.
 Omit it where the two are the same word, which they are for every system:
 
 > ``package-build config: `relationships.<kind>[<index>].contentPackage` must be a non-empty string.``
