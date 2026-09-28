@@ -397,6 +397,7 @@ export function writeHomepages(outRoot, pages, config, { related } = {}) {
  *   collection.
  * @param {object} options
  * @param {object} options.config - The resolved build configuration.
+ * @param {object[]} options.records - Content-index records.
  * @returns {object} The gate results and, when they pass, the built index.
  */
 export function siteGates(pages, findings, { config, records }) {

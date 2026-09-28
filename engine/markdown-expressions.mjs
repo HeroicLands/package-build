@@ -35,7 +35,11 @@ export function sqlQueriesInMarkdown(body, fm = {}) {
     return queries;
 }
 
-/** Expand scalar frontmatter references and registered functions in Markdown prose. */
+/**
+ * Expand scalar frontmatter references and registered functions in Markdown prose.
+ * @param {string} body
+ * @param {{fm?: object, dates?: object, sqlResults?: Map<string, object>, file?: string, bodyLine?: number}} [options]
+ */
 export function renderMarkdownExpressions(
     body,
     { fm, dates, sqlResults, file, bodyLine = 1 } = {},

@@ -3,7 +3,11 @@
 import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
-/** Require a being's or place's chosen calendar to address a calendar note. */
+/**
+ * Require a being's or place's chosen calendar to address a calendar note.
+ * @param {object} note
+ * @param {{index?: object}} [options]
+ */
 export function checkCalendarChoice(note, { index } = {}) {
     const value = note.fm?.data?.calendar;
     if (value === undefined || value === null || !index?.addressHit) return [];

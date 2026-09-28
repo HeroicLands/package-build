@@ -1508,6 +1508,126 @@ $ package-build deps fetch --from build/dist/module.zip
 
 `package-build site`, `package-build addresses diff`, [Configuration](configuration.md).
 
+### `package-build types check`
+
+**NAME**
+
+Check project declarations.
+
+**SYNOPSIS**
+
+```sh
+package-build types check [--project <tsconfig>] [--exports]
+```
+
+**DESCRIPTION**
+
+Check a TypeScript project's declarations with library checking enabled. The
+default `--project` is `tsconfig.json`. Diagnostics in `node_modules` are
+excluded; diagnostics in project files name the file, line, and column.
+`--exports` also checks every declaration entry point advertised by
+`package.json` `exports`, including wildcard subpaths. Run it after generating
+declarations.
+
+**OPTIONS**
+
+| Option      | Default         | Meaning                                     |
+| ----------- | --------------- | ------------------------------------------- |
+| `--project` | `tsconfig.json` | TypeScript project file.                    |
+| `--exports` | off             | Include published declaration entry points. |
+
+**EXIT STATUS**
+
+1 when a project declaration fails to type-check or an exported entry point is
+missing; otherwise 0.
+
+**EXAMPLES**
+
+```sh
+package-build types check --project tsconfig.json
+```
+
+**SEE ALSO**
+
+`package-build docs links`.
+
+### `package-build docs links`
+
+**NAME**
+
+Check documentation links.
+
+**SYNOPSIS**
+
+```sh
+package-build docs links [--root <dir>]
+```
+
+**DESCRIPTION**
+
+Check relative Markdown links and heading anchors in a documentation tree.
+Code fences and code spans are ignored. The default root is `docs`; use
+`--root <dir>` for another tree. Missing targets and anchors are reported at
+the link's file, line, and column.
+
+**OPTIONS**
+
+| Option   | Default | Meaning             |
+| -------- | ------- | ------------------- |
+| `--root` | `docs`  | Documentation root. |
+
+**EXIT STATUS**
+
+1 when a link or anchor fails to resolve; otherwise 0.
+
+**EXAMPLES**
+
+```sh
+package-build docs links --root docs
+```
+
+**SEE ALSO**
+
+`package-build docs index`.
+
+### `package-build docs index`
+
+**NAME**
+
+Check documentation index coverage.
+
+**SYNOPSIS**
+
+```sh
+package-build docs index [--root <dir>]
+```
+
+**DESCRIPTION**
+
+Check that every Markdown page immediately inside each section directory is
+linked from the documentation root's `README.md`. The default root is `docs`;
+use `--root <dir>` for another tree. Each unlinked page is reported by path.
+
+**OPTIONS**
+
+| Option   | Default | Meaning             |
+| -------- | ------- | ------------------- |
+| `--root` | `docs`  | Documentation root. |
+
+**EXIT STATUS**
+
+1 when a page is not indexed; otherwise 0.
+
+**EXAMPLES**
+
+```sh
+package-build docs index --root docs
+```
+
+**SEE ALSO**
+
+`package-build docs links`.
+
 ### `package-build docs item-fields`
 
 **NAME**
@@ -1558,15 +1678,16 @@ body alone, with no frontmatter, exactly as before.
 
 **OPTIONS**
 
-| Positional | Type                         | Default | Description             |
-| ---------- | ---------------------------- | ------- | ----------------------- |
-| `action`   | string, one of `item-fields` | —       | The document to render. |
+| Positional | Type                                           | Default | Description               |
+| ---------- | ---------------------------------------------- | ------- | ------------------------- |
+| `action`   | string, one of `item-fields`, `links`, `index` | —       | The documentation action. |
 
 | Option    | Type    | Default                 | Description                                            |
 | --------- | ------- | ----------------------- | ------------------------------------------------------ |
 | `--out`   | string  | `docs.itemFields.out`   | Write to this file instead of the configured location. |
 | `--check` | boolean | `false`                 | Compare against the file already there; write nothing. |
 | `--title` | string  | `docs.itemFields.title` | The page's H1.                                         |
+| `--root`  | string  | `docs`                  | Documentation root for `links` and `index`.            |
 
 **EXIT STATUS**
 
