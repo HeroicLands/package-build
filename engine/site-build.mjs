@@ -85,6 +85,7 @@ import { resolvedDateFields } from "./note-dates.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 // The one statement of what an empty body means, shared with the index.
 import { isStubNote } from "./note-state.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { ART_SLOTS, artPathname, assetAddressIndex } from "./art-fields.mjs";
 import {
     HOMEPAGE_DESTINATION,
@@ -229,7 +230,7 @@ export function collectContentPages(contentBase, ctx) {
         // the index apply one rule from one module and a note that cannot be
         // addressed for some *other* reason still reaches the finding below
         // that says so.
-        if (isStubNote(fm, body)) continue;
+        if (isStubNote(fm, body) || isGmNote(fm)) continue;
 
         for (const hit of frontmatterWikilinks(fm)) {
             fmLinkFindings.push({ file, ...hit });
@@ -316,6 +317,10 @@ export function collectHomepages(contentBase, ctx) {
     for (const file of siteCorpusFiles(contentBase, ctx)) {
         const note = readNote(file, ctx);
         if (!note || !isHomepage(note.fm)) continue;
+        if (isGmNote(note.fm)) {
+            addressFindings.push({ file, reason: "a GM-tagged homepage cannot publish publicly" });
+            continue;
+        }
         try {
             addressSlug(note.fm);
         } catch (err) {

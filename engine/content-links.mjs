@@ -78,6 +78,7 @@ import { foundryAddressProblem, servesFoundry } from "./pathnames.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { ownDocumentSystem } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import {
     blockSystem,
@@ -987,7 +988,13 @@ export function auditLinks(index) {
                 deadAddresses.push({ ...at, reason: "not-an-address" });
                 continue;
             }
-            if (index.resolveAddress(target)) continue;
+            const resolved = index.resolveAddress(target);
+            if (resolved) {
+                if ((isGmNote(resolved.fm) || resolved.gm) && !isGmNote(note.fm)) {
+                    deadAddresses.push({ ...at, reason: "gm" });
+                }
+                continue;
+            }
             // A stub is in the index, so the refusal can name it. Asked before
             // the foreign manifests, because a local note is what the author
             // meant and reporting it as an unresolved foreign address would
@@ -1002,7 +1009,12 @@ export function auditLinks(index) {
             // a fully qualified target names one package, so there is nothing
             // left to disambiguate, and no ambiguity finding this resolver can
             // report.
-            if (manifestHit(target)) {
+            const manifest = manifestHit(target);
+            if (manifest) {
+                if (manifest.gm && !isGmNote(note.fm)) {
+                    deadAddresses.push({ ...at, reason: "gm" });
+                    continue;
+                }
                 usedManifest.add(encodeAddresses(target).toLowerCase());
                 continue;
             }

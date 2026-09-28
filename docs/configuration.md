@@ -648,6 +648,12 @@ packs:
 | `packs[].prebuilt`    | string (directory)                                                    | no       | `null`                                  |
 | `packs[].system`      | string                                                                | no       | `null` — falls back to `stats.systemId` |
 
+`private: true` restricts a Foundry compendium to GMs. A note tagged `gm`
+compiles only into private packs. Set `data.pack` to a private pack for the
+note's own document. A note that also creates a JournalEntry needs one private
+JournalEntry pack; the derived entry routes there automatically when the
+ordinary JournalEntry default is public.
+
 `packs` itself:
 
 The list's order is the order shown in the Foundry manifest. Compilation

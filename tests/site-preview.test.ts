@@ -74,6 +74,31 @@ it("renders a saved page identically to the site writer and leaves the mount unt
     }
 });
 
+it("resolves SQL _ref values projected from address.slug", async () => {
+    const conf = config();
+    const saved = source.replace(
+        "Hello.",
+        "```sql\nSELECT name.full AS \"Name\", address.slug AS _ref FROM notes WHERE shortcode = 'intro'\n```",
+    );
+    fs.writeFileSync(file, saved);
+    const preview = await prepareSitePreview({ config: conf });
+    try {
+        const result = await preview.render(file, saved);
+        expect(result.ok).toBe(true);
+        expect(result.markdown).toContain("Intro");
+        expect(result.findings).not.toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    message: expect.stringContaining("SQL _ref is not an Address"),
+                }),
+            ]),
+        );
+    } finally {
+        await preview.close();
+        fs.writeFileSync(file, source);
+    }
+});
+
 it("uses live frontmatter and SQL only for the active note, and keeps failed renders private", async () => {
     const conf = config();
     const other = path.join(root, "assets/content/other.md");

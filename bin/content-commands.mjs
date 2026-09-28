@@ -1636,6 +1636,8 @@ function siteCommand() {
                     config,
                     sqlTables: await prepareTreeSqlTables(config.paths.content, {
                         skipDirectories: config.skipDirectories,
+                        config,
+                        audience: "public",
                     }),
                 });
                 const { gates } = result;

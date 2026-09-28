@@ -443,6 +443,9 @@ function checkPlacePurpose(note) {
  */
 export const DRAFT_TAG = "draft";
 
+/** A note intended for the GM rather than the player-facing outputs. */
+export const GM_TAG = "gm";
+
 /**
  * The tags that **classify** a note, grouped by what they classify.
  *
@@ -579,6 +582,8 @@ export const DECLARED_TAGS = Object.freeze({
     }),
     /** A note's working state, which any note may carry. */
     state: Object.freeze({ types: null, tags: Object.freeze([DRAFT_TAG]) }),
+    /** Who may read a completed note. */
+    audience: Object.freeze({ types: null, tags: Object.freeze([GM_TAG]) }),
 });
 
 /**
@@ -663,6 +668,11 @@ export function hasTag(fm, tag) {
  */
 export function isDraftNote(fm) {
     return hasTag(fm, DRAFT_TAG);
+}
+
+/** Whether a note is restricted to GM-facing output. */
+export function isGmNote(fm) {
+    return hasTag(fm, GM_TAG);
 }
 
 /**

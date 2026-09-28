@@ -430,6 +430,8 @@ canonical date. An explicit era that does not cover the date is an error.
 The event fell on {{dateformat "vrcal" "300.25"}}.
 {{and (gt 3 5) (lt 4 2)}}
 {{sql "SELECT COUNT(*) FROM notes WHERE type = 'being'"}}
+{{words (sql "SELECT COUNT(*) FROM notes WHERE type = 'being'")}}
+{{digits (sql "SELECT COUNT(*) FROM entries")}}
 {{gt (sql "SELECT COUNT(*) FROM notes WHERE type = 'being'") 10}}
 ```
 
@@ -437,13 +439,21 @@ The comparison helpers `gt`, `gte`, `lt`, and `lte` take two numbers; `eq`
 compares two values. `and`, `or`, and `not` combine Boolean results. Nested
 helpers use Handlebars parentheses. These expressions are replaced on web,
 Foundry, and book pages. Code spans and fences remain literal, as do Hugo
-shortcodes such as `{{< glyph slug="bes" >}}`. A missing property, unresolved
+shortcodes such as `{{< glyph slug="bes" >}}`. Prefix `\{{` to show an
+expression literally in prose. A missing property, unresolved
 calendar, or invalid date produces a located build error.
 
 `sql` runs a quoted SQL query against the same `notes` index used by SQL
 tables. It returns one scalar value, so the query must produce exactly one
 row and one column. It can be nested inside comparisons. A query returning
-zero rows, several rows, or several columns is an error at the expression.
+zero rows, several rows, several columns, or a null or empty value is an error
+at the expression. `sql` preserves the value's numeric type for comparisons.
+Wrap a whole number in `words` to write American cardinal prose, including
+hyphenated compounds such as **forty-five**. Wrap a number in `digits` to
+group thousands, such as **12,345**. A decimal can use `digits`; `words`
+requires a whole number. An unwrapped `sql` result prints its ordinary value.
+The query is evaluated once per unique SQL string in a note. The returned
+value is the same in web, Foundry, and book output.
 Dependency indexes are available through their attached package schemas,
 just as they are in SQL tables.
 
@@ -475,8 +485,13 @@ is declared, so a near miss is a finding that names what you probably meant.
 | **being station**   | `being`                | `tradesfolk`, `common-folk`, `soldiery`, `administration`, `clergy`, `mages`, `underworld`, `dependents`, `guilded`, `unguilded`                                                                                                                                                                                                                        |
 | **being kind**      | `being`                | `character`, `creature`                                                                                                                                                                                                                                                                                                                                 |
 | **state**           | any                    | `draft`                                                                                                                                                                                                                                                                                                                                                 |
+| **audience**        | any                    | `gm`                                                                                                                                                                                                                                                                                                                                                    |
 
-**`draft` is the one tag either build reads.** It does two things and nothing
+`gm` marks a note for GM access. It is excluded from public site pages, SQL
+tables on the public site, and the book. Foundry compiles it only to private
+compendiums. A regular note cannot link to it; a GM note can.
+
+**`draft` marks unfinished content.** It does two things and nothing
 else: a link _into_ a draft note renders marked, and the note itself states that
 it is unfinished wherever a reader meets it.
 

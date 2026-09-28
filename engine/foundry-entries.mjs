@@ -59,6 +59,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { noteAddressContext } from "./note-addresses.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { canonicalKey, packageAddress } from "./content-address.mjs";
 import { ownDocumentSystem } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
@@ -211,6 +212,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
             routeFm ?
                 packRouter.resolveOrNull(routeFm, docType, system)
             :   packRouter.defaultOf("JournalEntry");
+        if (isGmNote(fm) && !packRouter.privateOf?.(pack)) return undefined;
 
         // **A system block is what makes a game document**, so a note carrying
         // none compiles into no Actor and no Item — and an address naming one
@@ -255,7 +257,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
         // however many system blocks the note carries.
         const docKey = canonicalKey(contentPackage, NOTE_SYSTEM, fm.type, fm.shortcode);
         const docEntryId = fm.id ? itemDocEntryId(fm.id) : undefined;
-        const docUuid = uuidFor("doc", docEntryId);
+        const docUuid = uuidFor("doc", docEntryId, isGmNote(fm) ? fm : undefined);
         return [
             {
                 key,

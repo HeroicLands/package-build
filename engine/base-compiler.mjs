@@ -66,6 +66,7 @@ import { renderSecretBlocks } from "./content-secrets.mjs";
 import { scanAdmonitions } from "./content-admonitions.mjs";
 import { scanCaptions } from "./content-captions.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { cloneAddressState } from "./address-values.mjs";
 import fs from "fs";
 import path from "path";
@@ -437,6 +438,7 @@ export class BasePackCompiler {
      *   routes to no pack at all — a build failure, never a silent drop.
      */
     routesHere(fm) {
+        if (isGmNote(fm) && !this.router?.privateOf?.(this.packName)) return false;
         if (!this.router || !this.packName || !this.docType) return true;
         return (
             this.router.resolve(fm, this.docType, this.packSystem ?? undefined) === this.packName

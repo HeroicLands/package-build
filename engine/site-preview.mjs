@@ -18,6 +18,7 @@ import { reckoningContext } from "./reckoning-markers.mjs";
 import { cachedMetadataIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { buildSiteIndex } from "./site-index.mjs";
 import { openNotesDatabase, prepareSqlTables, findSqlBlocks } from "./sql-tables.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { relatedPages } from "./related-pages.mjs";
 import { holdingsNode, holdingsPages, foreignHoldingsNodes } from "./holdings.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
@@ -79,10 +80,14 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
         const gates = siteGates([...pages, ...homeEntries], findings, { config, records });
         if (gatesFailed(gates))
             throw new Error("site preview cannot prepare: site integrity gates failed");
-        const db = await openNotesDatabase(records, {
-            dependencies,
-            addressContext: noteAddressContext(config),
-        });
+        const db = await openNotesDatabase(
+            records.filter((record) => !isGmNote(record)),
+            {
+                dependencies,
+                addressContext: noteAddressContext(config),
+                audience: "public",
+            },
+        );
         try {
             const sources = pages
                 .filter((page) => findSqlBlocks(page.body).length)
@@ -200,10 +205,14 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                         records,
                         noIndexPackages: noContentIndexPackages(config),
                     });
-                    db = await openNotesDatabase(records, {
-                        dependencies,
-                        addressContext: noteAddressContext(config),
-                    });
+                    db = await openNotesDatabase(
+                        records.filter((record) => !isGmNote(record)),
+                        {
+                            dependencies,
+                            addressContext: noteAddressContext(config),
+                            audience: "public",
+                        },
+                    );
                 }
                 const sqlTables = await prepareSqlTables(db, [
                     { source: absolute, markdown: body },
