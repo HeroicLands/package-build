@@ -34,7 +34,7 @@ relationships:
       compatibility: { verified: "1.0.0" }
 packs:
   - { name: items, type: Item }
-publish: { site: content }
+publish: {}
 pdf: { title: Demo, document: book.yaml }
 `,
     );

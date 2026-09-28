@@ -30,7 +30,7 @@ describe("package documentation publication", () => {
         expect(config.packageKind).toBe("documentation");
         expect(config.contentPackage).toBe("packagebuild");
         expect(config.paths.content).toBe(path.join(root, "docs"));
-        expect(config.publish.site).toBe("content");
+        expect(config.publish.address.prefix).toBe("");
     });
 
     it("selects every authored guide and reference for the book exactly once", () => {

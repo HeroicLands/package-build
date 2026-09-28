@@ -214,11 +214,8 @@ describe("lintContentTree", () => {
         expect(r.notes).toBe(0);
     });
 
-    // A package in `publish.site: homepage` mode may hold exactly one
-    // note — its homepage. That is a populated tree, not an absent one, so the
-    // vacuous guard must not fire. The homepage now carries an address of its
-    // own, so the tree has one key rather than none; the guard is
-    // unaffected, because what it reads is an empty *walk*.
+    // A tree holding only the homepage is populated, so the vacuous guard
+    // does not fire.
     it("passes a tree whose only note is the package homepage", () => {
         const r = lint({ "homepage.md": homepage() });
         expect(r.findings).toEqual([]);

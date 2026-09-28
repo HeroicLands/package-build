@@ -18,11 +18,11 @@ let root = "";
 /**
  * A repository with a small content tree and a document tree over it.
  *
- * @param mode - What `publish.site` declares.
+ * @param mode - Whether the tree contains only a homepage or also content pages.
  * @param withPdf - Whether a `pdf:` block is configured.
  * @param withTree - Whether the content tree exists at all.
  */
-function makeRepo(mode: string, withPdf = true, withTree = true): string {
+function makeRepo(mode: "homepage" | "content", withPdf = true, withTree = true): string {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-book-"));
     fs.writeFileSync(
         path.join(dir, "package.json"),
@@ -34,29 +34,35 @@ function makeRepo(mode: string, withPdf = true, withTree = true): string {
         fs.mkdirSync(content, { recursive: true });
         const note = (file: string, fm: string, body: string) =>
             fs.writeFileSync(path.join(content, file), `---\n${fm}\n---\n\n${body}\n`);
-        note(
-            "dagger.md",
-            "type: weapongear\nshortcode: dagger\nname:\n  full: Dagger",
-            [
-                "## Description {#description}",
-                "",
-                "A short blade of Saṃgha. See [[weapongear-sword|the sword]].",
-                "",
-                "| Attribute | Value |",
-                "| --------- | ----: |",
-                "| Weight    |     1 |",
-            ].join("\n"),
-        );
-        note("sword.md", "type: weapongear\nshortcode: sword\nname:\n  full: Sword", "A blade.");
-        // A body opening with an H1 repeating the note's own title is the
-        // repeated title case: the entry heading already carries the name, so
-        // the body's H1 must stay unbookmarked or the sidebar shows "Shield"
-        // twice for one page.
-        note(
-            "shield.md",
-            "type: weapongear\nshortcode: shield\nname:\n  full: Shield",
-            ["# Shield", "", "A round shield."].join("\n"),
-        );
+        if (mode === "content") {
+            note(
+                "dagger.md",
+                "type: weapongear\nshortcode: dagger\nname:\n  full: Dagger",
+                [
+                    "## Description {#description}",
+                    "",
+                    "A short blade of Saṃgha. See [[weapongear-sword|the sword]].",
+                    "",
+                    "| Attribute | Value |",
+                    "| --------- | ----: |",
+                    "| Weight    |     1 |",
+                ].join("\n"),
+            );
+            note(
+                "sword.md",
+                "type: weapongear\nshortcode: sword\nname:\n  full: Sword",
+                "A blade.",
+            );
+            // A body opening with an H1 repeating the note's own title is the
+            // repeated title case: the entry heading already carries the name, so
+            // the body's H1 must stay unbookmarked or the sidebar shows "Shield"
+            // twice for one page.
+            note(
+                "shield.md",
+                "type: weapongear\nshortcode: shield\nname:\n  full: Shield",
+                ["# Shield", "", "A round shield."].join("\n"),
+            );
+        }
         fs.writeFileSync(
             path.join(dir, "assets", "content", "homepage.md"),
             "---\ntype: homepage\nshortcode: root\nname:\n  full: Book Package\n---\n\nFront.\n",
@@ -84,8 +90,6 @@ function makeRepo(mode: string, withPdf = true, withTree = true): string {
         "packs:",
         "    - name: items",
         "      type: Item",
-        "publish:",
-        `    site: ${mode}`,
     ];
     if (withPdf) {
         config.push(
@@ -162,24 +166,19 @@ it.skipIf(!HAS_TYPST)(
     },
 );
 
-describe("the homepage fence", () => {
-    // The criterion most likely to be regressed by a later refactor, and the
-    // most expensive to get wrong: four of the six packages that would adopt
-    // this run `homepage`, and a book appearing there would breach the fence
-    // silently — nothing in their configuration would say so.
-    it("builds no book in `homepage` mode, and says why", () => {
+describe("book publication follows the authored tree", () => {
+    it("builds no book from a homepage-only tree, and says why", () => {
         const dir = makeRepo("homepage");
         const { out, status } = build(dir);
 
-        expect(out).toMatch(/fences the content surfaces off/);
+        expect(out).toMatch(/contains only a homepage/);
         expect(out).not.toMatch(/Book:/);
-        // Publishing no book is a declaration, not a failure — a release that
-        // exited non-zero here would break four packages.
+        // A homepage-only tree is a successful build with no book.
         expect(status).toBe(0);
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
-    it("writes no file at all in `homepage` mode", () => {
+    it("writes no file for a homepage-only tree", () => {
         const dir = makeRepo("homepage");
         build(dir);
 
@@ -187,7 +186,7 @@ describe("the homepage fence", () => {
         fs.rmSync(dir, { recursive: true, force: true });
     });
 
-    it("builds one in `content` mode, so one switch decides it", () => {
+    it("builds a book from a tree with content pages", () => {
         const dir = makeRepo("content");
         const { out } = build(dir, "--no-compile");
 

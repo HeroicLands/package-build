@@ -59,7 +59,7 @@ const docsOnly = defineConfig({
     rootDir: "/repo",
     contentPackage: "handbook",
     packageKind: "documentation",
-    publish: { site: "content" },
+    publish: {},
     site: { assets: "https://cdn.example.org" },
 } as never) as never;
 

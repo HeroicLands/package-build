@@ -6,15 +6,8 @@
  */
 
 /**
- * The package homepage: an authored page at `/<contentPackage>/`, and the
- * publishing mode that makes it the floor rather than an extra.
- *
- * The licensing assertion is the reason most of these exist. `sohl-kethira-basic`
- * (Keléstia's Fan Material Guidelines) and `harn-adventures` (HârnFanon under
- * Lythia's terms) publish a homepage and **no other page**, and the failure mode
- * is silent — a `site:` block added later ships licensed content with nobody
- * noticing. So "exactly one page" is asserted against a tree deliberately full
- * of content notes, not left to configuration.
+ * The package homepage is an authored page at `/<contentPackage>/`. Other
+ * authored notes supply content pages.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -24,7 +17,7 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import type { ContentBuildConfigInput } from "../content-config.mjs";
-import { SITE_MODES, publishesContentPages } from "../content-config.mjs";
+import { publishesContentPages } from "../content-config.mjs";
 import * as homepageModule from "../engine/homepage.mjs";
 import {
     HOMEPAGE_DESTINATION,
@@ -117,7 +110,6 @@ function configFor(
         packs: [{ name: "items", type: "Item" }],
         packageBuild: { manifest: { title: "The Demo Module" } },
         publish: {
-            site: "content",
             address: { prefix: "kb/" },
         },
         ...overrides,
@@ -229,14 +221,10 @@ name:
     });
 });
 
-describe("`publish.site` distinguishes homepage-only from content", () => {
-    it("offers exactly two modes, with homepage-only the floor", () => {
-        expect(SITE_MODES).toEqual(["homepage", "content"]);
-    });
-
-    it("defaults to publishing only the homepage", () => {
+describe("the authored tree controls content publication", () => {
+    it("publishes content pages when the tree contains other notes", () => {
         const config = defineConfig({
-            rootDir: "/repo",
+            rootDir: root,
             contentPackage: "demo",
             foundryPackage: "demo",
             packageKind: "modules",
@@ -246,11 +234,10 @@ describe("`publish.site` distinguishes homepage-only from content", () => {
             },
             packs: [{ name: "items", type: "Item" }],
         } as ContentBuildConfigInput);
-        expect(config.publish.site).toBe("homepage");
-        expect(publishesContentPages(config)).toBe(false);
+        expect(publishesContentPages(config)).toBe(true);
     });
 
-    it("refuses a boolean, naming the explicit mode", () => {
+    it("refuses a declared site mode and names the content tree", () => {
         const base = {
             rootDir: "/repo",
             contentPackage: "demo",
@@ -267,13 +254,13 @@ describe("`publish.site` distinguishes homepage-only from content", () => {
                 ...base,
                 publish: { site: true },
             } as unknown as ContentBuildConfigInput),
-        ).toThrow(/content/);
+        ).toThrow(/authored content tree/);
         expect(() =>
             defineConfig({
                 ...base,
                 publish: { site: false },
             } as unknown as ContentBuildConfigInput),
-        ).toThrow(/homepage/);
+        ).toThrow(/authored content tree/);
         expect(() =>
             defineConfig({
                 ...base,
@@ -282,50 +269,13 @@ describe("`publish.site` distinguishes homepage-only from content", () => {
         ).toThrow(/publish\.site/);
     });
 
-    it("records a web address on manifest entries only in content mode", () => {
+    it("records web addresses when the tree contains content pages", () => {
         expect(entryContext(configFor()).web).toBe(true);
-        expect(entryContext(configFor({ publish: { site: "homepage" } })).web).toBe(false);
     });
 });
 
-describe("homepage-only publishes exactly one page — the licensing assertion", () => {
-    it("emits the homepage and nothing else, from a tree full of content", () => {
-        const out = path.join(root, "build/hugo/content");
-        const config = configFor({
-            publish: {
-                site: "homepage",
-                address: { prefix: "kb/" },
-            },
-        });
-        const result = buildSite({ config });
-
-        // Measured, not assumed: the tree holds a weapon and a rules note, and
-        // neither may reach the web.
-        expect(emitted(out)).toEqual([HOMEPAGE_DESTINATION]);
-        expect(result.stats?.homepages).toBe(1);
-        expect(result.stats?.content ?? 0).toBe(0);
-    });
-
-    it("ignores the content framing entirely, rather than trusting it to be absent", () => {
-        // A `site:` block naming packages and a pass cannot re-open a
-        // content surface: homepage-only is a mode, not the absence of
-        // configuration.
-        const out = path.join(root, "build/hugo/content");
-        const config = configFor({
-            site: {
-                packages: ["demo"],
-                passOptions: { apiBase: "/demo/api/" },
-            },
-            publish: {
-                site: "homepage",
-                address: { prefix: "kb/" },
-            },
-        });
-        buildSite({ config });
-        expect(emitted(out)).toEqual([HOMEPAGE_DESTINATION]);
-    });
-
-    it("still publishes every content page in content mode", () => {
+describe("site output follows the authored tree", () => {
+    it("publishes every content page in a tree with sections", () => {
         const config = configFor();
         const result = buildSite({ config });
         const files = emitted(path.join(root, "build/hugo/content"));
@@ -365,6 +315,8 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
             packageBuild: { manifest: { title: "HârnMaster 3" } },
         } as ContentBuildConfigInput);
 
+        expect(publishesContentPages(config)).toBe(false);
+        expect(entryContext(config).web).toBe(false);
         const result = buildSite({ config });
         expect(emitted(path.join(solo, "build/hugo/content"))).toEqual([HOMEPAGE_DESTINATION]);
         expect(result.stats?.homepages).toBe(1);
