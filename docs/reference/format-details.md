@@ -337,7 +337,7 @@ order without changing the Markdown body.
 
 A canonical date is `<year>[.<day>[:HHMMSS]]`. The day is one-based within the world's year. `720` covers the whole year; `720.136` covers that day; `720.136:143005` identifies one second. Negative years are valid. Prefix either form with `~` to express uncertainty beyond its written interval. `unknown` is allowed only in fields that accept an unknown occurrence.
 
-A named date uses `datefrom <calendar> <date>`, where the final text follows the calendar's `data.formats.std` pattern, or its first named pattern when `std` is absent. For example, a calendar with `std: "D MMMM [yearInEra] G"` reads `datefrom commoncal 23 Floralis 326 VR`, `datefrom commoncal Floralis 326 VR`, and `datefrom commoncal 326 VR`. Omitting the day or month retains month or year precision in frontmatter. The CLI `datefrom` command requires a day to produce one canonical day. The calendar argument is a shortcode or Address. A time follows the day only when specified in the pattern, or as a trailing `HH:mm:ss` when the pattern has no clock tokens. A named date with an era-relative year names its era.
+A named date uses `datefrom <calendar> <date>`, where the final text follows the calendar's `data.formats.std` pattern, or its first named pattern when `std` is absent. For example, a calendar with `std: "MM/DD/Y GGG"` reads `datefrom commoncal 01/23/326 VR`, `datefrom commoncal 01/326 VR`, and `datefrom commoncal 326 VR`. Omitting the day or month retains month or year precision in frontmatter. The CLI `datefrom` command requires a day to produce one canonical day. The calendar argument is a shortcode or Address. A time follows the day only when specified in the pattern, or as a trailing `HH:mm:ss` when the pattern has no clock tokens. A named date with an era-relative year names its era.
 
 `data.epoch` on a calendar is a canonical `<year>.<day>`: the day on which **calendar year 1, day 1** occurs. It cannot be year-only, approximate, or expressed through its own calendar. `data.moon.newOn` also locates a particular day. The `data.eras[].start` values are `null` or positive **calendar years**. Exactly one null era covers dates before calendar year 1, and exactly one era starts at year 1. Further era starts are distinct positive integers. Numeric start order determines era boundaries, regardless of array order. The null era numbers its years backwards; later eras begin at their own displayed year 1. An era may have a unique uppercase `marker` for resolving authored dates.
 
@@ -3553,7 +3553,8 @@ the setting itself, rather than instructions or other apparatus for the GM.
 | `epoch`         | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1         |
 | `months`        | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year           |
 | `weekdays`      | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously |
-| `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]`       | Named parts of the year                                      |
+| `seasons`       | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                   |
+| `namedDays`     | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                     |
 | `eras`          | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year        |
 | `formats`       | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default           |
 | `event`         | map                                                                           | A dated occurrence and its chronology metadata               |
@@ -3572,25 +3573,47 @@ subType: calendar
 data:
   epoch: 1.1
   months:
-    - { name: Floralis, abbreviation: Flor, days: 180 }
-    - { name: Janar, abbreviation: Jana, days: 185 }
+    - { name: Floralis, abbreviation: Flor, days: 30 }
+    - { name: Lusenar, abbreviation: Luse, days: 31 }
+    - { name: Murkas, abbreviation: Murk, days: 30 }
+    - { name: Taranis, abbreviation: Tara, days: 31 }
+    - { name: Vulcar, abbreviation: Vulc, days: 30 }
+    - { name: Menaris, abbreviation: Mena, days: 31 }
+    - { name: Venuris, abbreviation: Venu, days: 30 }
+    - { name: Karnavar, abbreviation: Karn, days: 30 }
+    - { name: Morveth, abbreviation: Morv, days: 31 }
+    - { name: Thanaris, abbreviation: Than, days: 30 }
+    - { name: Aetheris, abbreviation: Aeth, days: 31 }
+    - { name: Janar, abbreviation: Jana, days: 30 }
   weekdays:
     - { name: Newday, abbreviation: New }
     - { name: Tillday, abbreviation: Til }
+    - { name: Growday, abbreviation: Gro }
+    - { name: Harvestday, abbreviation: Hrv }
+    - { name: Reapday, abbreviation: Rep }
+    - { name: Slowday, abbreviation: Slo }
+    - { name: Setday, abbreviation: Set }
+  seasons:
+    - { name: Spring, abbreviation: Spr, start: 1 }
+    - { name: Summer, abbreviation: Sum, start: 92 }
+    - { name: Fall, abbreviation: Fal, start: 183 }
+    - { name: Winter, abbreviation: Win, start: 274 }
+  namedDays:
+    - { name: New Years Day, abbreviation: NY, day: 1 }
   formats:
-    std: "D MMMM [yearInEra] G"
-    long: "EEEE, D MMMM [yearInEra] G"
+    std: "MM/DD/Y GGG"
+    long: "D MMMM Y GGG"
   eras:
     - { shortcode: bvr, name: Before Vylarian Reckoning, abbreviation: BVR, start: null }
     - { shortcode: vr, name: Vylarian Reckoning, abbreviation: VR, start: 1 }
     - { shortcode: later, name: Later Reckoning, abbreviation: LR, start: 701 }
 ```
 
-`data.epoch` anchors calendar year 1, day 1 to a canonical day. An epoch of `1.1` makes the calendar's first day canonical `1.1`; an epoch of `720.1` makes it canonical `720.1`. The epoch is day-precise and uses canonical spelling, never `datefrom`.
+`data.epoch` anchors calendar year 1, day 1 to a canonical day. An epoch of `1.91` makes the calendar's first day canonical `1.91`: calendar day 1 can begin anywhere in the canonical year. The epoch is day-precise and uses canonical spelling, never `datefrom`.
 
-`data.eras` contains exactly one `start: null` row and one `start: 1` row. Other starts are distinct positive integer calendar years. Starts are sorted numerically, irrespective of array order. Each era ends before the next start. The null era covers earlier years and counts them backwards: with `epoch: 1.1`, canonical `-50.2` prints as `2 Floralis 50 BVR`. At calendar year 701, the later era begins at its own displayed year 1. An era's `shortcode` is unique within the note; `marker` is unique across the corpus and uses uppercase letters and digits, beginning with a letter. `proclaimedBy` may identify the body that began a reckoning.
+`data.eras` contains exactly one `start: null` row and one `start: 1` row. Other starts are distinct positive integer calendar years; fractional starts such as `1.1` are invalid. `start: 1` is the canonical day declared by `epoch`. Starts are sorted numerically, irrespective of array order. Each era ends before the next start. The null era covers earlier years and counts them backwards; package-build prints a positive historical year for its `Y`, `YY`, and `YYYY` tokens. It is omitted from Calendaria emission, which has no backwards-counting era. At calendar year 701, a later era begins at its own era-relative year 1, exposed by `[yearInEra]`; `Y` still prints the calendar year. An era's `shortcode` is unique within the note; `marker` is unique across the corpus and uses uppercase letters and digits, beginning with a letter. `proclaimedBy` may identify the body that began a reckoning.
 
-Each weekday's zero-based ordinal is its position in the array. The weekday cycle starts with the first day of calendar year 1 and continues through month and year boundaries. Each month is in year order, including short festival months. `seasons` can bound a season by month or day of year.
+Each weekday's zero-based index is its position in the array. The weekday cycle starts with the first day of calendar year 1 and continues through month and year boundaries. Each month is in year order, including short festival months. Seasons start on one-based days of year in increasing array order; each ends immediately before the next begins, and the last wraps through the start of the next year if needed. A named day identifies one day of year and can appear in a date pattern through `[namedDay]` or `[namedDayAbbr]`.
 
 `formats` holds any number of named patterns. `std` is the default for `datefrom`, `dateto`, and `dateformat`; when no `std` is present, the first pattern is the default. `dateto --format <name>` and `{{dateformat "commoncal" data.born "long"}}` select another output pattern. The default must identify one day: it needs `Y`, `YYYY`, or `[yearInEra]`; `DDD` or both a month and day token; and an era label if it uses `[yearInEra]`. `YY` alone cannot identify a year. The default may use clock tokens. Display-only tokens are valid in other named patterns, but package-build's date printer raises an error for tokens that require Calendaria runtime state, such as a moon phase, cycle, or climate zone.
 
@@ -3598,42 +3621,42 @@ When printing a year or month without a day, package-build omits finer fields fr
 
 The default pattern is sent to Calendaria as `dateFormats.short`; named `long` and `full` patterns fill those display slots. The names `time`, `time12`, `weekHeader`, `yearHeader`, `yearLabel`, and `crossCalendar` also fill Calendaria's matching slots. Other names remain available to package-build's `dateto --format` and `dateformat`.
 
-The emitted Calendaria definition contains the eras with numeric starts. The `start: null` era is part of package-build's date conversion; Calendaria's `startYear` and `endYear` fields do not express a year count that runs backwards from year 1.
+The emitted Calendaria definition contains the eras with numeric starts.
 
 #### Calendar format tokens
 
-Patterns use [Calendaria's format vocabulary](https://github.com/Sayshal/Calendaria/blob/main/scripts/utils/formatting/format-utils.mjs). Case matters. Bare tokens are substituted; put literal words in square brackets or braces, as in `[Year] YYYY`. Fixed-width tokens need no separator (`YYYYMMDD`); variable-width numeric tokens need a separator or fixed-width neighbor in a readable default pattern. Unknown bare letter runs are errors. Custom tokens use brackets or braces. A custom token can include a fallback after `|`, such as `[moon|Unknown]`; the fallback prints when the primary value is empty.
+Patterns use [Calendaria's format vocabulary](https://wiki.3deathsaves.com/calendaria/format-tokens/). Case matters. The parser chooses the longest matching token: `QQ` is one padded season number, not two `Q` values. Bare tokens are substituted; unmatched characters pass through unchanged. Put literal words in square brackets or braces, as in `[Year] YYYY`. Fixed-width tokens need no separator (`YYYYMMDD`); variable-width numeric tokens need a separator or fixed-width neighbor in a readable default pattern. Bracketed and braced names that match custom tokens are substituted; other bracketed text is literal, with the enclosing marks removed. `[[]` prints a left bracket. A custom token can include a fallback after `|`, such as `[namedDay|Do]`; the fallback prints when the primary value is empty. Empty or unbalanced brackets and braces are errors.
 
-| Token                                                             | Calendaria value                                                        |
-| ----------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| `Y`, `YY`, `YYYY`                                                 | Calendar year; final two characters; year padded to four characters     |
-| `M`, `MM`, `Mo`                                                   | Month number; padded month number; ordinal month number                 |
-| `MMM`, `MMMM`                                                     | Abbreviated and full month name                                         |
-| `D`, `DD`, `Do`                                                   | Day of month; padded day; ordinal day                                   |
-| `DDD`                                                             | Day of year, padded to three digits                                     |
-| `E`, `EE`, `EEE`, `EEEE`, `EEEEE`                                 | Abbreviated weekday; full weekday for `EEEE`; initial for `EEEEE`       |
-| `e`, `d`, `dd`, `ddd`, `dddd`                                     | Zero-based weekday index; two-letter, abbreviated, or full weekday name |
-| `w`, `ww`, `W`                                                    | Week of year; padded week of year; week of month                        |
-| `G`, `GG`, `GGG`, `GGGG`                                          | Abbreviated era; full era name for `GGGG`                               |
-| `Q`, `QQ`, `QQQ`, `QQQQ`                                          | Season number; padded number; abbreviation; full name                   |
-| `z`, `zzzz`                                                       | Active climate-zone abbreviation and name                               |
-| `H`, `HH`, `h`, `hh`                                              | 24-hour hour, padded; 12-hour hour, padded                              |
-| `m`, `mm`, `s`, `ss`                                              | Minute or second, plain and padded                                      |
-| `A`, `a`                                                          | Meridiem abbreviation, uppercase or lowercase                           |
-| `[yearName]`                                                      | Name assigned to the calendar year                                      |
-| `[namedWeek]`, `[namedWeekAbbr]`                                  | Named week and its abbreviation                                         |
-| `[namedDay]`, `[namedDayAbbr]`                                    | Named day and its abbreviation                                          |
-| `[era]`, `[eraAbbr]`                                              | Full era name and abbreviation                                          |
-| `[yearInEra]`, `[yearInEraOrdinal]`                               | Era-relative year and its ordinal spelling                              |
-| `[era=N]`, `[eraAbbr=N]`, `[yearInEra=N]`, `[yearInEraOrdinal=N]` | The named value from zero-based matching era index `N`                  |
-| `[season]`, `[seasonAbbr]`                                        | Full season name and abbreviation                                       |
-| `[meridiemFull]`                                                  | Full meridiem name                                                      |
-| `[moon]`, `[moonIcon]`                                            | Moon phase name and icon for the default moon                           |
-| `[moon=selector]`, `[moonIcon=selector]`                          | Moon phase name or icon for a selected moon                             |
-| `[ch]`, `[chAbbr]`                                                | Canonical hour name and abbreviation                                    |
-| `[cycle]`, `[cycleName]`, `[cycleRoman]`, `[cycleYear]`           | Calendar cycle number, name, Roman numeral, and cycle year              |
-| `[cycle=N]`, `[cycleName=N]`, `[cycleRoman=N]`                    | Values from zero-based cycle index `N`                                  |
-| `[approxTime]`, `[approxDate]`                                    | Calendaria's approximate time and date wording                          |
+| Token                                                             | Calendaria value                                                                                                                                         |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Y`, `YY`, `YYYY`                                                 | Calendar year; final two digits; year padded to four digits. For the package-build-only null-start era, the historical year prints without a minus sign. |
+| `M`, `MM`, `Mo`                                                   | Month number; padded month number; ordinal month number                                                                                                  |
+| `MMM`, `MMMM`                                                     | Abbreviated and full month name                                                                                                                          |
+| `D`, `DD`, `Do`                                                   | Day of month; padded day; ordinal day                                                                                                                    |
+| `DDD`                                                             | Day of year, padded to three digits                                                                                                                      |
+| `E`, `EE`, `EEE`, `EEEE`, `EEEEE`                                 | Abbreviated weekday; full weekday for `EEEE`; initial for `EEEEE`                                                                                        |
+| `e`, `d`, `dd`, `ddd`, `dddd`                                     | Zero-based weekday index; two-letter, abbreviated, or full weekday name                                                                                  |
+| `w`, `ww`, `W`                                                    | Week of year; padded week of year; week of month                                                                                                         |
+| `G`, `GG`, `GGG`, `GGGG`                                          | Abbreviated era; full era name for `GGGG`                                                                                                                |
+| `Q`, `QQ`, `QQQ`, `QQQQ`                                          | Season number; padded number; abbreviation; full name                                                                                                    |
+| `z`, `zzzz`                                                       | Active climate-zone abbreviation and name                                                                                                                |
+| `H`, `HH`, `h`, `hh`                                              | 24-hour hour, padded; 12-hour hour, padded                                                                                                               |
+| `m`, `mm`, `s`, `ss`                                              | Minute or second, plain and padded                                                                                                                       |
+| `A`, `a`                                                          | Meridiem abbreviation, uppercase or lowercase                                                                                                            |
+| `[yearName]`                                                      | Name assigned to the calendar year                                                                                                                       |
+| `[namedWeek]`, `[namedWeekAbbr]`                                  | Named week and its abbreviation                                                                                                                          |
+| `[namedDay]`, `[namedDayAbbr]`                                    | Named day and its abbreviation                                                                                                                           |
+| `[era]`, `[eraAbbr]`                                              | Full era name and abbreviation                                                                                                                           |
+| `[yearInEra]`, `[yearInEraOrdinal]`                               | Era-relative year and its ordinal spelling                                                                                                               |
+| `[era=N]`, `[eraAbbr=N]`, `[yearInEra=N]`, `[yearInEraOrdinal=N]` | The named value from zero-based matching era index `N`                                                                                                   |
+| `[season]`, `[seasonAbbr]`                                        | Full season name and abbreviation                                                                                                                        |
+| `[meridiemFull]`                                                  | Full meridiem name                                                                                                                                       |
+| `[moon]`, `[moonIcon]`                                            | Moon phase name and icon for the default moon                                                                                                            |
+| `[moon=selector]`, `[moonIcon=selector]`                          | Moon phase name or icon for a selected moon                                                                                                              |
+| `[ch]`, `[chAbbr]`                                                | Canonical hour name and abbreviation                                                                                                                     |
+| `[cycle]`, `[cycleName]`, `[cycleRoman]`, `[cycleYear]`           | Calendar cycle number, name, Roman numeral, and cycle year                                                                                               |
+| `[cycle=N]`, `[cycleName=N]`, `[cycleRoman=N]`                    | Values from zero-based cycle index `N`                                                                                                                   |
+| `[approxTime]`, `[approxDate]`                                    | Calendaria's approximate time and date wording                                                                                                           |
 
 Braced custom forms such as `{era}` are equivalent to bracketed custom forms. A bare `M` is the month, while lowercase `m` is the minute; lowercase `d` is the zero-based weekday index, while uppercase `D` is the day of month. The tokens in a readable default pattern are restricted to calendar year, era, month, day, and clock tokens so the compiler can parse an authored `datefrom` value without runtime state.
 

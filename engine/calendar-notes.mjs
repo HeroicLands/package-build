@@ -74,6 +74,7 @@ import {
 } from "./calendars.mjs";
 import {
     CALENDAR_FORMAT_TOKENS,
+    calendarFormatSyntaxError,
     readableCalendarFormatError,
     selectCalendarFormat,
 } from "./calendar-format.mjs";
@@ -146,9 +147,15 @@ export const CALENDAR_FIELDS = Object.freeze([
     },
     {
         name: "seasons",
-        shape: "list of `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }`",
+        shape: "list of `{ name, abbreviation?, start }`",
         kind: "list",
-        describe: "The seasons this calendar marks, bounded by month or by day of year.",
+        describe: "The seasons this calendar marks, starting on numbered days of the year.",
+    },
+    {
+        name: "namedDays",
+        shape: "list of `{ name, abbreviation?, day }`",
+        kind: "list",
+        describe: "Names assigned to particular days of the year.",
     },
     {
         name: "eras",
@@ -370,7 +377,7 @@ function atData(note, keyPath, severity, message) {
     };
 }
 
-/** Check each named pattern and every unescaped letter run in it. */
+/** Check each named pattern and the standard pattern's readable fields. */
 export function checkCalendarDateFormats(note) {
     const formats = dataOf(note).formats;
     if (formats === undefined) return [];
@@ -397,24 +404,106 @@ export function checkCalendarDateFormats(note) {
             );
             continue;
         }
-        const bare = value.replace(/\[[^\]]*\]|\{[^}]*\}/g, " ");
-        const tokens = [...CALENDAR_FORMAT_TOKENS].sort((a, b) => b.length - a.length);
-        const outsideTokens = bare.replace(new RegExp(tokens.join("|"), "g"), " ");
-        for (const run of outsideTokens.match(/\p{L}+/gu) ?? []) {
-            findings.push(
-                atData(
-                    note,
-                    ["formats", slot],
-                    "error",
-                    `data.formats.${slot} has unescaped letter run ${JSON.stringify(run)}; write literal words in brackets, or use a Calendaria date token`,
-                ),
-            );
-        }
+        const syntaxError = calendarFormatSyntaxError(value);
+        if (syntaxError) findings.push(atData(note, ["formats", slot], "error", syntaxError));
     }
     const standard = Object.hasOwn(formats, "std") ? "std" : Object.keys(formats)[0];
     if (typeof formats[standard] === "string") {
         const error = readableCalendarFormatError(formats[standard]);
         if (error) findings.push(atData(note, ["formats", standard], "error", error));
+    }
+    return findings;
+}
+
+/** Validate ordered, one-based season starts and named day positions. */
+function checkCalendarDayNames(note, daysPerYear) {
+    const data = dataOf(note);
+    const findings = [];
+    const seasons = data.seasons;
+    if (seasons !== undefined && !Array.isArray(seasons))
+        findings.push(atData(note, ["seasons"], "error", "data.seasons must be a list"));
+    if (Array.isArray(seasons)) {
+        let prior = 0;
+        for (const [position, season] of seasons.entries()) {
+            const start = season?.start;
+            if (typeof season?.name !== "string" || !season.name.trim())
+                findings.push(
+                    atData(note, ["seasons", position, "name"], "error", "a season needs a name"),
+                );
+            if (
+                !Number.isSafeInteger(start) ||
+                start <= prior ||
+                (Number.isSafeInteger(daysPerYear) && start > daysPerYear)
+            )
+                findings.push(
+                    atData(
+                        note,
+                        ["seasons", position, "start"],
+                        "error",
+                        "season starts must increase within the year",
+                    ),
+                );
+            if (
+                Object.keys(season ?? {}).some(
+                    (key) => !["name", "abbreviation", "start"].includes(key),
+                )
+            )
+                findings.push(
+                    atData(
+                        note,
+                        ["seasons", position],
+                        "error",
+                        "a season uses only name, abbreviation, and start",
+                    ),
+                );
+            prior = start;
+        }
+    }
+    const namedDays = data.namedDays;
+    if (namedDays !== undefined && !Array.isArray(namedDays))
+        findings.push(atData(note, ["namedDays"], "error", "data.namedDays must be a list"));
+    if (Array.isArray(namedDays)) {
+        const seen = new Set();
+        for (const [position, namedDay] of namedDays.entries()) {
+            if (typeof namedDay?.name !== "string" || !namedDay.name.trim())
+                findings.push(
+                    atData(
+                        note,
+                        ["namedDays", position, "name"],
+                        "error",
+                        "a named day needs a name",
+                    ),
+                );
+            const day = namedDay?.day;
+            if (
+                !Number.isSafeInteger(day) ||
+                day < 1 ||
+                (Number.isSafeInteger(daysPerYear) && day > daysPerYear) ||
+                seen.has(day)
+            )
+                findings.push(
+                    atData(
+                        note,
+                        ["namedDays", position, "day"],
+                        "error",
+                        "named days need distinct days within the year",
+                    ),
+                );
+            if (
+                Object.keys(namedDay ?? {}).some(
+                    (key) => !["name", "abbreviation", "day"].includes(key),
+                )
+            )
+                findings.push(
+                    atData(
+                        note,
+                        ["namedDays", position],
+                        "error",
+                        "a named day uses only name, abbreviation, and day",
+                    ),
+                );
+            seen.add(day);
+        }
     }
     return findings;
 }
@@ -622,6 +711,7 @@ export function checkCalendarNote(note, { index } = {}) {
     }
 
     findings.push(...checkMonthSum(note, index));
+    findings.push(...checkCalendarDayNames(note, worldInvariants(index).year?.days));
     findings.push(...checkEraShortcodes(note));
     for (const [position, day] of (Array.isArray(dataOf(note).weekdays) ?
         dataOf(note).weekdays
@@ -800,28 +890,40 @@ function monthValues(months) {
     );
 }
 
-/** A weekday's name, abbreviation and position. An empty list stays empty. */
+/** Calendaria stores a one-based ordinal; the authored order remains zero-based. */
 function weekdayValues(weekdays) {
     return (Array.isArray(weekdays) ? weekdays : []).map((day, position) =>
         written({
             name: String(day?.name ?? ""),
             abbreviation: day?.abbreviation === undefined ? undefined : String(day.abbreviation),
-            ordinal: position,
+            ordinal: position + 1,
         }),
     );
 }
 
-/** A season's name and whichever pair of bounds the note wrote. */
-function seasonValues(seasons) {
-    return (Array.isArray(seasons) ? seasons : []).map((season) =>
+/** A season's one-based start becomes an inclusive zero-based Calendaria range. */
+function seasonValues(seasons, daysPerYear) {
+    return (Array.isArray(seasons) ? seasons : []).map((season, position, rows) =>
         written({
             name: String(season?.name ?? ""),
             abbreviation:
                 season?.abbreviation === undefined ? undefined : String(season.abbreviation),
-            monthStart: season?.monthStart,
-            monthEnd: season?.monthEnd,
-            dayStart: season?.dayStart,
-            dayEnd: season?.dayEnd,
+            dayStart: season.start - 1,
+            dayEnd:
+                position + 1 < rows.length ? rows[position + 1].start - 2
+                : rows[0].start === 1 ? daysPerYear - 1
+                : rows[0].start - 2,
+        }),
+    );
+}
+
+/** A named day uses Calendaria's one-based year day number. */
+function namedDayValues(namedDays) {
+    return (Array.isArray(namedDays) ? namedDays : []).map((day) =>
+        written({
+            name: day.name,
+            abbreviation: day.abbreviation,
+            dayNumber: day.day,
         }),
     );
 }
@@ -908,6 +1010,8 @@ export function compileCalendar({ note, invariants, contentPackage, dateContext 
     const data = dataOf(note);
     const year = invariants?.year ?? {};
     const months = Array.isArray(data.months) ? data.months : [];
+    const dayNameError = checkCalendarDayNames(note, year.days)[0];
+    if (dayNameError) throw new RangeError(dayNameError.message);
     const starts = Array.isArray(data.eras) ? data.eras.map((era) => era?.start) : [];
     if (
         starts.filter((start) => start === null).length !== 1 ||
@@ -955,12 +1059,13 @@ export function compileCalendar({ note, invariants, contentPackage, dateContext 
         months: { values: monthValues(months) },
         days: written({
             values: weekdayValues(data.weekdays),
+            names: namedDayValues(data.namedDays),
             daysPerYear: year.days,
             hoursPerDay: year.hoursPerDay,
             minutesPerHour: year.minutesPerHour,
             secondsPerMinute: year.secondsPerMinute,
         }),
-        seasons: { values: seasonValues(data.seasons) },
+        seasons: { values: seasonValues(data.seasons, year.days) },
         // Shift world time so the authored epoch is calendar year one, day one.
         epochDayOffset: epochOffset === 0 ? 0 : -epochOffset,
         eras: eraEntries(data.eras),

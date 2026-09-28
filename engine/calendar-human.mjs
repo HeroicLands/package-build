@@ -57,14 +57,14 @@ export function addressedCalendarDate(text, eras) {
         const year =
             fields.eraYear ??
             (selected.beforeEra ?
-                -fields.calendarYear
+                fields.calendarYear
             :   fields.calendarYear - selected.startYear + 1);
         if (!Number.isSafeInteger(year) || year < 1)
             throw new RangeError("date names a year outside its era");
         if (
             fields.calendarYear !== undefined &&
             fields.eraYear !== undefined &&
-            (selected.beforeEra ? -year : selected.startYear + year - 1) !== fields.calendarYear
+            (selected.beforeEra ? year : selected.startYear + year - 1) !== fields.calendarYear
         )
             throw new RangeError("calendar year and era year disagree");
         const clock =

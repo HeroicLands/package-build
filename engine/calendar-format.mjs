@@ -23,6 +23,28 @@ export const CALENDAR_CUSTOM_TOKENS = Object.freeze(
 const TOKEN =
     /\[([^\]]+)]|{([^}]+)}|YYYY|YY|Y|MMMM|MMM|MM|Mo|M|EEEEE|EEEE|EEE|EE|E|dddd|ddd|dd|Do|DDD|DD|D|d|e|GGGG|GGG|GG|G|QQQQ|QQQ|QQ|Q|zzzz|z|ww|w|W|HH|H|hh|h|mm|m|ss|s|A|a/g;
 
+/** Brackets and braces must close; `[[]` is a literal left bracket. */
+export function calendarFormatSyntaxError(pattern) {
+    for (let position = 0; position < pattern.length;) {
+        if (pattern.startsWith("[[]", position)) {
+            position += 3;
+            continue;
+        }
+        const opener = pattern[position];
+        if (opener === "[" || opener === "{") {
+            const closer = opener === "[" ? "]" : "}";
+            const end = pattern.indexOf(closer, position + 1);
+            if (end < 0) return `calendar format has an unclosed ${opener}`;
+            if (end === position + 1) return "calendar format has an empty bracket or brace";
+            position = end + 1;
+            continue;
+        }
+        if (opener === "]" || opener === "}") return `calendar format has an unmatched ${opener}`;
+        position++;
+    }
+    return null;
+}
+
 /** Split a Calendaria pattern into tokens and literal text. */
 export function calendarFormatSegments(pattern) {
     const segments = [];
@@ -222,8 +244,6 @@ export function formatCalendarPattern(pattern, parts, precision = "day", include
                     "yearName",
                     "namedWeek",
                     "namedWeekAbbr",
-                    "namedDay",
-                    "namedDayAbbr",
                 ].includes(segment.value.split(/[=|]/, 1)[0])) ||
             (segment.token && segment.value.includes("=")),
     );
@@ -244,7 +264,7 @@ export function formatCalendarPattern(pattern, parts, precision = "day", include
     const minute = Math.floor(seconds / 60) % 60;
     const second = seconds % 60;
     const hour12 = hour % 12 || 12;
-    const year = parts.calendarYear;
+    const year = parts.era?.beforeEra ? parts.eraYear : parts.calendarYear;
     const era = parts.era;
     const eraName = era?.name ?? "";
     const eraAbbr =
@@ -252,14 +272,12 @@ export function formatCalendarPattern(pattern, parts, precision = "day", include
         era?.marker ??
         (eraName ? eraName.slice(0, 2) : era?.era?.split(".").at(-1));
     const seasons = Array.isArray(calendar.seasons) ? calendar.seasons : [];
-    const seasonIndex = seasons.findIndex((item) =>
-        item.dayStart !== undefined && item.dayEnd !== undefined ?
-            parts.dayOfYear >= item.dayStart && parts.dayOfYear <= item.dayEnd
-        : item.monthStart !== undefined && item.monthEnd !== undefined ?
-            parts.month >= item.monthStart && parts.month <= item.monthEnd
-        :   false,
-    );
+    const datedSeason = seasons.findLastIndex((item) => parts.dayOfYear >= item.start);
+    const seasonIndex = datedSeason < 0 && seasons.length ? seasons.length - 1 : datedSeason;
     const season = seasons[seasonIndex];
+    const namedDay = (Array.isArray(calendar.namedDays) ? calendar.namedDays : []).find(
+        (item) => item.day === parts.dayOfYear,
+    );
     const values = {
         Y: year,
         YY: String(Math.abs(year) % 100).padStart(2, "0"),
@@ -312,8 +330,8 @@ export function formatCalendarPattern(pattern, parts, precision = "day", include
         yearInEraOrdinal: ordinal(parts.eraYear),
         season: season?.name ?? "",
         seasonAbbr: season?.abbreviation ?? "",
-        namedDay: weekdayName,
-        namedDayAbbr: weekdayAbbr,
+        namedDay: namedDay?.name ?? "",
+        namedDayAbbr: namedDay?.abbreviation ?? namedDay?.name?.slice(0, 3) ?? "",
         meridiemFull: hour < 12 ? "AM" : "PM",
     };
     return segments

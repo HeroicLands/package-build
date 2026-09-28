@@ -531,8 +531,8 @@ describe("the definition core reads", () => {
             invariants,
         });
         expect(weekly.days.values).toEqual([
-            { name: "Oneday", abbreviation: "On", ordinal: 0 },
-            { name: "Twoday", ordinal: 1 },
+            { name: "Oneday", abbreviation: "On", ordinal: 1 },
+            { name: "Twoday", ordinal: 2 },
         ]);
     });
 
@@ -607,7 +607,7 @@ describe("authored calendar display formats", () => {
         }
     });
 
-    it("accepts tokens and bracketed words, and locates bare prose", () => {
+    it("accepts Calendaria tokens and literal words, and checks bracket syntax", () => {
         expect(CALENDAR_FORMAT_TOKENS.size).toBe(45);
         const good = calendarNote({
             formats: {
@@ -617,13 +617,17 @@ describe("authored calendar display formats", () => {
         });
         expect(checkCalendarNote(good, { index: index(worldNote(), good) })).toEqual([]);
         const bad = calendarNote({
-            formats: { std: "D MMMM [yearInEra] G", full: "Year YYYY of the Dynasty" },
+            formats: { std: "D MMMM [yearInEra] G", full: "[Year YYYY" },
         });
         const findings = checkCalendarNote(bad, { index: index(worldNote(), bad) });
         expect(findings.length).toBeGreaterThan(0);
         expect(findings[0]).toMatchObject({ file: "Common_Calendar.md", severity: "error" });
         expect(findings[0].line).toBeGreaterThan(0);
-        expect(findings[0].message).toContain("unescaped letter run");
+        expect(findings[0].message).toContain("unclosed");
+        const literals = calendarNote({
+            formats: { std: "D MMMM [yearInEra] G", full: "Year YYYY of the Dynasty" },
+        });
+        expect(checkCalendarNote(literals, { index: index(worldNote(), literals) })).toEqual([]);
     });
 
     it("accepts arbitrary names and refuses invalid names or non-string values", () => {
@@ -696,7 +700,8 @@ describe("every key the vocabulary declares reaches the definition", () => {
         epoch: "1.1",
         months: COMMON_MONTHS,
         weekdays: [{ name: "Oneday", abbreviation: "On" }],
-        seasons: [{ name: "Spring", monthStart: 1, monthEnd: 3 }],
+        seasons: [{ name: "Spring", start: 1 }],
+        namedDays: [{ name: "New Year's Day", abbreviation: "NY", day: 1 }],
         eras: [
             { shortcode: "before", name: "Before the Founding", start: null },
             { shortcode: "founding", name: "After the Founding", abbreviation: "AF", start: 1 },

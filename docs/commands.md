@@ -384,8 +384,8 @@ Reads the current content tree, resolves its world year and calendar eras, and
 prints `<year>.<day>[:HHMMSS]` to standard output. `<calendar>` is a calendar
 shortcode, full Address, or addressed era. The date follows the calendar's
 `data.formats.std` pattern, or its first named pattern when `std` is absent.
-For example, `D MMMM [yearInEra] G` reads `23 Taranis 326 VR`. An era-relative
-year must identify its era. A date must specify a day;
+For example, `MM/DD/Y GGG` reads `04/23/326 VR`. An era-relative year written
+with `[yearInEra]` must identify its era. A date must specify a day;
 year-only and month-only dates do not identify one canonical day.
 Prefix the date with `~` to preserve an approximate value.
 

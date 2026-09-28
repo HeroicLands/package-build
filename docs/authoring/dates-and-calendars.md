@@ -11,7 +11,7 @@ A canonical date uses the world's year and day count without choosing a culture'
 
 ## Define a calendar
 
-A `lore` note with `subType: calendar` names months, weekdays, eras, and date formats. Its `data.epoch` is the **canonical day that equals calendar year 1, day 1**. For a calendar beginning on canonical day `1.1`, write `epoch: 1.1`; `720.1` would instead put its first year at canonical day 720.1. A calendar does not state the length of the world year: its months must sum to `data.year.days` on the world's `place` note.
+A `lore` note with `subType: calendar` names months, weekdays, seasons, named days, eras, and date formats. Its `data.epoch` is the **canonical day that equals calendar year 1, day 1**. For a calendar beginning on canonical day `1.91`, write `epoch: 1.91`: calendar year 1 still starts at its own day 1. A calendar does not state the length of the world year: its months must sum to `data.year.days` on the world's `place` note.
 
 ```yaml
 shortcode: commoncal
@@ -21,41 +21,63 @@ subType: calendar
 data:
   epoch: 1.1
   months:
-    - { name: Floralis, abbreviation: Flor, days: 180 }
-    - { name: Janar, abbreviation: Jana, days: 185 }
+    - { name: Floralis, abbreviation: Flor, days: 30 }
+    - { name: Lusenar, abbreviation: Luse, days: 31 }
+    - { name: Murkas, abbreviation: Murk, days: 30 }
+    - { name: Taranis, abbreviation: Tara, days: 31 }
+    - { name: Vulcar, abbreviation: Vulc, days: 30 }
+    - { name: Menaris, abbreviation: Mena, days: 31 }
+    - { name: Venuris, abbreviation: Venu, days: 30 }
+    - { name: Karnavar, abbreviation: Karn, days: 30 }
+    - { name: Morveth, abbreviation: Morv, days: 31 }
+    - { name: Thanaris, abbreviation: Than, days: 30 }
+    - { name: Aetheris, abbreviation: Aeth, days: 31 }
+    - { name: Janar, abbreviation: Jana, days: 30 }
   weekdays:
     - { name: Newday, abbreviation: New }
     - { name: Tillday, abbreviation: Til }
+    - { name: Growday, abbreviation: Gro }
+    - { name: Harvestday, abbreviation: Hrv }
+    - { name: Reapday, abbreviation: Rep }
+    - { name: Slowday, abbreviation: Slo }
+    - { name: Setday, abbreviation: Set }
+  seasons:
+    - { name: Spring, abbreviation: Spr, start: 1 }
+    - { name: Summer, abbreviation: Sum, start: 92 }
+    - { name: Fall, abbreviation: Fal, start: 183 }
+    - { name: Winter, abbreviation: Win, start: 274 }
+  namedDays:
+    - { name: New Years Day, abbreviation: NY, day: 1 }
   formats:
-    std: "D MMMM [yearInEra] G"
-    long: "EEEE, D MMMM [yearInEra] G"
+    std: "MM/DD/Y GGG"
+    long: "D MMMM Y GGG"
   eras:
     - { shortcode: bvr, name: Before Vylarian Reckoning, abbreviation: BVR, start: null }
     - { shortcode: vr, name: Vylarian Reckoning, abbreviation: VR, start: 1 }
 ```
 
-The `weekdays` array gives the names in order, starting at index 0. Weeks continue across month and year boundaries. Leave `weekdays` out when the calendar has no week.
+The `weekdays` array gives the names in order, starting at index 0. Weeks continue across month and year boundaries. Leave `weekdays` out when the calendar has no week. `seasons[].start` is the one-based day of year on which a season begins. Starts increase in array order. A season continues through the day before the next, and the last wraps through the beginning of the next year when the first season starts after day 1. `namedDays[].day` is also a one-based day of year. Its name appears through `[namedDay]`; `[namedDayAbbr]` prints the abbreviation.
 
-Every calendar has exactly one era with `start: null` and one with `start: 1`. The null era covers the years before calendar year 1 and counts them backwards: with the example above, canonical `-50.2` prints as `2 Floralis 50 BVR`. Each other `start` is a distinct, positive **calendar year**, not a date. Another era can start at `701`; its first day is calendar year 701, day 1, and its displayed year number is 1. Eras end where the next numeric start begins. Array order does not determine chronology. The optional `marker` identifies an era in authored dates and must be unique across the corpus.
+Every calendar has exactly one era with `start: null` and one with `start: 1`. The null era covers the years before calendar year 1 and counts them backwards: under `Y GGG`, package-build prints canonical `-50.2` as `50 BVR` when the epoch is `1.1`. This null-start era is an authoring extension and is omitted from the Calendaria definition; Foundry's calendar represents current time. Each other `start` is a distinct, positive **calendar year**, never a day-precise date: `start: 701` begins on day 1 of calendar year 701. `start: 1` begins on the canonical day given by `epoch`, even when that day is `1.91` or another date. Eras end where the next numeric start begins. Array order does not determine chronology. The optional `marker` identifies an era in authored dates and must be unique across the corpus.
 
-`formats` contains any number of named Calendaria patterns. `std` is the default for `dateto`, `datefrom`, and `dateformat`; if absent, the first named pattern is the default. The default pattern must contain enough information to read a day back: a complete year (`Y`, `YYYY`, or `[yearInEra]`), a day of year (`DDD`) or month and day, and an era label when using `[yearInEra]`. Other named patterns can use display-only Calendaria tokens. Use `package-build dateto <calendar> <canonical-date> --format <name>` or `{{dateformat "commoncal" data.born "long"}}` to select another output format. The [format token reference](../reference/format-details.md#calendar-format-tokens) lists every Calendaria token and the input constraints.
+`formats` contains any number of named Calendaria patterns. `std` is the default for `dateto`, `datefrom`, and `dateformat`; if absent, the first named pattern is the default. The default pattern must contain enough information to read a day back: a complete year (`Y`, `YYYY`, or `[yearInEra]`), a day of year (`DDD`) or month and day, and an era label when using `[yearInEra]`. `Y` means the calendar year in Calendaria; `[yearInEra]` means the year counted from the era's start. In package-build's null-start era, `Y`, `YY`, and `YYYY` print the positive historical year. Other named patterns can use display-only Calendaria tokens. Use `package-build dateto <calendar> <canonical-date> --format <name>` or `{{dateformat "commoncal" data.born "long"}}` to select another output format. The [format token reference](../reference/format-details.md#calendar-format-tokens) lists every Calendaria token and the input constraints.
 
 ## Write and convert dates
 
-A frontmatter date can use the canonical form or `datefrom <calendar> <date in the default format>`. The calendar may be a shortcode or Address. A named date keeps the precision it states: with the sample `std` pattern, `326 VR` covers a year, `Floralis 326 VR` covers a month, and `23 Floralis 326 VR` covers a day. An era-relative year names its era.
+A frontmatter date can use the canonical form or `datefrom <calendar> <date in the default format>`. The calendar may be a shortcode or Address. A named date keeps the precision it states: with the sample `std` pattern, `326 VR` covers a year, `04/326 VR` covers Taranis, and `04/23/326 VR` covers its twenty-third day. A date with an era-relative year names its era.
 
 ```yaml
 data:
-  born: datefrom commoncal 23 Floralis 326 VR
+  born: datefrom commoncal 04/23/326 VR
   died: ~326.114
 ```
 
 The conversion commands take the same forms:
 
 ```bash
-package-build datefrom commoncal '23 Floralis 326 VR'
-package-build dateto commoncal 326.23
-package-build dateto commoncal 326.23 --format long
+package-build datefrom commoncal '04/23/326 VR'
+package-build dateto commoncal 326.114
+package-build dateto commoncal 326.114 --format long
 ```
 
 The CLI `datefrom` command requires a day and reads the default (`std`, or first) pattern. `dateto` prints the era covering the canonical day. A clock time makes a date exact; a year or day without one spans the stated interval. `data.epoch` and `data.moon.newOn` require a day. The [detailed date rules](../reference/format-details.md#dates-and-calendars) describe precision and bounds.

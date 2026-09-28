@@ -44,6 +44,128 @@ const calendar = {
 describe("calendar year eras and named formats", () => {
     const index = { notes: [world, calendar] };
 
+    it("starts calendar day one at an offset epoch and emits named days and seasons", () => {
+        const offsetCalendar = {
+            ...calendar,
+            fm: {
+                ...calendar.fm,
+                data: {
+                    ...calendar.fm.data,
+                    epoch: 1.91,
+                    seasons: [
+                        { name: "Spring", abbreviation: "Spr", start: 1 },
+                        { name: "Summer", abbreviation: "Sum", start: 181 },
+                    ],
+                    namedDays: [{ name: "New Year's Day", abbreviation: "NY", day: 1 }],
+                    formats: {
+                        std: "MM/DD/Y GGG",
+                        long: "D MMMM Y GGG",
+                        festival: "[namedDay] QQQQ",
+                    },
+                },
+            },
+        };
+        const offsetIndex = { notes: [world, offsetCalendar] };
+        expect(checkCalendarNote(offsetCalendar, { index: offsetIndex })).toEqual([]);
+        const context = { ...resolveReckoningMarkers(offsetIndex, 365), daysPerYear: 365 };
+        expect(dateToCalendar("commoncal", "1.91", context)).toBe("01/01/1 VR");
+        expect(dateFromCalendar("commoncal", "01/01/1 VR", context)).toBe("1.91");
+        expect(parseNoteDate("datefrom commoncal 1 VR", context).date?.precision).toBe("year");
+        expect(parseNoteDate("datefrom commoncal 01/1 VR", context).date?.precision).toBe("month");
+        expect(dateToCalendar("commoncal", "1.91", context, "festival")).toBe(
+            "New Year's Day Spring",
+        );
+        expect(dateToCalendar("commoncal", "1.271", context, "festival")).toBe(" Summer");
+        const definition = compileCalendar({
+            note: offsetCalendar,
+            invariants: { year: { days: 365 } },
+            dateContext: context,
+        });
+        expect(definition.epochDayOffset).toBe(-90);
+        expect(definition.days.names).toEqual([
+            { name: "New Year's Day", abbreviation: "NY", dayNumber: 1 },
+        ]);
+        expect(definition.seasons.values).toEqual([
+            { name: "Spring", abbreviation: "Spr", dayStart: 0, dayEnd: 179 },
+            { name: "Summer", abbreviation: "Sum", dayStart: 180, dayEnd: 364 },
+        ]);
+        expect(definition.dateFormats.short).toBe("MM/DD/Y GGG");
+        expect(definition.eras.before).toBeUndefined();
+    });
+
+    it("prints the null-start era with a positive year for authored historical dates", () => {
+        const historical = {
+            ...calendar,
+            fm: {
+                ...calendar.fm,
+                data: {
+                    ...calendar.fm.data,
+                    formats: { std: "MM/DD/Y GGG" },
+                },
+            },
+        };
+        const context = {
+            ...resolveReckoningMarkers({ notes: [world, historical] }, 365),
+            daysPerYear: 365,
+        };
+        expect(dateToCalendar("commoncal", "-50.2", context)).toBe("01/02/50 BVR");
+        expect(dateFromCalendar("commoncal", "01/02/50 BVR", context)).toBe("-50.2");
+    });
+
+    it("rejects out-of-order seasons and named days outside the world year", () => {
+        const invalid = {
+            ...calendar,
+            fm: {
+                ...calendar.fm,
+                data: {
+                    ...calendar.fm.data,
+                    seasons: [
+                        { name: "Summer", start: 92 },
+                        { name: "Spring", start: 1 },
+                    ],
+                    namedDays: [{ name: "Festival", day: 366 }],
+                },
+            },
+        };
+        const findings = checkCalendarNote(invalid, { index: { notes: [world, invalid] } });
+        expect(findings.map((finding) => finding.message)).toEqual(
+            expect.arrayContaining([
+                expect.stringContaining("season starts must increase within the year"),
+                expect.stringContaining("named days need distinct days within the year"),
+            ]),
+        );
+        expect(() =>
+            compileCalendar({ note: invalid, invariants: { year: { days: 365 } } }),
+        ).toThrow(/season starts/);
+    });
+
+    it("lets the final season continue through the start of the next year", () => {
+        const seasonal = {
+            ...calendar,
+            fm: {
+                ...calendar.fm,
+                data: {
+                    ...calendar.fm.data,
+                    seasons: [
+                        { name: "Summer", start: 92 },
+                        { name: "Winter", start: 274 },
+                    ],
+                    formats: { std: "MM/DD/Y GGG", season: "QQQQ" },
+                },
+            },
+        };
+        const seasonalIndex = { notes: [world, seasonal] };
+        expect(checkCalendarNote(seasonal, { index: seasonalIndex })).toEqual([]);
+        const context = { ...resolveReckoningMarkers(seasonalIndex, 365), daysPerYear: 365 };
+        expect(dateToCalendar("commoncal", "1.1", context, "season")).toBe("Winter");
+        expect(dateToCalendar("commoncal", "1.92", context, "season")).toBe("Summer");
+        const definition = compileCalendar({
+            note: seasonal,
+            invariants: { year: { days: 365 } },
+        });
+        expect(definition.seasons.values[1]).toMatchObject({ dayStart: 273, dayEnd: 90 });
+    });
+
     it("resolves unordered year starts and a backward era from the calendar epoch", () => {
         const context = { ...resolveReckoningMarkers(index, 365), daysPerYear: 365 };
         expect(context.findings).toEqual([]);
@@ -118,6 +240,22 @@ describe("calendar year eras and named formats", () => {
         expect(() => compileCalendar({ note: bad, invariants: { year: { days: 365 } } })).toThrow(
             /data.eras/,
         );
+        const fractional = {
+            ...calendar,
+            fm: {
+                ...calendar.fm,
+                data: {
+                    ...calendar.fm.data,
+                    eras: [
+                        { shortcode: "before", start: null },
+                        { shortcode: "vr", start: 1.1 },
+                    ],
+                },
+            },
+        };
+        expect(() =>
+            compileCalendar({ note: fractional, invariants: { year: { days: 365 } } }),
+        ).toThrow(/positive year starts/);
     });
 
     it("requires an invertible standard format while accepting named display formats", () => {

@@ -236,6 +236,7 @@ types:
             - months
             - weekdays
             - seasons
+            - namedDays
             - eras
             - formats
             - event
