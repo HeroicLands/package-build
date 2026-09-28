@@ -366,6 +366,23 @@ describe("the consumer's own passes are named, not imported", () => {
 });
 
 describe("buildSite end to end", () => {
+    it("does not publish a GM-tagged note", () => {
+        const file = note(
+            "Rules/Secret.md",
+            "type: doc\nsubType: concept\nshortcode: secret\nname: { full: Secret }\ntags: [gm]",
+            "GM material.\n",
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(gatesFailed(result.gates)).toBe(false);
+            expect(fs.existsSync(path.join(root, "build/hugo/content/kb/doc-secret.md"))).toBe(
+                false,
+            );
+        } finally {
+            fs.rmSync(file);
+        }
+    });
+
     it("publishes a being without injecting system frontmatter", () => {
         const file = note(
             "Beings/Njorven.md",

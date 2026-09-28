@@ -296,6 +296,7 @@ export function noteAddressContext(config) {
     return {
         package: config.contentPackage,
         system: "note",
+        types: new Set(Object.keys(NOTE_VOCABULARY)),
         systemBlocks,
     };
 }

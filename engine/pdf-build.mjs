@@ -121,7 +121,7 @@ import {
     resolveDanglingLabels,
 } from "./pdf-render.mjs";
 import { draftNoticeTypst } from "./draft-notice.mjs";
-import { isDraftNote } from "./note-vocabulary.mjs";
+import { isDraftNote, isGmNote } from "./note-vocabulary.mjs";
 import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
@@ -362,11 +362,11 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     });
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "content-pdf-"));
-    const db = await openNotesDatabase(records, { dir });
+    const db = await openNotesDatabase(records, { dir, audience: "public" });
     const ran = await runTreeFilters(parsed.nodes, db, {
         // A stub is a note and is deliberately in the corpus, but it has no
         // body — selecting one would print a blank page under its name.
-        keep: (record) => isNoteRecord(record) && !isStub(record),
+        keep: (record) => isNoteRecord(record) && !isStub(record) && !isGmNote(record),
         text: tree.text,
     });
     findings.push(...ran.findings.map((f) => ({ file: resolved.pdf.document, ...f })));
@@ -411,6 +411,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         config: resolved,
         skipDirectories: resolved.skipDirectories,
         records,
+        audience: "public",
     });
     // The address space an `![[…]]` embed resolves against — the same one the
     // site builds, so one authored picture reaches both surfaces or neither.

@@ -27,7 +27,7 @@
  */
 
 import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
-import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
+import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses } from "./address-values.mjs";
 import fs from "node:fs";
 import os from "node:os";
@@ -155,7 +155,10 @@ export function findSqlBlocks(markdown) {
  * @returns {Promise<{query: (sql: string) => Promise<object[]>,
  *   close: () => Promise<void>}>} The open database.
  */
-export async function openNotesDatabase(records, { dir, dependencies = [], addressContext } = {}) {
+export async function openNotesDatabase(
+    records,
+    { dir, dependencies = [], addressContext, audience = "all" } = {},
+) {
     const { DuckDBInstance } = await import("@duckdb/node-api");
     const base = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
     fs.mkdirSync(base, { recursive: true });
@@ -168,7 +171,7 @@ export async function openNotesDatabase(records, { dir, dependencies = [], addre
     const instance = await DuckDBInstance.create(":memory:");
     const connection = await instance.connect();
     await connection.run("SET threads=1");
-    await createRelations(connection, jsonl);
+    await createRelations(connection, jsonl, "", audience);
 
     // One schema per declared dependency, so `FROM sohl.notes` reads the notes
     // that package published. Quoted, because a package id may carry a hyphen
@@ -178,7 +181,7 @@ export async function openNotesDatabase(records, { dir, dependencies = [], addre
         if (!dep?.id || !dep?.file || !fs.existsSync(dep.file)) continue;
         const schema = `"${String(dep.id).replace(/"/g, '""')}"`;
         await connection.run(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
-        await createRelations(connection, dep.file, `${schema}.`);
+        await createRelations(connection, dep.file, `${schema}.`, audience);
     }
 
     // The market scale as a relation, so a table prints `village` beside the
@@ -322,7 +325,7 @@ const WITH_STUBS_SCHEMA = "__with_stubs";
  * @param {string} [prefix] - A schema to qualify the view names with.
  * @returns {Promise<void>}
  */
-async function createRelations(connection, file, prefix = "") {
+async function createRelations(connection, file, prefix = "", audience = "all") {
     const read = readJsonAuto(file);
     const described = await connection.runAndReadAll(`DESCRIBE ${read}`);
     const columns = new Set(described.getRowObjects().map((row) => String(row.column_name)));
@@ -337,10 +340,15 @@ async function createRelations(connection, file, prefix = "") {
             "COALESCE(list_contains(TRY_CAST(tags AS VARCHAR[]), 'draft'), false) " +
             "OR COALESCE(TRY_CAST(tags AS VARCHAR) = 'draft', false)"
         :   "false";
+    const visible =
+        audience === "public" && columns.has("tags") ?
+            "NOT (COALESCE(list_contains(TRY_CAST(tags AS VARCHAR[]), 'gm'), false) " +
+            "OR COALESCE(TRY_CAST(tags AS VARCHAR) = 'gm', false))"
+        :   "true";
     await connection.run(
         `CREATE VIEW ${prefix}entries AS SELECT *, ` +
             `CASE WHEN ${stub} THEN 'stub' WHEN ${draft} THEN 'draft' ` +
-            `ELSE 'full' END AS state FROM (${read})`,
+            `ELSE 'full' END AS state FROM (${read}) WHERE ${visible}`,
     );
     await connection.run(
         `CREATE VIEW ${prefix}notes AS SELECT * FROM ${prefix}entries WHERE state <> 'stub'`,
@@ -608,6 +616,8 @@ export async function prepareInlineSqlExpressions(db, sources) {
                     if (result.columnNames.length !== 1 || result.rows.length !== 1)
                         throw new RangeError("scalar SQL needs exactly one column and one row");
                     const value = result.rows[0][result.columnNames[0]];
+                    if (value === null || value === undefined || value === "")
+                        throw new RangeError("scalar SQL result is empty");
                     if (
                         value !== null &&
                         !["string", "number", "boolean", "bigint"].includes(typeof value)
@@ -649,13 +659,18 @@ export async function prepareInlineSqlExpressions(db, sources) {
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
  *   nothing when the tree has no such directive.
  */
-export async function prepareTreeSqlTables(contentBase, { config, skipDirectories, records } = {}) {
+export async function prepareTreeSqlTables(
+    contentBase,
+    { config, skipDirectories, records, audience = "all" } = {},
+) {
     // Imported here rather than at module scope: the index reaches the pack
     // compilers through `manifest-emit` → `journals`, so a static import from a
     // module they load would close a cycle and leave `BasePackCompiler`
     // uninitialised for whichever module the runtime happened to load first.
     const { indexRecordsFor } = await import("./content-index.mjs");
-    const indexRecords = records ?? indexRecordsFor({ contentBase, config, skipDirectories });
+    const indexRecords = (
+        records ?? indexRecordsFor({ contentBase, config, skipDirectories })
+    ).filter((record) => audience !== "public" || !isGmNote(record));
 
     // Which notes carry a directive, discovered over the same corpus every
     // other pass reads rather than over a walk of this one's own. The
@@ -702,7 +717,7 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     } catch {
         dependencies = [];
     }
-    const db = await openNotesDatabase(indexRecords, { dependencies });
+    const db = await openNotesDatabase(indexRecords, { dependencies, audience });
     try {
         const prepared = await prepareSqlTables(db, sources, {
             linkable: (ref) => addresses.has(renderAddress(ref)),

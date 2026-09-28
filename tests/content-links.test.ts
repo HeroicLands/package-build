@@ -75,6 +75,23 @@ describe("anchorsOf", () => {
 });
 
 describe("buildLinkIndex", () => {
+    it("reports a player-facing link to a GM note and allows GM-to-GM links", () => {
+        const result = audit({
+            "Lore/Secret.md": note({ type: "lore", shortcode: "secret", tags: ["gm"] }),
+            "Lore/Another.md": note(
+                { type: "lore", shortcode: "another", tags: ["gm"] },
+                "[[lore-secret|Secret]]",
+            ),
+            "Lore/Public.md": note({ type: "lore", shortcode: "public" }, "[[lore-secret|Secret]]"),
+        });
+        expect(result.deadAddresses).toEqual([
+            expect.objectContaining({
+                reason: "gm",
+                note: expect.objectContaining({ rel: "Lore/Public.md" }),
+            }),
+        ]);
+    });
+
     it("loads only notes carrying a type", () => {
         const { index } = audit({
             "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),

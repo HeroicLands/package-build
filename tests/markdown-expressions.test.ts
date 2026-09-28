@@ -8,6 +8,7 @@ import {
 import { prepareInlineSqlExpressions } from "../engine/sql-tables.mjs";
 import { parseAddress } from "../engine/address.mjs";
 import { resolveReckoningMarkers } from "../engine/reckoning-markers.mjs";
+import { numberWords, numberDigits } from "../engine/number-words.mjs";
 
 const months = Array.from({ length: 12 }, (_, index) => ({
     name: `Month ${index + 1}`,
@@ -102,6 +103,50 @@ describe("Markdown expressions", () => {
             markdown: "12 true",
             findings: [],
         });
+    });
+
+    it("formats a scalar count as words or grouped digits without changing its numeric value", async () => {
+        const query = "SELECT 12345 AS n";
+        const source = `{{words (sql "${query}")}}; {{digits (sql "${query}")}}; {{gt (sql "${query}") 10000}}`;
+        const prepared = await prepareInlineSqlExpressions(
+            { query: async () => ({ columnNames: ["n"], rows: [{ n: 12345n }] }) },
+            [{ source: "Aran.md", markdown: source, frontmatter: {} }],
+        );
+        expect(renderMarkdownExpressions(source, { sqlResults: prepared.get("Aran.md") })).toEqual({
+            markdown: "twelve thousand three hundred forty-five; 12,345; true",
+            findings: [],
+        });
+        expect(numberWords(-201n)).toBe("minus two hundred one");
+        expect(numberDigits(1200.5)).toBe("1,200.5");
+    });
+
+    it("leaves escaped expressions, Hugo shortcodes, and code examples literal", () => {
+        const source = "\\{{words 12}} {{< photo >}} `{{words 12}}` {{words 12}}";
+        expect(renderMarkdownExpressions(source)).toEqual({
+            markdown: "\\{{words 12}} {{< photo >}} `{{words 12}}` twelve",
+            findings: [],
+        });
+    });
+
+    it("reports empty SQL values instead of inserting an empty string into prose", async () => {
+        const source = '{{sql "SELECT NULL AS n"}}';
+        const prepared = await prepareInlineSqlExpressions(
+            { query: async () => ({ columnNames: ["n"], rows: [{ n: null }] }) },
+            [{ source: "Aran.md", markdown: source, frontmatter: {} }],
+        );
+        const result = renderMarkdownExpressions(source, {
+            sqlResults: prepared.get("Aran.md"),
+            file: "Aran.md",
+            bodyLine: 8,
+        });
+        expect(result.findings).toEqual([
+            expect.objectContaining({
+                line: 8,
+                column: 1,
+                severity: "error",
+                message: expect.stringContaining("scalar SQL result is empty"),
+            }),
+        ]);
     });
 
     it("reads a SQL query string from frontmatter", async () => {
