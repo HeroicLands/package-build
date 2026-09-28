@@ -1553,12 +1553,9 @@ declaration, all packs ship at the root without a finding.
 its own: it is not forbidden, it **is** how `description` is authored. It is
 the pitch Foundry's package browser shows — HTML allowed, any length — and it
 is emitted into the generated manifest as `description`; the key itself never
-survives into the manifest under its own name. `package.json`'s own
-`description` is read by neither this nor the site (see
-[`site.description`](#site)) — a declared one is reported as a warning naming
-both real keys, so it cannot drift back into use:
-
-> `package.json: warning: \`description\` is read by nothing; the Foundry pitch is \`packageBuild.manifest.descriptionHtml\` and the site's is \`site.description\`` — a JSON manifest carries no line to point at, so only the file is named.
+survives into the manifest under its own name. `package.json.description` is
+npm package metadata. It does not supply the Foundry description or the site
+description (see [`site.description`](#site)); each surface has its own copy.
 
 | Forbidden key                         | Derived from                                                     |
 | ------------------------------------- | ---------------------------------------------------------------- |
