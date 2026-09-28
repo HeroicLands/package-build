@@ -4,4 +4,4 @@
 
 **Content builds**
 
-- Commands that need another package's content index report a missing cache before reading notes or writing output.
+- A missing dependency content index is reported before content processing begins.
