@@ -426,11 +426,13 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // checks a border across the package boundary from both ends,
                 // a consumer's map draws the dependency's places beside its
                 // own, and a consumer's pages list what a dependency's
-                // affiliation holds and what lies within its regions.
+                // affiliation holds and what lies within its regions. A
+                // population lets the same checks include dependency figures.
                 borders: record.data?.borders ?? undefined,
                 routes: record.data?.routes ?? undefined,
                 parents: record.data?.parents ?? undefined,
                 domains: record.data?.domains ?? undefined,
+                population: record.data?.population ?? undefined,
                 package: pkg,
             });
             const entry = index.get(key);

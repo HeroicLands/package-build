@@ -83,6 +83,26 @@ function run(...args: string[]): string {
 }
 
 describe("a content command reaches the content", () => {
+    it("analyzes one note with positioned, optional prose suggestions", () => {
+        const file = path.join(root, "assets", "content", "Prose.md");
+        fs.writeFileSync(file, "---\nshortcode: utilization\n---\n\nThe utilization is high.\n");
+        try {
+            const result = spawnSync(process.execPath, [CLI, "prose", "lint", file], {
+                cwd: root,
+                env: {
+                    ...process.env,
+                    PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
+                },
+                encoding: "utf8",
+            });
+            expect(result.status).toBe(0);
+            expect(result.stderr).toMatch(/Prose\.md:5:5: warning: retext-simplify\/utilization:/);
+            expect(result.stderr).toContain('expected=["use"]');
+        } finally {
+            fs.rmSync(file, { force: true });
+        }
+    });
+
     it.each(["lint", "links", "site"])("`package-build %s` states the walk's scope", (cmd) => {
         // The failure this exists for: a caller that omits `skipDirectories`
         // throws on the first note, so the command reports nothing about the

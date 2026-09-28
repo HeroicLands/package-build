@@ -906,7 +906,7 @@ export function isDeclaredDefault(field, raw) {
  *
  * @param {object} fm - The note's frontmatter.
  * @param {readonly object[]} fields - The system's field declaration.
- * @param {object} ctx - `{ block, resolve, resolveField, taken, presentation }`.
+ * @param {{block: string, resolve?: Function, resolveField?: Function, taken?: Set<string>, presentation?: object}} ctx - Rendering context.
  * @returns {object[]} Zero or one section.
  */
 export function systemRowsSection(
@@ -1035,7 +1035,7 @@ export function sectionHolds(section) {
  * against a restatement of it.
  *
  * @param {object} fm - The note's frontmatter.
- * @param {object} options - `{ maps }`.
+ * @param {{maps: readonly object[]}} options - Document subtype mappings.
  * @returns {string[]} The ids.
  */
 export function requiredInfoboxIds(fm, { maps }) {
@@ -1058,7 +1058,7 @@ export function requiredInfoboxIds(fm, { maps }) {
  *
  * @param {readonly object[]} boxes - What was built.
  * @param {object} fm - The note's frontmatter.
- * @param {object} options - `{ maps, where }`.
+ * @param {{maps: readonly object[], where?: string}} options - Document subtype mappings and context.
  * @returns {readonly object[]} The boxes, unchanged, so a caller may assert
  *   inline.
  * @throws {Error} Naming the note, what is missing and what is extra.

@@ -11,7 +11,11 @@ const OFFICE_KEYS = new Set(["description", "holders"]);
 const HOLDER_KEYS = new Set(["being", "start", "end", "contested"]);
 const mapping = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
-/** Validate one affiliation's office roster against dated beings in the corpus. */
+/**
+ * Validate one affiliation's office roster against dated beings in the corpus.
+ * @param {object} note
+ * @param {{index?: object}} [options]
+ */
 export function checkDatedOffices(note, { index } = {}) {
     const offices = note.fm?.data?.governance?.offices;
     if (offices === undefined || offices === null) return [];

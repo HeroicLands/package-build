@@ -118,6 +118,16 @@ Deterministic document ids, derived by hashing rather than stored, so compile pa
 | `compendiumUuid`       | `compendiumUuid(packageId, type, id, packName)` | `string` — `Compendium.<packageId>.<pack>.<DocumentType>.<id>` | composing a document's full compendium UUID in the one place it is spelled                 |
 | `pageUuid`             | `pageUuid(entryUuid, pageId)`                   | `string` — the page's UUID                                     | composing the UUID of a JournalEntry page                                                  |
 
+### `engine.formatGenerated`
+
+`formatGenerated(text, filepath)` returns a promise for text formatted with
+the Prettier configuration that applies to the destination path. Generators
+can write the result directly without introducing formatting drift.
+
+| Export            | Signature                         | Returns           | Use it when                   |
+| ----------------- | --------------------------------- | ----------------- | ----------------------------- |
+| `formatGenerated` | `formatGenerated(text, filepath)` | `Promise<string>` | writing a generated text file |
+
 ### `engine.systemBlock`
 
 The per-system frontmatter block: how one note feeds more than one game system through properties named after that system (`<system>.system`, `<system>.type`, `<system>.img`, `<system>.items` on actors). Resolves a field's value through the block, the shared top level, and a retiring position in that order, and merges an authored `<system>.system` onto a compiler-built one without disturbing what the builder already wrote.
@@ -430,7 +440,7 @@ The three states of a note — **stub**, **draft**, **full** — and the one obs
 | `journalHasContent`   | `journalHasContent(body)`                   | `boolean`                               | asking whether the JournalEntry a body compiles into would hold anything, which is what decides whether one is made at all |
 | `PLACEHOLDER_PHRASES` | `const PLACEHOLDER_PHRASES`                 | `ReadonlyArray<string>`                 | reading the phrases that stand in for prose nobody has written                                                             |
 | `placeholderBody`     | `placeholderBody(body)`                     | `Array<{phrase: string, line: number}>` | finding a body that reduces to nothing but placeholders, which is an abandoned draft rather than a stub                    |
-| `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting the prose a reader meets, with a wikilink counting as the one word it renders                                     |
+| `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting rendered prose, with wikilinks as one word and closed dashes, slashes, and ellipses separating adjacent words     |
 
 ### `engine.draftNotice`
 

@@ -336,6 +336,18 @@ const GEAR_COMMON = Object.freeze([
 /*  Per-type declarations                                                 */
 /* --------------------------------------------------------------------- */
 
+/** The strike mode required for combat techniques and omitted for other skills.
+ * @type {import("../engine/field-spec.mjs").FieldSpec}
+ */
+export const COMBAT_TECHNIQUE_STRIKE_MODE = Object.freeze({
+    name: "strikeMode",
+    to: "strikeMode",
+    ...STRIKE_MODE,
+    required: true,
+    when: (_fm, out) => out.subType === "combattechnique",
+    describe: "The strike mode the combat technique trains. Required for combat techniques only.",
+});
+
 /**
  * Every item type's frontmatter vocabulary, in the order the `system` block
  * emits it.
@@ -514,6 +526,21 @@ export const ITEM_FIELDS = Object.freeze({
                 "Days from contracting to onset, rolled by the receiving actor. Unset means no incubation.",
         },
         {
+            name: "onsetMacroUuid",
+            to: "onsetMacroUuid",
+            ...BLANK_IS_NULL,
+            default: null,
+            describe: "UUID of the macro run when symptoms begin, if any.",
+        },
+        {
+            name: "data.outcomeTraumas",
+            legacyKey: "outcomeTraumas",
+            to: "outcomeTraumas",
+            ...BLANK_IS_NULL,
+            default: null,
+            describe: "SafeExpression selecting traumas caused by the affliction's outcome.",
+        },
+        {
             name: "data.outcome",
             legacyKey: "outcome",
             to: "outcome",
@@ -630,6 +657,11 @@ export const ITEM_FIELDS = Object.freeze({
 
     armorgear: Object.freeze([
         ...GEAR_COMMON,
+        {
+            to: "isWorn",
+            runtimeOnly: "whether the armor is currently worn by an actor",
+            describe: "Worn state set during play, never authored.",
+        },
         {
             name: "material",
             to: "material",
@@ -974,6 +1006,13 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "Shortcode of the skill this one specialises, for a specialisation.",
         },
         {
+            name: "adoptParentMasteryLevel",
+            to: "adoptParentMasteryLevel",
+            ...BOOLEAN,
+            default: false,
+            describe: "Whether a specialization uses its parent's mastery level.",
+        },
+        {
             name: "initSkillMult",
             to: "initSkillMult",
             ...NUMBER,
@@ -987,6 +1026,7 @@ export const ITEM_FIELDS = Object.freeze({
             default: [],
             describe: "Body-part roles whose impairment penalises tests against this skill.",
         },
+        COMBAT_TECHNIQUE_STRIKE_MODE,
     ]),
 
     trauma: Object.freeze([
@@ -1017,6 +1057,27 @@ export const ITEM_FIELDS = Object.freeze({
             ...NUMBER,
             default: 0,
             describe: "How readily it heals.",
+        },
+        {
+            name: "treatmentModifierBase",
+            to: "treatmentModifierBase",
+            ...NULLABLE_NUMBER,
+            default: null,
+            describe: "Modifier to treatment tests; unset means no modifier.",
+        },
+        {
+            name: "permanentImpairmentEligible",
+            to: "permanentImpairmentEligible",
+            ...BOOLEAN,
+            default: false,
+            describe: "Whether healing may leave a permanent impairment.",
+        },
+        {
+            name: "infectable",
+            to: "infectable",
+            ...BOOLEAN,
+            default: false,
+            describe: "Whether a failed healing test can cause infection.",
         },
         {
             name: "aspect",
@@ -1135,26 +1196,4 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "The ways the weapon can be used to strike.",
         },
     ]),
-});
-
-/**
- * The one conditional field in the vocabulary: a combat technique's strike
- * mode.
- *
- * A combat technique is authored as a `skill` of subtype `combattechnique` —
- * the standalone item type was merged into Skill — and carries an embedded,
- * discriminated strike mode. It is mandatory for that subtype and absent from
- * every other skill, which is a conditional a flat field list cannot state, so
- * it is applied after the declaration runs.
- *
- * @type {import("../engine/field-spec.mjs").FieldSpec}
- */
-export const COMBAT_TECHNIQUE_STRIKE_MODE = Object.freeze({
-    name: "strikeMode",
-    to: "strikeMode",
-    ...STRIKE_MODE,
-    required: true,
-    default: null,
-    describe:
-        "The strike mode the technique trains. Required on a `combattechnique` skill, and set on no other.",
 });

@@ -225,7 +225,8 @@ export function placeholderBody(body) {
  *
  * Fence blocks, headings, thematic breaks and HTML comments are dropped, and a
  * wikilink counts as the one word it renders — `[[affiliation-meivor|Mëivōr]]`
- * is a word, not three. What is left is split on whitespace.
+ * is a word, not three. A dash, slash, or ellipsis between words separates
+ * them even without surrounding spaces.
  *
  * @param {string|null|undefined} body - The note body.
  * @returns {number} The word count.
@@ -238,5 +239,8 @@ export function bodyWordCount(body) {
         .split("\n")
         .filter((line) => !STRUCTURE_LINE.test(line.trim()))
         .join(" ");
-    return text.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+    return text
+        .replace(/(?<=[\p{L}\p{N}])(?:[—–/…]|\.\.\.)(?=[\p{L}\p{N}])/gu, " ")
+        .split(/\s+/)
+        .filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
 }

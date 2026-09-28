@@ -22,7 +22,11 @@ function assetFiles(root) {
     return files;
 }
 
-/** Check configured foreign Address bindings against fetched indexes. */
+/**
+ * Check configured foreign Address bindings against fetched indexes.
+ * @param {object} config
+ * @param {{foreignIndex?: Map<string, object>, assets?: object[]}} [options]
+ */
 export function checkForeignAssetBindings(config, { foreignIndex, assets } = {}) {
     const copies = (assets ?? config.packageBuild?.assets ?? []).filter((asset) => asset.bindsTo);
     if (!copies.length) return [];
