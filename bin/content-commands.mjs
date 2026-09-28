@@ -1620,6 +1620,9 @@ function siteCommand() {
                 for (const e of result.secretErrors) {
                     emitDiagnostic({ ...e, severity: "error" });
                 }
+                for (const e of result.captionErrors) {
+                    emitDiagnostic({ ...e, severity: "error" });
+                }
                 // Reported the way the pack build reports the very same
                 // finding: `file:line:column: error: message`, path first, and
                 // the message from the shared table, not a
@@ -1658,6 +1661,7 @@ function siteCommand() {
                     result.tableErrors.length ||
                     result.expressionErrors.length ||
                     result.secretErrors.length ||
+                    result.captionErrors.length ||
                     result.wikiErrors.length ||
                     result.imageErrors.length
                 ) {

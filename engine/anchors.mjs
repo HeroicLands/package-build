@@ -12,7 +12,7 @@
  */
 
 /**
- * The anchors a note declares on its headings — read in one place.
+ * The anchors a note declares on headings and captioned blocks.
  *
  * **A leaf, deliberately.** This is asked by the link checker, by the content
  * index, and by the builds that emit a link, and they cannot all import one
@@ -24,6 +24,8 @@
  *
  * @module
  */
+
+import { scanCaptions } from "./content-captions.mjs";
 
 /**
  * A heading, and the `{#slug}` anchor it declares.
@@ -38,11 +40,10 @@
 const HEADING = /^\s*(#{1,6})\s+(.+?)\s*#*\s*$/;
 const ANCHOR = /^(.*?)\s*\{#([^}]+)\}\s*$/;
 /**
- * The `{#slug}` anchors a note's body declares, with where each one sits.
+ * The `{#slug}` and `:::caption id="slug"` anchors a note declares.
  *
- * Only headings carrying an explicit anchor are collected. A bare `#` heading
- * also starts a journal page, but it declares no slug, so nothing can address
- * it with `#…` — listing it would offer a link that cannot be written.
+ * A bare `#` heading starts a journal page without declaring a slug. Captioned
+ * blocks declare a slug and start an addressable journal page.
  *
  * @param {string} body - The note's markdown body, frontmatter already removed.
  * @param {number} [bodyLine] - The 1-based file line the body starts on, from
@@ -79,5 +80,13 @@ export function collectAnchors(body, bodyLine = 1) {
             line: bodyLine + i,
         });
     }
-    return anchors;
+    for (const caption of scanCaptions(body).captions) {
+        anchors.push({
+            slug: caption.id,
+            name: caption.label,
+            level: 1,
+            line: bodyLine + caption.line - 1,
+        });
+    }
+    return anchors.sort((a, b) => a.line - b.line);
 }

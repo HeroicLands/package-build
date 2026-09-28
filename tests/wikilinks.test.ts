@@ -249,6 +249,19 @@ describe("convertWikilinks", () => {
         );
     });
 
+    it("uses a caption's generated label for an empty-label same-page link", () => {
+        const page = anchorPageId(from.id, "trade");
+        const { markdown } = convertWikilinks("Refer to [[#trade|]].", {
+            ...from,
+            index,
+            captionLabels: new Map([["trade", "Table 1"]]),
+        });
+        expect(markdown).toBe(
+            "Refer to @UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa2" +
+                `.JournalEntryPage.${page}]{Table 1}.`,
+        );
+    });
+
     it("accepts a table-escaped pipe (`\\|`) inside the link", () => {
         const { markdown } = convert("| [[doc/shock\\|Shock]] |");
         expect(markdown).toBe(

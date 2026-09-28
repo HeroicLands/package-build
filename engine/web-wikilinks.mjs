@@ -399,7 +399,7 @@ export function resolveWebWikilinks(body, ctx) {
 
         // `[[#section-slug|Text]]` — a section of this same page.
         if (isSamePage({ target, anchor })) {
-            return `[${label ?? anchor}](#${slugify(anchor)})`;
+            return `[${label ?? ctx.captionLabels?.get(anchor) ?? anchor}](#${slugify(anchor)})`;
         }
 
         // The canonical separator has to be resolved, not merely
