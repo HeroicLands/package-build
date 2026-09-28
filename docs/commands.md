@@ -1708,6 +1708,73 @@ $ package-build docs item-fields --out docs/item-fields.md --title "Demo Item Fi
 
 [Configuration](configuration.md).
 
+### `package-build prose lint [path]`
+
+**NAME**
+
+Analyze note prose for readability and simpler wording.
+
+**SYNOPSIS**
+
+```text
+package-build prose lint [path] [--age <years>] [--threshold <count>] [--min-words <count>]
+```
+
+**DESCRIPTION**
+
+Analyze the readable prose in one Markdown note or a content tree. This is an
+optional editorial command; `package-build lint` and the normal lint scripts do
+not run it. Without a path, it scans the configured `paths.content` tree and
+honors `skipDirectories`. A file path analyzes that file alone.
+
+Set defaults in `package-build.config.yaml` under `packageBuild.proseLint`:
+
+```yaml
+packageBuild:
+  proseLint: { age: 21, threshold: 5, minWords: 8 }
+```
+
+`age` is the reader age, `threshold` is the number of readability algorithms
+that must identify a difficult sentence (1–7), and `minWords` excludes shorter
+sentences from readability analysis. Command-line options override individual
+configuration values. All three settings must be positive integers.
+
+The command analyzes Markdown prose with `retext-english`,
+`retext-readability`, and `retext-simplify`; `retext-stringify` completes the
+text pipeline. YAML frontmatter, code blocks, wikilink addresses, and inline
+expressions are excluded. Each suggestion is a warning with a file, line,
+column, rule ID, confidence, offending sentence, and `expected` replacement
+list. Readability confidence is the number of algorithms that found the sentence
+difficult, out of seven. Simplify suggestions have no numeric confidence score,
+so they say `unscored`. Suggestions do not make the command fail; unreadable
+paths and invalid options do.
+
+**OPTIONS**
+
+| Input         | Default                    | Meaning                                  |
+| ------------- | -------------------------- | ---------------------------------------- |
+| `path`        | configured `paths.content` | Markdown file or content tree            |
+| `--age`       | 21                         | Reader age in years                      |
+| `--threshold` | 5                          | Number of readability algorithms (1–7)   |
+| `--min-words` | 8                          | Minimum words for readability assessment |
+
+**EXIT STATUS**
+
+0 after reporting suggestions; 1 for invalid options or unreadable paths.
+
+**EXAMPLES**
+
+```bash
+package-build prose lint assets/content/Lore/Harbor.md
+package-build prose lint
+package-build prose lint assets/content --age 18 --threshold 6 --min-words 10
+```
+
+**SEE ALSO**
+
+[`package-build lint`](#package-build-lint-root),
+[Configuration](configuration.md#packagebuildproselint).
+
 ### `package-build lint [root]`
 
 **NAME**

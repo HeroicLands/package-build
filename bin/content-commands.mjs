@@ -97,6 +97,8 @@ import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
+import { lintProse } from "../engine/readability-lint.mjs";
+import { loadPackageBuildConfig } from "../config.mjs";
 import {
     authoredFrontmatter,
     emitContentIndex,
@@ -220,6 +222,7 @@ export function registerContentCommands(cli) {
         .command(depsCommand())
         .command(docsCommand())
         .command(withIndexPreflight(lintCommand()))
+        .command(proseCommand())
         .command(contentFormatCommand())
         .command(withIndexPreflight(linksCommand()))
         .command(formatCommand())
@@ -235,6 +238,59 @@ export function registerContentCommands(cli) {
         .command(withIndexPreflight(mapCommand()))
         .command(withIndexPreflight(reachabilityCommand()))
         .command(addressesCommand());
+}
+
+/** Opt-in readability and plain-language suggestions for Markdown notes. */
+function proseCommand() {
+    return {
+        command: "prose <action> [path]",
+        describe: "Analyze note prose on demand",
+        builder: (yargs) =>
+            yargs
+                .positional("action", { choices: ["lint"], describe: "Analyze prose" })
+                .positional("path", {
+                    type: "string",
+                    describe: "One Markdown file or a content tree",
+                })
+                .option("age", { type: "number", describe: "Reader age" })
+                .option("threshold", {
+                    type: "number",
+                    describe: "Readability algorithms required (1–7)",
+                })
+                .option("min-words", { type: "number", describe: "Minimum words per sentence" }),
+        handler: async (argv) => {
+            try {
+                const config = loadPackConfig();
+                const defaults = loadPackageBuildConfig().proseLint;
+                const options = {
+                    age: argv.age ?? defaults.age,
+                    threshold: argv.threshold ?? defaults.threshold,
+                    minWords: argv.minWords ?? defaults.minWords,
+                };
+                for (const [key, value] of Object.entries(options)) {
+                    if (
+                        !Number.isInteger(value) ||
+                        value < 1 ||
+                        (key === "threshold" && value > 7)
+                    ) {
+                        throw new TypeError(
+                            `${key} must be ${key === "threshold" ? "an integer from 1 to 7" : "a positive integer"}`,
+                        );
+                    }
+                }
+                const findings = await lintProse(
+                    argv.path ?? config.paths.content,
+                    options,
+                    config.skipDirectories,
+                );
+                for (const finding of findings) emitDiagnostic(finding);
+                log.info(`${findings.length} prose suggestion(s).`);
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
 }
 
 /** Check declared dependency indexes before an index-consuming command does any work. */
