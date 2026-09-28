@@ -152,6 +152,8 @@ export function findSqlBlocks(markdown) {
  * @param {Array<{id: string, file: string}>} [opts.dependencies] - Each
  *   declared dependency's cached index, attached as a schema named `id`.
  * @param {object} [opts.addressContext] - Address resolution context.
+ * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes from
+ *   local and dependency relations.
  * @returns {Promise<{query: (sql: string) => Promise<object[]>,
  *   close: () => Promise<void>}>} The open database.
  */
@@ -656,6 +658,7 @@ export async function prepareInlineSqlExpressions(db, sources) {
  * @param {object[]} [opts.records] - Index records the caller already derived.
  *   A command that also builds a link index holds them already, and deriving
  *   them twice is the duplicated-corpus failure this closes.
+ * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes.
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
  *   nothing when the tree has no such directive.
  */
