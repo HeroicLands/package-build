@@ -924,7 +924,10 @@ The toolchain's own content index — the files it ships, addressed. Every other
 
 ### `engine.siteBuild`
 
-Publishing a content tree as a website. Compiling a content tree into compendium packs is `package-build package compile`. Publishing the _same tree_ as a website was a script each consumer wrote for itself — 473 code lines in `sohl` and 462 in `sohl-thalorna`, 87 of them identical — and the copies drifted in ways neither repository could see. `sohl-thalorna` reimplemented four things this package already exported, not because it needed different behaviour but because its script predates the extraction. That is the failure a command removes: a consumer cannot accidentally reimplement one.
+Publishing a content tree as a website. `collectContentPages` gathers authored
+pages and link findings, while `collectHomepages` gathers package homepages.
+`writeHomepages` places those homepages at each package's site root. The same
+content tree can also compile into Foundry compendium packs.
 
 | Export                | Signature                                         | Returns                                                                                                                                  | Use it when                                                                                                           |
 | --------------------- | ------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
@@ -1211,7 +1214,9 @@ What a `[[…]]` **is**, before anything decides where it points. One authored l
 
 ### `engine.siteIndex`
 
-**The address index a site build resolves its wikilinks against.** Every consumer that publishes a content tree as a website has to answer the same question — given `[[Something]]`, which page? — and every one of them answered it with its own copy of the same 150 lines. `sohl`'s and `sohl-thalorna`'s site builds still share 147 identical lines of it, comments and indentation aside. This is that shared half, lifted out whole.
+**The address index a site build resolves its wikilinks against.**
+`buildSiteIndex` gathers addressable pages and ambiguity findings. `wikiContext`
+provides the per-page context used when resolving a link such as `[[Something]]`.
 
 | Export              | Signature                                          | Returns                                                                                                                        | Use it when                                                                                                  |
 | ------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |

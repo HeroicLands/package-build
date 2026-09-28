@@ -903,15 +903,15 @@ and the whole of it is the suffix.
 ![A shield](sohl/assets/icons/noun/shield.svg) <!-- the sohl package's -->
 ```
 
-The four forms, for a `thalorna` note (the `thalorna` package ships as the
-Foundry module `sohl-thalorna`) writing `images/map.webp`:
+The four forms, for a `harnensemble` note (the `harnensemble` content package
+ships as the Foundry module `harn-ensemble`) writing `images/map.webp`:
 
-| Surface     | Address                                                  |
-| ----------- | -------------------------------------------------------- |
-| **Foundry** | `modules/sohl-thalorna/assets/images/map.webp`           |
-| **Local**   | `assets/images/map.webp`                                 |
-| **Web**     | `https://cdn.heroiclands.org/thalorna/images/map.webp`   |
-| **Book**    | `assets/images/map.webp`, staged beside the Typst source |
+| Surface     | Address                                                    |
+| ----------- | ---------------------------------------------------------- |
+| **Foundry** | `modules/harn-ensemble/assets/images/map.webp`             |
+| **Local**   | `assets/images/map.webp`                                   |
+| **Web**     | `https://cdn.heroiclands.org/harnensemble/images/map.webp` |
+| **Book**    | `assets/images/map.webp`, staged beside the Typst source   |
 
 And for the same note writing `sohl/assets/icons/noun/shield.svg`, a file the
 system ships and this repository does not hold:
@@ -923,11 +923,12 @@ system ships and this repository does not hold:
 | **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`  |
 | **Book**    | not carried — a build stages only what this package ships |
 
-**The package's name is not its Foundry id.** `thalorna` is what the content is
-called, what a note writes, and what the website serves it under.
-`sohl-thalorna` is what Foundry installs the module as, and it appears in the
-Foundry form alone. The two words are the same for `sohl` and for `hm3`, which
-is exactly why they are kept apart here.
+**The content package name and Foundry id are separate values.**
+`harnensemble` is what the content is called, what a note writes, and what the
+website serves it under.
+`harn-ensemble` is what Foundry installs the module as, and it appears in the
+Foundry form alone. The two values happen to match for `thalorna`, `sohl`, and
+`hm3`.
 
 Which packages a build can resolve is derived from its configuration: its own
 `contentPackage`, every game system it compiles content for (`systems:`,
@@ -1764,15 +1765,14 @@ the package happened to record one.
 package holding the bytes, so the path is that package's path and each consumer
 joins its own root onto it:
 
-| Consumer | `thalorna-none-image-thorn` resolves to                            |
-| -------- | ------------------------------------------------------------------ |
-| Web      | `<cdn base>/thalorna/images/beings/characters/thorn.webp`          |
-| Book     | `<asset base>/thalorna/images/beings/characters/thorn.webp`        |
-| Foundry  | `modules/sohl-thalorna/assets/images/beings/characters/thorn.webp` |
+| Consumer | `thalorna-none-image-thorn` resolves to                       |
+| -------- | ------------------------------------------------------------- |
+| Web      | `<cdn base>/thalorna/images/beings/characters/thorn.webp`     |
+| Book     | `<asset base>/thalorna/images/beings/characters/thorn.webp`   |
+| Foundry  | `modules/thalorna/assets/images/beings/characters/thorn.webp` |
 
-Foundry names a **Foundry package id** rather than a content package, because
-the two are distinct — they are equal in the system only by coincidence, and in
-`sohl-thalorna` they differ.
+Foundry paths use the **Foundry package id**. The two values are both `thalorna`
+for this image; `harnensemble` content uses `harn-ensemble` in its Foundry paths.
 
 ##### Where provenance comes from
 

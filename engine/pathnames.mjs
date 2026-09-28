@@ -36,22 +36,21 @@
  * being built, and the whole of it is the suffix. That is the ordinary case and
  * the one nearly every note writes.
  *
- * The four forms, for a `thalorna` note writing `images/map.webp` (`thalorna`
- * ships as the Foundry module `sohl-thalorna`):
+ * The four forms, for a `harnensemble` note writing `images/map.webp`
+ * (`harnensemble` ships as the Foundry module `harn-ensemble`):
  *
- * | Form      | Address                                            |
- * | --------- | -------------------------------------------------- |
- * | `foundry` | `modules/sohl-thalorna/assets/images/map.webp`      |
- * | `local`   | `assets/images/map.webp`                            |
- * | `web`     | `https://cdn.heroiclands.org/thalorna/images/map.webp` |
- * | `pdf`     | `assets/images/map.webp`                            |
+ * | Form      | Address                                                       |
+ * | --------- | ------------------------------------------------------------- |
+ * | `foundry` | `modules/harn-ensemble/assets/images/map.webp`               |
+ * | `local`   | `assets/images/map.webp`                                      |
+ * | `web`     | `https://cdn.heroiclands.org/harnensemble/images/map.webp`   |
+ * | `pdf`     | `assets/images/map.webp`                                      |
  *
  * **`<package>` and `<foundry-id>` are two different names.** The package is
- * `thalorna` — what the content is called, what the website serves it under,
- * and what a note writes. The Foundry id is `sohl-thalorna` — what Foundry
- * installs the module as, and the only place that name appears. They coincide
- * for `sohl` and `hm3`, which is exactly why the two are kept apart here rather
- * than treated as one value.
+ * `harnensemble` — what the content is called, what the website serves it under,
+ * and what a note writes. The Foundry id is `harn-ensemble` — what Foundry
+ * installs the module as. The values coincide for `thalorna`, `sohl`, and
+ * `hm3`, but pathname resolution uses each in its own surface.
  *
  * `local` and `pdf` read the same and mean different places: `local` is the file
  * in the owning repository's working tree, `pdf` is where the book stages a copy

@@ -2109,8 +2109,8 @@ function normalizeRelationships(value) {
                 };
                 // What the other package's *content* is called, where that
                 // differs from its Foundry id. A note addresses a file by the
-                // content package that owns it — `thalorna/assets/…` — and the
-                // Foundry id (`sohl-thalorna`) appears only in the install
+                // content package that owns it — `harnensemble/assets/…` — and the
+                // Foundry id (`harn-ensemble`) appears only in the install
                 // path this derives. Omitted where the two are the same word,
                 // which they are for every system.
                 if (rel.contentPackage !== undefined) {
@@ -2737,7 +2737,7 @@ export function defineConfig(config) {
         author: normalizeAuthor(input.author),
         packageKind: /** @type {PackageKind} */ (packageKind),
         // Foundry serves a package's files from `<kind>/<id>/`, so this is the
-        // one place `systems/sohl` (or `modules/sohl-thalorna`) is spelled.
+        // one place `systems/sohl` (or `modules/harn-ensemble`) is spelled.
         //
         // **Conditional on the kind.** `documentation` names no directory
         // Foundry serves, and there is no package id to put under one either, so
