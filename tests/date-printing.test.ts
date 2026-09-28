@@ -101,6 +101,10 @@ describe("printable reckoning dates", () => {
 
     it("accepts only canonical or named frontmatter dates and preserves approximation", () => {
         for (const input of [
+            "326",
+            326,
+            "-300",
+            "~326",
             "326.114",
             "-300.1",
             "326.114:143005",
@@ -114,7 +118,6 @@ describe("printable reckoning dates", () => {
             expect(result.date).not.toBeNull();
         }
         for (const input of [
-            "326",
             "326/4/23",
             "VR(326/4/23)",
             "326 vrcal.founding",
@@ -127,6 +130,26 @@ describe("printable reckoning dates", () => {
         expect(
             parseNoteDate("~326.114", { ...context, field: "data.born" }).date?.approximate,
         ).toBe(true);
+        expect(parseNoteDate("326", { ...context, field: "data.born" }).date).toMatchObject({
+            text: "326",
+            precision: "year",
+            approximate: false,
+            canonicalYear: 326,
+            spanDays: 365,
+        });
+        expect(parseNoteDate("326", { ...context, field: "data.born" }).date).not.toHaveProperty(
+            "canonicalDay",
+        );
+        expect(parseNoteDate("~326", { ...context, field: "data.born" }).date).toMatchObject({
+            precision: "year",
+            approximate: true,
+            spanDays: 365,
+        });
+        expect(parseNoteDate("326.1", { ...context, field: "data.born" }).date).toMatchObject({
+            precision: "day",
+            approximate: false,
+            spanDays: 1,
+        });
         expect(
             parseNoteDate("~datefrom vrcal 23 Taranis 326 VR", { ...context, field: "data.born" })
                 .date?.approximate,
@@ -166,6 +189,27 @@ describe("printable reckoning dates", () => {
             formatNoteDate(parseNoteDate("~datefrom vrcal 720 VR", context).date, vr, 365)?.prose,
         ).toBe("~720 AF");
         expect(formatNoteDate(parseNoteDate("unknown", context).date, vr, 365)).toBeNull();
+    });
+
+    it("preserves a canonical year's interval in the index and calendar display", () => {
+        const authored = parseNoteDate(720, { ...context, field: "data.born" }).date;
+        expect(authored).toMatchObject({
+            text: "720",
+            precision: "year",
+            spanDays: 365,
+            approximate: false,
+        });
+        expect(authored).not.toHaveProperty("canonicalDay");
+        expect(formatNoteDate(authored, vr, 365)?.text).toBe("720 VR");
+        const resolved = resolvedDateFields(
+            { type: "being", data: { born: 720, died: "~720" } },
+            context,
+        );
+        expect(resolved.born).toMatchObject({ precision: "year", spanDays: 365 });
+        expect(resolved.died).toMatchObject({ precision: "year", approximate: true });
+        expect(resolved.born.sort).toBeLessThan(
+            parseNoteDate("720.2", { ...context, field: "data.born" }).date.sort,
+        );
     });
 
     it("selects one era, converts its year, and leaves gaps without a claimed count", () => {

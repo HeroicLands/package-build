@@ -14,14 +14,16 @@
 /**
  * Parse authored note dates into records used by content checks and renderers.
  *
- * A neutral day is `<year>.<day>[:HHMMSS]`, where `day` is an ordinal within
- * the world's year. A named date is `datefrom <calendar> <date>`; its calendar
- * and era resolve the value on the neutral timeline. Either form accepts a
- * leading `~` for approximation. `unknown` is unordered.
+ * A neutral date is `<year>[.<day>[:HHMMSS]]`, where `day` is an ordinal
+ * within the world's year. A bare year spans that year; a day spans that day;
+ * a clock time identifies a second. A named date uses the `datefrom` form;
+ * its calendar and era resolve the value on the neutral timeline.
+ * Either form accepts `~` for uncertainty beyond its stated interval.
+ * `unknown` is unordered.
  *
  * `text` keeps the authored spelling. `canonicalYear` and `sort` are set for
- * neutral and resolved named dates. Resolved dates also carry `canonicalDay`,
- * the ordinal day within the neutral year.
+ * neutral and resolved named dates. A neutral year retains `precision: "year"`
+ * and has no `canonicalDay`; day one is used only to calculate its bounds.
  *
  * @module
  */
@@ -283,10 +285,10 @@ export function parseNoteDate(value, options) {
             `${subject} writes year 0, and no reckoning has one — the years either ` +
                 `side of an epoch are -1 and 1`,
         );
-    if (field && !/^-?\d+\.\d+(?::\d{6})?$/.test(unmarked))
+    if (field && !/^-?\d+(?:\.\d+(?::\d{6})?)?$/.test(unmarked))
         return refuse(
             `${subject} is not a frontmatter date — write ` +
-                "`<year>.<day>[:HHMMSS]` or `datefrom <calendar> <date>`",
+                "`<year>[.<day>[:HHMMSS]]` or `datefrom <calendar> <date>`",
         );
     if (unmarked.includes(".")) {
         const canonical = parseCanonicalDate(unmarked, daysPerYear ?? Number.MAX_SAFE_INTEGER);
@@ -348,7 +350,7 @@ export function parseNoteDate(value, options) {
         }
         return refuse(
             `${subject} is not a date — write ` +
-                `\`<year>.<day>[:HHMMSS]\` or ` +
+                `\`<year>[.<day>[:HHMMSS]]\` or ` +
                 `\`datefrom <calendar> <date>\``,
         );
     }

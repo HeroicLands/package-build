@@ -239,6 +239,17 @@ describe("the family belongs to a calendar note and to no other lore note", () =
         ]);
     });
 
+    it("requires a day for the calendar epoch", () => {
+        const calendar = calendarNote({ epoch: 720 });
+        const findings = checkCalendarNote(calendar, { index: index(worldNote(), calendar) });
+        expect(findings.map((finding) => finding.message)).toContain(
+            "`data.epoch` needs a specific day; write `<year>.<day>` or a day in a named calendar",
+        );
+        expect(findings[0]).toMatchObject({ file: "Common_Calendar.md", severity: "error" });
+        expect(findings[0].line).toBeGreaterThan(0);
+        expect(findings[0].column).toBeGreaterThan(0);
+    });
+
     it("refuses every family key on a lore note of another genre", () => {
         const history = note({
             type: "lore",
@@ -368,11 +379,26 @@ describe("a world fact is written on a body", () => {
         expect(checkWorldFacts(moonNote(), { index: index(worldNote(), moonNote()) })).toEqual([]);
     });
 
+    it("requires a day for the moon's phase reference", () => {
+        const moon = moonNote({ moon: { cycle: 30, newOn: 720 } });
+        const findings = checkWorldFacts(moon, { index: index(worldNote(), moon) });
+        expect(findings.map((finding) => finding.message)).toContain(
+            "`data.moon.newOn` needs a specific day; write `<year>.<day>` or a day in a named calendar",
+        );
+        expect(findings[0].line).toBeGreaterThan(0);
+        expect(findings[0].column).toBeGreaterThan(0);
+    });
+
     it("reads the present through the parser a note's dates go through", () => {
         const wrong = worldNote({ present: "midsummer" });
         const findings = checkWorldFacts(wrong, { index: index(wrong) });
         expect(findings.map((f) => f.severity)).toEqual(["error"]);
         expect(findings[0].message).toContain("is not a frontmatter date");
+    });
+
+    it("accepts a year-precision present date", () => {
+        const world = worldNote({ present: 720 });
+        expect(checkWorldFacts(world, { index: index(world) })).toEqual([]);
     });
 
     it("refuses `unknown` as a present, because a setting has one", () => {
@@ -419,6 +445,20 @@ describe("the definition core reads", () => {
         note: calendarNote(),
         invariants,
         contentPackage: "thalorna",
+    });
+
+    it("does not compile a year-only calendar epoch as day one", () => {
+        expect(() => compileCalendar({ note: calendarNote({ epoch: 720 }), invariants })).toThrow(
+            /data\.epoch.*specific day/,
+        );
+    });
+
+    it("does not compile a year-only moon phase reference as day one", () => {
+        const moon = moonNote({ moon: { cycle: 30, newOn: 720 } });
+        const withMoon = worldInvariants(index(worldNote(), moon));
+        expect(() => compileCalendar({ note: calendarNote(), invariants: withMoon })).toThrow(
+            /data\.moon\.newOn.*specific day/,
+        );
     });
 
     it("writes every compulsory core field", () => {

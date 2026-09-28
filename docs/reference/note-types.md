@@ -408,7 +408,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 | Field              | Shape                                                                                     | Meaning                                                                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `data.epoch`       | a date                                                                                    | Which in-world day the world's clock reads zero on — `720/1/1`.                                                                      |
+| `data.epoch`       | a day-precision date                                                                      | Which in-world day the world's clock reads zero on — `720.1`.                                                                        |
 | `data.months`      | list of `{ name, abbreviation?, days }`                                                   | The months this calendar keeps, in order — position in the list is position in the year, and the day counts sum to the world's year. |
 | `data.weekdays`    | list of `{ name, abbreviation? }`                                                         | The days of the week this calendar names, in order. A calendar with no week writes none.                                             |
 | `data.seasons`     | list of `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }`             | The seasons this calendar marks, bounded by month or by day of year.                                                                 |
@@ -469,7 +469,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.body.orbit`                      | string                                                            | The orbit's shape — `circular` means the cycle never varies.                                                             |
 | `data.body.inclined`                   | boolean                                                           | Whether the orbit is inclined to the plane the world orbits in.                                                          |
 | `data.moon.cycle`                      | number                                                            | How many days the body takes to return to the same phase.                                                                |
-| `data.moon.newOn`                      | a date                                                            | A day the body was new, written in the reference calendar.                                                               |
+| `data.moon.newOn`                      | a day-precision date                                              | A day the body was new, written in the reference calendar.                                                               |
 | `data.moon.eclipses`                   | string                                                            | How often the body eclipses or is eclipsed — `never`, `rare`, `occasional` or `frequent`.                                |
 
 ### scenario
