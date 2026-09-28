@@ -129,6 +129,14 @@ describe("changelog check — one fixture per finding class", () => {
 });
 
 describe("changelog check — the warning-only case", () => {
+    it("keeps accented proper nouns whole when looking for code-like words", () => {
+        const text = `${FRONTMATTER}HârnMaster and ÉlanMaster use familiar names.\n`;
+        const { findings } = lintChangesetText(text);
+        expect(findings.filter((finding) => finding.message.includes("code-like-token"))).toEqual(
+            [],
+        );
+    });
+
     it("a code-like token outside a code span is a warning, not a failure", () => {
         const text = `${FRONTMATTER}Rename \`getFoo\` to getFooBar() across the tree.\n`;
         const { findings } = lintChangesetText(text);

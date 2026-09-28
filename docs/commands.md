@@ -970,7 +970,9 @@ from the heading rule, since neither is authored.
 A token that reads as code — `camelCase()`, a `path/with/slashes.ext`,
 `SCREAMING_SNAKE` — outside any code span is a warning, not a failure: a
 user-facing note sometimes needs one (`Compendium.hm3.items.Item.<id>`), but
-rarely. A block's bold label absent from a declared `changelog.labels` is
+rarely. Accented letters keep proper names such as HârnMaster whole, so a
+fragment of one does not trigger a code-token warning. A block's bold label
+absent from a declared `changelog.labels` is
 also a warning — the drift `**Character data**` beside `**Characters**`
 produces — and checks nothing when the repository declares no
 `changelog.labels`. Every other finding is an error. Reads the files given,
