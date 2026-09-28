@@ -402,7 +402,12 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 ### lore
 
-**Subtypes:** `cosmology`, `deity`, `theology`, `arcana`, `spirit`, `economy`, `law`, `calendar`, `history`, `material`, `folk`, `culture`, `bestiary`, `gathering`.
+**Subtypes:** `cosmology`, `deity`, `theology`, `arcana`, `spirit`, `economy`, `law`, `calendar`, `history`, `material`, `folk`, `culture`, `custom`, `bestiary`, `gathering`.
+
+Lore records in-world knowledge. A `culture` describes a people; a `custom`
+describes how they practice a rite, observance, or usage. A `material` describes
+a physical constituent and its qualities, which may vary by region. See the
+[lore subtype definitions](format-details.md#type-lore) for the complete vocabulary.
 
 | Field              | Shape                                                                                     | Meaning                                                                                                                              |
 | ------------------ | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |

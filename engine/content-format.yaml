@@ -252,6 +252,7 @@ types:
             - material
             - folk
             - culture
+            - custom
             - bestiary
             - gathering
     map:
