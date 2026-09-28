@@ -17,6 +17,8 @@ An Address names content independently of its filename or folder. Its full form 
 
 The part after `|` is the displayed link text or an embed's alternative text. An empty label uses the target's current name in a regular link and marks an embed decorative. A missing pipe is an error. Search may use `name.full` and aliases; authored links use Addresses. The [Address reference](../reference/format-details.md#addresses) explains short forms, package qualification, and ambiguity diagnostics.
 
+A link to a note tagged `draft` retains its target and carries a visible draft cue. In a book, the cue reads `(draft)` after the link. A link that resolves nowhere produces a diagnostic and reads `(unresolved link)` after its label in the book.
+
 ## Journal pages and anchors
 
 Every H1 starts a JournalEntryPage. A lower-level heading with an explicit anchor starts a page too. Use `{#slug}` to make a stable target:

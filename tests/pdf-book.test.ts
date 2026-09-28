@@ -196,6 +196,38 @@ describe("the homepage fence", () => {
     });
 });
 
+it("renders draft and unresolved links as book text", () => {
+    const dir = makeRepo("content");
+    try {
+        const shield = path.join(dir, "assets/content/Gear/shield.md");
+        fs.writeFileSync(
+            shield,
+            fs
+                .readFileSync(shield, "utf8")
+                .replace("  full: Shield\n---", "  full: Shield\ntags: [draft]\n---"),
+        );
+        const dagger = path.join(dir, "assets/content/Gear/dagger.md");
+        fs.appendFileSync(
+            dagger,
+            "A [[weapongear-shield|Shield]] rests beside [[weapongear-missing|missing gear]].\n",
+        );
+
+        const built = build(dir, "--no-compile");
+        expect(built.out).toMatch(/Typst source:/);
+        const sourceFile = fs
+            .readdirSync(path.join(dir, "build/dist"))
+            .find((file) => file.endsWith(".typ"))!;
+        const source = fs.readFileSync(path.join(dir, "build/dist", sourceFile), "utf8");
+        expect(source).toContain("Shield");
+        expect(source).toContain("draft");
+        expect(source).toContain("missing gear (unresolved link)");
+        expect(source).not.toContain("sohl-draft-link");
+        expect(source).not.toContain("sohl-unresolved-link");
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 describe("--book-version", () => {
     // `--version` collides with yargs' own reserved top-level option, so the
     // CLI accepts the stamp under this name instead; this is what proves the
