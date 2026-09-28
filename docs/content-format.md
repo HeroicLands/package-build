@@ -11,14 +11,15 @@ A content package begins with Markdown notes under `assets/content/`. Each note 
 
 Start with [your first note](authoring/first-note.md). It explains the smallest valid note and shows the JournalEntry, web page, book entry, and content-index record made from it. Then use the chapters below in the order your note needs them.
 
-| Need                                                      | Read                                                    |
-| --------------------------------------------------------- | ------------------------------------------------------- |
-| Frontmatter, `data`, system blocks, and infoboxes         | [Frontmatter](authoring/frontmatter.md)                 |
-| Addresses, links, anchors, fences, and inline expressions | [Links and markup](authoring/links-and-markup.md)       |
-| Images, icons, audio, provenance, and sidecars            | [Assets](authoring/assets.md)                           |
-| Canonical dates, calendars, eras, and conversions         | [Dates and calendars](authoring/dates-and-calendars.md) |
-| All accepted note types, subtypes, and fields             | [Note type reference](reference/note-types.md)          |
-| Exact format details and system mappings                  | [Detailed reference](reference/format-details.md)       |
+| Need                                                      | Read                                                        |
+| --------------------------------------------------------- | ----------------------------------------------------------- |
+| Frontmatter, `data`, system blocks, and infoboxes         | [Frontmatter](authoring/frontmatter.md)                     |
+| Addresses, links, anchors, fences, and inline expressions | [Links and markup](authoring/links-and-markup.md)           |
+| Images, icons, audio, provenance, and sidecars            | [Assets](authoring/assets.md)                               |
+| Canonical dates, calendars, eras, and conversions         | [Dates and calendars](authoring/dates-and-calendars.md)     |
+| All accepted note types, subtypes, and fields             | [Note type reference](reference/note-types.md)              |
+| Exact format details and system mappings                  | [Detailed reference](reference/format-details.md)           |
+| Optional readability and wording suggestions              | [Prose analysis](commands.md#package-build-prose-lint-path) |
 
 ## The shared note
 

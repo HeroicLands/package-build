@@ -121,6 +121,8 @@ export function anchorPageId(noteId, anchorSlug) {
  *   `contentIndex: false` — a Foundry dependency only. A link naming one fails
  *   with `no-content-index` rather than resolving, ambiguously, as either a
  *   typo or an undeclared package.
+ * @param {Map<string, object>} [opts.referenceTargets] - Local reference targets.
+ * @param {Map<string, object>} [opts.foreignReferences] - Foreign reference targets.
  * @returns {{byShortcode: Map<string, object>, types: Set<string>}} `types` is
  *   every type the tree actually contains, so a qualifier naming no real type
  *   can be told apart from a missing target.
@@ -373,6 +375,7 @@ function draftLink(inner) {
  *   entry landed in.
  * @param {{byShortcode: Map, types: Set}} ctx.index - From
  *   {@link buildWikilinkIndex}.
+ * @param {Map<string, string>} [ctx.captionLabels] - Numbered caption references.
  * @returns {{markdown: string, unresolved: Array<{link: string, target: string,
  *   offset: number, reason: string, packages?: string[], anchor?: string}>}}
  *   Each `reason` is one of {@link LINK_FINDING_REASONS}, the vocabulary all

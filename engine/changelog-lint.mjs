@@ -79,7 +79,7 @@ const SCOREBOARD_PATTERNS = [
 
 /** A token that reads as code but sits outside any code span — warning only. */
 const CODE_TOKEN_RE =
-    /\b[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*(?:\(\))?\b|\b[\w-]+(?:\/[\w-]+)+\.[A-Za-z]{1,8}\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g;
+    /(?<![\p{L}\p{N}\p{M}_])[a-z][a-zA-Z0-9]*[A-Z][a-zA-Z0-9]*(?:\(\))?(?![\p{L}\p{N}\p{M}_])|\b[\w-]+(?:\/[\w-]+)+\.[A-Za-z]{1,8}\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/gu;
 
 /** Bullets over this many words read as a paragraph, not a release note. */
 const MAX_BULLET_WORDS = 40;

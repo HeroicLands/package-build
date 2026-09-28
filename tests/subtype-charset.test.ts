@@ -46,6 +46,11 @@ const messages = (findings: Array<{ message: string }>) =>
 const opts = { schemas: NOTE_SCHEMAS as any, vocabulary: NOTE_VOCABULARY };
 
 describe("a `subType` is an address segment", () => {
+    it("accepts custom lore as a declared subtype", () => {
+        expect(lintNote(note("lore", { subType: "custom" }), opts)).toEqual([]);
+        expect(subTypes("lore")).toContain("custom");
+    });
+
     it("accepts the alphanumeric spelling `userguide` on a doc", () => {
         expect(lintNote(note("doc", { subType: "userguide" }), opts)).toEqual([]);
     });

@@ -56,7 +56,7 @@ function minimal(): ContentBuildConfigInput {
 
 /** Resolve just the address scheme out of a `publish.address` block. */
 const address = (value: unknown) =>
-    defineConfig({ ...minimal(), publish: { site: "content", address: value } }).publish.address;
+    defineConfig({ ...minimal(), publish: { address: value } }).publish.address;
 
 /** The error `defineConfig` threw for an address block, or a thrown assertion. */
 function refusalFor(value: unknown): any {
@@ -122,7 +122,6 @@ describe("a configuration declaring `publish.address.landing` is refused", () =>
             "    - name: items",
             "      type: Item",
             "publish:",
-            "    site: content",
             "    address:",
             "        prefix: kb/",
             "        landing: readme",

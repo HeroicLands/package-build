@@ -26,6 +26,8 @@ A sheltered place where ships load and unload.
 
 `shortcode` and `type` identify a HeroicLands note; `name.full` gives readers its name. The YAML ends at the second `---`. Everything after it is the shared Markdown body. Run `npm run lint` to check the note, then `npm run build:site` to build its web page. `npm run serve:site` serves the site locally; `npm run build:book` builds the book. A Foundry package's `npm run build:db` also compiles its configured packs. The generated project supplies these scripts and their configuration.
 
+For optional writing suggestions, run `npx package-build prose lint assets/content/Places/Harbor.md`. This reports difficult sentences and simpler word choices with line and column numbers. It does not change the note or run as part of `npm run lint`. The [prose analysis command](../commands.md#package-build-prose-lint-path) explains the settings and how to read each suggestion.
+
 ## What the note becomes
 
 | Output                       | What it contains                                                                                                                        |

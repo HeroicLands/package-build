@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import prettier from "prettier";
+import { formatGenerated } from "../engine/format-generated.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import { NOTE_VOCABULARY, SHARED_DATA_FIELDS } from "../engine/note-vocabulary.mjs";
 
@@ -58,6 +58,12 @@ for (const [type, spec] of contract.types) {
         }.`,
         "",
     );
+    if (type === "lore") {
+        rows.push(
+            "Lore records in-world knowledge. A `culture` describes a people; a `custom` describes how they practice a rite, observance, or usage. A `material` describes a physical constituent and its qualities, which may vary by region. See the [lore subtype definitions](format-details.md#type-lore) for the complete vocabulary.",
+            "",
+        );
+    }
     rows.push("| Field | Shape | Meaning |", "| --- | --- | --- |");
     rows.push(
         ...(declared.data?.length ?
@@ -87,10 +93,7 @@ rows.push(
         ),
 );
 rows.push("");
-const result = await prettier.format(`${rows.join("\n")}\n`, {
-    ...(await prettier.resolveConfig(output)),
-    filepath: output,
-});
+const result = await formatGenerated(`${rows.join("\n")}\n`, output);
 if (process.argv.includes("--check")) {
     if (!fs.existsSync(output) || fs.readFileSync(output, "utf8") !== result) {
         console.error(

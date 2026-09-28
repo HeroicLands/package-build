@@ -662,3 +662,11 @@ describe("lore declares a genre for a scheduled public occasion", () => {
     // documented genres to its declared ones, in both directions and in order,
     // which is where this type's assertion now lives.
 });
+
+describe("custom lore", () => {
+    it("uses the ordinary lore address", () => {
+        expect(packageAddress({ type: "lore", subType: "custom", shortcode: "greeting" })).toBe(
+            "lore-greeting/",
+        );
+    });
+});

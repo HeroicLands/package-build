@@ -147,7 +147,7 @@ function keyDocument(doc, collection, parentIds, sceneId) {
  *
  * @param {object} fm - The map note's frontmatter.
  * @param {string} markdown - Its converted Markdown body.
- * @param {object} [opts] - Pack metadata, derived JournalEntry ID, and asset resolver.
+ * @param {{journalEntryId?: string, stats?: object, resolveAddress?: Function}} [opts] - Pack metadata, derived JournalEntry ID, and asset resolver.
  * @returns {object} The keyed Scene document.
  */
 export function buildExportedScene(fm, markdown, { journalEntryId, stats, resolveAddress } = {}) {

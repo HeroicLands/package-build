@@ -241,6 +241,43 @@ Nothing to clean.
 
 [Configuration](configuration.md).
 
+### `package-build stage reset`
+
+**NAME**
+
+Clear the assembled Foundry package stage before a complete build.
+
+**SYNOPSIS**
+
+```
+package-build stage reset
+```
+
+**DESCRIPTION**
+
+The `reset` action removes `packageBuild.stageDir` without removing the content index, PDF, site,
+or other build outputs. Run it once before the commands that write assets, packs,
+bundles, and the manifest. It succeeds when the stage is already empty.
+
+**OPTIONS**
+
+There are no options.
+
+**EXIT STATUS**
+
+1 on an invalid configuration or a stage directory outside the project. Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build stage reset
+Removed build/stage
+```
+
+**SEE ALSO**
+
+[Project setup](project-setup.md), [Configuration](configuration.md).
+
 ### `package-build assets`
 
 **NAME**
@@ -933,7 +970,9 @@ from the heading rule, since neither is authored.
 A token that reads as code — `camelCase()`, a `path/with/slashes.ext`,
 `SCREAMING_SNAKE` — outside any code span is a warning, not a failure: a
 user-facing note sometimes needs one (`Compendium.hm3.items.Item.<id>`), but
-rarely. A block's bold label absent from a declared `changelog.labels` is
+rarely. Accented letters keep proper names such as HârnMaster whole, so a
+fragment of one does not trigger a code-token warning. A block's bold label
+absent from a declared `changelog.labels` is
 also a warning — the drift `**Character data**` beside `**Characters**`
 produces — and checks nothing when the repository declares no
 `changelog.labels`. Every other finding is an error. Reads the files given,
@@ -1097,7 +1136,7 @@ states it a second time. It also publishes the content index the manifest
 advertises (`flags.metadataUrl`) and, when the stage carries one,
 `schema.json` — a repository that names `build/schema.json` in
 `packageBuild.assets` gets it released beside the archive; one that does not
-gets none. When the package publishes content (`publish.site: content`), it
+gets none. When the content tree holds notes beyond its homepage, it
 also builds the content-tree book (see `package-build pdf`) and reports it
 alongside the archive; `--no-pdf` skips that step for a release that has a
 tree but does not want the book this time. A book that fails to build is
@@ -1122,7 +1161,7 @@ are reported on stderr but do not fail the release.
 ```
 $ package-build release
 ✅ Packaged 1.0.0 for release: build/dist/module.zip (0.0 MB)
-   No book: `publish.site` is `homepage`, which fences the content surfaces off — the tree is not walked and no book is built. Publish content to build one.
+   No book: The content tree contains only a homepage, so there is no book to build.
 ```
 
 **SEE ALSO**
@@ -1471,6 +1510,126 @@ $ package-build deps fetch --from build/dist/module.zip
 
 `package-build site`, `package-build addresses diff`, [Configuration](configuration.md).
 
+### `package-build types check`
+
+**NAME**
+
+Check project declarations.
+
+**SYNOPSIS**
+
+```sh
+package-build types check [--project <tsconfig>] [--exports]
+```
+
+**DESCRIPTION**
+
+Check a TypeScript project's declarations with library checking enabled. The
+default `--project` is `tsconfig.json`. Diagnostics in `node_modules` are
+excluded; diagnostics in project files name the file, line, and column.
+`--exports` also checks every declaration entry point advertised by
+`package.json` `exports`, including wildcard subpaths. Run it after generating
+declarations.
+
+**OPTIONS**
+
+| Option      | Default         | Meaning                                     |
+| ----------- | --------------- | ------------------------------------------- |
+| `--project` | `tsconfig.json` | TypeScript project file.                    |
+| `--exports` | off             | Include published declaration entry points. |
+
+**EXIT STATUS**
+
+1 when a project declaration fails to type-check or an exported entry point is
+missing; otherwise 0.
+
+**EXAMPLES**
+
+```sh
+package-build types check --project tsconfig.json
+```
+
+**SEE ALSO**
+
+`package-build docs links`.
+
+### `package-build docs links`
+
+**NAME**
+
+Check documentation links.
+
+**SYNOPSIS**
+
+```sh
+package-build docs links [--root <dir>]
+```
+
+**DESCRIPTION**
+
+Check relative Markdown links and heading anchors in a documentation tree.
+Code fences and code spans are ignored. The default root is `docs`; use
+`--root <dir>` for another tree. Missing targets and anchors are reported at
+the link's file, line, and column.
+
+**OPTIONS**
+
+| Option   | Default | Meaning             |
+| -------- | ------- | ------------------- |
+| `--root` | `docs`  | Documentation root. |
+
+**EXIT STATUS**
+
+1 when a link or anchor fails to resolve; otherwise 0.
+
+**EXAMPLES**
+
+```sh
+package-build docs links --root docs
+```
+
+**SEE ALSO**
+
+`package-build docs index`.
+
+### `package-build docs index`
+
+**NAME**
+
+Check documentation index coverage.
+
+**SYNOPSIS**
+
+```sh
+package-build docs index [--root <dir>]
+```
+
+**DESCRIPTION**
+
+Check that every Markdown page immediately inside each section directory is
+linked from the documentation root's `README.md`. The default root is `docs`;
+use `--root <dir>` for another tree. Each unlinked page is reported by path.
+
+**OPTIONS**
+
+| Option   | Default | Meaning             |
+| -------- | ------- | ------------------- |
+| `--root` | `docs`  | Documentation root. |
+
+**EXIT STATUS**
+
+1 when a page is not indexed; otherwise 0.
+
+**EXAMPLES**
+
+```sh
+package-build docs index --root docs
+```
+
+**SEE ALSO**
+
+`package-build docs links`.
+
 ### `package-build docs item-fields`
 
 **NAME**
@@ -1521,15 +1680,16 @@ body alone, with no frontmatter, exactly as before.
 
 **OPTIONS**
 
-| Positional | Type                         | Default | Description             |
-| ---------- | ---------------------------- | ------- | ----------------------- |
-| `action`   | string, one of `item-fields` | —       | The document to render. |
+| Positional | Type                                           | Default | Description               |
+| ---------- | ---------------------------------------------- | ------- | ------------------------- |
+| `action`   | string, one of `item-fields`, `links`, `index` | —       | The documentation action. |
 
 | Option    | Type    | Default                 | Description                                            |
 | --------- | ------- | ----------------------- | ------------------------------------------------------ |
 | `--out`   | string  | `docs.itemFields.out`   | Write to this file instead of the configured location. |
 | `--check` | boolean | `false`                 | Compare against the file already there; write nothing. |
 | `--title` | string  | `docs.itemFields.title` | The page's H1.                                         |
+| `--root`  | string  | `docs`                  | Documentation root for `links` and `index`.            |
 
 **EXIT STATUS**
 
@@ -1549,6 +1709,95 @@ $ package-build docs item-fields --out docs/item-fields.md --title "Demo Item Fi
 **SEE ALSO**
 
 [Configuration](configuration.md).
+
+### `package-build prose lint [path]`
+
+**NAME**
+
+Analyze note prose for readability and simpler wording.
+
+**SYNOPSIS**
+
+```text
+package-build prose lint [path] [--age <years>] [--threshold <count>] [--min-words <count>]
+```
+
+**DESCRIPTION**
+
+Run this command from the package root to review the readable prose in one
+Markdown note or a content tree. Pass a note path while editing that note;
+omit it to review the configured `paths.content` tree. A directory path scans
+its Markdown files recursively and honors `skipDirectories`. A file path
+analyzes that file alone, even if it sits in an excluded directory. The command
+reads source files and writes nothing. It is an optional editorial check:
+`package-build lint` and the normal lint scripts do not run it.
+
+Set defaults in `package-build.config.yaml` under `packageBuild.proseLint`:
+
+```yaml
+packageBuild:
+  proseLint: { age: 21, threshold: 5, minWords: 8 }
+```
+
+No configuration is required; the values above are the defaults. `age` is the
+intended reader's age in years. `threshold` is the number of seven readability
+algorithms that must classify a sentence as difficult before it is reported.
+For example, a threshold of 5 reports a sentence if five or more algorithms
+flag it; a threshold of 7 reports only unanimous findings. `minWords` excludes
+shorter sentences from readability analysis. Each setting is a positive integer,
+and `threshold` must be at most 7. CLI options override individual settings:
+`--min-words` overrides `minWords`, while `--age` and `--threshold` override
+their matching keys.
+
+The command analyzes Markdown prose with `retext-english`,
+`retext-readability`, and `retext-simplify`; `retext-stringify` completes the
+text pipeline. YAML frontmatter, code blocks, wikilink addresses, and inline
+expressions are excluded. Each suggestion is a warning with a file, line,
+column, rule ID, confidence, offending sentence, and `expected` replacement
+list. The source location marks the difficult sentence or the specific phrase
+that could be simplified. Readability confidence is the number of algorithms
+that found the sentence difficult, out of seven. Simplify suggestions have no
+numeric confidence score, so they say `unscored`. `expected` lists suggested
+replacements; `[]` means the rule offers no replacement and may recommend
+deleting a word or rewriting a sentence. Suggestions are advisory, are never
+applied automatically, and do not make the command fail. Unreadable paths and
+invalid options do.
+
+**OPTIONS**
+
+| Input         | Default                    | Meaning                                  |
+| ------------- | -------------------------- | ---------------------------------------- |
+| `path`        | configured `paths.content` | Markdown file or content tree            |
+| `--age`       | 21                         | Reader age in years                      |
+| `--threshold` | 5                          | Number of readability algorithms (1–7)   |
+| `--min-words` | 8                          | Minimum words for readability assessment |
+
+**EXIT STATUS**
+
+0 after reporting suggestions; 1 for invalid options or unreadable paths.
+
+**EXAMPLES**
+
+```bash
+package-build prose lint assets/content/Lore/Harbor.md
+package-build prose lint
+package-build prose lint assets/content --age 18 --threshold 6 --min-words 10
+```
+
+For a note whose fifth line says `The utilization is very high.`, the command
+can report:
+
+```text
+assets/content/Lore/Harbor.md:5:5: warning: retext-simplify/utilization: confidence=unscored; sentence="The utilization is very high."; expected=["use"]; Unexpected `utilization`, use `use` instead
+```
+
+Open the file at line 5, column 5, and decide whether `use` suits the context.
+The rule ID identifies the suggestion if you need to search or group results.
+
+**SEE ALSO**
+
+[`package-build lint`](#package-build-lint-root),
+[Configuration](configuration.md#packagebuildproselint).
 
 ### `package-build lint [root]`
 
@@ -2103,8 +2352,8 @@ configured `pdf.out`.
 
 **EXIT STATUS**
 
-0 when there is a stated reason not to build (`publish.site` is
-`homepage`, no `pdf:` block, no content tree). 1 if the document tree
+0 when there is a stated reason not to build (only a homepage note, no `pdf:`
+block, no content tree). 1 if the document tree
 `pdf.document` names cannot be read or parsed, or on any other thrown
 error. Otherwise 0 — findings inside a book that did build (a filter that
 matched nothing, for instance) are reported but never fail the command.

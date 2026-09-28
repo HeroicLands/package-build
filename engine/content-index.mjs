@@ -442,6 +442,8 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
  * @param {number} [options.bodyLine] - The 1-based file line the body starts on.
  * @param {object} [options.manifest] - The package manifest, which the Foundry
  *   entries are derived against.
+ * @param {object} [options.addressContext] - Address resolution context.
+ * @param {object} [options.dateContext] - Calendar conversion context.
  * @returns {Record<string, any>} The record, keys sorted at every depth. A
  *   **stub** — a note with an empty body, on a type an empty body suppresses —
  *   carries `address` and `anchors` as `null`: it publishes no page, so it
@@ -669,6 +671,7 @@ export function indexRecordsForNote({
  *   anyway.
  * @param {object} [options.manifest] - The package manifest, which the Foundry
  *   entries are derived against.
+ * @param {object} [options.addressContext] - Address resolution context.
  * @param {object[]} [options.problems] - Supplied by a **reader**: a note that
  *   cannot be recorded is pushed here as a diagnostic and skipped. Omitted, the
  *   note throws — the contract the emitter needs, since an index missing a note

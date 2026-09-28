@@ -3,7 +3,11 @@
 import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
-/** Require a being's primary culture to address a culture lore note. */
+/**
+ * Require a being's primary culture to address a culture lore note.
+ * @param {object} note
+ * @param {{index?: object}} [options]
+ */
 export function checkCultureChoice(note, { index } = {}) {
     const value = note.fm?.data?.culture;
     if (value === undefined || value === null || !index?.addressHit) return [];

@@ -76,7 +76,11 @@ describe("package-build init", () => {
             expect(pkg.scripts["serve:site"]).toContain("serve:site-html");
             expect(pkg.scripts["serve:site-html"]).toContain("hugo server");
             expect(pkg.scripts["build:book"]).toBe("package-build pdf");
-            expect(config.publish.site).toBe("content");
+            if (kind !== "documentation") {
+                expect(pkg.scripts["build:stage-reset"]).toBe("package-build stage reset");
+                expect(pkg.scripts["build:noci"]).toMatch(/build:stage-reset build:db/);
+            }
+            expect(config.publish.address.prefix).toBe("");
             expect(config.pdf.document).toBe("book.yaml");
             if (kind === "documentation") {
                 expect(config.packs).toBeUndefined();

@@ -274,7 +274,7 @@ export function calendarStructure(calendar) {
 /**
  * How long one month of a calendar is, or `null` where the calendar is silent.
  *
- * @param {{months?: readonly CalendarMonth[]|null}} [calendar] - The calendar.
+ * @param {{months?: readonly CalendarMonth[]|null}|undefined} calendar - The calendar.
  * @param {number} month - The month, numbered from 1.
  * @returns {number|null} Its length in days, or `null`.
  */

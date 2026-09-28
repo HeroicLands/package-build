@@ -31,8 +31,6 @@
  * packageBuild:
  *     assets:
  *         - { from: assets/icons, to: assets/icons }
- * publish:
- *     site: content
  * ```
  *
  * `defineConfig` is the whole of the contract: it validates the object, fills
@@ -248,58 +246,44 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
 });
 
 /**
- * How much of a package reaches the web.
- *
- * Every HeroicLands package publishes something: a top-level, human-authored
- * homepage at `https://www.heroiclands.org/<contentPackage>/` saying what the
- * module is, which system it needs and how to install it. So there is no
- * value here meaning *no web presence at all* — homepage-only is the **floor**,
- * and the default.
- *
- * - `homepage` — the authored homepage, and **no other page**. The content tree
- *   is not walked for pages, and nothing serves a page for its addresses.
- * - `content` — the homepage *plus* every page the content tree publishes, one
- *   per note.
- *
- * **Homepage-only is a first-class mode, not an accommodation.**
- * `sohl-kethira-basic` (unofficial Hârn fan material under Keléstia Productions'
- * Fan Material Guidelines) and `harn-adventures` (HârnFanon under Lythia's
- * terms) must each publish a homepage and nothing beneath it — two packages
- * under two different fan-content licences. The boundary is **published
- * content**: journal text, artwork, item descriptions, compiled notes. A
- * human-authored page announcing the module discloses none of it. Because the
- * failure mode is silent — a `site:` block added later ships licensed content
- * with nobody noticing — the mode fences the content surfaces off rather than
- * trusting a configuration to stay empty.
- *
- * This was a boolean until 5.0.0, and `false` read as "no web presence", which
- * no longer describes any package. Both spellings are refused rather than
- * mapped: a value silently reinterpreted reads to its author as though it still
- * means what it said.
- *
- * @typedef {"homepage" | "content"} SiteMode
- */
-
-/**
- * The publishing modes {@link PublishSwitches.site} may name, floor first.
- *
- * @satisfies {readonly SiteMode[]}
- */
-export const SITE_MODES = /** @type {const} */ (["homepage", "content"]);
-
-/**
  * Whether this package publishes the pages its content tree compiles to.
  *
- * The one question every reader of the mode actually asks — the site build, to
- * decide whether to walk the tree at all, and the content index, to
- * decide whether an entry carries a web `path`. Written once here so the two
- * cannot come to disagree about what a mode means.
+ * Every package publishes an authored homepage. Other authored notes provide
+ * content pages; a tree containing only the homepage publishes only that page.
  *
- * @param {{publish: {site: SiteMode}}} config - A resolved configuration.
+ * Site, PDF, index, and Foundry address emission use the same source-tree
+ * decision. A file without note frontmatter is not a content page.
+ *
+ * @param {{paths: {content: string}, skipDirectories: readonly string[]}} config -
+ *   A resolved configuration with content and skip paths.
  * @returns {boolean} Whether content pages are published.
  */
 export function publishesContentPages(config) {
-    return config.publish.site === "content";
+    const root = config.paths.content;
+    if (!fs.existsSync(root)) return false;
+    const skipped = new Set(config.skipDirectories);
+    const stack = [root];
+    while (stack.length) {
+        const dir = stack.pop();
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const file = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                if (!skipped.has(entry.name)) stack.push(file);
+                continue;
+            }
+            if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+            const match = fs
+                .readFileSync(file, "utf8")
+                .match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+            if (!match) continue;
+            try {
+                if (YAML.parse(match[1])?.type !== "homepage") return true;
+            } catch {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /**
@@ -448,8 +432,7 @@ export function publishesContentPages(config) {
 
 /**
  * @typedef {object} PublishSwitches
- * @property {SiteMode} site          How much of this package reaches the web.
- *                                    See {@link SITE_MODES}.
+ * @property {Readonly<{prefix: string}>} address  Where content pages mount within the package.
  */
 
 /**
@@ -546,7 +529,6 @@ export function publishesContentPages(config) {
 
 /**
  * @typedef {object} PublishSwitchesInput
- * @property {SiteMode} [site]
  * @property {AddressSchemeInput} [address]
  */
 
@@ -823,7 +805,7 @@ const STATS_KEYS = ["lastModifiedBy"];
  * @type {symbol}
  */
 export const DERIVED_SYSTEM_VERSION = Symbol.for("package-build.derivedSystemVersion");
-const PUBLISH_KEYS = ["site", "address"];
+const PUBLISH_KEYS = ["address"];
 const ADDRESS_KEYS = ["prefix"];
 
 /** @param {unknown} value */
@@ -1830,10 +1812,8 @@ function normalizeSite(value) {
  * choose, which is the whole reason they are configuration: the engine that
  * sets the book must be able to set somebody else's book.
  *
- * **Declaring the block is not the switch.** Whether a PDF is built at all is
- * `publish.site` — `content` builds one, `homepage` does not — so a package
- * cannot end up with two switches that disagree about whether it publishes its
- * content tree. See {@link publishesContentPages}.
+ * A PDF is built when the authored tree contains content pages and the `pdf`
+ * block names a document tree. See {@link publishesContentPages}.
  *
  * @param {unknown} value - The `pdf` block, or `undefined`.
  * @param {string} rootDir - The repository root configured paths resolve against.
@@ -2115,8 +2095,8 @@ function normalizeRelationships(value) {
                 };
                 // What the other package's *content* is called, where that
                 // differs from its Foundry id. A note addresses a file by the
-                // content package that owns it — `thalorna/assets/…` — and the
-                // Foundry id (`sohl-thalorna`) appears only in the install
+                // content package that owns it — `harnensemble/assets/…` — and the
+                // Foundry id (`harn-ensemble`) appears only in the install
                 // path this derives. Omitted where the two are the same word,
                 // which they are for every system.
                 if (rel.contentPackage !== undefined) {
@@ -2410,55 +2390,20 @@ function normalizeItemBuilders(value) {
 }
 
 /**
- * The publishing mode, refusing a boolean.
- *
- * A boolean is refused rather than mapped onto the nearest mode, because the
- * reading `false` invited — *this package has no web presence* — is exactly the
- * belief the change exists to correct, and a value quietly reinterpreted reads
- * to its author as though it still means what it said. So the message names the
- * mode to write instead of the value to fix.
- *
- * @param {unknown} value - The authored `publish.site`.
- * @returns {SiteMode} The mode.
- */
-function normalizeSiteMode(value) {
-    if (value === undefined) return "homepage";
-    if (typeof value === "boolean") {
-        fail(
-            "publish.site",
-            `is no longer a boolean — write \`site: ${value ? "content" : "homepage"}\`. ` +
-                `Every package publishes an authored homepage at ` +
-                `/<contentPackage>/, so no value means "no web presence": ` +
-                `\`homepage\` publishes that page and nothing else, and ` +
-                `\`content\` publishes it plus every page the content tree ` +
-                `compiles to`,
-        );
-    }
-    if (
-        typeof value !== "string" ||
-        !(/** @type {readonly string[]} */ (SITE_MODES).includes(value))
-    ) {
-        fail(
-            "publish.site",
-            `must be one of ${SITE_MODES.join(", ")} (got ${JSON.stringify(value)})`,
-        );
-    }
-    return /** @type {SiteMode} */ (value);
-}
-
-/**
  * @param {unknown} value
  * @returns {Readonly<PublishSwitches>}
  */
 function normalizePublish(value) {
     if (value === undefined) {
         return Object.freeze({
-            site: "homepage",
             address: Object.freeze({ ...DEFAULT_ADDRESS_SCHEME }),
         });
     }
     if (!isPlainObject(value)) fail("publish", "must be an object");
     const publish = /** @type {Record<string, unknown>} */ (value);
+    if (Object.hasOwn(publish, "site")) {
+        fail("publish.site", "is not configured; publishing follows the authored content tree");
+    }
     rejectUnknownKeys(publish, PUBLISH_KEYS, "publish.");
 
     const addressInput = publish.address;
@@ -2494,7 +2439,6 @@ function normalizePublish(value) {
     }
 
     return Object.freeze({
-        site: normalizeSiteMode(publish.site),
         address: Object.freeze({ prefix }),
     });
 }
@@ -2545,28 +2489,6 @@ export function defineConfig(config) {
         for (const [key, why] of Object.entries(DOCUMENTATION_REFUSES)) {
             if (input[key] === undefined) continue;
             fail(key, `is refused in a \`${DOCUMENTATION_KIND}\` package, which ${why}`);
-        }
-        // Publishing is what a documentation package is *for*, so the floor
-        // every other package may sit at is not available to it: `homepage`
-        // would leave a package that publishes one authored page, builds no
-        // book, and compiles nothing at all.
-        if (!isPlainObject(input.publish)) {
-            fail(
-                "publish",
-                `is required in a \`${DOCUMENTATION_KIND}\` package: publishing ` +
-                    "the content tree is the whole of what it does. Write " +
-                    "`publish: {site: content}`",
-            );
-        }
-        const mode = /** @type {Record<string, unknown>} */ (input.publish).site;
-        if (mode !== "content") {
-            fail(
-                "publish.site",
-                `must be \`content\` in a \`${DOCUMENTATION_KIND}\` package — ` +
-                    "`homepage` fences the content surfaces off, and a package " +
-                    "that compiles nothing and publishes nothing from its tree " +
-                    "would produce a single authored page and no book",
-            );
         }
     }
 
@@ -2748,7 +2670,7 @@ export function defineConfig(config) {
         author: normalizeAuthor(input.author),
         packageKind: /** @type {PackageKind} */ (packageKind),
         // Foundry serves a package's files from `<kind>/<id>/`, so this is the
-        // one place `systems/sohl` (or `modules/sohl-thalorna`) is spelled.
+        // one place `systems/sohl` (or `modules/harn-ensemble`) is spelled.
         //
         // **Conditional on the kind.** `documentation` names no directory
         // Foundry serves, and there is no package id to put under one either, so

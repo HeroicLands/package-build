@@ -264,9 +264,8 @@ export function checkHomepageAddressFields(fm, { isAuthored } = {}) {
  * {@link module:engine/diagnostics}. {@link lintContentTree} already reports an
  * empty walk against the same locator.
  *
- * The rule reads no `site:` configuration and does not vary by
- * `publish.site`: that setting chooses whether the *content* surfaces are
- * published, and the homepage is the floor underneath both modes.
+ * The rule applies to every content tree, whether it contains only the
+ * homepage or other notes as well.
  *
  * @param {ReadonlyArray<{file: string}>} found - The homepage notes, in walk
  *   order. Paths may be absolute or relative to the working directory.

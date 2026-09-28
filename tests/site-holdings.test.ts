@@ -198,7 +198,7 @@ describe("the site build writes `contains`, `held_by` and `holdings`", () => {
                 { name: "items", type: "Item" },
                 { name: "journals", type: "JournalEntry" },
             ],
-            publish: { site: "content", address: { prefix: "kb/" } },
+            publish: { address: { prefix: "kb/" } },
         });
         const result = buildSite({ config });
         expect(gatesFailed(result.gates)).toBe(false);

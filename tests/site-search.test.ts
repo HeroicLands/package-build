@@ -123,8 +123,6 @@ describe("`site.search`", () => {
         const text = [
             "contentPackage: acme",
             "packageKind: documentation",
-            "publish:",
-            "    site: content",
             "site:",
             "    search: off",
             "",
@@ -139,7 +137,7 @@ describe("`site.search`", () => {
             thrown = err as Error;
         }
         expect(thrown?.message).toBe(
-            `${file}:6:5: error: package-build config: \`site.search\` must be a boolean.`,
+            `${file}:4:5: error: package-build config: \`site.search\` must be a boolean.`,
         );
     });
 });
@@ -259,14 +257,7 @@ describe("the index a deployment carries", () => {
         );
         fs.writeFileSync(
             path.join(dir, `${CONFIG_BASENAME}.yaml`),
-            [
-                "contentPackage: toolkit",
-                "packageKind: documentation",
-                "publish:",
-                "    site: content",
-                ...siteLines,
-                "",
-            ].join("\n"),
+            ["contentPackage: toolkit", "packageKind: documentation", ...siteLines, ""].join("\n"),
         );
         const site = path.join(dir, "build", "site", "toolkit");
         page(site, "", "The Toolkit", "The front of the documentation.");

@@ -75,6 +75,7 @@ const SECTION_KEYS = [
     "bundle",
     "container",
     "e2e",
+    "proseLint",
 ];
 
 /**
@@ -527,6 +528,7 @@ function normalizeExceptions(value, field, where) {
  *
  * @typedef {object} PackageBuildConfig
  * @property {string} rootDir        The repository root, from package-build.
+ * @property {{age: number, threshold: number, minWords: number}} proseLint Optional prose analysis settings.
  * @property {string} packageKind    `systems` or `modules`.
  * @property {string} packageId      The Foundry package id.
  * @property {string} artifact       Derived: `system` or `module`.
@@ -689,6 +691,23 @@ export function resolvePackageBuildConfig(shared) {
     const section = /** @type {Record<string, unknown>} */ (shared.packageBuild ?? {});
     rejectUnknownKeys(section, SECTION_KEYS, "packageBuild.");
 
+    const proseLint = section.proseLint ?? {};
+    if (!isMapping(proseLint)) fail("packageBuild.proseLint", "must be a mapping");
+    rejectUnknownKeys(proseLint, ["age", "threshold", "minWords"], "packageBuild.proseLint.");
+    const proseOptions = { age: 21, threshold: 5, minWords: 8 };
+    for (const [key, value] of Object.entries(proseLint)) {
+        const upper = key === "threshold" ? 7 : Infinity;
+        if (!Number.isInteger(value) || value < 1 || value > upper) {
+            fail(
+                `packageBuild.proseLint.${key}`,
+                upper === Infinity ?
+                    "must be a positive integer"
+                :   "must be an integer from 1 to 7",
+            );
+        }
+        proseOptions[key] = value;
+    }
+
     if (section.assets !== undefined && !Array.isArray(section.assets)) {
         fail("packageBuild.assets", "must be a list");
     }
@@ -789,6 +808,7 @@ export function resolvePackageBuildConfig(shared) {
 
     return Object.freeze({
         rootDir: shared.rootDir,
+        proseLint: Object.freeze(proseOptions),
         // Where the package is assembled before it is zipped or deployed. Every
         // asset destination is relative to it, so a repository's table says
         // `lang`, not `build/stage/lang` — the latter is what each consumer's

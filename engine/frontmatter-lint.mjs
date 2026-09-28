@@ -1689,7 +1689,11 @@ export function lintNote(
                 `\`${field.name}\``
             :   `\`sohl.${field.name}\``;
 
-        if (field.required && absent) {
+        if (
+            field.required &&
+            absent &&
+            (!field.when || field.when(fm, { subType: fm.subType ?? fm.sohl?.subType }))
+        ) {
             findings.push({
                 file: note.file,
                 ...at("type", type),

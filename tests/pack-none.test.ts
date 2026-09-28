@@ -512,7 +512,7 @@ describe("a wikilink to a `pack: none` note resolves", () => {
         const config = baseConfig({
             rootDir: root,
             packs: ONE_OF_EACH,
-            publish: { site: "content", address: { prefix: "kb/" } },
+            publish: { address: { prefix: "kb/" } },
         });
         const result = buildSite({ config });
         expect(gatesFailed(result.gates)).toBe(false);

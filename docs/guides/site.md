@@ -12,8 +12,8 @@ tree. Hugo renders that tree with the shared theme. The build reads the same
 note addresses used by content indexes and links, so a page's URL follows the
 note it publishes.
 
-The site has an authored homepage and, when `publish.site: content`, one page
-for each publishable note. The [configuration reference](../configuration.md)
+The site has an authored homepage and one page for each other publishable note
+in the content tree. The [configuration reference](../configuration.md)
 defines the site settings; the [command reference](../commands.md) lists the
 build actions and options.
 
@@ -41,26 +41,21 @@ it with `[[homepage-root|The Setting Guide]]`. The homepage creates no
 Foundry compendium document and has no document ID. Its filename does not
 decide its role; the frontmatter does.
 
-`publish.site` controls the rest of the site:
-
-| Mode       | Pages                                   |
-| ---------- | --------------------------------------- |
-| `homepage` | The homepage only. This is the default. |
-| `content`  | The homepage and the content pages.     |
-
-The homepage-only mode does not walk and publish the note tree as web pages.
-The content index is a separate build artifact and is still emitted by
+The content tree controls the rest of the site. A tree containing only its
+homepage publishes that page alone. Each additional publishable note becomes
+its own page. The content index is a separate build artifact emitted by
 `package-build content-index`.
+
+Remove `publish.site` from package configurations. The presence of content
+notes determines whether the site and book contain pages beyond the homepage.
 
 ## Configure the site frame
 
-A site with content pages declares its publication mode, asset host, and
-description. A documentation package can give the site its own title; a
+A site with content pages declares its asset host and description. A
+documentation package can give the site its own title; a
 Foundry package can use its manifest title:
 
 ```yaml
-publish:
-  site: content
 site:
   title: The Setting Guide
   assets: https://cdn.heroiclands.org
