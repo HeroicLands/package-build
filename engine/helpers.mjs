@@ -264,6 +264,7 @@ export function assertSuppliedCorpus(records, who) {
  * @param {readonly string[]} opts.skipDirectories - Directory names to ignore.
  *   Required: the scope is the caller's to state, so two passes cannot
  *   disagree about which files are the corpus.
+ * @param {object} [opts.addressContext] - Address resolution context.
  * @yields {{frontmatter: object|null, body: string, description: string,
  *   file: string, absPath: string, bodyLine?: number, bodyColumn?: number}}
  *   One entry per `.md` file found.

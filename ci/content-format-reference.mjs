@@ -5,7 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import prettier from "prettier";
+import { formatGenerated } from "../engine/format-generated.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import { NOTE_VOCABULARY, SHARED_DATA_FIELDS } from "../engine/note-vocabulary.mjs";
 
@@ -93,10 +93,7 @@ rows.push(
         ),
 );
 rows.push("");
-const result = await prettier.format(`${rows.join("\n")}\n`, {
-    ...(await prettier.resolveConfig(output)),
-    filepath: output,
-});
+const result = await formatGenerated(`${rows.join("\n")}\n`, output);
 if (process.argv.includes("--check")) {
     if (!fs.existsSync(output) || fs.readFileSync(output, "utf8") !== result) {
         console.error(

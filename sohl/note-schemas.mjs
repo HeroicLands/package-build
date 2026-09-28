@@ -295,14 +295,6 @@ const PRESENTATION_FIELDS = Object.freeze({
             describe: "Descriptive traits, read by the publishing sites.",
         },
     ]),
-    skill: Object.freeze([
-        {
-            name: "strikeMode",
-            ...AS_AUTHORED,
-            describe:
-                "The strike mode a combat technique declares. Compiled, but applied by the builder rather than listed in the type's fields.",
-        },
-    ]),
     being: Object.freeze([
         {
             name: "attrRollFormula",
