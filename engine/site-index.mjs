@@ -161,6 +161,8 @@ function mergeForeign(index, foreignIndex) {
  *   `contentIndex: false` — a Foundry dependency only, with no fetched index.
  *   A link naming one fails naming the key, rather than reading as prose or an
  *   ordinary dead address.
+ * @param {object[]} [options.records] - Content-index records.
+ * @param {Map<string, object>} [options.foreignReferences] - Foreign reference targets.
  * @returns {SiteIndex} The index, and what could not be addressed unambiguously.
  */
 export function buildSiteIndex(

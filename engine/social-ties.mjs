@@ -16,7 +16,11 @@ export { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES };
 
 const TERMS = new Set(SOCIAL_TIES.map(({ term }) => term));
 
-/** Validate a being's map of defining relationships. */
+/**
+ * Validate a being's map of defining relationships.
+ * @param {object} note
+ * @param {{index?: object}} [options]
+ */
 export function checkSocialTies(note, { index } = {}) {
     const ties = note.fm?.data?.socialTies;
     if (ties === undefined || ties === null) return [];
