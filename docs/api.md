@@ -440,7 +440,7 @@ The three states of a note — **stub**, **draft**, **full** — and the one obs
 | `journalHasContent`   | `journalHasContent(body)`                   | `boolean`                               | asking whether the JournalEntry a body compiles into would hold anything, which is what decides whether one is made at all |
 | `PLACEHOLDER_PHRASES` | `const PLACEHOLDER_PHRASES`                 | `ReadonlyArray<string>`                 | reading the phrases that stand in for prose nobody has written                                                             |
 | `placeholderBody`     | `placeholderBody(body)`                     | `Array<{phrase: string, line: number}>` | finding a body that reduces to nothing but placeholders, which is an abandoned draft rather than a stub                    |
-| `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting the prose a reader meets, with a wikilink counting as the one word it renders                                     |
+| `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting rendered prose, with wikilinks as one word and closed dashes, slashes, and ellipses separating adjacent words     |
 
 ### `engine.draftNotice`
 
