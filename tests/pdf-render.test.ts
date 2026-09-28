@@ -10,6 +10,7 @@ import {
     renderBook,
     resolveDanglingLabels,
 } from "../engine/pdf-render.mjs";
+import { ICON_SIZES, iconHtml } from "../engine/content-icons.mjs";
 
 describe("escapeTypst", () => {
     it("makes Typst's markup characters inert", () => {
@@ -33,6 +34,24 @@ describe("escapeTypst", () => {
 });
 
 describe("markdownToTypst", () => {
+    it("uses each declared icon size on the web and in print", () => {
+        const registry = {
+            families: { fontawesome: { class: "fa", styles: ["solid"] } },
+            defaultFamily: "fontawesome",
+            icons: { star: { style: "solid", icon: "star", label: "star" } },
+        };
+        const glyphs = new Map([["star", { font: "Icon Font", codepoint: 0xf005 }]]);
+        const entry = registry.icons.star;
+
+        expect(markdownToTypst(":icon-star:", { registry, glyphs })).not.toContain("size:");
+        for (const [size, specification] of Object.entries(ICON_SIZES)) {
+            expect(iconHtml(entry, { size }, registry)).toContain(specification.class);
+            expect(markdownToTypst(`:icon-star:{size: ${size}}`, { registry, glyphs })).toContain(
+                `size: ${specification.scale}em`,
+            );
+        }
+    });
+
     it("prints inline code containing backticks without breaking Typst delimiters", () => {
         const out = markdownToTypst("The message is `` `key` must be set.``");
         expect(out).toContain('#raw(" `key` must be set.", block: false)');

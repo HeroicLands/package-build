@@ -64,7 +64,7 @@
 import MarkdownIt from "markdown-it";
 
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
-import { iconPlugin, ICON_PATTERN } from "./content-icons.mjs";
+import { iconPlugin, ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
 import { IMAGE_CLASSES, IMAGE_FLOATS, imagePlugin } from "./content-images.mjs";
 
 /** Requested print width for every named image size. */
@@ -747,7 +747,9 @@ function renderIcon(token, ctx) {
     const name = token?.meta?.name ?? "";
     const glyph = ctx.glyphs.get(name);
     if (!glyph) return escapeTypst(`:icon-${name}:`);
-    return `#text(font: "${escapeTypstString(glyph.font)}")[\\u{${glyph.codepoint.toString(16)}}]`;
+    const scale = ICON_SIZES[token?.meta?.attrs?.size]?.scale;
+    const size = scale ? `, size: ${scale}em` : "";
+    return `#text(font: "${escapeTypstString(glyph.font)}"${size})[\\u{${glyph.codepoint.toString(16)}}]`;
 }
 
 /**
