@@ -178,10 +178,8 @@ describe("defineConfig", () => {
         ],
         ["a non-mapping packageBuild section", { ...minimal(), packageBuild: [] }],
         ["an unknown site mode", { ...minimal(), publish: { site: "yes" } }],
-        // Refused rather than mapped onto the nearest mode: `false` read as
-        // "no web presence", which describes no package.
-        ["the retired `site: true`", { ...minimal(), publish: { site: true } }],
-        ["the retired `site: false`", { ...minimal(), publish: { site: false } }],
+        ["boolean `site: true`", { ...minimal(), publish: { site: true } }],
+        ["boolean `site: false`", { ...minimal(), publish: { site: false } }],
         ["an unknown key", { ...minimal(), publishSite: true }],
     ])("rejects %s", (_label, input) => {
         expect(() => defineConfig(input as ContentBuildConfigInput)).toThrow(TypeError);

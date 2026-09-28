@@ -234,7 +234,7 @@ describe("`publish.site` distinguishes homepage-only from content", () => {
         expect(SITE_MODES).toEqual(["homepage", "content"]);
     });
 
-    it("defaults to homepage-only, so no value means no web presence", () => {
+    it("defaults to publishing only the homepage", () => {
         const config = defineConfig({
             rootDir: "/repo",
             contentPackage: "demo",
@@ -250,7 +250,7 @@ describe("`publish.site` distinguishes homepage-only from content", () => {
         expect(publishesContentPages(config)).toBe(false);
     });
 
-    it("refuses the retired boolean, naming what to write instead", () => {
+    it("refuses a boolean, naming the explicit mode", () => {
         const base = {
             rootDir: "/repo",
             contentPackage: "demo",
@@ -262,10 +262,6 @@ describe("`publish.site` distinguishes homepage-only from content", () => {
             },
             packs: [{ name: "items", type: "Item" }],
         };
-        // `true` and `false` are both refused rather than mapped: the reading
-        // `false` invited — "this package has no web presence" — is the belief
-        // the message exists to correct, and a value silently reinterpreted
-        // reads to its author as though it still means what it said.
         expect(() =>
             defineConfig({
                 ...base,
