@@ -104,6 +104,7 @@ import { artPathname, assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { numberCaptions, scanCaptions } from "./content-captions.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imageSourcesIn } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
@@ -488,10 +489,28 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      * @param {string} anchorPrefix - The entry's anchor, namespacing its sections.
      * @returns {string} Typst markup.
      */
+    const captionCounts = { code: 0, table: 0, figure: 0, prose: 0 };
+    const frontCaptions = new Map();
+    for (const file of resolved.pdf.front) {
+        try {
+            const scan = scanCaptions(fs.readFileSync(file, "utf8"));
+            frontCaptions.set(file, numberCaptions(scan.captions, captionCounts));
+            for (const error of scan.errors)
+                findings.push({
+                    file,
+                    line: error.line,
+                    column: error.column,
+                    severity: "error",
+                    message: error.message,
+                });
+        } catch {
+            // The rendering pass reports an unreadable front-matter file.
+        }
+    }
     const renderPage = (page, headingOffset, anchorPrefix) => {
         const src = page.relPath ?? page.base;
         const wikiErrors = [];
-        const { markdown, errors } = expandContentTables(page.body, {
+        const { markdown, errors, lineMap } = expandContentTables(page.body, {
             docs: universe.get(page.pkg) ?? [],
             linkable: (d) => Boolean(d.fm.shortcode),
             source: src,
@@ -513,6 +532,19 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             foreignIndex: gates.foreign.index,
             assets,
         });
+        const captionScan = scanCaptions(markdown);
+        const numberedCaptions = numberCaptions(captionScan.captions, captionCounts);
+        linkCtx.captionLabels = new Map(
+            numberedCaptions.map((caption) => [caption.id, caption.label]),
+        );
+        for (const error of captionScan.errors)
+            findings.push({
+                file: page.file,
+                line: (page.bodyLine ?? 1) + (lineMap[error.line - 1]?.line ?? error.line - 1),
+                column: error.column,
+                severity: "error",
+                message: error.message,
+            });
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
         // wikilink, and resolving it would make the example impossible to write.
@@ -555,6 +587,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             images,
             headingOffset,
             anchorPrefix,
+            captions: numberedCaptions,
         });
         // The infobox is generated content in document order — prepended,
         // before the prose. An image the note authored ahead of it still comes
@@ -615,6 +648,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                     images,
                     headingOffset: entry.depth,
                     anchorPrefix: entry.anchor,
+                    captions: numberCaptions(scanCaptions(text).captions, captionCounts),
                 }),
             );
         }
@@ -638,6 +672,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 links: plan.links,
                 glyphs,
                 images,
+                captions: frontCaptions.get(file),
             });
         } catch {
             findings.push({

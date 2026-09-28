@@ -64,6 +64,7 @@ import { isDraftNote } from "./note-vocabulary.mjs";
 import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
 // registry can import them without reaching back through this one.
@@ -128,9 +129,10 @@ export const md = markdownit({ html: true })
     );
 
 /** Render a note body with Foundry's secret section markup. */
-export function renderFoundryMarkdown(body) {
+export function renderFoundryMarkdown(body, captions) {
     const { markdown } = renderSecretBlocks(body, "foundry", (inner) => md.render(inner));
-    return md.render(markdown);
+    const captioned = renderCaptionBlocks(markdown, (block) => md.render(block), captions);
+    return md.render(captioned.markdown);
 }
 
 /**
@@ -888,6 +890,9 @@ export function convertNoteWikilinks(
         pack,
         docPack,
         index,
+        captionLabels: new Map(
+            scanCaptions(source).captions.map((caption) => [caption.id, caption.label]),
+        ),
     });
     /**
      * Where one unresolved link sits, in file coordinates.

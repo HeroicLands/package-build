@@ -235,6 +235,8 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                     });
                 for (const error of result.secretErrors)
                     findings.push({ ...error, severity: "error" });
+                for (const error of result.captionErrors)
+                    findings.push({ ...error, severity: "error" });
                 for (const error of result.wikiErrors) {
                     const pos = positionOfLiteral(text, error.link, error.occurrence);
                     findings.push({

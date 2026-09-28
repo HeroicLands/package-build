@@ -26,6 +26,24 @@ Travelers present their papers here. See [[#harbor|the harbor]].
 
 Another note can link to `[[lore-harbor#customs-house|Customs House]]`. The special Actor anchors `{#appearance}` and `{#dossier}` feed the same authored sections to each system's Actor fields. For Items, `{#description}` selects the JournalEntryPage both systems reference. A map note can use an anchored heading for a scene pin; the compiler replaces the pin's exported JournalEntry and page IDs with the built note's IDs and uses the heading text as its label. See [map notes](../reference/format-details.md#type-map) for scene fields.
 
+## Captions and numbered references
+
+A caption fence labels the next Markdown block. Give it an ID so prose can refer to the block without hard-coding its number:
+
+````markdown
+Refer to [[#trade|]] for the market routes.
+
+:::caption id="trade"
+Regional trade routes
+:::
+
+```sql
+SELECT name.full AS "Market" FROM notes WHERE type = 'place'
+```
+````
+
+The table displays **Table 1: Regional trade routes**, and the reference displays **Table 1**. The number is assigned by the output. An explicit link label, such as `[[#trade|the trade table]]`, displays the written label. A caption can precede a code fence, table, image, or any prose block. An ordinary code fence is code; an SQL result is a table; an image is a figure; every other block is prose. Web pages and Foundry journals number each kind within the note. Books number each kind across the book in reading order. A caption needs a unique ID, nonempty text, a closing `:::`, and a following block.
+
 ## Images and protected content
 
 An image or icon embed stands on its own line. `size` accepts `auto`, `small`, `medium`, `large`, and `xlarge`; the medium maps those names to suitable dimensions. `float` controls placement. The asset remains an Address, so moving the file within its asset root does not change the link. See [assets](assets.md) and [image directives](../reference/format-details.md#images).

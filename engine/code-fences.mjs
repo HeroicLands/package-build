@@ -53,15 +53,9 @@ export const FENCE_LINE = /^([ \t]*)(`{3,}|~{3,})[ \t]*([^\r\n]*)$/;
  * A fence's info string, read as **org-babel header arguments**.
  *
  * A directive fence carries statements *about the directive* that are no part of
- * the query it holds — whether an empty result is intended, what heading level a
- * section takes, later a caption. Those started as an ad-hoc bare word
- * (`allow-empty`) and a `key=value` (`section-level=3`), each matched by its own
- * regex: a grammar only in the sense that two regexes are one, and with no room
- * to add a third property without adding a third spelling.
- *
- * Org-mode settled this long ago. A babel source block writes them after the
- * language as `:key value`, which is a real grammar with a specification, a
- * parser, and an editor that already completes it.
+ * the query it holds — whether an empty result is intended and what heading
+ * level a section takes. They follow the language as org-babel `:key value`
+ * arguments.
  *
  * ```text
  * ```sql :section-level 3 :allow-empty
@@ -75,7 +69,7 @@ export const FENCE_LINE = /^([ \t]*)(`{3,}|~{3,})[ \t]*([^\r\n]*)$/;
  * The grammar, matching org's:
  *
  * - a key is `:name` **starting a word** — a colon inside or ending a word is
- *   text, so `:caption Gear: the tables` is one argument;
+ *   text;
  * - a value runs to the next key or the end of the string, spaces included, and
  *   is trimmed;
  * - a key with no value is `true`, which is what a statement like

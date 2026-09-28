@@ -63,6 +63,7 @@
 
 import { authoredFrontmatter } from "./index-records.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { scanCaptions } from "./content-captions.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { cloneAddressState } from "./address-values.mjs";
 import fs from "fs";
@@ -645,6 +646,17 @@ export class BasePackCompiler {
             bodyLine,
             sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
         });
+        const captionError = scanCaptions(tabulated).errors[0];
+        if (captionError) {
+            const error = new Error(captionError.message);
+            error.position = {
+                line:
+                    (bodyLine ?? 1) +
+                    (lineMap[captionError.line - 1]?.line ?? captionError.line - 1),
+                column: captionError.column,
+            };
+            throw error;
+        }
         const expressions = renderMarkdownExpressions(tabulated, {
             fm,
             dates: reckoningContext(this.linkIndex),
