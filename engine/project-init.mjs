@@ -106,11 +106,12 @@ function projectScripts(answers) {
     }
     Object.assign(scripts, {
         "build:assets": "package-build assets",
+        "build:stage-reset": "package-build stage reset",
         "build:compiledb": "package-build package compile",
         "build:unpackdb": "package-build package unpack",
         "build:module": "package-build manifest",
         "build:db": "run-s build:content-index build:assets build:compiledb",
-        "build:noci": "run-s lint build:db build:module",
+        "build:noci": "run-s lint build:stage-reset build:db build:module",
         "build:pack-release": "package-build release",
         "lint:lang": "package-build lang check",
         "push:dev": "package-build deploy dev",

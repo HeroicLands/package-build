@@ -241,6 +241,43 @@ Nothing to clean.
 
 [Configuration](configuration.md).
 
+### `package-build stage reset`
+
+**NAME**
+
+Clear the assembled Foundry package stage before a complete build.
+
+**SYNOPSIS**
+
+```
+package-build stage reset
+```
+
+**DESCRIPTION**
+
+The `reset` action removes `packageBuild.stageDir` without removing the content index, PDF, site,
+or other build outputs. Run it once before the commands that write assets, packs,
+bundles, and the manifest. It succeeds when the stage is already empty.
+
+**OPTIONS**
+
+There are no options.
+
+**EXIT STATUS**
+
+1 on an invalid configuration or a stage directory outside the project. Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build stage reset
+Removed build/stage
+```
+
+**SEE ALSO**
+
+[Project setup](project-setup.md), [Configuration](configuration.md).
+
 ### `package-build assets`
 
 **NAME**

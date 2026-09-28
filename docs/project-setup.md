@@ -210,7 +210,8 @@ and stops at the first failure, which is what makes a named chain readable.
 ```json
 "build": "npm ci && npm run build:noci",
 "build:local": "npm i && npm run build:noci",
-"build:noci": "run-s lint build:db build:module",
+"build:noci": "run-s lint build:stage-reset build:db build:module",
+"build:stage-reset": "package-build stage reset",
 "build:db": "run-s build:content-index build:assets build:compiledb",
 "build:content-index": "package-build content-index",
 "build:assets": "package-build assets",
@@ -225,6 +226,11 @@ from the lockfile first**, so what it compiles is what CI compiles;
 `build:local` installs without the lockfile, for a working tree mid-change; and
 `build:noci` skips the install entirely, which is the one to reach for inside a
 git worktree where `node_modules` is already correct.
+
+`build:stage-reset` clears only the assembled Foundry package. Keep it before
+every stage writer, including a repository's own code or stylesheet bundle
+step. This keeps renamed and deleted files out of the next package while
+preserving the content index and other generated outputs.
 
 Within the chain, two orderings are real:
 
