@@ -30,11 +30,25 @@ import { buildJournalEntry, Journals } from "../engine/journals.mjs";
 import { buildIndexRecord, collectContentIndex } from "../engine/content-index.mjs";
 import { isStub } from "../engine/index-records.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
-import { isEmptyBody, isStubbableType, isStubNote } from "../engine/note-state.mjs";
+import { bodyWordCount, isEmptyBody, isStubbableType, isStubNote } from "../engine/note-state.mjs";
 import { openNotesDatabase, renderSqlTable, runSqlQuery } from "../engine/sql-tables.mjs";
 import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import { Items } from "../sohl/items.mjs";
+
+describe("body word count", () => {
+    it("counts words on both sides of a closed dash", () => {
+        expect(bodyWordCount("The gods withdrew — and the line held.")).toBe(7);
+        expect(bodyWordCount("The gods withdrew—and the line held.")).toBe(7);
+        expect(bodyWordCount("The north–south road remained open.")).toBe(6);
+    });
+
+    it("counts a slash or ellipsis between words as a boundary", () => {
+        expect(bodyWordCount("and/or")).toBe(2);
+        expect(bodyWordCount("wait…what")).toBe(2);
+        expect(bodyWordCount("wait...what")).toBe(2);
+    });
+});
 
 /* ---------------------------------------------------------------------- */
 /*  The classification, derived from the registry's own key list           */
