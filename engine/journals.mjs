@@ -68,6 +68,7 @@ import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
 import { journalHasContent } from "./note-state.mjs";
 import { draftNoticeFor } from "./draft-notice.mjs";
+import { scanCaptions } from "./content-captions.mjs";
 
 /**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
@@ -90,6 +91,13 @@ import { draftNoticeFor } from "./draft-notice.mjs";
  */
 export function splitPages(body, leadName = "Introduction") {
     const lines = body.split("\n");
+    const captions = scanCaptions(body).captions;
+    const captionStarts = new Map(captions.map((caption) => [caption.line - 1, caption]));
+    const captionedHeadings = new Set(
+        captions
+            .filter((caption) => /^\s*#{1,6}\s/.test(lines[caption.blockStart] ?? ""))
+            .map((caption) => caption.blockStart),
+    );
     const pages = [];
     const beforeFirstH1 = [];
     let current = null;
@@ -107,7 +115,7 @@ export function splitPages(body, leadName = "Introduction") {
         current = null;
     };
 
-    for (const line of lines) {
+    for (const [lineIndex, line] of lines.entries()) {
         if (line.trim().startsWith("```")) {
             inCodeBlock = !inCodeBlock;
         }
@@ -122,7 +130,18 @@ export function splitPages(body, leadName = "Introduction") {
         const rawHeading = headingMatch?.[2]?.trim();
         const anchorMatch = rawHeading?.match(/^(.*?)\s*\{#([^}]+)\}\s*$/);
         const startsPage = headingMatch && (headingMatch[1].length === 1 || anchorMatch);
-        if (startsPage) {
+        const caption = !inCodeBlock && !inSecret ? captionStarts.get(lineIndex) : null;
+        if (caption) {
+            closeCurrent();
+            current = {
+                name: caption.label,
+                anchorSlug: caption.id,
+                level: 1,
+                lines: [line],
+            };
+            continue;
+        }
+        if (startsPage && !captionedHeadings.has(lineIndex)) {
             closeCurrent();
             current = {
                 name: (anchorMatch ? anchorMatch[1] : rawHeading).trim(),
@@ -254,7 +273,7 @@ export function journalPageId(entryId, page) {
  *   documents, in order.
  * @throws {Error} When the note has no content at all, or repeats an anchor.
  */
-export function buildPages(rawPages, entryId, noteName) {
+export function buildPages(rawPages, entryId, noteName, captions) {
     if (rawPages.length === 0) {
         throw new Error(
             `note "${noteName}" has no Introduction content and no H1 headings — nothing to compile`,
@@ -270,7 +289,7 @@ export function buildPages(rawPages, entryId, noteName) {
             title: { show: true, level: page.level ?? 1 },
             text: {
                 format: 1,
-                content: page.markdown ? renderFoundryMarkdown(page.markdown) : "",
+                content: page.markdown ? renderFoundryMarkdown(page.markdown, captions) : "",
             },
             _key: `!journal.pages!${entryId}.${pageId}`,
         };
@@ -325,7 +344,7 @@ export function buildJournalEntry({
     notice = "",
 }) {
     const rawPages = splitPages(markdown, leadName);
-    const pages = buildPages(rawPages, id, name);
+    const pages = buildPages(rawPages, id, name, scanCaptions(markdown).captions);
     if (infobox.trim() && pages.length) {
         pages[0].text.content = `${infobox}\n${pages[0].text.content}`;
     }

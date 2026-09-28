@@ -2437,8 +2437,7 @@ follows.
 
 The grammar is org's, so it extends without inventing a spelling per property:
 
-- a key is `:name` **starting a word**, so a colon inside or ending one is text
-  — `:caption Gear: the tables` is a single argument;
+- a key is `:name` **starting a word**, so a colon inside or ending one is text;
 - a value runs to the next key or the end of the line, spaces included;
 - a key with no value means `true`, which is what `:allow-empty` is;
 - a value may be `"quoted"` to hold a word that would otherwise read as a key;
@@ -2446,6 +2445,35 @@ The grammar is org's, so it extends without inventing a spelling per property:
 
 `dataview` keeps its own bare `allow-empty`; it is the retiring language and its
 grammar is frozen.
+
+###### Captioned blocks
+
+`:::caption id="anchor"` labels the next Markdown block, whether it is prose,
+code, a table, or an image. The closing `:::` ends the caption text; blank lines
+between the fence and its block are allowed. The ID is unique within the note
+and contains letters, digits, `_`, or `-`, beginning with a letter. An empty
+caption, missing ID, missing closer, or missing following block is an error at
+the opening line.
+
+````markdown
+See [[#trade|]] for the market routes.
+
+:::caption id="trade"
+Regional trade routes
+:::
+
+```sql
+SELECT name.full AS "Market" FROM notes WHERE type = 'place'
+```
+````
+
+The block displays **Table 1: Regional trade routes** and `[[#trade|]]`
+displays **Table 1** as a link. A nonempty label after the pipe takes precedence.
+The category comes from the following block: a regular code fence is code,
+a Markdown or expanded SQL table is a table, an image is a figure, and any other
+block is prose. The website and Foundry number each category within a note;
+the PDF numbers each category through the book. Foundry gives a captioned block
+its own JournalEntryPage, so its anchor has a page UUID.
 
 ```
 :::secret

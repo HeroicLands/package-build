@@ -63,6 +63,7 @@ import { protectCode } from "./code-fences.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
+import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
@@ -702,6 +703,7 @@ export function renderSitePage(
     const tableErrors = [];
     const expressionErrors = [];
     const secretErrors = [];
+    const captionErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
     const resolved = [];
@@ -746,7 +748,7 @@ export function renderSitePage(
         return renderImageFigures(transformed, webSrc);
     };
 
-    const { markdown, errors } = expandContentTables(page.body, {
+    const { markdown, errors, lineMap } = expandContentTables(page.body, {
         docs: universe.get(page.pkg) ?? [],
         linkable,
         source: src,
@@ -754,6 +756,8 @@ export function renderSitePage(
         self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
     });
     tableErrors.push(...errors);
+    const captionScan = scanCaptions(markdown);
+    ctx.captionLabels = new Map(captionScan.captions.map((caption) => [caption.id, caption.label]));
     const expressions = renderMarkdownExpressions(markdown, {
         fm: page.fm,
         dates: index.dateContext,
@@ -764,6 +768,14 @@ export function renderSitePage(
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
     const secrets = renderSecretBlocks(protectCode(expressions.markdown, resolve), "web");
+    const captioned = renderCaptionBlocks(secrets.markdown);
+    for (const error of captionScan.errors)
+        captionErrors.push({
+            file: page.file,
+            line: (page.bodyLine ?? 1) + (lineMap[error.line - 1]?.line ?? error.line - 1),
+            column: error.column,
+            message: error.message,
+        });
     for (const error of renderSecretBlocks(page.body, "book").errors)
         secretErrors.push({
             file: page.file,
@@ -773,12 +785,13 @@ export function renderSitePage(
         });
     return {
         page,
-        body: secrets.markdown,
+        body: captioned.markdown,
         data,
         resolved,
         tableErrors,
         expressionErrors,
         secretErrors,
+        captionErrors,
         wikiErrors,
         imageErrors,
     };
@@ -855,6 +868,7 @@ export function renderPages(pages, options) {
     const tableErrors = [];
     const expressionErrors = [];
     const secretErrors = [];
+    const captionErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
     const byKind = {};
@@ -897,6 +911,7 @@ export function renderPages(pages, options) {
         tableErrors.push(...result.tableErrors);
         expressionErrors.push(...result.expressionErrors);
         secretErrors.push(...result.secretErrors);
+        captionErrors.push(...result.captionErrors);
         wikiErrors.push(...result.wikiErrors);
         imageErrors.push(...result.imageErrors);
         rendered.push({ page, body: result.body, data: result.data });
@@ -939,6 +954,7 @@ export function renderPages(pages, options) {
         tableErrors,
         expressionErrors,
         secretErrors,
+        captionErrors,
         wikiErrors,
         imageErrors,
         related,
@@ -1113,6 +1129,7 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             expressionErrors: [],
             secretErrors: [],
+            captionErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1134,6 +1151,7 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             expressionErrors: [],
             secretErrors: [],
+            captionErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1181,6 +1199,7 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             expressionErrors: [],
             secretErrors: [],
+            captionErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1238,6 +1257,7 @@ export function buildSite({ config, sqlTables } = {}) {
         tableErrors: rendered.tableErrors,
         expressionErrors: rendered.expressionErrors,
         secretErrors: rendered.secretErrors,
+        captionErrors: rendered.captionErrors,
         wikiErrors: rendered.wikiErrors,
         imageErrors: rendered.imageErrors,
         mapFindings: drawn.findings,

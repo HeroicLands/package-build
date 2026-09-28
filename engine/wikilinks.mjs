@@ -381,7 +381,7 @@ function draftLink(inner) {
  *   position in `markdown`, which is what lets a caller report the line and
  *   column it sits on.
  */
-export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
+export function convertWikilinks(markdown, { type, id, pack, docPack, index, captionLabels }) {
     const unresolved = [];
 
     // `offset` is the third replacer argument because the pattern has exactly
@@ -510,7 +510,8 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // the document's **current** name stands in and a rename shows at every
         // citation with no link edited. The knowledgebase build reads
         // the same authored link the same way.
-        if (!text) text = doc.name ?? target;
+        if (!text)
+            text = (target === "" && slug ? captionLabels?.get(slug) : null) ?? doc.name ?? target;
 
         // Both addresses were computed when the target was indexed. An item
         // doc lives in the journals pack under its own derived entry id, and

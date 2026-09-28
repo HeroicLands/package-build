@@ -77,6 +77,7 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
     "full-width": '"full-width"',
 });
 import { slugify } from "./content-slug.mjs";
+import { scanCaptions } from "./content-captions.mjs";
 
 /**
  * Characters that mean something to Typst's markup parser.
@@ -192,19 +193,44 @@ export function markdownToTypst(markdown, opts = {}) {
         headingOffset = 0,
         anchorPrefix = "",
     } = opts;
-    const tokens = md.parse(String(markdown ?? ""), {});
+    const source = String(markdown ?? "");
     // One map for the whole body, not one per block: a heading inside a
     // blockquote or a list item shares the entry's anchor namespace with every
     // other heading in the same body, because `sectionLabel` scopes by entry
     // rather than by container.
-    return renderTokens(tokens, {
+    const ctx = {
+        md,
         links,
         glyphs,
         images,
         headingOffset,
         anchorPrefix,
         seen: new Map(),
-    });
+    };
+    const lines = source.split("\n");
+    const localCaptions = scanCaptions(source).captions;
+    const numbered = new Map(
+        (opts.captions ?? localCaptions).map((caption) => [caption.id, caption]),
+    );
+    const captions = localCaptions.map((caption) => numbered.get(caption.id) ?? caption);
+    if (!captions.length) return renderTokens(md.parse(source, {}), ctx);
+    const out = [];
+    let cursor = 0;
+    for (const caption of captions) {
+        out.push(renderTokens(md.parse(lines.slice(cursor, caption.line - 1).join("\n"), {}), ctx));
+        const block = lines.slice(caption.blockStart, caption.blockEnd).join("\n");
+        const tokens = md.parse(block, {});
+        const content = renderTokens(tokens, { ...ctx, caption });
+        out.push(content);
+        if (caption.kind !== "table" && caption.kind !== "figure") {
+            out.push(
+                `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]] <${sectionLabel(anchorPrefix, slugify(caption.id))}>\n\n`,
+            );
+        }
+        cursor = caption.blockEnd;
+    }
+    out.push(renderTokens(md.parse(lines.slice(cursor).join("\n"), {}), ctx));
+    return out.filter(Boolean).join("\n\n");
 }
 
 /**
@@ -429,6 +455,12 @@ function listItems(tokens, start, end, ctx) {
     return items;
 }
 
+/** Caption text with the same inline Markdown handling as the surrounding prose. */
+function captionMarkup(caption, ctx) {
+    const inline = ctx.md.parseInline(caption.text, {})[0];
+    return `${escapeTypst(caption.label)}: ${renderInline(inline, ctx)}`;
+}
+
 /**
  * A markdown table as a Typst `#table`.
  *
@@ -502,11 +534,17 @@ function renderTable(tokens, ctx) {
             )}),`
         :   "";
     const drawn = `#table(\n  columns: ${columns},${alignment}${header}\n${body}\n)`;
+    const caption = ctx.caption;
+    const labelled =
+        caption ?
+            `#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}] <${sectionLabel(ctx.anchorPrefix, slugify(caption.id))}>\n${drawn}`
+        :   drawn;
     // Wide content is given an explicit span rather than left to overflow the
     // measure: past three columns a table is set across the page, and
     // `book-wide` decides between a float and pages of its own by measuring it.
-    if (columns > WIDE_TABLE_COLUMNS) return `\n#book-wide[\n${drawn}\n]\n\n`;
-    return `\n${drawn}\n\n`;
+    if (columns > WIDE_TABLE_COLUMNS)
+        return `${caption ? "" : "\n#pagebreak(weak: true)\n"}\n#book-wide[\n${labelled}\n]\n\n`;
+    return `\n${labelled}\n\n`;
 }
 
 /**
@@ -652,6 +690,8 @@ function inlineRaw(content) {
 function renderLink(href, inner, ctx) {
     const url = String(href ?? "");
     const fragment = /#([^?]*)/.exec(url)?.[1] ?? "";
+    if (url.startsWith("#") && fragment)
+        return `#link(<${sectionLabel(ctx.anchorPrefix, fragment)}>)[${inner}]`;
     const slug =
         url
             .replace(/[#?].*$/, "")
@@ -713,15 +753,18 @@ function renderLink(href, inner, ctx) {
  */
 function renderImage(token, ctx) {
     const alt = token.content || token.attrGet?.("alt") || "";
-    const caption = alt ? `[${escapeTypst(alt)}]` : "none";
+    const captionText = ctx.caption ? captionMarkup(ctx.caption, ctx) : escapeTypst(alt);
+    const caption = captionText ? `[${captionText}]` : "none";
+    const anchor =
+        ctx.caption ? ` <${sectionLabel(ctx.anchorPrefix, slugify(ctx.caption.id))}>` : "";
     const staged = ctx.images.get(token.attrGet?.("src") ?? "");
     if (!staged)
-        return alt ?
-                `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic", fill: luma(45%))${caption}]\n\n`
+        return captionText ?
+                `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic", fill: luma(45%))${caption}]${anchor}\n\n`
             :   "";
 
     const size = BOOK_IMAGE_WIDTHS[token.meta?.size] ?? BOOK_IMAGE_WIDTHS.auto;
-    const figure = `#book-image("${escapeTypstString(staged)}", requested: ${size}, caption: ${caption})`;
+    const figure = `#book-image("${escapeTypstString(staged)}", requested: ${size}, caption: ${caption})${anchor}`;
 
     const width = token.meta?.classes?.[0];
     const scope =

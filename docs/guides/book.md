@@ -91,7 +91,10 @@ finding.
 Each section and each selected entry starts on its own page. The PDF has a
 contents page and an outline for section and entry navigation. A note's
 `description` appears as an epigraph when present. Wider tables span both
-columns; a table too tall for one page takes pages of its own. Maps attached
+columns; an uncaptioned wide table starts on a new page so it stays after its
+introduction. A captioned wide table may float to the page top, and its numbered
+caption stays with it. A table too tall for one page takes pages of its own.
+Caption numbers run through the whole book in reading order. Maps attached
 to selected places use landscape pages after those entries. Regional, theatre
 of the mind, battle, and local map backgrounds also print on landscape pages.
 Battle and local maps print each Scene level's background on its own page.
