@@ -9,7 +9,7 @@
  * The links a package homepage carries, and the ones that land nowhere.
  *
  * The page a reader arrives at is the one no wikilink resolver reaches: a
- * homepage is published verbatim in every publishing mode, so its links are
+ * homepage is published verbatim, so its links are
  * ordinary markdown in its body, and this is the check that reads them.
  */
 
@@ -124,11 +124,7 @@ describe("auditLinks — the homepage", () => {
         expect(found[0]).toContain('write "/sohl/"');
     });
 
-    // The case the issue was filed for, and the one the fence makes hard:
-    // `sohl-kethira-basic` links to SoHL's landing and vendors **no manifest**,
-    // because homepage-only mode never walks a content tree. The roster is what
-    // makes the address reachable anyway — no `manifestDir` is passed here, and
-    // the finding still names the package and its base.
+    // The roster resolves a package landing without a vendored manifest.
     it("reports a foreign package's landing with no manifest vendored", () => {
         const found = messages({
             "homepage.md": homepage("", "See [Thalorna](https://www.heroiclands.org/thalorna/).\n"),
@@ -151,8 +147,7 @@ describe("auditLinks — the homepage", () => {
     });
 
     // The form the finding above names. It is host-free and is emitted
-    // verbatim — no index resolves it — which is what lets it hold in
-    // homepage-only mode, where the content tree is never walked.
+    // verbatim without an index lookup.
     it("accepts the root-relative form it directs an author to", () => {
         expect(
             messages({

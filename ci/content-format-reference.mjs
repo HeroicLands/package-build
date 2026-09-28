@@ -58,6 +58,12 @@ for (const [type, spec] of contract.types) {
         }.`,
         "",
     );
+    if (type === "lore") {
+        rows.push(
+            "Lore records in-world knowledge. A `culture` describes a people; a `custom` describes how they practice a rite, observance, or usage. A `material` describes a physical constituent and its qualities, which may vary by region. See the [lore subtype definitions](format-details.md#type-lore) for the complete vocabulary.",
+            "",
+        );
+    }
     rows.push("| Field | Shape | Meaning |", "| --- | --- | --- |");
     rows.push(
         ...(declared.data?.length ?

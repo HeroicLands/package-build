@@ -137,7 +137,7 @@ function projectConfig(answers) {
         config.stats = { lastModifiedBy: "builder000000000" };
         config.packs = [{ name: "journals", label: "Journals", type: "JournalEntry" }];
     }
-    config.publish = { site: "content", address: { prefix: "" } };
+    config.publish = { address: { prefix: "" } };
     config.pdf = { title: answers.title, document: "book.yaml", out: "build/pdf" };
     config.site = {
         ...(answers.kind === "documentation" ? { title: answers.title } : {}),
@@ -462,9 +462,6 @@ export function checkProject(rootDir) {
         }
     }
     if (config) {
-        if (config.publish?.site !== "content") {
-            add(names[0], "publish.site must include the content pages");
-        }
         if (!nonempty(config.site?.assets) || !nonempty(config.site?.description)) {
             add(names[0], "site.assets and site.description are required for the website");
         }

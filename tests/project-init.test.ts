@@ -80,7 +80,7 @@ describe("package-build init", () => {
                 expect(pkg.scripts["build:stage-reset"]).toBe("package-build stage reset");
                 expect(pkg.scripts["build:noci"]).toMatch(/build:stage-reset build:db/);
             }
-            expect(config.publish.site).toBe("content");
+            expect(config.publish.address.prefix).toBe("");
             expect(config.pdf.document).toBe("book.yaml");
             if (kind === "documentation") {
                 expect(config.packs).toBeUndefined();

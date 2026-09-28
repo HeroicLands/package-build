@@ -24,7 +24,7 @@ beforeAll(() => {
         path.join(root, "package-build.config.yaml"),
         `contentPackage: demo
 packageKind: documentation
-publish: { site: content }
+publish: {}
 `,
     );
     fs.writeFileSync(

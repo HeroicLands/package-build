@@ -30,12 +30,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 
-import {
-    defineConfig,
-    PACKAGE_KINDS,
-    SITE_MODES,
-    PACK_DOCUMENT_TYPES,
-} from "../content-config.mjs";
+import { defineConfig, PACKAGE_KINDS, PACK_DOCUMENT_TYPES } from "../content-config.mjs";
 import { resolvePackageBuildConfig, DERIVED_MANIFEST_KEYS } from "../config.mjs";
 
 const DOC = readFileSync(path.resolve(__dirname, "../docs/configuration.md"), "utf8");
@@ -131,16 +126,11 @@ describe("every closed-set value is documented", () => {
         // Guards the guard: an empty or single-member export would let this
         // whole describe block pass by checking nothing.
         expect(PACKAGE_KINDS.length).toBeGreaterThan(1);
-        expect(SITE_MODES.length).toBeGreaterThan(1);
         expect(PACK_DOCUMENT_TYPES.length).toBeGreaterThan(1);
     });
 
     it("`PACKAGE_KINDS`, in the summary table and the `packageKind` section", () => {
         assertValuesDocumented(PACKAGE_KINDS, (value) => `\`"${value}"\``);
-    });
-
-    it("`SITE_MODES`, in the `publish.site` row and section", () => {
-        assertValuesDocumented(SITE_MODES, (value) => `\`"${value}"\``);
     });
 
     it("`PACK_DOCUMENT_TYPES`, in the `packs[].type` row", () => {
@@ -523,12 +513,6 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
     it("`publish.site`", () => {
         assertQuoted(
             thrown(() => defineConfig(minimal({ publish: { site: true } }))).replace(
-                /^package-build config: `publish\.site` /,
-                "",
-            ),
-        );
-        assertQuoted(
-            thrown(() => defineConfig(minimal({ publish: { site: "public" } }))).replace(
                 /^package-build config: `publish\.site` /,
                 "",
             ),

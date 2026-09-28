@@ -3589,7 +3589,8 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 
 ### type: lore
 
-In-world information about people, places, or concepts.
+In-world knowledge a sage in the setting could study or know. A lore note describes
+the setting itself, rather than instructions or other apparatus for the GM.
 
 **subType**:
 
@@ -3602,9 +3603,11 @@ In-world information about people, places, or concepts.
 - law: How obligation is ordered and enforced — citizenship, custom, courts, and tenure.
 - calendar: How time is reckoned and marked — dating, seasons, festivals, and astrology.
 - history: What has happened — eras, events, chronicles, and genealogies of rule.
-- material: Substances and their properties — minerals, reagents, herbs, and preparations.
+- material: A physical constituent, such as mithril, buckram, or silk, and its qualities,
+  including durability, value, and regional varieties.
 - folk: Related sapient beings of a single or tightly related species: kindreds, ancestries.
 - culture: A social grouping of individuals with common beliefs, mores, and values.
+- custom: How a people does a thing — a rite, observance, or usage.
 - bestiary: A kind of creature that is not a people — beasts, monsters, and the made things
   that were never born. What `folk` covers for the sapient, this covers for everything else.
 - gathering: A scheduled public occasion people travel to — a tournament or martial games, a

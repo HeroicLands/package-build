@@ -32,18 +32,9 @@
  * the site publishes every page, and the book publishes what its document tree
  * asked for.
  *
- * ## `publish.site` is the switch, and it is the only switch
- *
- * `homepage` mode fences the content surfaces off: the tree is not walked for
- * pages, whatever else the configuration declares. A
- * PDF of the content tree is a content surface by any reading — arguably the
- * most portable one there is — so it is fenced on exactly the same terms, by
- * asking the same {@link module:content-config.publishesContentPages} the
- * site build asks. Four of the six packages that would adopt this run
- * `homepage`, and a PDF that appeared there would breach the fence silently:
- * nothing in those packages' configuration would say so. So the fence is
- * checked **before** the tree is read, and the command says why it built
- * nothing rather than emitting an empty document.
+ * The book builds when the authored tree contains content pages. The same
+ * {@link module:content-config.publishesContentPages} decision governs the
+ * site and the content index.
  *
  * ## Every gate reports; none exits
  *
@@ -320,8 +311,9 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         return {
             built: false,
             reason:
-                "`publish.site` is `homepage`, which fences the content surfaces off — " +
-                "the tree is not walked and no book is built. Publish content to build one.",
+                fs.existsSync(resolved.paths.content) ?
+                    "The content tree contains only a homepage, so there is no book to build."
+                :   "this package has no content tree, so there is nothing to print",
             findings,
             typ: null,
             pdf: null,
