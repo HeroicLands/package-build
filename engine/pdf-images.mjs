@@ -72,7 +72,6 @@ export async function resamplePdfImages(candidates, outDir) {
         if (extension === ".avif") pipeline = pipeline.avif({ quality: PDF_PAGE.quality });
         if (extension === ".png") pipeline = pipeline.png();
         const output = await pipeline.toBuffer();
-        if (output.length >= original.length) continue;
         await fs.writeFile(destination, output);
         reports.push({
             file: candidate.file,
