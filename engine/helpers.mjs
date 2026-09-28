@@ -146,6 +146,10 @@ export function renderFoundryMarkdown(body, captions) {
  * {@link positionInBody}. If the file has no frontmatter block, returns
  * `{ frontmatter: null, body: "", description: "" }` with a warn log, and no
  * position: there is no body to have one.
+ * @param {string} filePath - Markdown file to read.
+ * @param {{addressContext?: object}} [opts] - Address defaults for decoded fields.
+ * @returns {{frontmatter: object|null, body: string, description: string,
+ *   bodyLine?: number, bodyColumn?: number}} Parsed note and body position.
  */
 export function parseMarkdownFile(filePath, { addressContext } = {}) {
     const content = fs.readFileSync(filePath, "utf8");
@@ -473,6 +477,9 @@ export function systemTemplatePriority(fm, label) {
 /**
  * Generates a compendium-source filename: `Name_id.json` with non-
  * alphanumeric runs replaced by underscores.
+ * @param {string} name - Document name.
+ * @param {string} id - Document id.
+ * @returns {string} Filename for the document.
  */
 export function makeFilename(name, id) {
     return `${unidecode(name)}_${id}`.replace(/[^0-9a-zA-Z]+/g, "_") + ".json";
@@ -534,6 +541,9 @@ export function resolveImg(raw, config = loadPackConfig()) {
 /**
  * Resolves the display name from frontmatter, preferring `name.full`,
  * falling back to `name` (if string), then `defaultValue`.
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} [defaultValue] - Name when the note provides none.
+ * @returns {string} Display name.
  */
 export function resolveName(fm, defaultValue = "Unnamed") {
     const fullName = getFrontmatter(fm, "name.full", null);
@@ -710,20 +720,16 @@ import { collectAnchors } from "./anchors.mjs";
  *   the index and the compile agree about where each note landed; defaults to
  *   this repository's own.
  * @param {object} [opts]
- * @param {readonly string[]} [opts.skipDirectories] - Part of the options bag
- *   every corpus reader takes; the scope is already settled by `records`.
  * @param {object} [opts.config] - The resolved build configuration; loaded when
  *   omitted.
  * @param {readonly object[]} [opts.records] - The corpus, derived once per
  *   compile and handed in. Required: see {@link assertSuppliedCorpus}.
- * @param {object[]} [opts.problems] - Part of the same options bag; the notes
- *   the index cannot record are collected where the corpus is derived.
  * @returns {{byShortcode: Map, types: Set}} From `buildWikilinkIndex`.
  */
 export function buildContentLinkIndex(
     contentBase,
     router = packRouter(),
-    { skipDirectories, config, records, problems } = {},
+    { config, records } = {},
 ) {
     const docs = [];
     /** The files this package ships, by canonical address. */
@@ -989,21 +995,14 @@ export function convertNoteWikilinks(
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
- * @param {readonly string[]} [opts.skipDirectories] - Part of the options bag
- *   every corpus reader takes; the scope is already settled by `records`.
  * @param {object} [opts.config] - The resolved build configuration; loaded when
  *   omitted.
  * @param {readonly object[]} [opts.records] - The corpus, derived once per
  *   compile and handed in. Required: see {@link assertSuppliedCorpus}.
- * @param {object[]} [opts.problems] - Part of the same options bag; the notes
- *   the walk cannot read are collected where the corpus is derived.
  * @returns {Array<{fm: object, path: string, tld: string, folder: string,
  *   absPath: string}>}
  */
-export function collectContentDocs(
-    contentBase,
-    { skipDirectories, config, records, problems } = {},
-) {
+export function collectContentDocs(contentBase, { config, records } = {}) {
     const docs = [];
     const resolved = config ?? loadPackConfig();
     assertSuppliedCorpus(records, "collectContentDocs");
@@ -1108,6 +1107,9 @@ export function expandNoteTables(body, { docs, name, fm, bodyLine, sqlTables }) 
  * Builds a compendium-source filename for a folder JSON document:
  * `folder_Name_id.json` with non-alphanumeric runs replaced by
  * underscores.
+ * @param {string} name - Folder name.
+ * @param {string} id - Folder id.
+ * @returns {string} Filename for the folder.
  */
 export function folderFilename(name, id) {
     return `folder_${unidecode(name)}_${id}`.replace(/[^0-9a-zA-Z]+/g, "_") + ".json";

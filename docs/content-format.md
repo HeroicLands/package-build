@@ -1,3 +1,10 @@
+---
+shortcode: contentformat
+name: { full: "Authoring HeroicLands content" }
+type: doc
+subType: userguide
+---
+
 # Authoring HeroicLands content
 
 A content package begins with Markdown notes under `assets/content/`. Each note has YAML frontmatter describing its identity and data, followed by prose. Folder names beneath `assets/content/` are for authors; `type`, `subType`, and Addresses determine what the build creates.

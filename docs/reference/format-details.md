@@ -1,3 +1,10 @@
+---
+shortcode: referenceformatdetails
+name: { full: "Content format details" }
+type: doc
+subType: reference
+---
+
 ## Content format: how a note becomes documents
 
 ### Documentation
@@ -1850,9 +1857,10 @@ so `banner:` — the one art slot with no Foundry destination — is where a
 `packagebuild` address belongs. A body image naming one, written either way, is
 refused with the line and column it sits on.
 
-`packagebuild` is therefore **reserved** in the package registry: nothing may
-create a real package that collides with it, and its resolution is special-cased,
-because no installed directory sits behind the name.
+`packagebuild` is reserved for this toolchain's assets and documentation. The
+documentation package in this repository uses that namespace for its notes;
+other repositories cannot claim it. Asset resolution remains special-cased
+because no Foundry package is installed under that name.
 
 #### An embedded image is a wikilink
 

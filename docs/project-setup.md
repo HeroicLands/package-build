@@ -1,3 +1,10 @@
+---
+shortcode: projectsetup
+name: { full: "Project setup" }
+type: doc
+subType: userguide
+---
+
 # Project setup
 
 [`getting-started.md`](getting-started.md) builds a package. This document
@@ -132,11 +139,12 @@ To commit here anyway just this once, use 'git commit --no-verify'. To opt this
 repository out permanently, 'git config hooks.allowCommitOnMain true'.
 ```
 
-`pre-push` reads the step list out of `.github/workflows/build.yml` rather than
-holding its own copy, and runs it over a clean export of `HEAD` in a
-`linux/amd64` container. That last detail is the one a Mac cannot reproduce any
-other way: this filesystem is case-insensitive and the runner's is not, so a
-wrong-case import passes locally and fails there.
+`pre-push` reads the pull-request workflows and runs their commands over a
+clean export of `HEAD` in a `linux/amd64` container. Run the same check manually
+with `package-build ci`; use `package-build ci --native` to run against the
+current working tree without Docker. The container catches wrong-case imports
+that pass on a case-insensitive Mac filesystem and fail on the Linux runner.
+Published `uses:` actions are listed but run only on GitHub.
 
 ### `clean` — removing what the build wrote
 
@@ -238,6 +246,11 @@ A package with a dependency adds `"build:deps": "package-build deps fetch"` at
 the head of `build:db`. Fetching is its own step and never happens during a
 compile, so a build never reaches the network silently — a cold cache fails
 naming `deps fetch`.
+
+Commands that read dependency addresses check for a complete local index before
+walking content or writing output. This applies to `lint`, `links`, `site`,
+`pdf`, `map`, `reachability`, and `package compile`. The check does not fetch;
+run `package-build deps fetch` as a separate step when the cache is empty.
 
 ### `format` — writing rather than checking
 

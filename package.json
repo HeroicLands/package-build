@@ -150,6 +150,7 @@
         "markdownlint-cli2": "^0.23.3",
         "pagefind": "^1.5.2",
         "prettier": "^3.9.6",
+        "sharp": "^0.35.4",
         "smol-toml": "^1.8.0",
         "ssh2-sftp-client": "^12.1.1",
         "typescript": "^6.0.3",
@@ -159,6 +160,7 @@
     },
     "devDependencies": {
         "@changesets/cli": "^3.0.0",
+        "@heroiclands/hugo-theme": "^0.9.0",
         "@types/node": "^26.2.0",
         "npm-run-all": "^4.1.5",
         "vitest": "^5.0.0"
@@ -181,7 +183,17 @@
         "lint:content-format:fields": "node bin/package-build.mjs content-format fields --fields sohl && node bin/package-build.mjs content-format fields --fields hm3",
         "changeset": "changeset",
         "changeset:version": "changeset version && node bin/package-build.mjs changelog group && npm install --package-lock-only",
-        "prepare": "git config core.hooksPath .githooks || true"
+        "prepare": "git config core.hooksPath .githooks || true",
+        "build:deps": "node bin/package-build.mjs deps fetch",
+        "build:content-index": "node bin/package-build.mjs content-index",
+        "build:site-content": "node bin/package-build.mjs site",
+        "build:site-html": "hugo --source build/hugo --minify --gc --cleanDestinationDir",
+        "build:site-root": "node bin/package-build.mjs site-root",
+        "build:site": "run-s build:deps build:content-index build:site-content build:site-html build:site-root",
+        "build:book": "run-s build:deps build:content-index build:book-content",
+        "build:book-content": "node bin/package-build.mjs pdf",
+        "serve:site": "run-s build:deps build:content-index build:site-content serve:site-html",
+        "serve:site-html": "hugo server --source build/hugo"
     },
     "engines": {
         "node": ">=24.0.0"
@@ -202,5 +214,6 @@
         "heroiclands",
         "sohl",
         "song-of-heroic-lands"
-    ]
+    ],
+    "homepage": "https://github.com/HeroicLands/package-build#documentation"
 }

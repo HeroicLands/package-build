@@ -1,3 +1,10 @@
+---
+shortcode: referencenotetypes
+name: { full: "Note types and fields" }
+type: doc
+subType: reference
+---
+
 # Note types and fields
 
 Choose a note's `type` for the subject it describes. Use `subType` when its type declares a more specific genre. Field rules are declared in `engine/note-vocabulary.mjs`; mapping claims and closed vocabularies are recorded in `engine/content-format.yaml`. This page is checked against both declarations.

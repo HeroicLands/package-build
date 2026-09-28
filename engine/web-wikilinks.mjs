@@ -123,19 +123,8 @@ function lookupRead(index, read, contentPackage) {
 /**
  * How an **unresolved** link renders.
  *
- * The author's text is kept, so the sentence still reads — dropping it would
- * silently rewrite the prose. It is marked so a reader can tell that something
- * was meant to be a link, and an author can find it: the appearance lives in
- * `scss/components/_unresolved-link.scss` for Foundry and in the Hugo theme for
- * the website, not here.
- *
- * This is deliberately identical to the pack compiler's own `unresolvedLink`,
- * down to the class name and the `title` wording. One authored link renders on
- * two surfaces, and the two builds have drifted before over exactly this kind
- * of detail — matching markup is what keeps a reader's cue the same in
- * a journal and on the page. Duplicated rather than imported only because the
- * function is not exported from `@heroiclands/package-build`; hoisting it there
- * is.
+ * The author's text remains readable. The website uses an HTML span matching
+ * the pack compiler's cue; the book uses text that Typst can print.
  *
  * The knowledgebase renders with `unsafe = true` (`kb/hugo.toml`), so raw HTML
  * in generated markdown reaches the page. That makes escaping obligatory: this
@@ -143,9 +132,11 @@ function lookupRead(index, read, contentPackage) {
  *
  * @param {string} text - The text to show, from the link's label or target.
  * @param {string} target - The address that resolved nowhere, for the tooltip.
- * @returns {string} An inline HTML span, safe to sit in a markdown table cell.
+ * @param {"html"|"book"} output - The destination format.
+ * @returns {string} A visible cue in the destination's Markdown.
  */
-function unresolvedLink(text, target) {
+function unresolvedLink(text, target, output) {
+    if (output === "book") return `${text} (unresolved link)`;
     const esc = (v) =>
         String(v)
             .replace(/&/g, "&amp;")
@@ -159,27 +150,18 @@ function unresolvedLink(text, target) {
 }
 
 /**
- * How a link to a **draft** note renders.
+ * How the website marks a link to a **draft** note.
  *
  * A note tagged `draft` exists so a link into it is not dead, and nothing more.
  * Unmarked, a reader follows a promising link into an empty page and an author
  * cannot see which of their links still owe content.
  *
- * **The wrapper carries the cue and nothing else.** The link itself is
- * untouched — Goldmark parses inline markdown inside an inline HTML span, so
- * the markdown link still becomes an anchor, and the note is on the site, in
- * the packs and in the manifest exactly as any other. Nothing here resembles
- * the retired `draft:` field, which moved a note from published to unresolvable
- * without saying so.
+ * The link itself remains intact inside the HTML span.
  *
  * The appearance lives in the Hugo theme for the website and in
  * `scss/components/_draft-link.scss` for Foundry, not here.
  *
- * **Byte-identical with the pack build's copy** in `wikilinks.mjs`, down to the
- * class name and the `title` wording — one authored link renders on two
- * surfaces, and the two builds have drifted before over exactly this kind of
- * detail. Duplicated rather than imported for the same reason
- * {@link unresolvedLink} is; hoisting both is.
+ * The website span matches the pack compiler's copy in `wikilinks.mjs`.
  *
  * The argument is already-built markup and is deliberately not escaped; the
  * *authored* text inside it was escaped, or made into a link, by the caller.
@@ -322,7 +304,8 @@ function isPlainMap(value) {
  *
  * @param {string} body - The markdown body.
  * @param {object} ctx - `{ index, assets, collide, contentTypes,
- *   packages, noIndexPackages, foreign, type, errors, src, file, resolved }`.
+ *   packages, noIndexPackages, foreign, type, errors, src, file, resolved,
+ *   output }`. `output` is `"book"` for PDF Markdown and defaults to HTML.
  *   `packages` is every package an address may name, without which the leading
  *   package segment of a canonical address reads as an unknown type;
  *   `noIndexPackages` is every package declared `contentIndex: false`, so a
@@ -373,7 +356,7 @@ export function resolveWebWikilinks(body, ctx) {
      */
     const report = (all, finding, text) => {
         record(all, finding);
-        return unresolvedLink(text, finding.target);
+        return unresolvedLink(text, finding.target, ctx.output ?? "html");
     };
 
     // An embed names a file, so it resolves before anything looks for a link.
@@ -455,7 +438,8 @@ export function resolveWebWikilinks(body, ctx) {
             // Presentation only — the href above is unchanged, and a
             // `[[#anchor]]` self-link is not marked because the reader is
             // already on the page it would be telling them about.
-            return hit.draft ? draftLink(link) : link;
+            if (!hit.draft) return link;
+            return ctx.output === "book" ? `${link} (draft)` : draftLink(link);
         }
 
         // **An address resolving nowhere is a failure, unconditionally**.

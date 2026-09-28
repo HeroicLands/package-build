@@ -36,6 +36,10 @@ import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 /**
  * Resolves a dotted frontmatter key (e.g., "name.full") into the nested
  * value. Returns `defaultValue` if any path segment is missing.
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} key - A top-level or dotted property path.
+ * @param {unknown} [defaultValue] - Value for a missing property.
+ * @returns {unknown} The property value or default.
  */
 export function getFrontmatter(fm, key, defaultValue = undefined) {
     if (fm == null || typeof fm !== "object") return defaultValue;
@@ -53,6 +57,10 @@ export function getFrontmatter(fm, key, defaultValue = undefined) {
  * Reads a key from `fm.sohl` (the vault's nested system-fields block).
  * Supports dotted notation, e.g. sohlField(fm, "charges.value", 0).
  * Falls back to top-level `fm[key]` if `sohl` doesn't carry the key.
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} key - A top-level or dotted property path.
+ * @param {unknown} [defaultValue] - Value for a missing property.
+ * @returns {unknown} The system value, top-level value, or default.
  */
 export function sohlField(fm, key, defaultValue = undefined) {
     if (fm == null || typeof fm !== "object") return defaultValue;
@@ -321,6 +329,8 @@ export function requireSubType(fm, ctx) {
  *   - Array of "Label:MaxValue" strings, e.g. ["Ugly:4", "Plain:12"]
  *   - Array of objects, e.g. [{ label, maxValue }]
  * Returns a normalized array of `{ label, maxValue: number }`.
+ * @param {unknown} raw - An authored threshold array.
+ * @returns {Array<{label: string, maxValue: number}>} Normalized thresholds.
  */
 export function parseValueDesc(raw) {
     if (!raw || !Array.isArray(raw)) return [];

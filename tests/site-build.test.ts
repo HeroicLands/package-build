@@ -21,8 +21,6 @@ import matter from "gray-matter";
 import os from "node:os";
 import path from "node:path";
 
-import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
-
 import { defineConfig } from "../index.mjs";
 import {
     buildSite,
@@ -316,36 +314,6 @@ describe("what a page publishes with", () => {
         // own base — see `tests/page-url-root-relative.test.ts`.
         expect(pageFrontmatter(page as never, {}).url).toBe("/weapongear-dagger/");
     });
-
-    it("publishes a being that declares no `sohl:` block", () => {
-        // The decorator mirrors the one `buildSite` installs. A being whose
-        // note carries no `sohl:` key reaches it as `undefined`, and assigning
-        // that creates an own property YAML cannot dump: `matter.stringify`
-        // throws `unacceptable kind of an object to dump [object Undefined]`
-        // and takes the entire site build with it, not just this page.
-        //
-        // Serialising here is the assertion. Checking the value alone would
-        // pass against the shape that crashes.
-        const being = {
-            ...page,
-            fm: { type: "being", name: { full: "Njörven" } },
-            name: "Njörven",
-            slug: "being-njorven",
-            sec: "being",
-        };
-        const data = pageFrontmatter(
-            being as never,
-            {
-                decorate: (d: Record<string, unknown>, p: { fm: { sohl?: unknown } }) => {
-                    if (isBeing(p.fm)) d.sohl = deriveBeingInfo(p.fm.sohl as never, new Map());
-                },
-            } as never,
-        );
-
-        expect(Object.hasOwn(data, "sohl")).toBe(true);
-        expect(data.sohl).toBeNull();
-        expect(() => matter.stringify("", data)).not.toThrow();
-    });
 });
 
 describe("the output root is fixed, which is what makes wiping it safe", () => {
@@ -401,6 +369,24 @@ describe("the consumer's own passes are named, not imported", () => {
 });
 
 describe("buildSite end to end", () => {
+    it("publishes a being without injecting system frontmatter", () => {
+        const file = note(
+            "Beings/Njorven.md",
+            "shortcode: njorven\nname: { full: Njörven }\ntype: being",
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(gatesFailed(result.gates)).toBe(false);
+            const published = matter.read(
+                path.join(root, "build/hugo/content/kb/being-njorven.md"),
+            );
+            expect(Object.hasOwn(published.data, "sohl")).toBe(false);
+            expect(published.data.infoboxes).toEqual(expect.any(Array));
+        } finally {
+            fs.rmSync(file);
+        }
+    });
+
     it("expands Markdown expressions from frontmatter and prepared SQL", () => {
         const file = note(
             "Rules/Expressions.md",

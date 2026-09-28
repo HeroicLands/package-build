@@ -1,3 +1,10 @@
+---
+shortcode: guidese2e
+name: { full: "Test a package in Foundry" }
+type: doc
+subType: howto
+---
+
 # Test a package in Foundry
 
 `package-build e2e` serves a staged package in a disposable Foundry world and

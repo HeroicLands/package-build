@@ -1,3 +1,10 @@
+---
+shortcode: commands
+name: { full: "Command reference" }
+type: doc
+subType: reference
+---
+
 # Command reference
 
 `@heroiclands/package-build` ships the `package-build` command. It checks and
@@ -60,6 +67,58 @@ behaviour where they appear below; read the command, not the name.
 ---
 
 ## Package and release operations
+
+### `package-build ci`
+
+**NAME**
+
+Replay the commands from pull-request workflows.
+
+**SYNOPSIS**
+
+```text
+package-build ci [--native]
+```
+
+**DESCRIPTION**
+
+The default command runs in Docker on Linux against a clean export of the
+current commit. It reads the repository's pull-request workflows under
+`.github/workflows/` and runs their `run:` steps in workflow order. A failed
+step stops the replay. Uncommitted changes are absent from the clean export.
+
+`--native` runs the same steps on the host in the current working tree. It
+needs no Docker and includes uncommitted changes, but its operating system and
+existing files can differ from a clean GitHub runner. The steps themselves
+still come from the workflow files.
+
+The command lists `uses:` steps that it cannot run locally. A successful replay
+covers the listed `run:` steps; GitHub runs the published actions separately.
+Workflow steps may install dependencies, generate files, or perform other
+declared build actions.
+
+**OPTIONS**
+
+| Option     | Type    | Default | Description                                  |
+| ---------- | ------- | ------- | -------------------------------------------- |
+| `--native` | boolean | false   | Run on the host in the current working tree. |
+
+**EXIT STATUS**
+
+0 when every runnable step succeeds. 1 when a step fails, no pull-request
+workflow supplies runnable steps, Docker is unavailable for the default mode,
+or the replay cannot start.
+
+**EXAMPLES**
+
+```bash
+package-build ci
+package-build ci --native
+```
+
+**SEE ALSO**
+
+[End-to-end testing](guides/e2e.md), [Project setup](project-setup.md).
 
 ### `package-build init [directory]`
 
@@ -1364,6 +1423,12 @@ or `site`, so neither reaches the network — a build that downloads silently
 is not reproducible and hides a dependency's version change behind a
 passing run. Each cache is stamped complete only once its fetch finishes,
 so a half-finished one reads as cold.
+
+`lint`, `links`, `site`, `pdf`, `map`, `reachability`, and `package compile`
+check the declared dependencies' content-index cache before reading notes or
+writing output. A cold cache produces a diagnostic at the package configuration
+file naming `deps fetch`. These checks only read local files; `deps fetch` is
+the separate step that reaches the network.
 
 The navigation is fetched first, because every package needs it and it
 depends on nothing a repository declares — so a dependency whose release

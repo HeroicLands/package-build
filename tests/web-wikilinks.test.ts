@@ -83,6 +83,24 @@ describe("slugify (KB heading/anchor slug)", () => {
 });
 
 describe("resolveWebWikilinks", () => {
+    it("uses readable cues in book Markdown without HTML spans", () => {
+        const draft = { url: "/rules/sohl-shock/", name: "Shock", draft: true };
+        const ctx = makeCtx({
+            output: "book",
+            index: new Map([
+                ["doc/shock", draft],
+                ["sohl-note-doc-shock", draft],
+            ]),
+        });
+        expect(resolveWebWikilinks("[[doc/shock|Shock]]", ctx)).toBe(
+            "[Shock](/rules/sohl-shock/) (draft)",
+        );
+        expect(resolveWebWikilinks("| [[doc/missing|Missing]] |", ctx)).toBe(
+            "| Missing (unresolved link) |",
+        );
+        expect(ctx.errors).toHaveLength(1);
+    });
+
     it("resolves type/shortcode to the target's KB url", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("see [[doc/shock|the rules]]", ctx)).toBe(

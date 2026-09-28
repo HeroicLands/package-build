@@ -1,3 +1,10 @@
+---
+shortcode: guidesbook
+name: { full: "Build a PDF book" }
+type: doc
+subType: howto
+---
+
 # Build a PDF book
 
 `package-build pdf` selects notes from a content package and sets them as a
@@ -88,9 +95,18 @@ columns; an uncaptioned wide table starts on a new page so it stays after its
 introduction. A captioned wide table may float to the page top, and its numbered
 caption stays with it. A table too tall for one page takes pages of its own.
 Caption numbers run through the whole book in reading order. Maps attached
-to selected places use full pages after those entries. The
+to selected places use landscape pages after those entries. Regional, theatre
+of the mind, battle, and local map backgrounds also print on landscape pages.
+Battle and local maps print each Scene level's background on its own page.
+The
 [content format](../content-format.md) describes image sizes, floats, and
 links as they are authored in notes.
+
+The book stages raster art at up to 300 dpi for its largest printed use.
+Ordinary images fit their column, full-width images fit the page's text width,
+and map backgrounds fit the landscape map area. An image smaller than that
+target keeps its authored pixels and still fills its allotted space on the
+page. SVG art stays vector. The build never changes authored image files.
 
 ## Set fonts and icon fonts
 

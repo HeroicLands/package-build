@@ -670,10 +670,7 @@ function childMatching(children, i, open, close) {
  * @returns {string} Typst markup.
  */
 function inlineRaw(content) {
-    const text = String(content ?? "");
-    const longest = (text.match(/`+/g) ?? []).reduce((n, run) => Math.max(n, run.length), 0);
-    const ticks = "`".repeat(Math.max(1, longest + 1));
-    return `${ticks}${text}${ticks}`;
+    return `#raw("${escapeTypstString(content)}", block: false)`;
 }
 
 /**
@@ -1007,11 +1004,11 @@ export function bookTypstPreamble() {
             "  }\n" +
             "}",
         "#let book-place-map(title, path) = {\n" +
-            "  page(columns: 1)[\n" +
+            "  page(columns: 1, flipped: true)[\n" +
             "    #set par(justify: false, first-line-indent: 0em)\n" +
             '    #text(size: 18pt, weight: "bold", fill: book-head)[#title]\n' +
             "    #v(0.4cm)\n" +
-            '    #image(path, width: 100%, height: book-text-height - 2cm, fit: "contain")\n' +
+            '    #image(path, width: 100%, height: book-text-width - 2cm, fit: "contain")\n' +
             "  ]\n" +
             "}",
         // Wide content spans the page, and how it spans depends on how tall it
@@ -1290,8 +1287,7 @@ export function renderBook({
             out.push(body);
             out.push("");
         }
-        const map = maps.get(entry.anchor);
-        if (map) {
+        for (const map of maps.get(entry.anchor) ?? []) {
             out.push(
                 `#book-place-map([${escapeTypst(map.title)}], "${escapeTypstString(map.path)}")`,
             );

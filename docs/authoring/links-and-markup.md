@@ -1,3 +1,10 @@
+---
+shortcode: authoringlinksandmarkup
+name: { full: "Addresses, links, and body markup" }
+type: doc
+subType: howto
+---
+
 # Addresses, links, and body markup
 
 An Address names content independently of its filename or folder. Its full form is `<package>-<system>-<type>-<shortcode>`. A regular prose link defaults to system `note`, and an asset embed defaults to system `none`. Omitted segments take their defaults from the writing context; a short form must still resolve unambiguously. Frontmatter fields that declare an Address contain the bare Address, without brackets.
@@ -9,6 +16,8 @@ An Address names content independently of its filename or folder. Its full form 
 ```
 
 The part after `|` is the displayed link text or an embed's alternative text. An empty label uses the target's current name in a regular link and marks an embed decorative. A missing pipe is an error. Search may use `name.full` and aliases; authored links use Addresses. The [Address reference](../reference/format-details.md#addresses) explains short forms, package qualification, and ambiguity diagnostics.
+
+A link to a note tagged `draft` retains its target and carries a visible draft cue. In a book, the cue reads `(draft)` after the link. A link that resolves nowhere produces a diagnostic and reads `(unresolved link)` after its label in the book.
 
 ## Journal pages and anchors
 

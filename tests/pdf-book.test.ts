@@ -5,6 +5,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
+import sharp from "sharp";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -119,6 +121,47 @@ afterAll(() => {
     if (root) fs.rmSync(root, { recursive: true, force: true });
 });
 
+it.skipIf(!HAS_TYPST)(
+    "reduces a book's embedded raster image while keeping authored art",
+    async () => {
+        const dir = makeRepo("content");
+        try {
+            const imageDir = path.join(dir, "assets", "images");
+            fs.mkdirSync(imageDir, { recursive: true });
+            const image = path.join(imageDir, "portrait.webp");
+            const source = await sharp(randomBytes(900 * 600 * 3), {
+                raw: { width: 900, height: 600, channels: 3 },
+            })
+                .webp({ quality: 95 })
+                .toBuffer();
+            fs.writeFileSync(image, source);
+            fs.appendFileSync(
+                path.join(dir, "assets/content/Gear/dagger.md"),
+                "\n![Portrait](images/portrait.webp){size: medium}\n",
+            );
+
+            const built = build(dir);
+            expect(built.status, built.out).toBe(0);
+            const dist = path.join(dir, "build", "dist");
+            const pdf = path.join(
+                dist,
+                fs.readdirSync(dist).find((file) => file.endsWith(".pdf"))!,
+            );
+            expect(fs.statSync(pdf).size).toBeGreaterThan(0);
+            expect(fs.statSync(path.join(dist, "assets/images/portrait.webp")).size).toBeLessThan(
+                source.length,
+            );
+            expect(
+                (await sharp(path.join(dist, "assets/images/portrait.webp")).metadata()).width,
+            ).toBe(Math.round((3.2 / 2.54) * 300));
+            expect(fs.readFileSync(image)).toEqual(source);
+            expect(built.out).toContain("book image assets/images/portrait.webp");
+        } finally {
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    },
+);
+
 describe("the homepage fence", () => {
     // The criterion most likely to be regressed by a later refactor, and the
     // most expensive to get wrong: four of the six packages that would adopt
@@ -151,6 +194,38 @@ describe("the homepage fence", () => {
         expect(out).toMatch(/Typst source:/);
         fs.rmSync(dir, { recursive: true, force: true });
     });
+});
+
+it("renders draft and unresolved links as book text", () => {
+    const dir = makeRepo("content");
+    try {
+        const shield = path.join(dir, "assets/content/Gear/shield.md");
+        fs.writeFileSync(
+            shield,
+            fs
+                .readFileSync(shield, "utf8")
+                .replace("  full: Shield\n---", "  full: Shield\ntags: [draft]\n---"),
+        );
+        const dagger = path.join(dir, "assets/content/Gear/dagger.md");
+        fs.appendFileSync(
+            dagger,
+            "A [[weapongear-shield|Shield]] rests beside [[weapongear-missing|missing gear]].\n",
+        );
+
+        const built = build(dir, "--no-compile");
+        expect(built.out).toMatch(/Typst source:/);
+        const sourceFile = fs
+            .readdirSync(path.join(dir, "build/dist"))
+            .find((file) => file.endsWith(".typ"))!;
+        const source = fs.readFileSync(path.join(dir, "build/dist", sourceFile), "utf8");
+        expect(source).toContain("Shield");
+        expect(source).toContain("draft");
+        expect(source).toContain("missing gear (unresolved link)");
+        expect(source).not.toContain("sohl-draft-link");
+        expect(source).not.toContain("sohl-unresolved-link");
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
 });
 
 describe("--book-version", () => {
@@ -356,6 +431,7 @@ describe("full-page place maps", () => {
         );
         expect(source).not.toContain("maps/from-gamma.svg");
         expect(source).toContain('#book-place-map([Regional Chart], "assets/images/regional.svg")');
+        expect(source).toContain("page(columns: 1, flipped: true)");
 
         if (HAS_TYPST) {
             const compiled = build(dir);
@@ -378,3 +454,66 @@ describe("full-page place maps", () => {
         fs.rmSync(dir, { recursive: true, force: true });
     });
 });
+
+it("prints a Scene background on a landscape page at its print resolution", async () => {
+    const dir = makeRepo("content");
+    try {
+        const imageDir = path.join(dir, "assets", "images");
+        fs.mkdirSync(imageDir, { recursive: true });
+        const image = path.join(imageDir, "battle.webp");
+        const original = await sharp(randomBytes(3200 * 900 * 3), {
+            raw: { width: 3200, height: 900, channels: 3 },
+        })
+            .webp({ quality: 95 })
+            .toBuffer();
+        fs.writeFileSync(image, original);
+        fs.writeFileSync(
+            path.join(dir, "assets/content/Gear/Battle_Map.md"),
+            [
+                "---",
+                "shortcode: battle",
+                "name: { full: Battle Map }",
+                "type: map",
+                "subType: battlemap",
+                "data:",
+                "  fixup:",
+                "    - { path: '.levels[level0000000000].background.src', type: address, value: battle }",
+                "  scene:",
+                "    name: Battle Map",
+                "    width: 3200",
+                "    height: 900",
+                "    levels:",
+                "      - { _id: level0000000000, name: Ground, background: { src: modules/maps/battle.webp } }",
+                "---",
+                "",
+                "A map.",
+                "",
+            ].join("\n"),
+        );
+        fs.writeFileSync(
+            path.join(dir, "book.yaml"),
+            "contents:\n  - sectionName: Maps\n    contents:\n      - filter: \"type = 'map'\"\n",
+        );
+
+        const built = build(dir, "--no-compile");
+        expect(built.status, built.out).toBe(0);
+        const dist = path.join(dir, "build", "dist");
+        const staged = path.join(dist, "assets/images/battle.webp");
+        expect((await sharp(staged).metadata()).width).toBe(
+            Math.round((11 - (2 * 1.9) / 2.54) * 300),
+        );
+        expect(fs.readFileSync(image)).toEqual(original);
+        const typ = fs.readFileSync(
+            path.join(
+                dist,
+                fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!,
+            ),
+            "utf8",
+        );
+        expect(typ).toContain('#book-place-map([Battle Map: Ground], "assets/images/battle.webp")');
+        expect(typ).toContain("page(columns: 1, flipped: true)");
+        if (HAS_TYPST) expect(build(dir).status).toBe(0);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+}, 20000);

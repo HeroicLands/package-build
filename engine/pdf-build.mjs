@@ -96,7 +96,13 @@ import { indexRecordsFor } from "./content-index.mjs";
 import { isNoteRecord, isStub, noteFile } from "./index-records.mjs";
 import { openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
-import { collectContentPages, siteGates, tableUniverse, gatesFailed } from "./site-build.mjs";
+import {
+    collectContentPages,
+    siteGates,
+    tableUniverse,
+    gatesFailed,
+    resolveSitePass,
+} from "./site-build.mjs";
 import { resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
@@ -106,7 +112,15 @@ import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
 import { numberCaptions, scanCaptions } from "./content-captions.mjs";
 import { protectCode } from "./code-fences.mjs";
-import { imageSourcesIn } from "./content-images.mjs";
+import { imagesIn, parseImageDirective } from "./content-images.mjs";
+import {
+    PDF_IMAGE_INCHES,
+    PDF_PAGE,
+    pdfColumnWidth,
+    pdfTextHeight,
+    pdfTextWidth,
+    resamplePdfImages,
+} from "./pdf-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import {
     createParser,
@@ -424,6 +438,8 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
 
     /** @type {Map<string, string>} Authored address → the staged file's path. */
     const images = new Map();
+    /** @type {Map<string, {from: string, to: string, relative: string, file: string, uses: Array<{width: number, height: number}>}>} */
+    const imageCandidates = new Map();
     /** @type {Set<string>} Addresses already looked for, staged or not. */
     const seenImages = new Set();
 
@@ -436,11 +452,25 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      *
      * @param {string} body - The rendered markdown.
      * @param {string} file - The note, for the finding.
+     * @param {number} columns - The page's column count.
      * @returns {void}
      */
-    const stageImages = (body, file) => {
-        for (const src of imageSourcesIn(body)) {
-            if (seenImages.has(src)) continue;
+    const stageImages = (body, file, columns = 2) => {
+        for (const image of imagesIn(body)) {
+            const src = image.src;
+            const directive = parseImageDirective(image.directive);
+            const wide =
+                directive.size === "full-width" || directive.classes.includes("full-width");
+            const availableWidth = wide ? pdfTextWidth : pdfColumnWidth(columns);
+            const use = {
+                width: Math.min(PDF_IMAGE_INCHES[directive.size] ?? availableWidth, availableWidth),
+                height: pdfTextHeight * 0.8,
+            };
+            if (seenImages.has(src)) {
+                const stagedTo = images.get(src);
+                if (stagedTo) imageCandidates.get(stagedTo)?.uses.push(use);
+                continue;
+            }
             seenImages.add(src);
             // An **error**, where a picture the book cannot carry is a warning:
             // this pathname resolves on no surface at all, and the replacement
@@ -478,6 +508,15 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 continue;
             }
             images.set(src, staged.to);
+            const candidate = imageCandidates.get(staged.to);
+            if (candidate) candidate.uses.push(use);
+            else
+                imageCandidates.set(staged.to, {
+                    ...staged,
+                    relative: path.relative(resolved.rootDir, staged.from),
+                    file,
+                    uses: [use],
+                });
         }
     };
 
@@ -487,6 +526,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      * @param {object} page - A collected page.
      * @param {number} headingOffset - Where the book put this entry.
      * @param {string} anchorPrefix - The entry's anchor, namespacing its sections.
+     * @param {number} columns - The entry's page columns.
      * @returns {string} Typst markup.
      */
     const captionCounts = { code: 0, table: 0, figure: 0, prose: 0 };
@@ -507,7 +547,13 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             // The rendering pass reports an unreadable front-matter file.
         }
     }
-    const renderPage = (page, headingOffset, anchorPrefix) => {
+    const pass = resolveSitePass(resolved.site?.pass, {
+        ...resolved.site?.passOptions,
+        repoRoot: resolved.rootDir,
+        config: resolved,
+        book: true,
+    });
+    const renderPage = (page, headingOffset, anchorPrefix, columns) => {
         const src = page.relPath ?? page.base;
         const wikiErrors = [];
         const { markdown, errors, lineMap } = expandContentTables(page.body, {
@@ -545,6 +591,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 severity: "error",
                 message: error.message,
             });
+        linkCtx.output = "book";
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
         // wikilink, and resolving it would make the example impossible to write.
@@ -557,7 +604,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         });
         findings.push(...expressions.findings);
         const resolvedBody = protectCode(expressions.markdown, (text) =>
-            resolveWebWikilinks(text, linkCtx),
+            resolveWebWikilinks(pass.beforeLinks ? pass.beforeLinks(text, page) : text, linkCtx),
         );
         for (const err of wikiErrors) {
             findings.push({
@@ -579,7 +626,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 message: error.message,
             });
         }
-        stageImages(secrets.markdown, page.file);
+        stageImages(secrets.markdown, page.file, columns);
         const prose = markdownToTypst(secrets.markdown, {
             md,
             links: plan.links,
@@ -622,7 +669,10 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             // entry. A note's body starts at `##` — its name is frontmatter, not
             // an H1 — so an offset of the entry's depth puts that `##` one level
             // below the entry heading at `depth + 1`, which is where it belongs.
-            bodies.set(entry.anchor, renderPage(page, entry.depth, entry.anchor));
+            bodies.set(
+                entry.anchor,
+                renderPage(page, entry.depth, entry.anchor, entry.presentation?.page?.columns ?? 2),
+            );
             continue;
         }
         if (entry.kind === "prose") {
@@ -638,7 +688,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 });
                 continue;
             }
-            stageImages(text, file);
+            stageImages(text, file, entry.presentation?.page?.columns ?? 2);
             bodies.set(
                 entry.anchor,
                 markdownToTypst(text, {
@@ -666,7 +716,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const front = resolved.pdf.front.map((file) => {
         try {
             const text = fs.readFileSync(file, "utf8");
-            stageImages(text, file);
+            stageImages(text, file, 1);
             return markdownToTypst(text, {
                 md,
                 links: plan.links,
@@ -685,9 +735,53 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     });
 
     const banners = stageBanners(plan.entries, resolved, outDir, findings);
+    for (const [declared, to] of banners) {
+        const from = path.resolve(resolved.rootDir, declared);
+        imageCandidates.set(`banner:${declared}`, {
+            from,
+            to,
+            relative: path.relative(resolved.rootDir, from),
+            file: resolved.pdf.document,
+            uses: [{ width: PDF_PAGE.width, height: Infinity }],
+        });
+    }
 
-    /** @type {Map<string, {path: string, title: string}>} Entry anchor → map page. */
+    /** @type {Map<string, Array<{path: string, title: string}>>} Entry anchor → map pages. */
     const maps = new Map();
+    const addMapPage = (anchor, page) => {
+        if (!maps.has(anchor)) maps.set(anchor, []);
+        maps.get(anchor).push(page);
+    };
+    const stageMapBackground = (entry, value, title) => {
+        const file = noteFile(contentBase, entry.record);
+        const found = artPathname(assets, value, "image", ["image", "icon"]);
+        const staged = stagedImagePath(found.pathname ?? value, resolved);
+        if (!staged || !fs.existsSync(staged.from)) {
+            findings.push({
+                file,
+                severity: "warning",
+                message: `the map background "${value}" cannot be resolved for the book`,
+            });
+            return;
+        }
+        const target = path.join(outDir, staged.to);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(staged.from, target);
+        addMapPage(entry.anchor, { path: staged.to, title });
+        const candidate = imageCandidates.get(staged.to);
+        const use = {
+            width: PDF_PAGE.height - 2 * PDF_PAGE.margin,
+            height: pdfTextWidth - 2 / 2.54,
+        };
+        if (candidate) candidate.uses.push(use);
+        else
+            imageCandidates.set(staged.to, {
+                ...staged,
+                relative: path.relative(resolved.rootDir, staged.from),
+                file,
+                uses: [use],
+            });
+    };
     const world = mapWorld({
         records,
         foreignIndex: gates.foreign.index,
@@ -708,7 +802,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         const drawn = buildMaps({ world, outDir: mapDir, from: centres });
         findings.push(...drawn.findings);
         for (const entry of mappedEntries) {
-            maps.set(entry.anchor, {
+            addMapPage(entry.anchor, {
                 path: `maps/from-${entry.record.shortcode}.svg`,
                 title: `From here: ${entry.record.name?.full ?? entry.record.shortcode}`,
             });
@@ -716,27 +810,26 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     }
     for (const entry of plan.entries) {
         if (entry.kind !== "note" || entry.record?.type !== "map") continue;
-        if (entry.record.subType !== "regionalmap") continue;
-        const image = entry.record.data?.bgImage;
-        if (!image) continue;
-        const found = artPathname(assets, image, "image", ["image", "icon"]);
-        if (!found.pathname) {
-            findings.push({
-                file: noteFile(contentBase, entry.record),
-                severity: "warning",
-                message: `the regional map's background "${image}" cannot be resolved for the book`,
-            });
+        const title = entry.record.name?.full ?? entry.record.shortcode;
+        if (["regionalmap", "totm"].includes(entry.record.subType)) {
+            if (entry.record.data?.bgImage) {
+                stageMapBackground(entry, entry.record.data.bgImage, title);
+            }
             continue;
         }
-        const staged = stagedImagePath(found.pathname, resolved);
-        if (!staged || !staged.from.toLowerCase().endsWith(".svg")) continue;
-        const target = path.join(outDir, staged.to);
-        fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.copyFileSync(staged.from, target);
-        maps.set(entry.anchor, {
-            path: staged.to,
-            title: entry.record.name?.full ?? entry.record.shortcode,
-        });
+        if (!["battlemap", "localmap"].includes(entry.record.subType)) continue;
+        for (const [index, level] of (entry.record.data?.scene?.levels ?? []).entries()) {
+            const paths = [
+                `.levels[${index}].background.src`,
+                ...(level._id ? [`.levels[${level._id}].background.src`] : []),
+            ];
+            const fixup = (entry.record.data?.fixup ?? []).find((item) =>
+                paths.includes(item.path),
+            );
+            const value = fixup?.value ?? level.background?.src;
+            if (value)
+                stageMapBackground(entry, value, level.name ? `${title}: ${level.name}` : title);
+        }
     }
 
     const assembled = renderBook({
@@ -760,18 +853,36 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const pdfPath = path.join(outDir, stem);
     fs.writeFileSync(typPath, source);
 
+    const imageReports = await resamplePdfImages(imageCandidates, outDir);
+
     const stats = { ...plan.stats, entries: plan.entries.length, bytes: source.length };
     if (!compile) {
-        return { built: true, reason: null, findings, typ: typPath, pdf: null, stats };
+        return {
+            built: true,
+            reason: null,
+            findings,
+            imageReports,
+            typ: typPath,
+            pdf: null,
+            stats,
+        };
     }
 
     const compiled = compileTypst(typPath, pdfPath, resolved.pdf);
     findings.push(...compiled.findings);
     if (!compiled.ok) {
         findings.push({ file: typPath, severity: "error", message: compiled.message });
-        return { built: false, reason: null, findings, typ: typPath, pdf: null, stats };
+        return {
+            built: false,
+            reason: null,
+            findings,
+            imageReports,
+            typ: typPath,
+            pdf: null,
+            stats,
+        };
     }
-    return { built: true, reason: null, findings, typ: typPath, pdf: pdfPath, stats };
+    return { built: true, reason: null, findings, imageReports, typ: typPath, pdf: pdfPath, stats };
 }
 
 /**

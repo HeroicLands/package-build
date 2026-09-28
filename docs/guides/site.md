@@ -1,3 +1,10 @@
+---
+shortcode: guidessite
+name: { full: "Build a content website" }
+type: doc
+subType: howto
+---
+
 # Build a content website
 
 `package-build site` turns the package's content notes into a Hugo source
