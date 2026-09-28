@@ -1,5 +1,14 @@
 # @heroiclands/package-build
 
+## 22.17.1
+
+### Patch Changes
+
+**Prose review**
+
+- Prose lint focuses on difficult sentences by default and skips tables and code; simpler-word suggestions remain available on request.
+- Prose score reports each note's readability and lets a content package define an advisory range for its writing.
+
 ## 22.17.0
 
 ### Minor Changes
