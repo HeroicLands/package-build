@@ -778,19 +778,7 @@ const SITE_KEYS = [
 ];
 const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
 const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
-const PDF_KEYS = [
-    "title",
-    "subtitle",
-    "document",
-    "out",
-    "front",
-    "fonts",
-    "iconFonts",
-    "binary",
-    "images",
-];
-const PDF_IMAGE_KEYS = ["dpi", "quality", "rules"];
-const PDF_IMAGE_RULE_KEYS = ["match", "dpi", "quality", "copy"];
+const PDF_KEYS = ["title", "subtitle", "document", "out", "front", "fonts", "iconFonts", "binary"];
 const PDF_FONT_KEYS = ["serif", "sans", "mono", "path"];
 const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" });
 const DOC_PAGE_KEYS = ["title", "out", "preamble", "frontmatter"];
@@ -1916,56 +1904,6 @@ function normalizePdf(value, rootDir) {
         }
     }
 
-    let images = null;
-    if (input.images !== undefined) {
-        if (!isPlainObject(input.images)) fail("pdf.images", "must be a mapping");
-        const declared = /** @type {Record<string, unknown>} */ (input.images);
-        rejectUnknownKeys(declared, PDF_IMAGE_KEYS, "pdf.images.");
-        const numberInRange = (candidate, where, min, max) => {
-            if (
-                typeof candidate !== "number" ||
-                !Number.isInteger(candidate) ||
-                candidate < min ||
-                candidate > max
-            ) {
-                fail(where, `must be an integer from ${min} to ${max}`);
-            }
-            return candidate;
-        };
-        const rules = declared.rules === undefined ? [] : declared.rules;
-        if (!Array.isArray(rules)) fail("pdf.images.rules", "must be a list");
-        images = Object.freeze({
-            dpi:
-                declared.dpi === undefined ?
-                    150
-                :   numberInRange(declared.dpi, "pdf.images.dpi", 72, 600),
-            quality:
-                declared.quality === undefined ?
-                    82
-                :   numberInRange(declared.quality, "pdf.images.quality", 1, 100),
-            rules: Object.freeze(
-                rules.map((rule, index) => {
-                    const where = `pdf.images.rules[${index}]`;
-                    if (!isPlainObject(rule)) fail(where, "must be a mapping");
-                    rejectUnknownKeys(rule, PDF_IMAGE_RULE_KEYS, `${where}.`);
-                    const match = requireNonEmptyString(rule.match, `${where}.match`);
-                    if (rule.copy !== undefined && typeof rule.copy !== "boolean")
-                        fail(`${where}.copy`, "must be a boolean");
-                    return Object.freeze({
-                        match,
-                        ...(rule.dpi === undefined ?
-                            {}
-                        :   { dpi: numberInRange(rule.dpi, `${where}.dpi`, 72, 600) }),
-                        ...(rule.quality === undefined ?
-                            {}
-                        :   { quality: numberInRange(rule.quality, `${where}.quality`, 1, 100) }),
-                        ...(rule.copy === undefined ? {} : { copy: rule.copy }),
-                    });
-                }),
-            ),
-        });
-    }
-
     return Object.freeze({
         title,
         subtitle:
@@ -1977,7 +1915,6 @@ function normalizePdf(value, rootDir) {
         front: Object.freeze(front.map((f) => path.resolve(rootDir, f))),
         fonts,
         iconFonts: Object.freeze(iconFonts),
-        images,
         // Where the Typst binary is, when it is not simply `typst` on PATH.
         // Named rather than bundled: a native compiler would put a
         // platform-specific binary in the dependency tree of three repositories

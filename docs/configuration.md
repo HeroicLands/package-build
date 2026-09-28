@@ -1083,46 +1083,7 @@ pdf:
 | `pdf.front`     | string[] (markdown files)   | no       | `[]`                   |
 | `pdf.fonts`     | object                      | no       | all empty              |
 | `pdf.iconFonts` | object (family → font file) | no       | `{}`                   |
-| `pdf.images`    | object                      | no       | absent                 |
 | `pdf.binary`    | string                      | no       | `""` — found on `PATH` |
-
-When `pdf.images` is present, the book downsizes staged raster pictures to their
-largest printed width. It leaves the authored files untouched, never enlarges a
-picture, and retains the original bytes when compression would make the staged
-file larger. SVG maps and drawings retain their vector form. Without this block,
-the book copies pictures unchanged.
-
-```yaml
-pdf:
-  title: The Atlas
-  document: book.yaml
-  images:
-    dpi: 150
-    quality: 82
-    rules:
-      - { match: "assets/images/maps/**", copy: true }
-      - { match: "assets/images/portraits/**", dpi: 200, quality: 90 }
-```
-
-`dpi` is an integer from 72 to 600, and `quality` is an integer from 1 to 100.
-The defaults are 150 and 82. Rules match authored paths relative to the package
-root, use Node glob syntax, and apply in order; the first match supplies its
-specified values over the defaults. `copy: true` keeps the image unchanged.
-Quality controls JPEG, WebP, and AVIF compression; PNG stays lossless.
-
-| Key                          | Type    | Default   |
-| ---------------------------- | ------- | --------- |
-| `pdf.images.dpi`             | integer | `150`     |
-| `pdf.images.quality`         | integer | `82`      |
-| `pdf.images.rules`           | list    | `[]`      |
-| `pdf.images.rules[].match`   | string  | —         |
-| `pdf.images.rules[].dpi`     | integer | inherited |
-| `pdf.images.rules[].quality` | integer | inherited |
-| `pdf.images.rules[].copy`    | boolean | `false`   |
-
-Named image sizes determine the printed width; `auto` and `full-width` use the
-book's text width. Plate banners use the full page width. The build reports
-each image it downsizes, including its dimensions and staged byte counts.
 
 `pdf.title` and `pdf.document` are required **together** — a document with
 no title produces a file whose name and cover say nothing about what a
@@ -1171,7 +1132,7 @@ books.
 
 Any other key on `pdf` is refused:
 
-> ``package-build config: `pdf.<key>` is not a recognized option (expected one of: title, subtitle, document, out, front, fonts, iconFonts, binary, images).``
+> ``package-build config: `pdf.<key>` is not a recognized option (expected one of: title, subtitle, document, out, front, fonts, iconFonts, binary).``
 
 ### `compatibility`
 

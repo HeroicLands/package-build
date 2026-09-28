@@ -10,39 +10,28 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
-import { defineConfig } from "../content-config.mjs";
-import { PDF_IMAGE_INCHES, resamplePdfImages } from "../engine/pdf-images.mjs";
-
-function config(images?: object) {
-    return defineConfig({
-        rootDir: "/repo",
-        contentPackage: "acme",
-        foundryPackage: "acme",
-        packageKind: "systems",
-        compatibility: { minimum: "14.359" },
-        stats: { lastModifiedBy: "acmebuilder0000" },
-        packs: [{ name: "items", type: "Item" }],
-        pdf: { title: "Book", document: "book.yaml", ...(images ? { images } : {}) },
-    });
-}
-
-describe("PDF image settings", () => {
-    it("keeps image staging unchanged without an images block", () => {
-        expect(config().pdf.images).toBeNull();
-    });
-
-    it("validates defaults, bounds, rules and unknown keys", () => {
-        expect(config({}).pdf.images).toMatchObject({ dpi: 150, quality: 82, rules: [] });
-        expect(() => config({ dpi: 0 })).toThrow(/pdf.images.dpi/);
-        expect(() => config({ quality: 101 })).toThrow(/pdf.images.quality/);
-        expect(() => config({ rules: [{ copy: true }] })).toThrow(/match/);
-        expect(() => config({ rules: [{ match: "**", copy: "yes" }] })).toThrow(/copy/);
-        expect(() => config({ other: true })).toThrow(/pdf.images.other/);
-    });
-});
+import {
+    PDF_IMAGE_INCHES,
+    PDF_PAGE,
+    pdfColumnWidth,
+    resamplePdfImages,
+} from "../engine/pdf-images.mjs";
+import { BOOK_IMAGE_WIDTHS, bookTypstPreamble } from "../engine/pdf-render.mjs";
 
 describe("PDF raster staging", () => {
-    it("shrinks staged art, keeps sources, and applies the first matching rule", async () => {
+    it("uses the same named widths and page geometry as Typst", () => {
+        for (const [name, inches] of Object.entries(PDF_IMAGE_INCHES)) {
+            expect(parseFloat(BOOK_IMAGE_WIDTHS[name]) / 2.54).toBeCloseTo(inches);
+        }
+        const preamble = bookTypstPreamble();
+        expect(Number(preamble.match(/#let book-margin = ([\d.]+)cm/)?.[1]) / 2.54).toBeCloseTo(
+            PDF_PAGE.margin,
+        );
+        expect(preamble).toContain(`#let book-page-width = ${PDF_PAGE.width}in`);
+        expect(preamble).toContain(`#let book-page-height = ${PDF_PAGE.height}in`);
+    });
+
+    it("uses the printed width at 300 dpi, preserving authored art", async () => {
         const root = await fs.mkdtemp(path.join(os.tmpdir(), "pdf-images-"));
         try {
             const authored = path.join(root, "source.webp");
@@ -59,42 +48,54 @@ describe("PDF raster staging", () => {
                 .toBuffer();
             await fs.writeFile(authored, source);
             await fs.writeFile(staged, source);
-            const candidates = new Map([
-                [
-                    "image",
-                    {
-                        from: authored,
-                        to: "image.webp",
-                        relative: "assets/images/portrait.webp",
-                        file: "assets/content/person.md",
-                        widthInches: PDF_IMAGE_INCHES.medium,
-                    },
-                ],
-            ]);
-            const opts = config({
-                rules: [
-                    { match: "assets/images/**", dpi: 200 },
-                    { match: "assets/images/portrait.webp", copy: true },
-                ],
-            }).pdf.images;
-            const reports = await resamplePdfImages(candidates, opts, root);
+            const candidate = {
+                from: authored,
+                to: "image.webp",
+                relative: "assets/images/portrait.webp",
+                file: "assets/content/person.md",
+                uses: [{ width: PDF_IMAGE_INCHES.medium, height: 8 }],
+            };
+            const reports = await resamplePdfImages(new Map([["image", candidate]]), root);
             const output = await fs.readFile(staged);
             expect(output.length).toBeLessThan(source.length);
             expect((await sharp(output).metadata()).width).toBe(
-                Math.round(PDF_IMAGE_INCHES.medium * 200),
+                Math.round(PDF_IMAGE_INCHES.medium * PDF_PAGE.dpi),
             );
             expect(await fs.readFile(authored)).toEqual(source);
             expect(reports).toHaveLength(1);
             expect(reports[0].file).toBe("assets/content/person.md");
+        } finally {
+            await fs.rm(root, { recursive: true, force: true });
+        }
+    });
 
-            await fs.writeFile(staged, source);
-            const copied = await resamplePdfImages(
-                candidates,
-                config({ rules: [{ match: "assets/images/**", copy: true }] }).pdf.images,
-                root,
-            );
-            expect(copied).toHaveLength(0);
-            expect(await fs.readFile(staged)).toEqual(source);
+    it("keeps a small image and uses the largest placement of a repeated image", async () => {
+        const root = await fs.mkdtemp(path.join(os.tmpdir(), "pdf-images-"));
+        try {
+            const file = path.join(root, "image.webp");
+            const source = await sharp({
+                create: {
+                    width: 500,
+                    height: 300,
+                    channels: 3,
+                    background: "#724638",
+                },
+            })
+                .webp()
+                .toBuffer();
+            await fs.writeFile(file, source);
+            const candidate = {
+                from: file,
+                to: "image.webp",
+                relative: "images/image.webp",
+                file,
+                uses: [
+                    { width: PDF_IMAGE_INCHES.small, height: 8 },
+                    { width: pdfColumnWidth(2), height: 8 },
+                ],
+            };
+            expect(await resamplePdfImages(new Map([["image", candidate]]), root)).toHaveLength(0);
+            expect(await fs.readFile(file)).toEqual(source);
         } finally {
             await fs.rm(root, { recursive: true, force: true });
         }
