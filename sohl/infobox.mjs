@@ -312,7 +312,7 @@ function itemValue(item, resolve, block) {
  * sparse creature's box short rather than mostly empty.
  *
  * @param {object} fm - The note's frontmatter.
- * @param {object} ctx - `{ block, resolve }`.
+ * @param {{block: string, resolve?: Function}} ctx - Rendering context.
  * @returns {object[]} The sections.
  */
 export function beingSections(fm, { block, resolve }) {

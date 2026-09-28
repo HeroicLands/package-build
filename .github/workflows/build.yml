@@ -129,3 +129,5 @@ jobs:
             # failure here would otherwise only surface during a release.
             - name: Declaration emit
               run: npm run build:types
+            - name: Published declaration check
+              run: node bin/package-build.mjs types check --project tsconfig.dts.json --exports
