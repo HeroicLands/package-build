@@ -1134,7 +1134,7 @@ states it a second time. It also publishes the content index the manifest
 advertises (`flags.metadataUrl`) and, when the stage carries one,
 `schema.json` — a repository that names `build/schema.json` in
 `packageBuild.assets` gets it released beside the archive; one that does not
-gets none. When the package publishes content (`publish.site: content`), it
+gets none. When the content tree holds notes beyond its homepage, it
 also builds the content-tree book (see `package-build pdf`) and reports it
 alongside the archive; `--no-pdf` skips that step for a release that has a
 tree but does not want the book this time. A book that fails to build is
@@ -1159,7 +1159,7 @@ are reported on stderr but do not fail the release.
 ```
 $ package-build release
 ✅ Packaged 1.0.0 for release: build/dist/module.zip (0.0 MB)
-   No book: `publish.site` is `homepage`, which fences the content surfaces off — the tree is not walked and no book is built. Publish content to build one.
+   No book: The content tree contains only a homepage, so there is no book to build.
 ```
 
 **SEE ALSO**
@@ -2140,8 +2140,8 @@ configured `pdf.out`.
 
 **EXIT STATUS**
 
-0 when there is a stated reason not to build (`publish.site` is
-`homepage`, no `pdf:` block, no content tree). 1 if the document tree
+0 when there is a stated reason not to build (only a homepage note, no `pdf:`
+block, no content tree). 1 if the document tree
 `pdf.document` names cannot be read or parsed, or on any other thrown
 error. Otherwise 0 — findings inside a book that did build (a filter that
 matched nothing, for instance) are reported but never fail the command.

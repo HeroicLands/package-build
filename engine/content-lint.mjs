@@ -394,11 +394,7 @@ export function lintContentTree(
     // thing this guard needs them to do. A tree holding notes is therefore a
     // tree; only a tree holding none is the absent one.
     //
-    // The homepage is not the headline example, though it was once addressed
-    // by the package rather than by a slug — so a `publish.site: homepage`
-    // package had a tree with exactly one note and no key at all. It carries an
-    // address like every other note now; the guard is unchanged, because
-    // what it reads was never the key count.
+    // A tree containing only a homepage still contains one note.
     if (notes.length === 0) {
         findings.push({
             file: path.relative(process.cwd(), contentBase) || contentBase,

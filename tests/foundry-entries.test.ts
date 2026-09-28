@@ -179,7 +179,7 @@ function emit(publish: Record<string, unknown>): Manifest {
     return out;
 }
 
-const WEB = { site: "content" };
+const WEB = {};
 
 describe("the address scheme is configuration, and a prefix is all of it", () => {
     it("addresses a page by `(type, shortcode)`, whatever the tree mounts at", () => {
@@ -334,14 +334,8 @@ describe("anchors are computed, never approximated", () => {
 });
 
 describe("both addresses are optional, independently", () => {
-    // A homepage-only package still *addresses* its notes — the address is a
-    // package-wide identity, not a statement that a page is served at it. The
-    // web half is suppressed on the consuming side: a URL is produced only
-    // where that consumer has a `PACKAGE_BASE` for the package, which is the
-    // side that actually knows where it serves things. See `metadata-index.test.ts`, "still resolves a package it has no
-    // base for, without a URL".
-    it("addresses its notes even when the build publishes only a homepage", () => {
-        const doc = emit({ site: "homepage" });
+    it("addresses its notes from the content tree", () => {
+        const doc = emit({});
         expect(doc.entries["demo-sohl-weapongear-dagger"].uuid).toBeDefined();
     });
 

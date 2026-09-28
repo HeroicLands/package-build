@@ -779,9 +779,8 @@ function readAddress(url, packages) {
  *
  * **Why the homepage needs its own audit at all.** Every other note addresses
  * the corpus with wikilinks, which {@link auditLinks} resolves. A homepage does
- * not and cannot: it is published *verbatim* by every publishing mode, including
- * the homepage-only mode two fan-licensed packages ship under, where the content
- * tree is never walked and there is no index for a wikilink to resolve against.
+ * not and cannot: it is published *verbatim* even when the tree contains other
+ * notes. Its body never runs through the wikilink resolver.
  * So a homepage addresses the web the way the web does — markdown links in its
  * body — and this is what looks at those. A dead link on the page a reader
  * arrives at is the one nothing else would report.
@@ -796,8 +795,7 @@ function readAddress(url, packages) {
  *   is why every one is reported — including a bare `/<package>/`, which names
  *   another package's front page. A front page's address *is* its package
  *   prefix, so `/<package>/` is the absolute URL with the host struck off —
- *   host-free, emitted verbatim, and needing no index, which is what lets it
- *   hold in homepage-only mode where the tree is never walked.
+ *   host-free, emitted verbatim, and needing no index.
  * - A **wikilink**, which nothing on this page will ever resolve.
  *
  * **What is not checkable, and is not attempted.** Whether an external URL
@@ -842,7 +840,7 @@ export function auditHomepageLinks(index) {
                 all,
                 at(all),
                 `wikilink ${all} on the package homepage — a homepage is ` +
-                    `published verbatim in every publishing mode, so nothing ` +
+                    `published verbatim, so nothing ` +
                     `resolves it; write a markdown link, package-relative`,
             );
         }
