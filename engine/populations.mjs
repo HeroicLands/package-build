@@ -217,8 +217,8 @@ function localNode(note) {
 /**
  * Read a fetched index entry into a node, or `null` where it takes no part.
  *
- * A fetched entry carries the structure its record stated and no figure, so
- * a dependency's place sits in the geography and counts nobody.
+ * A fetched entry carries its author's figure when the published index has
+ * one. An older index without a figure contributes no population.
  *
  * @param {string} canonical - The entry's address.
  * @param {object} entry - The entry.
@@ -234,6 +234,7 @@ export function foreignNode(canonical, entry) {
         type,
         subType: String(entry.subType ?? ""),
         title: String(entry.name ?? shortcode),
+        population: figureOf(entry.population),
         parents: shortcodesOf(entry.parents),
         domains: type === "affiliation" ? shortcodesOf(entry.domains) : [],
     };

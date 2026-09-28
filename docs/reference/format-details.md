@@ -4110,8 +4110,8 @@ cent below what it contains is not a finding.
 **An unstated figure is silent.** A place or affiliation with no `population`
 contributes nothing to a sum and is never the subject of a finding, so a
 half-written region is quiet rather than noisy. A fetched index carries
-`parents` and `domains` but no figure, so a dependency's places sit in the
-geography and its people are counted nowhere.
+`population` alongside `parents` and `domains` when its author stated a
+figure. An older fetched index with no figure remains silent.
 
 **There is deliberately no urban-share rule.** The share of a region's people
 living in its named settlements cannot be measured from the notes: the
