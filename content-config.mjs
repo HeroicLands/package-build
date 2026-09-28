@@ -252,9 +252,8 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  *
  * Every HeroicLands package publishes something: a top-level, human-authored
  * homepage at `https://www.heroiclands.org/<contentPackage>/` saying what the
- * module is, which system it needs and how to install it. So there is no
- * value here meaning *no web presence at all* — homepage-only is the **floor**,
- * and the default.
+ * module is, which system it needs and how to install it. The homepage is
+ * the minimum published surface and the default.
  *
  * - `homepage` — the authored homepage, and **no other page**. The content tree
  *   is not walked for pages, and nothing serves a page for its addresses.
@@ -271,11 +270,6 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  * failure mode is silent — a `site:` block added later ships licensed content
  * with nobody noticing — the mode fences the content surfaces off rather than
  * trusting a configuration to stay empty.
- *
- * This was a boolean until 5.0.0, and `false` read as "no web presence", which
- * no longer describes any package. Both spellings are refused rather than
- * mapped: a value silently reinterpreted reads to its author as though it still
- * means what it said.
  *
  * @typedef {"homepage" | "content"} SiteMode
  */
@@ -2412,11 +2406,8 @@ function normalizeItemBuilders(value) {
 /**
  * The publishing mode, refusing a boolean.
  *
- * A boolean is refused rather than mapped onto the nearest mode, because the
- * reading `false` invited — *this package has no web presence* — is exactly the
- * belief the change exists to correct, and a value quietly reinterpreted reads
- * to its author as though it still means what it said. So the message names the
- * mode to write instead of the value to fix.
+ * A boolean is invalid. Name the corresponding mode in the diagnostic so the
+ * author can write an explicit value.
  *
  * @param {unknown} value - The authored `publish.site`.
  * @returns {SiteMode} The mode.
@@ -2426,12 +2417,10 @@ function normalizeSiteMode(value) {
     if (typeof value === "boolean") {
         fail(
             "publish.site",
-            `is no longer a boolean — write \`site: ${value ? "content" : "homepage"}\`. ` +
-                `Every package publishes an authored homepage at ` +
-                `/<contentPackage>/, so no value means "no web presence": ` +
-                `\`homepage\` publishes that page and nothing else, and ` +
-                `\`content\` publishes it plus every page the content tree ` +
-                `compiles to`,
+            `must be \`homepage\` or \`content\`; write \`site: ${value ? "content" : "homepage"}\`. ` +
+                `Every package publishes an authored homepage at /<contentPackage>/. ` +
+                `\`homepage\` publishes only that page; \`content\` also publishes ` +
+                `pages from the content tree`,
         );
     }
     if (

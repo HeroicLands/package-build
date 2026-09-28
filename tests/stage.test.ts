@@ -16,6 +16,7 @@ import {
     cleanBuildArtifacts,
     copyTree,
     missingSources,
+    resetStage,
     stageAssets,
 } from "../stage.mjs";
 
@@ -109,6 +110,31 @@ describe("missingSources", () => {
 });
 
 describe("stageAssets", () => {
+    it("leaves only current files after a stage reset between builds", () => {
+        const root = tree({
+            "assets/old.svg": "old",
+            "build/content-index/content.jsonl": "index",
+        });
+        stageAssets([["assets", "build/stage/assets"]], { cwd: root });
+        fs.writeFileSync(path.join(root, "build/stage/old.mjs"), "old bundle");
+        fs.renameSync(path.join(root, "assets/old.svg"), path.join(root, "assets/new.svg"));
+
+        expect(resetStage(root, "build/stage")).toBe(true);
+        stageAssets([["assets", "build/stage/assets"]], { cwd: root });
+        expect(listed(path.join(root, "build/stage"))).toEqual(["assets/new.svg"]);
+        expect(fs.readFileSync(path.join(root, "build/content-index/content.jsonl"), "utf8")).toBe(
+            "index",
+        );
+        expect(resetStage(root, "build/stage")).toBe(true);
+        expect(resetStage(root, "build/stage")).toBe(false);
+    });
+
+    it("refuses to reset a directory outside the project", () => {
+        const root = tree({ "build/stage/file": "x" });
+        expect(() => resetStage(root, ".")).toThrow(/inside the project/);
+        expect(() => resetStage(root, "../another-project")).toThrow(/inside the project/);
+    });
+
     it("stages every entry and reports what it did", () => {
         const root = tree({
             "lang/en.json": "{}",

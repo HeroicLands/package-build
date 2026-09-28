@@ -1361,8 +1361,7 @@ its content tree's addresses mount inside the package.
 > ``package-build config: `publish.<key>` is not a recognized option (expected one of: site, address).``
 
 Every HeroicLands package publishes at least an authored homepage at
-`https://www.heroiclands.org/<contentPackage>/` — there is no value meaning
-_no web presence at all_. `homepage` is the floor: the authored homepage
+`https://www.heroiclands.org/<contentPackage>/`. `homepage` publishes that page
 and nothing else, no content-tree walk. `content` is the homepage plus every
 page the content tree publishes. `publishesContentPages(config)`, exported from
 `content-config.mjs` alongside [`compilesFoundryDocuments`](#packagekind),
@@ -1371,11 +1370,9 @@ build, to decide whether to walk the tree at all, and the content index, to
 decide whether an entry carries a web `path`. It returns
 `config.publish.site === "content"`.
 
-This was a boolean before `5.0.0`, and both spellings are refused rather
-than silently mapped, because a value reinterpreted reads to its author as
-though it still means what it said:
+Boolean values are invalid. The diagnostic names the explicit mode to use:
 
-> ``package-build config: `publish.site` is no longer a boolean — write `site: content`. Every package publishes an authored homepage at /<contentPackage>/, so no value means "no web presence": `homepage` publishes that page and nothing else, and `content` publishes it plus every page the content tree compiles to.``
+> ``package-build config: `publish.site` must be `homepage` or `content`; write `site: content`. Every package publishes an authored homepage at /<contentPackage>/. `homepage` publishes only that page; `content` also publishes pages from the content tree.``
 
 > ``package-build config: `publish.site` must be one of homepage, content (got "public").``
 

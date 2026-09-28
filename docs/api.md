@@ -1893,6 +1893,7 @@ console.log(missingSources([["does/not/exist", "x"]]));
 | `missingSources`      | `missingSources(entries, cwd = process.cwd())`                               | `string[]`                         | checking a whole `[source, dest]` list for absent sources up front, so every problem is reported at once rather than one rebuild at a time |
 | `copyTree`            | `copyTree(src, dest, { transform } = {})`                                    | `number` — files written           | recursively copying a file or directory, optionally rewriting each file's content as it's staged instead of copying bytes verbatim         |
 | `stageAssets`         | `stageAssets(entries, { cwd = process.cwd(), transform } = {})`              | `{entries: number, files: number}` | copying every listed `[source, dest]` pair into the stage, refusing to start at all if any source is absent                                |
+| `resetStage`          | `resetStage(root, stageDir)`                                                 | `boolean` — whether stage existed  | clearing the assembled package before a complete build while preserving other generated outputs                                            |
 | `cleanBuildArtifacts` | `cleanBuildArtifacts(root, { extra = [], includeNodeModules = false } = {})` | `string[]` — directories removed   | removing the build artefacts a repository regenerates, safely repeatable since an already-clean directory is not an error                  |
 
 ## `./templates`

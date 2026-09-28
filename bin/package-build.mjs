@@ -92,7 +92,7 @@ import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pack-config.mjs";
-import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
+import { cleanBuildArtifacts, resetStage, stageAssets } from "../stage.mjs";
 import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
 import { emitCalendarArtifacts } from "../engine/calendar-artifacts.mjs";
 import { dateFromCalendar, dateToCalendar } from "../engine/date-conversion.mjs";
@@ -466,6 +466,24 @@ function assetsCommand() {
                 transform,
             });
             console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
+        }),
+    };
+}
+
+/** Clear the package stage before a complete build writes to it. */
+function stageCommand() {
+    return {
+        command: "stage <action>",
+        describe: "Manage the assembled Foundry package stage",
+        builder: (y) =>
+            y.positional("action", {
+                choices: ["reset"],
+                describe: "Remove the configured stage directory",
+            }),
+        handler: handler(() => {
+            const config = loadPackageBuildConfig();
+            const removed = resetStage(config.rootDir, config.stageDir);
+            console.log(removed ? `Removed ${config.stageDir}` : "Stage is already empty.");
         }),
     };
 }
@@ -1624,6 +1642,7 @@ registerContentCommands(
         .command(ciCommand())
         .command(cleanCommand())
         .command(assetsCommand())
+        .command(stageCommand())
         .command(calendarsCommand())
         .command(datefromCommand())
         .command(datetoCommand())
