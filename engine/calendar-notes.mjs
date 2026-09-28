@@ -117,9 +117,9 @@ export const CALENDAR_FORMAT_TOKENS = Object.freeze(
 export const CALENDAR_FIELDS = Object.freeze([
     {
         name: "epoch",
-        shape: "a date",
+        shape: "a day-precision date",
         kind: "string",
-        describe: "Which in-world day the world's clock reads zero on — `720/1/1`.",
+        describe: "Which in-world day the world's clock reads zero on — `720.1`.",
     },
     {
         name: "months",
@@ -248,7 +248,7 @@ export const INVARIANT_FIELDS = Object.freeze([
     },
     {
         name: "moon.newOn",
-        shape: "a date",
+        shape: "a day-precision date",
         kind: "string",
         describe: "A day the body was new, written in the reference calendar.",
     },
@@ -466,16 +466,24 @@ export function checkWorldFacts(note, { index } = {}) {
         findings.push(...dated);
     }
     if (written.includes("moon") && dataOf(note).moon?.newOn !== undefined) {
-        findings.push(
-            ...parseNoteDate(dataOf(note).moon.newOn, {
-                ...reckoningContext(index),
-                field: "data.moon.newOn",
-                allowUnknown: false,
-                file: note.file,
-                raw: note.raw,
-                keyPath: ["data", "moon", "newOn"],
-            }).findings,
-        );
+        const parsed = parseNoteDate(dataOf(note).moon.newOn, {
+            ...reckoningContext(index),
+            field: "data.moon.newOn",
+            allowUnknown: false,
+            file: note.file,
+            raw: note.raw,
+            keyPath: ["data", "moon", "newOn"],
+        });
+        findings.push(...parsed.findings);
+        if (parsed.date && parsed.date.precision !== "day")
+            findings.push(
+                atData(
+                    note,
+                    ["moon", "newOn"],
+                    "error",
+                    "`data.moon.newOn` needs a specific day; write `<year>.<day>` or a day in a named calendar",
+                ),
+            );
     }
 
     // The corpus questions, which need every note and so are asked only where
@@ -572,16 +580,24 @@ export function checkCalendarNote(note, { index } = {}) {
     }
 
     if (written.includes("epoch")) {
-        findings.push(
-            ...parseNoteDate(dataOf(note).epoch, {
-                ...reckoningContext(index),
-                field: "data.epoch",
-                allowUnknown: false,
-                file: note.file,
-                raw: note.raw,
-                keyPath: ["data", "epoch"],
-            }).findings,
-        );
+        const parsed = parseNoteDate(dataOf(note).epoch, {
+            ...reckoningContext(index),
+            field: "data.epoch",
+            allowUnknown: false,
+            file: note.file,
+            raw: note.raw,
+            keyPath: ["data", "epoch"],
+        });
+        findings.push(...parsed.findings);
+        if (parsed.date && parsed.date.precision !== "day")
+            findings.push(
+                atData(
+                    note,
+                    ["epoch"],
+                    "error",
+                    "`data.epoch` needs a specific day; write `<year>.<day>` or a day in a named calendar",
+                ),
+            );
     }
 
     findings.push(...checkMonthSum(note, index));
@@ -817,6 +833,8 @@ function eraEntries(eras, dateContext = {}) {
 function moonEntries(moon, body, name, months, dateContext = {}) {
     if (!moon || !name) return null;
     const date = parseNoteDate(moon.newOn, { ...dateContext, allowUnknown: false }).date;
+    if (date && date.precision !== "day")
+        throw new RangeError("data.moon.newOn needs a specific day");
     const calendarDay =
         date?.canonicalDay && months.length ? monthDayOfYear(months, date.canonicalDay) : null;
     return {
@@ -863,6 +881,7 @@ export function compileCalendar({ note, invariants, contentPackage, dateContext 
     const year = invariants?.year ?? {};
     const months = Array.isArray(data.months) ? data.months : [];
     const epoch = parseNoteDate(data.epoch, { ...dateContext, allowUnknown: false }).date;
+    if (epoch && epoch.precision !== "day") throw new RangeError("data.epoch needs a specific day");
     const shortcode = String(note.fm?.shortcode ?? "");
     const name = String(note.fm?.name?.full ?? "");
     const description = String(note.fm?.description ?? "");

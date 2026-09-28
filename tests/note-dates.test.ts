@@ -480,7 +480,7 @@ describe("a date written in an era", () => {
 describe("year zero", () => {
     // Every form it can be written in, bare and inside an era, each its own
     // case so a conversion that admits one of them names which.
-    const FORMS = ["0.1", "-0.1", "~0.1", "~-0.1"];
+    const FORMS = ["0", "-0", "~0", "~-0", "0.1", "-0.1", "~0.1", "~-0.1"];
 
     for (const bad of FORMS) {
         it(`refuses \`${bad}\``, () => {

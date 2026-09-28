@@ -337,7 +337,7 @@ order without changing the Markdown body.
 
 A calendar names and orders the days within a year. An **era** states where its
 year count begins. Several eras may use one calendar; each has its own origin.
-Every frontmatter date uses either a canonical day or a named calendar date:
+Every frontmatter date uses either a canonical year or day, or a named calendar date:
 
 ```yaml
 data:
@@ -350,17 +350,23 @@ calendar. The date may name a day and month (`23 Taranis 326 VR`), a month and
 year (`Taranis 326 VR`), or a year (`326 VR`). Its era label is required when
 the calendar has several eras. Month names and their abbreviations come from
 the calendar note; an era's `abbreviation`, `name`, marker, or shortcode names
-it. The conversion retains year or month precision when no exact day is given.
-A 24-hour time follows an exact day, such as `23 Taranis 326 VR 14:30:05`.
+it. The conversion retains year or month precision when no day is given.
+A 24-hour time follows a day, such as `23 Taranis 326 VR 14:30:05`.
 
-The calendar-neutral spelling is `<year>.<day>[:HHMMSS]`: `720.136` names day
-136 of canonical year 720, and `720.136:143005` adds 14:30:05. The dot means
-**day of year**, not a month. Its day must fit the world's `data.year.days`,
-and its time must fit a 24-hour day. A negative canonical year is valid.
-Prefix either form with `~` to mark it approximate, as in `~326.114` or
-`~datefrom vrcal 23 Taranis 326 VR`. `unknown` states that an occurrence is
-known but its date is not recorded, in fields that permit it. No other
-frontmatter date form is valid.
+The calendar-neutral spelling is `<year>[.<day>[:HHMMSS]]`: `720` spans
+canonical year 720, `720.136` spans its day 136, and `720.136:143005` identifies
+14:30:05 on that day. The dot means **day of year**, not a month. Its day must
+fit the world's `data.year.days`, and its time must fit a 24-hour day. A
+negative canonical year is valid. Only a value with a clock time identifies an
+exact time. Prefix either form with `~` to add uncertainty beyond the written
+interval, as in `~720`, `~326.114`, or `~datefrom vrcal 23 Taranis 326 VR`.
+The normalized record keeps the written precision and the `~` marker
+separately. `unknown` states that an occurrence is known but its date is not
+recorded, in fields that permit it. No other frontmatter date form is valid.
+
+`data.epoch` and `data.moon.newOn` locate a day and require day precision. An
+era's `start` may identify a year; conversion locates the beginning of that
+era's first year at the start of the named year.
 
 `package-build datefrom <calendar> <date>` prints the canonical day for a
 calendar date. `package-build dateto <calendar> <canonical-date>` prints the
@@ -3623,7 +3629,7 @@ the setting itself, rather than instructions or other apparatus for the GM.
 
 | `data` property | Values                                                                              | Description                                                                        |
 | --------------- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `epoch`         | `date`                                                                              | Which in-world day the world's clock reads zero on                                 |
+| `epoch`         | day-precision `date`                                                                | Which in-world day the world's clock reads zero on                                 |
 | `months`        | `{ name, abbreviation?, days }[]`                                                   | The months this calendar keeps, in order — the list sums to the world's year       |
 | `weekdays`      | `{ name, abbreviation? }[]`                                                         | The days of the week it names, in order; a calendar with no week writes none       |
 | `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]`             | The seasons it marks, bounded by month or by day of year                           |
@@ -3847,7 +3853,7 @@ map's prose.
 | `body.orbit`                      | `string`                                            | The orbit's shape — `circular` means the cycle never varies                  |
 | `body.inclined`                   | `boolean`                                           | Whether the orbit is inclined to the plane the world orbits in               |
 | `moon.cycle`                      | `number`                                            | How many days it takes to return to the same phase                           |
-| `moon.newOn`                      | `date`                                              | A day it was new, written in the reference calendar                          |
+| `moon.newOn`                      | day-precision `date`                                | A day it was new, written in the reference calendar                          |
 | `moon.eclipses`                   | `string`                                            | `never`, `rare`, `occasional` or `frequent`                                  |
 
 #### Why a place exists
@@ -3878,7 +3884,7 @@ data:
 # its moon — a note of its own, because a moon is a body and not a property
 data:
   body: { diameterKm: 3800, orbitalRadiusKm: 388600, orbit: circular, inclined: true }
-  moon: { cycle: 30, newOn: 720/1/1, eclipses: rare }
+  moon: { cycle: 30, newOn: 720.1, eclipses: rare }
 ```
 
 **`year.days` is where the year's length lives, and every calendar in the
