@@ -247,6 +247,11 @@ the head of `build:db`. Fetching is its own step and never happens during a
 compile, so a build never reaches the network silently — a cold cache fails
 naming `deps fetch`.
 
+Commands that read dependency addresses check for a complete local index before
+walking content or writing output. This applies to `lint`, `links`, `site`,
+`pdf`, `map`, `reachability`, and `package compile`. The check does not fetch;
+run `package-build deps fetch` as a separate step when the cache is empty.
+
 ### `format` — writing rather than checking
 
 ```json

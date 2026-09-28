@@ -14,7 +14,8 @@
  * returning a `{ command, describe, builder, handler }` module. This file
  * parses both sources directly: it locates every `*Command()` function body by
  * brace-matching, finds which of them are wired as root commands versus nested
- * subcommands (a `.command(fooCommand())` call that falls textually inside
+ * subcommands (a `.command(fooCommand())` call, possibly with an index preflight,
+ * that falls textually inside
  * another `*Command()` function's own body is that command's child — this is
  * how `content-format` gets `schema` / `fields` / `notes` and everywhere else
  * does not), then reads each body's own `command:` signature, `.positional(`
@@ -127,8 +128,10 @@ function choicesIn(body: string): string[] {
 function parseCommandTree(source: string): CommandNode[] {
     const bodies = functionBodies(source);
 
-    // Every `.command(xCommand())` reference in the file, wherever it sits.
-    const refs = [...source.matchAll(/\.command\(\s*(\w+Command)\(\)\s*\)/g)].map((m) => ({
+    // Every registered command, including one wrapped by the index preflight.
+    const refs = [
+        ...source.matchAll(/\.command\(\s*(?:withIndexPreflight\(\s*)?(\w+Command)\(\)/g),
+    ].map((m) => ({
         fnName: m[1],
         index: m.index,
     }));

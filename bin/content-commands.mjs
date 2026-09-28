@@ -44,8 +44,8 @@ import path from "node:path";
 import log from "loglevel";
 import prefix from "loglevel-plugin-prefix";
 import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
-import { compilesFoundryDocuments } from "../content-config.mjs";
-import { loadPackConfig } from "../engine/pack-config.mjs";
+import { compilesFoundryDocuments, publishesContentPages } from "../content-config.mjs";
+import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { buildPdf } from "../engine/pdf-build.mjs";
 import {
     fetchAllCatalogs,
@@ -56,6 +56,7 @@ import {
 } from "../engine/foreign-catalog.mjs";
 import {
     metadataRelationships,
+    cachedMetadataIndexes,
     cachedIndexPath,
     unaddressableForeignPackages,
     formatUnaddressableFinding,
@@ -214,20 +215,51 @@ const SHIPPED_ITEM_FIELDS = { sohl: ITEM_FIELDS, hm3: HM3_ITEM_FIELDS };
 /** Register the content operations on the package command line. */
 export function registerContentCommands(cli) {
     return cli
-        .command(packageCommand())
+        .command(withIndexPreflight(packageCommand(), (_config, argv) => argv.action === "compile"))
         .command(depsCommand())
         .command(docsCommand())
-        .command(lintCommand())
+        .command(withIndexPreflight(lintCommand()))
         .command(contentFormatCommand())
-        .command(linksCommand())
+        .command(withIndexPreflight(linksCommand()))
         .command(formatCommand())
         .command(markdownCommand())
         .command(contentIndexCommand())
-        .command(siteCommand())
-        .command(pdfCommand())
-        .command(mapCommand())
-        .command(reachabilityCommand())
+        .command(withIndexPreflight(siteCommand(), publishesContentPages))
+        .command(
+            withIndexPreflight(
+                pdfCommand(),
+                (config) => config.pdf && publishesContentPages(config),
+            ),
+        )
+        .command(withIndexPreflight(mapCommand()))
+        .command(withIndexPreflight(reachabilityCommand()))
         .command(addressesCommand());
+}
+
+/** Check declared dependency indexes before an index-consuming command does any work. */
+function withIndexPreflight(command, shouldCheck = () => true) {
+    const handler = command.handler;
+    return {
+        ...command,
+        handler: async (argv) => {
+            let config;
+            try {
+                config = loadPackConfig();
+                if (shouldCheck(config, argv)) cachedMetadataIndexes(config);
+            } catch (err) {
+                if (config) {
+                    emitDiagnostic({
+                        file: packConfigPath(),
+                        severity: "error",
+                        message: err instanceof Error ? err.message : String(err),
+                    });
+                } else reportFailure(err);
+                process.exitCode = 1;
+                return;
+            }
+            return handler(argv);
+        },
+    };
 }
 
 /**
