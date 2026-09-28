@@ -1424,6 +1424,12 @@ is not reproducible and hides a dependency's version change behind a
 passing run. Each cache is stamped complete only once its fetch finishes,
 so a half-finished one reads as cold.
 
+`lint`, `links`, `site`, `pdf`, `map`, `reachability`, and `package compile`
+check the declared dependencies' content-index cache before reading notes or
+writing output. A cold cache produces a diagnostic at the package configuration
+file naming `deps fetch`. These checks only read local files; `deps fetch` is
+the separate step that reaches the network.
+
 The navigation is fetched first, because every package needs it and it
 depends on nothing a repository declares — so a dependency whose release
 cannot be read stops the run with the navigation already cached.
