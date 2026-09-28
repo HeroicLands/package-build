@@ -101,7 +101,7 @@ export function itemDescription(markdown, fm, name) {
     assertUniquePages(pages, name);
     const page = pages.find((entry) => entry.anchorSlug === "description") ?? pages[0];
     const pageId = journalPageId(itemDocEntryId(fm.id), page);
-    return itemDocPointer(foundryPackageId(), fm.id, name, pageId);
+    return itemDocPointer(foundryPackageId(), fm.id, name, pageId, fm);
 }
 
 /**

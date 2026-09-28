@@ -81,8 +81,9 @@ Inline expressions can read the note, format dates, combine values, or run scala
 
 ```markdown
 {{name.full}} was born on {{dateformat "vrcal" data.born}}.
-There are {{sql "SELECT COUNT(*) FROM notes WHERE type = 'being'"}} beings.
+There are {{words (sql "SELECT COUNT(*) FROM notes WHERE type = 'being'")}} beings.
+The index contains {{digits (sql "SELECT COUNT(*) FROM entries")}} entries.
 {{and (gt 3 5) (lt 4 2)}}
 ```
 
-Use `{{dateformat data.calendar data.born}}` when the note supplies a calendar Address. SQL fences produce tables; the `sql` helper returns a value for an inline expression. See [date rules](dates-and-calendars.md) and [SQL details](../reference/format-details.md#content-tables) for query options.
+Use `{{dateformat data.calendar data.born}}` when the note supplies a calendar Address. SQL fences produce tables; the `sql` helper returns one value for an inline expression. Wrap a numeric result in `words` for running prose or `digits` for a grouped numeral. See [date rules](dates-and-calendars.md) and [SQL details](../reference/format-details.md#content-tables) for query options.

@@ -61,6 +61,7 @@ import {
     resolvePackageUrl,
 } from "./content-address.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 
 /**
  * Written once a fetch completes, so a half-finished cache is never used.
@@ -401,7 +402,7 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // must tolerate that rather than invent an href, exactly as it
                 // already tolerates an entry with no `uuid`.
                 url:
-                    !web || !record.address.slug ? undefined
+                    !web || !record.address.slug || isGmNote(record) ? undefined
                         // A package's homepage is its root: the note is the
                         // mount's `_index.md`, so `[[thalorna-homepage-root]]`
                         // lands on `/thalorna/`, not on a page below it.
@@ -411,6 +412,7 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 doc: record.documentation ?? undefined,
                 anchors: foundry?.anchors,
                 type: parts.type,
+                gm: isGmNote(record),
                 // What the note *is*, not only where it lives. A consumer
                 // grouping a reference by the family its target declares —
                 // an infobox sorting a being's skills — has no other way to

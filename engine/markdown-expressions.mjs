@@ -5,9 +5,10 @@ import Handlebars from "handlebars";
 import { isAddressTuple, renderAddress } from "./address.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { formatDateInCalendar, parseNoteDate } from "./note-dates.mjs";
+import { numberWords, numberDigits } from "./number-words.mjs";
 
 // Hugo shortcodes begin `{{<` or `{{%` and stay in the source for Hugo.
-const EXPRESSION = /(?<!\{)\{\{(?![{<%])([^{}\n]+)\}\}(?!\})/g;
+const EXPRESSION = /(?<![\\{])\{\{(?![{<%])([^{}\n]+)\}\}(?!\})/g;
 
 /** Find SQL helper calls, including calls nested inside Boolean expressions. */
 export function sqlQueriesInMarkdown(body, fm = {}) {
@@ -69,6 +70,8 @@ export function renderMarkdownExpressions(
     engine.registerHelper("not", (value) => !value);
     engine.registerHelper("and", (...args) => args.slice(0, -1).every(Boolean));
     engine.registerHelper("or", (...args) => args.slice(0, -1).some(Boolean));
+    engine.registerHelper("words", (value) => numberWords(value));
+    engine.registerHelper("digits", (value) => numberDigits(value));
     engine.registerHelper("sql", (query) => {
         if (typeof query !== "string" || !query.trim())
             throw new TypeError("sql needs a nonempty query string");

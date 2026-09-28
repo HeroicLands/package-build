@@ -23,6 +23,8 @@ data: {}
 
 `name.full` is the displayed name; `name.aliases` helps search. `description` is the short page summary. `tags` hold draft state and classification. `data` holds facts about the subject shared by systems. A YAML comment is the place for an author-only note: commented values remain valid YAML but do not enter the content index or generated documents.
 
+Use `tags: [gm]` for a note intended only for the GM. It is absent from the public website and book. Foundry includes it only when its document routes to a pack with `private: true`. A note with `gm` that also creates a prose JournalEntry needs a private JournalEntry pack. Links from untagged notes to GM notes are errors; GM notes may link to one another.
+
 The formatter keeps a collection on one line when the full line is under 100 characters. Longer collections use full YAML block form. Run `package-build format --write` to apply key order and collection formatting.
 
 ## Shared facts and game mechanics

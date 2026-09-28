@@ -499,7 +499,10 @@ export class Scenes extends BasePackCompiler {
                     // default JournalEntry pack, not in whichever Scene pack the map
                     // itself was routed to.
                     // This compile's router, as everywhere else in this pass.
-                    journalPack: this.#packRouter.defaultOf("JournalEntry"),
+                    journalPack:
+                        hasBody ?
+                            this.#packRouter.resolve(fm, "JournalEntry")
+                        :   this.#packRouter.defaultOf("JournalEntry"),
                     pageIds: hasBody ? this.#pageIds(markdown, entryId, name) : new Map(),
                     knownActions: this.knownActions,
                     warnings,

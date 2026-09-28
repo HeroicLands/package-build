@@ -27,6 +27,13 @@ A nonempty note body creates one system-agnostic Foundry JournalEntry. Content b
 
 A `:::caption id="anchor"` fence labels the next prose, code, table, or image block. Its anchor makes the block addressable; `[[#anchor|]]` displays the generated kind and number, such as **Figure 12**. Foundry gives the captioned block a JournalEntryPage. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references) for the syntax.
 
+An inline `{{sql "SELECT COUNT(*) FROM notes"}}` expression inserts one scalar query result. Use `{{words (sql "SELECT COUNT(*) FROM notes")}}` for a count in running prose, or `{{digits (sql "SELECT COUNT(*) FROM entries")}}` for grouped numerals. The query must return exactly one row and one column with a nonempty value; a mismatch is a located build error. Prefix `\{{` to show the syntax literally. The [expression reference](reference/format-details.md#dates-and-calendars) describes the helpers and the available SQL relations.
+
+Add `gm` to `tags` for a GM-only note. Public site and book builds omit it;
+Foundry compiles it only into private compendiums. An untagged note cannot link
+to it. The [frontmatter guide](authoring/frontmatter.md#frontmatter-and-system-blocks)
+explains routing for documents and their prose journals.
+
 A note can also produce a system document: an Actor, Item, Scene, or Macro according to its type and system blocks. The `sohl:` and `hm3:` blocks supply game-specific mechanics and overrides; they do not create separate prose. The JournalEntry is shared between systems.
 
 | Authored section | SoHL Actor          | HM3 Actor            |
