@@ -187,12 +187,12 @@ describe("`subType` is top level, and only where a type declares one", () => {
         expect(messages(findings)).toContain("declares no subtypes");
     });
 
-    it("permits a subType whose values the specification has not yet enumerated", () => {
-        // A being's document type is derived from its subType, but the values
-        // land with the note-type → subtype map, so nothing here may
-        // claim to know them.
-        expect(subTypes("being")).toBeNull();
+    it("permits only the declared being subtypes", () => {
+        expect(subTypes("being")).toEqual(["npc", "character", "creature"]);
         expect(lintNote(note("being", { subType: "character" }), opts)).toEqual([]);
+        expect(messages(lintNote(note("being", { subType: "charcter" }), opts))).toContain(
+            'Did you mean "character"?',
+        );
     });
 
     it("locates the finding on the `subType` line", () => {

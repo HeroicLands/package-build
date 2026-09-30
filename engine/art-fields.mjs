@@ -250,16 +250,19 @@ export const BEING_DEFAULT_ART = Object.freeze({
 });
 
 /**
- * The default art address a being's own tags choose, or `null`.
+ * The default art address a being's subtype chooses, or `null`.
  *
- * `character` means a **person**, not a human, and `creature` everything else;
- * a being carries exactly one of the two, which is what makes the choice a
- * lookup rather than a precedence rule.
+ * An NPC and a character use person art; a creature uses creature art. The
+ * tag lookup preserves defaults for package trees that have not migrated.
  *
  * @param {object} fm - The note's frontmatter.
- * @returns {string|null} The address, or `null` for a note carrying neither tag.
+ * @returns {string|null} The address, or `null` when no subtype or legacy tag applies.
  */
 export function beingDefaultArt(fm) {
+    if (fm?.subType === "npc" || fm?.subType === "character") {
+        return BEING_DEFAULT_ART.character;
+    }
+    if (fm?.subType === "creature") return BEING_DEFAULT_ART.creature;
     for (const [tag, address] of Object.entries(BEING_DEFAULT_ART)) {
         if (hasTag(fm, tag)) return address;
     }
