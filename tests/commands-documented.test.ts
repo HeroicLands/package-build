@@ -257,19 +257,27 @@ describe("the command's real surface, extracted from source", () => {
         expect(help).toContain("package-build <command> --help");
     });
 
-    it("shows actions and options in command help", () => {
-        const help = (command: string) =>
-            execFileSync(
-                process.execPath,
-                [path.join(ROOT, "bin/package-build.mjs"), command, "--help"],
-                {
-                    encoding: "utf8",
-                },
-            );
-        expect(help("package")).toContain("compile");
-        expect(help("package")).toContain("unpack");
-        expect(help("docs")).toContain("item-fields");
-        expect(help("pdf")).toContain("--book-version");
+    const commandHelp = (command: string) =>
+        execFileSync(
+            process.execPath,
+            [path.join(ROOT, "bin/package-build.mjs"), command, "--help"],
+            {
+                encoding: "utf8",
+            },
+        );
+
+    it("shows package actions in command help", () => {
+        const help = commandHelp("package");
+        expect(help).toContain("compile");
+        expect(help).toContain("unpack");
+    });
+
+    it("shows documentation actions in command help", () => {
+        expect(commandHelp("docs")).toContain("item-fields");
+    });
+
+    it("shows PDF options in command help", () => {
+        expect(commandHelp("pdf")).toContain("--book-version");
     });
 
     // A representative sample of the parse itself, independent of the
