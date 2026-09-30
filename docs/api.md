@@ -347,7 +347,7 @@ The note types the engine itself declares — vocabulary that is a fact about th
 
 ### `engine.noteVocabulary`
 
-An addressed content note accepts exactly these top-level keys, in this order: `shortcode`, `name`, `type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`. A key outside this list is an error. Within that shape, the closed vocabularies are the `data:` container and each type's `subType`.
+An addressed content note accepts exactly these top-level keys, in this order: `shortcode`, `name`, `type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`, `dnd5e`. A key outside this list is an error. The address vocabulary recognizes three systems: `sohl`, `hm3`, and `dnd5e`. No dnd5e-specific document types are declared. Within that shape, the closed vocabularies are the `data:` container and each type's `subType`.
 
 | Export                    | Signature                                    | Returns                                  | Use it when                                                                                  |
 | ------------------------- | -------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -607,13 +607,13 @@ The map from each place, drawn for the site: `package-build site` draws the map 
 
 ### `engine.systems`
 
-The closed registry of system ids, and the `none` that stands for no system at all. An unknown system value is an error; adding a system is a data change to this registry rather than a hardcoded set scattered through the pipeline.
+The closed registry of system ids, and the `none` that stands for no system at all. An unknown system value is an error; adding a system is a data change to this registry rather than a hardcoded set scattered through the pipeline. The registry recognizes `sohl`, `hm3`, and `dnd5e`; no dnd5e-specific document types are declared.
 
 | Export                 | Signature                              | Returns                         | Use it when                                                                            |
 | ---------------------- | -------------------------------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
 | `NO_SYSTEM`            | `const NO_SYSTEM`                      | —                               | naming a systemless asset or Foundry document                                          |
 | `NOTE_SYSTEM`          | `const NOTE_SYSTEM`                    | —                               | naming readable note content across web, book and Foundry                              |
-| `SYSTEM_IDS`           | `const SYSTEM_IDS`                     | —                               | enumerating every game system this toolchain compiles for                              |
+| `SYSTEM_IDS`           | `const SYSTEM_IDS`                     | —                               | enumerating game system ids accepted in configuration and addresses                    |
 | `SYSTEM_SEGMENTS`      | `const SYSTEM_SEGMENTS`                | —                               | enumerating the game systems, `note` and `none`                                        |
 | `isSystemId`           | `isSystemId(value)`                    | `boolean`                       | checking whether a value names a game system this toolchain knows (`none` is rejected) |
 | `isSystemSegment`      | `isSystemSegment(value)`               | `boolean`                       | checking whether a value is something the `<system>` address segment may hold          |

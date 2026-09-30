@@ -43,10 +43,6 @@ import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 /**
  * The note-type → document-subtype maps this toolchain ships.
  *
- * Two, since `hm3/` landed — and it joined this list rather than the
- * claim table growing a second copy of the same fact, which is what the list
- * was for.
- *
  * The union is what makes the vocabulary wider than any one repository's
  * configuration: `armorlocation` is a real content type because HM3 maps it,
  * however a given repository is configured, so a tree full of them is a
@@ -90,7 +86,7 @@ export const KNOWN_DOCUMENT_SUBTYPE_MAPS = Object.freeze([
 export const DEFAULT_DOCUMENT_SUBTYPES = SOHL_DOCUMENT_SUBTYPES;
 
 /**
- * Every system this toolchain ships a map for, by id.
+ * Every system identifier with declared system-specific document types.
  *
  * Derived from {@link KNOWN_DOCUMENT_SUBTYPE_MAPS}, so registering a map is the
  * whole of adding a system to every reader that asks "which systems are there?"
@@ -156,7 +152,7 @@ export const ACTOR_TYPES = Object.freeze(
 /**
  * The map one system ships, by its id.
  *
- * @param {string|undefined} system - The system id (`"sohl"`, `"hm3"`).
+ * @param {string|undefined} system - The system id.
  * @returns {import("./document-subtypes.mjs").DocumentSubtypeMap|undefined} Its
  *   map, or `undefined` where this toolchain ships none for it.
  */

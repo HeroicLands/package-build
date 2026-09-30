@@ -20,10 +20,8 @@
  * address grammar asks on every note, and the issue's answer is that it comes
  * from a **registry rather than from a hardcoded set**: known system ids are
  * declared here, once, an unknown value is an error, and _adding a system is a
- * data change_. Before this module the same fact was spelled in as many places
- * as needed it — a `NO_SYSTEM` constant in the content index, a `map.system`
- * per document-subtype map, a system-keyed table per compiler — none of which
- * could refuse a value none of the others had heard of.
+ * data change_. The same fact is read by address parsing, configuration and
+ * linting.
  *
  * **`none` is a word, deliberately.** It is not a YAML null (`null`, `~`, or an
  * empty value), because those spell "nobody filled this in", and a note that
@@ -38,8 +36,8 @@
  * the configuration loader, by a compiler, and by a lint without closing a
  * cycle around any of them. In particular the ids are *declared* here rather
  * than derived from `KNOWN_DOCUMENT_SUBTYPE_MAPS` — deriving them would drag
- * `sohl/` and `hm3/` behind every import of this file, for a list of two
- * words. `tests/systems.test.ts` holds the two in step instead, which is where
+ * system-specific modules behind every import of this file. `tests/systems.test.ts`
+ * holds the registry and note-key vocabulary in step, which is where
  * the agreement between a registry and its implementations belongs.
  *
  * @module
@@ -66,11 +64,11 @@ export const NO_SYSTEM = "none";
 export const NOTE_SYSTEM = "note";
 
 /**
- * Every game system this toolchain compiles for.
+ * Every game system identifier this toolchain recognizes.
  *
- * The registry, and the only place the list is written down. Adding a system
- * is an edit to this set plus the map and compilers that make it real — a data
- * change, not a search for every place a name was spelled.
+ * The registry, and the only place the list is written down. A recognized id
+ * can have no system-specific document types; adding one of those requires a
+ * subtype map and compiler as well.
  *
  * `none` is **not** a member: it marks the absence of a system, and a caller
  * asking "is this a system" and a caller asking "is this a well-formed
@@ -79,7 +77,7 @@ export const NOTE_SYSTEM = "note";
  *
  * @type {ReadonlySet<string>}
  */
-export const SYSTEM_IDS = Object.freeze(new Set(["sohl", "hm3"]));
+export const SYSTEM_IDS = Object.freeze(new Set(["sohl", "hm3", "dnd5e"]));
 
 /**
  * Everything the `<system>` segment of an address may say.
@@ -127,8 +125,8 @@ export function isSystemSegment(value) {
  *
  * The nullish case is called out by name because it is the likely mistake and
  * the least legible failure: a YAML `null`, a `~`, or a key written with no
- * value at all reaches here as `undefined`, and "expected one of sohl, hm3,
- * none" would leave a reader hunting for the value they cannot see.
+ * value at all reaches here as `undefined`, and a list of accepted values
+ * would leave a reader hunting for the value they cannot see.
  *
  * @param {unknown} value - The offending value.
  * @param {string} [where] - What carried it, for the message — a note path, a

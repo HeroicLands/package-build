@@ -32,6 +32,7 @@ describe("addressed note top-level keys", () => {
             "data",
             "hm3",
             "sohl",
+            "dnd5e",
         ]);
     });
 
