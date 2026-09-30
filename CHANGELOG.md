@@ -1,5 +1,15 @@
 # @heroiclands/package-build
 
+## 22.18.0
+
+### Minor Changes
+
+- Beings use their subtype to choose default art.
+
+### Patch Changes
+
+Being profiles identify each subject as Character, NPC, or Creature from its top-level subtype.
+
 ## 22.17.2
 
 ### Patch Changes
