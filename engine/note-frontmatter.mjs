@@ -18,6 +18,7 @@ export const NOTE_TOP_LEVEL_KEYS = Object.freeze([
     "data",
     "hm3",
     "sohl",
+    "dnd5e",
 ]);
 
 /** Membership test for the top-level vocabulary. */
