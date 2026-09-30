@@ -2688,19 +2688,15 @@ package-build addresses diff --from <zip|dir> [--strict]
 **DESCRIPTION**
 
 Reports every published `(type, shortcode)` address this build no longer
-publishes, against a released artifact — the signal that a shortcode
-rename or a withdrawn note used to cost nothing and now does, emitted in
-the repository doing the renaming while the change is still in front of
-its author. Its own command rather than a step of `package compile`,
-because it reads a _second_ artifact the compile knows nothing about and
-asks a question about a release, not about a build — a repository between
-releases has nothing to compare against. `--from` names the baseline
-explicitly — a release's `.zip`, or the directory built from one — never
-derived and never downloaded, for the same reason `deps fetch --from` is
-explicit: a command that reaches the network on its own is not
-reproducible. A finding is placed against the tree, at the note that made
-the rename, not against the compiled output it was read from. Reads the
-baseline artifact and the current content tree; writes nothing.
+publishes, against a released artifact. A departed address is identified as
+renamed when the same document id appears under another address; otherwise it
+is reported as withdrawn. An id derived from the canonical address changes
+with its shortcode. The old address is reported as withdrawn; the new address
+appears in the current package and produces no finding. Pair those addresses
+by hand. A pinned id lets the command identify the same document at its new
+address. `--from` names the baseline explicitly: a release's `.zip`, or the
+directory built from one. The command reads the baseline artifact and current
+content tree and writes diagnostics only.
 
 **OPTIONS**
 
@@ -2715,8 +2711,8 @@ baseline artifact and the current content tree; writes nothing.
 
 **EXIT STATUS**
 
-1 if `diff` is named with no `--from`. Without `--strict`, a renamed or
-withdrawn address is reported as a warning and does not fail the run. With
+1 if `diff` is named with no `--from`. Without `--strict`, a departed address
+is reported as a warning and does not fail the run. With
 `--strict`, 1 if any address is no longer published. 1 on any other thrown
 error (the baseline declaring an Item pack this build does not have, or
 this repository declaring no Item pack at all to diff). Otherwise 0.

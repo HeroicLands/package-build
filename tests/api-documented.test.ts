@@ -21,6 +21,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
+import { NOTE_TOP_LEVEL_KEYS } from "../engine/note-frontmatter.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -69,6 +70,19 @@ const MODULE_SUBPATHS = Object.keys(PACKAGE_JSON.exports).filter(
 const WILDCARD_SUBPATHS = Object.keys(PACKAGE_JSON.exports).filter((entry) => entry.endsWith("*"));
 
 describe("docs/api.md documents the real export surface", () => {
+    it("documents exactly the authored top-level note keys", () => {
+        const section = API_DOC.slice(
+            API_DOC.indexOf("### `engine.noteVocabulary`"),
+            API_DOC.indexOf("### `engine.infobox`"),
+        );
+        const statement = section.match(
+            /An addressed content note accepts exactly these top-level keys, in this order: ([^.]+)\./,
+        )?.[1];
+        expect(statement).toBeDefined();
+        const listed = [...statement!.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+        expect(listed).toEqual(NOTE_TOP_LEVEL_KEYS);
+    });
+
     it("parses a document that still has export tables to read", () => {
         // Guards the guard: a reshaped table would otherwise make every
         // assertion below vacuously pass.
