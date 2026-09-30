@@ -696,14 +696,39 @@ export function collectContentIndex(
     // `walkMarkdownTree` is a generator — a single-use one, exhausted the
     // moment anything else iterates it first.
     const notes = fs.existsSync(contentBase) ? [...walkMarkdownTree(contentBase, walkOpts)] : [];
+    const parsedNotes = [];
+    for (const note of notes) {
+        if (!note.parseError) {
+            parsedNotes.push(note);
+            continue;
+        }
+        const problem = {
+            file: note.absPath,
+            ...(note.parseError.line === undefined ? {} : { line: note.parseError.line }),
+            ...(note.parseError.column === undefined ? {} : { column: note.parseError.column }),
+            severity: "error",
+            message: note.parseError.message,
+        };
+        if (!problems) {
+            const error = new Error(problem.message);
+            error.file = problem.file;
+            error.position = {
+                ...(problem.line === undefined ? {} : { line: problem.line }),
+                ...(problem.column === undefined ? {} : { column: problem.column }),
+            };
+            error.keyPath = [];
+            throw error;
+        }
+        problems.push(problem);
+    }
 
     // The package's declared present, read once from whichever `place` note in
     // this same walk states one — the whole tree is already in memory, so no
     // second read is needed to answer a question about all of it.
-    const present = presentAmongFrontmatters(notes.map((n) => n.frontmatter));
-    const dates = reckoningContext({ notes: notes.map((n) => n.frontmatter) });
+    const present = presentAmongFrontmatters(parsedNotes.map((n) => n.frontmatter));
+    const dates = reckoningContext({ notes: parsedNotes.map((n) => n.frontmatter) });
 
-    for (const { frontmatter, body, bodyLine, absPath } of notes) {
+    for (const { frontmatter, body, bodyLine, absPath } of parsedNotes) {
         const fm = frontmatter ?? {};
         applyComputedBeingAge(fm, present, dates);
         const relPath = path.relative(contentBase, absPath);
