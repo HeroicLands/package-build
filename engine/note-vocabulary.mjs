@@ -571,15 +571,6 @@ export const DECLARED_TAGS = Object.freeze({
             "unguilded",
         ]),
     }),
-    /**
-     * What kind of being this is — a person, or one of the beasts and made
-     * things. A being is one or the other, so the group is a slot.
-     */
-    beingKind: Object.freeze({
-        types: ["being"],
-        exclusive: "kind",
-        tags: Object.freeze(["character", "creature"]),
-    }),
     /** A note's working state, which any note may carry. */
     state: Object.freeze({ types: null, tags: Object.freeze([DRAFT_TAG]) }),
     /** Who may read a completed note. */
@@ -692,10 +683,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     being: Object.freeze({
         stubbable: true,
-        // Derived from the note's `(type, subType)` by each system's map, which
-        // lands with. Declared open until it does, because inventing the
-        // values here would put a second, weaker answer beside the real one.
-        subTypes: null,
+        subTypes: Object.freeze(["npc", "character", "creature"]),
         // Whether an authored `age` disagrees with what `born` and the
         // package's declared present compute — see `engine/being-age.mjs`.
         check: checkBeingAge,

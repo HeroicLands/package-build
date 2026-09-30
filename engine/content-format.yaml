@@ -29,7 +29,10 @@ types:
             - appearance.skin_color
             - appearance.complexion
             - appearance.extra_features
-        subTypes: []
+        subTypes:
+            - npc
+            - character
+            - creature
     homepage:
         data: []
         subTypes: []
@@ -676,9 +679,6 @@ vocabularies:
         - link
         - links
         - list
-    beingKind:
-        - character
-        - creature
     class:
         - .full-width
     size:

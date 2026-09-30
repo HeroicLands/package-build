@@ -416,7 +416,6 @@ is declared, so a near miss is a finding that names what you probably meant.
 | **place character** | `place`                | `fortified`, `temple`, `market`, `trading`, `merchant`, `mining`, `fishing`, `naval`, `military`, `imperial`, `provincial`, `coastal`, `river`, `lakeside`, `hill`, `mountain`, `valley`, `forest`, `woodland`, `inland`, `island`, `frontier`, `border`, `craft`, `caravan`, `pilgrimage`, `holy`, `sacred`, `free`, `ford`, `portage`, `pass`, `well` |
 | **place scale**     | `place` / `region`     | `continent`                                                                                                                                                                                                                                                                                                                                             |
 | **being station**   | `being`                | `tradesfolk`, `common-folk`, `soldiery`, `administration`, `clergy`, `mages`, `underworld`, `dependents`, `guilded`, `unguilded`                                                                                                                                                                                                                        |
-| **being kind**      | `being`                | `character`, `creature`                                                                                                                                                                                                                                                                                                                                 |
 | **state**           | any                    | `draft`                                                                                                                                                                                                                                                                                                                                                 |
 | **audience**        | any                    | `gm`                                                                                                                                                                                                                                                                                                                                                    |
 
@@ -490,48 +489,25 @@ first because a person may be several at once and because nothing ranks
 **A continent is a region carrying a tag, not a subtype**, because structurally it
 is a region: the same fields, the same parent chain, everything but scale.
 
-#### A being's kind is the one tag group that is a slot
+#### A being's subtype describes the subject
 
-A person and a beast carry very different amounts of data, and a being note says
-which it is with a tag rather than leaving it to be guessed from how much the
-note holds.
+`being` accepts the optional top-level values `npc`, `character`, and `creature`.
+The subtype classifies the note's subject; it does not select a Foundry Actor
+document type.
 
-| `beingKind` value | the subject is                                                                                                                                |
-| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `character`       | a person — someone with a name, a station, a history, and the attributes, skills and carried gear that go with living a life                  |
-| `creature`        | a beast, a monster or a made thing — statted for what it does rather than for who it is, and usually carrying no equipment and no affiliation |
+| `subType`   | the subject is                                                                                                  |
+| ----------- | --------------------------------------------------------------------------------------------------------------- |
+| `npc`       | A character meant to be encountered. It may describe a reusable template and need not be a singular individual. |
+| `character` | A detailed, playable, singular individual.                                                                      |
+| `creature`  | Any being that is neither a character nor an NPC.                                                               |
 
-**The slot is filled once, or not at all.** The two are alternative answers to
-one question, so a note carrying both has answered it twice and every reader of
-the tag gets to pick; that is refused as an error naming the note. A being
-carrying **neither** is not a finding. The kind is authored deliberately, and
-nothing can tell a being nobody has classified from one whose author means to
-leave it unclassified — a tree part-way through tagging is a tree with untagged
-beings in it, and failing its build would be a rule about the schedule rather
-than about the content.
+`hm3.type` remains the HM3 document selector and must be `character` or
+`creature` when an HM3 being block is present. SoHL continues to compile beings
+as `Actor.being`. The note subtype and each system's document type answer
+different questions.
 
-**Nothing else fills the slot, and nothing else is refused for failing to.** A
-being tagged `undead` or `beast-of-burden` is describing the subject in the
-author's own words, in a region that is open, and this build has no standing to
-take that back. What is refused is a near miss of one of the two — `charcter`
-drops the note out of every query for characters while the list still renders —
-and the two of them together. Those are the only two refusals a closed tag
-vocabulary can make here, and both are errors, so a build carrying one fails.
-
-**The same two words name two other things, and neither is this.** `hm3.type`
-takes `character` or `creature` as the HM3 _document_ a being compiles to, in a
-system block rather than in `tags:`. The note itself uses `type: being`; `type: character` is refused.
-Three namespaces, one pair of words; the tag is the system-agnostic one, and it
-is the only one that describes the subject rather than a document.
-
-**Neither the book nor the website branches on the kind.** One flow serves both
-— the authored image, then the infobox, then the prose — and a creature's box is
-simply shorter, because it has less in it. A section with nothing to put in it is
-not emitted at all, so a creature with no equipment has no `EQUIPMENT` heading
-rather than an empty one, exactly as rule 4 of [the infobox](#the-infobox) drops
-a row with no value. The tag classifies the subject, which is what makes a list
-of the creatures in a setting a thing a query can ask for; it is not an
-instruction to a renderer.
+Tags remain open descriptive terms. A being may carry tags such as `undead`,
+`soldiery`, or `draft`; those tags do not replace the `subType` classification.
 
 The mapping tables below describe the **document** destinations. A key that
 appears in no table still reaches the web page; it simply reaches no Foundry

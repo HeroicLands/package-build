@@ -27,6 +27,12 @@ describe("the structured format contract", () => {
         }
     });
 
+    it("declares the closed being subtype vocabulary without a being-kind tag group", () => {
+        expect(contract.types.get("being")?.subTypes).toEqual(["npc", "character", "creature"]);
+        expect(contract.vocabularies.has("beingKind")).toBe(false);
+        expect(DECLARED_TAGS).not.toHaveProperty("beingKind");
+    });
+
     it("gives every author-facing data field an explanation", () => {
         for (const field of SHARED_DATA_FIELDS) {
             expect(field.describe?.trim(), `shared ${field.name}`).toBeTruthy();
@@ -44,9 +50,6 @@ describe("the structured format contract", () => {
         ).toEqual(Object.keys(IMAGE_CLASSES));
         expect(contract.vocabularies.get("float")?.values).toEqual(Object.keys(IMAGE_FLOATS));
         expect(contract.vocabularies.get("size")?.values).toEqual(IMAGE_SIZES);
-        expect(contract.vocabularies.get("beingKind")?.values).toEqual([
-            ...DECLARED_TAGS.beingKind.tags,
-        ]);
         expect(contract.vocabularies.get("market")?.values).toEqual(
             MARKET_CLASSES.map((entry) => String(entry.value)),
         );

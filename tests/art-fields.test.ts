@@ -371,10 +371,19 @@ describe("what an unresolved or unaccepted art address is reported as", () => {
     });
 });
 
-describe("a being's default art comes from the kind it is tagged", () => {
-    it("chooses by tag, which only a compiler can read", () => {
+describe("a being's default art follows its subtype, with a tag fallback", () => {
+    it("uses category tags for content trees without subtypes", () => {
         expect(beingDefaultArt({ tags: ["character"] })).toBe(BEING_DEFAULT_ART.character);
         expect(beingDefaultArt({ tags: ["creature", "animal"] })).toBe(BEING_DEFAULT_ART.creature);
+    });
+
+    it("chooses person art for NPCs and characters and creature art for creatures", () => {
+        expect(beingDefaultArt({ subType: "npc" })).toBe(BEING_DEFAULT_ART.character);
+        expect(beingDefaultArt({ subType: "character" })).toBe(BEING_DEFAULT_ART.character);
+        expect(beingDefaultArt({ subType: "creature" })).toBe(BEING_DEFAULT_ART.creature);
+        expect(beingDefaultArt({ subType: "creature", tags: ["character"] })).toBe(
+            BEING_DEFAULT_ART.creature,
+        );
     });
 
     it("answers nothing for a being carrying neither, so a lower default applies", () => {
