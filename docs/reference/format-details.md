@@ -303,10 +303,16 @@ has three regions:
 | **Top level**        | The note's identity, name, description, and publication | An error     |
 | **`data:`**          | The subject itself, shared by systems                   | An error     |
 | **`hm3:` / `sohl:`** | The subject as one system's documents                   | An error     |
+| **`dnd5e:`**         | A declared system block with no document field schema   | Unchecked    |
 
 The complete top-level allowlist, in its required order, is `shortcode`, `name`,
-`type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`. Omit fields that
-do not apply. The first fields of a typical note look like this:
+`type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`, `dnd5e`. The
+address vocabulary recognizes three systems: `sohl`, `hm3`, and `dnd5e`. Omit
+fields that do not apply. The first fields of a typical note look like this:
+
+The `dnd5e` system id is accepted in configuration and addresses. No
+dnd5e-specific document types are declared, so the block has no field
+vocabulary for lint or a compiler to check.
 
 ```yaml
 ---
