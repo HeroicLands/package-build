@@ -177,7 +177,8 @@ export function renderFoundryMarkdown(body, captions, footnoteNumbers, docId) {
  * @param {string} filePath - Markdown file to read.
  * @param {{addressContext?: object}} [opts] - Address defaults for decoded fields.
  * @returns {{frontmatter: object|null, body: string, description: string,
- *   bodyLine?: number, bodyColumn?: number}} Parsed note and body position.
+ *   bodyLine?: number, bodyColumn?: number, parseError?: {message: string,
+ *   line?: number, column?: number}}} Parsed note and body position.
  */
 export function parseMarkdownFile(filePath, { addressContext } = {}) {
     const content = fs.readFileSync(filePath, "utf8");
@@ -189,8 +190,19 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
     try {
         frontmatter = yaml.parse(fmMatch[1]) || {};
     } catch (err) {
-        log.warn(`YAML parse error in ${filePath}: ${err.message}`);
-        return { frontmatter: null, body: "", description: "" };
+        const firstLine = String(err.message).split("\n", 1)[0];
+        const message = firstLine.replace(/ at line \d+, column \d+.*$/, "");
+        const location = err.linePos?.[0];
+        return {
+            frontmatter: null,
+            body: "",
+            description: "",
+            parseError: {
+                message: `YAML parse error: ${message}`,
+                ...(Number.isInteger(location?.line) ? { line: location.line + 1 } : {}),
+                ...(Number.isInteger(location?.col) ? { column: location.col } : {}),
+            },
+        };
     }
     if (addressContext) {
         try {

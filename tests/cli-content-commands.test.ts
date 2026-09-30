@@ -222,3 +222,36 @@ describe("a note the content index cannot record", () => {
         },
     );
 });
+
+describe("a note whose frontmatter cannot be parsed", () => {
+    let bad: string;
+
+    beforeAll(() => {
+        bad = path.join(root, "assets", "content", "Malformed.md");
+        fs.writeFileSync(
+            bad,
+            "---\nname: Malformed\nshortcode: malformed\ntype: miscgear\n" +
+                "sohl: { system: { commonSkills: [ } }\n---\n\nProse.\n",
+        );
+    });
+    afterAll(() => fs.rmSync(bad, { force: true }));
+
+    it.each([["lint"], ["links"], ["package", "compile"]])(
+        "`package-build %s` reports the parse error and exits nonzero",
+        (...args) => {
+            const result = spawnSync(process.execPath, [CLI, ...args], {
+                cwd: root,
+                env: {
+                    ...process.env,
+                    PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
+                },
+                encoding: "utf8",
+            });
+            const output = `${result.stdout ?? ""}${result.stderr ?? ""}`;
+
+            expect(result.status, output).toBe(1);
+            expect(output).toMatch(/Malformed\.md:5:\d+: error: YAML parse error:/);
+            expect(output).not.toMatch(/\[WARN\]: YAML parse error/);
+        },
+    );
+});

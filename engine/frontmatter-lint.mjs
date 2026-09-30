@@ -57,6 +57,7 @@
 import { isAddressTuple } from "./address.mjs";
 import { authoredNoteKeys, NOTE_TOP_LEVEL_KEY_SET } from "./note-frontmatter.mjs";
 import { AddressEntries } from "./address-values.mjs";
+import { addressPositions } from "./note-addresses.mjs";
 import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
 import {
     legacyKeyOf,
@@ -592,6 +593,115 @@ function checkDataReferences(note, field, value, segments, context, index) {
             severity: "error",
             message: `\`${path.join(".")}\` ${reason}, but reads ${JSON.stringify(check.value)}`,
         });
+    }
+    return findings;
+}
+
+/**
+ * Read values at a schema-declared address path, expanding wildcard segments.
+ * @param {unknown} value - The value at the current path.
+ * @param {readonly string[]} path - Remaining declaration path.
+ * @param {readonly (string|number)[]} [actual] - Authored path so far.
+ * @returns {Array<{value: unknown, path: Array<string|number>}>} Values and their paths.
+ */
+function valuesAtAddressPath(value, path, actual = []) {
+    if (!path.length) return [{ value, path: [...actual] }];
+    const [head, ...tail] = path;
+    if (head === "*") {
+        const entries =
+            Array.isArray(value) ? value.map((entry, index) => [index, entry])
+            : value && typeof value === "object" && !isAddressTuple(value) ? Object.entries(value)
+            : [];
+        return entries.flatMap(([key, entry]) =>
+            valuesAtAddressPath(entry, tail, [...actual, key]),
+        );
+    }
+    if (!value || typeof value !== "object" || isAddressTuple(value)) return [];
+    return valuesAtAddressPath(value[head], tail, [...actual, head]);
+}
+
+/**
+ * Resolve system-block addresses declared by the system's own field schema.
+ * @param {object} note - A note from the link index.
+ * @param {object} opts
+ * @param {object} opts.index - The address index.
+ * @param {Record<string, readonly object[]>} [opts.schemas] - Note schemas.
+ * @param {Readonly<Record<string, object>>} [opts.systems] - Declared system blocks.
+ * @returns {object[]} Located findings for unresolved addresses.
+ */
+export function systemAddressFindings(note, { index, schemas, systems } = {}) {
+    if (!index?.addressHit) return [];
+    const findings = [];
+    const fm = note.fm ?? {};
+    for (const position of addressPositions(fm, { schemas, systemBlocks: systems })) {
+        const block = position.path[0];
+        if (!Object.hasOwn(systems ?? {}, block) || position.path[1] === "packFolder") continue;
+        const candidates = valuesAtAddressPath(fm, position.path);
+        for (const candidate of candidates) {
+            let values;
+            if (position.shape === "list") {
+                values =
+                    Array.isArray(candidate.value) ?
+                        candidate.value.map((value, index) => ({
+                            value,
+                            path: [...candidate.path, index],
+                        }))
+                    :   [];
+            } else if (position.shape === "keys") {
+                values =
+                    candidate.value instanceof AddressEntries ?
+                        candidate.value.entries.map((entry) => ({
+                            value: entry.target,
+                            path: [...candidate.path, entry.sourceKey],
+                            key: true,
+                        }))
+                    : candidate.value && typeof candidate.value === "object" ?
+                        Object.keys(candidate.value).map((key) => ({
+                            value: key,
+                            path: [...candidate.path, key],
+                            key: true,
+                        }))
+                    :   [];
+            } else if (position.shape === "scalar-or-map" && mapEntries(candidate.value)) {
+                values = Object.entries(mapEntries(candidate.value)).map(([key, value]) => ({
+                    value,
+                    path: [...candidate.path, key],
+                }));
+            } else {
+                values = [candidate];
+            }
+
+            for (const item of values) {
+                if (item.value == null || item.value === "") continue;
+                const context = {
+                    package: index.contentPackage,
+                    system: position.system ?? block,
+                    type: position.type,
+                    types: index.types,
+                };
+                const address =
+                    isAddressTuple(item.value) ? item.value
+                    : typeof item.value === "string" ?
+                        parseAddress(item.value, context, {
+                            declared: true,
+                            legacyShortcodeCase: position.legacyShortcodeCase,
+                        })
+                    :   null;
+                if (!address || address.reason) continue;
+                if (position.accepts && !acceptsType(address, position.accepts)) continue;
+                const target = renderAddress(address);
+                if (index.addressHit(target)) continue;
+                const path = item.path;
+                findings.push({
+                    file: note.file,
+                    ...positionOfFrontmatterPath(note.raw ?? "", path, { key: item.key }),
+                    severity: "error",
+                    message:
+                        `\`${path.map(String).join(".")}\` names ${target}, which does not ` +
+                        `resolve in this package or its declared dependencies`,
+                });
+            }
+        }
     }
     return findings;
 }
@@ -1693,6 +1803,8 @@ export function lintNote(
             }
         }
     }
+
+    findings.push(...systemAddressFindings(note, { index, schemas, systems }));
 
     return findings;
 }
