@@ -70,7 +70,12 @@ import { lintContentCharset } from "../engine/content-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
 import { lintContentIcons } from "../engine/content-icons.mjs";
 import { lintContentImages } from "../engine/content-images.mjs";
-import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
+import {
+    declaredSystems,
+    lintFrontmatter,
+    systemAddressFindings,
+    systemBlocksFor,
+} from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -1449,6 +1454,13 @@ function linksCommand() {
                     homepageLinks,
                     usedManifest,
                 } = auditLinks(index);
+                const systemReferences = index.notes.flatMap((note) =>
+                    systemAddressFindings(note, {
+                        index,
+                        schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                        systems: systemBlocksFor(config, { schemaSystem: "sohl" }),
+                    }),
+                );
 
                 for (const d of deadAnchors) {
                     emitDiagnostic({
@@ -1486,6 +1498,7 @@ function linksCommand() {
                             `${f.path} — frontmatter is data and is never resolved`,
                     });
                 }
+                for (const finding of systemReferences) emitDiagnostic(finding);
 
                 // The package homepage. Its addresses are markdown links and
                 // `landing:` url/href fields rather than wikilinks — it is
@@ -1506,6 +1519,7 @@ function linksCommand() {
                     deadEmbeds.length +
                     unlabelledLinks.length +
                     frontmatterLinks.length +
+                    systemReferences.length +
                     homepageLinks.length;
                 if (failures) {
                     log.error(`${failures} link problem(s) across ${index.notes.length} note(s).`);

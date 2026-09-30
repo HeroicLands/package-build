@@ -1859,8 +1859,11 @@ checks frontmatter against the declared vocabulary and each system's `sohl:`
 it), that an icon a note writes is one the registry declares, and that
 markup inside a note's body does not smuggle in a character the charset
 check cannot see. `--no-references` turns off the check that a frontmatter
-shortcode reference lands, for a tree whose cross-package references it
-cannot see. Reads the content tree named by `root`, defaulting to
+shortcode reference lands, including references in schema-declared system
+fields, for a tree whose cross-package references it cannot see. Address
+references in system fields resolve against this package and its declared
+dependencies; exact Item UUID validation remains part of compilation. Reads
+the content tree named by `root`, defaulting to
 `paths.content`; writes nothing.
 
 **OPTIONS**
@@ -2073,7 +2076,9 @@ retired — every link is an address), a wikilink authored in frontmatter
 (which is data and is never resolved), and a package homepage's markdown
 links and `landing:` addresses, which are published verbatim and use no
 wikilink at all. Also reports a vendored foreign-package content index that
-has drifted out of reach, naming `package-build deps fetch` as the fix.
+has drifted out of reach, naming `package-build deps fetch` as the fix. Resolves
+address-valued SoHL system fields declared by the installed schema against this
+package and its declared dependencies.
 Reads the content tree named by `root`, defaulting to `paths.content`, and
 the cached content indexes of any declared dependency; writes nothing.
 
