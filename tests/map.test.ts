@@ -644,6 +644,17 @@ describe("building the maps", () => {
         );
     });
 
+    it("suppresses Graphviz's unlocated Unicode width warning", () => {
+        const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
+        const unicode = path.join(out, "unicode.dot");
+        fs.writeFileSync(unicode, 'graph G { a [label="Sandhyāpur"]; }');
+
+        const result = renderDot(unicode, path.join(out, "unicode.svg"), { engine: "dot" });
+
+        expect(result.warnings).toBe("");
+        expect(fs.readFileSync(path.join(out, "unicode.svg"), "utf8")).toContain("<svg");
+    });
+
     describe("with Graphviz available through npm", () => {
         it("renders the tree, one file per continent, beside its .dot", () => {
             const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
