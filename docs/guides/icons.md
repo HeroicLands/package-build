@@ -58,6 +58,9 @@ it does not set a document's profile art. The
 [art-slot reference](../reference/format-details.md#the-four-art-slots) gives each
 slot's type and document destination.
 
+A being's `subType` selects its compiled default art: `character` and `npc`
+use person art, and `creature` uses creature art.
+
 ## Write an inline icon in prose
 
 Declare the glyph vocabulary in `package-build.config.yaml` or a separate YAML

@@ -166,6 +166,36 @@ describe("the note box's fields are the type's own vocabulary", () => {
         }
     });
 
+    it("shows a being's declared subtype as its profile type", () => {
+        const labels = { npc: "NPC", character: "Character", creature: "Creature" };
+        const subTypes = NOTE_VOCABULARY.being.subTypes;
+        expect(subTypes).not.toBeNull();
+        expect([...subTypes!].sort()).toEqual(Object.keys(labels).sort());
+
+        for (const subType of subTypes!) {
+            const box = noteInfobox({
+                type: "being",
+                name: { full: "A Note" },
+                subType,
+                data: {},
+            });
+            expect(box.sections[0].rows).toEqual([
+                { label: "Name", kind: "text", value: "A Note" },
+                { label: "Type", kind: "text", value: labels[subType as keyof typeof labels] },
+            ]);
+        }
+
+        const categoryTagOnly = noteInfobox({
+            type: "being",
+            name: { full: "A Person" },
+            tags: ["character"],
+            data: {},
+        });
+        expect(categoryTagOnly.sections[0].rows).toEqual([
+            { label: "Name", kind: "text", value: "A Person" },
+        ]);
+    });
+
     it("carries every field the vocabulary declares, unless the overlay withholds it", () => {
         const missing: Record<string, string[]> = {};
         for (const type of Object.keys(NOTE_VOCABULARY)) {

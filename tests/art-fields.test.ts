@@ -371,10 +371,11 @@ describe("what an unresolved or unaccepted art address is reported as", () => {
     });
 });
 
-describe("a being's default art follows its subtype, with a tag fallback", () => {
-    it("uses category tags for content trees without subtypes", () => {
-        expect(beingDefaultArt({ tags: ["character"] })).toBe(BEING_DEFAULT_ART.character);
-        expect(beingDefaultArt({ tags: ["creature", "animal"] })).toBe(BEING_DEFAULT_ART.creature);
+describe("a being's default art follows its subtype", () => {
+    it("does not use classification tags", () => {
+        expect(beingDefaultArt({ tags: ["character"] })).toBeNull();
+        expect(beingDefaultArt({ tags: ["creature"] })).toBeNull();
+        expect(beingDefaultArt({ tags: "character" })).toBeNull();
     });
 
     it("chooses person art for NPCs and characters and creature art for creatures", () => {

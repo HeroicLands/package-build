@@ -45,7 +45,6 @@
  */
 
 import { encodeAddresses } from "./address-values.mjs";
-import { hasTag } from "./note-vocabulary.mjs";
 import { ASSET_SYSTEM, isAssetType } from "./asset-types.mjs";
 import { ASSETS_SEGMENT } from "./pathnames.mjs";
 import { isAssetRecord } from "./index-records.mjs";
@@ -231,7 +230,7 @@ export function artPathname(index, value, defaultType, accepts) {
 }
 
 /**
- * The art a being falls back to, by the kind it is tagged.
+ * The art a being falls back to, by its subtype.
  *
  * Both files ship in `sohl`, under `assets/icons/other/`, and both are named
  * here as addresses rather than as paths for the reason every art reference is:
@@ -239,8 +238,8 @@ export function artPathname(index, value, defaultType, accepts) {
  * package borrowing the default gets the same file the system ships.
  *
  * **Only the compiler can choose between them**, because only the compiler
- * reads the note's tags. A schema default is the last resort beneath this one,
- * and covers a world document created by hand, which no note describes.
+ * reads the note's subtype. A schema default is the last resort beneath this
+ * one, and covers a world document created by hand, which no note describes.
  *
  * @type {Readonly<Record<string, string>>}
  */
@@ -252,20 +251,16 @@ export const BEING_DEFAULT_ART = Object.freeze({
 /**
  * The default art address a being's subtype chooses, or `null`.
  *
- * An NPC and a character use person art; a creature uses creature art. The
- * tag lookup preserves defaults for package trees that have not migrated.
+ * An NPC and a character use person art; a creature uses creature art.
  *
  * @param {object} fm - The note's frontmatter.
- * @returns {string|null} The address, or `null` when no subtype or legacy tag applies.
+ * @returns {string|null} The address, or `null` when no subtype selects one.
  */
 export function beingDefaultArt(fm) {
     if (fm?.subType === "npc" || fm?.subType === "character") {
         return BEING_DEFAULT_ART.character;
     }
     if (fm?.subType === "creature") return BEING_DEFAULT_ART.creature;
-    for (const [tag, address] of Object.entries(BEING_DEFAULT_ART)) {
-        if (hasTag(fm, tag)) return address;
-    }
     return null;
 }
 

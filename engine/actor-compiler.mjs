@@ -448,9 +448,8 @@ export class SystemActorCompiler extends BasePackCompiler {
      * The actor's two pieces of art, resolved, with the being default beneath
      * them.
      *
-     * **The default follows the note's `subType`**, with tags as a compatibility
-     * fallback for content trees that have not migrated. Both addresses belong
-     * to the package that ships them. A tree whose index cannot answer an
+     * **The default follows the note's `subType`**. Both addresses belong to
+     * the package that ships them. A tree whose index cannot answer an
      * address — a dependency not yet fetched — falls through to the document
      * subtype's own default, so the document is never left with no art.
      *
