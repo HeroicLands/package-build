@@ -187,6 +187,13 @@ export const NOTE_BOX_TITLE = "Profile";
 /** The note infobox's single section id. @type {string} */
 export const NOTE_SECTION_ID = "profile";
 
+/** @type {Readonly<Record<string, string>>} */
+const BEING_SUBTYPE_LABELS = Object.freeze({
+    npc: "NPC",
+    character: "Character",
+    creature: "Creature",
+});
+
 /**
  * What a **duration pair** is called.
  *
@@ -659,8 +666,9 @@ export function linkValue(ref, resolve, hint) {
  *
  * The rows are {@link NOTE_VOCABULARY}'s declaration for the type, in its
  * order, minus what {@link NOTE_FIELD_PRESENTATION} withholds and minus every
- * field the note left empty. A type that declares no `data:` fields still gets
- * the box, because `Name` is a fact about every note.
+ * field the note left empty. A being's top-level `subType` adds its profile
+ * type. A type that declares no `data:` fields still gets the box, because
+ * `Name` is a fact about every note.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {object} [options] - Options.
@@ -698,6 +706,9 @@ function noteBox(
     const shown = new Set();
     const name = fm?.name?.full ?? fm?.title;
     if (hasValue(name)) rows.push({ label: "Name", kind: "text", value: String(name) });
+    if (fm?.type === "being" && Object.hasOwn(BEING_SUBTYPE_LABELS, fm.subType)) {
+        rows.push({ label: "Type", kind: "text", value: BEING_SUBTYPE_LABELS[fm.subType] });
+    }
 
     const data = isMapping(fm?.data) ? fm.data : {};
     /** @type {Map<string, {label: string, entries: string[]}>} */

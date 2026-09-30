@@ -21,7 +21,7 @@ data: {}
 ---
 ```
 
-`name.full` is the displayed name; `name.aliases` helps search. `description` is the short page summary. `tags` hold draft state and classification. `data` holds facts about the subject shared by systems. A YAML comment is the place for an author-only note: commented values remain valid YAML but do not enter the content index or generated documents.
+`name.full` is the displayed name; `name.aliases` helps search. `description` is the short page summary. `tags` hold draft state and descriptive labels. The note type's classification belongs in `subType` where it is declared. `data` holds facts about the subject shared by systems. A YAML comment is the place for an author-only note: commented values remain valid YAML but do not enter the content index or generated documents.
 
 Use `tags: [gm]` for a note intended only for the GM. It is absent from the public website and book. Foundry includes it only when its document routes to a pack with `private: true`. A note with `gm` that also creates a prose JournalEntry needs a private JournalEntry pack. Links from untagged notes to GM notes are errors; GM notes may link to one another.
 
@@ -37,4 +37,4 @@ One body describes the subject for both systems. A being's `{#appearance}` and `
 
 ## Publication and summaries
 
-A note infobox draws from shared `data`. A system infobox draws from the system's fields, and a mapped system with no document says “Not available.” The same authored body appears in Foundry, on the website, and in the book; presentation adapts to each medium. [Infobox details](../reference/format-details.md#the-infobox) describe field order and empty values.
+A note infobox draws from shared `data`. A being profile shows its top-level `subType` as `Type: Character`, `Type: NPC`, or `Type: Creature`. A system infobox draws from the system's fields, and a mapped system with no document says “Not available.” The same authored body appears in Foundry, on the website, and in the book; presentation adapts to each medium. [Infobox details](../reference/format-details.md#the-infobox) describe field order and empty values.

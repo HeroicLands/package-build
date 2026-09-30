@@ -101,6 +101,10 @@ column regardless.
 6. **Order is the toolchain's.** A medium renders boxes, sections and rows in
    the order given.
 
+A note profile begins with `Name`. For a being with a top-level `subType`, it
+follows with `Type: Character`, `Type: NPC`, or `Type: Creature`. A being with
+no subtype has no `Type` row.
+
 **Embedded models link to documentation in an infobox.** The model Address
 continues to identify the native Item used for compilation. Its displayed link
 uses that same package, type and Shortcode under `note`, which names the
