@@ -1,5 +1,19 @@
 # @heroiclands/package-build
 
+## 22.17.2
+
+### Patch Changes
+
+Being notes can identify encounterable NPCs, playable characters, and creatures with a checked subtype.
+
+**Content notes**
+
+- Notes can carry an additional system-specific block in their frontmatter.
+
+**Content checks**
+
+- Lint and link checks report unresolved references in SoHL system fields.
+
 ## 22.17.1
 
 ### Patch Changes
