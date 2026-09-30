@@ -178,9 +178,6 @@ export * as infoboxRender from "./infobox-render.mjs";
 /** The id a note's document is filed under: its pin, or its address. */
 export * as noteIds from "./note-ids.mjs";
 
-/** The shortcodes a note declares it used to be published under. */
-export * as noteRenames from "./note-renames.mjs";
-
 /** The published content index packages exchange addresses through. */
 export * as metadataIndex from "./metadata-index.mjs";
 
