@@ -1173,6 +1173,19 @@ export function lintNote(
     const type = String(fm.type ?? "");
     const raw = () => note.raw ?? "";
     const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
+    if (
+        type === "being" &&
+        Array.isArray(fm.data?.archetypes) &&
+        fm.data.archetypes.includes("commoner") &&
+        fm.data.archetypes.length > 1
+    ) {
+        findings.push({
+            file: note.file,
+            ...at("archetypes", "commoner"),
+            severity: "error",
+            message: "`data.archetypes` may contain `commoner` only by itself",
+        });
+    }
     /**
      * The in-block keys this note's own type claims for something other than
      * the note-level field of that name, which every note-level check below

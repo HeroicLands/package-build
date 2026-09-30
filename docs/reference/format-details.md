@@ -2445,8 +2445,13 @@ For JournalEntries, the following rules apply:
 - mariner: Handles boats and blue water.
 - artisan: Builds, repairs, and appraises craft work.
 - trader: Moves goods, values them, and knows markets.
+- commoner: Fits no more specific archetype; handles ordinary work and daily life.
+- entertainer: Performs for an audience through acting, music, comedy, or similar arts.
+- guildsperson: Has professional training, standing, or connections that open doors.
 
 Note that archetypes are descriptive, not proscriptive, and a character may be described by multiple archetypes at once.
+`commoner` stands alone: a being with another fitting archetype does not also carry `commoner`.
+Guild membership alone does not require `guildsperson`; the being's training, standing, or connections must matter to the role.
 
 #### Items
 
