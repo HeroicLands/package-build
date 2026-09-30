@@ -70,7 +70,12 @@ import { lintContentCharset } from "../engine/content-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
 import { lintContentIcons } from "../engine/content-icons.mjs";
 import { lintContentImages } from "../engine/content-images.mjs";
-import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
+import {
+    declaredSystems,
+    lintFrontmatter,
+    systemAddressFindings,
+    systemBlocksFor,
+} from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -124,7 +129,6 @@ import { reportFindings } from "./report.mjs";
 import {
     readItemAddresses,
     diffItemAddresses,
-    declaredPredecessors,
     noteFilesById,
     locateAddressFinding,
     addressFindingMessage,
@@ -1449,6 +1453,13 @@ function linksCommand() {
                     homepageLinks,
                     usedManifest,
                 } = auditLinks(index);
+                const systemReferences = index.notes.flatMap((note) =>
+                    systemAddressFindings(note, {
+                        index,
+                        schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                        systems: systemBlocksFor(config, { schemaSystem: "sohl" }),
+                    }),
+                );
 
                 for (const d of deadAnchors) {
                     emitDiagnostic({
@@ -1486,6 +1497,7 @@ function linksCommand() {
                             `${f.path} — frontmatter is data and is never resolved`,
                     });
                 }
+                for (const finding of systemReferences) emitDiagnostic(finding);
 
                 // The package homepage. Its addresses are markdown links and
                 // `landing:` url/href fields rather than wikilinks — it is
@@ -1506,6 +1518,7 @@ function linksCommand() {
                     deadEmbeds.length +
                     unlabelledLinks.length +
                     frontmatterLinks.length +
+                    systemReferences.length +
                     homepageLinks.length;
                 if (failures) {
                     log.error(`${failures} link problem(s) across ${index.notes.length} note(s).`);
@@ -2258,21 +2271,11 @@ function depsCommand() {
  * `addresses diff` — report every published `(type, shortcode)` this build no
  * longer publishes, against a released artifact.
  *
- * The address space is a published interface (see `engine/address-diff.mjs`),
- * and renaming a shortcode used to cost nothing and produce no signal. This is
- * the signal, emitted in the repository doing the renaming while the change is
- * still in front of the author.
+ * Compare this package's compiled Item addresses with the release artifact
+ * named by `--from`. The command reports departed addresses and locates
+ * findings against the current content tree or baseline artifact.
  *
- * **Its own command rather than a step of `package compile`.** It reads a
- * *second* artifact that the compile knows nothing about and that has to be
- * obtained separately, and it is a question about a release rather than about a
- * build — a repository between releases has nothing to compare against.
- *
- * **The baseline is named, never derived, and never downloaded.** `--from`
- * takes the artifact — the `.zip` a release publishes, or a directory built
- * from one — for the same reason `deps fetch --from` does: a command that
- * reaches the network on its own is not reproducible and fails strangely
- * offline. In a release workflow the artifact is one line ahead of it:
+ * `--from` accepts a release `.zip` or a directory built from one:
  *
  * ```sh
  * gh release download v0.8.2 -p system.zip -D build/baseline
@@ -2332,10 +2335,6 @@ async function diffAddresses(config, argv) {
         readItemAddresses(currentDirs),
         {
             baseline: label,
-            // Read whether or not anything departed: an id match needs no tree,
-            // but the diff decides rename-versus-withdrawal as it walks the
-            // baseline, so the declarations have to be in hand before it does.
-            predecessors: declaredPredecessors(config.paths.content, corpus),
         },
     );
     if (!findings.length) {
@@ -2343,9 +2342,8 @@ async function diffAddresses(config, argv) {
         return;
     }
 
-    // A rename is fixed in the note that made it, so findings are placed
-    // against the tree rather than against the compiled output they were read
-    // from.
+    // The tree locates a matched document; otherwise the baseline locates the
+    // departed address.
     const noteFiles = noteFilesById(config.paths.content, corpus);
     const severity = argv.strict ? "error" : "warning";
     for (const finding of findings) {

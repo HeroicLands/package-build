@@ -55,7 +55,10 @@ export function renderDot(dotPath, outPath, { engine, format = "svg", nop, dpi =
                 .filter(
                     (error) =>
                         error.level === "warning" &&
-                        !error.message.includes("no hard-coded metrics for 'Helvetica-Bold'"),
+                        !error.message.includes("no hard-coded metrics for 'Helvetica-Bold'") &&
+                        !/^Warning: no value for width of non-ASCII character \d+\. Falling back to width of space character$/.test(
+                            error.message,
+                        ),
                 )
                 .map((error) => error.message)
                 .join("; "),

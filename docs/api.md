@@ -809,16 +809,6 @@ The id a note's document is filed under: its pinned `id:`, when a note authors o
 | `noteDocId`     | `function noteDocId(fm,`           | {string\|undefined} The document's `_id`, or `undefined` when the note has no address to derive one from. | The document id a note compiles under: its pin, or its address.        |
 | `resolveNoteId` | `function resolveNoteId(fm, opts)` | {object\|null\|undefined} `fm`, for chaining.                                                             | Fill a note's `id` in place, so everything downstream reads one value. |
 
-### `engine.noteRenames`
-
-The shortcodes a note declares it used to be published under. A package's `(type, shortcode)` addresses are a published interface, and `addresses diff` reports what a build stopped publishing — telling a **rename** from a **withdrawal** by matching document ids across two releases. The property that rested on is gone: an id is derived from the canonical address, which carries the shortcode, so renaming a shortcode moves the id too: both sides of the join move together, the match finds nothing, and a rename is reported as a withdrawal with no successor named.
-
-| Export                | Signature                          | Returns                                                                                          | Use it when                                                          |
-| --------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| `renamedFromEntries`  | `function renamedFromEntries(fm)`  | {readonly unknown[]} The authored entries, in authored order; empty when the note declares none. | The `renamedFrom:` entries a note authors, exactly as authored.      |
-| `renamedFrom`         | `function renamedFrom(fm)`         | {string[]} The declared predecessor shortcodes.                                                  | The well-formed shortcodes among a note's `renamedFrom:` entries.    |
-| `declaresRenamedFrom` | `function declaresRenamedFrom(fm)` | {boolean} `true` when the key is present and not null.                                           | Whether a note declares the key at all, however malformed its value. |
-
 ### `engine.metadataIndex`
 
 The published content index — the artifact packages exchange addresses through. **A package publishes its own index; a consumer fetches the ones it depends on.** That is the whole mechanism, and it replaces a vendored link manifest that each repository committed a copy of every other repository's file into. Vendoring failed three ways, and only the last is about staleness:
