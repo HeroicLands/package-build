@@ -2,12 +2,8 @@ contentPackage: packagebuild
 packageKind: documentation
 paths:
     content: docs
-site:
-    title: Package Build Documentation
-    assets: https://cdn.heroiclands.org
-    description: Guides and reference for building HeroicLands Foundry systems, modules, and content.
-    pass: packageDocs
-    maps: false
+# This repository does not generate its own site. Its Hugo theme dependency would
+# form a cycle because @heroiclands/hugo-theme uses package-build for releases.
 pdf:
     title: Package Build Documentation
     document: book.yaml
