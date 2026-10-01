@@ -6,30 +6,10 @@
  */
 
 /**
- * `name.aliases` is **reserved**: kept, and read by nothing.
- *
- * The top-level `aliases:` and the nested `name.aliases:` fed one reader
- * between them — the alias index a bare `[[Alias]]` was looked up in — and that
- * index is gone. Only the top-level field is *retired*, though;
- * `name.aliases` is held for a use that does not exist yet, which makes it the
- * one field in the format that is neither refused nor consulted.
- *
- * A reservation is easy to state and easy to lose: the field would only have to
- * be folded into an index, validated for shape, or made to decide a title for
- * the reservation to be over, and nothing about that would look like a mistake
- * at the time. So the cases here pin the *equivalence* rather than any one
- * rule — a note carrying the field compiles, resolves, and addresses exactly as
- * the same note without it — which stays true however the engine is rewritten
- * and fails the moment anything begins to read it.
- *
- * **What "exactly as if absent" does and does not cover.** Every *derived*
- * artifact is byte-identical: the compiled document, the resolved link markup,
- * the link manifest, the site index, the URL. The field itself still rides
- * through into a page's emitted front matter, because the emitter spreads a
- * note's frontmatter wholesale and names neither `name` nor `aliases` — and
- * removing it there would mean *referencing* it, which is the one thing the
- * reservation forbids. Inert passthrough is the intent; the final case pins
- * that the echo is the only difference anywhere.
+ * `name.aliases` contributes to the note infobox but not to an address.
+ * A note carrying aliases keeps the same compiled document, link resolution,
+ * link manifest, site index, and URL as a note without them. The site page
+ * carries the aliases in frontmatter so its infobox can display them.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -158,7 +138,7 @@ function sitePages(content: string) {
     }).pages;
 }
 
-describe("a note carrying `name.aliases` compiles exactly as one without it", () => {
+describe("a note carrying `name.aliases` keeps the same document identity", () => {
     it("emits byte-identical pack documents", async () => {
         const [a, b] = await Promise.all([
             compile(withField, "with"),
@@ -169,8 +149,7 @@ describe("a note carrying `name.aliases` compiles exactly as one without it", ()
     });
 
     it("is not refused, and is not counted as a finding", async () => {
-        // The companion file pins the refusal itself; this pins that the
-        // reserved field never reaches it.
+        // Alternate names belong in the name map and pass content validation.
         const dest = path.join(root, "out-refusal");
         fs.mkdirSync(dest, { recursive: true });
         const probe = new Probe({ skipDirectories: [], contentBase: withField, dest });
@@ -223,9 +202,7 @@ describe("a link into it resolves exactly as if the field were absent", () => {
     });
 
     it("never becomes an address of its own", () => {
-        // The reservation's sharpest edge: were the field folded back into an
-        // index, `[[doc-Wolfsbane|…]]` — or a bare `[[Wolfsbane]]` — would
-        // start resolving. Neither may.
+        // An alternate name is not an address for an authored link.
         const built = buildSiteIndex(sitePages(withField), { package: "demo" });
         for (const key of ["doc/wolfsbane", "wolfsbane", "rules/wolfsbane", "doc/monkshood"]) {
             expect(built.index.has(key)).toBe(false);
@@ -242,9 +219,8 @@ describe("it reaches no derived address", () => {
     // through, so an address that moved because of this field would
     // move for every consumer.
     //
-    // Addresses rather than bytes: the index spreads the note's frontmatter, so
-    // it carries `name.aliases` verbatim and the two files differ *by exactly
-    // that echo*. That is the claim — retained, and read by nothing.
+    // Addresses rather than bytes: the index carries `name.aliases` verbatim,
+    // but the aliases do not affect identity.
     it("derives every address identically", () => {
         const emit = (dir: string, tag: string) => {
             const out = path.join(root, `index-${tag}`);
@@ -305,8 +281,8 @@ describe("it reaches no derived address", () => {
     });
 });
 
-describe("the only trace of it anywhere is the note's own verbatim echo", () => {
-    it("passes through into emitted front matter and changes nothing else", () => {
+describe("aliases reach the site page", () => {
+    it("passes them through into emitted front matter", () => {
         const fmOf = (content: string) => {
             const page = sitePages(content).find((p: any) => p.fm.shortcode === "aconite");
             return pageFrontmatter(page, {});
@@ -314,13 +290,11 @@ describe("the only trace of it anywhere is the note's own verbatim echo", () => 
         const a: any = fmOf(withField);
         const b: any = fmOf(withoutField);
 
-        // The echo, and the whole of it: the field arrives unread and unaltered.
+        // The infobox reads this ordered list from the emitted frontmatter.
         expect(a.name.aliases).toEqual(["Wolfsbane", "Monkshood"]);
         expect(b.name.aliases).toBeUndefined();
 
-        // Everything else — every key, and `name` once its echo is set aside —
-        // is identical. Written as a diff rather than a spot-check so a value
-        // newly *derived* from the field would fail here.
+        // The aliases do not change other page metadata.
         expect({ ...a, name: { ...a.name, aliases: undefined } }).toEqual({
             ...b,
             name: { ...b.name, aliases: undefined },

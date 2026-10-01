@@ -24,6 +24,12 @@ export const NOTE_TOP_LEVEL_KEYS = Object.freeze([
 /** Membership test for the top-level vocabulary. */
 export const NOTE_TOP_LEVEL_KEY_SET = new Set(NOTE_TOP_LEVEL_KEYS);
 
+/** The name properties every note accepts, in display order. */
+export const NOTE_NAME_KEYS = Object.freeze(["full", "aliases"]);
+
+/** Additional name components accepted by an individual character. */
+export const CHARACTER_NAME_KEYS = Object.freeze(["given", "clan"]);
+
 /** Return authored keys from an opening YAML frontmatter map. */
 export function authoredNoteKeys(markdown) {
     const source = markdown.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)?.[1];

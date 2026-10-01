@@ -117,7 +117,8 @@ Item link.
 order** — the very table each `### type:` section below states. There is no
 second list, so a key added to a type appears in the book, on the website and
 in a compendium journal with no further edit. A `Name` row stands first on
-every note, because every note has one.
+every note, because every note has one. An `Aliases` row follows it when the
+note names any aliases, preserving their authored order.
 
 A few keys carry no row, and the reason in each case is one of exactly two —
 the key is **machinery**, steering a build or an interface rather than
@@ -333,6 +334,13 @@ sohl: {}
 Any other top-level key is an error. To keep an author-only note beside the
 content, comment out its YAML lines with `#`. Comments remain valid YAML text
 and do not become data in the JSONL index, generated pages, or Foundry documents.
+
+`name` is a map with a required nonempty `full` string when present. It may
+also contain `aliases`, an ordered list of nonempty strings. A being with
+`subType: character` may additionally contain nonempty `given` and `clan`
+strings. Other keys under `name` are errors. For a character or NPC, the first
+alias is its nickname. A being's homes belong in `data.homes`.
+
 There is no custom site metadata. `description` supplies the page's short
 description; `tags` carries publication and classification tags.
 

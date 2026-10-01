@@ -1133,8 +1133,8 @@ export class BasePackCompiler {
             // - `aliases:`: it fed the alias index, which the bare
             //   `[[Alias]]` form was looked up in; the form is retired, so the
             //   list has no reader left. The nested `name.aliases` is a
-            //   different field and is **not** refused — it is reserved, and
-            //   deliberately neither read nor validated.
+            //   different field: the infobox displays it, and the note name
+            //   check validates it.
             //
             // Both are reported and counted — never skipped, which is how a
             // tree naming a package nothing answers to used to compile zero
