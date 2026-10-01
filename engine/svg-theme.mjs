@@ -45,7 +45,7 @@ const INK_LIGHT = "#211d16";
 const INK_DARK = "#ece3cf";
 
 /**
- * The shapes a theme rule may repaint.
+ * The shapes a fill rule may repaint.
  *
  * Explicitly black, or black by default for want of a `fill`. A shape painted
  * some other colour is deliberate — a white highlight in a two-tone badge — and
@@ -53,7 +53,7 @@ const INK_DARK = "#ece3cf";
  *
  * @type {string}
  */
-const SELECTOR = [
+const FILL_SELECTOR = [
     '[fill="#000"]',
     '[fill="#000000"]',
     '[fill="black"]',
@@ -67,10 +67,21 @@ const SELECTOR = [
     "g:not([fill])",
 ].join(",");
 
+/**
+ * The shapes a stroke rule may repaint.
+ *
+ * Explicitly black only — SVG's default stroke is `none`, so there is no
+ * want-of-a-`stroke` case to opt in the way a want-of-a-`fill` case is. A
+ * broad match would paint an outline onto a shape that has none.
+ *
+ * @type {string}
+ */
+const STROKE_SELECTOR = ['[stroke="#000"]', '[stroke="#000000"]', '[stroke="black"]'].join(",");
+
 /** @type {string} */
 const STYLE =
-    `<style>${SELECTOR}{fill:${INK_LIGHT}}` +
-    `@media(prefers-color-scheme:dark){${SELECTOR}{fill:${INK_DARK}}}</style>`;
+    `<style>${FILL_SELECTOR}{fill:${INK_LIGHT}}${STROKE_SELECTOR}{stroke:${INK_LIGHT}}` +
+    `@media(prefers-color-scheme:dark){${FILL_SELECTOR}{fill:${INK_DARK}}${STROKE_SELECTOR}{stroke:${INK_DARK}}}</style>`;
 
 /**
  * Every `style="…"` attribute, capturing its declarations.
