@@ -189,7 +189,12 @@ describe("`subType` is top level, and only where a type declares one", () => {
 
     it("permits only the declared being subtypes", () => {
         expect(subTypes("being")).toEqual(["npc", "character", "creature"]);
-        expect(lintNote(note("being", { subType: "character" }), opts)).toEqual([]);
+        expect(
+            lintNote(
+                note("being", { subType: "character", data: { archetypes: ["warrior"] } }),
+                opts,
+            ),
+        ).toEqual([]);
         expect(messages(lintNote(note("being", { subType: "charcter" }), opts))).toContain(
             'Did you mean "character"?',
         );

@@ -432,7 +432,12 @@ describe("a being's closed subtype vocabulary", () => {
                     {
                         ...being(subType, tags),
                         type,
-                        fm: { type, ...(subType ? { subType } : {}), tags },
+                        fm: {
+                            type,
+                            ...(subType ? { subType } : {}),
+                            tags,
+                            ...(type === "being" ? { data: { archetypes: ["warrior"] } } : {}),
+                        },
                     },
                 ],
                 shortcodeHit: () => ({}),

@@ -78,6 +78,7 @@ import { isAddressSegment } from "./address-charset.mjs";
 // reads is exactly the disagreement to avoid.
 import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import {
+    BEING_ARCHETYPES,
     dataFields,
     declaredTags,
     subTypeCharsetMessage,
@@ -1173,18 +1174,43 @@ export function lintNote(
     const type = String(fm.type ?? "");
     const raw = () => note.raw ?? "";
     const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
-    if (
-        type === "being" &&
-        Array.isArray(fm.data?.archetypes) &&
-        fm.data.archetypes.includes("commoner") &&
-        fm.data.archetypes.length > 1
-    ) {
-        findings.push({
-            file: note.file,
-            ...at("archetypes", "commoner"),
-            severity: "error",
-            message: "`data.archetypes` may contain `commoner` only by itself",
-        });
+    if (type === "being") {
+        const archetypes = fm.data?.archetypes;
+        if (
+            ["character", "npc"].includes(fm.subType) &&
+            (archetypes == null || (Array.isArray(archetypes) && archetypes.length === 0))
+        ) {
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(
+                    raw(),
+                    archetypes == null ? ["subType"] : ["data", "archetypes"],
+                ),
+                severity: "error",
+                message: "A character or npc requires at least one `data.archetypes` value",
+            });
+        }
+        if (Array.isArray(archetypes)) {
+            archetypes.forEach((value, i) => {
+                if (!Object.hasOwn(BEING_ARCHETYPES, value)) {
+                    findings.push({
+                        file: note.file,
+                        ...positionOfFrontmatterPath(raw(), ["data", "archetypes", i]),
+                        severity: "error",
+                        message: `Unknown archetype \`${String(value)}\`; use a case-sensitive archetype from the reference`,
+                    });
+                }
+            });
+            const commoner = archetypes.indexOf("commoner");
+            if (commoner !== -1 && archetypes.length > 1) {
+                findings.push({
+                    file: note.file,
+                    ...positionOfFrontmatterPath(raw(), ["data", "archetypes", commoner]),
+                    severity: "error",
+                    message: "`data.archetypes` may contain `commoner` only by itself",
+                });
+            }
+        }
     }
     /**
      * The in-block keys this note's own type claims for something other than
