@@ -166,6 +166,25 @@ describe("the note box's fields are the type's own vocabulary", () => {
         }
     });
 
+    it("shows every alias below the full name in authored order on every output", () => {
+        for (const type of Object.keys(NOTE_VOCABULARY)) {
+            const box = noteInfobox({
+                type,
+                name: { full: "Ada", aliases: ["The Swift", "Night Fox"] },
+            });
+            expect(box.sections[0].rows.slice(0, 2)).toEqual([
+                { label: "Name", kind: "text", value: "Ada" },
+                { label: "Aliases", kind: "list", value: ["The Swift", "Night Fox"] },
+            ]);
+            const html = infoboxesToHtml([box]);
+            const typst = infoboxesToTypst([box]);
+            for (const output of [html, typst]) {
+                expect(output.indexOf("Ada")).toBeLessThan(output.indexOf("The Swift"));
+                expect(output.indexOf("The Swift")).toBeLessThan(output.indexOf("Night Fox"));
+            }
+        }
+    });
+
     it("shows a being's declared subtype as its profile type", () => {
         const labels = { npc: "NPC", character: "Character", creature: "Creature" };
         const subTypes = NOTE_VOCABULARY.being.subTypes;

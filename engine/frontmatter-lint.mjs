@@ -55,7 +55,12 @@
  */
 
 import { isAddressTuple } from "./address.mjs";
-import { authoredNoteKeys, NOTE_TOP_LEVEL_KEY_SET } from "./note-frontmatter.mjs";
+import {
+    authoredNoteKeys,
+    CHARACTER_NAME_KEYS,
+    NOTE_NAME_KEYS,
+    NOTE_TOP_LEVEL_KEY_SET,
+} from "./note-frontmatter.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { addressPositions } from "./note-addresses.mjs";
 import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
@@ -1173,6 +1178,64 @@ export function lintNote(
     const type = String(fm.type ?? "");
     const raw = () => note.raw ?? "";
     const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
+    if (Object.hasOwn(fm, "name")) {
+        const name = fm.name;
+        const nameAt = (path) => positionOfFrontmatterPath(raw(), ["name", ...path], { key: true });
+        if (!name || typeof name !== "object" || Array.isArray(name)) {
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw(), ["name"], { key: true }),
+                severity: "error",
+                message: "`name` must be a map with a nonempty `full` string",
+            });
+        } else {
+            const allowed = new Set(NOTE_NAME_KEYS);
+            if (type === "being" && fm.subType === "character") {
+                for (const key of CHARACTER_NAME_KEYS) allowed.add(key);
+            }
+            for (const key of Object.keys(name)) {
+                if (!allowed.has(key)) {
+                    findings.push({
+                        file: note.file,
+                        ...nameAt([key]),
+                        severity: "error",
+                        message: `\`name.${key}\` is not valid for this note`,
+                    });
+                }
+            }
+            if (typeof name.full !== "string" || !name.full.trim()) {
+                findings.push({
+                    file: note.file,
+                    ...(Object.hasOwn(name, "full") ? nameAt(["full"]) : nameAt([])),
+                    severity: "error",
+                    message: "`name.full` must be a nonempty string",
+                });
+            }
+            if (Object.hasOwn(name, "aliases")) {
+                if (
+                    !Array.isArray(name.aliases) ||
+                    name.aliases.some((alias) => typeof alias !== "string" || !alias.trim())
+                ) {
+                    findings.push({
+                        file: note.file,
+                        ...nameAt(["aliases"]),
+                        severity: "error",
+                        message: "`name.aliases` must be a list of nonempty strings",
+                    });
+                }
+            }
+            for (const key of CHARACTER_NAME_KEYS) {
+                if (!Object.hasOwn(name, key) || !allowed.has(key)) continue;
+                if (typeof name[key] === "string" && name[key].trim()) continue;
+                findings.push({
+                    file: note.file,
+                    ...nameAt([key]),
+                    severity: "error",
+                    message: `\`name.${key}\` must be a nonempty string`,
+                });
+            }
+        }
+    }
     if (
         type === "being" &&
         Array.isArray(fm.data?.archetypes) &&

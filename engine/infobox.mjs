@@ -706,6 +706,9 @@ function noteBox(
     const shown = new Set();
     const name = fm?.name?.full ?? fm?.title;
     if (hasValue(name)) rows.push({ label: "Name", kind: "text", value: String(name) });
+    if (Array.isArray(fm?.name?.aliases) && fm.name.aliases.length) {
+        rows.push({ label: "Aliases", kind: "list", value: fm.name.aliases });
+    }
     if (fm?.type === "being" && Object.hasOwn(BEING_SUBTYPE_LABELS, fm.subType)) {
         rows.push({ label: "Type", kind: "text", value: BEING_SUBTYPE_LABELS[fm.subType] });
     }
