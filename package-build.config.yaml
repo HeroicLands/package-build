@@ -1,6 +1,0 @@
-contentPackage: packagebuild
-packageKind: documentation
-paths:
-    content: docs
-# This repository generates neither a site nor a book. Its Hugo theme dependency
-# would form a cycle because @heroiclands/hugo-theme uses package-build for releases.
