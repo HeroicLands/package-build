@@ -984,7 +984,6 @@ export function renderPages(pages, options) {
  */
 const SITE_PASSES = Object.freeze({
     sohlKb: () => require("../sohl/kb-passes.mjs").sohlKbPass,
-    packageDocs: () => require("./documentation-links.mjs").documentationLinksPass,
 });
 
 /**

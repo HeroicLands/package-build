@@ -8,7 +8,6 @@ import YAML from "yaml";
 
 import { configFromData } from "../engine/pack-config.mjs";
 import { parseMarkdownFile } from "../engine/helpers.mjs";
-import { documentationLinksPass } from "../engine/documentation-links.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const configFile = path.join(root, "package-build.config.yaml");
@@ -25,8 +24,18 @@ function markdownFiles(directory: string): string[] {
     });
 }
 
-describe("package documentation publication", () => {
-    it("uses the toolchain's namespace only for this repository's documentation", () => {
+describe("package documentation", () => {
+    it("keeps this repository's build independent of the Hugo theme", () => {
+        const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+        const configData = YAML.parse(readFileSync(configFile, "utf8"));
+        expect(pkg.devDependencies).not.toHaveProperty("@heroiclands/hugo-theme");
+        expect(
+            Object.keys(pkg.scripts).filter((name) => /^(?:build|serve):site/.test(name)),
+        ).toEqual([]);
+        expect(configData).not.toHaveProperty("site");
+    });
+
+    it("uses the toolchain's namespace for this repository's documentation", () => {
         expect(config.packageKind).toBe("documentation");
         expect(config.contentPackage).toBe("packagebuild");
         expect(config.paths.content).toBe(path.join(root, "docs"));
@@ -45,15 +54,6 @@ describe("package documentation publication", () => {
             section.contents.map((entry: any) => /shortcode = '([^']+)'/.exec(entry.filter)?.[1]),
         );
         expect(selected.sort()).toEqual(docs.map((fm) => fm.shortcode).sort());
-    });
-
-    it("resolves repository-relative links for web pages and page-level book references", () => {
-        const file = path.join(root, "docs", "getting-started.md");
-        const text = "[Commands](commands.md#package-build-init-directory)";
-        const web = documentationLinksPass({ config }).beforeLinks(text, { file });
-        const book = documentationLinksPass({ config, book: true }).beforeLinks(text, { file });
-        expect(web).toBe("[Commands](/packagebuild/doc-commands/#package-build-init-directory)");
-        expect(book).toBe("[Commands](/packagebuild/doc-commands/)");
     });
 
     it("keeps every local Markdown link inside the addressable guide tree", () => {
