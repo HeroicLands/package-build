@@ -1,5 +1,17 @@
 # @heroiclands/package-build
 
+## 22.19.0
+
+### Minor Changes
+
+**Beings**
+
+- Beings can be described as Commoners, Entertainers, or Guildspeople, and Commoner stands alone when no other archetype fits.
+
+### Patch Changes
+
+- Books place infoboxes after each entry’s authored content, and Foundry journals place each infobox on its own page after the authored pages.
+
 ## 22.18.0
 
 ### Minor Changes
