@@ -666,6 +666,25 @@ export function isGmNote(fm) {
     return hasTag(fm, GM_TAG);
 }
 
+/** The case-sensitive archetypes and their author-facing meanings. */
+export const BEING_ARCHETYPES = Object.freeze({
+    warrior: "Can hold a line and win a fight.",
+    skirmisher: "Fights light — ambush, missile, mobility.",
+    infiltrator: "Gets in unseen — locks, stealth, disguise.",
+    mage: "Commands arcane practice.",
+    cleric: "Commands religious practice and standing.",
+    healer: "Treats wounds and illness.",
+    scholar: "Reads, researches, and knows things.",
+    courtier: "Navigates rank, negotiation, and intrigue.",
+    woodsman: "Travels and survives wild country.",
+    mariner: "Handles boats and blue water.",
+    artisan: "Builds, repairs, and appraises craft work.",
+    trader: "Moves goods, values them, and knows markets.",
+    commoner: "Fits no more specific archetype; handles ordinary work and daily life.",
+    entertainer: "Performs for an audience through acting, music, comedy, or similar arts.",
+    guildsperson: "Has professional training, standing, or connections that open doors.",
+});
+
 /**
  * Every note type this toolchain compiles, and the closed vocabulary it
  * declares.

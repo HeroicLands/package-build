@@ -7,7 +7,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { formatGenerated } from "../engine/format-generated.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
-import { NOTE_VOCABULARY, SHARED_DATA_FIELDS } from "../engine/note-vocabulary.mjs";
+import {
+    BEING_ARCHETYPES,
+    NOTE_VOCABULARY,
+    SHARED_DATA_FIELDS,
+} from "../engine/note-vocabulary.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = path.join(root, "docs/reference/note-types.md");
@@ -103,4 +107,30 @@ if (process.argv.includes("--check")) {
     }
 } else {
     process.stdout.write(result);
+}
+
+const detailsPath = path.join(root, "docs/reference/format-details.md");
+const details = fs.readFileSync(detailsPath, "utf8");
+if (!/<!-- archetypes:start -->[\s\S]*?<!-- archetypes:end -->/.test(details)) {
+    throw new Error("The archetype reference requires its generation markers");
+}
+const archetypes = Object.entries(BEING_ARCHETYPES)
+    .map(([name, meaning]) => `- ${name}: ${meaning}`)
+    .join("\n");
+const updatedDetails = await formatGenerated(
+    details.replace(
+        /<!-- archetypes:start -->[\s\S]*?<!-- archetypes:end -->/,
+        `<!-- archetypes:start -->\n${archetypes}\n<!-- archetypes:end -->`,
+    ),
+    detailsPath,
+);
+if (process.argv.includes("--check")) {
+    if (details !== updatedDetails) {
+        console.error(
+            "docs/reference/format-details.md: error: run node ci/content-format-reference.mjs to refresh the archetype reference",
+        );
+        process.exitCode = 1;
+    }
+} else {
+    fs.writeFileSync(detailsPath, updatedDetails);
 }

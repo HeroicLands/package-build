@@ -340,6 +340,7 @@ also contain `aliases`, an ordered list of nonempty strings. A being with
 `subType: character` may additionally contain nonempty `given` and `clan`
 strings. Other keys under `name` are errors. For a character or NPC, the first
 alias is its nickname. A being's homes belong in `data.homes`.
+
 There is no custom site metadata. `description` supplies the page's short
 description; `tags` carries publication and classification tags.
 
@@ -2439,6 +2440,8 @@ For JournalEntries, the following rules apply:
 
 **Archetypes** describe characters in broad terms and help match them to an adventure. The list is:
 
+<!-- archetypes:start -->
+
 - warrior: Can hold a line and win a fight.
 - skirmisher: Fights light — ambush, missile, mobility.
 - infiltrator: Gets in unseen — locks, stealth, disguise.
@@ -2455,6 +2458,10 @@ For JournalEntries, the following rules apply:
 - entertainer: Performs for an audience through acting, music, comedy, or similar arts.
 - guildsperson: Has professional training, standing, or connections that open doors.
 
+<!-- archetypes:end -->
+
+`character` and `npc` beings require at least one archetype. `creature` beings may omit archetypes or write an empty array. Values use the exact lowercase spellings above.
+
 Note that archetypes are descriptive, not proscriptive, and a character may be described by multiple archetypes at once.
 `commoner` stands alone: a being with another fitting archetype does not also carry `commoner`.
 Guild membership alone does not require `guildsperson`; the being's training, standing, or connections must matter to the role.
@@ -2469,34 +2476,34 @@ An Item can mark its readable description with `# ... {#description}`. That head
 
 Generates a living (or undead, or spirit) being.
 
-| `data` property             | Values                                         | Description                                                                                      |
-| --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `tokenIcon`                 | `Address`                                      | What a token on the canvas wears — an `icon` address; defaults to `icon`                         |
-| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                       |
-| `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — `[]` where none apply; `null` is an error. |
-| `occupation`                | `string`                                       | Name of the character's occupation                                                               |
-| `social`                    | `Map<string, unknown>`                         | The being's social profile                                                                       |
-| `stations`                  | `Address[]`                                    | Name of the stations the character belongs to                                                    |
-| `lore`                      | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                 |
-| `culture`                   | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                      |
-| `homes`                     | `Address[]`                                    | Place the being calls home                                                                       |
-| `affiliations`              | `Address[]`                                    | Affilliations (e.g., arcane/divine traditions, polities, etc)                                    |
-| `socialTies`                | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                              |
-| `gender`                    | `male \| female \| other`                      | Gender of the character                                                                          |
-| `species`                   | `Address`                                      | Being's species (lore)                                                                           |
-| `born`                      | `date \| unknown`                              | When the being was born; absent, it was never born                                               |
-| `calendar`                  | `Address`                                      | Calendar note used to print the being's dates                                                    |
-| `died`                      | `date \| unknown`                              | When the being died; absent, it is alive                                                         |
-| `age`                       | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                    |
-| `ageYears`                  | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this   |
-| `height`                    | `1.91m \| 6' 3"`                               | Height in metres or feet and inches                                                              |
-| `weight`                    | `85kg \| 187 lbs`                              | Body weight in kilograms or pounds                                                               |
-| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                              |
-| `appearance.eye_color`      | `string`                                       | Eye color                                                                                        |
-| `appearance.hair_color`     | `string`                                       | Hair color                                                                                       |
-| `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
-| `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
-| `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
+| `data` property             | Values                                         | Description                                                                                                                                           |
+| --------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tokenIcon`                 | `Address`                                      | What a token on the canvas wears — an `icon` address; defaults to `icon`                                                                              |
+| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                                                                            |
+| `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — character and npc require at least one; creature may omit it or write `[]`; `null` is an error. |
+| `occupation`                | `string`                                       | Name of the character's occupation                                                                                                                    |
+| `social`                    | `Map<string, unknown>`                         | The being's social profile                                                                                                                            |
+| `stations`                  | `Address[]`                                    | Name of the stations the character belongs to                                                                                                         |
+| `lore`                      | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                                                                      |
+| `culture`                   | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
+| `homes`                     | `Address[]`                                    | Place the being calls home                                                                                                                            |
+| `affiliations`              | `Address[]`                                    | Affilliations (e.g., arcane/divine traditions, polities, etc)                                                                                         |
+| `socialTies`                | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                                                                                   |
+| `gender`                    | `male \| female \| other`                      | Gender of the character                                                                                                                               |
+| `species`                   | `Address`                                      | Being's species (lore)                                                                                                                                |
+| `born`                      | `date \| unknown`                              | When the being was born; absent, it was never born                                                                                                    |
+| `calendar`                  | `Address`                                      | Calendar note used to print the being's dates                                                                                                         |
+| `died`                      | `date \| unknown`                              | When the being died; absent, it is alive                                                                                                              |
+| `age`                       | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                                                                         |
+| `ageYears`                  | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this                                                        |
+| `height`                    | `1.91m \| 6' 3"`                               | Height in metres or feet and inches                                                                                                                   |
+| `weight`                    | `85kg \| 187 lbs`                              | Body weight in kilograms or pounds                                                                                                                    |
+| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                                                                                   |
+| `appearance.eye_color`      | `string`                                       | Eye color                                                                                                                                             |
+| `appearance.hair_color`     | `string`                                       | Hair color                                                                                                                                            |
+| `appearance.skin_color`     | `string`                                       | Skin color                                                                                                                                            |
+| `appearance.complexion`     | `string`                                       | Complexion                                                                                                                                            |
+| `appearance.extra_features` | `string[]`                                     | Extra features                                                                                                                                        |
 
 Author `data.height` as a string of decimal metres (`1.91m` or `1.91 m`) or
 whole feet with optional inches (`6'`, `6'3"`, or `6' 3"`). Inches must be
