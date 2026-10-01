@@ -4,14 +4,9 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import YAML from "yaml";
-
-import { configFromData } from "../engine/pack-config.mjs";
-import { parseMarkdownFile } from "../engine/helpers.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const configFile = path.join(root, "package-build.config.yaml");
-const config = configFromData(YAML.parse(readFileSync(configFile, "utf8")), configFile);
+const docs = path.join(root, "docs");
 
 function markdownFiles(directory: string): string[] {
     return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -27,43 +22,28 @@ function markdownFiles(directory: string): string[] {
 describe("package documentation", () => {
     it("keeps this repository's documentation in Markdown", () => {
         const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
-        const configData = YAML.parse(readFileSync(configFile, "utf8"));
         expect(pkg.devDependencies).not.toHaveProperty("@heroiclands/hugo-theme");
         expect(
             Object.keys(pkg.scripts).filter((name) => /^(?:build|serve):site/.test(name)),
         ).toEqual([]);
         expect(Object.keys(pkg.scripts).filter((name) => /^build:book/.test(name))).toEqual([]);
-        expect(configData).not.toHaveProperty("site");
-        expect(configData).not.toHaveProperty("pdf");
+        expect(pkg.scripts).not.toHaveProperty("build:content-index");
+        expect(existsSync(path.join(root, "package-build.config.yaml"))).toBe(false);
         expect(existsSync(path.join(root, "book.yaml"))).toBe(false);
     });
 
-    it("uses the toolchain's namespace for this repository's documentation", () => {
-        expect(config.packageKind).toBe("documentation");
-        expect(config.contentPackage).toBe("packagebuild");
-        expect(config.paths.content).toBe(path.join(root, "docs"));
-        expect(config.publish.address.prefix).toBe("");
+    it("keeps the documentation home and guides in Markdown", () => {
+        expect(existsSync(path.join(docs, "index.md"))).toBe(true);
+        expect(markdownFiles(docs).length).toBeGreaterThan(1);
     });
 
-    it("keeps each authored guide and reference addressable", () => {
-        const notes = markdownFiles(config.paths.content).map(
-            (file) => parseMarkdownFile(file).frontmatter,
-        );
-        const docs = notes.filter((fm) => fm?.type === "doc");
-        expect(notes.filter((fm) => fm?.type === "homepage")).toHaveLength(1);
-        expect(docs).toHaveLength(markdownFiles(config.paths.content).length - 1);
-        expect(new Set(docs.map((fm) => fm.shortcode)).size).toBe(docs.length);
-    });
-
-    it("keeps every local Markdown link inside the addressable guide tree", () => {
-        for (const file of markdownFiles(config.paths.content)) {
+    it("keeps every local Markdown link inside the guide tree", () => {
+        for (const file of markdownFiles(docs)) {
             const body = readFileSync(file, "utf8");
             for (const match of body.matchAll(/\[[^\]\n]+\]\(([^\s)]+\.md)(?:#[^\s)]*)?\)/g)) {
                 const target = path.resolve(path.dirname(file), match[1]);
-                expect(target.startsWith(`${config.paths.content}${path.sep}`), file).toBe(true);
-                const fm = parseMarkdownFile(target).frontmatter;
-                expect(fm?.type, target).toBe("doc");
-                expect(fm?.shortcode, target).toMatch(/^[a-z0-9]+$/);
+                expect(target.startsWith(`${docs}${path.sep}`), file).toBe(true);
+                expect(existsSync(target), target).toBe(true);
             }
         }
     });

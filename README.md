@@ -18,7 +18,7 @@ The generated project includes a homepage, website and book targets, npm scripts
 
 ## Documentation
 
-The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md).
+The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md). This toolchain does not build its own site or book. A Hugo theme dependency would form a cycle because the theme uses package-build for releases.
 
 | Topic                                             | Guide                                                        |
 | ------------------------------------------------- | ------------------------------------------------------------ |
