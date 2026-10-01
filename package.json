@@ -198,9 +198,7 @@
         "changeset:version": "changeset version && node bin/package-build.mjs changelog group && npm install --package-lock-only",
         "prepare": "git config core.hooksPath .githooks || true",
         "build:deps": "node bin/package-build.mjs deps fetch",
-        "build:content-index": "node bin/package-build.mjs content-index",
-        "build:book": "run-s build:deps build:content-index build:book-content",
-        "build:book-content": "node bin/package-build.mjs pdf"
+        "build:content-index": "node bin/package-build.mjs content-index"
     },
     "engines": {
         "node": ">=24.0.0"
