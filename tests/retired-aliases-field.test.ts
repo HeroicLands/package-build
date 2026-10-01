@@ -17,10 +17,9 @@
  * and `package:` are: a retired field left merely ignored reads to
  * its author as though it still works.
  *
- * **`name.aliases` is not this field.** It fed the same index and lost the same
- * reader, but it is *reserved* rather than retired, so it is neither refused
- * nor read. The cases below pin that it survives every refusal this file is
- * about; `name-aliases-reserved.test.ts` pins that nothing reads it.
+ * **`name.aliases` is not this field.** It lists alternate names in the note
+ * infobox without creating addresses. The cases below pin that the top-level
+ * refusal does not reach it; `name-aliases-addresses.test.ts` checks identity.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
@@ -67,7 +66,7 @@ describe("refusing a note that declares `aliases:`", () => {
         );
     });
 
-    it("permits `name.aliases`, which is reserved rather than retired", () => {
+    it("permits `name.aliases`", () => {
         // The one field this refusal must not reach. Populated, empty, and
         // alongside the retired sibling — the nested list never provokes it.
         expect(() =>
@@ -262,7 +261,7 @@ describe("the compile loop refuses a note declaring `aliases:`", () => {
         }
     });
 
-    it("compiles a note carrying the reserved `name.aliases`", async () => {
+    it("compiles a note carrying `name.aliases`", async () => {
         const { probe, dest } = await compileOne("nested", [
             "name:",
             "  full: Nested",
