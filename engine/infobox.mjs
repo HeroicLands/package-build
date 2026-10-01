@@ -51,9 +51,9 @@
  *
  * ## Six rules that hold in every medium
  *
- * 1. **The infobox is generated content in document order** — prepended,
- *    before the prose. Not a floating sidebar. An image authored before it
- *    appears before it.
+ * 1. **Placement belongs to the medium.** The book puts boxes after the
+ *    authored body, Foundry appends one page per box, and the website uses
+ *    a side rail on wide screens and inline boxes on narrow screens.
  * 2. **It contains no image.** A picture is authored in the text with its own
  *    directive, and its position governs. {@link NOTE_FIELD_PRESENTATION}
  *    withholds the art slots and `overlay` for that reason and no other.

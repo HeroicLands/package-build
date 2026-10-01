@@ -159,13 +159,20 @@ describe("the journal entry", () => {
             id: "0123456789abcdef",
             name: "Tanvur",
             markdown: "Prose.",
-            infobox: '<details class="infobox"></details>',
+            infoboxes: [
+                {
+                    id: "note",
+                    name: "Properties Infobox",
+                    html: '<details class="infobox"></details>',
+                },
+            ],
             notice,
         });
 
-    it("leads the first page, ahead of the infobox", () => {
+    it("leads the first authored page", () => {
         const content = entry(draftNoticeHtml()).pages[0].text.content;
-        expect(content.indexOf(DRAFT_NOTICE)).toBeLessThan(content.indexOf("infobox"));
+        expect(content.indexOf(DRAFT_NOTICE)).toBeLessThan(content.indexOf("Prose."));
+        expect(entry(draftNoticeHtml()).pages[1].text.content).toContain("infobox");
         expect(content.startsWith(draftNoticeHtml())).toBe(true);
     });
 

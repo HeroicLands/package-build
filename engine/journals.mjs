@@ -335,16 +335,13 @@ export function buildPages(rawPages, entryId, noteName, captions) {
  *   entry: a module may ship the same content for two systems, and each pack's
  *   documents record the system version they were built against. A
  *   caller with no pack in hand gets the package-wide block.
- * @param {string} [params.infobox] - The note's infobox, already rendered to
- *   HTML. Prepended to the entry's first page, which is where the format puts
- *   it: the box is generated content in document order, before the prose, and
- *   a Foundry page is narrow enough that inlining it is the only arrangement
- *   that reads. It is **not** a page of its own — a page is what a UUID
- *   addresses, and a summary a reader has to navigate to is a summary they do
- *   not see.
+ * @param {Array<{id: string, name: string, html: string}>} [params.infoboxes] -
+ *   Emitted boxes, each rendered to HTML. Each becomes a separate page after
+ *   the authored pages. Its identity uses the box id in a generated-page
+ *   namespace, independent of authored headings and anchors.
  * @param {string} [params.notice] - A statement about the entry rather than
  *   about its subject, already rendered to HTML — see {@link
- *   module:engine/draft-notice}. It leads the first page, ahead of the infobox,
+ *   module:engine/draft-notice}. It leads the first authored page,
  *   because a reader deciding whether to rely on the entry has to be told
  *   before they read it rather than after.
  * @returns {object} The JournalEntry document, keyed for the pack.
@@ -357,13 +354,21 @@ export function buildJournalEntry({
     folder = null,
     flags,
     stats = defaultStats(),
-    infobox = "",
+    infoboxes = [],
     notice = "",
 }) {
     const rawPages = splitPages(markdown, leadName);
     const pages = buildPages(rawPages, id, name, scanCaptions(markdown).captions);
-    if (infobox.trim() && pages.length) {
-        pages[0].text.content = `${infobox}\n${pages[0].text.content}`;
+    for (const box of infoboxes) {
+        const pageId = makeId("journal-infobox-page", `${id}:${box.id}`);
+        pages.push({
+            _id: pageId,
+            name: box.name,
+            type: "text",
+            title: { show: true, level: 1 },
+            text: { format: 1, content: box.html },
+            _key: `!journal.pages!${id}.${pageId}`,
+        });
     }
     if (notice.trim() && pages.length) {
         pages[0].text.content = `${notice}\n${pages[0].text.content}`;
@@ -522,7 +527,15 @@ export class Journals extends BasePackCompiler {
             id,
             name,
             markdown,
-            infobox: infoboxesToHtml(boxes, { link: linkToUuid }),
+            infoboxes: boxes.map((box) => ({
+                id: box.id,
+                name: `${
+                    box.id === "note" ? "Properties"
+                    : box.id === "sohl" ? "SoHL"
+                    : "HM3"
+                } Infobox`,
+                html: infoboxesToHtml([box], { link: linkToUuid }),
+            })),
             // Whether the entry is settled, asked of the tag through the one
             // reader of it. This sits here rather than in `buildJournalEntry`
             // for the reason `skipNote` runs first: a note with no prose
