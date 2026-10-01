@@ -639,9 +639,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             anchorPrefix,
             captions: numberedCaptions,
         });
-        // The infobox is generated content in document order — prepended,
-        // before the prose. An image the note authored ahead of it still comes
-        // first, because the image lives in the body and the body follows.
+        // Infoboxes follow the authored body within this note's entry.
         const boxes = noteInfoboxes(page.fm, {
             resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
             router: routerFor(resolved),
@@ -651,10 +649,9 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             link: (value) => linkToTypst(value, plan.links, labelFor),
         });
         // Whether the entry is settled comes before anything it says: the
-        // notice leads the leaf, ahead of the panel, which is the position it
-        // holds on every other surface.
+        // notice leads the leaf, before the authored body.
         const notice = isDraftNote(page.fm) ? draftNoticeTypst() : "";
-        const parts = [notice, panel, prose].filter((part) => part);
+        const parts = [notice, prose, panel].filter((part) => part);
         return parts.join("\n\n");
     };
 

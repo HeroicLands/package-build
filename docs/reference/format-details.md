@@ -11,10 +11,12 @@ subType: reference
 
 Markdown generates a JournalEntry: content before the first H1 becomes its "Introduction" page, and each H1 begins another page. The document Address is `<package>-note-<note_type>-<shortcode>`.
 
-An **infobox** is prepended to the entry's first page, before the prose. It is
-not a page of its own: a page is what a Foundry UUID addresses, and a summary a
-reader has to navigate to is a summary they do not see. What the box holds, and
-where it sits in every other medium, is [the infobox](#the-infobox) below.
+Each emitted infobox becomes a separate page at the end of the JournalEntry,
+after every authored page. The page names are **Properties Infobox**,
+**SoHL Infobox**, and **HM3 Infobox**, in that order where emitted. Generated
+page ids derive from the entry and box identity, separately from authored
+heading names and anchors. An authored heading may share an infobox page name.
+What the boxes hold is [the infobox](#the-infobox) below.
 
 **There are two kinds of infobox.**
 
@@ -62,16 +64,13 @@ For web pages, the full Markdown body renders as HTML with its infoboxes.
 
 ### The infobox
 
-**The infobox is generated content at a known position — prepended, before the
-prose.** It is not a floating sidebar and it is not defined in a rendering
-template. The toolchain settles what each box holds; each medium lays that out
-its own way.
+**The toolchain settles what each box holds; each medium places it.**
 
-| medium  | placement                                              | collapsing                |
-| ------- | ------------------------------------------------------ | ------------------------- |
-| book    | flows in the column measure, breaking between sections | none, and none needed     |
-| website | side rail on wide screens, inline on narrow            | `<details>`, default open |
-| Foundry | inlined, the page being narrow                         | `<details>`, default open |
+| medium  | placement                                                                                                     | collapsing                |
+| ------- | ------------------------------------------------------------------------------------------------------------- | ------------------------- |
+| book    | after the note's authored body, before the next entry; flows in the column measure, breaking between sections | none                      |
+| website | side rail on wide screens, inline on narrow screens                                                           | `<details>`, default open |
+| Foundry | one page per emitted box, after all authored pages                                                            | `<details>`, default open |
 
 Two columns are print-only. A scrolling page has no fixed viewport, so columns
 make a reader travel down and back up, and a narrow screen collapses to one
@@ -79,8 +78,8 @@ column regardless.
 
 **Six rules hold in every medium.**
 
-1. **It is content in document order**, prepended before the prose. An image
-   authored before it appears before it.
+1. **Placement belongs to the medium**, as described above. Authored images
+   remain in the body in their authored order.
 2. **It contains no image.** A picture is authored in the text with its own
    directive, and its position governs.
 3. **A section is the unit that flows.** Sections are whole and unbreakable and
@@ -442,16 +441,16 @@ surface:
 > **Draft.** This entry is unfinished. What it states may change, and nothing in
 > it is settled.
 
-It leads the entry — above the infobox and above the prose — because a reader
+It leads the entry, before the authored content, because a reader
 deciding whether to rely on an entry has to be told before they read it. Where
 it lands:
 
-| Surface      | What carries it                                                      |
-| ------------ | -------------------------------------------------------------------- |
-| JournalEntry | a `blockquote.sohl-draft-notice` at the head of the first page       |
-| Actor        | the dossier the sheet draws — SoHL's `dossier`, HM3's `biography`    |
-| The book     | a drawn mark and a left rule between the entry's plate and its panel |
-| The website  | the theme's own notice, above the infobox rail and the prose         |
+| Surface      | What carries it                                                              |
+| ------------ | ---------------------------------------------------------------------------- |
+| JournalEntry | a `blockquote.sohl-draft-notice` at the head of the first page               |
+| Actor        | the dossier the sheet draws — SoHL's `dossier`, HM3's `biography`            |
+| The book     | a drawn mark and a left rule between the entry's plate and its authored body |
+| The website  | the theme's own notice, above the infobox rail and the prose                 |
 
 **An Actor carries it once.** A being's prose reaches two fields, and a document
 saying the same thing twice teaches a reader to skip it — a printed sheet draws

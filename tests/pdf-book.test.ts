@@ -227,6 +227,32 @@ it("renders draft and unresolved links as book text", () => {
     }
 });
 
+it("places infoboxes after authored content and before the next entry", () => {
+    const dir = makeRepo("content");
+    try {
+        const built = build(dir, "--no-compile");
+        expect(built.status).toBe(0);
+        const dist = path.join(dir, "build/dist");
+        const source = fs.readFileSync(
+            path.join(
+                dist,
+                fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!,
+            ),
+            "utf8",
+        );
+        const prose = source.indexOf("A short blade");
+        const panel = source.indexOf("#infobox-panel[", prose);
+        const nextProse = source.indexOf("A round shield.");
+        expect(prose).toBeGreaterThan(0);
+        expect(panel).toBeGreaterThan(prose);
+        expect(panel).toBeLessThan(nextProse);
+        const entryStart = source.lastIndexOf("#entry", prose);
+        expect(source.slice(entryStart, prose)).not.toContain("#infobox-panel[");
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
 describe("--book-version", () => {
     // `--version` collides with yargs' own reserved top-level option, so the
     // CLI accepts the stamp under this name instead; this is what proves the

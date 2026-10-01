@@ -417,7 +417,7 @@ The infobox declarations this toolchain ships, one per system, and the single ca
 
 ### `engine.infoboxRender`
 
-Drawing a declared infobox: HTML for a Foundry Journal Page, Typst for the book. The website's boxes travel in front matter and the site theme draws them, so there is no renderer for it here.
+Drawing a declared infobox: HTML for separate Foundry pages appended after authored pages, Typst panels after each note’s authored body in the book. The website's boxes travel in front matter and the site theme draws them, so there is no renderer for it here.
 
 | Export                 | Signature                             | Returns   | Use it when                                                              |
 | ---------------------- | ------------------------------------- | --------- | ------------------------------------------------------------------------ |

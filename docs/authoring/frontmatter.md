@@ -39,4 +39,4 @@ One body describes the subject for both systems. A being's `{#appearance}` and `
 
 ## Publication and summaries
 
-A note infobox draws from shared `data`. A being profile shows its top-level `subType` as `Type: Character`, `Type: NPC`, or `Type: Creature`. A system infobox draws from the system's fields, and a mapped system with no document says “Not available.” The same authored body appears in Foundry, on the website, and in the book; presentation adapts to each medium. [Infobox details](../reference/format-details.md#the-infobox) describe field order and empty values.
+A note infobox draws from shared `data`. A being profile shows its top-level `subType` as `Type: Character`, `Type: NPC`, or `Type: Creature`. A system infobox draws from the system's fields, and a mapped system with no document says “Not available.” The same authored body appears in Foundry, on the website, and in the book; the book places boxes after the authored body, Foundry appends one page per box, and the website places boxes in its responsive side rail. [Infobox details](../reference/format-details.md#the-infobox) describe field order and empty values.
