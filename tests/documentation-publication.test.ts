@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -25,14 +25,17 @@ function markdownFiles(directory: string): string[] {
 }
 
 describe("package documentation", () => {
-    it("keeps this repository's build independent of the Hugo theme", () => {
+    it("keeps this repository's documentation in Markdown", () => {
         const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
         const configData = YAML.parse(readFileSync(configFile, "utf8"));
         expect(pkg.devDependencies).not.toHaveProperty("@heroiclands/hugo-theme");
         expect(
             Object.keys(pkg.scripts).filter((name) => /^(?:build|serve):site/.test(name)),
         ).toEqual([]);
+        expect(Object.keys(pkg.scripts).filter((name) => /^build:book/.test(name))).toEqual([]);
         expect(configData).not.toHaveProperty("site");
+        expect(configData).not.toHaveProperty("pdf");
+        expect(existsSync(path.join(root, "book.yaml"))).toBe(false);
     });
 
     it("uses the toolchain's namespace for this repository's documentation", () => {
@@ -42,18 +45,14 @@ describe("package documentation", () => {
         expect(config.publish.address.prefix).toBe("");
     });
 
-    it("selects every authored guide and reference for the book exactly once", () => {
+    it("keeps each authored guide and reference addressable", () => {
         const notes = markdownFiles(config.paths.content).map(
             (file) => parseMarkdownFile(file).frontmatter,
         );
         const docs = notes.filter((fm) => fm?.type === "doc");
         expect(notes.filter((fm) => fm?.type === "homepage")).toHaveLength(1);
         expect(docs).toHaveLength(markdownFiles(config.paths.content).length - 1);
-        const book = YAML.parse(readFileSync(path.join(root, "book.yaml"), "utf8"));
-        const selected = book.contents.flatMap((section: any) =>
-            section.contents.map((entry: any) => /shortcode = '([^']+)'/.exec(entry.filter)?.[1]),
-        );
-        expect(selected.sort()).toEqual(docs.map((fm) => fm.shortcode).sort());
+        expect(new Set(docs.map((fm) => fm.shortcode)).size).toBe(docs.length);
     });
 
     it("keeps every local Markdown link inside the addressable guide tree", () => {

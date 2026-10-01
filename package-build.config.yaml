@@ -2,9 +2,5 @@ contentPackage: packagebuild
 packageKind: documentation
 paths:
     content: docs
-# This repository does not generate its own site. Its Hugo theme dependency would
-# form a cycle because @heroiclands/hugo-theme uses package-build for releases.
-pdf:
-    title: Package Build Documentation
-    document: book.yaml
-    out: build/pdf
+# This repository generates neither a site nor a book. Its Hugo theme dependency
+# would form a cycle because @heroiclands/hugo-theme uses package-build for releases.
