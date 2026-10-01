@@ -1,5 +1,12 @@
 # @heroiclands/package-build
 
+## 22.20.0
+
+### Minor Changes
+
+- Content checks require characters and NPCs to name an archetype and reject unrecognized archetypes; creatures may omit them.
+- Names with unsupported fields now fail validation, and aliases appear beneath the name in infoboxes across published formats.
+
 ## 22.19.0
 
 ### Minor Changes
