@@ -51,33 +51,40 @@ describe("Address read and write boundaries", () => {
         let count = 0;
         for (const type of Object.keys(NOTE_VOCABULARY)) {
             for (const p of addressPositions({ type }, context)) {
-                const fm: any = { type };
-                let owner = fm;
-                p.path.forEach((part, index) => {
-                    const key = part === "*" ? 0 : part;
-                    if (index === p.path.length - 1) {
-                        const text = `${p.type ?? (p.path.join(".") === "data.socialTies" ? "being" : "lore")}-sample`;
-                        owner[key] =
-                            p.shape === "keys" ? { [text]: "rival" }
-                            : p.shape === "list" ? [text]
-                            : p.shape === "scalar-or-map" ? { default: text }
-                            : text;
-                    } else owner = owner[key] = p.path[index + 1] === "*" ? [] : {};
-                });
-                decodeNoteAddresses(fm, context);
-                const read = (tree: any) =>
-                    p.path.reduce((value, key) => value[key === "*" ? 0 : key], tree);
-                const result = read(fm);
-                const tuple =
-                    p.shape === "keys" ? result.entries[0].target
-                    : p.shape === "list" ? result[0]
-                    : p.shape === "scalar-or-map" ? result.default
-                    : result;
-                expect(isAddressTuple(tuple), `${type}:${p.path.join(".")}`).toBe(true);
-                expect(JSON.stringify(read(encodeAddresses(fm)))).toContain(
-                    `world-${tuple.system}-${tuple.type}-sample`,
-                );
-                count++;
+                // A position admitting two shapes is exercised in both: which
+                // one a note wrote is not knowable from the declaration, so a
+                // specimen of one half proves nothing about the other.
+                const shapes =
+                    p.shape === "keys-or-list" ? ["keys" as const, "list" as const] : [p.shape];
+                for (const shape of shapes) {
+                    const fm: any = { type };
+                    let owner = fm;
+                    p.path.forEach((part, index) => {
+                        const key = part === "*" ? 0 : part;
+                        if (index === p.path.length - 1) {
+                            const text = `${p.type ?? (p.path.join(".") === "data.socialTies" ? "being" : "lore")}-sample`;
+                            owner[key] =
+                                shape === "keys" ? { [text]: "rival" }
+                                : shape === "list" ? [text]
+                                : shape === "scalar-or-map" ? { default: text }
+                                : text;
+                        } else owner = owner[key] = p.path[index + 1] === "*" ? [] : {};
+                    });
+                    decodeNoteAddresses(fm, context);
+                    const read = (tree: any) =>
+                        p.path.reduce((value, key) => value[key === "*" ? 0 : key], tree);
+                    const result = read(fm);
+                    const tuple =
+                        shape === "keys" ? result.entries[0].target
+                        : shape === "list" ? result[0]
+                        : shape === "scalar-or-map" ? result.default
+                        : result;
+                    expect(isAddressTuple(tuple), `${type}:${p.path.join(".")}`).toBe(true);
+                    expect(JSON.stringify(read(encodeAddresses(fm)))).toContain(
+                        `world-${tuple.system}-${tuple.type}-sample`,
+                    );
+                    count++;
+                }
             }
         }
         expect(count).toBeGreaterThan(0);

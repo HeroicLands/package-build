@@ -29,15 +29,18 @@
  * `ACTOR_VAULT_TYPE = "being"` here and emitted `type: "being"` several hundred
  * lines below, which made the two vocabularies agree by coincidence.
  *
- * It was two content types — `character` and `creature` — which compiled to the
- * same `being` with no branch anywhere between them; they were retired in
- * retired, and are reported by `assertTypeNotRetired` in
- * `engine/ids.mjs`.
- *
  * Attributes (`sohl.attributes` map) become embedded attribute items with
  * `scoreBase` set from the map value. Each entry in `sohl.items` is similarly
  * resolved by `(type, shortcode)` and deep-merged with the entry's other
  * properties. `sohl.skills` is ignored.
+ *
+ * **A membership is derived, never authored here.** `data.affiliations` names
+ * the bodies a being belongs to and the standing it holds in each, and each
+ * entry becomes one embedded affiliation item: the entry's `rank` is that
+ * item's `system.level` and its `office` is `system.office`. A standing is a
+ * fact about the setting rather than about one system — it does not become true
+ * because SoHL is installed — so the system block states none of it, and a
+ * sheet and a page cannot come to disagree.
  *
  * Not a standalone script — exports the `Actors` compiler class, imported and
  * driven by `engine/generate.mjs`. Must run after the items passes, since it
@@ -58,6 +61,10 @@ import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 // verbatim, and `sohl.img` / `sohl.effects` / `sohl.flags` overriding their
 // shared top-level forms for this system alone.
 import { blockProperty, mergeSystemData } from "../engine/system-block.mjs";
+// A being's memberships and the standing it holds in each, read from the one
+// place they are authored. The rank *is* the affiliation item's `level`, so
+// there is nothing to map and nowhere for a second authoring to disagree.
+import { readStandings } from "../engine/standings.mjs";
 
 /**
  * The system this pass compiles for — the block its notes write.
@@ -256,7 +263,56 @@ export class Actors extends SystemActorCompiler {
             });
         }
 
+        for (const embedded of this.buildMemberships(itemsMap, actorId, fm, ctx)) {
+            items.push(embedded);
+        }
+
         this.openUnopenedSkills(items, ctx);
+        return items;
+    }
+
+    /**
+     * One embedded affiliation item per body the being belongs to.
+     *
+     * The body's own compiled item is the model, so a membership carries
+     * whatever that body declares — its subtype, its common skills, its
+     * standings toward others — and the being adds only what is true of *this*
+     * membership: the rung it stands on and the post it holds.
+     *
+     * A being naming a body that compiles to no item is a finding rather than a
+     * silently dropped membership: the note says the being belongs somewhere,
+     * and a sheet that shows nothing says it does not.
+     *
+     * @param {Map<string, object>} itemsMap - The predefined-item catalogue.
+     * @param {string} actorId - The owning actor's id.
+     * @param {object} fm - The note's frontmatter.
+     * @param {string} ctx - Diagnostic context.
+     * @returns {object[]} The embedded items, in the order the note names them.
+     */
+    buildMemberships(itemsMap, actorId, fm, ctx) {
+        const { entries } = readStandings(fm?.data?.affiliations);
+        const items = [];
+        for (const { body, standing } of entries) {
+            const shortcode = body?.shortcode;
+            if (!shortcode) continue;
+            const level = Number(standing?.rank);
+            const office = typeof standing?.office === "string" ? standing.office.trim() : "";
+            const system = {
+                ...(Number.isFinite(level) ? { level } : {}),
+                ...(office ? { office } : {}),
+            };
+            const embedded = this.resolveEmbedded(
+                itemsMap,
+                actorId,
+                "affiliation",
+                shortcode,
+                Object.keys(system).length ? { system } : {},
+                `affiliations:${shortcode}`,
+                ctx,
+                { fmKey: "affiliations", modelPackage: body.package ?? null },
+            );
+            if (embedded) items.push(embedded);
+        }
         return items;
     }
 
