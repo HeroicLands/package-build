@@ -54,6 +54,39 @@ describe("an icon follows the reader's colour scheme", () => {
     it("stages a non-SVG unchanged, by declining to transform it", () => {
         expect(transform("/somewhere/portrait.webp")).toBeNull();
     });
+
+    // A shape drawn with strokes ships a black rim on a cream fill otherwise —
+    // invisible in a dark compendium window, a thin dark outline elsewhere.
+    it("paints an explicitly black stroke, and says so for both schemes", () => {
+        const out = injectAdaptiveFill(
+            '<svg viewBox="0 0 10 10"><path fill="#000" stroke="#000" d="M0 0h10v10H0z"/></svg>',
+        );
+
+        expect(out).toContain("stroke:#211d16");
+        expect(out).toContain("stroke:#ece3cf");
+    });
+
+    it("recognizes the three-digit, six-digit and named spellings of a black stroke", () => {
+        for (const value of ["#000", "#000000", "black"]) {
+            const out = injectAdaptiveFill(`<svg><path stroke="${value}"/></svg>`);
+            expect(out).toContain("stroke:#211d16");
+        }
+    });
+
+    // SVG's default stroke is `none`: a shape with no `stroke` attribute has
+    // no outline to theme, so the stroke rule carries no absence clause the
+    // way the fill rule's `path:not([fill])` does.
+    it("carries no catch-all for a shape with no stroke attribute", () => {
+        const out = injectAdaptiveFill("<svg><path/></svg>");
+        expect(out).not.toContain(":not([stroke])");
+    });
+
+    // Not one of the three literals the fill rule matches either — the same
+    // precedent applies to stroke.
+    it("carries no selector for a near-black stroke", () => {
+        const out = injectAdaptiveFill("<svg><path/></svg>");
+        expect(out).not.toContain('[stroke="#010101"]');
+    });
 });
 
 describe("a transform is named, or it is a path", () => {
