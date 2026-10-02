@@ -100,6 +100,7 @@ import { checkSocialTies } from "./social-ties.mjs";
 import { checkStandings } from "./standings.mjs";
 import { STANDING_BODY_TYPES } from "./standing-terms.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
+import { checkRankLadder } from "./rank-ladder.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
 import { checkCultureChoice } from "./culture-choice.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
@@ -931,6 +932,12 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "governance.ranks",
                 ...LIST,
+                // A rung is `{level, title, description}` with an optional
+                // `lore`. The shape check sees a list and stops there, so the
+                // rungs inside it are checked here — a ladder is what a being's
+                // `rank` indexes into, and an incomplete rung resolves to a
+                // standing with no name.
+                check: checkRankLadder,
                 describe: "The ladder of ranks the body confers — level, title, description.",
             },
             {

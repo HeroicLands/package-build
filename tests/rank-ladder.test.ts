@@ -1,0 +1,261 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
+/**
+ * A rung states its level, its title and its description, or it is a finding.
+ *
+ * Every case below is driven from an authored YAML fixture rather than from a
+ * hand-built object, because half of what is being checked is the position: a
+ * finding about a rung has to name the line that rung is written on, and only
+ * a real frontmatter fence has lines.
+ */
+
+import { describe, expect, it } from "vitest";
+import YAML from "yaml";
+
+import { checkRankLadder } from "../engine/rank-ladder.mjs";
+import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+
+/**
+ * A note as the linter hands it to a field check: the raw source, and the
+ * frontmatter parsed out of it.
+ *
+ * @param fence - The YAML body of the note's frontmatter fence.
+ */
+function note(fence: string) {
+    const raw = `---\n${fence}\n---\n\nProse.\n`;
+    return {
+        file: "assets/content/Affiliations/Vrystwald_Tribes.md",
+        raw,
+        fm: YAML.parse(fence) as Record<string, unknown>,
+    };
+}
+
+/** The ladder fence, with each rung written as authored. */
+function ladder(...rungs: string[]) {
+    return [
+        "type: affiliation",
+        "shortcode: vrystwldtrbs",
+        "data:",
+        "    governance:",
+        "        ranks:",
+        ...rungs,
+    ].join("\n");
+}
+
+const messages = (fence: string) => checkRankLadder(note(fence)).map((f) => f.message);
+
+describe("a complete rung", () => {
+    // The whole contract: three keys, nothing further required, and in
+    // particular no advisory about the `lore` a rung did not need.
+    it("is clean with exactly level, title and description", () => {
+        expect(
+            checkRankLadder(
+                note(
+                    ladder(
+                        "            - { level: 5, title: Hárár, description: First among them. }",
+                    ),
+                ),
+            ),
+        ).toEqual([]);
+    });
+
+    it("is clean with a lore Address as well", () => {
+        expect(
+            checkRankLadder(
+                note(
+                    ladder(
+                        "            - level: 5",
+                        "              title: Hárár",
+                        "              description: First among them.",
+                        "              lore: lore-harar-standing",
+                    ),
+                ),
+            ),
+        ).toEqual([]);
+    });
+
+    it("is clean for a body that declares no ladder", () => {
+        expect(checkRankLadder(note("type: affiliation\nshortcode: greenwardens"))).toEqual([]);
+    });
+
+    // `kind: "list"` on the field already reports a ranks that is not a list,
+    // and a finding reported twice is read once and fixed neither time.
+    it("leaves a ranks that is not a list to the shape check", () => {
+        expect(
+            checkRankLadder(
+                note("type: affiliation\ndata:\n    governance:\n        ranks: a ladder"),
+            ),
+        ).toEqual([]);
+    });
+});
+
+describe("an incomplete rung", () => {
+    it("reports a missing level", () => {
+        expect(messages(ladder("            - { title: Hárár, description: First. }"))).toEqual([
+            "rank 1 of the ladder needs a level — the rung's position on this body's own ladder",
+        ]);
+    });
+
+    it("reports a missing title", () => {
+        expect(messages(ladder("            - { level: 5, description: First. }"))).toEqual([
+            "rank 5 needs a title: what the standing is called",
+        ]);
+    });
+
+    it("reports a missing description", () => {
+        expect(messages(ladder("            - { level: 5, title: Hárár }"))).toEqual([
+            "rank 5 needs a description: what the standing is",
+        ]);
+    });
+
+    it("reports an empty title and an empty description as absent", () => {
+        expect(
+            messages(ladder('            - { level: 5, title: "", description: "   " }')),
+        ).toEqual([
+            "rank 5 needs a title: what the standing is called",
+            "rank 5 needs a description: what the standing is",
+        ]);
+    });
+
+    // Three problems, three findings: a reader fixing a ladder wants the whole
+    // of it in one pass rather than one problem per build.
+    it("reports every problem on one rung, not the first", () => {
+        expect(messages(ladder("            - {}"))).toEqual([
+            "rank 1 of the ladder needs a level — the rung's position on this body's own ladder",
+            "rank 1 of the ladder needs a title: what the standing is called",
+            "rank 1 of the ladder needs a description: what the standing is",
+        ]);
+    });
+
+    it("reports a level that is not a whole number", () => {
+        expect(
+            messages(ladder("            - { level: 2.5, title: Hárár, description: First. }")),
+        ).toEqual(["rank 1 of the ladder has a level that is not a whole number"]);
+    });
+
+    it("reports a level that is not a number at all", () => {
+        expect(
+            messages(ladder("            - { level: fifth, title: Hárár, description: First. }")),
+        ).toEqual(["rank 1 of the ladder has a level that is not a whole number"]);
+    });
+
+    // YAML hands a quoted scalar back as a string, and the ladder reads it as a
+    // number either way, so refusing it would fail a correct ladder.
+    it("accepts a quoted whole number", () => {
+        expect(
+            messages(ladder('            - { level: "5", title: Hárár, description: First. }')),
+        ).toEqual([]);
+    });
+
+    it("reports a rung that is not a map", () => {
+        expect(messages(ladder("            - Hárár"))).toEqual([
+            "rank 1 of the ladder must be a map of level, title and description",
+        ]);
+    });
+
+    it("reports a key that is none of the four", () => {
+        expect(
+            messages(
+                ladder(
+                    "            - { level: 5, title: Hárár, description: First., insignia: A horn. }",
+                ),
+            ),
+        ).toEqual([
+            "rank 5 has unknown key insignia; a rung takes level, title, description, lore",
+        ]);
+    });
+
+    it("names each rung of a ladder with several problems", () => {
+        expect(
+            messages(
+                ladder(
+                    "            - { level: 0, title: Vrystrith, description: Outcast. }",
+                    "            - { level: 4, description: Respected. }",
+                    "            - { title: Hárár, description: First. }",
+                ),
+            ),
+        ).toEqual([
+            "rank 4 needs a title: what the standing is called",
+            "rank 3 of the ladder needs a level — the rung's position on this body's own ladder",
+        ]);
+    });
+});
+
+describe("where a finding points", () => {
+    const fence = ladder(
+        "            - { level: 0, title: Vrystrith, description: Outcast. }",
+        "            - level: 4",
+        "              title: Fródrád",
+        "              insignia: A horn.",
+        "            - { level: 5, title: Hárár }",
+    );
+
+    it("names the file on every finding", () => {
+        for (const finding of checkRankLadder(note(fence))) {
+            expect(finding.file).toBe("assets/content/Affiliations/Vrystwald_Tribes.md");
+            expect(finding.severity).toBe("error");
+        }
+    });
+
+    // A value that was written has a position of its own, so the finding points
+    // at the offending value rather than at the rung holding it.
+    it("points at a wrong value's own line and column", () => {
+        const [unknownKey] = checkRankLadder(note(fence));
+        const lines = note(fence).raw.split("\n");
+
+        expect(unknownKey.message).toContain("unknown key insignia");
+        expect(lines[(unknownKey.line as number) - 1]).toContain("insignia: A horn.");
+        expect(lines[(unknownKey.line as number) - 1][(unknownKey.column as number) - 1]).toBe("A");
+    });
+
+    // A key that was never written has no position, so the rung it belongs to
+    // is the nearest thing that does — rather than a guessed `1:1`, which
+    // would send a reader to the frontmatter's first line every time.
+    it("falls back to the rung for a key that was never written", () => {
+        const findings = checkRankLadder(note(fence));
+        const lines = note(fence).raw.split("\n");
+        const lineOf = (message: string) => {
+            const finding = findings.find((f) => f.message === message);
+            expect(finding).toBeDefined();
+            return lines[(finding!.line as number) - 1];
+        };
+
+        // A rung written as a block maps to its first key's line, and one
+        // written in flow to the brace that opens it. Both are the rung.
+        expect(lineOf("rank 4 needs a description: what the standing is")).toContain("level: 4");
+        expect(lineOf("rank 5 needs a description: what the standing is")).toContain(
+            "level: 5, title: Hárár",
+        );
+    });
+
+    it("drops the position rather than guessing when there is no source", () => {
+        const findings = checkRankLadder({
+            file: "x.md",
+            fm: { data: { governance: { ranks: [{}] } } },
+        });
+
+        expect(findings.length).toBe(3);
+        for (const finding of findings) {
+            expect(finding.line).toBeUndefined();
+            expect(finding.column).toBeUndefined();
+        }
+    });
+});
+
+describe("the vocabulary", () => {
+    // The check reaches a note because the field declares it. Wiring it is the
+    // half that a passing unit test cannot observe, so it is read out of the
+    // vocabulary rather than assumed.
+    it("declares the check on governance.ranks", () => {
+        const fields = (
+            NOTE_VOCABULARY as unknown as Record<
+                string,
+                { data?: Array<{ name: string; check?: unknown }> }
+            >
+        ).affiliation.data;
+        const field = fields?.find((f) => f.name === "governance.ranks");
+
+        expect(field).toBeDefined();
+        expect(field?.check).toBe(checkRankLadder);
+    });
+});

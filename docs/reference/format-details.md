@@ -2942,12 +2942,39 @@ two is the commonest way to get a non-monarchy wrong.
 **Rank**
 Definition of a level within the organization (e.g., Priest, Layperson, Member, Gang Leader, Master, etc.)
 
-| Property      | Values    | Description                                                                                                                          |
-| ------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `level`       | number    | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
-| `title`       | string    | Title associated with the Rank                                                                                                       |
-| `description` | string    | Description of the Rank                                                                                                              |
-| `lore`        | `Address` | The standing this rank _is_ — a `lore` note of subType `law`, shared with every other body that confers the same thing               |
+| Property      | Required | Values    | Description                                                                                                                          |
+| ------------- | -------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `level`       | yes      | integer   | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
+| `title`       | yes      | string    | Title associated with the Rank                                                                                                       |
+| `description` | yes      | string    | Description of the Rank                                                                                                              |
+| `lore`        | no       | `Address` | The standing this rank _is_ — a `lore` note of subType `law`, shared with every other body that confers the same thing               |
+
+**`level`, `title` and `description` together are a complete statement of a
+rung**, and nothing further is required for a ladder to be correct. Each is an
+**error** when it is missing or empty, and a `level` that is not a whole number
+is an error too: the ladder is what a member's `rank` indexes into, so a rung
+with no title makes a standing that resolves to nothing, and one with no
+description ships a rung that says nothing on a sheet or a page. A rung accepts
+only these four keys, and each problem on a rung is reported separately, so a
+ladder with three is fixed in one pass rather than three builds.
+
+```yaml
+data:
+  governance:
+    ranks:
+      - { level: 0, title: Vrystrith, description: Kinless and owed nothing. }
+      - { level: 4, title: Fródrád, description: A householder whose word carries. }
+      - level: 5
+        title: Hárár
+        description: First among them, by the assent of the householders.
+        lore: lore-harar-standing
+```
+
+**Reach for `lore` only where the standing needs more said about it than a
+description can hold** — obligations, rights, what it takes to enter it, what
+ends it. Most rungs do not: a description that states what the standing is has
+already said the whole of it, and a note that restates the rung it hangs off
+costs a reader a click and tells them nothing.
 
 **A rank's `lore` is shared; its `title` is not.** A Normen kingdom calls it
 `Thrall` and a Vylarian province calls it `Slave`, and they mean one standing:
