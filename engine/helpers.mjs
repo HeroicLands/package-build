@@ -26,6 +26,7 @@
  */
 
 import { buildReferenceTargets } from "./reference-targets.mjs";
+import { standingsDigest } from "./standings.mjs";
 
 import { decodeNoteAddresses } from "./note-addresses.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
@@ -834,6 +835,10 @@ export function buildContentLinkIndex(
             // can group by the family its target declares rather than only by
             // where the target lives.
             subType: fm.subType ?? null,
+            // The rungs and posts this body confers, carried for the same
+            // reason: a being holds a rank as a number, and the body is where
+            // what that number is called is declared.
+            standings: standingsDigest(fm) ?? null,
             name: fm.name?.full ?? base,
             // Whether the note is tagged `draft`. Read from the tag
             // vocabulary that declares it, and used for one thing: a link

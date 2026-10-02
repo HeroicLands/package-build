@@ -62,8 +62,12 @@ export const STRUCTURED_ADDRESSES = Object.freeze([
 export function addressPositions(fm, context = {}) {
     const out = [];
     for (const field of dataFields(fm.type) ?? []) {
+        // A field that admits both a list and a map declares both halves, and
+        // which one a note wrote is not knowable from the declaration — so the
+        // position says "either" and the conversion reads the value's shape.
         const shape =
             field.kind === "address" ? "value"
+            : field.kind === "list-or-map" ? "keys-or-list"
             : field.keyKind === "address" ? "keys"
             : field.entryKind === "address" ? field.kind
             : undefined;
@@ -197,7 +201,7 @@ export function decodeNoteAddresses(fm, context) {
                 `\`${path.join(".")}\` ${description}: ${JSON.stringify(value)}`,
             );
             error.keyPath = path;
-            error.addressKey = position.shape === "keys";
+            error.addressKey = position.shape === "keys" || position.shape === "keys-or-list";
             throw error;
         };
         const read = (value, path) => {
@@ -217,7 +221,16 @@ export function decodeNoteAddresses(fm, context) {
         };
         const convert = (value, path) => {
             if (value == null || value === "") return value;
-            if (position.shape === "keys") {
+            // Whichever of the two shapes the note wrote, read as that one. An
+            // empty list is the property editor's emptied map and converts to
+            // nothing either way.
+            const shape =
+                position.shape === "keys-or-list" ?
+                    Array.isArray(value) && value.length ?
+                        "list"
+                    :   "keys"
+                :   position.shape;
+            if (shape === "keys") {
                 if (value instanceof AddressEntries) return value;
                 if (Array.isArray(value) && value.length === 0) return value;
                 if (typeof value !== "object" || Array.isArray(value))
@@ -230,15 +243,11 @@ export function decodeNoteAddresses(fm, context) {
                     })),
                 );
             }
-            if (position.shape === "list") {
+            if (shape === "list") {
                 if (!Array.isArray(value)) fail(value, path, "must be a list of Addresses");
                 return value.map((v, i) => read(v, [...path, i]));
             }
-            if (
-                position.shape === "scalar-or-map" &&
-                typeof value === "object" &&
-                !isAddressTuple(value)
-            ) {
+            if (shape === "scalar-or-map" && typeof value === "object" && !isAddressTuple(value)) {
                 if (Array.isArray(value)) {
                     if (!value.length) return value;
                     fail(value, path, "must be an Address or pack map");

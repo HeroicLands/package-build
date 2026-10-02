@@ -583,7 +583,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
  * @param {object} index - From {@link buildWikilinkIndex}.
  * @param {unknown} ref - The reference, as authored.
  * @param {object} [hint] - `{type}`, where the caller knows what it expects.
- * @returns {{name?: string, uuid?: string, address?: import("./address.mjs").AddressTuple, subType?: string}|undefined}
+ * @returns {{name?: string, uuid?: string, address?: import("./address.mjs").AddressTuple, subType?: string, standings?: object}|undefined}
  *   The target, or `undefined` where nothing answers.
  */
 export function resolveReference(index, ref, hint) {
@@ -611,6 +611,7 @@ export function resolveReference(index, ref, hint) {
         return {
             name: published.name,
             subType: published.subType,
+            ...(published.standings ? { standings: published.standings } : {}),
             ...(published.uuid ? { uuid: published.uuid } : {}),
             address: tuple,
         };
@@ -638,6 +639,7 @@ export function resolveReference(index, ref, hint) {
         return {
             name: local.name,
             subType: local.subType,
+            ...(local.standings ? { standings: local.standings } : {}),
             ...(uuid ? { uuid } : {}),
             address: tuple,
         };

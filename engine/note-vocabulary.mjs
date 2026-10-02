@@ -97,6 +97,8 @@ import {
 // question, asked the way `checkPlace` and `checkCalendarNote` are.
 import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
+import { checkStandings } from "./standings.mjs";
+import { STANDING_BODY_TYPES } from "./standing-terms.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
 import { checkCultureChoice } from "./culture-choice.mjs";
@@ -128,12 +130,20 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  * @typedef {object} DataFieldSpec
  * @property {string} name - The key under `data:`, dotted for a nested one
  *   (`charges.value`).
- * @property {"string"|"number"|"boolean"|"list"|"map"|"scalar-or-map"|"address"|"shortcode"} [kind] -
+ * @property {"string"|"number"|"boolean"|"list"|"map"|"list-or-map"|"scalar-or-map"|"address"|"shortcode"} [kind] -
  *   The value's shape, for the lint. Absent means no claim is made about the
  *   value — which is the honest answer wherever the specification's stated
  *   shape and the shape notes are authored in today disagree.
  * @property {"address"|"shortcode"} [entryKind] - Type of each list or pack-map value.
- * @property {"address"|"shortcode"} [keyKind] - Type of each map key.
+ * @property {"address"|"shortcode"} [keyKind] - Type of each map key. On a
+ *   `list-or-map` field it describes the map form alone, and `entryKind` the
+ *   list form alone: reading both of one value would check a map's entries as
+ *   if they were its keys.
+ * @property {boolean} [standings] - The map's entries are standings held in the
+ *   body each is keyed by, so a row names the two together — see
+ *   {@link module:engine/standings}.
+ * @property {boolean} [roster] - The map names posts, each with a description,
+ *   so each takes a row labelled and anchored by the post's own name.
  * @property {"subType"} [keySelector] - An alternative `subType:<skill-subtype>` key.
  * @property {readonly string[]} [accepts] - Allowed Address types, separate from `ref`.
  * @property {string} [shape] - Human-readable shape, for a finding and for
@@ -213,6 +223,29 @@ const LINK = Object.freeze({ shape: "an Address", kind: "address" });
 
 /** A list of Addresses. */
 const LINKS = Object.freeze({ shape: "list of Addresses", kind: "list", entryKind: "address" });
+
+/**
+ * A being's memberships, and the standing it holds in each.
+ *
+ * A map keyed by the body's Address, whose entry is that membership's `rank`
+ * and `office` — the pair a flat list of bodies cannot state, because it has
+ * nowhere to say which body a standing is held in.
+ *
+ * **`list-or-map` is the sweep's shape**, and it says which half each
+ * declaration describes: `entryKind` the list's entries, `keyKind` the map's
+ * keys. A tree still writing the list form keeps the check it had, and the map
+ * form earns the two the body can answer — see {@link module:engine/standings}.
+ */
+const STANDINGS = Object.freeze({
+    shape: "a standing map keyed by Address, or a list of Addresses",
+    kind: "list-or-map",
+    entryKind: "address",
+    keyKind: "address",
+    standings: true,
+    ref: "affiliation",
+    accepts: STANDING_BODY_TYPES,
+    check: checkStandings,
+});
 
 /**
  * A single Address, or one per pack.
@@ -725,7 +758,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "lore",
                 accepts: ["lore"],
                 describe:
-                    "Lore concerning this being, such as the standing it holds or the law it lives under.",
+                    "Lore concerning this being — the law it lives under, the customs it is " +
+                    "subject to, the traditions it was raised in.",
             },
             {
                 name: "culture",
@@ -744,10 +778,11 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             {
                 name: "affiliations",
-                ...LINKS,
-                ref: "affiliation",
-                accepts: ["affiliation"],
-                describe: "Affiliations the being belongs to — traditions, polities, and the rest.",
+                ...STANDINGS,
+                describe:
+                    "Bodies the being belongs to, keyed by Address, each entry holding the " +
+                    "standing it holds there — `rank`, a level on that body's own ladder, " +
+                    "and `office`, a post that body names.",
             },
             {
                 name: "socialTies",
@@ -901,6 +936,10 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "governance.offices",
                 ...ANY,
+                // A map of named posts: each takes a row of its own, labelled
+                // by the post and anchored by it, so the description a body
+                // declares is a destination a being's `office` can link to.
+                roster: true,
                 check: checkDatedOffices,
                 describe: "Named offices, each with a description and optional dated holders.",
             },
