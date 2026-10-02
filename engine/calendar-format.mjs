@@ -25,7 +25,7 @@ const TOKEN =
 
 /** Brackets and braces must close; `[[]` is a literal left bracket. */
 export function calendarFormatSyntaxError(pattern) {
-    for (let position = 0; position < pattern.length;) {
+    for (let position = 0; position < pattern.length; ) {
         if (pattern.startsWith("[[]", position)) {
             position += 3;
             continue;
@@ -178,7 +178,7 @@ export function calendarPatternSegmentsForPrecision(
         ...(precision === "year" || precision === "month" ? ["D", "DD", "Do", "DDD"] : []),
         ...(precision === "year" ? ["M", "MM", "Mo", "MMM", "MMMM"] : []),
     ]);
-    for (let index = 0; index < segments.length;) {
+    for (let index = 0; index < segments.length; ) {
         if (!segments[index].token || !drop.has(segments[index].value)) {
             index++;
             continue;

@@ -28,9 +28,9 @@ holds the standing the being holds in that body:
 
 ```yaml
 data:
-    affiliations:
-        affiliation-vrystwldtrbs: { rank: 5, office: War Chief }
-        affiliation-greenwardens: {}
+  affiliations:
+    affiliation-vrystwldtrbs: { rank: 5, office: War Chief }
+    affiliation-greenwardens: {}
 ```
 
 An entry carries `rank` — a number, the level on that body's own

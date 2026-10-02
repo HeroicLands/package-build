@@ -137,9 +137,8 @@ export function systemCompilers(passes) {
     /** @type {Record<string, Record<string, Function>>} */
     const table = {};
     for (const pass of passes) {
-        const declared =
-            /** @type {{documentSubtypes?: {system?: string},
-             *   documentClass?: string, name: string}} */ (pass);
+        const declared = /** @type {{documentSubtypes?: {system?: string},
+         *   documentClass?: string, name: string}} */ (pass);
         const system = declared.documentSubtypes?.system;
         const docType = declared.documentClass;
         if (!system || !docType) {
