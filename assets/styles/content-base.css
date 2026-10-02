@@ -105,3 +105,58 @@
         grid-column: 1 / -1;
     }
 }
+
+/*
+ * Named body blocks. `:::info` and `:::warn` emit a `<section>` carrying the
+ * block's name as its class, so the appearance belongs here rather than in an
+ * inline `style` a consumer cannot override.
+ *
+ * `secret` is deliberately absent: Foundry styles `section.secret` itself and
+ * owns the reveal control on it, and a rule here would fight both.
+ *
+ * Every colour is a custom property, so a package overrides one from its own
+ * sheet without restating the layout.
+ */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    :is(section.info, section.warn) {
+    border-left: 3px solid var(--pb-block-edge);
+    background: var(--pb-block-fill);
+    color: var(--pb-block-text, inherit);
+    padding: 0.5em 0.8em;
+    margin: 0.75em 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    :is(section.info, section.warn)
+    > strong:first-child {
+    color: var(--pb-block-edge);
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) section.info {
+    --pb-block-edge: #2f6f9f;
+    --pb-block-fill: #eef6fb;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) section.warn {
+    --pb-block-edge: #9a6700;
+    --pb-block-fill: #fff5db;
+}
+
+/*
+ * A light panel keeps a dark foreground whatever the surrounding theme does to
+ * the inherited colour, because the fill does not follow it.
+ */
+@media (prefers-color-scheme: dark) {
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+        :is(section.info, section.warn) {
+        --pb-block-text: #1b1b1b;
+    }
+
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) section.info {
+        --pb-block-edge: #1d4f75;
+    }
+
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) section.warn {
+        --pb-block-edge: #7a5100;
+    }
+}

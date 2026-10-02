@@ -65,8 +65,7 @@ import { linkFindingMessage } from "./wikilink-syntax.mjs";
 import { isDraftNote } from "./note-vocabulary.mjs";
 import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { renderSecretBlocks } from "./content-secrets.mjs";
-import { renderAdmonitions } from "./content-admonitions.mjs";
+import { renderBlocks } from "./content-blocks.mjs";
 import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
@@ -152,15 +151,10 @@ md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
     return `<li id="fn${id}" class="footnote-item" value="${number}">`;
 };
 
-/** Render a note body with Foundry's secret section markup. */
+/** Render a note body with Foundry's named-block markup. */
 export function renderFoundryMarkdown(body, captions, footnoteNumbers, docId) {
-    const { markdown } = renderSecretBlocks(body, "foundry", (inner) => md.render(inner));
-    const admonitions = renderAdmonitions(markdown, (inner) => md.render(inner));
-    const captioned = renderCaptionBlocks(
-        admonitions.markdown,
-        (block) => md.render(block),
-        captions,
-    );
+    const blocks = renderBlocks(body, "foundry", (inner) => md.render(inner));
+    const captioned = renderCaptionBlocks(blocks.markdown, (block) => md.render(block), captions);
     return md.render(captioned.markdown, { footnoteNumbers, docId });
 }
 

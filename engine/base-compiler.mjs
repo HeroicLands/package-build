@@ -62,8 +62,7 @@
  */
 
 import { authoredFrontmatter } from "./index-records.mjs";
-import { renderSecretBlocks } from "./content-secrets.mjs";
-import { scanAdmonitions } from "./content-admonitions.mjs";
+import { scanBlocks } from "./content-blocks.mjs";
 import { scanCaptions } from "./content-captions.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
@@ -626,8 +625,7 @@ export class BasePackCompiler {
      *   that does not convert.
      */
     convertBody(fm, body) {
-        const secretError =
-            renderSecretBlocks(body, "book").errors[0] ?? scanAdmonitions(body).errors[0];
+        const secretError = scanBlocks(body).errors[0];
         if (secretError) {
             const error = new Error(secretError.message);
             error.position = {
