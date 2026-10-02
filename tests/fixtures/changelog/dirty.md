@@ -138,7 +138,6 @@
   being dropped.
 
   What changed that you will notice:
-
   - **Rich text is ProseMirror.** The "Highlight" block is still there, now under
     the editor's Custom insert menu. The Hârnic fonts — Lakise, Runic and
     Lankorian Blackhand — are still in the editor's font list.
@@ -178,7 +177,6 @@
   zero-valued and are now removed at source.
 
 - 35fd72f: Add Halea's rituals, and Ritual skills for seven more faiths.
-
   - **Halea now has a full ritual set.** The compendium carried a Halea _skill_ but
     no invocations for her, so a Halea cleric had nothing to draw on. There is now
     an `Esoteric/Rituals/Halea` folder holding 32 invocations: the 20 common to
@@ -205,7 +203,6 @@
   so only the pack segment differs.
 
   What changed that you will notice:
-
   - **832 new items.** Armour and clothing, containers, and the full spread of
     trade goods — food, tools, tack, containers, lighting, scribe supplies,
     instruments, spirits, raw materials and the rest. The pack goes from 625 items
@@ -296,7 +293,6 @@
 
   The reader follows declarations, not calls. Two places here were built by a
   function instead of written out, and each read back as less than it is:
-
   - **`skillBase: skillBaseField()`** recorded `skillBase` with no keys beneath
     it, while authored content writes `skillBase.value` on 54,744 embedded skills
     and `skillBase.formula` on psionics. Those correctly authored fields would
@@ -436,7 +432,6 @@
   reader as HârnMaster rather than as the manifest's `HarnMaster 3`.
 
   Two pieces of plumbing came with it, both new to this repository:
-
   - `assets/content/` now exists, with the homepage note as its only file. HM3
     uses only the packaging half of the toolchain — its compendium content is
     committed JSON under `assets/packs/` — so this is not a content tree and the

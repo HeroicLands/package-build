@@ -357,6 +357,13 @@ export function matchesKind(value, kind, context = {}) {
             // this answers is whether the value has one of the two shapes the
             // field admits. A list has neither.
             return matchesKind(value, "string") || matchesKind(value, "map");
+        case "list-or-map":
+            // A list, or a map. The two carry different facts rather than
+            // being two spellings of one — a map keyed by Address says what is
+            // true *of* each key, which a list has nowhere to put — so the
+            // field's own check is what reads the entries, and all this
+            // answers is whether the value has one of the two shapes.
+            return Array.isArray(value) || matchesKind(value, "map");
         default:
             return true;
     }
@@ -539,7 +546,13 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
 function checkDataReferences(note, field, value, segments, context, index) {
     const checks = [];
     if (field.kind === "address") checks.push({ value, path: [], kind: "address" });
-    if (field.entryKind) {
+    // A `list-or-map` field declares both halves, and each describes one shape:
+    // `entryKind` the list's entries, `keyKind` the map's keys. Reading both of
+    // one value would check a map's standings as if they were Addresses and a
+    // list's indices as if they were its keys.
+    const dual = field.kind === "list-or-map";
+    const written = Array.isArray(value) ? "list" : "map";
+    if (field.entryKind && !(dual && written === "map")) {
         if (Array.isArray(value)) {
             value.forEach((entry, i) =>
                 checks.push({ value: entry, path: [i], kind: field.entryKind }),
@@ -551,7 +564,7 @@ function checkDataReferences(note, field, value, segments, context, index) {
             });
         } else checks.push({ value, path: [], kind: field.entryKind });
     }
-    if (field.keyKind) {
+    if (field.keyKind && !(dual && written === "list")) {
         if (value instanceof AddressEntries) {
             for (const entry of value.entries)
                 checks.push({

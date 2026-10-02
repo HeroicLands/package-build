@@ -8,6 +8,7 @@ import { completeAddress, ownDocumentSystem, renderAddress } from "./address.mjs
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
+import { standingsDigest } from "./standings.mjs";
 
 /**
  * Names and published destinations for reference presentation.
@@ -21,7 +22,18 @@ export function buildReferenceTargets(records, published = new Map()) {
     const targets = new Map();
     for (const record of records) {
         if (!record.package || !record.type || !record.shortcode) continue;
-        const value = { name: record.name?.full ?? record.name, subType: record.subType };
+        // `subType` and the standings a body confers both ride along for the
+        // same reason: a caller resolving a reference often needs to know what
+        // it found, not only where it is. A rank is a number on the *being*
+        // and what that number is called is declared on the *body*, so the
+        // ladder travels with the reference rather than being looked up a
+        // second way.
+        const standings = standingsDigest(record);
+        const value = {
+            name: record.name?.full ?? record.name,
+            subType: record.subType,
+            ...(standings ? { standings } : {}),
+        };
         const systems = new Set([ownDocumentSystem(record.type)]);
         if (JOURNAL_TYPES.has(record.type) || hasDocEntry(record.type)) systems.add(NOTE_SYSTEM);
         for (const system of systems) {

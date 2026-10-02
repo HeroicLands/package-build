@@ -121,6 +121,7 @@ import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
 import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
 import { displayBeingHeight, displayBeingWeight } from "./being-measurements.mjs";
+import { officeAnchor, officeRoster, readStandings, standingPhrase } from "./standings.mjs";
 
 /**
  * How a section arranges what it holds.
@@ -553,8 +554,92 @@ function rowValue(kind, raw, resolve, hint) {
     return presentValue(raw);
 }
 
+/**
+ * A being's memberships, each with the standing it holds there.
+ *
+ * One row, one entry per body, and the standing reads inside the entry rather
+ * than beside it — "War Chief, of Vrystwald Tribes" rather than a rank link
+ * with nothing saying which body confers it.
+ *
+ * **The office carries the link where the body's page anchors it.** An office's
+ * description is already declared in the body's own `governance.offices`, and
+ * the row that prints it is anchored by the same derivation, so the string a
+ * being wrote reaches the description without anyone authoring a note about the
+ * post. In a medium with no page to reach — a compendium journal links by
+ * document UUID — the entry keeps the body's own document, so the reader still
+ * lands somewhere.
+ *
+ * @param {object} field - The declaration.
+ * @param {unknown} raw - The authored value, in either form.
+ * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
+ *   medium's resolver.
+ * @param {string} label - The row's label.
+ * @returns {object[]} The row, or none where nothing is held.
+ */
+function standingRows(field, raw, resolve, label) {
+    const { entries } = readStandings(raw);
+    const value = [];
+    for (const { body, standing } of entries) {
+        if (!hasValue(body)) continue;
+        const link = linkValue(body, resolve, { type: field.ref });
+        const digest = resolve?.(body, { type: field.ref })?.standings;
+        const text = standingPhrase(standing, link.text, digest);
+        const anchor =
+            (
+                typeof standing?.office === "string" &&
+                digest?.offices?.[standing.office] !== undefined
+            ) ?
+                officeAnchor(standing.office)
+            :   "";
+        value.push({
+            ...link,
+            text,
+            ...(anchor && link.url ? { url: `${link.url}#${anchor}` } : {}),
+        });
+    }
+    return value.length ? [{ label, kind: "links", value }] : [];
+}
+
+/**
+ * A map of named posts, one row each, anchored by its name.
+ *
+ * The **name is the label and its description is the value**, which is the way
+ * round a reader needs: a field name belongs in the label column, and a whole
+ * sentence there leaves the post itself standing where a value goes.
+ *
+ * Each row carries the anchor its name derives, so the description is a
+ * destination rather than merely text on a page — which is what lets a being's
+ * `office` string link to the post it names without anyone authoring a note
+ * about the post.
+ *
+ * @param {unknown} raw - The authored map.
+ * @returns {object[]|null} One row per post, in the order the body declared
+ *   them, or `null` where the value is not a map of them — a note writing
+ *   something else keeps its row and states what it wrote.
+ */
+function rosterRows(raw) {
+    if (!isMapping(raw) || isAddressTuple(raw)) return null;
+    const rows = [];
+    for (const [post, description] of officeRoster(raw)) {
+        if (!hasValue(post)) continue;
+        const anchor = officeAnchor(post);
+        rows.push({
+            ...(anchor ? { id: anchor } : {}),
+            label: String(post),
+            kind: "text",
+            value: hasValue(description) ? String(description) : String(post),
+        });
+    }
+    return rows;
+}
+
 /** Expand structured references using the existing linked-row shape. */
 function structuredRows(field, raw, resolve, label, fm) {
+    if (field.standings) return standingRows(field, raw, resolve, label);
+    if (field.roster) {
+        const roster = rosterRows(raw);
+        if (roster) return roster;
+    }
     if (Array.isArray(raw) && raw.some(isMapping)) {
         const links = raw
             .filter((entry) => isMapping(entry) && hasValue(entry.to))

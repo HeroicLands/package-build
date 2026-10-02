@@ -139,7 +139,12 @@ function sectionToHtml(section, link) {
     if (section.layout === "rows") {
         out.push('<dl class="infobox-rows">');
         for (const row of section.rows ?? []) {
-            out.push(`<dt>${escapeHtml(row.label)}</dt><dd>${valueToHtml(row, link)}</dd>`);
+            // A row that declares an anchor carries it on the `<dt>`, so the
+            // label is the destination a link to that row arrives at. A row
+            // that declares none emits none: an id nobody wrote would be
+            // invented once per renderer, and the two would not agree.
+            const id = row.id ? ` id="${escapeHtml(row.id)}"` : "";
+            out.push(`<dt${id}>${escapeHtml(row.label)}</dt><dd>${valueToHtml(row, link)}</dd>`);
         }
         out.push("</dl>");
     } else if (section.layout === "grid") {

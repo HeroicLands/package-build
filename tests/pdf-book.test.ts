@@ -234,10 +234,7 @@ it("places infoboxes after authored content and before the next entry", () => {
         expect(built.status).toBe(0);
         const dist = path.join(dir, "build/dist");
         const source = fs.readFileSync(
-            path.join(
-                dist,
-                fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!,
-            ),
+            path.join(dist, fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!),
             "utf8",
         );
         const prose = source.indexOf("A short blade");
@@ -529,10 +526,7 @@ it("prints a Scene background on a landscape page at its print resolution", asyn
         );
         expect(fs.readFileSync(image)).toEqual(original);
         const typ = fs.readFileSync(
-            path.join(
-                dist,
-                fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!,
-            ),
+            path.join(dist, fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!),
             "utf8",
         );
         expect(typ).toContain('#book-place-map([Battle Map: Ground], "assets/images/battle.webp")');

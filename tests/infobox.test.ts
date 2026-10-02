@@ -76,9 +76,17 @@ import { authoredKey } from "../engine/system-block.mjs";
 const COMPILER_WORDS = /\b(base|code|flag|mult|desc)$/i;
 
 /** A value the vocabulary's declared shape will accept, so every field is filled. */
-function sampleFor(field: { shape?: string; kind?: string; entryKind?: string }): unknown {
+function sampleFor(field: {
+    shape?: string;
+    kind?: string;
+    entryKind?: string;
+    standings?: boolean;
+    roster?: boolean;
+}): unknown {
     if (field.shape?.startsWith("list of `{ to,"))
         return [{ to: "someref", bearing: "NE", mode: "land", days: 2 }];
+    if (field.standings) return { "affiliation-someref": { rank: 3, office: "Steward" } };
+    if (field.roster) return { Steward: "Keeps the body's accounts." };
     if (field.shape?.startsWith("a map keyed by Address"))
         return { "affiliation-someref": "friend" };
     if (field.kind === "address") return "someref";
@@ -225,6 +233,7 @@ describe("the note box's fields are the type's own vocabulary", () => {
                 if (overlay.withheld) continue;
                 const wanted =
                     overlay.group ? "Appearance"
+                    : field.roster ? "Steward"
                     : field.shape?.startsWith("a map keyed by Address") ? "Friend"
                     : (overlay.label ?? humanizeFieldName(field.name));
                 if (!labels.has(wanted)) (missing[type] ??= []).push(field.name);

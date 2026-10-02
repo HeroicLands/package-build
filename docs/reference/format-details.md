@@ -2487,7 +2487,7 @@ Generates a living (or undead, or spirit) being.
 | `lore`                      | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                                                                      |
 | `culture`                   | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
 | `homes`                     | `Address[]`                                    | Place the being calls home                                                                                                                            |
-| `affiliations`              | `Address[]`                                    | Affilliations (e.g., arcane/divine traditions, polities, etc)                                                                                         |
+| `affiliations`              | `Map<Address, Membership>`                     | Bodies the being belongs to, keyed by Address, each entry the standing it holds there                                                                 |
 | `socialTies`                | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                                                                                   |
 | `gender`                    | `male \| female \| other`                      | Gender of the character                                                                                                                               |
 | `species`                   | `Address`                                      | Being's species (lore)                                                                                                                                |
@@ -2517,14 +2517,59 @@ describe a being's body. Item gear weight remains a numeric `data.weight`.
 `data.culture` names the culture in which a character belongs. It is one
 Address to a `type: lore`, `subType: culture` note. A named character with a
 known culture states it here; generic beings and templates can omit it.
-`data.lore` holds other lore concerning the being, such as social standing or
-law. Record the primary culture in `data.culture` only.
+`data.lore` holds the law the being lives under, the customs it is subject to
+and the traditions it was raised in. Record the primary culture in
+`data.culture` only, and a standing in `data.affiliations`.
 
 ```yaml
 data:
   culture: lore-vedyariclt
-  lore: [lore-commonerrnk]
+  lore: [lore-marchlaw]
 ```
+
+#### The bodies a being belongs to, and its standing in each
+
+**Membership**: `{rank: number, office: string}`, both optional.
+
+`data.affiliations` is a **map keyed by the body's Address**, and each entry is
+the standing the being holds in that body. The key is what makes the pair
+expressible: a being in two bodies holds a standing in each, and two bodies may
+call a rung the same word.
+
+An entry carries two optional keys and nothing else:
+
+- **`rank`** — a **number**, the level on that body's own `governance.ranks`
+  ladder. The body declares `{level, title, description}` for every rung, so a
+  number indexes into it and the body stays the single source for what its
+  level 5 is called.
+- **`office`** — a **string**, matched against the keys of that body's
+  `governance.offices` map.
+
+An entry with neither is valid and is the ordinary shape: it says the being
+belongs to the body and nothing more.
+
+```yaml
+data:
+  affiliations:
+    affiliation-vrystwldtrbs: { rank: 5, office: War Chief }
+    affiliation-greenwardens: { rank: 1 }
+    affiliation-silverguild: {}
+```
+
+Both values are checked against the body the entry is keyed by. A `rank` that
+is not a level the body confers and an `office` that is not one of its keys are
+each an error naming the file, line and column — so a renamed rung or a renamed
+post fails on every being pointing at it. Naming one body twice, by its short
+and full Address, still names one body and is an error.
+
+The infobox prints the standing closing on its body — `War Chief, Hárár, of
+Vrystwald Tribes` — and links an office to the description the body itself
+declares, so recording the post needs no note about the post.
+
+For SoHL, a being embeds one affiliation item per entry: `rank` **is** that
+item's `system.level` and `office` its `system.office`. A standing is a fact
+about the setting rather than about one system, so the `sohl:` block states
+none of it.
 
 #### The people who matter to a being
 
@@ -2558,8 +2603,8 @@ an error.
 Each tie is one-sided. The target need not name the subject back, even when
 `patron` and `dependent` would describe opposite ends of the same support.
 Kinship, household membership, organizational membership, rank, and office are
-distinct facts. Their relevant effects may appear as ties, while their details
-belong in prose, `data.affiliations`, or governance fields. A tie has no
+distinct facts. Their relevant effects may appear as ties, while a membership
+and the standing held in it belong in `data.affiliations`. A tie has no
 mechanical modifier.
 
 #### When a being was born, when it died, and how old it is

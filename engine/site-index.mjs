@@ -50,6 +50,7 @@
  */
 
 import { buildReferenceTargets } from "./reference-targets.mjs";
+import { standingsDigest } from "./standings.mjs";
 
 import { resolveShortcodeReference } from "./shortcode-references.mjs";
 
@@ -218,11 +219,16 @@ export function buildSiteIndex(
         // needs to know what it found, not only where it is: an infobox groups
         // a being's skills by the family each skill note declares, and that
         // fact lives on the target rather than on the reference.
+        // The rungs and posts a body confers, carried for the same reason
+        // `subType` is: a being states a rank as a number, and what that
+        // number is called is declared on the body.
+        const standings = standingsDigest(e.fm);
         const value = {
             url: e.url,
             name: e.name,
             draft: isDraftNote(e.fm),
             ...(e.fm.subType ? { subType: e.fm.subType } : {}),
+            ...(standings ? { standings } : {}),
         };
 
         const shortcode = e.fm.shortcode;
@@ -343,7 +349,13 @@ export function resolveInfoboxRef(siteIndex, ref, hint) {
             hint,
         );
         return found ?
-                { name: found.name, url: found.url, subType: found.subType, address: found.address }
+                {
+                    name: found.name,
+                    url: found.url,
+                    subType: found.subType,
+                    address: found.address,
+                    ...(found.standings ? { standings: found.standings } : {}),
+                }
             :   undefined;
     }
     const context = {
@@ -357,6 +369,13 @@ export function resolveInfoboxRef(siteIndex, ref, hint) {
     const found =
         siteIndex.referenceTargets?.get(renderAddress(tuple)) ??
         siteIndex.index?.get(renderAddress(tuple));
-    if (found) return { name: found.name, url: found.url, subType: found.subType, address: tuple };
+    if (found)
+        return {
+            name: found.name,
+            url: found.url,
+            subType: found.subType,
+            address: tuple,
+            ...(found.standings ? { standings: found.standings } : {}),
+        };
     return undefined;
 }
