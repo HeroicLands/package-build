@@ -52,7 +52,8 @@ describe("a pack declaring no system", () => {
     it("is compiled against the map the registry names", () => {
         for (const docType of systemDocumentClasses()) {
             const pass = compilerFor(docType, null) as
-                { documentSubtypes?: { system?: string } } | undefined;
+                | { documentSubtypes?: { system?: string } }
+                | undefined;
             expect(pass, `no compiler for ${docType}`).toBeTruthy();
             expect(
                 pass?.documentSubtypes,
