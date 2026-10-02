@@ -375,7 +375,13 @@ export function infoboxTypstPreamble() {
             "fill: infobox-rule)[#upper(t)]; v(0.20em) }",
         '#let infobox-head(t) = { v(0.40em); text(size: 7.6pt, weight: "bold", ' +
             "tracking: 1.3pt, fill: infobox-rule)[#upper(t)]; v(0.16em) }",
+        // One definition-list style across the three surfaces: the term right
+        // against a fixed column so every term in the panel shares one edge,
+        // and space below the row rather than rows run together. A page has one
+        // width, so the stacked state the screen surfaces fall back to has
+        // nothing to answer here and is not drawn.
         "#let infobox-row(k, v) = grid(columns: (2.05cm, 1fr), column-gutter: 4pt, " +
+            "inset: (bottom: 2pt), align: (right + top, left + top), " +
             "text(size: 7pt, tracking: 0.5pt, fill: infobox-faint)[#upper(k)], text(size: 8pt)[#v])",
         "#let infobox-cell(lab, val) = align(center)[" +
             "#text(size: 7pt, tracking: 0.6pt, fill: infobox-faint)[#lab]#h(2.5pt)" +
