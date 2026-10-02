@@ -52,6 +52,7 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 
+import { withBaseStyle } from "./engine/base-styles.mjs";
 import { emitDiagnostic, formatDiagnostic, positionOfYamlPath } from "./engine/diagnostics.mjs";
 import { metadataFileName } from "./engine/metadata-index.mjs";
 
@@ -547,6 +548,18 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
     }
 
     const merged = { ...declared, ...derived };
+
+    // The shared base stylesheet, named ahead of whatever the package declares.
+    // Derived rather than declared, because every package needs it and four of
+    // the five that do have no stylesheet of their own to name it from. See
+    // `engine/base-styles.mjs` for the layer it loads into and why that is what
+    // lets a package override it.
+    const styles = withBaseStyle({
+        declared: declared.styles,
+        artifact: /** @type {"system"|"module"} */ (artifact),
+        enabled: config.packageBuild?.baseStyles !== false,
+    });
+    if (styles !== undefined) merged.styles = styles;
 
     // The index every consumer resolves this package's addresses through.
     // Written unconditionally, because a package that publishes no

@@ -93,6 +93,7 @@ import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, resetStage, stageAssets } from "../stage.mjs";
+import { baseStyleStageEntry } from "../engine/base-styles.mjs";
 import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
 import { emitCalendarArtifacts } from "../engine/calendar-artifacts.mjs";
 import { dateFromCalendar, dateToCalendar } from "../engine/date-conversion.mjs";
@@ -424,7 +425,7 @@ function assetsCommand() {
         builder: (y) => y,
         handler: handler(async () => {
             const config = loadPackageBuildConfig();
-            if (!config.assets.length) {
+            if (!config.assets.length && !config.baseStyles) {
                 console.log("package-build: no `packageBuild.assets` declared; nothing to stage.");
                 return;
             }
@@ -462,10 +463,22 @@ function assetsCommand() {
                 from,
                 path.join(config.stageDir, to),
             ]);
-            const { entries: count, files } = stageAssets(entries, {
+            let { entries: count, files } = stageAssets(entries, {
                 cwd: config.rootDir,
                 transform,
             });
+
+            // Staged in its own pass, without the repository's transform: the
+            // sheet is this toolchain's file rather than one of the
+            // repository's assets, and a `transform` written to retheme a
+            // package's own SVGs has no business being handed it.
+            if (config.baseStyles) {
+                const staged = stageAssets([baseStyleStageEntry(config.stageDir)], {
+                    cwd: config.rootDir,
+                });
+                count += staged.entries;
+                files += staged.files;
+            }
             console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
         }),
     };
