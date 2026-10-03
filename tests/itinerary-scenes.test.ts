@@ -57,6 +57,9 @@ describe("generated itinerary Scenes", () => {
             }),
         ).toThrow(/not 400×300/);
     });
+    // Two in-process Graphviz PNG renders at dpi 150 plus a bundled regional
+    // raster, real work already around 2s unloaded — wider than the generic
+    // budget needs when the suite runs under heavy contention.
     it("stages raster backgrounds and pins to bundled local journals", async () => {
         const contentBase = path.join(root, "assets", "content");
         const journalDir = path.join(root, "build", "packs-json", "journals");
@@ -220,5 +223,5 @@ describe("generated itinerary Scenes", () => {
                 path.join(root, "build/stage/assets/maps/rasterized/MMMMMMMMMMMMMMMM.png"),
             ),
         ).toBe(true);
-    });
+    }, 15_000);
 });
