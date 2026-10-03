@@ -22,23 +22,16 @@
  * anchors does this note declare?" had two answers and they disagreed on
  * `{#CalendarFormat}`.
  *
+ * The suffix itself is read by {@link module:engine/heading-attributes}, which
+ * {@link module:engine/journals.splitPages} also reads it through — so the index
+ * cannot name an anchor the pages do not carry.
+ *
  * @module
  */
 
 import { scanCaptions } from "./content-captions.mjs";
+import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
 
-/**
- * A heading, and the `{#slug}` anchor it declares.
- *
- * Kept identical to the pair {@link splitPages} matches, because the two must
- * agree about what an anchor is: that pass decides which sections become
- * addressable journal pages, and an index naming an anchor it does not produce
- * would advertise a link that resolves nowhere. `tests/content-index.test.ts`
- * asserts the two find the same anchors, so drift fails the suite rather than
- * shipping.
- */
-const HEADING = /^\s*(#{1,6})\s+(.+?)\s*#*\s*$/;
-const ANCHOR = /^(.*?)\s*\{#([^}]+)\}\s*$/;
 /**
  * The `{#slug}` and `:::caption {#slug}` anchors a note declares.
  *
@@ -66,16 +59,13 @@ export function collectAnchors(body, bodyLine = 1) {
         }
         if (inCodeBlock) continue;
 
-        const heading = HEADING.exec(lines[i]);
+        const heading = HEADING_LINE.exec(lines[i]);
         if (!heading) continue;
-        const anchor = ANCHOR.exec(heading[2].trim());
-        if (!anchor) continue;
-
-        const slug = anchor[2].trim();
-        if (!slug) continue;
+        const attributes = splitHeadingAttributes(heading[2]);
+        if (!attributes.id) continue;
         anchors.push({
-            slug,
-            name: anchor[1].trim(),
+            slug: attributes.id,
+            name: attributes.text,
             level: heading[1].length,
             line: bodyLine + i,
         });

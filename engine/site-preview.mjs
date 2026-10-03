@@ -253,6 +253,8 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                     findings.push({ ...error, severity: "error" });
                 for (const error of result.captionErrors)
                     findings.push({ ...error, severity: "error" });
+                for (const error of result.headingErrors)
+                    findings.push({ ...error, severity: "error" });
                 for (const error of result.footnoteErrors)
                     findings.push({ ...error, severity: "error" });
                 for (const error of result.wikiErrors) {

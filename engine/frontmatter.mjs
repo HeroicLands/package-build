@@ -379,7 +379,7 @@ export function parseValueDesc(raw) {
  *   two spellings, and there is only one left to be.
  */
 export function folderField(fm) {
-    const asAddress = fm?.sohl?.packFolder ?? fm?.data?.packFolder ?? fm?.packFolder ?? null;
+    const asAddress = fm?.sohl?.packFolder ?? fm?.data?.packFolder ?? null;
     if (asAddress != null && asAddress !== "") return { value: asAddress, isAddress: true };
     return { value: null, isAddress: true };
 }

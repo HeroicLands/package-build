@@ -272,7 +272,7 @@ export function buildMacroEntry(fm, { command, folder = null, stats = defaultSta
         folder,
         sort: 0,
         ownership: { default: 0 },
-        flags: fm.flags || {},
+        flags: {},
         _id: id,
         _stats: stats,
         _key: `!macros!${id}`,

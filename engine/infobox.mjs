@@ -739,7 +739,7 @@ function structuredRows(field, raw, resolve, label, fm) {
                 const address = parseAddress(
                     target,
                     {
-                        package: fm.package ?? "local",
+                        package: "local",
                         system: "note",
                         types: new Set(field.accepts),
                     },

@@ -87,6 +87,12 @@ import { EXPRESSION } from "./markdown-expressions.mjs";
 import { WIKILINK } from "./wikilink-syntax.mjs";
 import { EMBED_PATTERN } from "./content-embeds.mjs";
 import { positionInBody } from "./diagnostics.mjs";
+import {
+    WITHHELD_CLASS,
+    scanHeadingAttributes,
+    splitHeadingAttributes,
+    withheldSections,
+} from "./heading-attributes.mjs";
 
 /**
  * How each named block prints. Typst has no stylesheet to defer to, so the
@@ -337,6 +343,10 @@ function reportUnrenderable(source, definitions, opts, original) {
     }
     for (const error of scanCaptions(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of scanHeadingAttributes(source).errors)
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of withheldSections(source).errors)
+        report(linePosition(error.line, error.column, opts), "error", error.message);
 
     // Every closed comment is gone by the time this runs, so an opener still
     // here is one that was never closed — on the website that swallows the rest
@@ -463,6 +473,36 @@ export function markdownToTypst(markdown, opts = {}) {
         footnoteState,
         footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
     };
+    // A withheld section is set in the box a `:::secret` is set in, and its
+    // heading is set inside it: a printed page honours no reader permission, so
+    // the labelled box is what tells a referee the section is for them. Read
+    // outermost, before the named blocks, because a section holds blocks of its
+    // own and they are rendered by the recursion into its body.
+    if (!opts.insideAdmonition && !opts.insideWithheld) {
+        const { sections } = withheldSections(source);
+        if (sections.length) {
+            const lines = source.split("\n");
+            const output = [];
+            let cursor = 0;
+            for (const section of sections) {
+                output.push(
+                    markdownToTypst(lines.slice(cursor, section.start).join("\n"), sharedOptions),
+                );
+                output.push(
+                    withheldBox(
+                        markdownToTypst(lines.slice(section.start, section.end).join("\n"), {
+                            ...sharedOptions,
+                            insideWithheld: true,
+                        }),
+                        ctx,
+                    ),
+                );
+                cursor = section.end;
+            }
+            output.push(markdownToTypst(lines.slice(cursor).join("\n"), sharedOptions));
+            return output.join("\n");
+        }
+    }
     if (!opts.insideAdmonition) {
         const { blocks } = scanBlocks(source);
         if (blocks.length) {
@@ -684,11 +724,28 @@ function renderBlock(tokens, i, out, ctx) {
 }
 
 /**
- * A heading's text, and the `{#slug}` it may end with.
+ * A withheld section, set in the box a `secret` block is set in.
+ *
+ * @param {string} content - The section's rendered Typst, heading included.
+ * @param {object} ctx - Render context, for the label's inline markup.
+ * @returns {string} Typst markup.
+ */
+function withheldBox(content, ctx) {
+    const { color, background, symbol } = BLOCK_PRINT[WITHHELD_CLASS];
+    const label = inlineMarkup(BLOCK_NAMES[WITHHELD_CLASS], ctx);
+    return `\n#block(width: 100%, fill: rgb("${background}"), stroke: (left: 2pt + rgb("${color}")), inset: 8pt, above: 0.7em, below: 0.7em)[#text(fill: rgb("${color}"), weight: "bold")[${symbol} ${label}]\n\n${content}]\n`;
+}
+
+/**
+ * A heading's text, and the attribute block it may end with.
  *
  * The suffix is removed from the *rendered* children rather than from the raw
  * source, so an anchor written inside emphasis or after a link still comes off
  * cleanly and the text either side of it survives.
+ *
+ * A class and an attribute have nowhere to go in Typst, which has no
+ * stylesheet, so the id is what the book takes and the rest is dropped — the
+ * reference says so per surface.
  *
  * @param {object} inline - The heading's `inline` token.
  * @param {object} ctx - Render context.
@@ -697,31 +754,36 @@ function renderBlock(tokens, i, out, ctx) {
 function splitHeadingAnchor(inline, ctx) {
     const last = inline?.children?.[(inline.children?.length ?? 0) - 1];
     const raw = last?.type === "text" ? String(last.content ?? "") : "";
-    const match = /^(.*?)\s*\{#([^}]+)\}\s*$/.exec(raw);
-    if (!match) return { text: renderInline(inline, ctx), anchor: "" };
+    const parsed = splitHeadingAttributes(raw);
+    if (!parsed.braces || parsed.problems.length) {
+        return { text: renderInline(inline, ctx), anchor: "" };
+    }
     // Rendered with the suffix removed from a copy, so the token stream the
     // caller owns is not mutated — the same tokens are walked again by the
     // journals and the index.
     const children = [...inline.children];
-    children[children.length - 1] = { ...last, content: match[1] };
-    return { text: renderInline({ ...inline, children }, ctx), anchor: match[2] };
+    children[children.length - 1] = { ...last, content: parsed.text };
+    return { text: renderInline({ ...inline, children }, ctx), anchor: parsed.id };
 }
 
 /**
- * A heading's text, unescaped and with any `{#anchor}` suffix still attached.
+ * A heading's words, unescaped and without its attribute block.
  *
  * Used only to derive an anchor when the author wrote none, so it wants the
- * words as typed rather than the Typst-escaped, suffix-stripped text
- * {@link splitHeadingAnchor} renders — {@link module:engine/content-slug.slugify}
- * normalises punctuation and case itself and has no use for an escape
- * backslash.
+ * words as typed rather than the Typst-escaped text {@link splitHeadingAnchor}
+ * renders — {@link module:engine/content-slug.slugify} normalises punctuation
+ * and case itself and has no use for an escape backslash. The block comes off
+ * because a heading that declares classes alone would otherwise be addressed by
+ * an anchor naming them.
  *
  * @param {object} inline - The heading's `inline` token.
  * @returns {string} The heading's raw text.
  */
 function plainHeadingText(inline) {
     const children = inline?.children ?? [];
-    return children.map((child) => child.content ?? "").join("");
+    const raw = children.map((child) => child.content ?? "").join("");
+    const parsed = splitHeadingAttributes(raw);
+    return parsed.problems.length ? raw : parsed.text;
 }
 
 /**

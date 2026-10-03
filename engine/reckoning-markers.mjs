@@ -54,7 +54,7 @@ export function resolveReckoningMarkers(index, daysPerYear) {
             1,
             daysPerYear,
         );
-        const pkg = fm.package ?? note.package ?? index?.contentPackage;
+        const pkg = note.package ?? index?.contentPackage;
         const declared = [];
         for (const [position, era] of rows.entries()) {
             if (!era || typeof era.shortcode !== "string" || !era.shortcode || !fm.shortcode)

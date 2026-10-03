@@ -22,8 +22,8 @@ const months = Array.from({ length: 12 }, (_, i) => ({
 const index = {
     notes: [
         {
+            package: "thalorna",
             fm: {
-                package: "thalorna",
                 shortcode: "vrcal",
                 type: "lore",
                 subType: "calendar",
@@ -44,8 +44,8 @@ const index = {
             },
         },
         {
+            package: "thalorna",
             fm: {
-                package: "thalorna",
                 shortcode: "latercal",
                 type: "lore",
                 subType: "calendar",
