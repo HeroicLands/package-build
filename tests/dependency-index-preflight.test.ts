@@ -11,6 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const CLI = path.resolve(__dirname, "../bin/package-build.mjs");
 
 function fixture() {
@@ -61,52 +62,66 @@ describe("dependency index preflight", () => {
         ["map"],
         ["reachability", "Lore"],
         ["package", "compile"],
-    ])("%s fails on a cold cache before reading content or writing output", (...args) => {
-        const root = fixture();
-        try {
-            const result = run(root, args);
-            expect(result.status).not.toBe(0);
-            expect(result.output).toMatch(
-                /package-build\.config\.yaml: error: sohl is a declared dependency/,
-            );
-            expect(result.output).toContain("package-build deps fetch");
-            expect(result.output).not.toMatch(/YAML|Broken\.md/);
-            expect(fs.existsSync(path.join(root, "build"))).toBe(false);
-        } finally {
-            fs.rmSync(root, { recursive: true, force: true });
-        }
-    });
+    ])(
+        "%s fails on a cold cache before reading content or writing output",
+        (...args) => {
+            const root = fixture();
+            try {
+                const result = run(root, args);
+                expect(result.status).not.toBe(0);
+                expect(result.output).toMatch(
+                    /package-build\.config\.yaml: error: sohl is a declared dependency/,
+                );
+                expect(result.output).toContain("package-build deps fetch");
+                expect(result.output).not.toMatch(/YAML|Broken\.md/);
+                expect(fs.existsSync(path.join(root, "build"))).toBe(false);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("lets a complete cache pass the preflight", () => {
-        const root = fixture();
-        try {
-            const cache = path.join(root, "build/cache/metadata/sohl@1.0.0");
-            fs.mkdirSync(cache, { recursive: true });
-            fs.writeFileSync(path.join(cache, "sohl-metadata.jsonl"), "");
-            fs.writeFileSync(path.join(cache, ".complete"), "");
-            const result = run(root, ["lint"]);
-            expect(result.output).not.toContain("content index has not been fetched");
-        } finally {
-            fs.rmSync(root, { recursive: true, force: true });
-        }
-    });
+    it(
+        "lets a complete cache pass the preflight",
+        () => {
+            const root = fixture();
+            try {
+                const cache = path.join(root, "build/cache/metadata/sohl@1.0.0");
+                fs.mkdirSync(cache, { recursive: true });
+                fs.writeFileSync(path.join(cache, "sohl-metadata.jsonl"), "");
+                fs.writeFileSync(path.join(cache, ".complete"), "");
+                const result = run(root, ["lint"]);
+                expect(result.output).not.toContain("content index has not been fetched");
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("leaves commands that do not read foreign indexes alone", () => {
-        const root = fixture();
-        try {
-            expect(run(root, ["package", "clean"]).output).not.toContain(
-                "content index has not been fetched",
-            );
-            const configPath = path.join(root, "package-build.config.yaml");
-            fs.writeFileSync(
-                configPath,
-                fs
-                    .readFileSync(configPath, "utf8")
-                    .replace("pdf: { title: Demo, document: book.yaml }", ""),
-            );
-            expect(run(root, ["pdf"]).output).not.toContain("content index has not been fetched");
-        } finally {
-            fs.rmSync(root, { recursive: true, force: true });
-        }
-    });
+    it(
+        "leaves commands that do not read foreign indexes alone",
+        () => {
+            const root = fixture();
+            try {
+                expect(run(root, ["package", "clean"]).output).not.toContain(
+                    "content index has not been fetched",
+                );
+                const configPath = path.join(root, "package-build.config.yaml");
+                fs.writeFileSync(
+                    configPath,
+                    fs
+                        .readFileSync(configPath, "utf8")
+                        .replace("pdf: { title: Demo, document: book.yaml }", ""),
+                );
+                expect(run(root, ["pdf"]).output).not.toContain(
+                    "content index has not been fetched",
+                );
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

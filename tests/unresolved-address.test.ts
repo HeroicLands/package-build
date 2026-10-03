@@ -52,6 +52,7 @@ import { buildWikilinkIndex, convertWikilinks } from "../engine/wikilinks.mjs";
 import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
 import { convertNoteWikilinks } from "../engine/helpers.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, "..", "bin", "package-build.mjs");
 
@@ -716,24 +717,32 @@ describe("`package-build links` refuses a tree with an unresolved address", () =
         return { code: r.status, shown: `${r.stdout ?? ""}${r.stderr ?? ""}` };
     }
 
-    it("exits non-zero, with a compiler-parseable diagnostic naming note and link", () => {
-        const { code, shown } = links(repo("See [[skill-nosuch|Nothing]] here."));
-        expect(code).not.toBe(0);
-        // `file:line:column: error: message`, the path starting the line.
-        const line = shown
-            .split("\n")
-            .find((l) => l.includes("skill-nosuch") && l.includes("error:"));
-        expect(line).toBeDefined();
-        // The path may be relative or absolute — a temporary directory reached
-        // through a symlink relativizes to neither cleanly — but it starts the
-        // line either way, which is the rule a parser depends on.
-        expect(line).toMatch(
-            /^\S*assets\/content\/Skills\/Jumping\.md:\d+:\d+: error: .*skill-nosuch/,
-        );
-    });
+    it(
+        "exits non-zero, with a compiler-parseable diagnostic naming note and link",
+        () => {
+            const { code, shown } = links(repo("See [[skill-nosuch|Nothing]] here."));
+            expect(code).not.toBe(0);
+            // `file:line:column: error: message`, the path starting the line.
+            const line = shown
+                .split("\n")
+                .find((l) => l.includes("skill-nosuch") && l.includes("error:"));
+            expect(line).toBeDefined();
+            // The path may be relative or absolute — a temporary directory reached
+            // through a symlink relativizes to neither cleanly — but it starts the
+            // line either way, which is the rule a parser depends on.
+            expect(line).toMatch(
+                /^\S*assets\/content\/Skills\/Jumping\.md:\d+:\d+: error: .*skill-nosuch/,
+            );
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("exits zero on a tree whose every address resolves", () => {
-        const { code } = links(repo("See [[skill-clmb|Climbing]] here."));
-        expect(code).toBe(0);
-    });
+    it(
+        "exits zero on a tree whose every address resolves",
+        () => {
+            const { code } = links(repo("See [[skill-clmb|Climbing]] here."));
+            expect(code).toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

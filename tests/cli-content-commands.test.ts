@@ -27,6 +27,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
@@ -83,94 +84,115 @@ function run(...args: string[]): string {
 }
 
 describe("a content command reaches the content", () => {
-    it("analyzes one note with positioned, optional prose suggestions", () => {
-        const file = path.join(root, "assets", "content", "Prose.md");
-        fs.writeFileSync(file, "---\nshortcode: utilization\n---\n\nThe utilization is high.\n");
-        try {
-            const result = spawnSync(
-                process.execPath,
-                [CLI, "prose", "lint", file, "--rules", "simplify"],
-                {
-                    cwd: root,
-                    env: {
-                        ...process.env,
-                        PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
-                    },
-                    encoding: "utf8",
-                },
-            );
-            expect(result.status).toBe(0);
-            expect(result.stderr).toMatch(/Prose\.md:5:5: warning: retext-simplify\/utilization:/);
-            expect(result.stderr).toContain('expected=["use"]');
-            const gated = spawnSync(
-                process.execPath,
-                [CLI, "prose", "lint", file, "--rules", "simplify", "--fail-on-warning"],
-                {
-                    cwd: root,
-                    env: {
-                        ...process.env,
-                        PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
-                    },
-                    encoding: "utf8",
-                },
-            );
-            expect(gated.status).toBe(1);
-        } finally {
-            fs.rmSync(file, { force: true });
-        }
-    });
-
-    it("scores one note without failing unless band failure is explicitly requested", () => {
-        const file = path.join(root, "assets", "content", "Prose.md");
-        const scoreConfig = path.join(root, "package-build.score.config.yaml");
-        fs.writeFileSync(file, "The cat sat on the mat. The dog ran to the gate.\n");
-        try {
-            const args = [CLI, "prose", "score", file, "--min-words", "5"];
-            const result = spawnSync(process.execPath, args, {
-                cwd: root,
-                env: {
-                    ...process.env,
-                    PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
-                },
-                encoding: "utf8",
-            });
-            expect(result.status).toBe(0);
-            expect(result.stdout).toContain("flesch=");
-            expect(result.stdout).toContain("coverage=");
-            expect(result.stdout).toContain("Total: 1 scored");
+    it(
+        "analyzes one note with positioned, optional prose suggestions",
+        () => {
+            const file = path.join(root, "assets", "content", "Prose.md");
             fs.writeFileSync(
-                scoreConfig,
-                fs.readFileSync(path.join(root, "package-build.config.yaml"), "utf8") +
-                    "\npackageBuild:\n  proseScore:\n    bands:\n      flesch: { max: 80 }\n",
+                file,
+                "---\nshortcode: utilization\n---\n\nThe utilization is high.\n",
             );
-            const gated = spawnSync(process.execPath, [...args, "--fail-outside"], {
-                cwd: root,
-                env: { ...process.env, PACKAGE_BUILD_CONFIG: scoreConfig },
-                encoding: "utf8",
-            });
-            expect(gated.status).toBe(1);
-            expect(gated.stderr).toContain("prose-score/band:");
-        } finally {
-            fs.rmSync(file, { force: true });
-            fs.rmSync(scoreConfig, { force: true });
-        }
-    });
+            try {
+                const result = spawnSync(
+                    process.execPath,
+                    [CLI, "prose", "lint", file, "--rules", "simplify"],
+                    {
+                        cwd: root,
+                        env: {
+                            ...process.env,
+                            PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
+                        },
+                        encoding: "utf8",
+                    },
+                );
+                expect(result.status).toBe(0);
+                expect(result.stderr).toMatch(
+                    /Prose\.md:5:5: warning: retext-simplify\/utilization:/,
+                );
+                expect(result.stderr).toContain('expected=["use"]');
+                const gated = spawnSync(
+                    process.execPath,
+                    [CLI, "prose", "lint", file, "--rules", "simplify", "--fail-on-warning"],
+                    {
+                        cwd: root,
+                        env: {
+                            ...process.env,
+                            PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
+                        },
+                        encoding: "utf8",
+                    },
+                );
+                expect(gated.status).toBe(1);
+            } finally {
+                fs.rmSync(file, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it.each(["lint", "links", "site"])("`package-build %s` states the walk's scope", (cmd) => {
-        // The failure this exists for: a caller that omits `skipDirectories`
-        // throws on the first note, so the command reports nothing about the
-        // tree and its exit code is the only symptom.
-        expect(run(cmd)).not.toMatch(/requires `skipDirectories`/);
-    });
+    it(
+        "scores one note without failing unless band failure is explicitly requested",
+        () => {
+            const file = path.join(root, "assets", "content", "Prose.md");
+            const scoreConfig = path.join(root, "package-build.score.config.yaml");
+            fs.writeFileSync(file, "The cat sat on the mat. The dog ran to the gate.\n");
+            try {
+                const args = [CLI, "prose", "score", file, "--min-words", "5"];
+                const result = spawnSync(process.execPath, args, {
+                    cwd: root,
+                    env: {
+                        ...process.env,
+                        PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
+                    },
+                    encoding: "utf8",
+                });
+                expect(result.status).toBe(0);
+                expect(result.stdout).toContain("flesch=");
+                expect(result.stdout).toContain("coverage=");
+                expect(result.stdout).toContain("Total: 1 scored");
+                fs.writeFileSync(
+                    scoreConfig,
+                    fs.readFileSync(path.join(root, "package-build.config.yaml"), "utf8") +
+                        "\npackageBuild:\n  proseScore:\n    bands:\n      flesch: { max: 80 }\n",
+                );
+                const gated = spawnSync(process.execPath, [...args, "--fail-outside"], {
+                    cwd: root,
+                    env: { ...process.env, PACKAGE_BUILD_CONFIG: scoreConfig },
+                    encoding: "utf8",
+                });
+                expect(gated.status).toBe(1);
+                expect(gated.stderr).toContain("prose-score/band:");
+            } finally {
+                fs.rmSync(file, { force: true });
+                fs.rmSync(scoreConfig, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("honours the configured scope rather than reading every file", () => {
-        // `Templates/` is excluded by the configuration. A command that fell
-        // back to an ambient default — or to none — would compile the skeleton
-        // note that directory exists to keep out.
-        const out = run("lint");
+    it.each(["lint", "links", "site"])(
+        "`package-build %s` states the walk's scope",
+        (cmd) => {
+            // The failure this exists for: a caller that omits `skipDirectories`
+            // throws on the first note, so the command reports nothing about the
+            // tree and its exit code is the only symptom.
+            expect(run(cmd)).not.toMatch(/requires `skipDirectories`/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-        expect(out).not.toMatch(/Skeleton/);
-    });
+    it(
+        "honours the configured scope rather than reading every file",
+        () => {
+            // `Templates/` is excluded by the configuration. A command that fell
+            // back to an ambient default — or to none — would compile the skeleton
+            // note that directory exists to keep out.
+            const out = run("lint");
+
+            expect(out).not.toMatch(/Skeleton/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     /*
      * `content-format notes` was the last check reading the tree for itself.
@@ -178,14 +200,18 @@ describe("a content command reaches the content", () => {
      * to be looking at the tree the compile will, or its counts describe a
      * corpus nobody builds.
      */
-    it("`package-build content-format notes` measures the configured corpus", () => {
-        const out = run("content-format", "notes");
+    it(
+        "`package-build content-format notes` measures the configured corpus",
+        () => {
+            const out = run("content-format", "notes");
 
-        expect(out).not.toMatch(/requires `skipDirectories`/);
-        // One note in scope, and the skipped directory's is not counted.
-        expect(out).toMatch(/across 1 note\(s\)/);
-        expect(out).not.toMatch(/Skeleton/);
-    });
+            expect(out).not.toMatch(/requires `skipDirectories`/);
+            // One note in scope, and the skipped directory's is not counted.
+            expect(out).toMatch(/across 1 note\(s\)/);
+            expect(out).not.toMatch(/Skeleton/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 /*
@@ -220,6 +246,7 @@ describe("a note the content index cannot record", () => {
             // from `links`, "across 1 note(s)" from the other two.)
             expect(out).toMatch(/\b1 note/);
         },
+        SUBPROCESS_TEST_TIMEOUT,
     );
 });
 
@@ -253,5 +280,6 @@ describe("a note whose frontmatter cannot be parsed", () => {
             expect(output).toMatch(/Malformed\.md:5:\d+: error: YAML parse error:/);
             expect(output).not.toMatch(/\[WARN\]: YAML parse error/);
         },
+        SUBPROCESS_TEST_TIMEOUT,
     );
 });
