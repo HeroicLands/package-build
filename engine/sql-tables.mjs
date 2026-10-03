@@ -35,6 +35,7 @@ import path from "node:path";
 
 import { FENCE_LINE, parseHeaderArgs } from "./code-fences.mjs";
 import { booleanAttribute } from "./extension-attributes.mjs";
+import { findPageListBlocks, preparePageLists } from "./page-lists.mjs";
 import { MARKET_CLASSES } from "./market-class.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
 import { sqlQueriesInMarkdown } from "./markdown-expressions.mjs";
@@ -594,6 +595,10 @@ export function renderSqlTable(
  * @param {object} [opts]
  * @param {(ref: string) => boolean} [opts.linkable] - Passed to
  *   {@link renderSqlTable}.
+ * @param {object[]} [opts.records] - Content-index records, narrowed to the
+ *   audience this surface publishes to. Given them, the result also carries
+ *   `pageLists`, so one prepared object answers every corpus-reading directive
+ *   a body can hold and a caller looks results up in one place.
  * **Keyed by note, then by the directive's ordinal within it** — not by its
  * line. The passes do not agree on what a body is: `walkMarkdownTree` trims it,
  * while the link checker strips the frontmatter fence and leaves the newlines
@@ -603,8 +608,9 @@ export function renderSqlTable(
  * @returns {Promise<Map<string, object[]>>} Note to results, in document order,
  *   each carrying either a rendered `markdown` and its `rows`, or a `reason`.
  */
-export async function prepareSqlTables(db, sources, { linkable } = {}) {
+export async function prepareSqlTables(db, sources, { linkable, records } = {}) {
     const prepared = new Map();
+    if (records) prepared.pageLists = preparePageLists(records, sources);
     for (const { source, markdown } of sources) {
         const blocks = findSqlBlocks(markdown);
         if (!blocks.length) continue;
@@ -683,10 +689,14 @@ export async function prepareInlineSqlExpressions(db, sources) {
  * shared index
  * describes, where N passes each derive the corpus their own way.
  *
- * **Nothing is opened for a tree with no `sql` directive.** The corpus is still
- * written entirely in the retiring language, so until a table is converted this
- * costs one walk and no database at all — which is what lets every pass call it
- * unconditionally.
+ * **Every corpus-reading directive is answered here**, which is why one call
+ * precedes every pass: the `sql` tables, the inline scalar queries, and the
+ * page lists, whose results ride on the same object as `pageLists`.
+ *
+ * **Nothing is opened for a tree that asks no query.** A tree with no `sql`
+ * directive costs one walk and no database at all, and so does one whose only
+ * directive is a page list — a page list is a filter over the records. That is
+ * what lets every pass call this unconditionally.
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
@@ -696,8 +706,9 @@ export async function prepareInlineSqlExpressions(db, sources) {
  *   A command that also builds a link index holds them already, and deriving
  *   them twice is the duplicated-corpus failure this closes.
  * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes.
- * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
- *   nothing when the tree has no such directive.
+ * @returns {Promise<Map<string, object[]>|undefined>} Results by note path,
+ *   carrying `inline` and `pageLists` beside them, or nothing when the tree
+ *   holds no such directive.
  */
 export async function prepareTreeSqlTables(
     contentBase,
@@ -726,10 +737,30 @@ export async function prepareTreeSqlTables(
         if (!isNoteRecord(record)) continue;
         const absPath = noteFile(contentBase, record);
         const { body, frontmatter } = parseMarkdownFile(absPath);
-        if (body && (findSqlBlocks(body).length || sqlQueriesInMarkdown(body, frontmatter).length))
+        if (
+            body &&
+            (findSqlBlocks(body).length ||
+                findPageListBlocks(body).length ||
+                sqlQueriesInMarkdown(body, frontmatter).length)
+        )
             sources.push({ source: absPath, markdown: body, frontmatter });
     }
     if (!sources.length) return undefined;
+
+    // A page list is a filter over the records, so it needs no database. A tree
+    // whose only corpus-reading directive is one therefore opens none — which
+    // is the same bargain the early return above makes for a tree with no
+    // directive at all.
+    const needsDatabase = sources.some(
+        ({ markdown, frontmatter }) =>
+            findSqlBlocks(markdown).length || sqlQueriesInMarkdown(markdown, frontmatter).length,
+    );
+    if (!needsDatabase) {
+        const pageOnly = new Map();
+        pageOnly.inline = new Map();
+        pageOnly.pageLists = preparePageLists(indexRecords, sources);
+        return pageOnly;
+    }
     // A cell links only where the address it would emit resolves, so a table
     // never ships a link the wikilink pass will then report dead.
     //
@@ -761,6 +792,7 @@ export async function prepareTreeSqlTables(
     try {
         const prepared = await prepareSqlTables(db, sources, {
             linkable: (ref) => addresses.has(renderAddress(ref)),
+            records: indexRecords,
         });
         prepared.inline = await prepareInlineSqlExpressions(db, sources);
         return prepared;

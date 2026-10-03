@@ -1113,9 +1113,9 @@ Prepared SQL content tables are expanded into Markdown before link resolution.
 A query selecting no rows reports an error unless its fence states
 `{allow-empty=true}`.
 
-| Export                | Signature                                              | Returns                                                                       | Use it when                                                |
-| --------------------- | ------------------------------------------------------ | ----------------------------------------------------------------------------- | ---------------------------------------------------------- |
-| `expandContentTables` | `expandContentTables(markdown, { source, sqlTables })` | `{markdown: string, errors: object[], lineMap: object[], warnings: object[]}` | Replace prepared SQL fences and preserve source locations. |
+| Export                | Signature                                                         | Returns                                                                       | Use it when                                                                |
+| --------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `expandContentTables` | `expandContentTables(markdown, { source, sqlTables, pageLists })` | `{markdown: string, errors: object[], lineMap: object[], warnings: object[]}` | Replace prepared SQL fences and page lists, and preserve source locations. |
 
 ### `engine.helpers`
 

@@ -567,6 +567,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             linkable: (d) => Boolean(d.fm.shortcode),
             source: src,
             sqlTables: sqlTables?.get(page.file),
+            pageLists: sqlTables?.pageLists?.get(page.file),
             self: { fm: page.fm, path: page.relPath },
         });
         // A content-table finding states its `reason`, its 0-based line within

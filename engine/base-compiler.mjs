@@ -644,6 +644,7 @@ export class BasePackCompiler {
             name,
             bodyLine,
             sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
+            pageLists: absPath ? this.sqlTables?.pageLists?.get(absPath) : undefined,
         });
         const captionError = scanCaptions(tabulated).errors[0];
         if (captionError) {
