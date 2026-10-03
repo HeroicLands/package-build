@@ -9,9 +9,9 @@
   `package.json`'s `homepage`, which a book now needs.
 - A note written for the next author — a `markdownlint` pragma, an aside about a
   quoted notice — no longer appears on the page.
-- A box written inside a GM-only section prints as a box, and a box's title
-  prints as it was written: emphasis stays emphasis, and a title carrying a
-  bracket, a `#` or a `$` no longer stops the book being made.
+- A box written inside a GM-only section prints as a box.
+- A box's title prints as written, emphasis included, and one carrying a bracket,
+  a `#` or a `$` no longer stops the book being made.
 - Two captions sharing one id each print their own block once, under their own
   number.
 - A link that resolves nowhere now fails the book build, as it already fails the
