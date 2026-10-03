@@ -1,5 +1,5 @@
 ---
-"@heroiclands/package-build": minor
+"@heroiclands/package-build": patch
 ---
 
 **Footnotes**
