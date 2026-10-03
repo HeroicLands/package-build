@@ -1009,13 +1009,10 @@ function inBlockKeys(schema) {
  * note-level field either, and a check about the note-level field must not read
  * it.
  *
- * `affiliation`'s `title` is the case that named this. A note's top-level
- * `title` is its page heading, which the site emitter publishes as
- * `fm.title ?? name`; `sohl.title` is the style of address an office carries —
- * "Ajaw", "Warden". Twenty-eight `sohl-kethira-basic` affiliations author
- * `sohl.title: ""` — an office with no style of address, which is ordinary —
- * and every one of them was reported as publishing a page with no heading. None
- * of them does; their pages take `name.full` exactly as intended.
+ * `affiliation`'s `commonSkills` is the case to read it against: the skills
+ * common among a society's members belong to the SoHL affiliation item, so
+ * nothing outside that item supplies them and a note-level check must not go
+ * looking in the block for one.
  *
  * Keyed on the **in-block** key — `legacyKey` where a field declares one, and
  * its first segment where that is dotted — because that is the position a note
@@ -1382,26 +1379,16 @@ export function lintNote(
     // it. It is transitional in the same sense — `""` is a legal thing to mean,
     // and the message says so, but nothing in any tree means it yet.
     //
-    // **These two only, never `title`.** The rule reads as a general one about
-    // optional strings, and it is not — it belongs to `resolveImg`, and `title`
-    // never goes through it.
+    // **The art slots only.** The rule reads as a general one about optional
+    // strings, and it is not — it belongs to `resolveImg`, and nothing else
+    // goes through it.
     //
-    // It once had a sharper reason: a note's top-level `title` was
-    // simultaneously the shared source for an `affiliation` item's
-    // `system.title`, so asking an author for `title: null` would have compiled
-    // the literal string `"null"` into the document. The field declares
-    // `topLevelMeans` now, so the top-level key is no longer a source for it and
-    // `title: null` is harmless. `title: ""` is warned about on its own account
-    // below, as the *page's* heading rather than as an art path.
-    //
-    // **The collision itself did not go away, and this was where that was
-    // misread.** `topLevelMeans` settles which position the *emitted field*
-    // reads; it says nothing about which position a *check* reads, and
-    // `authoredValue` went on resolving through the block regardless — so an
-    // office with no style of address answered for its note's heading, in
-    // twenty-eight `sohl-kethira-basic` affiliations. Hence
-    // `blockCollisions`: a note-level check reads past a block key its type
-    // claims for something else.
+    // **A block key a type claims for something else is read past.**
+    // `topLevelMeans` settles which position the *emitted field* reads; it says
+    // nothing about which position a *check* reads, and `authoredValue` would
+    // go on resolving through the block regardless — so an office with no style
+    // of address would answer for a note's art, in twenty-eight
+    // `sohl-kethira-basic` affiliations. Hence `blockCollisions`.
 
     // The template priority is a *shared source* — the specification states it
     // once for every type, as it does `pack` — so its retirement is reported
@@ -1528,35 +1515,6 @@ export function lintNote(
                 "meant to have no image",
         });
     }
-    // `title: ""` publishes a blank heading. The rule the art fields
-    // follow — `null` falls back, `""` is blank on purpose — reads the same way
-    // here, and for a *page heading* the deliberate blank is almost never what
-    // anyone wants: the emitter is `fm.title ?? name`, so `""` survives, the
-    // page publishes with no name, and it sorts to the front of its section
-    // landing ahead of every named page. Fifteen notes in `sohl-thalorna` are
-    // in exactly that state.
-    //
-    // A warning rather than an error: the value is legal under the rule, and a
-    // note that genuinely wants no heading may keep it — it just has to mean it.
-    //
-    // **The emitter reads `fm.title`, so this reads the note level.** On an
-    // `affiliation` `sohl.title` is the office's style of address, which the
-    // heading has nothing to do with — and `blockCollisions` is what keeps the
-    // two apart. On every other type nothing claims the block key, so the
-    // resolution is the unchanged one.
-    if (authoredValue(fm, "title", { blockCollides: blockCollisions.has("title") }) === "") {
-        findings.push({
-            file: note.file,
-            ...at("title"),
-            severity: "warning",
-            message:
-                '`title: ""` publishes a page with no heading, which sorts to ' +
-                "the front of its section ahead of every named page. Write " +
-                "`title: null` to fall back to `name.full`, or give the page a " +
-                'heading; keep `""` only where the blank is meant',
-        });
-    }
-
     if (Object.hasOwn(fm, "draft")) {
         findings.push({
             file: note.file,

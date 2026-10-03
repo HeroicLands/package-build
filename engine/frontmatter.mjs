@@ -309,14 +309,14 @@ export function resolveRelation(fm, ctx = "item") {
  *
  * @param {object} fm - The item frontmatter.
  * @param {string} [ctx] - Optional label for the error (defaults to the item's
- *   title/name, else "item").
+ *   display name, else "item").
  * @returns {string} The declared subType.
  * @throws {Error} When `subType` is missing or blank.
  */
 export function requireSubType(fm, ctx) {
     const subType = sohlSystemField(fm, "subType", undefined);
     if (subType == null || subType === "") {
-        const label = ctx || fm?.title || fm?.name || "item";
+        const label = ctx || fm?.name?.full || "item";
         throw new Error(
             `${label}: missing required 'subType' — every subType-bearing item must declare its kind (the builder substitutes no default).`,
         );

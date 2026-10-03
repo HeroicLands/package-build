@@ -340,7 +340,7 @@ function positionOfType(file) {
  * `packageBuild.manifest.title` — the name Foundry already shows for the
  * package — so a homepage that adds nothing to it need not restate it. An
  * authored `name.full` wins, because a front page may greet a reader
- * differently from a package browser. A top-level `title` is also readable.
+ * differently from a package browser.
  *
  * Falls back to `contentPackage` last, so a package that has no manifest of its
  * own still yields a titled page rather than a blank heading.
@@ -350,7 +350,7 @@ function positionOfType(file) {
  * @returns {string} The title.
  */
 export function homepageTitle(fm, config) {
-    const authored = fm?.name?.full ?? fm?.title;
+    const authored = fm?.name?.full;
     if (typeof authored === "string" && authored.trim()) return authored;
     const manifest = /** @type {Record<string, unknown>|undefined} */ (
         config?.packageBuild?.manifest
