@@ -15,7 +15,7 @@ import { describe, it, expect } from "vitest";
 
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { renderBlocks } from "../engine/content-blocks.mjs";
-import { renderCaptionBlocks } from "../engine/content-captions.mjs";
+import { renderFigureBlocks } from "../engine/content-figures.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 import {
     footnoteFindings,
@@ -32,7 +32,7 @@ function foundry(source: string) {
 /** The body as the site build renders it, in the order `site-build` runs. */
 function web(source: string) {
     const blocks = renderBlocks(source, "web");
-    return renderCaptionBlocks(blocks.markdown).markdown;
+    return renderFigureBlocks(blocks.markdown).markdown;
 }
 
 /** The body as the book renders it, with findings collected rather than thrown. */
@@ -69,12 +69,12 @@ describe("a footnote reference may be written anywhere prose can be written", ()
     }
 });
 
-describe("a footnote reference inside a named block or a caption", () => {
+describe("a footnote reference inside a named block or a figure", () => {
     const CASES: Record<string, string> = {
         info: ":::info\nA fact.[^x]\n:::",
         warn: ":::warn\nA caution.[^x]\n:::",
         secret: ":::secret\nA clue.[^x]\n:::",
-        "caption prose": ":::caption {#note}\nA note\n:::\n\nSome prose.[^x]",
+        "figure prose": ":::figure {#note}\nSome prose.[^x]\n///\nA note\n:::",
     };
 
     for (const [name, body] of Object.entries(CASES)) {
@@ -195,14 +195,14 @@ describe("a footnote definition no reference uses is a finding", () => {
     });
 });
 
-describe("a footnote inside a figure caption's block resolves", () => {
+describe("a footnote inside a figure's contents resolves", () => {
     it("when a reference trails the image on the same line", () => {
         const source = [
-            ":::caption {#note}",
+            ":::figure {#note}",
+            "![A ranger](ranger.webp)[^x]",
+            "///",
             "A figure",
             ":::",
-            "",
-            "![A ranger](ranger.webp)[^x]",
             "",
             "[^x]: A footnote about the ranger.",
         ].join("\n");
@@ -222,11 +222,11 @@ describe("a footnote inside a figure caption's block resolves", () => {
 
     it("still strips the figcaption from a genuine standalone figure", () => {
         const source = [
-            ":::caption {#note}",
+            ":::figure {#note}",
+            "![A ranger](ranger.webp)",
+            "///",
             "A figure",
             ":::",
-            "",
-            "![A ranger](ranger.webp)",
         ].join("\n");
         const html = foundry(source);
         expect(html.match(/<figcaption\b/g)).toBeNull();

@@ -27,7 +27,7 @@
 
  * **One pass reads all three names.** Reading them in two passes made the first
  * one meet the second's closers with nothing open, and report a block the author
- * had not written. A construct this pass does not own — `:::caption` — is
+ * had not written. A construct this pass does not own — `:::figure` — is
  * counted rather than claimed, so its closer is attributed to it and the pass
  * that owns it still finds it in the markdown this one passes through.
  *
@@ -87,13 +87,13 @@ export const BLOCK_NAMES = Object.freeze({
 export const BLOCK_CONTAINERS = Object.freeze(["secret"]);
 
 /**
- * Constructs another pass owns. A `:::caption` is read by the caption pass, so
+ * Constructs another pass owns. A `:::figure` is read by the figure pass, so
  * this one **counts it and does not claim it**: the opener and its closer pass
  * through untouched, and the count is what lets a closer be attributed to the
  * innermost block actually open. Claiming one would report a block that does not
- * exist and take the caption out of the note.
+ * exist and take the figure out of the note.
  */
-const FOREIGN = Object.freeze(["caption"]);
+const FOREIGN = Object.freeze(["figure"]);
 
 /** `title` is the heading. Everything else an author writes becomes an attribute. */
 const TITLE = "title";

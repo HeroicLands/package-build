@@ -12,7 +12,7 @@
  */
 
 /**
- * The anchors a note declares on headings and captioned blocks.
+ * The anchors a note declares on headings and figure fences.
  *
  * **A leaf, deliberately.** This is asked by the link checker, by the content
  * index, and by the builds that emit a link, and they cannot all import one
@@ -29,14 +29,15 @@
  * @module
  */
 
-import { scanCaptions } from "./content-captions.mjs";
+import { scanFigures } from "./content-figures.mjs";
 import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
 
 /**
- * The `{#slug}` and `:::caption {#slug}` anchors a note declares.
+ * The `{#slug}` and `:::figure {#slug}` anchors a note declares.
  *
- * A bare `#` heading starts a journal page without declaring a slug. Captioned
- * blocks declare a slug and start an addressable journal page.
+ * A bare `#` heading starts a journal page without declaring a slug, and so
+ * does a figure fence that declares no id. A fence that declares one declares a
+ * slug and starts an addressable journal page.
  *
  * @param {string} body - The note's markdown body, frontmatter already removed.
  * @param {number} [bodyLine] - The 1-based file line the body starts on, from
@@ -70,12 +71,13 @@ export function collectAnchors(body, bodyLine = 1) {
             line: bodyLine + i,
         });
     }
-    for (const caption of scanCaptions(body).captions) {
+    for (const figure of scanFigures(body).figures) {
+        if (!figure.id) continue;
         anchors.push({
-            slug: caption.id,
-            name: caption.label,
+            slug: figure.id,
+            name: figure.label,
             level: 1,
-            line: bodyLine + caption.line - 1,
+            line: bodyLine + figure.line - 1,
         });
     }
     return anchors.sort((a, b) => a.line - b.line);

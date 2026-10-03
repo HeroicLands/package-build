@@ -210,34 +210,35 @@ describe("markdownToTypst", () => {
         expect(out).not.toContain(":::info");
     });
 
-    it("prints each of two captions sharing an id once, and reports the id", () => {
+    it("prints each of two figures sharing an id once, and reports the id", () => {
         const findings: { line?: number; severity: string; message: string }[] = [];
         const out = markdownToTypst(
             [
-                ":::caption {#a}",
-                "First",
-                ":::",
-                "",
+                ":::figure {#a}",
                 "| a |",
                 "| - |",
                 "| 1 |",
-                "",
-                ":::caption {#a}",
-                "Second",
+                "///",
+                "First",
                 ":::",
                 "",
+                ":::figure {#a}",
                 "| c |",
                 "| - |",
                 "| 3 |",
+                "///",
+                "Second",
+                ":::",
             ].join("\n"),
             { findings },
         );
         expect(out).toContain("Table 1: First");
         expect(out).toContain("Table 2: Second");
         expect(out.match(/table\.header\(\[c\]\)/g)).toHaveLength(1);
-        expect(out).not.toContain(":::caption");
+        expect(out).not.toContain(":::figure");
+        expect(out).not.toContain("///");
         expect(findings).toEqual([
-            { line: 9, column: 1, severity: "error", message: 'duplicate caption id "a"' },
+            { line: 9, column: 1, severity: "error", message: 'duplicate figure id "a"' },
         ]);
     });
 });
@@ -354,10 +355,10 @@ describe("what the book cannot set", () => {
             severity: "error",
             message: "secret block needs a closing ::: line",
         });
-        expect(render("Prose.\n\n:::caption {#a}\nOnly\n:::").findings[0]).toMatchObject({
+        expect(render("Prose.\n\n:::figure {#a}\n///\nOnly\n:::").findings[0]).toMatchObject({
             line: 3,
             severity: "error",
-            message: "caption needs a following block",
+            message: "a figure has no contents",
         });
     });
 

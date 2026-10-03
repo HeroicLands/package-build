@@ -69,7 +69,7 @@ import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
 import { journalHasContent } from "./note-state.mjs";
 import { draftNoticeFor } from "./draft-notice.mjs";
-import { scanCaptions } from "./content-captions.mjs";
+import { scanFigures } from "./content-figures.mjs";
 import { separateFootnotes } from "./content-footnotes.mjs";
 import { WITHHELD_CLASS, pageOpenings } from "./heading-attributes.mjs";
 
@@ -103,12 +103,8 @@ const WITHHELD_OWNERSHIP = 0;
 export function splitPages(body, leadName = "Introduction") {
     const { markdown, definitions } = separateFootnotes(body);
     const lines = markdown.split("\n");
-    const captions = scanCaptions(markdown).captions;
-    const captionStarts = new Map(captions.map((caption) => [caption.line - 1, caption]));
-    const captionedHeadings = new Set(
-        captions
-            .filter((caption) => /^\s*#{1,6}\s/.test(lines[caption.blockStart] ?? ""))
-            .map((caption) => caption.blockStart),
+    const figureStarts = new Map(
+        scanFigures(markdown).figures.map((figure) => [figure.line - 1, figure]),
     );
     const openings = pageOpenings(markdown);
     const pages = [];
@@ -140,25 +136,26 @@ export function splitPages(body, leadName = "Introduction") {
         // anchor: a Foundry UUID can only address a page, so a linkable
         // section has to be one.
         // {@link module:engine/heading-attributes.parseHeadingLine} is the one
-        // reading of that rule — `scanBlocks` and `scanCaptions` refuse such a
+        // reading of that rule — `scanBlocks` and `scanFigures` refuse such a
         // heading written where it cannot become a page, from the same
         // function, so none of them can disagree about what starts one. The
         // lines it claims here are collected by `pageOpenings`, which also
-        // skips a fence and a named block.
+        // skips a fence and a named block. A figure fence opens a page of its
+        // own, named for the figure's label.
         const opening = openings.get(lineIndex);
-        const caption = !inCodeBlock && !inSecret ? captionStarts.get(lineIndex) : null;
-        if (caption) {
+        const figure = !inCodeBlock && !inSecret ? figureStarts.get(lineIndex) : null;
+        if (figure) {
             closeCurrent();
             current = {
-                name: caption.label,
-                anchorSlug: caption.id,
+                name: figure.label,
+                anchorSlug: figure.id || null,
                 level: 1,
                 classes: [],
                 lines: [line],
             };
             continue;
         }
-        if (opening && !captionedHeadings.has(lineIndex)) {
+        if (opening) {
             closeCurrent();
             current = {
                 name: opening.text,
@@ -299,7 +296,7 @@ export function journalPageId(entryId, page) {
  *   ownership?: {default: number}}>} The page documents, in order.
  * @throws {Error} When the note has no content at all, or repeats an anchor.
  */
-export function buildPages(rawPages, entryId, noteName, captions) {
+export function buildPages(rawPages, entryId, noteName, figures) {
     if (rawPages.length === 0) {
         throw new Error(
             `note "${noteName}" has no Introduction content and no H1 headings — nothing to compile`,
@@ -326,7 +323,7 @@ export function buildPages(rawPages, entryId, noteName, captions) {
                 format: 1,
                 content:
                     page.markdown ?
-                        renderFoundryMarkdown(page.markdown, captions, footnoteNumbers, pageId)
+                        renderFoundryMarkdown(page.markdown, figures, footnoteNumbers, pageId)
                     :   "",
             },
             ...(withheld ? { ownership: { default: WITHHELD_OWNERSHIP } } : {}),
@@ -378,7 +375,7 @@ export function buildJournalEntry({
     notice = "",
 }) {
     const rawPages = splitPages(markdown, leadName);
-    const pages = buildPages(rawPages, id, name, scanCaptions(markdown).captions);
+    const pages = buildPages(rawPages, id, name, scanFigures(markdown).figures);
     for (const box of infoboxes) {
         const pageId = makeId("journal-infobox-page", `${id}:${box.id}`);
         pages.push({

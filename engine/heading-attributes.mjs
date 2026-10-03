@@ -7,15 +7,15 @@
  * # The Harbor {#harbor .wide}
  * ```
  *
- * The index, the link checker, the journal compiler, the caption pass and the
+ * The index, the link checker, the journal compiler, the figure pass and the
  * book all ask what a heading declares, and they have to give the same answer:
  * an id a surface publishes as an anchor, classes a surface may honour, and
  * attributes an HTML surface writes onto the element. This is where that
  * reading lives, so there is one grammar — the same one a `:::` block and a
- * `:::caption` are written in.
+ * `:::figure` are written in.
  *
  * **A leaf, deliberately.** `anchors.mjs` is shared by the compilers, the index
- * and the link checker and cannot import any of them; the caption pass is
+ * and the link checker and cannot import any of them; the figure pass is
  * imported by `anchors.mjs` and so cannot import it back. A module that imports
  * only the attribute grammar can be asked by all of them.
  *
@@ -38,7 +38,7 @@ const SUFFIX = /^(.*?)\s*\{([^}\n]*)\}\s*$/;
 /**
  * A heading's id.
  *
- * Looser than a caption's or a block's, which must begin with a letter: a
+ * Looser than a figure's or a block's, which must begin with a letter: a
  * heading's id is published as an HTML `id` and as a Foundry page anchor, both
  * of which admit a digit first, and the corpus carries ids that are Foundry
  * document ids and ids derived from a numbered heading.
@@ -108,9 +108,9 @@ export const WITHHELD_CLASS = "secret";
  * A Foundry UUID addresses a page and nothing smaller, so a section a link can
  * reach has to be one: a top-level heading starts a page, and so does any
  * heading that names an anchor. {@link module:engine/journals.splitPages}
- * decides *where* a page begins — a captioned heading and a heading inside a
- * fence or a named block are its business — and asks this which headings are
- * eligible, so no caller re-decides it.
+ * decides *where* a page begins — a heading inside a fence or a named block is
+ * its business — and asks this which headings are eligible, so no caller
+ * re-decides it.
  *
  * @param {{level: number, id: string}} heading - From
  *   {@link scanHeadingAttributes}, or any `{level, id}` pair.
@@ -204,7 +204,7 @@ export function headingAttributesPlugin(md) {
  * Parse one line as a heading, and say whether it starts a journal page.
  *
  * The single reading of that rule. {@link module:engine/journals.splitPages}
- * builds its pages from it; `scanBlocks` and `scanCaptions` refuse a heading
+ * builds its pages from it; `scanBlocks` and `scanFigures` refuse a heading
  * that starts a page written where it cannot become one. All three ask this, so
  * none of them can disagree about what a heading line means or about what starts
  * a page — and the attribute block comes off here, so a class beside an anchor
@@ -240,9 +240,8 @@ export function parseHeadingLine(line) {
  * builds the pages from this, and the passes that honour a class on a
  * page-opening heading ask the same question of the same answer.
  *
- * A caption also opens a page, which is `splitPages`' business: a caption is
- * found by the caption pass, and a heading it captions is listed here and
- * dropped there.
+ * A figure fence also opens a page, which is `splitPages`' business: a fence is
+ * found by the figure pass, and the page it opens is named for its label.
  *
  * @param {string} source - A note's markdown body.
  * @returns {Map<number, {level: number, line: number, text: string, id: string,

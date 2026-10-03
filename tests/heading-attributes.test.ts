@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { collectAnchors } from "../engine/anchors.mjs";
 import { extractAnchorSection } from "../engine/anchored-sections.mjs";
 import { scanBlocks } from "../engine/content-blocks.mjs";
-import { scanCaptions } from "../engine/content-captions.mjs";
+import { scanFigures } from "../engine/content-figures.mjs";
 import { parseHeadingLine, splitHeadingAttributes } from "../engine/heading-attributes.mjs";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { splitPages } from "../engine/journals.mjs";
@@ -114,7 +114,7 @@ describe("one reading of what starts a page", () => {
     });
 
     /**
-     * The block and caption refusals ask the same parse, so an opener carrying
+     * The block and figure refusals ask the same parse, so an opener carrying
      * its own attribute block does not hide a page-opening heading written
      * inside it, and an anchored heading carrying a class is still one.
      */
@@ -139,17 +139,17 @@ describe("one reading of what starts a page", () => {
         expect(fine.map((e) => e.message).join(" ")).not.toContain("cannot be written inside");
     });
 
-    it("refuses a page-opening heading inside a caption, by the same parse", () => {
+    it("refuses a page-opening heading inside a figure, by the same parse", () => {
         for (const heading of [
             "# An H1",
             "## Anchored {#x}",
             "## Anchored and classed {#x .wide}",
         ]) {
-            const errors = scanCaptions(
-                [":::caption {#cap}", heading, ":::", "", "A paragraph."].join("\n"),
+            const errors = scanFigures(
+                [":::figure {#cap}", heading, "///", "A caption.", ":::"].join("\n"),
             ).errors;
             expect(errors.map((e) => e.message).join(" ")).toContain(
-                "cannot be written inside a caption",
+                "cannot be written inside a figure",
             );
         }
     });
@@ -187,11 +187,11 @@ describe("every reader agrees about one heading", () => {
         expect(extractAnchorSection(body, "appearance")).toBe("Tall, and grey at the temple.");
     });
 
-    it("sees a heading and a caption claim one anchor through the shared reading", () => {
+    it("sees a heading and a figure claim one anchor through the shared reading", () => {
         const body =
-            "## Trade {#trade .wide}\n\n:::caption {#trade}\nRoutes\n:::\n\nA paragraph.\n";
-        expect(scanCaptions(body).errors.map((e) => e.message)).toContain(
-            'heading and caption declare the same anchor "trade"',
+            "## Trade {#trade .wide}\n\n:::figure {#trade}\nRoutes\n///\nTrade\n:::\n\nA paragraph.\n";
+        expect(scanFigures(body).errors.map((e) => e.message)).toContain(
+            'heading and figure declare the same anchor "trade"',
         );
     });
 });

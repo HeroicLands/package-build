@@ -79,7 +79,7 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
     "full-width": '"full-width"',
 });
 import { slugify } from "./content-slug.mjs";
-import { scanCaptions } from "./content-captions.mjs";
+import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { HTML_TAG, htmlMessage } from "./content-html.mjs";
@@ -290,7 +290,7 @@ function offsetPosition(source, offset, opts = {}) {
  *   those passes did not run — `opts.prepared` — because each of them leaves the
  *   markup as written when it fails and has already said so in its own words.
  *
- * A `:::` block and a `:::caption` are the pair this pass does handle, and their
+ * A `:::` block and a `:::figure` are the pair this pass does handle, and their
  * own scanners decide what is well formed; their findings are reported here so
  * that a front-matter file, a prose file and a note body all get them.
  *
@@ -341,7 +341,7 @@ function reportUnrenderable(source, definitions, opts, original) {
                 );
         }
     }
-    for (const error of scanCaptions(source).errors)
+    for (const error of scanFigures(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
     for (const error of scanHeadingAttributes(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
@@ -544,18 +544,18 @@ export function markdownToTypst(markdown, opts = {}) {
         }
     }
     const lines = source.split("\n");
-    const localCaptions = scanCaptions(source).captions;
+    const localFigures = scanFigures(source).figures;
     // Numbered by the caller, which counts across the whole book, and placed by
     // the scan above, which is the only reading of *this* body. Paired by
-    // position: two captions may share an id — a finding, and the book is built
-    // anyway — and keying on one would give the second caption's lines to the
-    // first, printing its block twice and losing its label.
-    const provided = opts.captions ?? localCaptions;
-    const numbered = new Map(provided.map((caption) => [caption.id, caption]));
-    const captions = localCaptions.map((caption, at) => {
+    // position: two figures may share an id — a finding, and the book is built
+    // anyway — and keying on one would give the second figure's lines to the
+    // first, printing its contents twice and losing its label.
+    const provided = opts.captions ?? localFigures;
+    const numbered = new Map(provided.map((figure) => [figure.id, figure]));
+    const captions = localFigures.map((figure, at) => {
         const counted =
-            provided[at]?.id === caption.id ? provided[at] : (numbered.get(caption.id) ?? caption);
-        return { ...caption, label: counted.label, number: counted.number };
+            provided[at]?.id === figure.id ? provided[at] : (numbered.get(figure.id) ?? figure);
+        return { ...figure, label: counted.label, number: counted.number };
     });
     if (!captions.length) return renderMarkdownSegment(source, md, ctx, definitions);
     const out = [];
@@ -569,14 +569,14 @@ export function markdownToTypst(markdown, opts = {}) {
                 definitions,
             ),
         );
-        const block = lines.slice(caption.blockStart, caption.blockEnd).join("\n");
+        const block = lines.slice(caption.bodyStart, caption.bodyEnd).join("\n");
         out.push(renderMarkdownSegment(block, md, { ...ctx, caption }, definitions));
         if (caption.kind !== "table" && caption.kind !== "figure") {
             out.push(
-                `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]] <${sectionLabel(anchorPrefix, slugify(caption.id))}>\n\n`,
+                `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]]${typstAnchor(anchorPrefix, caption)}\n\n`,
             );
         }
-        cursor = caption.blockEnd;
+        cursor = caption.close + 1;
     }
     out.push(renderMarkdownSegment(lines.slice(cursor).join("\n"), md, ctx, definitions));
     return out.filter(Boolean).join("\n\n");
@@ -885,9 +885,33 @@ function inlineMarkup(text, ctx) {
     return inline ? renderInline(inline, ctx) : "";
 }
 
-/** Caption text with the same inline Markdown handling as the surrounding prose. */
+/**
+ * A figure's label, with its caption when it carries one.
+ *
+ * The caption's inline Markdown is handled the way the surrounding prose is. A
+ * figure with no caption draws its label alone.
+ *
+ * @param {object} caption - A figure record.
+ * @param {object} ctx - Render context.
+ * @returns {string} Typst markup.
+ */
 function captionMarkup(caption, ctx) {
-    return `${escapeTypst(caption.label)}: ${inlineMarkup(caption.text, ctx)}`;
+    const label = escapeTypst(caption.label);
+    return caption.hasCaption ? `${label}: ${inlineMarkup(caption.caption, ctx)}` : label;
+}
+
+/**
+ * The Typst label a figure is referenced by, or `""` when it declares no id.
+ *
+ * A figure with no id is numbered and drawn and nothing addresses it, so it is
+ * given no label: an empty one would collide with every other idless figure.
+ *
+ * @param {string} prefix - The entry's anchor prefix.
+ * @param {object} caption - A figure record.
+ * @returns {string} A ` <label>` to append, or `""`.
+ */
+function typstAnchor(prefix, caption) {
+    return caption.id ? ` <${sectionLabel(prefix, slugify(caption.id))}>` : "";
 }
 
 /**
@@ -966,7 +990,7 @@ function renderTable(tokens, ctx) {
     const caption = ctx.caption;
     const labelled =
         caption ?
-            `#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}] <${sectionLabel(ctx.anchorPrefix, slugify(caption.id))}>\n${drawn}`
+            `#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]${typstAnchor(ctx.anchorPrefix, caption)}\n${drawn}`
         :   drawn;
     // Wide content is given an explicit span rather than left to overflow the
     // measure: past three columns a table is set across the page, and
@@ -1230,16 +1254,14 @@ function renderLink(href, inner, ctx) {
  */
 function renderImage(token, ctx) {
     const alt = token.content || token.attrGet?.("alt") || "";
-    // Only a genuine figure caption labels the image inline — a caption
-    // reclassified as prose, because something besides the image shares its
-    // block, gets its label from the generic block-level caption print in
-    // {@link markdownToTypst} instead, the same as a code or prose caption
-    // always has. Reading it here regardless of kind printed the label twice.
+    // Only a figure-kind fence labels the image inline — a fence holding
+    // anything besides pictures is prose, and gets its label from the generic
+    // block-level print in {@link markdownToTypst} instead, the same as a code
+    // or a table fence. Reading it here regardless of kind prints it twice.
     const figureCaption = ctx.caption?.kind === "figure" ? ctx.caption : null;
     const captionText = figureCaption ? captionMarkup(figureCaption, ctx) : escapeTypst(alt);
     const caption = captionText ? `[${captionText}]` : "none";
-    const anchor =
-        figureCaption ? ` <${sectionLabel(ctx.anchorPrefix, slugify(figureCaption.id))}>` : "";
+    const anchor = figureCaption ? typstAnchor(ctx.anchorPrefix, figureCaption) : "";
     const staged = ctx.images.get(token.attrGet?.("src") ?? "");
     if (!staged)
         return captionText ?

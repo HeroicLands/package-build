@@ -331,12 +331,24 @@ export function imageFigureHtml({ src, alt = "", classes = [], size = "auto", fl
 }
 
 /**
+ * A body extension's own delimiter — a `:::` opener or closer, or a figure's
+ * `///`.
+ *
+ * It bounds a paragraph exactly as a blank line does: the line belongs to the
+ * construct rather than to the prose, and the pass that owns the construct
+ * hands its body on by itself. So a picture written tight against one is a
+ * block of its own, which is how `:::figure` is written.
+ */
+const DELIMITER = /^(?::{3,}[^\n]*|\/{3,}[ \t]*)$/;
+
+/**
  * Whether a match sits alone in its own paragraph.
  *
- * "Alone" is the whole of a block: nothing else on its line, and a blank line
- * or the end of the body either side of it. A leading `>` or list marker
- * disqualifies it for the same reason a word does — the paragraph it belongs to
- * holds something the figure would have to be lifted out of.
+ * "Alone" is the whole of a block: nothing else on its line, and a blank line,
+ * a body-extension delimiter or the end of the body either side of it. A
+ * leading `>` or list marker disqualifies it for the same reason a word does —
+ * the paragraph it belongs to holds something the figure would have to be
+ * lifted out of.
  *
  * @param {string} text - The body the match indexes into.
  * @param {number} start - Where the match begins.
@@ -353,9 +365,12 @@ export function standsAlone(text, start, end) {
     if (!/^[ \t]*$/.test(src.slice(end, lineEnd === -1 ? src.length : lineEnd))) return false;
 
     const before = src.slice(0, lineStart);
-    if (before.trim() && !/\n[ \t]*\n[ \t]*$/.test(before)) return false;
+    const previous = before.replace(/\n$/, "").split("\n").pop() ?? "";
+    if (before.trim() && !/\n[ \t]*\n[ \t]*$/.test(before) && !DELIMITER.test(previous))
+        return false;
     const after = lineEnd === -1 ? "" : src.slice(lineEnd);
-    if (after.trim() && !/^\n[ \t]*\n/.test(after)) return false;
+    const next = after.replace(/^\n/, "").split("\n")[0] ?? "";
+    if (after.trim() && !/^\n[ \t]*\n/.test(after) && !DELIMITER.test(next)) return false;
     return true;
 }
 

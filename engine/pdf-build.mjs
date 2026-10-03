@@ -101,7 +101,7 @@ import { positionOfLiteral } from "./diagnostics.mjs";
 import { artPathname, assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
-import { numberCaptions, scanCaptions } from "./content-captions.mjs";
+import { numberFigures, scanFigures } from "./content-figures.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imagesIn, parseImageDirective } from "./content-images.mjs";
@@ -540,16 +540,16 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      * @param {number} columns - The entry's page columns.
      * @returns {string} Typst markup.
      */
-    const captionCounts = { code: 0, table: 0, figure: 0, prose: 0 };
-    const frontCaptions = new Map();
+    const figureCounts = { code: 0, table: 0, figure: 0, prose: 0 };
+    const frontFigures = new Map();
     for (const file of resolved.pdf.front) {
         try {
-            const scan = scanCaptions(fs.readFileSync(file, "utf8"));
+            const scan = scanFigures(fs.readFileSync(file, "utf8"));
             // Numbered here, because a number runs across the whole book and only
-            // this loop knows the order; what is *wrong* with a caption is
+            // this loop knows the order; what is *wrong* with a figure is
             // reported by the renderer, which reads every one of the three kinds
             // of markdown a book is made of.
-            frontCaptions.set(file, numberCaptions(scan.captions, captionCounts));
+            frontFigures.set(file, numberFigures(scan.figures, figureCounts));
         } catch {
             // The rendering pass reports an unreadable front-matter file.
         }
@@ -593,10 +593,12 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             foreignIndex: gates.foreign.index,
             assets,
         });
-        const captionScan = scanCaptions(markdown);
-        const numberedCaptions = numberCaptions(captionScan.captions, captionCounts);
+        const figureScan = scanFigures(markdown);
+        const numberedFigures = numberFigures(figureScan.figures, figureCounts);
         linkCtx.captionLabels = new Map(
-            numberedCaptions.map((caption) => [caption.id, caption.label]),
+            numberedFigures
+                .filter((figure) => figure.id)
+                .map((figure) => [figure.id, figure.label]),
         );
         // This page's own anchors, so a `[[#slug]]` self-link is checked
         // against what the page actually declares, exactly as the site build
@@ -659,7 +661,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             images,
             headingOffset,
             anchorPrefix,
-            captions: numberedCaptions,
+            captions: numberedFigures,
             url: site,
             findings,
             file: page.file,
@@ -726,7 +728,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                     images,
                     headingOffset: entry.depth,
                     anchorPrefix: entry.anchor,
-                    captions: numberCaptions(scanCaptions(text).captions, captionCounts),
+                    captions: numberFigures(scanFigures(text).figures, figureCounts),
                     url: site,
                     findings,
                     file,
@@ -754,7 +756,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 glyphs,
                 images,
                 footnotePrefix: `footnote-front-${index + 1}`,
-                captions: frontCaptions.get(file),
+                captions: frontFigures.get(file),
                 url: site,
                 findings,
                 file,

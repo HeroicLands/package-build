@@ -16,19 +16,19 @@ import { renderSitePage } from "../engine/site-build.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 
 /**
- * One note body carrying **two** malformed `:::caption` blocks, each missing
- * its required `{#anchor}` attributes. It is the body every surface in this
+ * One note body carrying **two** malformed `:::figure` fences, each carrying a
+ * class the construct does not declare. It is the body every surface in this
  * file reads, so a count that differs between them is a real divergence and
  * not a difference in what was asked.
  */
-const TWO_CAPTION_PROBLEMS = [
+const TWO_FIGURE_PROBLEMS = [
     "Some prose.",
     "",
-    ":::caption",
+    ":::figure {.wide}",
     "First paragraph.",
     ":::",
     "",
-    ":::caption",
+    ":::figure {.wide}",
     "Second paragraph.",
     ":::",
 ].join("\n");
@@ -100,13 +100,13 @@ describe("the pack compiler, the site build and the book agree on one note's fin
         spy?.mockRestore();
     });
 
-    it("reports both caption findings on every surface, not just the first", async () => {
+    it("reports both figure findings on every surface, not just the first", async () => {
         // The pack compiler: a tree of one note, compiled, counted.
         const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-finding-parity-"));
         try {
             const content = path.join(tmp, "content");
             fs.mkdirSync(content, { recursive: true });
-            fs.writeFileSync(path.join(content, "Probe.md"), noteFile(TWO_CAPTION_PROBLEMS));
+            fs.writeFileSync(path.join(content, "Probe.md"), noteFile(TWO_FIGURE_PROBLEMS));
             const out = path.join(tmp, "out");
             fs.mkdirSync(out, { recursive: true });
             spy = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -119,7 +119,7 @@ describe("the pack compiler, the site build and the book agree on one note's fin
                 fm: { type: "doc", shortcode: "parity", name: { full: "Probe" } },
                 file: path.join(content, "Probe.md"),
                 pkg: "sohl",
-                body: TWO_CAPTION_PROBLEMS,
+                body: TWO_FIGURE_PROBLEMS,
                 bodyLine: 8,
                 name: "Probe",
                 slug: "doc-parity",
@@ -136,25 +136,25 @@ describe("the pack compiler, the site build and the book agree on one note's fin
 
             // The book: the same body, through the Typst renderer.
             const findings: { severity: string; message: string }[] = [];
-            markdownToTypst(TWO_CAPTION_PROBLEMS, { findings, file: "Probe.md" });
+            markdownToTypst(TWO_FIGURE_PROBLEMS, { findings, file: "Probe.md" });
 
-            const captionFindingCount = (list: { message: string }[]) =>
-                list.filter((f) => f.message.includes("caption needs {#anchor}")).length;
+            const figureFindingCount = (list: { message: string }[]) =>
+                list.filter((f) => f.message.includes("takes no .wide class")).length;
 
             expect(pack.errorCount).toBe(2);
             expect(site.captionErrors).toHaveLength(2);
-            expect(captionFindingCount(findings)).toBe(2);
+            expect(figureFindingCount(findings)).toBe(2);
 
             // Not just the same count — the same two complaints, as a set. A
             // surface that worded one of them differently would still pass a
             // bare length check and fail this.
             const asSet = (list: { message: string }[]) => new Set(list.map((f) => f.message));
-            expect(asSet(site.captionErrors)).toEqual(
-                new Set(["caption needs {#anchor} attributes"]),
-            );
+            const refusal =
+                "a figure takes no .wide class — the classes a figure takes are .border";
+            expect(asSet(site.captionErrors)).toEqual(new Set([refusal]));
             expect(
-                asSet(findings.filter((f) => f.message.includes("caption needs {#anchor}"))),
-            ).toEqual(new Set(["caption needs {#anchor} attributes"]));
+                asSet(findings.filter((f) => f.message.includes("takes no .wide class"))),
+            ).toEqual(new Set([refusal]));
         } finally {
             fs.rmSync(tmp, { recursive: true, force: true });
         }
