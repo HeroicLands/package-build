@@ -64,10 +64,11 @@ import {
 } from "./note-frontmatter.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { addressPositions } from "./note-addresses.mjs";
-import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
+import { authoredFields, readsLegacyKey, readsRetiredTopLevel } from "./field-spec.mjs";
 import {
     legacyKeyOf,
     resolveFieldValue,
+    retiredTopLevelKey,
     systemBlock,
     SYSTEM_BLOCK_KEYS,
     unknownBlockKeys,
@@ -101,6 +102,7 @@ import {
     legacyKeyMessage,
     readAliasedField,
     retiredAliasMessage,
+    retiredTopLevelMessage,
     sectionRetiredMessage,
     traitsRetiredMessage,
 } from "./retired-fields.mjs";
@@ -1209,6 +1211,19 @@ export function lintNote(
     const type = String(fm.type ?? "");
     const raw = () => note.raw ?? "";
     const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
+
+    // The keys the closed top-level region refuses in general, but this
+    // type's own declarations still read — the retiring position
+    // `resolveFieldValue`'s step 3b resolves. Derived ahead of the schema
+    // lookup below, which runs after the closed-region check, so that check
+    // can skip exactly these and nothing else: a key this type's vocabulary
+    // does not name stays refused.
+    const retiringTopLevelKeys = new Set(
+        authoredFields(schemas?.[currentType(type)] ?? [])
+            .filter((field) => field.topLevelMeans === undefined)
+            .map((field) => retiredTopLevelKey(field))
+            .filter((key) => key !== undefined),
+    );
     if (type === "being") {
         const archetypes = fm.data?.archetypes;
         if (
@@ -1589,6 +1604,9 @@ export function lintNote(
 
     for (const key of authoredNoteKeys(raw())) {
         if (NOTE_TOP_LEVEL_KEY_SET.has(key)) continue;
+        // Reported below, as the retiring position it is rather than a key
+        // nobody recognises.
+        if (retiringTopLevelKeys.has(key)) continue;
         const position = positionInFrontmatter(raw(), key, undefined, { topLevel: true });
         if (
             findings.some(
@@ -1825,6 +1843,18 @@ export function lintNote(
                 ...at(legacyKeyOf(field)),
                 severity: "warning",
                 message: legacyKeyMessage("sohl", field),
+            });
+        }
+        // `readsLegacyKey`'s sibling for the other retiring position — the
+        // note's own top level, which `data:` gathered the fact off. Also a
+        // **warning**: the closed-region check above already let this exact
+        // key through for this exact reason, and the two must agree.
+        if (readsRetiredTopLevel(field, from)) {
+            findings.push({
+                file: note.file,
+                ...at(retiredTopLevelKey(field)),
+                severity: "warning",
+                message: retiredTopLevelMessage(field),
             });
         }
         const absent = from === "default" || value === undefined || value === null;
