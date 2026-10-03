@@ -63,6 +63,7 @@
 
 import { authoredFrontmatter } from "./index-records.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
+import { scanHeadingAttributes } from "./heading-attributes.mjs";
 import { scanCaptions } from "./content-captions.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
@@ -635,6 +636,12 @@ export class BasePackCompiler {
                         (this.currentNote?.bodyColumn ?? 1)
                     :   secretError.column,
             };
+            throw error;
+        }
+        const headingError = scanHeadingAttributes(body, this.currentNote?.bodyLine ?? 1).errors[0];
+        if (headingError) {
+            const error = new Error(headingError.message);
+            error.position = { line: headingError.line, column: headingError.column };
             throw error;
         }
         if (!this.constructor.convertsWikilinks) return body;

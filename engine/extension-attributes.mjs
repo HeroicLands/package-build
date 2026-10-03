@@ -1,12 +1,24 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 /**
+ * A name an id, a class or an attribute key may carry.
+ *
+ * One letter first, then letters, digits, `_` and `-`: a CSS class and an
+ * attribute key are written this way wherever they appear.
+ */
+const NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
+
+/**
  * Read the shared braced attribute grammar used by body extensions.
  * Callers validate which names and classes their extension understands.
  * @param {string} source - Text inside the braces.
+ * @param {object} [options={}]
+ * @param {RegExp} [options.idPattern=NAME] - What an `#id` may be named. A
+ *   construct whose id is published as an HTML `id` admits a digit first and
+ *   passes a looser pattern; the default is the pattern every other name takes.
  * @returns {{id: string, classes: string[], values: Record<string, string>, problems: string[]}}
  */
-export function parseExtensionAttributes(source) {
+export function parseExtensionAttributes(source, { idPattern = NAME } = {}) {
     const text = String(source ?? "");
     const result = { id: "", classes: [], values: {}, problems: [] };
     let at = 0;
@@ -18,7 +30,7 @@ export function parseExtensionAttributes(source) {
             const kind = text[at++];
             while (at < text.length && !/\s/.test(text[at])) at++;
             const name = text.slice(start + 1, at);
-            if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(name)) {
+            if (!(kind === "#" ? idPattern : NAME).test(name)) {
                 result.problems.push(
                     `invalid ${kind === "#" ? "id" : "class"} attribute ${text.slice(start, at)}`,
                 );

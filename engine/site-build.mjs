@@ -62,7 +62,8 @@ import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { renderBlocks, scanBlocks } from "./content-blocks.mjs";
+import { renderBlocks, renderWithheldSections, scanBlocks } from "./content-blocks.mjs";
+import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
 import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
@@ -703,6 +704,7 @@ export function renderSitePage(
     const expressionErrors = [];
     const secretErrors = [];
     const captionErrors = [];
+    const headingErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
     const resolved = [];
@@ -783,15 +785,23 @@ export function renderSitePage(
             column: error.column,
             message: error.message,
         });
+    for (const error of scanHeadingAttributes(page.body, page.bodyLine ?? 1).errors)
+        headingErrors.push({ file: page.file, ...error });
+    for (const error of withheldSections(page.body, page.bodyLine ?? 1).errors)
+        headingErrors.push({ file: page.file, ...error });
     return {
         page,
-        body: captioned.markdown,
+        // The disclosure is written last, over the Markdown the page ships: the
+        // passes before this one carry line positions into their findings, and a
+        // line inserted ahead of them would move every one of them.
+        body: renderWithheldSections(captioned.markdown),
         data,
         resolved,
         tableErrors,
         expressionErrors,
         secretErrors,
         captionErrors,
+        headingErrors,
         wikiErrors,
         imageErrors,
     };
@@ -869,6 +879,7 @@ export function renderPages(pages, options) {
     const expressionErrors = [];
     const secretErrors = [];
     const captionErrors = [];
+    const headingErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
     const byKind = {};
@@ -912,6 +923,7 @@ export function renderPages(pages, options) {
         expressionErrors.push(...result.expressionErrors);
         secretErrors.push(...result.secretErrors);
         captionErrors.push(...result.captionErrors);
+        headingErrors.push(...result.headingErrors);
         wikiErrors.push(...result.wikiErrors);
         imageErrors.push(...result.imageErrors);
         rendered.push({ page, body: result.body, data: result.data });
@@ -955,6 +967,7 @@ export function renderPages(pages, options) {
         expressionErrors,
         secretErrors,
         captionErrors,
+        headingErrors,
         wikiErrors,
         imageErrors,
         related,
@@ -1123,6 +1136,7 @@ export function buildSite({ config, sqlTables } = {}) {
             expressionErrors: [],
             secretErrors: [],
             captionErrors: [],
+            headingErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1145,6 +1159,7 @@ export function buildSite({ config, sqlTables } = {}) {
             expressionErrors: [],
             secretErrors: [],
             captionErrors: [],
+            headingErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1193,6 +1208,7 @@ export function buildSite({ config, sqlTables } = {}) {
             expressionErrors: [],
             secretErrors: [],
             captionErrors: [],
+            headingErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1251,6 +1267,7 @@ export function buildSite({ config, sqlTables } = {}) {
         expressionErrors: rendered.expressionErrors,
         secretErrors: rendered.secretErrors,
         captionErrors: rendered.captionErrors,
+        headingErrors: rendered.headingErrors,
         wikiErrors: rendered.wikiErrors,
         imageErrors: rendered.imageErrors,
         mapFindings: drawn.findings,

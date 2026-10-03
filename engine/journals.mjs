@@ -71,6 +71,14 @@ import { journalHasContent } from "./note-state.mjs";
 import { draftNoticeFor } from "./draft-notice.mjs";
 import { scanCaptions } from "./content-captions.mjs";
 import { separateFootnotes } from "./content-footnotes.mjs";
+import { WITHHELD_CLASS, pageOpenings } from "./heading-attributes.mjs";
+
+/**
+ * `CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE` — the default ownership a withheld
+ * page states. A GM reads every document whatever it says; everyone else reads
+ * this one not at all.
+ */
+const WITHHELD_OWNERSHIP = 0;
 
 /**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
@@ -78,7 +86,8 @@ import { separateFootnotes } from "./content-footnotes.mjs";
  * a split. Content before the first H1 (if non-empty) becomes a leading
  * page. Each H1 yields a page whose name is the heading
  * text (with any `{#anchor-id}` suffix stripped out and surfaced as
- * `anchorSlug`).
+ * `anchorSlug`). The classes the heading declares come along as `classes`, so
+ * a surface that honours one has it without reading the suffix again.
  *
  * `leadName` names that leading page. A journal note's is "Introduction",
  * because it introduces the pages that follow. An item doc's is the item — a
@@ -89,7 +98,7 @@ import { separateFootnotes } from "./content-footnotes.mjs";
  * @param {string} body - Markdown body to split.
  * @param {string} [leadName] - Name of the page before the first heading.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
- *   markdown: string}>} Pages in document order.
+ *   classes: string[], markdown: string}>} Pages in document order.
  */
 export function splitPages(body, leadName = "Introduction") {
     const { markdown, definitions } = separateFootnotes(body);
@@ -101,6 +110,7 @@ export function splitPages(body, leadName = "Introduction") {
             .filter((caption) => /^\s*#{1,6}\s/.test(lines[caption.blockStart] ?? ""))
             .map((caption) => caption.blockStart),
     );
+    const openings = pageOpenings(markdown);
     const pages = [];
     const beforeFirstH1 = [];
     let current = null;
@@ -113,6 +123,7 @@ export function splitPages(body, leadName = "Introduction") {
             name: current.name,
             anchorSlug: current.anchorSlug,
             level: current.level,
+            classes: current.classes,
             markdown: current.lines.join("\n").trim(),
         });
         current = null;
@@ -127,12 +138,9 @@ export function splitPages(body, leadName = "Introduction") {
 
         // An H1 starts a page, as does any heading carrying an `{#slug}`
         // anchor: a Foundry UUID can only address a page, so a linkable
-        // section has to be one.
-        const headingMatch =
-            !inCodeBlock && !inSecret ? line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/) : null;
-        const rawHeading = headingMatch?.[2]?.trim();
-        const anchorMatch = rawHeading?.match(/^(.*?)\s*\{#([^}]+)\}\s*$/);
-        const startsPage = headingMatch && (headingMatch[1].length === 1 || anchorMatch);
+        // section has to be one. Which lines those are is read once, by the
+        // walk every pass that honours a class on one shares.
+        const opening = openings.get(lineIndex);
         const caption = !inCodeBlock && !inSecret ? captionStarts.get(lineIndex) : null;
         if (caption) {
             closeCurrent();
@@ -140,16 +148,18 @@ export function splitPages(body, leadName = "Introduction") {
                 name: caption.label,
                 anchorSlug: caption.id,
                 level: 1,
+                classes: [],
                 lines: [line],
             };
             continue;
         }
-        if (startsPage && !captionedHeadings.has(lineIndex)) {
+        if (opening && !captionedHeadings.has(lineIndex)) {
             closeCurrent();
             current = {
-                name: (anchorMatch ? anchorMatch[1] : rawHeading).trim(),
-                anchorSlug: anchorMatch?.[2]?.trim() || null,
-                level: headingMatch[1].length,
+                name: opening.text,
+                anchorSlug: opening.id || null,
+                level: opening.level,
+                classes: opening.classes,
                 lines: [],
             };
             continue;
@@ -169,6 +179,7 @@ export function splitPages(body, leadName = "Introduction") {
             name: leadName,
             anchorSlug: null,
             level: 1,
+            classes: [],
             markdown: intro,
         });
     }
@@ -273,10 +284,14 @@ export function journalPageId(entryId, page) {
  * @param {Array<object>} rawPages - From {@link splitPages}.
  * @param {string} entryId - The owning JournalEntry's `_id`.
  * @param {string} noteName - The note, for error messages.
+ * A page whose heading carries `.secret` is given to the GM alone, by the one
+ * ownership value Foundry reads as "nobody but a GM". Every other page states
+ * no ownership and inherits the journal's.
+ *
  * @returns {Array<{_id: string, name: string, type: string,
  *   title: {show: boolean, level: number},
- *   text: {format: number, content: string}, _key: string}>} The page
- *   documents, in order.
+ *   text: {format: number, content: string}, _key: string,
+ *   ownership?: {default: number}}>} The page documents, in order.
  * @throws {Error} When the note has no content at all, or repeats an anchor.
  */
 export function buildPages(rawPages, entryId, noteName, captions) {
@@ -296,6 +311,7 @@ export function buildPages(rawPages, entryId, noteName, captions) {
     }
     return rawPages.map((page) => {
         const pageId = journalPageId(entryId, page);
+        const withheld = (page.classes ?? []).includes(WITHHELD_CLASS);
         return {
             _id: pageId,
             name: page.name,
@@ -308,6 +324,7 @@ export function buildPages(rawPages, entryId, noteName, captions) {
                         renderFoundryMarkdown(page.markdown, captions, footnoteNumbers, pageId)
                     :   "",
             },
+            ...(withheld ? { ownership: { default: WITHHELD_OWNERSHIP } } : {}),
             _key: `!journal.pages!${entryId}.${pageId}`,
         };
     });

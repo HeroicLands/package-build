@@ -2086,11 +2086,63 @@ See the [authoring examples](../authoring/links-and-markup.md#footnotes-and-defi
 # Heading {#id .class1 .class2 attr="value"}
 ```
 
-Any header can include curly braces. Inside the curly braces:
+Any header can end with a braced attribute block, in the same grammar a
+`:::caption` and a named block take. Inside the braces:
 
-- `#id` represents an id anchor named `id` (only one allowed)
-- `.class1` represents a CSS class named `class1` (any number of classes allowed)
-- `attr="value"` represents an HTML attribute named `attr` whose value is `value` (any number of attr/value pairs allowed)
+- `#id` names the anchor a link resolves to (only one allowed)
+- `.class1` names a CSS class (any number of classes allowed)
+- `attr="value"` names an HTML attribute whose value is `value` (any number of
+  key/value pairs allowed)
+
+The id is what every surface publishes; a class and an attribute reach only the
+surfaces that have somewhere to put them.
+
+|                 | an `#id`                                                    | a `.class`            | an `attr="value"`      |
+| --------------- | ----------------------------------------------------------- | --------------------- | ---------------------- |
+| Website         | the heading's `id`, and the target of `[[note#id\|…]]`      | the heading's `class` | written on the heading |
+| Foundry journal | the anchor the page is addressed by, and the heading's `id` | the heading's `class` | written on the heading |
+| Book            | the Typst label the heading is linked to                    | dropped               | dropped                |
+
+**The book drops both**, because Typst has no stylesheet for a class to name
+and no element for an attribute to sit on. A heading whose appearance matters in
+print is set by the book's own template, not by a class an author writes.
+
+An id contains letters, digits, `_` or `-`. A class and an attribute key begin
+with a letter. Braces holding anything else — a set, a die expression, a
+measurement — are a finding at the heading's line, and the heading is set as it
+was written so nothing is lost while the author reads the message.
+
+#### A section withheld from players
+
+The class `secret` on the heading that opens a section withholds that section.
+The heading keeps its id, so the section stays linkable: secrecy is a property
+of the section, not of the name a link resolves to.
+
+```markdown
+# The Cellar {#cellar .secret}
+
+The contraband is behind the false wall.
+```
+
+The section runs from the heading to the next heading that opens a page, which
+is the span Foundry makes one page of.
+
+| Surface | What a reader meets                                                                                               |
+| ------- | ----------------------------------------------------------------------------------------------------------------- |
+| Foundry | The journal page is visible to the GM alone — `ownership: { default: 0 }`, `CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE` |
+| Website | The heading and everything under it sit inside the expandable `<details>` a `:::secret` block renders as          |
+| Book    | The heading and everything under it are set in the labelled block a `:::secret` is set in                         |
+
+**On the website this is a spoiler and not access control.** The withheld
+section is in the published page, so a reader who opens the element or reads the
+source reads it — exactly as a `:::secret` block is. Foundry is the only surface
+that withholds anything from anybody. Write nothing in a `.secret` section that
+would matter if a player read it on the web.
+
+A `:::secret` block inside a withheld section is legal and renders as it does
+anywhere else. `.secret` on a heading that opens **no** page covers no page, so
+no surface can honour it: that is a finding at the heading's own line, answered
+by giving the heading an anchor or raising it to the top level.
 
 #### Images
 
@@ -2511,11 +2563,6 @@ The following H1 headers are treated specially:
 
 - `# ... {#appearance}`: The contents of this header become the `doc.appearance` property in sohl and `doc.description` in hm3.
 - `# ... {#dossier}`: The contents of this header become the `doc.dossier` property in sohl and `doc.biography` in hm3.
-- `# ... {#spoilers}`: The contents of this header are not written to the actor at all.
-
-For JournalEntries, the following rules apply:
-
-- `# ... {#spoilers}`: The contents of this header go into a page which is viewable only by the GM (`CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE`).
 
 **Archetypes** describe characters in broad terms and help match them to an adventure. The list is:
 

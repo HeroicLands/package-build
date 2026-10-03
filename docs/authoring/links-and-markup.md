@@ -39,7 +39,25 @@ Travelers present their papers here. See [[#harbor|the harbor]].
 
 A `:::caption` block starts a JournalEntryPage too, named for the caption's own label, in Foundry alone — the web and the book keep the caption in the flow of the page around it. The prose introducing a captioned block and the block itself land on two different Foundry pages, so a reference such as `[[#trade|]]` written just above a caption sends a Foundry reader to a different page than the one carrying the sentence. Give the introducing prose its own heading, or accept that following the reference leaves the page, before relying on a caption to sit inside a longer page's flow.
 
+A heading's braces hold an attribute block, not an anchor alone: `#slug` names the anchor, `.class` adds a CSS class, and `key="value"` writes an attribute. The website and a Foundry journal carry all three onto the heading; a book keeps the anchor and drops the rest, because Typst has no stylesheet to name a class in. Braces holding anything but an attribute block — `# The set {a, b}` — are reported at the heading's line and set as written.
+
 Another note can link to `[[lore-harbor#customs-house|Customs House]]`. For Items, `{#description}` selects the JournalEntryPage both systems reference, and accepts a heading at any level. A map note can use an anchored heading for a scene pin; the compiler replaces the pin's exported JournalEntry and page IDs with the built note's IDs and uses the heading text as its label. See [map notes](../reference/format-details.md#type-map) for scene fields.
+
+### A section players must not read
+
+Write `.secret` on the heading that opens the section:
+
+```markdown
+# The Cellar {#cellar .secret}
+
+The contraband is behind the false wall.
+```
+
+The section runs from that heading to the next heading that opens a page. In Foundry the page is the GM's alone. On the website and in the book the section sits inside the same expandable spoiler and the same labelled block a `:::secret` block gets. The heading keeps its id, so `[[lore-inn#cellar|the cellar]]` still resolves to it.
+
+**On the website this is a spoiler, not access control.** The withheld section is in the published page, so anyone who opens the element or reads the page source reads it. Foundry is the only surface that withholds anything. Write nothing in a `.secret` section that would matter if a player read it on the web.
+
+A `:::secret` block inside the section is legal and renders as it does anywhere else. `.secret` on a heading that opens no page — a lower-level heading with no anchor — covers no page, and is reported at its own line: give that heading an anchor, or raise it to the top level.
 
 The special Actor anchors `{#appearance}` and `{#dossier}` feed the same authored sections to each system's Actor fields, and take an H1 only — not the lower-level heading a journal page may otherwise start from. The section runs to the next H1, nested headings included. An anchor declared on a lower heading is still found, and is a build error rather than a quietly empty field: move the heading to the top level, or drop the anchor if the section is meant to stay unaddressed prose.
 

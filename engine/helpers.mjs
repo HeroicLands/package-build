@@ -66,6 +66,7 @@ import { isDraftNote } from "./note-vocabulary.mjs";
 import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderBlocks } from "./content-blocks.mjs";
+import { headingAttributesPlugin } from "./heading-attributes.mjs";
 import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
@@ -94,6 +95,9 @@ export {
 export const md = markdownit({ html: true })
     .use(footnotePlugin)
     .use(deflistPlugin)
+    // A heading's attribute block, written onto the heading element rather than
+    // typeset into it — the reading the website's renderer does for itself.
+    .use(headingAttributesPlugin)
     .use(
         // Resolved per render, not at import: this constant is built before any
         // configuration is read, and a package's own icons live in the

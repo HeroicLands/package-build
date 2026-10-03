@@ -5,6 +5,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { splitHeadingAttributes } from "./heading-attributes.mjs";
+
 /** @param {string} root */
 function* markdownFiles(root) {
     for (const entry of fs
@@ -40,11 +42,9 @@ export function docAnchors(source) {
     const body = maskMarkdownCode(source, false);
     const anchors = new Set();
     for (const [, heading] of body.matchAll(/^#{1,6}\s+(.+?)\s*#*$/gm)) {
-        const explicit = heading.match(/\{#([^}]+)\}\s*$/);
+        const explicit = splitHeadingAttributes(heading);
         anchors.add(
-            explicit ?
-                explicit[1].trim()
-            :   docHeadingSlug(heading.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")),
+            explicit.id || docHeadingSlug(explicit.text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")),
         );
     }
     for (const [, anchor] of body.matchAll(/<a\s[^>]*(?:id|name)="([^"]+)"/g)) {

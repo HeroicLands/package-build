@@ -15,8 +15,8 @@
  * **Anchored body sections** — the `# Heading {#anchor}` convention, and how a
  * compiler pulls one section out of a note's prose.
  *
- * The content format gives three anchors a document meaning: `{#appearance}`,
- * `{#dossier}` and `{#spoilers}`. *Which field* each lands in is a system's
+ * The content format gives two anchors a document meaning: `{#appearance}` and
+ * `{#dossier}`. *Which field* each lands in is a system's
  * business — SoHL writes the first to an actor's `appearance`, HM3 to an
  * actor's and an item's `description` — but *finding* it is not, so the
  * extraction lives here where every compiler reaches it.
@@ -31,6 +31,7 @@
 
 import { renderFoundryMarkdown } from "./helpers.mjs";
 import { collectAnchors } from "./anchors.mjs";
+import { splitHeadingAttributes } from "./heading-attributes.mjs";
 
 /**
  * Extract the body of an H1 section whose heading carries the explicit
@@ -63,8 +64,7 @@ export function extractAnchorSection(body, anchorId) {
         }
         const h1Match = !inCodeBlock ? line.match(/^\s*#\s+(.+?)\s*#*\s*$/) : null;
         if (h1Match) {
-            const anchor = h1Match[1].match(/\{#([^}]+)\}\s*$/);
-            const id = anchor?.[1]?.trim().toLowerCase() || null;
+            const id = splitHeadingAttributes(h1Match[1]).id.toLowerCase() || null;
             if (capturing) break;
             if (id === wanted) {
                 capturing = true;
