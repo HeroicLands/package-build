@@ -1029,18 +1029,21 @@ export function convertNoteWikilinks(
 /* ------------------------------------------------------------------------ */
 
 /**
- * Expand prepared SQL tables before resolving wikilinks in generated cells.
+ * Expand prepared SQL tables and page lists before resolving wikilinks in the
+ * links they generate.
  * @param {string} body - The note body.
- * @param {object} ctx - Source and prepared query results.
+ * @param {object} ctx - Source and prepared results.
  * @param {string} ctx.name - Name used in diagnostics.
  * @param {number} [ctx.bodyLine] - The first body line in the source file.
  * @param {object[]} [ctx.sqlTables] - Prepared SQL results in document order.
+ * @param {object[]} [ctx.pageLists] - Prepared page lists in document order.
  * @returns {{markdown: string, lineMap: Array<{line: number, generated: boolean}>}}
  */
-export function expandNoteTables(body, { name, bodyLine, sqlTables }) {
+export function expandNoteTables(body, { name, bodyLine, sqlTables, pageLists }) {
     const { markdown, errors, lineMap } = expandContentTables(body ?? "", {
         source: name,
         sqlTables,
+        pageLists,
     });
     if (errors.length) {
         const err = new Error(errors.map((e) => `content table — ${e.reason}`).join("; "));

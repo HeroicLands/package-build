@@ -962,6 +962,10 @@ export const NOTE_VOCABULARY = Object.freeze({
                 // `rank` indexes into, and an incomplete rung resolves to a
                 // standing with no name.
                 check: checkRankLadder,
+                // Each rung takes a row of its own, labelled and anchored by
+                // its title, ordered by level — the ladder's parallel to
+                // `governance.offices`' `roster`.
+                ranks: true,
                 describe: "The ladder of ranks the body confers — level, title, description.",
             },
             {

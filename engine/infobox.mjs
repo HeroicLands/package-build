@@ -121,7 +121,13 @@ import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
 import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
 import { displayBeingHeight, displayBeingWeight } from "./being-measurements.mjs";
-import { officeAnchor, officeRoster, readStandings, standingPhrase } from "./standings.mjs";
+import {
+    officeAnchor,
+    officeRoster,
+    rankAnchor,
+    readStandings,
+    standingPhrase,
+} from "./standings.mjs";
 
 /**
  * How a section arranges what it holds.
@@ -652,6 +658,43 @@ function rosterRows(raw) {
     return rows;
 }
 
+/**
+ * A ladder of named ranks, one row each, ordered by the level a body confers.
+ *
+ * The **title is the label and its description is the value**, the same
+ * convention {@link rosterRows} draws a body's offices with, so a reader
+ * meets the two lists the same way. A rung's optional `lore` — already
+ * resolved to an Address by the time this runs — reads alongside the
+ * description rather than replacing it, since the description is what the
+ * rung itself states and the lore is a pointer to more.
+ *
+ * @param {unknown} raw - The authored `governance.ranks` list.
+ * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
+ *   medium's resolver.
+ * @returns {object[]|null} One row per rung, in ascending level, or `null`
+ *   where the value is not a list of them.
+ */
+function rankRows(raw, resolve) {
+    if (!Array.isArray(raw)) return null;
+    const rungs = raw
+        .filter((rung) => isMapping(rung) && hasValue(rung.title))
+        .toSorted((a, b) => Number(a.level ?? 0) - Number(b.level ?? 0));
+    const rows = [];
+    for (const rung of rungs) {
+        const anchor = rankAnchor(String(rung.title));
+        const description =
+            hasValue(rung.description) ? String(rung.description) : String(rung.title);
+        const lore = hasValue(rung.lore) ? linkValue(rung.lore, resolve, { type: "lore" }) : null;
+        rows.push({
+            ...(anchor ? { id: anchor } : {}),
+            label: String(rung.title),
+            kind: "text",
+            value: lore?.text ? `${description} (Lore: ${lore.text})` : description,
+        });
+    }
+    return rows;
+}
+
 /** Expand structured references using the existing linked-row shape. */
 function structuredRows(field, raw, resolve, label, fm) {
     if (field.standings) return standingRows(field, raw, resolve, label);
@@ -659,9 +702,20 @@ function structuredRows(field, raw, resolve, label, fm) {
         const roster = rosterRows(raw);
         if (roster) return roster;
     }
-    if (Array.isArray(raw) && raw.some(isMapping)) {
-        const links = raw
-            .filter((entry) => isMapping(entry) && hasValue(entry.to))
+    if (field.ranks) {
+        const ranks = rankRows(raw, resolve);
+        if (ranks) return ranks;
+    }
+    // A relationship entry — `{to, ...}` — is a mapping that is not itself an
+    // Address: an authored plain list of addresses normalises to a list of
+    // Address tuples, which `isMapping` also reports true for, and treating
+    // one as a relationship keyed off a `to` it never carries is what emptied
+    // `lore`, `parents`, `domains` and `economy` silently.
+    const relations =
+        Array.isArray(raw) ? raw.filter((entry) => isMapping(entry) && !isAddressTuple(entry)) : [];
+    if (relations.length) {
+        const links = relations
+            .filter((entry) => hasValue(entry.to))
             .map((entry) => {
                 const link = linkValue(entry.to, resolve, { type: field.ref ?? "place" });
                 const details = Object.entries(entry)

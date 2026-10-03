@@ -754,6 +754,7 @@ export function renderSitePage(
         linkable,
         source: src,
         sqlTables: sqlTables?.get(page.file),
+        pageLists: sqlTables?.pageLists?.get(page.file),
         self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
     });
     tableErrors.push(...errors);
