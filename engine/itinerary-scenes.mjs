@@ -15,17 +15,9 @@ import { loadForeignIndexes } from "./metadata-index.mjs";
 import { authoredFrontmatter, isNoteRecord } from "./index-records.mjs";
 import { buildScene } from "./map-notes.mjs";
 import { buildJournalEntry } from "./journals.mjs";
+import { imageDimensions } from "./asset-types.mjs";
 import { makeId } from "./ids.mjs";
 import { stripAdventureKeys } from "./bundle-notes.mjs";
-
-/** The PNG's dimensions, from its fixed header. */
-function pngDimensions(file) {
-    const bytes = fs.readFileSync(file);
-    if (bytes.toString("hex", 0, 8) !== "89504e470d0a1a0a") {
-        throw new Error(`${file} is not a PNG`);
-    }
-    return [bytes.readUInt32BE(16), bytes.readUInt32BE(20)];
-}
 
 /** GraphViz's plain coordinates, converted to pixel positions on its PNG. */
 export function pinPositions(plain, width, height) {
@@ -111,7 +103,9 @@ export function buildItineraryScenes({
         const plain = path.join(outDir, `from-${centre}.plain`);
         renderDot(dot, png, { engine: "neato", format: "png", nop: 2, dpi: 150 });
         renderDot(dot, plain, { engine: "neato", format: "plain", nop: 2 });
-        const [width, height] = pngDimensions(png);
+        const size = imageDimensions(png, ".png");
+        if (!size) throw new Error(`${png} carries no readable PNG size`);
+        const { width, height } = size;
         const positions = pinPositions(fs.readFileSync(plain, "utf8"), width, height);
         const sceneId = makeId("itinerary-scene", `${config.contentPackage}:${centre}`);
         const src = `${buildConfig.packageKind}/${buildConfig.packageId}/assets/maps/generated-itineraries/from-${centre}.png`;
