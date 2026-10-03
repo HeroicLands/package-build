@@ -55,7 +55,7 @@ The table displays **Table 1: Regional trade routes**, and the reference display
 
 ## Images and protected content
 
-An image or icon embed stands on its own line. `size` accepts `auto`, `small`, `medium`, `large`, and `xlarge`; the medium maps those names to suitable dimensions. `float` controls placement. The asset remains an Address, so moving the file within its asset root does not change the link. See [assets](assets.md) and [image directives](../reference/format-details.md#images).
+An image or icon embed stands on its own line. `size` accepts `auto`, `small`, `medium`, `large`, `xlarge` and `full-width`; the medium maps those names to suitable dimensions, and `full-width` is the full page in the book and the full content width elsewhere. `float` controls placement and takes `top-left`, `top-right`, `bottom-left`, `bottom-right` or `center`; on a page a float occupies the column measure, so only the vertical half of a corner position has an effect there. The asset remains an Address, so moving the file within its asset root does not change the link. See [assets](assets.md) and [image directives](../reference/format-details.md#images).
 
 A `:::secret` block marks GM material while keeping it in the same authored note:
 
@@ -117,7 +117,7 @@ The web and Foundry render a definition list with HTML `<dl>`, `<dt>`, and
 
 ## Tables and expressions
 
-Use a SQL fence to render a table from the content index. The table reads frontmatter from indexed notes. A zero-row result is an error unless the fence explicitly permits an empty result.
+Use a SQL fence to render a table from the content index. The table reads frontmatter from indexed notes. A zero-row result is an error unless the fence permits an empty result with `{allow-empty=true}`.
 
 ````markdown
 ```sql
