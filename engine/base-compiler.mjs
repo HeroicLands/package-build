@@ -66,6 +66,7 @@ import { scanBlocks } from "./content-blocks.mjs";
 import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
+import { checkImages } from "./content-images.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { cloneAddressState } from "./address-values.mjs";
@@ -716,6 +717,22 @@ export class BasePackCompiler {
                     footnoteError.line === 1 ?
                         (this.currentNote?.bodyColumn ?? 1)
                     :   footnoteError.column,
+            });
+        }
+        // An image sharing its paragraph with other text, a bad address or a
+        // title with nowhere to draw it — the same findings `lint` reports,
+        // asked here too so a build run on its own refuses what the lint
+        // already names rather than rendering the directive as though it were
+        // absent. `checkImages` already resolves `bodyLine` and `bodyColumn`
+        // internally, so its findings need no further adjustment.
+        for (const imageError of checkImages(body, "", {
+            bodyLine: this.currentNote?.bodyLine ?? 1,
+            bodyColumn: this.currentNote?.bodyColumn ?? 1,
+        })) {
+            findings.push({
+                message: imageError.message,
+                line: imageError.line,
+                column: imageError.column,
             });
         }
         if (!this.constructor.convertsWikilinks) {

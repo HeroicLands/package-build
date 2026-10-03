@@ -503,6 +503,47 @@ describe("buildSite end to end", () => {
         }
     });
 
+    it("refuses an inline image embed the lint already refuses", () => {
+        // `lintContentImages` reports this exact shape — an image sharing its
+        // paragraph with prose — so a site build run on its own must refuse
+        // it too, rather than publishing the directive as though it were
+        // absent.
+        const file = note(
+            "Rules/InlineImage.md",
+            "type: doc\nsubType: rules\nshortcode: inlineimage\nname:\n    full: Inline Image",
+            "A ranger. ![A ranger](ranger.webp) stands watch.\n",
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(result.embedErrors).toEqual([
+                expect.objectContaining({
+                    file,
+                    severity: "error",
+                    message: expect.stringContaining("shares its paragraph with other text"),
+                }),
+            ]);
+        } finally {
+            fs.rmSync(file, { force: true });
+        }
+    });
+
+    it("still publishes a picture that stands alone inside a `:::figure` fence", () => {
+        const file = note(
+            "Rules/FencedImage.md",
+            "type: doc\nsubType: rules\nshortcode: fencedimage\nname:\n    full: Fenced Image",
+            [":::figure", "![A ranger](ranger.webp)", "///", "A ranger.", ":::", ""].join("\n"),
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(result.embedErrors).toEqual([]);
+            expect(fs.existsSync(path.join(root, "build/hugo/content/kb/doc-fencedimage.md"))).toBe(
+                true,
+            );
+        } finally {
+            fs.rmSync(file, { force: true });
+        }
+    });
+
     it("writes the tree and reports its counts", () => {
         const result = buildSite({ config: configFor() });
         expect(gatesFailed(result.gates)).toBe(false);

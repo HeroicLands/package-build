@@ -81,6 +81,7 @@ import path from "node:path";
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
 import { positionInBody } from "./diagnostics.mjs";
+import { FOOTNOTE_REFERENCE } from "./content-footnotes.mjs";
 import { foundryAddressProblem, pathnameProblem, servesFoundry } from "./pathnames.mjs";
 
 /**
@@ -348,6 +349,12 @@ export function imageFigureHtml({ src, alt = "", classes = [], size = "auto", fl
 const DELIMITER = /^(?::{3,}[^\n]*|\/{3,}[ \t]*)$/;
 
 /**
+ * A footnote reference immediately trailing a match, anchored so it only
+ * consumes one sitting right against the end of it.
+ */
+const TRAILING_FOOTNOTE_REFERENCE = new RegExp(`^${FOOTNOTE_REFERENCE.source}`);
+
+/**
  * Whether a match sits alone in its own paragraph.
  *
  * "Alone" is the whole of a block: nothing else on its line, and a blank line,
@@ -355,6 +362,11 @@ const DELIMITER = /^(?::{3,}[^\n]*|\/{3,}[ \t]*)$/;
  * leading `>` or list marker disqualifies it for the same reason a word does —
  * the paragraph it belongs to holds something the figure would have to be
  * lifted out of.
+ *
+ * **A footnote reference trailing the match is not "other text."** `[^note]`
+ * annotates the picture rather than sitting beside it in prose, the same
+ * standing its own directive already has, so `![A ranger](r.webp)[^note]` is
+ * still alone.
  *
  * @param {string} text - The body the match indexes into.
  * @param {number} start - Where the match begins.
@@ -368,7 +380,10 @@ export function standsAlone(text, start, end) {
     // makes it an indented code block, which `matchAllOutsideCode` skips.
     if (!/^[ \t]*$/.test(src.slice(lineStart, start))) return false;
     const lineEnd = src.indexOf("\n", end);
-    if (!/^[ \t]*$/.test(src.slice(end, lineEnd === -1 ? src.length : lineEnd))) return false;
+    const afterMatch = src.slice(end, lineEnd === -1 ? src.length : lineEnd);
+    const reference = TRAILING_FOOTNOTE_REFERENCE.exec(afterMatch);
+    if (!/^[ \t]*$/.test(reference ? afterMatch.slice(reference[0].length) : afterMatch))
+        return false;
 
     const before = src.slice(0, lineStart);
     const previous = before.replace(/\n$/, "").split("\n").pop() ?? "";
@@ -435,6 +450,9 @@ export function imageSourcesIn(body) {
  * @param {object} [opts]
  * @param {number} [opts.bodyLine=1] - The 1-based file line the body starts on.
  * @param {number} [opts.bodyColumn=1] - The 1-based file column it starts at.
+ * @param {Array<{line: number, generated: boolean}>} [opts.lineMap] - From
+ *   table expansion, mapping each line of `body` back to the line an author
+ *   wrote, for a caller handing in a body whose tables already expanded.
  * @param {object} [opts.config] - The resolved build configuration. Supplied,
  *   an address is also held to the one surface a pathname can be dead on
  *   without any other pass noticing — see the Foundry address below. Omitted,
@@ -444,7 +462,7 @@ export function imageSourcesIn(body) {
  *   severity: "error", message: string}>} One finding per defect, in source
  *   order.
  */
-export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, config } = {}) {
+export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, lineMap, config } = {}) {
     const text = String(body ?? "");
     if (!text) return [];
 
@@ -455,7 +473,7 @@ export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, config }
      * @param {string} message - What is wrong.
      */
     const report = (offset, message) => {
-        const { line, column } = positionInBody(text, offset, { bodyLine, bodyColumn });
+        const { line, column } = positionInBody(text, offset, { bodyLine, bodyColumn, lineMap });
         findings.push({ file, line, column, severity: /** @type {"error"} */ ("error"), message });
     };
 

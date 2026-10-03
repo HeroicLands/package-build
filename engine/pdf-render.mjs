@@ -67,7 +67,13 @@ import deflistPlugin from "markdown-it-deflist";
 
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
 import { iconPlugin, ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
-import { IMAGE_CLASSES, IMAGE_FLOATS, IMAGE_PATTERN, imagePlugin } from "./content-images.mjs";
+import {
+    IMAGE_CLASSES,
+    IMAGE_FLOATS,
+    IMAGE_PATTERN,
+    checkImages,
+    imagePlugin,
+} from "./content-images.mjs";
 
 /** Requested print width for every named image size. */
 export const BOOK_IMAGE_WIDTHS = Object.freeze({
@@ -343,6 +349,13 @@ function reportUnrenderable(source, definitions, opts, original) {
     }
     for (const error of scanFigures(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
+    // An image sharing its paragraph with other text, or an address or title
+    // the website's own lint already refuses — asked here too, so the book
+    // fails on the same input rather than typesetting the directive as
+    // though it were absent. `checkImages` resolves `opts.bodyLine` and
+    // `opts.bodyColumn` itself.
+    for (const error of checkImages(source, opts.file ?? "", opts))
+        report({ line: error.line, column: error.column }, error.severity, error.message);
     for (const error of scanHeadingAttributes(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
     for (const error of withheldSections(source).errors)

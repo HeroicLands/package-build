@@ -1851,6 +1851,9 @@ function siteCommand() {
                 for (const e of result.footnoteErrors) {
                     emitDiagnostic({ ...e, severity: "error" });
                 }
+                for (const e of result.embedErrors) {
+                    emitDiagnostic({ ...e, severity: "error" });
+                }
                 // Reported the way the pack build reports the very same
                 // finding: `file:line:column: error: message`, path first, and
                 // the message from the shared table, not a
@@ -1893,7 +1896,8 @@ function siteCommand() {
                     result.headingErrors.length ||
                     result.footnoteErrors.length ||
                     result.wikiErrors.length ||
-                    result.imageErrors.length
+                    result.imageErrors.length ||
+                    result.embedErrors.length
                 ) {
                     process.exitCode = 1;
                     return;

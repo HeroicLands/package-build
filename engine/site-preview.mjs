@@ -270,6 +270,8 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                     const pos = positionOfLiteral(text, error.src, error.occurrence);
                     findings.push({ ...error, ...pos, severity: "error" });
                 }
+                for (const error of result.embedErrors)
+                    findings.push({ ...error, severity: "error" });
                 if (findings.length) return { ok: false, findings };
                 const edges = snapshot.rendered.edges.filter(([source]) => source !== original.url);
                 for (const hit of result.resolved) if (hit.url) edges.push([page.url, hit.url]);
