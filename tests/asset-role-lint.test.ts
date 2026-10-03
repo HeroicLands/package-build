@@ -104,7 +104,11 @@ describe("the role checks under lint", () => {
         "refuses the picture whose shape departs from its group, by name",
         () => {
             const { out } = runLint(diverging);
-            expect(out).toMatch(/noon\.png[^\n]*error:/);
+            // The path a finding names is the one a reader opens, from the
+            // working directory — the asset root included.
+            expect(out).toMatch(
+                new RegExp(`${path.join("assets", "images", "banners", "noon.png")}[^\\n]*error:`),
+            );
         },
         SUBPROCESS_TEST_TIMEOUT,
     );
@@ -122,7 +126,11 @@ describe("the role checks under lint", () => {
         "warns, rather than refuses, a picture below its role's print target",
         () => {
             const { out } = runLint(uniform);
-            expect(out).toMatch(/banners[^\n]*warning:[^\n]*falls short/);
+            expect(out).toMatch(
+                new RegExp(
+                    `${path.join("assets", "images", "banners")}[^\\n]*warning:[^\\n]*falls short`,
+                ),
+            );
             expect(out).not.toMatch(/dawn\.png[^\n]*error:/);
         },
         SUBPROCESS_TEST_TIMEOUT,

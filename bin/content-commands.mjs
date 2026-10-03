@@ -1203,8 +1203,8 @@ function lintCommand() {
                 // sharing that role, so it comes from the tree rather than
                 // from a figure kept by hand here.
                 const assetRecords = records.filter(isAssetRecord);
-                const assetShapes = checkAssetShapes(assetRecords);
-                const assetResolutions = checkAssetResolutions(assetRecords);
+                const assetShapes = checkAssetShapes(assetRecords, config.paths.assets);
+                const assetResolutions = checkAssetResolutions(assetRecords, config.paths.assets);
 
                 const findings = [
                     ...addresses.findings,

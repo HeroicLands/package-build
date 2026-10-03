@@ -640,9 +640,11 @@ function median(values) {
  *
  * @param {Array<Record<string, any>>} records - Records from
  *   {@link collectAssetRecords}.
+ * @param {string} [assetsBase=""] - Where the asset roots sit, so a finding
+ *   names the file from the working directory as every other finding does.
  * @returns {object[]} A finding per outlier, `severity: "error"`.
  */
-export function checkAssetShapes(records) {
+export function checkAssetShapes(records, assetsBase = "") {
     const findings = [];
     const groups = new Map();
     for (const record of records) {
@@ -658,7 +660,7 @@ export function checkAssetShapes(records) {
             const ratio = ratios[index];
             if (Math.abs(ratio - groupMedian) / groupMedian <= ASPECT_TOLERANCE) return;
             findings.push({
-                file: record.asset.path,
+                file: path.join(assetsBase, record.asset.path),
                 severity: "error",
                 message:
                     `${record.asset.width}×${record.asset.height} departs from the ` +
@@ -680,10 +682,12 @@ export function checkAssetShapes(records) {
  *
  * @param {Array<Record<string, any>>} records - Records from
  *   {@link collectAssetRecords}.
+ * @param {string} [assetsBase=""] - Where the asset roots sit, so a finding
+ *   names the file from the working directory as every other finding does.
  * @returns {object[]} A finding per asset below its role's floor,
  *   `severity: "warning"`.
  */
-export function checkAssetResolutions(records) {
+export function checkAssetResolutions(records, assetsBase = "") {
     const findings = [];
     for (const record of records) {
         const { role, width } = record.asset ?? {};
@@ -693,7 +697,7 @@ export function checkAssetResolutions(records) {
         const floor = Math.ceil(slotIn * PDF_PAGE.dpi);
         if (width >= floor) continue;
         findings.push({
-            file: record.asset.path,
+            file: path.join(assetsBase, record.asset.path),
             severity: "warning",
             message:
                 `${width}px wide falls short of the ${floor}px a \`${role}\` needs to fill ` +
