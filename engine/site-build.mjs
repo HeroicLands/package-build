@@ -64,6 +64,7 @@ import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderBlocks, scanBlocks } from "./content-blocks.mjs";
 import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
+import { collectAnchors } from "./anchors.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
@@ -757,6 +758,9 @@ export function renderSitePage(
     tableErrors.push(...errors);
     const captionScan = scanCaptions(markdown);
     ctx.captionLabels = new Map(captionScan.captions.map((caption) => [caption.id, caption.label]));
+    // This page's own anchors, so a `[[#slug]]` self-link is checked against
+    // what the page actually declares rather than trusted unconditionally.
+    ctx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
     const expressions = renderMarkdownExpressions(markdown, {
         fm: page.fm,
         dates: index.dateContext,
