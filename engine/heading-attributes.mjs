@@ -22,7 +22,7 @@
  * @module
  */
 
-import { parseExtensionAttributes } from "./extension-attributes.mjs";
+import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 
 /**
  * A heading line: its hashes and the text after them.
@@ -52,6 +52,13 @@ const HEADING_ID = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
  * expression — is left in the text and reported, so no surface silently prints
  * a heading with words missing and no author is told to fix nothing.
  *
+ * **One mistake draws one finding.** Braces holding nothing the grammar
+ * recognises are reported once, naming the braces: an author who wrote
+ * `{a, b}` meant no attribute block at all, and a complaint per fragment inside
+ * it says the same thing twice in words that name neither the heading nor the
+ * fix. Braces that *are* an attribute block, carrying one bad attribute beside
+ * good ones, relay the grammar's own complaint about that attribute.
+ *
  * @param {string} heading - A heading's text, hashes already removed.
  * @returns {{text: string, id: string, classes: string[],
  *   values: Record<string, string>, problems: string[], braces: boolean}}
@@ -63,15 +70,19 @@ export function splitHeadingAttributes(heading) {
     const match = SUFFIX.exec(raw);
     if (!match) return blank;
     const parsed = parseExtensionAttributes(match[2], { idPattern: HEADING_ID });
-    const problems =
-        (
-            parsed.problems.length ||
-            parsed.id ||
-            parsed.classes.length ||
-            Object.keys(parsed.values).length
-        ) ?
-            parsed.problems
-        :   ["an attribute block states nothing"];
+    const recognised =
+        Boolean(parsed.id) || parsed.classes.length > 0 || Object.keys(parsed.values).length > 0;
+    let problems;
+    if (recognised) {
+        // An id, a class or an attribute the markup owns: refused here as it is
+        // on a named block, because a heading writes its attributes onto the
+        // element on both HTML surfaces.
+        problems = [...parsed.problems, ...refusedAttributes(parsed.values)];
+    } else if (match[2].trim()) {
+        problems = [`{${match[2]}} is not an attribute block`];
+    } else {
+        problems = ["an attribute block states nothing"];
+    }
     if (problems.length) return { ...blank, braces: true, problems };
     return {
         text: match[1].trim(),

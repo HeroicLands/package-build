@@ -33,7 +33,7 @@ import crypto from "node:crypto";
 import MarkdownIt from "markdown-it";
 import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
-import { parseExtensionAttributes } from "./extension-attributes.mjs";
+import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { WITHHELD_CLASS, withheldSections } from "./heading-attributes.mjs";
 
 const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
@@ -81,12 +81,6 @@ const FOREIGN = Object.freeze(["caption"]);
 
 /** `title` is the heading. Everything else an author writes becomes an attribute. */
 const TITLE = "title";
-
-/**
- * Attributes the element's own markup owns, so an author sets them through
- * `#id` and `.class` rather than through a key.
- */
-const OWNED = Object.freeze(["id", "class"]);
 
 const names = () => Object.keys(BLOCK_NAMES).join(", ");
 
@@ -220,33 +214,15 @@ export function scanBlocks(source) {
             }
             id = parsed.id;
             classes = parsed.classes;
-            let rejected = false;
-            for (const [key, value] of Object.entries(parsed.values)) {
-                if (key === TITLE) {
-                    title = value;
-                    continue;
-                }
-                if (OWNED.includes(key.toLowerCase())) {
-                    errors.push({
-                        ...at,
-                        message: `set ${key} with ${key === "id" ? "#id" : ".class"} rather than ${key}=`,
-                    });
-                    rejected = true;
-                    continue;
-                }
-                if (/^on/i.test(key)) {
-                    errors.push({
-                        ...at,
-                        message: `${key} is an event handler and is not written`,
-                    });
-                    rejected = true;
-                    continue;
-                }
-                attributes[key] = value;
-            }
-            if (rejected) {
+            const refused = refusedAttributes(parsed.values);
+            for (const message of refused) errors.push({ ...at, message });
+            if (refused.length) {
                 opening = { start: i, rejected: true };
                 continue;
+            }
+            for (const [key, value] of Object.entries(parsed.values)) {
+                if (key === TITLE) title = value;
+                else attributes[key] = value;
             }
         }
         opening = { start: i, name, title, id, classes, attributes };

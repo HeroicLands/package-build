@@ -63,10 +63,25 @@ describe("one reading of a heading's attribute block", () => {
         expect(parsed.classes).toEqual(["wide"]);
     });
 
-    it("keeps a heading whose braces hold no attribute block, and says so", () => {
+    it("keeps a heading whose braces hold no attribute block, and says so once", () => {
         const parsed = splitHeadingAttributes("The set {a, b}");
         expect(parsed.text).toBe("The set {a, b}");
-        expect(parsed.problems.length).toBeGreaterThan(0);
+        expect(parsed.problems).toEqual(["{a, b} is not an attribute block"]);
+    });
+
+    it("refuses an event handler and an owned key, as a named block does", () => {
+        expect(splitHeadingAttributes('The Harbor {#harbor onclick="x"}').problems).toEqual([
+            "onclick is an event handler and is not written",
+        ]);
+        expect(splitHeadingAttributes('The Harbor {#harbor class="wide"}').problems).toEqual([
+            "set class with .class rather than class=",
+        ]);
+    });
+
+    it("writes an ordinary attribute a heading may carry", () => {
+        expect(splitHeadingAttributes('The Harbor {#harbor title="West dock"}').values).toEqual({
+            title: "West dock",
+        });
     });
 
     it("accepts an id that begins with a digit, as the corpus writes", () => {

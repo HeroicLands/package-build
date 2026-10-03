@@ -84,3 +84,37 @@ export function booleanAttribute(value, key) {
     if (value === "false") return false;
     throw new TypeError(`${key} needs the literal value true or false`);
 }
+
+/**
+ * Attributes a construct's own markup owns, so an author sets them through
+ * `#id` and `.class` rather than through a key.
+ */
+const OWNED = Object.freeze(["id", "class"]);
+
+/**
+ * The attribute keys no construct writes onto an element.
+ *
+ * `id=` and `class=` are refused in favour of `#id` and `.class`, which the
+ * grammar already states; a key beginning `on` is an event handler, and nothing
+ * authored in a note becomes code on a published page.
+ *
+ * Shared by every construct that writes an author's attributes onto an element,
+ * because a refusal that held on one and not the next would be the hole the
+ * other construct is checked for.
+ *
+ * @param {Record<string, string>} values - The `key=value` attributes parsed.
+ * @returns {string[]} One message per refused key, in the order written.
+ */
+export function refusedAttributes(values) {
+    const problems = [];
+    for (const key of Object.keys(values ?? {})) {
+        if (OWNED.includes(key.toLowerCase())) {
+            problems.push(
+                `set ${key} with ${key.toLowerCase() === "id" ? "#id" : ".class"} rather than ${key}=`,
+            );
+        } else if (/^on/i.test(key)) {
+            problems.push(`${key} is an event handler and is not written`);
+        }
+    }
+    return problems;
+}

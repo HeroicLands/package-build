@@ -24,6 +24,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
@@ -102,82 +103,109 @@ describe("`package-build docs item-fields --check` against a stale page", () => 
         fs.writeFileSync(destination, "this is not the generated page\n");
     });
 
-    it("starts the line with the path, not a loglevel timestamp", () => {
-        const { err } = runCheck(destination);
-        const located = err.split("\n").find((line) => line.includes("out of date"));
+    it(
+        "starts the line with the path, not a loglevel timestamp",
+        () => {
+            const { err } = runCheck(destination);
+            const located = err.split("\n").find((line) => line.includes("out of date"));
 
-        expect(located).toBeDefined();
-        // The defect this guards: `[2026-...] [ERROR]: item-fields.md: ...`
-        // buries the path mid-line where no parser reads it from.
-        expect(located).not.toMatch(/^\[/);
-        expect(located).toMatch(/^item-fields\.md: error: out of date/);
-    });
+            expect(located).toBeDefined();
+            // The defect this guards: `[2026-...] [ERROR]: item-fields.md: ...`
+            // buries the path mid-line where no parser reads it from.
+            expect(located).not.toMatch(/^\[/);
+            expect(located).toMatch(/^item-fields\.md: error: out of date/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("still drops the line field rather than guessing one", () => {
-        const { err } = runCheck(destination);
-        const located = err.split("\n").find((line) => line.includes("out of date"));
+    it(
+        "still drops the line field rather than guessing one",
+        () => {
+            const { err } = runCheck(destination);
+            const located = err.split("\n").find((line) => line.includes("out of date"));
 
-        // Staleness is a property of the whole file: no `:1:1`, no line at all
-        // between the path and the severity.
-        expect(located).toMatch(/^item-fields\.md: error: /);
-    });
+            // Staleness is a property of the whole file: no `:1:1`, no line at all
+            // between the path and the severity.
+            expect(located).toMatch(/^item-fields\.md: error: /);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("still fails the run", () => {
-        const { code } = runCheck(destination);
-        expect(code).not.toBe(0);
-    });
+    it(
+        "still fails the run",
+        () => {
+            const { code } = runCheck(destination);
+            expect(code).not.toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("`package-build docs item-fields` with `--out` inside the content tree", () => {
-    it("writes a complete note, envelope and all", () => {
-        const destination = path.join(root, "assets/content/item-frontmatter.md");
-        try {
-            const { code } = runWrite(destination, ["--title", "Item Note Frontmatter"]);
-            expect(code).toBe(0);
-            const written = fs.readFileSync(destination, "utf8");
-            expect(written.startsWith("---\n")).toBe(true);
-            expect(written).toMatch(/^type: doc$/m);
-            expect(written).toMatch(/^subType: reference$/m);
-            expect(written).toMatch(/^shortcode: itemfrontmatter$/m);
-            expect(written).toMatch(/^name: \{full: Item Note Frontmatter\}$/m);
-            expect(written).toMatch(/^data: \{pack: none\}$/m);
-            expect(written).not.toMatch(/^pack:/m);
-            expect(written).toContain("# Item Note Frontmatter");
-        } finally {
-            fs.rmSync(destination, { force: true });
-        }
-    });
+    it(
+        "writes a complete note, envelope and all",
+        () => {
+            const destination = path.join(root, "assets/content/item-frontmatter.md");
+            try {
+                const { code } = runWrite(destination, ["--title", "Item Note Frontmatter"]);
+                expect(code).toBe(0);
+                const written = fs.readFileSync(destination, "utf8");
+                expect(written.startsWith("---\n")).toBe(true);
+                expect(written).toMatch(/^type: doc$/m);
+                expect(written).toMatch(/^subType: reference$/m);
+                expect(written).toMatch(/^shortcode: itemfrontmatter$/m);
+                expect(written).toMatch(/^name: \{full: Item Note Frontmatter\}$/m);
+                expect(written).toMatch(/^data: \{pack: none\}$/m);
+                expect(written).not.toMatch(/^pack:/m);
+                expect(written).toContain("# Item Note Frontmatter");
+            } finally {
+                fs.rmSync(destination, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("passes `--check` right after writing, and fails against a stale body", () => {
-        const destination = path.join(root, "assets/content/item-frontmatter.md");
-        try {
-            expect(runWrite(destination, ["--title", "Item Note Frontmatter"]).code).toBe(0);
-            expect(runCheck(destination).code).toBe(0);
+    it(
+        "passes `--check` right after writing, and fails against a stale body",
+        () => {
+            const destination = path.join(root, "assets/content/item-frontmatter.md");
+            try {
+                expect(runWrite(destination, ["--title", "Item Note Frontmatter"]).code).toBe(0);
+                expect(runCheck(destination).code).toBe(0);
 
-            // A stale body — the envelope is exactly what was just written, but
-            // the tables underneath it are not.
-            const current = fs.readFileSync(destination, "utf8");
-            fs.writeFileSync(destination, current.replace("# Item Note Frontmatter", "# Stale"));
-            const { code, err } = runCheck(destination);
-            expect(code).not.toBe(0);
-            expect(err).toContain("out of date");
-        } finally {
-            fs.rmSync(destination, { force: true });
-        }
-    });
+                // A stale body — the envelope is exactly what was just written, but
+                // the tables underneath it are not.
+                const current = fs.readFileSync(destination, "utf8");
+                fs.writeFileSync(
+                    destination,
+                    current.replace("# Item Note Frontmatter", "# Stale"),
+                );
+                const { code, err } = runCheck(destination);
+                expect(code).not.toBe(0);
+                expect(err).toContain("out of date");
+            } finally {
+                fs.rmSync(destination, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("writes the body alone with `--out` outside the content tree", () => {
-        // The control: the same command, a destination one level up, gets no
-        // envelope — exactly the behaviour before this file lived in the
-        // content tree.
-        const destination = path.join(root, "item-frontmatter.md");
-        try {
-            expect(runWrite(destination, ["--title", "Item Note Frontmatter"]).code).toBe(0);
-            const written = fs.readFileSync(destination, "utf8");
-            expect(written.startsWith("---\n")).toBe(false);
-            expect(written.startsWith("# Item Note Frontmatter")).toBe(true);
-        } finally {
-            fs.rmSync(destination, { force: true });
-        }
-    });
+    it(
+        "writes the body alone with `--out` outside the content tree",
+        () => {
+            // The control: the same command, a destination one level up, gets no
+            // envelope — exactly the behaviour before this file lived in the
+            // content tree.
+            const destination = path.join(root, "item-frontmatter.md");
+            try {
+                expect(runWrite(destination, ["--title", "Item Note Frontmatter"]).code).toBe(0);
+                const written = fs.readFileSync(destination, "utf8");
+                expect(written.startsWith("---\n")).toBe(false);
+                expect(written.startsWith("# Item Note Frontmatter")).toBe(true);
+            } finally {
+                fs.rmSync(destination, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

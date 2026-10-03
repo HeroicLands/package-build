@@ -52,6 +52,7 @@ import { orderPassesByDependency } from "../engine/generate.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { packForType } from "../engine/ids.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /* ---------------------------------------------------------------------- */
@@ -453,165 +454,206 @@ describe("compiling a bundle note", () => {
         for (const dir of roots) fs.rmSync(dir, { recursive: true, force: true });
     });
 
-    it("emits an Adventure holding copies of the documents it names", () => {
-        const root = bundleRepo({
-            "Bowl.md": gear("Bowl", "bowl"),
-            "Combat.md": doc("Combat", "combat"),
-            "Vale.md": bundle(
-                "The Vale",
-                "vale",
-                ["sohl-miscgear-bowl", "doc-combat"],
-                "\nWhat it is.\n",
-            ),
-        });
-        roots.push(root);
-        const result = compile(root);
-        const bundles = packDocs(root, "bundles");
-        const items = packDocs(root, "items");
-        const journals = packDocs(root, "journals");
+    it(
+        "emits an Adventure holding copies of the documents it names",
+        () => {
+            const root = bundleRepo({
+                "Bowl.md": gear("Bowl", "bowl"),
+                "Combat.md": doc("Combat", "combat"),
+                "Vale.md": bundle(
+                    "The Vale",
+                    "vale",
+                    ["sohl-miscgear-bowl", "doc-combat"],
+                    "\nWhat it is.\n",
+                ),
+            });
+            roots.push(root);
+            const result = compile(root);
+            const bundles = packDocs(root, "bundles");
+            const items = packDocs(root, "items");
+            const journals = packDocs(root, "journals");
 
-        expect(result.errors).toBe(0);
-        const adventure = bundles["The Vale"];
-        expect(adventure).toBeTruthy();
-        // Copies, not references: the member *is* the compiled document.
-        expect(adventure.items).toHaveLength(1);
-        expect(adventure.items[0]._id).toBe(items["Bowl"]._id);
-        expect(adventure.journal.map((entry: any) => entry._id)).toContain(journals["Combat"]._id);
-        // An Adventure member carries no LevelDB key.
-        expect(adventure.items[0]._key).toBeUndefined();
-        // The Adventure itself does, keyed by the Foundry collection.
-        expect(adventure._key).toBe(`!adventures!${adventure._id}`);
-    });
+            expect(result.errors).toBe(0);
+            const adventure = bundles["The Vale"];
+            expect(adventure).toBeTruthy();
+            // Copies, not references: the member *is* the compiled document.
+            expect(adventure.items).toHaveLength(1);
+            expect(adventure.items[0]._id).toBe(items["Bowl"]._id);
+            expect(adventure.journal.map((entry: any) => entry._id)).toContain(
+                journals["Combat"]._id,
+            );
+            // An Adventure member carries no LevelDB key.
+            expect(adventure.items[0]._key).toBeUndefined();
+            // The Adventure itself does, keyed by the Foundry collection.
+            expect(adventure._key).toBe(`!adventures!${adventure._id}`);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("puts the note's prose on the Adventure rather than in a second journal", () => {
-        // A bundle is something you hand someone, and `Adventure.description`
-        // is an `HTMLField` Foundry renders on the import card — so a bundle
-        // needs no documentation journal the way an item does.
-        const root = bundleRepo({
-            "Bowl.md": gear("Bowl", "bowl"),
-            "Vale.md": bundle("The Vale", "vale", ["sohl-miscgear-bowl"], "\nWhat it is for.\n"),
-        });
-        roots.push(root);
-        compile(root);
+    it(
+        "puts the note's prose on the Adventure rather than in a second journal",
+        () => {
+            // A bundle is something you hand someone, and `Adventure.description`
+            // is an `HTMLField` Foundry renders on the import card — so a bundle
+            // needs no documentation journal the way an item does.
+            const root = bundleRepo({
+                "Bowl.md": gear("Bowl", "bowl"),
+                "Vale.md": bundle(
+                    "The Vale",
+                    "vale",
+                    ["sohl-miscgear-bowl"],
+                    "\nWhat it is for.\n",
+                ),
+            });
+            roots.push(root);
+            compile(root);
 
-        expect(packDocs(root, "bundles")["The Vale"].description).toContain("What it is for.");
-        expect(packDocs(root, "journals")["The Vale"]).toBeUndefined();
-    });
+            expect(packDocs(root, "bundles")["The Vale"].description).toContain("What it is for.");
+            expect(packDocs(root, "journals")["The Vale"]).toBeUndefined();
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("bundles a documentation journal only when the note names its own address", () => {
-        // One note, two documents, two addresses. `miscgear-bowl` is
-        // the item; `docmiscgear-bowl` is the JournalEntry its prose became.
-        const root = bundleRepo({
-            "Bowl.md": gear("Bowl", "bowl"),
-            "Item.md": bundle("Item Only", "itemonly", ["sohl-miscgear-bowl"]),
-            "Both.md": bundle("Both", "both", ["sohl-miscgear-bowl", "docmiscgear-bowl"]),
-        });
-        roots.push(root);
-        const result = compile(root);
-        const bundles = packDocs(root, "bundles");
+    it(
+        "bundles a documentation journal only when the note names its own address",
+        () => {
+            // One note, two documents, two addresses. `miscgear-bowl` is
+            // the item; `docmiscgear-bowl` is the JournalEntry its prose became.
+            const root = bundleRepo({
+                "Bowl.md": gear("Bowl", "bowl"),
+                "Item.md": bundle("Item Only", "itemonly", ["sohl-miscgear-bowl"]),
+                "Both.md": bundle("Both", "both", ["sohl-miscgear-bowl", "docmiscgear-bowl"]),
+            });
+            roots.push(root);
+            const result = compile(root);
+            const bundles = packDocs(root, "bundles");
 
-        expect(result.errors).toBe(0);
-        expect(bundles["Item Only"].items).toHaveLength(1);
-        expect(bundles["Item Only"].journal).toHaveLength(0);
-        expect(bundles["Both"].items).toHaveLength(1);
-        expect(bundles["Both"].journal).toHaveLength(1);
-    });
+            expect(result.errors).toBe(0);
+            expect(bundles["Item Only"].items).toHaveLength(1);
+            expect(bundles["Item Only"].journal).toHaveLength(0);
+            expect(bundles["Both"].items).toHaveLength(1);
+            expect(bundles["Both"].journal).toHaveLength(1);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("compiles an empty bundle, which is a legitimate installer of nothing yet", () => {
-        // The other packs are given a note apiece so the empty-pass rule is not
-        // what this case ends up asserting.
-        const root = bundleRepo({
-            "Bowl.md": gear("Bowl", "bowl"),
-            "Combat.md": doc("Combat", "combat"),
-            "Empty.md": bundle("Empty", "empty", []),
-        });
-        roots.push(root);
-        const result = compile(root);
+    it(
+        "compiles an empty bundle, which is a legitimate installer of nothing yet",
+        () => {
+            // The other packs are given a note apiece so the empty-pass rule is not
+            // what this case ends up asserting.
+            const root = bundleRepo({
+                "Bowl.md": gear("Bowl", "bowl"),
+                "Combat.md": doc("Combat", "combat"),
+                "Empty.md": bundle("Empty", "empty", []),
+            });
+            roots.push(root);
+            const result = compile(root);
 
-        expect(result.errors).toBe(0);
-        expect(packDocs(root, "bundles")["Empty"].items).toEqual([]);
-    });
+            expect(result.errors).toBe(0);
+            expect(packDocs(root, "bundles")["Empty"].items).toEqual([]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("fails the build on an address that resolves to nothing", () => {
-        const root = bundleRepo({
-            "Bowl.md": gear("Bowl", "bowl"),
-            "Vale.md": bundle("The Vale", "vale", ["miscgear-nosuchthing"]),
-        });
-        roots.push(root);
-        const result = compile(root);
+    it(
+        "fails the build on an address that resolves to nothing",
+        () => {
+            const root = bundleRepo({
+                "Bowl.md": gear("Bowl", "bowl"),
+                "Vale.md": bundle("The Vale", "vale", ["miscgear-nosuchthing"]),
+            });
+            roots.push(root);
+            const result = compile(root);
 
-        expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/no note in this tree publishes/);
-    });
+            expect(result.errors).toBeGreaterThan(0);
+            expect(result.output).toMatch(/no note in this tree publishes/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("fails the build on a target that is not an address at all", () => {
-        const root = bundleRepo({
-            "Bowl.md": gear("Bowl", "bowl"),
-            "Vale.md": bundle("The Vale", "vale", ["A Bowl"]),
-        });
-        roots.push(root);
-        const result = compile(root);
+    it(
+        "fails the build on a target that is not an address at all",
+        () => {
+            const root = bundleRepo({
+                "Bowl.md": gear("Bowl", "bowl"),
+                "Vale.md": bundle("The Vale", "vale", ["A Bowl"]),
+            });
+            roots.push(root);
+            const result = compile(root);
 
-        expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/is not an accepted Address/);
-    });
+            expect(result.errors).toBeGreaterThan(0);
+            expect(result.output).toMatch(/is not an accepted Address/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("refuses a folder, which belongs to no one pack and has no copy to take", () => {
-        const root = bundleRepo({
-            "folders/Gear.md": `---\nname:\n  full: Gear\nshortcode: gear\ntype: folder\n---\n`,
-            "Vale.md": bundle("The Vale", "vale", ["folder-gear"]),
-        });
-        roots.push(root);
-        const result = compile(root);
+    it(
+        "refuses a folder, which belongs to no one pack and has no copy to take",
+        () => {
+            const root = bundleRepo({
+                "folders/Gear.md": `---\nname:\n  full: Gear\nshortcode: gear\ntype: folder\n---\n`,
+                "Vale.md": bundle("The Vale", "vale", ["folder-gear"]),
+            });
+            roots.push(root);
+            const result = compile(root);
 
-        expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/A folder is not a member/);
-    });
+            expect(result.errors).toBeGreaterThan(0);
+            expect(result.output).toMatch(/A folder is not a member/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("leaves another system's document out rather than failing, and says so", () => {
-        // A two-system tree, as `harn-ensemble` ships one. The `Bowl` carries
-        // only a `sohl:` block, so it publishes a SoHL Item and no HM3 one —
-        // and the JournalEntry is Foundry's document, so both Adventures hold
-        // it. One bundle note, reaching both packs through `<system>.pack`.
-        const root = twoSystemRepo({
-            "Bowl.md": gear("Bowl", "bowl"),
-            "Combat.md": doc("Combat", "combat"),
-            "Kit.md":
-                `---\nname:\n  full: Kit\nshortcode: kit\ntype: bundle\n` +
-                `sohl:\n  pack: bundles-sohl\nhm3:\n  pack: bundles-hm3\n` +
-                `data:\n  contents:\n      - sohl-miscgear-bowl\n      - doc-combat\n---\n\nA kit.\n`,
-        });
-        roots.push(root);
-        const result = compile(root);
-        const sohlBundles = packDocs(root, "bundles-sohl");
-        const hm3Bundles = packDocs(root, "bundles-hm3");
+    it(
+        "leaves another system's document out rather than failing, and says so",
+        () => {
+            // A two-system tree, as `harn-ensemble` ships one. The `Bowl` carries
+            // only a `sohl:` block, so it publishes a SoHL Item and no HM3 one —
+            // and the JournalEntry is Foundry's document, so both Adventures hold
+            // it. One bundle note, reaching both packs through `<system>.pack`.
+            const root = twoSystemRepo({
+                "Bowl.md": gear("Bowl", "bowl"),
+                "Combat.md": doc("Combat", "combat"),
+                "Kit.md":
+                    `---\nname:\n  full: Kit\nshortcode: kit\ntype: bundle\n` +
+                    `sohl:\n  pack: bundles-sohl\nhm3:\n  pack: bundles-hm3\n` +
+                    `data:\n  contents:\n      - sohl-miscgear-bowl\n      - doc-combat\n---\n\nA kit.\n`,
+            });
+            roots.push(root);
+            const result = compile(root);
+            const sohlBundles = packDocs(root, "bundles-sohl");
+            const hm3Bundles = packDocs(root, "bundles-hm3");
 
-        // Left *out*, not failed: the build is green.
-        expect(result.errors).toBe(0);
-        expect(sohlBundles["Kit"].items).toHaveLength(1);
-        expect(hm3Bundles["Kit"].items).toHaveLength(0);
-        // Both hold the system-neutral journal.
-        expect(sohlBundles["Kit"].journal).toHaveLength(1);
-        expect(hm3Bundles["Kit"].journal).toHaveLength(1);
-        // And the omission is named, because an installer that quietly ships
-        // half its contents is worse than one that fails.
-        expect(result.output).toMatch(/leaves out "sohl-sohl-miscgear-bowl"/);
-    });
+            // Left *out*, not failed: the build is green.
+            expect(result.errors).toBe(0);
+            expect(sohlBundles["Kit"].items).toHaveLength(1);
+            expect(hm3Bundles["Kit"].items).toHaveLength(0);
+            // Both hold the system-neutral journal.
+            expect(sohlBundles["Kit"].journal).toHaveLength(1);
+            expect(hm3Bundles["Kit"].journal).toHaveLength(1);
+            // And the omission is named, because an installer that quietly ships
+            // half its contents is worse than one that fails.
+            expect(result.output).toMatch(/leaves out "sohl-sohl-miscgear-bowl"/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("tells a repository that configures no Adventure pack, by name", () => {
-        // The `adventures` **companion** the scenes pass writes cannot be it:
-        // a companion is written by another pack's pass, so the router refuses
-        // a note that addresses one. Such a repository has to declare a pack.
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-bundle-nopack-"));
-        roots.push(root);
-        fs.mkdirSync(path.join(root, "assets", "content"), { recursive: true });
-        fs.writeFileSync(
-            path.join(root, "package.json"),
-            JSON.stringify({ name: "sohl", version: "1.0.0" }),
-        );
-        fs.writeFileSync(
-            path.join(root, "package-build.config.yaml"),
-            `contentPackage: sohl
+    it(
+        "tells a repository that configures no Adventure pack, by name",
+        () => {
+            // The `adventures` **companion** the scenes pass writes cannot be it:
+            // a companion is written by another pack's pass, so the router refuses
+            // a note that addresses one. Such a repository has to declare a pack.
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-bundle-nopack-"));
+            roots.push(root);
+            fs.mkdirSync(path.join(root, "assets", "content"), { recursive: true });
+            fs.writeFileSync(
+                path.join(root, "package.json"),
+                JSON.stringify({ name: "sohl", version: "1.0.0" }),
+            );
+            fs.writeFileSync(
+                path.join(root, "package-build.config.yaml"),
+                `contentPackage: sohl
 packageKind: systems
 compatibility:
     minimum: "14"
@@ -627,14 +669,16 @@ packs:
       label: Journals
       type: JournalEntry
 `,
-        );
-        fs.writeFileSync(
-            path.join(root, "assets", "content", "Vale.md"),
-            bundle("The Vale", "vale", []),
-        );
-        const result = compile(root);
+            );
+            fs.writeFileSync(
+                path.join(root, "assets", "content", "Vale.md"),
+                bundle("The Vale", "vale", []),
+            );
+            const result = compile(root);
 
-        expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/declares no Adventure pack/);
-    });
+            expect(result.errors).toBeGreaterThan(0);
+            expect(result.output).toMatch(/declares no Adventure pack/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
