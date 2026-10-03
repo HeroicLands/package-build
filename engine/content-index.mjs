@@ -726,7 +726,13 @@ export function collectContentIndex(
     // this same walk states one — the whole tree is already in memory, so no
     // second read is needed to answer a question about all of it.
     const present = presentAmongFrontmatters(parsedNotes.map((n) => n.frontmatter));
-    const dates = reckoningContext({ notes: parsedNotes.map((n) => n.frontmatter) });
+    // Carried on the same context `resolvedDateFields` reads: a recurring
+    // event's `next` is computed against this present exactly as a being's
+    // `age` already is, above.
+    const dates = {
+        ...reckoningContext({ notes: parsedNotes.map((n) => n.frontmatter) }),
+        present,
+    };
 
     for (const { frontmatter, body, bodyLine, absPath } of parsedNotes) {
         const fm = frontmatter ?? {};
