@@ -25,7 +25,7 @@ Start with [your first note](authoring/first-note.md). It explains the smallest 
 
 A nonempty note body creates one system-agnostic Foundry JournalEntry. Content before the first H1 becomes an introduction page; every H1 starts another JournalEntryPage. A lower-level heading with an explicit `{#anchor}` starts a page too, so a link can address it. The same prose becomes a web page and can be selected for a book. The content index records the note and its frontmatter for queries and navigation.
 
-A `:::caption {#anchor}` fence labels the next prose, code, table, or image block. Its anchor makes the block addressable; `[[#anchor|]]` displays the generated kind and number, such as **Figure 12**. Foundry gives the captioned block a JournalEntryPage. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references) for the syntax.
+A `:::figure {#anchor}` fence numbers whatever it holds — prose, code, a table, or an image. Its anchor makes the fence a target `{{ref "#anchor"}}` can point to, displaying the generated kind and number, such as **Figure 12**. Foundry gives the fence its own JournalEntryPage. See [figures and numbered references](authoring/links-and-markup.md#figures-and-numbered-references) for the syntax.
 
 Body extensions use braces with space-separated `key=value` attributes:
 `![[icon-harbor|Harbor]]{float=top-left size=medium}` and an SQL fence with

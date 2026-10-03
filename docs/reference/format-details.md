@@ -2120,7 +2120,7 @@ See the [authoring examples](../authoring/links-and-markup.md#footnotes-and-defi
 ```
 
 Any header can end with a braced attribute block, in the same grammar a
-`:::caption` and a named block take. Inside the braces:
+`:::figure` fence and a named block take. Inside the braces:
 
 - `#id` names the anchor a link resolves to (only one allowed)
 - `.class1` names a CSS class (any number of classes allowed)
@@ -2202,11 +2202,14 @@ either side of it, and every surface renders it as a figure. An image sharing a
 paragraph with prose is refused, because a width and a position mean nothing
 applied to a word in the middle of a sentence.
 
-**The alt text is the caption.** Print has no `alt` attribute and has to put
-those words somewhere a reader can see them, so every surface draws them under
-the picture; the two HTML surfaces carry them as `alt` as well. A title —
-`![alt](src "title")` — is refused rather than dropped in silence: there is one
-place for those words and this is it.
+**Alt text renders as a caption on no surface.** On the website and in a
+Foundry journal it stays on the `img` element's `alt` attribute alone, and the
+book prints nothing beneath a picture that carries none. A visible label and
+caption are drawn only for a picture wrapped in [a `:::figure`
+fence](#the-figure-fence), and the text drawn is always the fence's own
+caption. A title — `![alt](src "title")` — is refused rather than dropped in
+silence: there is one place for those words, the alt text, and a title is not
+it.
 
 ##### Width is a class, and the ordinary width carries no marker
 
@@ -2496,34 +2499,110 @@ the tag and, where the directive restricts one, the type. An empty list under
 an authored heading is how a misspelled tag survives a build, so the
 directive's silence is what is refused rather than its output.
 
-##### Captioned blocks
+##### The figure fence
 
-`:::caption {#anchor}` labels the next Markdown block, whether it is prose,
-code, a table, or an image. The closing `:::` ends the caption text; blank lines
-between the fence and its block are allowed. The ID is unique within the note
-and contains letters, digits, `_`, or `-`, beginning with a letter. An empty
-caption, missing ID, missing closer, or missing following block is an error at
-the opening line.
+`:::figure {#anchor .border}` declares what it numbers and, optionally,
+captions: the fence is the unit the counter counts, not the caption text it
+may or may not carry.
 
 ````markdown
-See [[#trade|]] for the market routes.
-
-:::caption {#trade}
-Regional trade routes
-:::
+:::figure {#trade}
 
 ```sql
 SELECT name.full AS "Market" FROM notes WHERE type = 'place'
 ```
+
+///
+Regional trade routes
+:::
+
+Refer to {{ref "#trade"}} for the market routes.
 ````
 
-The block displays **Table 1: Regional trade routes** and `[[#trade|]]`
-displays **Table 1** as a link. A nonempty label after the pipe takes precedence.
-The category comes from the following block: a regular code fence is code,
-a Markdown or expanded SQL table is a table, an image is a figure, and any other
-block is prose. The website and Foundry number each category within a note;
-the PDF numbers each category through the book. Foundry gives a captioned block
-its own JournalEntryPage, so its anchor has a page UUID.
+The fence displays **Table 1: Regional trade routes** and `{{ref "#trade"}}`
+displays **Table 1** as a link.
+
+**The grammar.** `:::figure` opens the fence, on a line of its own and
+optionally followed by a braced attribute block in the grammar a heading and
+a named block take too. A line of `:::` alone closes it. Between the
+two, the first `///` written alone on a line, read at the top level — outside
+any nested code fence — divides what the fence holds from its caption; a `///`
+written inside a nested fence is content, not a divider. A second top-level
+`///` is an error, naming the line: a figure holds one caption, so it carries
+one `///` line.
+
+An opening line that is not `:::figure`, optionally followed by one braced
+attribute block and nothing else, is reported at its own line as
+`a figure's attributes are written as {#id .border}`.
+
+**Every part but the fence itself is optional.**
+
+- **No `{#id}`.** The fence is still numbered and drawn; it carries no anchor,
+  so nothing can address it. An id, when written, must be a name unique within
+  the note — a repeat is `duplicate figure id "<id>"` at the fence's opening
+  line, and an id that collides with a heading anchor in the same note is
+  `heading and figure declare the same anchor "<id>"` at the heading's line.
+- **No `///`.** The fence draws its label alone, with no caption beneath it. A
+  `///` with nothing after it before the closing `:::` is an error at the
+  `///` line: a figure's `///` section carries no caption — write no `///` to
+  leave the figure uncaptioned.
+- **No `.border`.** The fence draws without one. `.border` is the only class
+  the construct declares; any other class is reported at the opening line,
+  naming it: a figure takes no such class, and the classes a figure takes
+  are `.border`. A `key="value"` attribute is reported the same way, naming
+  the key: a figure takes an id and classes, nothing else.
+
+**What is never optional.** A fence with nothing between its opening line and
+its `///` or its closing `:::` is `a figure has no contents`, at the opening
+line. An opening `:::figure` with no matching `:::` runs to the end of the
+note and is `a figure needs a closing :::`, also at the opening line, and
+nothing after it is scanned as a second fence.
+
+**The counter is derived, never authored.** The fence's contents decide which
+of four counters it draws from — `Code`, `Table`, `Figure`, `Prose` — read from
+the first top-level block inside the fence: a table is `Table`; a fenced `sql`
+block is `Table`, because its rendered output is one; any other fenced or
+indented code block is `Code`; one or more pictures and nothing else is
+`Figure`; everything else is `Prose`. A table or a picture written outside any
+`:::figure` fence draws no label and is counted nowhere. The website and a
+Foundry journal number each counter within the note; the book numbers each
+counter across the book in reading order.
+
+**A heading that would start its own journal page cannot be written inside a
+fence.** An H1, or a heading at any level carrying an `{#anchor}`, is reported
+at its own line inside one: `a heading that starts a page cannot be written
+inside a figure — keep an H1 or an anchored heading at the top level, or drop
+the anchor and the level to stay inside it`.
+
+**The `ref` expression renders a link to a figure's anchor.**
+`{{ref "#thorn"}}` renders "Figure 13"; `{{ref "#thorn" form="full"}}` renders
+the number and the caption; `{{ref "#thorn" form="title"}}` renders the
+caption alone. `form="number"` is the default and may be written explicitly;
+a `form` outside this closed set is reported naming the three. A link written
+inside the figure's own caption contributes only its label text to a `full`
+or `title` reference, because the reference is itself a link, and emphasis
+inside the caption is kept. `form="full"` or `form="title"` aimed at a figure
+with no caption is reported naming the anchor: that form needs a caption, and
+the figure has none. An address naming no figure in the note is reported
+naming the anchor; an address naming another note's figure —
+`{{ref "other-note#anchor"}}` — is reported as addressing a figure this build
+does not resolve outside the note carrying the reference. Only a same-note
+anchor resolves, on the website and in the book.
+
+Foundry gives a `:::figure` fence its own JournalEntryPage. A fence holding
+exactly one picture, captioned in plain text with nothing else — or carrying
+no caption at all — becomes a page of type `image`: the picture is its `src`,
+a caption, when there is one, is `image.caption`, and the page is named for
+the figure's own number. Every other fence becomes a page of type `text`
+instead: a fence grouping more than one picture; an embedded sound, there
+being no audio page type; a fence whose caption carries inline markup —
+emphasis, a link, an embedded icon or image — because `image.caption` is a
+`StringField` with nowhere to render it; and a fence that shares its split
+with prose that follows it, because an `image` page has nowhere to carry that
+prose either. On a `text` page the render is the fence's own content, scanned
+and labelled as the first of its kind on that page alone and then corrected to
+the number the note-wide scan already assigned, so a second figure with no id
+is still named for its true, note-wide number rather than recounted from one.
 
 ##### Named blocks
 
