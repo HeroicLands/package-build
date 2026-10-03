@@ -14,14 +14,14 @@ const months = [
 const world = { fm: { type: "place", data: { year: { days: 365 } } } };
 const calendar = {
     file: "Calendar.md",
-    raw: "---\nshortcode: commoncal\ntype: lore\nsubType: calendar\ndata:\n  epoch: 1.1\n---\n",
+    raw: '---\nshortcode: commoncal\ntype: lore\nsubType: calendar\ndata:\n  epoch: "1.1"\n---\n',
     fm: {
         type: "lore",
         subType: "calendar",
         shortcode: "commoncal",
         name: { full: "Common Calendar" },
         data: {
-            epoch: 1.1,
+            epoch: "1.1",
             months,
             weekdays: [
                 { name: "Newday", abbreviation: "New" },

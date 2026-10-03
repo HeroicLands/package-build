@@ -118,6 +118,39 @@ function unknownRecord() {
 }
 
 /**
+ * Whether a number-valued date may have lost a trailing zero off its day.
+ *
+ * YAML reads an unquoted `<year>.<day>` as a float, and a float carries no
+ * trailing zero: `born: 667.130` and `born: 667.13` both arrive as `667.13`.
+ * The authored digits are unrecoverable by then, so the question a reader needs
+ * answered is whether a longer day was *possible* — and it was exactly when the
+ * value with one more zero on the end still names a day the world's year holds.
+ *
+ * One zero settles it. A second only makes the day ten times longer again, so a
+ * value whose single-zero expansion already falls outside the year has no
+ * reading but the one it was handed.
+ *
+ * **The world's year length is what makes the question answerable**, so a tree
+ * whose notes declare none gets no claim either way — the same rule the upper
+ * bound on a day follows. Refusing every float there would red a whole corpus
+ * over a test nothing could evaluate.
+ *
+ * @param {number} value - The authored value, as YAML parsed it.
+ * @param {number|undefined} daysPerYear - The world's year length.
+ * @returns {boolean} True when the authored day is ambiguous.
+ */
+function dayCouldHaveLostAZero(value, daysPerYear) {
+    if (Number.isInteger(value)) return false;
+    const fraction = String(Math.abs(value)).split(".")[1] ?? "";
+    // An exponent-form string carries no day at all.
+    if (!/^\d+$/.test(fraction)) return false;
+    const tenfold = Number(`${fraction}0`);
+    if (!Number.isSafeInteger(tenfold)) return false;
+    if (!Number.isSafeInteger(daysPerYear) || daysPerYear < 1) return false;
+    return tenfold <= daysPerYear;
+}
+
+/**
  * Parse one authored date.
  *
  * Every field that holds a date — a birth, a death, an event's start and its
@@ -193,6 +226,22 @@ export function parseNoteDate(value, options) {
         findings.push({ ...at(), severity: "error", message });
         return { date: null, findings };
     };
+
+    // An unquoted `<year>.<day>` reaches here as a float, and YAML has already
+    // dropped a trailing zero off the day: `667.13` and `667.130` arrive as one
+    // value, so nothing downstream can tell day 13 from day 130. Refused where
+    // the lost zero would still name a day inside the world's year, and read as
+    // written where no such day exists — `675.281` cannot have been `675.2810`.
+    if (typeof value === "number" && dayCouldHaveLostAZero(value, daysPerYear)) {
+        const grown = `${text}0`;
+        return refuse(
+            `${subject} is a number, and a day's trailing zero is lost before a date ` +
+                `is read — \`${text}\` and \`${grown}\` reach this check as one value. ` +
+                `Quote a canonical date that states a day, \`"${text}"\` or ` +
+                `\`"${grown}"\`, so the digits the note states are the digits the ` +
+                `build reads`,
+        );
+    }
 
     const resolveEra = (parsed, reckoning, label) => {
         if (parsed.year < 1) return refuse(`${subject} needs a positive year in ${label}`);

@@ -102,6 +102,7 @@ import { artPathname, assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { numberCaptions, scanCaptions } from "./content-captions.mjs";
+import { collectAnchors } from "./anchors.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imagesIn, parseImageDirective } from "./content-images.mjs";
 import {
@@ -597,6 +598,10 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         linkCtx.captionLabels = new Map(
             numberedCaptions.map((caption) => [caption.id, caption.label]),
         );
+        // This page's own anchors, so a `[[#slug]]` self-link is checked
+        // against what the page actually declares, exactly as the site build
+        // checks it.
+        linkCtx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
         linkCtx.output = "book";
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
