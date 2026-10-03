@@ -545,11 +545,11 @@ export function makeFilename(name, id) {
  * the other.
  *
  * **`title` does not follow this rule**, and must not be made to. On a
- * `type: affiliation` note `title` is *also* a declared item field whose default
- * is `""` (`sohl/item-fields.mjs`), resolved from the very same shared top-level
- * key the site emitter reads as the page title — so `title: null` stringifies
- * into the compiled document as the literal `"null"`. One key, two destinations
- * that disagree about what empty means.
+ * `type: affiliation` note `title` is a declared item field with its own
+ * default (`""`, in `sohl/item-fields.mjs`), authored only inside the item's
+ * own `sohl` block — the closed top-level vocabulary has no `title` entry, so
+ * there is no shared key for this function's null-versus-blank distinction to
+ * apply to.
  *
  * **`banner:` does not follow it either, deliberately.** It is not a file
  * inside a Foundry install: it reaches no compiled document and no book, its
