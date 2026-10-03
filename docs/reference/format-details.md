@@ -853,12 +853,12 @@ ships as the Foundry module `harn-ensemble`) writing `images/map.webp`:
 And for the same note writing `sohl/assets/icons/noun/shield.svg`, a file the
 system ships and this repository does not hold:
 
-| Surface     | Address                                                   |
-| ----------- | --------------------------------------------------------- |
-| **Foundry** | `systems/sohl/assets/icons/noun/shield.svg`               |
-| **Local**   | `assets/icons/noun/shield.svg`, in the `sohl` repository  |
-| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`  |
-| **Book**    | not carried — a build stages only what this package ships |
+| Surface     | Address                                                       |
+| ----------- | ------------------------------------------------------------- |
+| **Foundry** | `systems/sohl/assets/icons/noun/shield.svg`                   |
+| **Local**   | `assets/icons/noun/shield.svg`, in the `sohl` repository      |
+| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`      |
+| **Book**    | not carried, unless a declared replacement carries it instead |
 
 **The content package name and Foundry id are separate values.**
 `harnensemble` is what the content is called, what a note writes, and what the
@@ -883,6 +883,29 @@ then acts as a shortcode for the declared package and type. The related
 index enabled, an asset with no matching note is a located build error. See
 [asset bindings](../configuration.md#packagebuildstagedir-and-packagebuildassets)
 for the configuration and cache requirements.
+
+**A package declared as a replacement is carried into the book, from its
+fetched archive, when it answers the address; every other foreign package
+stays not carried.** A relationship declaring `assetReplacement: true` names a
+dependency whose asset tree answers this package's own addresses first — see
+[`relationships`](../configuration.md#relationships) — and the book is the one
+surface that otherwise refuses a foreign file outright, so it is the one
+surface this changes. A `thalorna` note embedding
+`![[thalornaaltart-none-icon-anvil|An anvil]]` names `thalornaaltart`'s own
+address, exactly as a note citing `sohl`'s shared bestiary art would; when
+`thalornaaltart` is declared with `assetReplacement: true` and its fetched
+archive carries `icon-anvil` under its own package, the book stages that file
+from the archive instead of printing the caption with no picture. A note
+citing a different package's own address this way — `sohl`'s bestiary art,
+say — stays refused exactly as the row above states, because `sohl` was never
+declared as a replacement: a package answers in place of another only when it
+opted in, never because its archive happens to carry a file at the same type
+and shortcode.
+
+A relationship declaring `assetReplacement: true` whose archive was never
+fetched is a configuration mistake, not an ordinary unresolved address: the
+book reports a located error naming the relationship and instructing
+`package-build deps fetch`, rather than printing a caption with no picture.
 
 **The host is configuration.** `site.assets` in `package-build.config.yaml` is
 the root the web form is joined onto, and a package-owned image on a page with

@@ -113,7 +113,10 @@ import {
     pdfTextWidth,
     resamplePdfImages,
 } from "./pdf-images.mjs";
-import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import { ASSETS_SEGMENT, pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import { ASSET_SYSTEM, assetTypeOfRoot, isAssetShortcode } from "./asset-types.mjs";
+import { canonicalKey } from "./address.mjs";
+import { isComplete as isForeignCacheComplete, newestVersionDir } from "./metadata-index.mjs";
 import {
     createParser,
     labelFor,
@@ -144,21 +147,159 @@ import { mapWorld } from "./map-places.mjs";
  * makes the source a consumer can compile by hand with no flags, and what keeps
  * a build from touching a path outside its own output.
  *
- * Only a file **this** package ships can be staged. A pathname naming another
- * package's file, or a URL, names something no build here can open — a build
- * reaches no network — and the caller reports it as a picture the book will not
- * carry.
+ * A file **this** package ships stages directly. A pathname naming another
+ * package's file stages instead from a declared replacement's cached archive,
+ * when `opts.resolveReplacement` — the pure function
+ * {@link module:engine/asset-replacement.resolveAssetReplacement} —
+ * answers it; `opts.foreignIndex` is the merged index that answer is read
+ * against. A pathname naming a package no replacement carries it for, or a
+ * URL, names something no build here can open — a build reaches no network —
+ * and the caller reports it as a picture the book will not carry.
  *
  * @param {string} src - The pathname, as authored.
  * @param {object} config - The resolved configuration.
+ * @param {object} [opts]
+ * @param {Map<string, object>} [opts.foreignIndex] - Every fetched
+ *   dependency's own records, keyed by canonical address — the index a
+ *   replacement's record is read out of.
+ * @param {Function} [opts.resolveReplacement] - {@link
+ *   module:engine/asset-replacement.resolveAssetReplacement}, or an
+ *   equivalent a caller injects for a test. Omitted, a foreign pathname this
+ *   package does not own stays declined exactly as it always has.
  * @returns {{from: string, to: string}|null} The file, and where under the
  *   output directory it is staged.
+ * @throws {Error} When a declared replacement answers the address but its
+ *   archive was never fetched.
  */
-export function stagedImagePath(src, config) {
+export function stagedImagePath(src, config, opts = {}) {
     const forms = resolvePathname(src, config);
-    if (!forms || forms.state !== "package" || !forms.own) return null;
+    if (!forms || forms.state !== "package") return null;
+    if (forms.own) {
+        return {
+            from: path.resolve(config.rootDir, forms.local),
+            to: forms.pdf,
+        };
+    }
+    if (!opts.resolveReplacement) return null;
+    return stagedReplacementPath(forms, config, opts);
+}
+
+/**
+ * Every declared relationship that opted a dependency in as this package's
+ * asset replacement, in declaration order.
+ *
+ * The same shape {@link module:engine/foreign-catalog.itemCatalogRelationships}
+ * returns, read directly rather than through that module: this file stays a
+ * leaf over the configuration it is handed, and the flag is as small to read
+ * back as it was to validate.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {Array<{id: string, package: string}>} The relationships, each
+ *   with the package segment its own content index publishes under.
+ */
+function assetReplacementRelationships(config) {
+    const out = [];
+    for (const entries of Object.values(config.relationships ?? {})) {
+        for (const rel of entries ?? []) {
+            if (rel.assetReplacement) {
+                out.push({ id: rel.id, package: rel.contentPackage ?? rel.id });
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * The address a pathname this package does not own is read back as, for
+ * asking whether a declared replacement answers it instead of the package
+ * the pathname names.
+ *
+ * {@link module:engine/asset-replacement.resolveAssetReplacement} only ever
+ * matches an address whose package segment is the compiling package's own,
+ * so the pathname's own package is set aside and its suffix — the one piece
+ * every surface derives from, and the piece a replacement publishes under
+ * its own package instead — is read back as this package's type and
+ * shortcode.
+ *
+ * @param {import("./pathnames.mjs").PathnameForms} forms - The pathname,
+ *   resolved.
+ * @param {object} config - The resolved build configuration.
+ * @returns {string|null} The canonical address, or `null` when the suffix is
+ *   not shaped like an asset's.
+ */
+function localAssetAddress(forms, config) {
+    const segments = String(forms.suffix ?? "").split("/");
+    const assetType = assetTypeOfRoot(segments[0]);
+    if (!assetType) return null;
+    const base = segments[segments.length - 1];
+    const ext = path.extname(base);
+    const shortcode = (ext ? base.slice(0, -ext.length) : base).toLowerCase();
+    if (!isAssetShortcode(shortcode)) return null;
+    return canonicalKey(config.contentPackage, ASSET_SYSTEM, assetType.type, shortcode);
+}
+
+/**
+ * The cache directory one relationship's archive was fetched into, found the
+ * way {@link module:engine/foreign-catalog.foreignItemCatalogDirs} finds an
+ * item catalogue's: the newest `.complete`-stamped `<id>@<version>`
+ * directory under `config.paths.foreignCache`.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {string} id - The relationship's dependency id.
+ * @returns {string|null} The directory, or `null` when nothing is cached.
+ */
+function cachedReplacementDir(config, id) {
+    const root = config.paths.foreignCache;
+    if (!fs.existsSync(root)) return null;
+    const cached = fs
+        .readdirSync(root)
+        .filter((name) => name.startsWith(`${id}@`))
+        .map((name) => path.join(root, name))
+        .filter(isForeignCacheComplete);
+    return cached.length ? newestVersionDir(cached) : null;
+}
+
+/**
+ * The file a declared replacement stages in place of a pathname this package
+ * does not own, or `null` when no replacement answers it.
+ *
+ * @param {import("./pathnames.mjs").PathnameForms} forms - The pathname,
+ *   resolved, with `forms.own` already `false`.
+ * @param {object} config - The resolved build configuration.
+ * @param {object} opts
+ * @param {Map<string, object>} [opts.foreignIndex] - Every fetched
+ *   dependency's own records, keyed by canonical address.
+ * @param {Function} opts.resolveReplacement - {@link
+ *   module:engine/asset-replacement.resolveAssetReplacement}.
+ * @returns {{from: string, to: string}|null} The file, staged at the same
+ *   `pdf`-relative path this address would have taken had this package
+ *   shipped it.
+ * @throws {Error} When the replacement that answers the address has not
+ *   been fetched.
+ */
+function stagedReplacementPath(forms, config, { foreignIndex = new Map(), resolveReplacement }) {
+    const address = localAssetAddress(forms, config);
+    if (!address) return null;
+    const relationships = assetReplacementRelationships(config);
+    if (!relationships.length) return null;
+    const hit = resolveReplacement(address, {
+        localPackage: config.contentPackage,
+        replacements: relationships.map((rel) => rel.package),
+        index: foreignIndex,
+    });
+    if (!hit) return null;
+    const assetPath = hit.record?.asset?.path;
+    if (!assetPath) return null;
+    const rel = relationships.find((entry) => entry.package === hit.package);
+    const dir = cachedReplacementDir(config, rel?.id ?? hit.package);
+    if (!dir) {
+        throw new Error(
+            `\`${hit.package}\` declares \`assetReplacement: true\` and carries \`${address}\`, ` +
+                "but its archive has not been fetched. Run `package-build deps fetch` first.",
+        );
+    }
     return {
-        from: path.resolve(config.rootDir, forms.local),
+        from: path.join(dir, ASSETS_SEGMENT, assetPath),
         to: forms.pdf,
     };
 }
@@ -301,9 +442,19 @@ function readDocumentTree(file) {
  * @param {string} [opts.version] - Stamped on the title page and the file name.
  * @param {boolean} [opts.compile] - Whether to run Typst. False leaves the
  *   `.typ` source, which is what the unit tests read.
+ * @param {Function} [opts.resolveReplacement] - {@link
+ *   module:engine/asset-replacement.resolveAssetReplacement}, for tests.
+ *   Loaded from that module otherwise, and only when a relationship declares
+ *   `assetReplacement: true` — a build with none never imports it.
  * @returns {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.
  */
-export async function buildPdf({ config, out, version = "", compile = true } = {}) {
+export async function buildPdf({
+    config,
+    out,
+    version = "",
+    compile = true,
+    resolveReplacement,
+} = {}) {
     const resolved = config ?? loadPackConfig();
     const findings = [];
 
@@ -441,6 +592,22 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const md = createParser(resolved.icons);
     const glyphs = resolveIconGlyphs(resolved.icons, resolved.pdf.iconFonts, findings);
 
+    // Loaded only when a relationship actually declares `assetReplacement:
+    // true` — the ordinary build, with no such relationship, never imports
+    // this module at all. {@link stagedImagePath}'s own fallback is `null`,
+    // the same answer it has always given a foreign pathname, so there is
+    // nothing to inject when nothing opted in.
+    const replacementRelationships = assetReplacementRelationships(resolved);
+    const replacementResolver =
+        resolveReplacement ??
+        (replacementRelationships.length ?
+            (await import("./asset-replacement.mjs")).resolveAssetReplacement
+        :   null);
+    const stagingOpts = {
+        foreignIndex: gates.foreign.index,
+        resolveReplacement: replacementResolver,
+    };
+
     const outDir = path.resolve(
         resolved.rootDir,
         out || resolved.pdf.out || path.join("build", "dist"),
@@ -491,7 +658,13 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 findings.push({ file, severity: "error", message: problem });
                 continue;
             }
-            const staged = stagedImagePath(src, resolved);
+            let staged;
+            try {
+                staged = stagedImagePath(src, resolved, stagingOpts);
+            } catch (err) {
+                findings.push({ file, severity: "error", message: err.message });
+                continue;
+            }
             if (!staged) {
                 findings.push({
                     file,
@@ -809,7 +982,13 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const stageMapBackground = (entry, value, title) => {
         const file = noteFile(contentBase, entry.record);
         const found = artPathname(assets, value, "image", ["image", "icon"]);
-        const staged = stagedImagePath(found.pathname ?? value, resolved);
+        let staged;
+        try {
+            staged = stagedImagePath(found.pathname ?? value, resolved, stagingOpts);
+        } catch (err) {
+            findings.push({ file, severity: "error", message: err.message });
+            return;
+        }
         if (!staged || !fs.existsSync(staged.from)) {
             findings.push({
                 file,
