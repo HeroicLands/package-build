@@ -104,21 +104,24 @@
  *
  * A field's `name` is both its identity and the shared property it draws from,
  * and those coincide only while the two vocabularies agree about what the
- * spelling means. They do not always. An `affiliation` item's `system.title` is
- * the style of address an office carries — "Ajaw", "Warden"; a note's top-level
- * `title` is the note's own heading, which the site emitter publishes. Two
- * unrelated quantities, one spelling, and step 3 fed the first from the second.
+ * spelling means — or while the top-level vocabulary admits the spelling at
+ * all. They do not always. An `affiliation` item's `system.title` is the style
+ * of address an office carries — "Ajaw", "Warden"; a note's top-level `title`
+ * is refused outright by the closed top-level vocabulary, which has no `title`
+ * entry. Nothing relates them, and step 3 fed the first from the second anyway.
  *
  * It was not a harmless coincidence either, because step 3 answers **without**
  * applying `field.default` — only step 2 does — so an authored `title: null`
  * reached the field's coercion unguarded and shipped as the literal string
  * `"null"` in fifteen documents.
  *
- * So a field may declare `topLevelMeans`: what the top-level key of that name
- * means *instead*. Declaring it removes the whole shared level — step 3 and the
- * retiring 3b alike, since both read the note's top level and the objection is
- * to that level, not to a spelling — leaving the two positions that describe
- * the document rather than the note. It is deliberately
+ * So a field may declare `topLevelMeans`: why the note's top-level key of this
+ * name is not this field's source — declared wherever that key's spelling
+ * means something else at the note level, or the closed top-level vocabulary
+ * refuses it outright. Declaring it removes the whole shared level — step 3
+ * and the retiring 3b alike, since both read the note's top level and the
+ * objection is to that level, not to a spelling — leaving the two positions
+ * that describe the document rather than the note. It is deliberately
  * a per-field opt-out rather than a change to the order — step 3 is right
  * wherever the two levels state the same quantity, which is nearly everywhere —
  * and its value is the reason rather than a bare flag, so the collision is
