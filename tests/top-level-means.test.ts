@@ -7,11 +7,12 @@
 
 /**
  * Every field that declares `topLevelMeans` renders into one line of
- * `engine/field-reference.mjs`'s authoring reference: a bold lead-in, then
- * `topLevelExemptionLine`'s frame completed by the field's own string. The
- * frame reads "There it means …", so the string must complete it as a
- * lowercase clause — not open as if it were a sentence of its own, and not
- * run a later sentence on without capitalizing it.
+ * `engine/field-reference.mjs`'s authoring reference: a bold lead-in the
+ * frame supplies, followed by the field's own sentence. The frame does not
+ * force that sentence into a clause fragment, so the one property a
+ * declaration must hold is that it reads as one or more complete,
+ * well-formed sentences on its own — not that it is accurate, which a shape
+ * check cannot see.
  *
  * The surface is walked rather than copied: every field list this repository
  * registers, flattened, filtered to the ones declaring `topLevelMeans`. A
@@ -49,7 +50,7 @@ function sentenceFragments(text: string): string[] {
     return text.split(/(?<=[.!?])\s+/);
 }
 
-describe("every topLevelMeans completes the frame as one grammatical sentence", () => {
+describe("every topLevelMeans composes into one or more grammatical sentences", () => {
     it("finds at least one declaration to check", () => {
         // Guards the guard: a registry that stopped being walked here would
         // otherwise leave this suite vacuously green.
@@ -57,24 +58,24 @@ describe("every topLevelMeans completes the frame as one grammatical sentence", 
     });
 
     it.each(fieldsWithTopLevelMeans.map((field) => [field.name, field] as const))(
-        "%s completes \"There it means …\" rather than opening a sentence of its own",
+        "%s reads as a sentence, not a clause fragment",
         (_name, field) => {
             const line = topLevelExemptionLine(field);
             expect(line).toContain(field.topLevelMeans);
 
-            const [firstClause, ...rest] = sentenceFragments(field.topLevelMeans);
-
-            // The declaration continues "There it means …", so its first
-            // clause must not begin as if it opened a new sentence — a
-            // capital letter there is the tell that it was written as a
-            // standalone sentence instead.
-            expect(firstClause).toMatch(/^[a-z0-9`]/);
-
-            // Any further sentence the declaration adds after its first full
-            // stop is a real sentence, not a run-on, so it opens properly.
-            for (const fragment of rest) {
+            // Every sentence the declaration carries opens like a sentence —
+            // a capital letter, a digit, or the backtick a code span opens
+            // with. The frame no longer supplies leading words for the first
+            // one to continue, so a lowercase start here is the tell that the
+            // string was written as a clause fragment rather than a sentence.
+            for (const fragment of sentenceFragments(field.topLevelMeans)) {
                 expect(fragment).toMatch(/^[A-Z0-9`]/);
             }
+
+            // No sentence boundary the frame cannot absorb: a lowercase word
+            // straight after a mid-string `. `/`! `/`? ` is a run-on, not a
+            // second sentence.
+            expect(field.topLevelMeans).not.toMatch(/[.!?]\s+[a-z]/);
 
             // The whole declaration ends like a sentence.
             expect(field.topLevelMeans).toMatch(/[.!?]$/);
