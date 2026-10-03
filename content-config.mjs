@@ -368,7 +368,8 @@ export function publishesContentPages(config) {
  * @property {string} [stage]            Compiled LevelDB packs.
  * @property {string} [unpack]           Where `unpack` extracts JSON back to.
  * @property {string} [foreignCache]     Where a dependency declaring
- *                                       `itemCatalog: true` is unpacked.
+ *                                       `itemCatalog: true` or
+ *                                       `assetArchive: true` is unpacked.
  *                                       Inbound, and fetched rather than
  *                                       committed.
  * @property {string} [metadataCache]    Where a dependency's published content
@@ -486,6 +487,15 @@ export function publishesContentPages(config) {
  *                                   package this one targets — for a system
  *                                   relationship, `verified` is what
  *                                   `_stats.systemVersion` is stamped from.
+ * @property {boolean} [itemCatalog]  Whether `deps fetch` unpacks this
+ *                                   dependency's release archive and extracts
+ *                                   its Item packs, so the actors pass can
+ *                                   resolve embedded items this repository
+ *                                   does not hold. Needs a `manifest`.
+ * @property {boolean} [assetArchive]  Whether `deps fetch` unpacks this
+ *                                   dependency's release archive for its
+ *                                   asset bytes alone, building no item
+ *                                   catalogue from it. Needs a `manifest`.
  * @property {boolean} [contentIndex]  Whether `deps fetch` fetches this
  *                                   dependency's content index. Default
  *                                   `true`. `false` declares the dependency
@@ -785,6 +795,7 @@ const RELATIONSHIP_KEYS = [
     "manifest",
     "compatibility",
     "itemCatalog",
+    "assetArchive",
     "contentIndex",
     "assetReplacement",
 ];
@@ -2211,6 +2222,23 @@ function normalizeRelationships(value) {
                         fail(`${at}.itemCatalog`, "needs a `manifest` naming the package to fetch");
                     }
                     spec.itemCatalog = rel.itemCatalog;
+                }
+                // Opt-in, sibling to `itemCatalog`: unpack this dependency's
+                // release archive for its asset bytes alone, building no item
+                // catalogue from it. Buys the archive for a package with no
+                // items of its own to extract — an asset-replacement source
+                // ships no Item packs and has no use for `itemCatalog: true`.
+                if (rel.assetArchive !== undefined) {
+                    if (typeof rel.assetArchive !== "boolean") {
+                        fail(`${at}.assetArchive`, "must be true or false");
+                    }
+                    if (rel.assetArchive && spec.manifest === undefined) {
+                        fail(
+                            `${at}.assetArchive`,
+                            "needs a `manifest` naming the package to fetch",
+                        );
+                    }
+                    spec.assetArchive = rel.assetArchive;
                 }
                 // Opt-out: declares the dependency for the Foundry manifest
                 // only, so `deps fetch` fetches no content index for it and a
