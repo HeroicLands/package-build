@@ -30,6 +30,7 @@
  */
 
 import { renderFoundryMarkdown } from "./helpers.mjs";
+import { collectAnchors } from "./anchors.mjs";
 
 /**
  * Extract the body of an H1 section whose heading carries the explicit
@@ -38,6 +39,11 @@ import { renderFoundryMarkdown } from "./helpers.mjs";
  * are included. The H1 line itself is discarded. Returns "" if no such
  * heading exists. Fenced code blocks are respected so `# foo` inside
  * ``` blocks does not trigger a match.
+ *
+ * An anchor declared on a lower heading is found by {@link collectAnchors}
+ * but not by the `#\s+` match below, so it extracts as absent rather than as
+ * wrong — {@link misplacedAnchorSection} is the check a caller runs first to
+ * tell the two apart.
  *
  * @param {string} body - The note body.
  * @param {string} anchorId - The anchor to find.
@@ -80,4 +86,29 @@ export function extractAnchorSection(body, anchorId) {
 export function renderSection(body, anchorId) {
     const slice = extractAnchorSection(body, anchorId);
     return slice ? renderFoundryMarkdown(slice) : "";
+}
+
+/**
+ * Where an `{#appearance}` or `{#dossier}` anchor sits on a heading below the
+ * top level, which {@link extractAnchorSection} cannot read.
+ *
+ * {@link module:engine/anchors.collectAnchors} finds the anchor at any
+ * level, because a lower heading legitimately starts a journal page. It does
+ * not feed an actor field: an H1-only extractor reads nothing from one, and a
+ * caller that trusts the empty result as "no such section" rather than
+ * "found, but unreadable" compiles a blank field with nothing to say why.
+ *
+ * @param {string} body - The note body.
+ * @param {string} anchorId - The anchor to check, case-insensitively.
+ * @param {number} [bodyLine=1] - The 1-based file line the body starts on.
+ * @returns {{line: number}|null} The misplaced anchor's line, or `null` when
+ *   it is absent or already on an H1.
+ */
+export function misplacedAnchorSection(body, anchorId, bodyLine = 1) {
+    const wanted = String(anchorId).toLowerCase();
+    const found = collectAnchors(body, bodyLine).find(
+        (anchor) => anchor.slug.toLowerCase() === wanted,
+    );
+    if (!found || found.level === 1) return null;
+    return { line: found.line };
 }

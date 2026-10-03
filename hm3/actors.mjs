@@ -333,6 +333,9 @@ export class Hm3Actors extends SystemActorCompiler {
             isAddress: true,
         });
 
+        this.checkAnchoredSection(body || "", "appearance", ctx);
+        this.checkAnchoredSection(body || "", "dossier", ctx);
+
         const system = {
             // `system.bioImage` is **not** written here, for the reason SoHL's
             // `system.portrait` is not: a being's portrait is the lead image of

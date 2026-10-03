@@ -387,6 +387,9 @@ export class Actors extends SystemActorCompiler {
         const { value: authoredFolder, isAddress } = folderField(fm);
         const folder = this.folderResolver(authoredFolder, { isAddress });
 
+        this.checkAnchoredSection(body || "", "appearance", ctx);
+        this.checkAnchoredSection(body || "", "dossier", ctx);
+
         const system = {
             // The frontmatter shortcode is the actor's stable `(type, shortcode)`
             // key — and, for a being that is an archetype, its archetype
