@@ -64,10 +64,12 @@ import {
 } from "./note-frontmatter.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { addressPositions } from "./note-addresses.mjs";
-import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
+import { authoredFields, readsLegacyKey, readsRetiredTopLevel } from "./field-spec.mjs";
 import {
     legacyKeyOf,
+    resolveDataProperty,
     resolveFieldValue,
+    retiredTopLevelKey,
     systemBlock,
     SYSTEM_BLOCK_KEYS,
     unknownBlockKeys,
@@ -101,6 +103,7 @@ import {
     legacyKeyMessage,
     readAliasedField,
     retiredAliasMessage,
+    retiredTopLevelMessage,
     sectionRetiredMessage,
     traitsRetiredMessage,
 } from "./retired-fields.mjs";
@@ -136,6 +139,19 @@ import {
 export const UNIVERSAL_KEYS = Object.freeze(
     new Set(["packFolder", "pack", "archetype", "templatePriority", "kbcat"]),
 );
+
+/**
+ * The shared `data:` keys declared for every note type that still have a
+ * retiring top-level spelling — `pack` and `packFolder`, the two
+ * {@link module:engine/note-vocabulary.SHARED_DATA_FIELDS} entries
+ * {@link module:engine/system-block.resolveDataProperty} reads off a tree's
+ * bare top level. Unlike a type's own declarations, which the retiring set
+ * below derives from `schemas`, these apply to every type at once, so they
+ * are named once here rather than attached to one type's vocabulary.
+ *
+ * @type {readonly string[]}
+ */
+const UNIVERSAL_RETIRING_DATA_KEYS = Object.freeze(["pack", "packFolder"]);
 
 /**
  * The system blocks a build checks, and what each accepts beyond the shared
@@ -1209,6 +1225,22 @@ export function lintNote(
     const type = String(fm.type ?? "");
     const raw = () => note.raw ?? "";
     const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
+
+    // The keys the closed top-level region refuses in general, but a
+    // declaration still reads at the retiring position — this type's own
+    // fields, which `resolveFieldValue`'s step 3b resolves, plus `pack` and
+    // `packFolder`, declared for every type and resolved the same way by
+    // {@link resolveDataProperty}. Derived ahead of the schema lookup below,
+    // which runs after the closed-region check, so that check can skip
+    // exactly these and nothing else: a key no declaration names stays
+    // refused.
+    const retiringTopLevelKeys = new Set([
+        ...UNIVERSAL_RETIRING_DATA_KEYS,
+        ...authoredFields(schemas?.[currentType(type)] ?? [])
+            .filter((field) => field.topLevelMeans === undefined)
+            .map((field) => retiredTopLevelKey(field))
+            .filter((key) => key !== undefined),
+    ]);
     if (type === "being") {
         const archetypes = fm.data?.archetypes;
         if (
@@ -1589,6 +1621,9 @@ export function lintNote(
 
     for (const key of authoredNoteKeys(raw())) {
         if (NOTE_TOP_LEVEL_KEY_SET.has(key)) continue;
+        // Reported below, as the retiring position it is rather than a key
+        // nobody recognises.
+        if (retiringTopLevelKeys.has(key)) continue;
         const position = positionInFrontmatter(raw(), key, undefined, { topLevel: true });
         if (
             findings.some(
@@ -1607,6 +1642,28 @@ export function lintNote(
                 `the region is closed, so the key reaches no document and no ` +
                 `page. Use ${listed(NOTE_TOP_LEVEL_KEYS)}` +
                 (guess ? `. Did you mean "${guess}"?` : ""),
+        });
+    }
+
+    // `pack` and `packFolder` are declared for every type, so each is
+    // checked once here rather than in the per-type `fields` loop below,
+    // which only iterates a type's own declarations. A **warning**, for the
+    // reason the per-type retiring position above is one: the note compiles
+    // to the correct document either way, so failing a build over it would
+    // red a tree that has done nothing wrong yet. Checked against every
+    // configured system block, because `resolveDataProperty` reads a
+    // system's own override before the top level, and a note may configure
+    // more than one.
+    for (const key of UNIVERSAL_RETIRING_DATA_KEYS) {
+        const retiring = Object.keys(systems ?? {}).some(
+            (blockName) => resolveDataProperty(fm, blockName, key).from === "topLevel",
+        );
+        if (!retiring) continue;
+        findings.push({
+            file: note.file,
+            ...at(key),
+            severity: "warning",
+            message: retiredTopLevelMessage({ name: `data.${key}` }),
         });
     }
 
@@ -1825,6 +1882,18 @@ export function lintNote(
                 ...at(legacyKeyOf(field)),
                 severity: "warning",
                 message: legacyKeyMessage("sohl", field),
+            });
+        }
+        // `readsLegacyKey`'s sibling for the other retiring position — the
+        // note's own top level, which `data:` gathered the fact off. Also a
+        // **warning**: the closed-region check above already let this exact
+        // key through for this exact reason, and the two must agree.
+        if (readsRetiredTopLevel(field, from)) {
+            findings.push({
+                file: note.file,
+                ...at(retiredTopLevelKey(field)),
+                severity: "warning",
+                message: retiredTopLevelMessage(field),
             });
         }
         const absent = from === "default" || value === undefined || value === null;

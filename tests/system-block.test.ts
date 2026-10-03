@@ -27,10 +27,12 @@ import {
     BLOCK_DOCUMENT_PROPERTIES,
     SYSTEM_BLOCK_KEYS,
     SYSTEM_DATA_KEY,
+    blockDataProperty,
     blockField,
     blockProperty,
     carriesSystemBlock,
     mergeSystemData,
+    resolveDataProperty,
     resolveFieldValue,
     sharedProperty,
     systemBlock,
@@ -235,6 +237,67 @@ describe("blockProperty", () => {
 
     it("returns the supplied default when the block does not declare it", () => {
         expect(blockProperty({}, "sohl", "pack", "items")).toBe("items");
+    });
+});
+
+describe("resolveDataProperty", () => {
+    it("reads the block's own override first", () => {
+        expect(resolveDataProperty({ sohl: { pack: "items-sohl" } }, "sohl", "pack")).toEqual({
+            value: "items-sohl",
+            from: "block",
+        });
+    });
+
+    it("reads the shared `data:` position next", () => {
+        expect(resolveDataProperty({ data: { pack: "items" } }, "sohl", "pack")).toEqual({
+            value: "items",
+            from: "shared",
+        });
+    });
+
+    it("reads the retiring top-level spelling `data:` gathered it off", () => {
+        // What a tree still authors directly, before the `data:` migration —
+        // `pack:` beside `shortcode:`, the same shape `data.species`'s
+        // retiring top level is.
+        expect(resolveDataProperty({ pack: "items" }, "sohl", "pack")).toEqual({
+            value: "items",
+            from: "topLevel",
+        });
+    });
+
+    it("prefers the block over `data:` over the top level, in that order", () => {
+        expect(
+            resolveDataProperty(
+                { sohl: { pack: "items-sohl" }, data: { pack: "items-data" }, pack: "items-top" },
+                "sohl",
+                "pack",
+            ),
+        ).toEqual({ value: "items-sohl", from: "block" });
+        expect(
+            resolveDataProperty(
+                { data: { pack: "items-data" }, pack: "items-top" },
+                "sohl",
+                "pack",
+            ),
+        ).toEqual({ value: "items-data", from: "shared" });
+    });
+
+    it("falls to the supplied default when no position declares it", () => {
+        expect(resolveDataProperty({}, "sohl", "pack", "items")).toEqual({
+            value: "items",
+            from: "default",
+        });
+    });
+});
+
+describe("blockDataProperty", () => {
+    it("is `resolveDataProperty`'s value alone, in the same order", () => {
+        expect(blockDataProperty({ sohl: { pack: "items-sohl" } }, "sohl", "pack")).toBe(
+            "items-sohl",
+        );
+        expect(blockDataProperty({ data: { pack: "items" } }, "sohl", "pack")).toBe("items");
+        expect(blockDataProperty({ pack: "items" }, "sohl", "pack")).toBe("items");
+        expect(blockDataProperty({}, "sohl", "pack", "items")).toBe("items");
     });
 });
 

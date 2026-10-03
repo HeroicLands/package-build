@@ -1115,6 +1115,7 @@ export function sitePageDecorator(config, index) {
             resolve: (ref, hint) => resolveInfoboxRef(index, ref, hint),
             router,
             dates: index.dateContext,
+            contentPackage: index.contentPackage,
         });
     };
 }

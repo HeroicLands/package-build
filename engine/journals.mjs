@@ -731,6 +731,7 @@ export class Journals extends BasePackCompiler {
             // by the pack list this build is being driven by.
             router: this.router,
             dates: reckoningContext(this.linkIndex),
+            contentPackage: this.linkIndex?.contentPackage,
         });
 
         return buildJournalEntry({
