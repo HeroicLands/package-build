@@ -166,7 +166,7 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
     const catalogue = () =>
         new Map<string, any>([
             [
-                "attribute:str",
+                "sohl:attribute:str",
                 {
                     type: "attribute",
                     name: "Strength",
@@ -174,7 +174,7 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
                 },
             ],
             [
-                "attribute:agl",
+                "sohl:attribute:agl",
                 {
                     type: "attribute",
                     name: "Agility",
@@ -230,6 +230,16 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
             itemsSourceDirs: [path.join(dir, "items")],
         });
 
+    /**
+     * The attribute items a being carries, as a note authors them: one
+     * `sohl.items` entry per attribute, each naming the catalogue entry it
+     * copies and overlaying its own score.
+     */
+    const scores = (str: number, agl: number) => [
+        { model: "attribute-str", system: { scoreBase: str } },
+        { model: "attribute-agl", system: { scoreBase: agl } },
+    ];
+
     const build = (fm: any) => {
         const c = compiler();
         const items = c.buildEmbeddedItems(catalogue(), "actor0000000000", fm, "test");
@@ -240,10 +250,7 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
     it("fills the null from the being's own attribute scores", () => {
         // sb(13, 10) = 12, × 3 = 36.
         const { skill, errors } = build({
-            sohl: {
-                attributes: { str: 13, agl: 10 },
-                items: [{ model: "skill-clmb" }],
-            },
+            sohl: { items: [...scores(13, 10), { model: "skill-clmb" }] },
         });
         expect(skill("clmb").system.masteryLevelBase).toBe(36);
         expect(errors).toBe(0);
@@ -251,10 +258,7 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
 
     it("is driven by the actor's scores, so two beings open the same skill differently", () => {
         const weaker = build({
-            sohl: {
-                attributes: { str: 8, agl: 8 },
-                items: [{ model: "skill-clmb" }],
-            },
+            sohl: { items: [...scores(8, 8), { model: "skill-clmb" }] },
         });
         expect(weaker.skill("clmb").system.masteryLevelBase).toBe(24);
     });
@@ -262,8 +266,10 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
     it("leaves a mastery level the note states alone", () => {
         const { skill } = build({
             sohl: {
-                attributes: { str: 13, agl: 10 },
-                items: [{ model: "skill-clmb", system: { masteryLevelBase: 55 } }],
+                items: [
+                    ...scores(13, 10),
+                    { model: "skill-clmb", system: { masteryLevelBase: 55 } },
+                ],
             },
         });
         expect(skill("clmb").system.masteryLevelBase).toBe(55);
@@ -271,10 +277,7 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
 
     it("leaves a skill the catalogue never opens unset", () => {
         const { skill, errors } = build({
-            sohl: {
-                attributes: { str: 13, agl: 10 },
-                items: [{ model: "skill-peoni" }],
-            },
+            sohl: { items: [...scores(13, 10), { model: "skill-peoni" }] },
         });
         expect(skill("peoni").system.masteryLevelBase).toBeNull();
         expect(errors).toBe(0);
@@ -291,10 +294,7 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
 
     it("does not touch a non-skill item", () => {
         const { items } = build({
-            sohl: {
-                attributes: { str: 13, agl: 10 },
-                items: [{ model: "skill-clmb" }],
-            },
+            sohl: { items: [...scores(13, 10), { model: "skill-clmb" }] },
         });
         const str = items.find((i: any) => i.type === "attribute");
         expect(str.system).not.toHaveProperty("masteryLevelBase");

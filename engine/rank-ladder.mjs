@@ -19,6 +19,12 @@
  * than a description can hold. Those three keys together are a complete
  * statement of a rung; nothing further is needed for a ladder to be correct.
  *
+ * **A level belongs to one rung.** The ladder is read by level, so two rungs
+ * claiming one level leave a member's `rank` answering to whichever is written
+ * first — a standing whose name changes when two lines swap places. A body that
+ * confers two titles at one standing writes them as one rung, or gives each its
+ * own level.
+ *
  * **The severity is error**, because the ladder is what a being's `rank`
  * indexes into: a rung missing its `title` makes a standing that resolves to
  * nothing, and one missing its `description` ships a rung that says nothing on
@@ -127,6 +133,10 @@ export function checkRankLadder(note) {
         findings.push({ file: note.file, ...position, severity: "error", message });
     };
 
+    // Level → how the rung holding it is named, so a repeat can say which rung
+    // already holds the level rather than only that something does.
+    const held = new Map();
+
     ranks.forEach((rung, index) => {
         const rungPath = [...base, index];
         // Named by its level where it states one, because a reader scanning a
@@ -154,6 +164,24 @@ export function checkRankLadder(note) {
                     `${which} needs a level — the rung's position on this body's own ladder`
                 :   `${which} has a level that is not a whole number`,
             );
+        } else {
+            // A level belongs to one rung. Two rungs claiming it leave a
+            // member's `rank` answering to the one written first, so the
+            // ladder's own order decides what the standing is called and
+            // moving two lines renames it. Reported on the second rung,
+            // naming the first, because the first is the one a reader has to
+            // find to tell the two apart.
+            const level = Number(rung.level);
+            const named = stated(rung.title) ? JSON.stringify(rung.title) : which;
+            const first = held.get(level);
+            if (first === undefined) held.set(level, named);
+            else
+                at(
+                    [[...rungPath, "level"], rungPath],
+                    `rank ${level} is declared twice, as ${first} and ${named}; a level ` +
+                        `is a rung's identity and a member's rank indexes into it, so ` +
+                        `each rung states its own`,
+                );
         }
 
         for (const key of REQUIRED_TEXT) {
