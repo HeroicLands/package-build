@@ -51,10 +51,13 @@
 
 import log from "loglevel";
 
+import path from "node:path";
+
 import {
     sohlField,
     makeId,
     resolveName,
+    resolveImg,
     defaultStats,
     renderFoundryMarkdown,
     md,
@@ -72,6 +75,8 @@ import { draftNoticeFor } from "./draft-notice.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { separateFootnotes } from "./content-footnotes.mjs";
 import { WITHHELD_CLASS, pageOpenings } from "./heading-attributes.mjs";
+import { imagesIn } from "./content-images.mjs";
+import { IMAGE_EXTENSIONS } from "./asset-types.mjs";
 
 /**
  * `CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE` — the default ownership a withheld
@@ -95,10 +100,15 @@ const WITHHELD_OWNERSHIP = 0;
  * calling that page "Introduction" would label the description as a preamble to
  * nothing.
  *
+ * A figure fence carries its own record along onto the page it starts, as
+ * `figure` — `null` for a page a heading started. {@link buildPages} reads it
+ * to build the `image` or `text` page a fence begins; nothing else sets it.
+ *
  * @param {string} body - Markdown body to split.
  * @param {string} [leadName] - Name of the page before the first heading.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
- *   classes: string[], markdown: string}>} Pages in document order.
+ *   classes: string[], figure: object|null, markdown: string}>} Pages in
+ *   document order.
  */
 export function splitPages(body, leadName = "Introduction") {
     const { markdown, definitions } = separateFootnotes(body);
@@ -120,6 +130,7 @@ export function splitPages(body, leadName = "Introduction") {
             anchorSlug: current.anchorSlug,
             level: current.level,
             classes: current.classes,
+            figure: current.figure ?? null,
             markdown: current.lines.join("\n").trim(),
         });
         current = null;
@@ -151,6 +162,7 @@ export function splitPages(body, leadName = "Introduction") {
                 anchorSlug: figure.id || null,
                 level: 1,
                 classes: [],
+                figure,
                 lines: [line],
             };
             continue;
@@ -182,6 +194,7 @@ export function splitPages(body, leadName = "Introduction") {
             anchorSlug: null,
             level: 1,
             classes: [],
+            figure: null,
             markdown: intro,
         });
     }
@@ -281,6 +294,137 @@ export function journalPageId(entryId, page) {
 }
 
 /**
+ * Whether a caption carries markup an `image` page's `caption` field cannot
+ * hold.
+ *
+ * `image.caption` is a `StringField`; `text.content` is an `HTMLField`.
+ * Parsed as inline Markdown, plain prose tokenises as `text` alone, wrapping
+ * at most on a `softbreak` — anything else (emphasis, a code span, a link, an
+ * inline image) is a token an image page has nowhere to render.
+ *
+ * @param {string} caption - The figure's raw caption markdown.
+ * @returns {boolean} Whether the caption needs a `text` page.
+ */
+function captionCarriesMarkup(caption) {
+    if (!caption) return false;
+    const [inline] = md.parseInline(caption, {});
+    return (inline?.children ?? []).some(
+        (token) => token.type !== "text" && token.type !== "softbreak",
+    );
+}
+
+/**
+ * The one picture a `figure`-kind fence holds, when it holds exactly one and
+ * nothing else — the shape an `image` page can draw on its own. A grouped
+ * fence, two pictures or more, keeps the `text` page a single `src` cannot
+ * hold, and an embed that resolves to a sound rather than a picture does too,
+ * there being no audio page type.
+ *
+ * By the time a journal note's markdown reaches this pass, an embed has
+ * already been rewritten into the ordinary `![alt](src)` image every surface
+ * renders ({@link module:engine/content-embeds}), so the file this needs is
+ * already sitting in the fence's own contents rather than behind an address
+ * this pass would have to resolve a second time.
+ *
+ * @param {object} figure - The figure record, `kind` already derived.
+ * @param {object} page - From {@link splitPages}; `page.markdown` starts on
+ *   the figure's own opening line, so `figure`'s line-based offsets translate
+ *   into it directly.
+ * @returns {string|null} The picture's `src`, or `null`.
+ */
+function soleFigurePicture(figure, page) {
+    if (figure.kind !== "figure") return null;
+    const offset = figure.line - 1;
+    const lines = page.markdown.split("\n");
+    const contents = lines.slice(figure.bodyStart - offset, figure.bodyEnd - offset).join("\n");
+    const images = imagesIn(contents);
+    if (images.length !== 1) return null;
+    const extension = path.extname(images[0].src).toLowerCase();
+    return IMAGE_EXTENSIONS.includes(extension) ? images[0].src : null;
+}
+
+/**
+ * Whether a figure fence is the whole of the page {@link splitPages} gave it.
+ *
+ * A figure always starts a page of its own, but nothing closes one: trailing
+ * prose before the next heading or figure stays on it, exactly as it would
+ * behind an ordinary heading. An `image` page holds a `src` and a caption and
+ * nowhere else to put that prose, so it is refused the type and kept a `text`
+ * page, where the prose renders after the figure's own div as it always has.
+ *
+ * @param {object} figure - The figure record.
+ * @param {object} page - From {@link splitPages}.
+ * @returns {boolean} Whether nothing follows the fence's closing `:::`.
+ */
+function figureIsWholePage(figure, page) {
+    const offset = figure.line - 1;
+    const after = page.markdown
+        .split("\n")
+        .slice(figure.close - offset + 1)
+        .join("\n");
+    return after.trim() === "";
+}
+
+/**
+ * The fields particular to the Foundry page a `:::figure` fence begins.
+ *
+ * A fence holding exactly one picture, captioned with no inline markup, and
+ * standing alone on its page becomes a page of type `image`: `src` the
+ * picture, `image.caption` the caption text, the page named for the figure's
+ * own number. Every other fence — grouped, an audio embed, a caption
+ * `image.caption` cannot hold, or one trailing prose keeps company with —
+ * becomes a page of type `text`.
+ *
+ * The `text` page's content is rendered and then relabeled. The render sees
+ * only this one fence — {@link scanFigures}, called again inside
+ * {@link module:engine/content-figures.renderFigureBlocks} on this page's own
+ * markdown, recounts it as the first of its kind regardless of its true,
+ * note-wide number. The fence is the whole of the figure on this page, so its
+ * label paragraph is the one element to correct, to the number the note-wide
+ * scan in {@link buildJournalEntry} already assigned.
+ *
+ * @param {object} figure - The figure record from {@link scanFigures},
+ *   carried onto the page by {@link splitPages}.
+ * @param {object} page - From {@link splitPages}.
+ * @param {string} pageId - The page's `_id`, threaded into footnote anchors.
+ * @param {Map<string, number>} footnoteNumbers - Shared across the note.
+ * @returns {{name: string, type: "image", src: string, image: {caption?: string}}
+ *   |{name: string, type: "text", text: {format: number, content: string}}}
+ */
+function buildFigurePageFields(figure, page, pageId, footnoteNumbers) {
+    const picture = soleFigurePicture(figure, page);
+    if (picture && figureIsWholePage(figure, page) && !captionCarriesMarkup(figure.caption)) {
+        let src = picture;
+        try {
+            src = resolveImg(picture) ?? picture;
+        } catch {
+            // Left as the authored pathname — the same fallback an inline
+            // image's own render takes when no configuration resolves it.
+        }
+        return {
+            name: figure.label,
+            type: "image",
+            src,
+            image: figure.hasCaption ? { caption: figure.caption } : {},
+        };
+    }
+    const label =
+        figure.hasCaption ? `${figure.label}: ${md.renderInline(figure.caption)}` : figure.label;
+    const content = renderFoundryMarkdown(page.markdown, undefined, footnoteNumbers, pageId);
+    return {
+        name: figure.label,
+        type: "text",
+        text: {
+            format: 1,
+            content: content.replace(
+                /<p class="content-figure-label">[\s\S]*?<\/p>/,
+                () => `<p class="content-figure-label">${label}</p>`,
+            ),
+        },
+    };
+}
+
+/**
  * Compile split pages into JournalEntryPage documents.
  *
  * @param {Array<object>} rawPages - From {@link splitPages}.
@@ -288,8 +432,13 @@ export function journalPageId(entryId, page) {
  * @param {string} noteName - The note, for error messages.
  * A page whose heading carries `.secret` is given to the GM alone, by the one
  * ownership value Foundry reads as "nobody but a GM". Every other page states
- * no ownership and inherits the journal's.
+ * no ownership and inherits the journal's. A figure-started page states none
+ * either: {@link scanFigures} validates a figure's classes against its own
+ * closed vocabulary, which carries no `.secret`.
  *
+ * @param {Array<object>} figures - From {@link scanFigures}, numbered across
+ *   the whole note. Read by a page a heading started; a page a figure started
+ *   carries its own figure already, from {@link splitPages}.
  * @returns {Array<{_id: string, name: string, type: string,
  *   title: {show: boolean, level: number},
  *   text: {format: number, content: string}, _key: string,
@@ -314,18 +463,29 @@ export function buildPages(rawPages, entryId, noteName, figures) {
     return rawPages.map((page) => {
         const pageId = journalPageId(entryId, page);
         const withheld = (page.classes ?? []).includes(WITHHELD_CLASS);
+        const fields =
+            page.figure ?
+                buildFigurePageFields(page.figure, page, pageId, footnoteNumbers)
+            :   {
+                    name: page.name,
+                    type: "text",
+                    text: {
+                        format: 1,
+                        content:
+                            page.markdown ?
+                                renderFoundryMarkdown(
+                                    page.markdown,
+                                    figures,
+                                    footnoteNumbers,
+                                    pageId,
+                                )
+                            :   "",
+                    },
+                };
         return {
             _id: pageId,
-            name: page.name,
-            type: "text",
+            ...fields,
             title: { show: true, level: page.level ?? 1 },
-            text: {
-                format: 1,
-                content:
-                    page.markdown ?
-                        renderFoundryMarkdown(page.markdown, figures, footnoteNumbers, pageId)
-                    :   "",
-            },
             ...(withheld ? { ownership: { default: WITHHELD_OWNERSHIP } } : {}),
             _key: `!journal.pages!${entryId}.${pageId}`,
         };
