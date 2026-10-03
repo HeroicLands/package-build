@@ -188,6 +188,16 @@ describe("an image is found where it is written, and nowhere else", () => {
         expect(imagesIn("Prose.\n![A map](images/m.webp)\n")[0].block).toBe(false);
         expect(imagesIn("Prose.\n\n![A map](images/m.webp)\n\nMore.\n")[0].block).toBe(true);
     });
+
+    it("stays alone with a footnote reference trailing it, not other text", () => {
+        // `[^note]` annotates the picture rather than sitting beside it in
+        // prose — the same standing its own `{…}` directive already has.
+        expect(imagesIn("![A map](images/m.webp)[^note]\n")[0].block).toBe(true);
+        expect(imagesIn("![A map](images/m.webp){.full-width}[^note]\n")[0].block).toBe(true);
+        // A footnote reference is still the one thing a line may carry: real
+        // prose beside it is still reported.
+        expect(imagesIn("![A map](images/m.webp)[^note] and more.\n")[0].block).toBe(false);
+    });
 });
 
 describe("a refusal is located and fatal", () => {

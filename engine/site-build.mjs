@@ -67,7 +67,7 @@ import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mj
 import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
 import { collectAnchors } from "./anchors.mjs";
-import { renderImageFigures } from "./content-images.mjs";
+import { checkImages, renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
@@ -709,6 +709,7 @@ export function renderSitePage(
     const footnoteErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
+    const embedErrors = [];
     const resolved = [];
     const src = page.relPath ?? page.base;
     const ctx = wikiContext(index, {
@@ -816,6 +817,12 @@ export function renderSitePage(
             column: error.column,
             message: error.message,
         });
+    // An image sharing its paragraph with other text, or an address or title
+    // the lint already refuses — asked here too, so a site build run on its
+    // own fails on the same input `renderImageFigures` otherwise renders as
+    // though the directive were absent.
+    for (const error of checkImages(page.body, page.file, { bodyLine: page.bodyLine ?? 1 }))
+        embedErrors.push(error);
     return {
         page,
         // The disclosure is written last, over the Markdown the page ships: the
@@ -832,6 +839,7 @@ export function renderSitePage(
         footnoteErrors,
         wikiErrors,
         imageErrors,
+        embedErrors,
     };
 }
 
@@ -870,7 +878,7 @@ export function renderSitePage(
  *   it by wikilink, and its own markdown links name content pages. `maps` is
  *   each drawing by the URL of the page that carries it.
  * @returns {{written: number, byKind: Record<string, number>, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[],
+ *   wikiErrors: object[], imageErrors: object[], embedErrors: object[],
  *   related: Map<string, import("./related-pages.mjs").Related>,
  *   maps: number}} `related`
  *   is keyed by page URL, and holds the homepage's block beside every content
@@ -911,6 +919,7 @@ export function renderPages(pages, options) {
     const footnoteErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
+    const embedErrors = [];
     const byKind = {};
     // The link graph, as `(source URL, target URL)` — read off each page's
     // resolution below, and off the homepage's markdown links.
@@ -956,6 +965,7 @@ export function renderPages(pages, options) {
         footnoteErrors.push(...result.footnoteErrors);
         wikiErrors.push(...result.wikiErrors);
         imageErrors.push(...result.imageErrors);
+        embedErrors.push(...result.embedErrors);
         rendered.push({ page, body: result.body, data: result.data });
         for (const hit of result.resolved) if (hit.url) edges.push([page.url, hit.url]);
     }
@@ -1001,6 +1011,7 @@ export function renderPages(pages, options) {
         footnoteErrors,
         wikiErrors,
         imageErrors,
+        embedErrors,
         related,
         maps: withMap,
         ...(capture ? { ...(outputs ? { outputs } : {}), edges, entries } : {}),
@@ -1072,7 +1083,8 @@ export function sitePageDecorator(config, index) {
  *   `sql` directive with none prepared is a table error: nothing here runs a
  *   query.
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[], mapFindings: object[],
+ *   wikiErrors: object[], imageErrors: object[], embedErrors: object[],
+ *   mapFindings: object[],
  *   manifests: object|null}} `mapFindings` is what drawing the maps found —
  *   warnings, never a reason to fail the build.
  */
@@ -1171,6 +1183,7 @@ export function buildSite({ config, sqlTables } = {}) {
             footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            embedErrors: [],
             mapFindings: [],
             stats: null,
         };
@@ -1195,6 +1208,7 @@ export function buildSite({ config, sqlTables } = {}) {
             footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            embedErrors: [],
             mapFindings: [],
             stats: {
                 homepages: writeHomepages(homeRoot, homepages, resolved),
@@ -1245,6 +1259,7 @@ export function buildSite({ config, sqlTables } = {}) {
             footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            embedErrors: [],
             mapFindings: [],
         };
     }
@@ -1305,6 +1320,7 @@ export function buildSite({ config, sqlTables } = {}) {
         footnoteErrors: rendered.footnoteErrors,
         wikiErrors: rendered.wikiErrors,
         imageErrors: rendered.imageErrors,
+        embedErrors: rendered.embedErrors,
         mapFindings: drawn.findings,
         stats: {
             ...rendered.byKind,

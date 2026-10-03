@@ -320,6 +320,79 @@ describe("BasePackCompiler's convertBody reports every finding in one run", () =
     });
 });
 
+describe("BasePackCompiler's convertBody agrees with the lint about an image", () => {
+    // `lintContentImages` already refuses this exact shape — an image sharing
+    // its paragraph with prose — so the pack compile must refuse it too,
+    // rather than compiling the directive as though it were absent.
+    const INLINE_IMAGE = path.join(os.tmpdir(), "sohl-base-compiler-inline-image");
+    const FENCED_IMAGE = path.join(os.tmpdir(), "sohl-base-compiler-fenced-image");
+
+    beforeAll(() => {
+        fs.mkdirSync(INLINE_IMAGE, { recursive: true });
+        fs.writeFileSync(
+            path.join(INLINE_IMAGE, "Inline.md"),
+            note("A ranger. ![A ranger](ranger.webp) stands watch.", {
+                name: { full: "Probe Inline Image" },
+                id: "PROBEPROBE000007",
+                shortcode: "inlineimage",
+                type: "probe",
+            }),
+        );
+        fs.mkdirSync(FENCED_IMAGE, { recursive: true });
+        fs.writeFileSync(
+            path.join(FENCED_IMAGE, "Fenced.md"),
+            note([":::figure", "![A ranger](ranger.webp)", "///", "A ranger.", ":::"].join("\n"), {
+                name: { full: "Probe Fenced Image" },
+                id: "PROBEPROBE000008",
+                shortcode: "fencedimage",
+                type: "probe",
+            }),
+        );
+    });
+
+    afterAll(() => {
+        fs.rmSync(INLINE_IMAGE, { recursive: true, force: true });
+        fs.rmSync(FENCED_IMAGE, { recursive: true, force: true });
+    });
+
+    it("refuses an inline embed sharing its paragraph with prose", async () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            const out = dest("image-problems-inline");
+            const pack = new Probe({
+                skipDirectories: [],
+                contentBase: INLINE_IMAGE,
+                dest: out,
+            });
+            await pack.compile();
+            expect(read(out)["Probe Inline Image"]).toBeUndefined();
+            const messages = spy.mock.calls.map((call) => String(call[0]));
+            expect(messages.some((m) => m.includes("shares its paragraph with other text"))).toBe(
+                true,
+            );
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it("still compiles a picture that stands alone inside a `:::figure` fence", async () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            const out = dest("image-problems-fenced");
+            const pack = new Probe({
+                skipDirectories: [],
+                contentBase: FENCED_IMAGE,
+                dest: out,
+            });
+            await pack.compile();
+            expect(read(out)["Probe Fenced Image"]).toBeDefined();
+            expect(pack.errorCount).toBe(0);
+        } finally {
+            spy.mockRestore();
+        }
+    });
+});
+
 describe("BasePackCompiler's constructor contract", () => {
     it("requires a content root", () => {
         expect(() => new Probe({ skipDirectories: [], dest: tmp } as any)).toThrow(
