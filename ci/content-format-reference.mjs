@@ -107,7 +107,7 @@ if (process.argv.includes("--check")) {
         process.exitCode = 1;
     }
 } else {
-    process.stdout.write(result);
+    fs.writeFileSync(output, result);
 }
 
 // Every helper an expression may call, written from the one list the engine
