@@ -94,7 +94,6 @@ describe("the figure fence", () => {
         expect(errors).toEqual([]);
         expect(figures[0]).toMatchObject({
             kind: "figure",
-            soleEmbed: "![[being-foobar|The Great Beast]]",
             caption: "The great beast.",
         });
     });

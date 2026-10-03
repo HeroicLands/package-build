@@ -167,8 +167,7 @@ function figureKind(first, contents) {
  * @returns {{figures: Array<{id: string, slug: string, caption: string,
  *   hasCaption: boolean, classes: string[], kind: string, number: number,
  *   label: string, line: number, bodyStart: number, bodyEnd: number,
- *   captionStart: number, captionEnd: number, close: number,
- *   soleEmbed: string|null}>,
+ *   captionStart: number, captionEnd: number, close: number}>,
  *   errors: Array<{line: number, column: number, message: string}>}}
  */
 export function scanFigures(source) {
@@ -307,7 +306,6 @@ export function scanFigures(source) {
         const tokens = parser.parse(contents, {});
         const first = tokens.find((token) => token.level === 0 && token.map);
         const kind = figureKind(first, trimmed);
-        const sole = new RegExp(`^${EMBED.source}$`).exec(trimmed);
         const number = ++counts[kind];
         figures.push({
             id,
@@ -324,7 +322,6 @@ export function scanFigures(source) {
             captionStart,
             captionEnd,
             close,
-            soleEmbed: sole ? sole[0] : null,
         });
         i = close;
     }
