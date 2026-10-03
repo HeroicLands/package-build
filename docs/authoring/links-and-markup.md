@@ -156,9 +156,9 @@ Janapada
 The web and Foundry render a definition list with HTML `<dl>`, `<dt>`, and
 `<dd>` elements. The book renders it as a term list.
 
-## Tables and expressions
+## SQL generated tables
 
-Use a SQL fence to render a table from the content index. The table reads frontmatter from indexed notes. A zero-row result is an error unless the fence permits an empty result with `{allow-empty=true}`.
+A fence marked `sql` is replaced by a table built from the content index. The query reads the frontmatter of every indexed note, so a table is written once and stays true as notes are added.
 
 ````markdown
 ```sql
@@ -166,13 +166,92 @@ SELECT name.full AS "Name" FROM notes WHERE type = 'lore' ORDER BY name.full
 ```
 ````
 
-Inline expressions can read the note, format dates, combine values, or run scalar SQL:
+A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cell that is absent prints an em dash. A `|` or a line break inside a value is escaped, so neither breaks the table.
 
-```markdown
-{{name.full}} was born on {{dateformat "vrcal" data.born}}.
-There are {{words (sql "SELECT COUNT(*) FROM notes WHERE type = 'being'")}} beings.
-The index contains {{digits (sql "SELECT COUNT(*) FROM entries")}} entries.
-{{and (gt 3 5) (lt 4 2)}}
+### What a query can read
+
+| Relation          | What it holds                                                                                                                 |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `notes`           | Every note except a stub. This is the one to use unless a stub is wanted.                                                     |
+| `entries`         | Every note, stubs included.                                                                                                   |
+| `market`          | The market scale as three columns — `value`, `name`, `trade` — so a table can print `village` beside the number a note wrote. |
+| `<package>.notes` | The same two relations for each package this one declares a dependency on, in a schema named for it.                          |
+
+Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.weight`, `data.born`. Every note carries a computed `state` column of `full`, `draft` or `stub`. Notes tagged `gm` are absent from the relations on public surfaces.
+
+### Fence attributes
+
+A braced list may follow the language on the opening fence. Two attributes are accepted, and anything else is reported by name.
+
+| Attribute       | Value                       | Default | What it does                                                                                                                                                                            |
+| --------------- | --------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow-empty`   | `true` or `false`           | `false` | Whether a query selecting no rows is allowed. A zero-row result is a finding otherwise, because a table that silently prints nothing is the commonest way a query goes wrong unnoticed. |
+| `section-level` | an integer from 1 through 6 | `2`     | The heading level given to each group a `_section` column creates.                                                                                                                      |
+
+````markdown
+```sql {allow-empty=true section-level=3}
+SELECT name.full AS "Name" FROM notes WHERE type = 'being' AND data.gender = 'none'
+```
+````
+
+A zero-row result reports which relation was queried: a query over `notes` that would have found rows in `entries` says so, so the fix is `FROM entries` rather than `{allow-empty=true}`.
+
+### Two column names the renderer reads
+
+Two aliases are instructions rather than columns, and neither is printed.
+
+| Alias      | What it does                                                                                                                                                       |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `_ref`     | The note a row points at, written as the `type-shortcode` address a wikilink resolves. The row's first column becomes a link to that note.                         |
+| `_section` | Partitions the result into separate tables, each under a heading of its own. Order the query by the same expression, because a group ends where the value changes. |
+
+```sql
+SELECT type AS "_section", name.full AS "Name", address.slug AS "_ref"
+FROM notes WHERE type IN ('lore', 'place') ORDER BY type, name.full
 ```
 
-Use `{{dateformat data.calendar data.born}}` when the note supplies a calendar Address. A third argument selects a named output pattern, as in `{{dateformat data.calendar data.born "long"}}`. SQL fences produce tables; the `sql` helper returns one value for an inline expression. Wrap a numeric result in `words` for running prose or `digits` for a grouped numeral. See [date rules](dates-and-calendars.md) and [SQL details](../reference/format-details.md#content-tables) for query options.
+See [SQL details](../reference/format-details.md#content-tables) for query options.
+
+## Expressions
+
+An expression in `{{ }}` is replaced by a value, inline in a sentence. The note's own frontmatter is the context, so a field is read by the path a note writes it at.
+
+```markdown
+{{name.full}} was born on {{dateformat data.calendar data.born}}.
+There are {{words (sql "SELECT COUNT(*) FROM notes WHERE type = 'being'")}} beings.
+```
+
+### The rules of the construct
+
+- **A field that the note does not carry is a finding, not a blank.** Expressions are compiled strictly, so a misspelled path is reported rather than quietly printing nothing.
+- **An expression is one line.** It may not contain a line break or a brace.
+- **A failed expression leaves its own text in the page** and reports the line and column it is written on, so the page is readable and the fault is locatable.
+- **`\{{` writes an expression without evaluating it**, for an example in prose.
+- **`{{{…}}}`, `{{<…}}` and `{{%…}}` are left alone.** A Hugo shortcode is not an expression.
+- **An expression inside a code fence is left alone.**
+- Helpers nest, with the inner call in parentheses: `{{words (sql "…")}}`.
+
+### Helpers
+
+<!-- expression-helpers:start -->
+
+| Helper       | Parameters                 | What it gives you                                                                                                                                                         |
+| ------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eq`         | `a b`                      | True when both are the same value. Compares exactly, so 1 and "1" differ.                                                                                                 |
+| `gt`         | `a b`                      | True when a is greater than b. Both must be finite numbers.                                                                                                               |
+| `gte`        | `a b`                      | True when a is greater than or equal to b. Both must be finite numbers.                                                                                                   |
+| `lt`         | `a b`                      | True when a is less than b. Both must be finite numbers.                                                                                                                  |
+| `lte`        | `a b`                      | True when a is less than or equal to b. Both must be finite numbers.                                                                                                      |
+| `not`        | `value`                    | True when the value is false, zero, empty or absent.                                                                                                                      |
+| `and`        | `value …`                  | True when every value given is true. Takes two or more.                                                                                                                   |
+| `or`         | `value …`                  | True when any value given is true. Takes two or more.                                                                                                                     |
+| `words`      | `number`                   | The number spelled out for running prose — `1200` becomes one thousand two hundred. Whole numbers only; a decimal is a finding, and `digits` takes one.                   |
+| `digits`     | `number`                   | The number as a grouped numeral — `1200` becomes 1,200, and a fractional part is kept.                                                                                    |
+| `sql`        | `"query"`                  | The single value a query returns, for use inside a sentence. The query is a quoted string, the same SQL a table fence takes.                                              |
+| `dateformat` | `calendar date ["format"]` | A date written in a calendar. The calendar is an Address or its shortcode, the date is the value a note carries, and the optional third argument names an output pattern. |
+
+<!-- expression-helpers:end -->
+
+A helper that is given the wrong kind of value reports it rather than printing something wrong: `words` refuses a decimal, the four comparisons refuse anything that is not a finite number, and `dateformat` refuses a date it cannot resolve in the calendar it was given.
+
+See [date rules](dates-and-calendars.md) for what `dateformat` accepts and the patterns its third argument names.
