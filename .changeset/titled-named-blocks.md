@@ -21,3 +21,5 @@
   the literal `:::name` an author typed.
 - One malformed block no longer stops every other block in the same note from
   rendering.
+- A box written inside a GM-only section stays inside it, and a box inside
+  another box says so rather than rendering as a muddle.

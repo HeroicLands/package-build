@@ -1461,14 +1461,20 @@ function linksCommand() {
                     }),
                 );
 
+                // Worded by the shared table, like every finding below it: a
+                // sentence written here is free to describe the same defect
+                // differently from the build that also refuses it, which is the
+                // drift the table exists to prevent.
                 for (const d of deadAnchors) {
                     emitDiagnostic({
                         file: d.note.file,
                         ...positionOfLiteral(d.note.raw, d.text, d.occurrence),
                         severity: "error",
-                        message:
-                            `link [[${d.link}]] points at an anchor no ` +
-                            `heading in ${d.dest.rel} declares`,
+                        message: linkFindingMessage({
+                            reason: "unknown-anchor",
+                            target: d.target,
+                            anchor: d.anchor,
+                        }),
                     });
                 }
                 // Every link is an address and every address must

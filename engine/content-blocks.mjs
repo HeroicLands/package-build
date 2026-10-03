@@ -20,6 +20,12 @@
  * Each block stands on its own: a malformed one is a finding at its own line
  * and the blocks around it still render.
  *
+ * **One pass reads all three names.** Reading them in two passes made the first
+ * one meet the second's closers with nothing open, and report a block the author
+ * had not written. A construct this pass does not own — `:::caption` — is
+ * counted rather than claimed, so its closer is attributed to it and the pass
+ * that owns it still finds it in the markdown this one passes through.
+ *
  * @module
  */
 
@@ -47,6 +53,25 @@ export const BLOCK_NAMES = Object.freeze({
     secret: "Secret",
     warn: "Warn",
 });
+
+/**
+ * Blocks that may hold another named block.
+ *
+ * A box inside a GM-only section is a real thing to write — the section is a
+ * container for whatever the GM reads, boxes included — so a `secret` holds one
+ * and the box stays inside it. A box inside a box is noise, so `info` and `warn`
+ * hold no named block and a second opener inside one is a finding.
+ */
+const CONTAINERS = Object.freeze(["secret"]);
+
+/**
+ * Constructs another pass owns. A `:::caption` is read by the caption pass, so
+ * this one **counts it and does not claim it**: the opener and its closer pass
+ * through untouched, and the count is what lets a closer be attributed to the
+ * innermost block actually open. Claiming one would report a block that does not
+ * exist and take the caption out of the note.
+ */
+const FOREIGN = Object.freeze(["caption"]);
 
 /** `title` is the heading. Everything else an author writes becomes an attribute. */
 const TITLE = "title";
@@ -83,6 +108,11 @@ export function scanBlocks(source) {
     const errors = [];
     let opening = null;
     let codeFence = null;
+    // Blocks open inside this pass's own block, and blocks of another
+    // construct open outside it, counted so a `:::` closes the innermost thing
+    // rather than whatever this pass happens to have open.
+    let innerOpen = 0;
+    let foreignOutside = 0;
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
@@ -99,7 +129,17 @@ export function scanBlocks(source) {
         }
 
         if (CLOSE.test(line)) {
+            // A closer belongs to the innermost block still open, whichever
+            // pass owns it.
+            if (opening && innerOpen > 0) {
+                innerOpen -= 1;
+                continue;
+            }
             if (!opening) {
+                if (foreignOutside > 0) {
+                    foreignOutside -= 1;
+                    continue;
+                }
                 errors.push({ line: i + 1, column: 1, message: "a ::: line closes no block" });
                 continue;
             }
@@ -129,13 +169,29 @@ export function scanBlocks(source) {
         if (!open) continue;
         const [, name, raw = ""] = open;
         const at = { line: i + 1, column: 1 };
-        if (opening) {
-            errors.push({ ...at, message: "a block cannot open inside another block" });
+        if (FOREIGN.includes(name)) {
+            if (opening) innerOpen += 1;
+            else foreignOutside += 1;
             continue;
         }
         if (!Object.hasOwn(BLOCK_NAMES, name)) {
             errors.push({ ...at, message: `there is no ${name} block; the blocks are ${names()}` });
             opening = { start: i, rejected: true };
+            continue;
+        }
+        if (opening) {
+            if (CONTAINERS.includes(opening.name) && !CONTAINERS.includes(name)) {
+                // Held by the block it is written in, and counted so the
+                // closers are attributed in the order they were opened. The
+                // body is rendered for its own blocks before it is rendered as
+                // markdown, so the inner block comes out as a block.
+                innerOpen += 1;
+                continue;
+            }
+            // Not counted, unlike a block the outer one holds: the nesting is
+            // already reported, and counting it would leave the outer block
+            // looking unclosed as well — two findings for one mistake.
+            errors.push({ ...at, message: `nested ${name} blocks are not supported` });
             continue;
         }
 
@@ -253,7 +309,14 @@ export function renderBlocks(source, target, renderMarkdown = parser.render.bind
         const classes = [block.name, ...block.classes];
         const attributes = attributeText(block, target, classes);
         const title = titleParser.renderInline(block.title);
-        const body = renderMarkdown(block.body).trim();
+        // A container's body may hold a block of its own. Rendering it first
+        // leaves HTML the markdown renderer passes through, so the held block
+        // comes out as a block rather than as the `:::` lines an author wrote.
+        const held =
+            CONTAINERS.includes(block.name) ?
+                renderBlocks(block.body, target, renderMarkdown).markdown
+            :   block.body;
+        const body = renderMarkdown(held).trim();
         if (target === "foundry") {
             output.push(
                 "",

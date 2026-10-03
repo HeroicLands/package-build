@@ -126,6 +126,62 @@ describe("named body blocks", () => {
         expect(typst).toContain("Three.");
     });
 
+    it("counts another construct's block rather than claiming it", () => {
+        // `:::caption` belongs to the caption pass. Claiming it would report a
+        // block that does not exist and take the caption out of the note; not
+        // counting it would leave its closer looking like a stray `:::`.
+        const source = ":::caption {#trade}\nTrade routes\n:::\n\n:::info\nBody.\n:::\n";
+        const { blocks, errors } = scanBlocks(source);
+        expect(errors).toEqual([]);
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].name).toBe("info");
+        // the caption is left exactly as the author wrote it
+        expect(renderBlocks(source, "web").markdown).toContain(":::caption {#trade}");
+    });
+
+    it("keeps another construct's block inside the block it was written in", () => {
+        const source =
+            ":::secret\nBefore.\n\n:::caption {#trade}\nTrade routes\n:::\n\nAfter.\n:::\n";
+        const { blocks, errors } = scanBlocks(source);
+        expect(errors).toEqual([]);
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].name).toBe("secret");
+        expect(blocks[0].body).toContain(":::caption {#trade}");
+        expect(blocks[0].body).toContain("After.");
+    });
+
+    it("holds a box inside a GM-only section", () => {
+        const source = ":::secret\nFor the GM.\n\n:::warn\nThe shoals.\n:::\n:::\n";
+        const { blocks, errors } = scanBlocks(source);
+        expect(errors).toEqual([]);
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].name).toBe("secret");
+
+        const { markdown } = renderBlocks(source, "web");
+        expect(markdown).toContain('<details class="secret">');
+        expect(markdown).toContain('<details class="warn">');
+        expect(markdown).toContain("The shoals.");
+        expect(markdown).not.toContain(":::warn");
+    });
+
+    // A rejected opener is not counted, so the outer block is closed by the
+    // first `:::` and the second closes nothing — which is the author's actual
+    // mistake. What it must not do is also claim the outer block was never
+    // closed, which would be two findings answered by one edit.
+    it("refuses a box inside a box, naming the nesting first", () => {
+        const { errors } = scanBlocks(":::info\nOuter.\n:::warn\nInner.\n:::\n:::\n");
+        expect(errors[0]).toMatchObject({ line: 3, column: 1 });
+        expect(errors[0].message).toContain("nested warn blocks");
+        expect(errors.map((e) => e.message).join("\n")).not.toContain("needs a closing");
+    });
+
+    it("refuses a GM-only section inside one, naming the nesting first", () => {
+        const { errors } = scanBlocks(":::secret\na\n:::secret\nb\n:::\n:::\n");
+        expect(errors[0]).toMatchObject({ line: 3, column: 1 });
+        expect(errors[0].message).toContain("nested secret blocks");
+        expect(errors.map((e) => e.message).join("\n")).not.toContain("needs a closing");
+    });
+
     it("does not treat an ordinary markdown render as a block", () => {
         expect(md.render("A regular note.")).toContain("<p>A regular note.</p>");
     });
