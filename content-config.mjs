@@ -788,7 +788,16 @@ const PDF_FONT_KEYS = ["serif", "sans", "mono", "path"];
 const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" });
 const DOC_PAGE_KEYS = ["title", "out", "preamble", "frontmatter"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
-const RELATIONSHIP_KEYS = [
+/**
+ * Every key a declared relationship may carry.
+ *
+ * Read by the manifest writer as well as by the configuration check: the keys
+ * Foundry's own relationship schema does not name are the build's own, and the
+ * published manifest carries none of them.
+ *
+ * @type {readonly string[]}
+ */
+export const RELATIONSHIP_KEYS = [
     "id",
     "contentPackage",
     "type",

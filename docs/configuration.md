@@ -1,6 +1,6 @@
 ---
 shortcode: configuration
-name: {full: "Configuration"}
+name: { full: "Configuration" }
 type: doc
 subType: reference
 ---
