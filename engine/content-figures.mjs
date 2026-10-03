@@ -45,6 +45,16 @@
  * `figure`, and everything else is `prose`. A fence around prose, with
  * `.border`, is a numbered, referable boxed aside, which is what `Prose` names.
  *
+ * **A picture counts as `map` instead of `figure` when every picture the fence
+ * holds is one.** The fence's own markup cannot say so — a picture of a map
+ * looks like any other picture — so the fact travels through a `resolveRole`
+ * function the caller supplies, from the address each picture draws (an
+ * embed's address, an image's path, or an `<img>` tag's `src`) to the role its
+ * asset declares. This pass resolves no address of its own; `resolveRole` is
+ * the one seam a caller reaches through with whatever lookup it already holds.
+ * A caller that supplies none, or whose lookup answers nothing for a picture,
+ * gets `figure` — the same reading as a picture with a role other than `map`.
+ *
  * ## The class vocabulary is closed
  *
  * {@link FIGURE_CLASSES} holds what an author may write, and a class outside it
@@ -82,11 +92,21 @@ const FENCE = /^ {0,3}(`{3,}|~{3,})/;
  */
 const EMBED = /!\[\[[^\]\n]+\]\](?:\{[^}\n]*\})?/;
 
+/** An embed, capturing its interior — reused to read the address it draws. */
+const EMBED_INNER = /!\[\[([^\]\n]+)\]\]/g;
+
+/**
+ * An `<img>` tag's `src`, as the website hands this pass once its own image
+ * pass has already turned a block picture into HTML.
+ */
+const HTML_IMG_SRC = /<img\b[^>]*\bsrc="([^"]*)"/g;
+
 /** A figure's automatically determined kind, and the word that labels it. */
 export const FIGURE_NAMES = Object.freeze({
     code: "Code",
     table: "Table",
     figure: "Figure",
+    map: "Map",
     prose: "Prose",
 });
 
@@ -142,19 +162,59 @@ function picturesOnly(contents) {
 }
 
 /**
+ * Every address a fence's pictures draw, across the three forms a picture
+ * reaches this pass in: an embed's inner text before its `|`, a markdown
+ * image's path, or an HTML `<img>`'s `src`.
+ *
+ * @param {string} contents - The fence's contents.
+ * @returns {string[]} One address per picture, in source order.
+ */
+function pictureAddresses(contents) {
+    const addresses = [];
+    for (const match of contents.matchAll(EMBED_INNER)) {
+        addresses.push(match[1].split("|")[0].trim());
+    }
+    for (const match of contents.matchAll(IMAGE_PATTERN)) {
+        if (match[2]) addresses.push(match[2]);
+    }
+    for (const match of contents.matchAll(HTML_IMG_SRC)) {
+        addresses.push(match[1]);
+    }
+    return addresses.filter(Boolean);
+}
+
+/**
+ * Whether every picture a fence holds declares the `map` role.
+ *
+ * @param {string} contents - The fence's contents.
+ * @param {(address: string) => string|undefined} resolveRole - The caller's
+ *   lookup from an address to the role its asset declares.
+ * @returns {boolean} Whether the fence draws at least one picture and every
+ *   one of them resolves to `map`.
+ */
+function picturesAreMap(contents, resolveRole) {
+    const addresses = pictureAddresses(contents);
+    return addresses.length > 0 && addresses.every((address) => resolveRole(address) === "map");
+}
+
+/**
  * Which counter a fence's contents belong to.
  *
  * @param {object|undefined} first - The first top-level token of the contents.
  * @param {string} contents - The contents, trimmed.
- * @returns {"code"|"table"|"figure"|"prose"} The kind.
+ * @param {(address: string) => string|undefined} resolveRole - The caller's
+ *   lookup from a picture's address to the role its asset declares.
+ * @returns {"code"|"table"|"figure"|"map"|"prose"} The kind.
  */
-function figureKind(first, contents) {
+function figureKind(first, contents, resolveRole) {
     if (first?.type === "table_open") return "table";
     if (first?.type === "fence" && /^\s*sql\b/i.test(first.info ?? "")) return "table";
     if (first?.type === "fence" || first?.type === "code_block") return "code";
     // `<figure>` and `<img>` reach this pass from the website, where the image
     // pass runs first and hands over HTML rather than markdown.
-    if (picturesOnly(contents) || /^(?:<figure\b|<img\b)/.test(contents)) return "figure";
+    if (picturesOnly(contents) || /^(?:<figure\b|<img\b)/.test(contents)) {
+        return picturesAreMap(contents, resolveRole) ? "map" : "figure";
+    }
     return "prose";
 }
 
@@ -164,17 +224,23 @@ function figureKind(first, contents) {
  * SQL fences are expanded before this pass, so their output is a table.
  *
  * @param {string} source - A note body with expanded tables.
+ * @param {object} [options] - Options.
+ * @param {(address: string) => string|undefined} [options.resolveRole] - From
+ *   a picture's address to the role its asset declares, so a picture whose
+ *   asset declares `role: map` counts as `map` rather than `figure`. Omitted,
+ *   every picture counts as `figure` — the same reading a role other than
+ *   `map` gets.
  * @returns {{figures: Array<{id: string, slug: string, caption: string,
  *   hasCaption: boolean, classes: string[], kind: string, number: number,
  *   label: string, line: number, bodyStart: number, bodyEnd: number,
  *   captionStart: number, captionEnd: number, close: number}>,
  *   errors: Array<{line: number, column: number, message: string}>}}
  */
-export function scanFigures(source) {
+export function scanFigures(source, { resolveRole = () => undefined } = {}) {
     const lines = String(source ?? "").split("\n");
     const figures = [];
     const errors = [];
-    const counts = { code: 0, table: 0, figure: 0, prose: 0 };
+    const counts = { code: 0, table: 0, figure: 0, map: 0, prose: 0 };
     const ids = new Set();
     const headingIds = [];
     let codeFence = null;
@@ -305,7 +371,7 @@ export function scanFigures(source) {
         const trimmed = contents.trim();
         const tokens = parser.parse(contents, {});
         const first = tokens.find((token) => token.level === 0 && token.map);
-        const kind = figureKind(first, trimmed);
+        const kind = figureKind(first, trimmed, resolveRole);
         const number = ++counts[kind];
         figures.push({
             id,
@@ -356,10 +422,18 @@ export function scanFigures(source) {
  *   figure's own contents.
  * @param {Array<{id: string, label: string}>} [numbers] - Labels assigned by a
  *   surface that counts across documents, matched by id.
+ * @param {object} [options] - Options.
+ * @param {(address: string) => string|undefined} [options.resolveRole] - See
+ *   {@link scanFigures}.
  * @returns {{markdown: string, errors: Array<{line: number, column: number, message: string}>}}
  */
-export function renderFigureBlocks(source, renderMarkdown = parser.render.bind(parser), numbers) {
-    const { figures, errors } = scanFigures(source);
+export function renderFigureBlocks(
+    source,
+    renderMarkdown = parser.render.bind(parser),
+    numbers,
+    { resolveRole } = {},
+) {
+    const { figures, errors } = scanFigures(source, { resolveRole });
     if (errors.length) return { markdown: source, errors };
     const byId =
         numbers ?
@@ -375,7 +449,7 @@ export function renderFigureBlocks(source, renderMarkdown = parser.render.bind(p
         const classes = ["content-figure", `content-figure-${figure.kind}`, ...figure.classes];
         const id = figure.slug ? ` id="${escapeHtml(figure.slug)}"` : "";
         output.push(`<div${id} class="${escapeHtml(classes.join(" "))}">`);
-        if (figure.kind === "figure") {
+        if (figure.kind === "figure" || figure.kind === "map") {
             output.push(renderMarkdown(contents).trim());
         } else {
             output.push("", contents, "");

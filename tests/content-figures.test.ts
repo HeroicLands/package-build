@@ -338,6 +338,70 @@ describe("the figure fence", () => {
     });
 });
 
+describe("the map counter", () => {
+    const mapRole = (address: string) => (address === "thornpass.webp" ? "map" : undefined);
+
+    it("counts a map picture independently of the figure counter", () => {
+        const source = [
+            fence("{#first}", "![A ranger](ranger.webp)", "A ranger."),
+            fence("{#second}", "![A map](thornpass.webp)", "Thorn Pass."),
+            fence("{#third}", "![Another map](thornpass.webp)", "Thorn Pass again."),
+        ].join("\n");
+        const { figures, errors } = scanFigures(source, { resolveRole: mapRole });
+        expect(errors).toEqual([]);
+        expect(figures.map(({ kind, label }) => [kind, label])).toEqual([
+            ["figure", "Figure 1"],
+            ["map", "Map 1"],
+            ["map", "Map 2"],
+        ]);
+    });
+
+    it("counts a picture with no role, or a role other than map, as a Figure", () => {
+        const role = (address: string) => (address === "person.webp" ? "portrait" : undefined);
+        const source = [
+            fence("{#a}", "![A ranger](ranger.webp)", "No role at all."),
+            fence("{#b}", "![A portrait](person.webp)", "A role, but not map."),
+        ].join("\n");
+        const { figures, errors } = scanFigures(source, { resolveRole: role });
+        expect(errors).toEqual([]);
+        expect(figures.map(({ kind, label }) => [kind, label])).toEqual([
+            ["figure", "Figure 1"],
+            ["figure", "Figure 2"],
+        ]);
+    });
+
+    it("gives every picture with no resolveRole supplied the same reading as today", () => {
+        const source = fence("{#thornpass}", "![A map](thornpass.webp)", "Thorn Pass");
+        const { figures } = scanFigures(source);
+        expect(figures[0].kind).toBe("figure");
+    });
+
+    it("still draws a map figure's label, number and anchor on every surface", () => {
+        const source = fence("{#thornpass}", "![A map](thornpass.webp)", "Thorn Pass");
+
+        const site = renderFigureBlocks(renderImageFigures(source), undefined, undefined, {
+            resolveRole: mapRole,
+        });
+        expect(site.errors).toEqual([]);
+        expect(site.markdown).toContain('id="thornpass"');
+        expect(site.markdown).toContain("Map 1: Thorn Pass");
+        expect(site.markdown).toContain("content-figure-map");
+
+        expect(renderFoundryMarkdown(source, undefined, undefined, undefined, mapRole)).toContain(
+            "Map 1: Thorn Pass",
+        );
+
+        const images = new Map([["thornpass.webp", "assets/thornpass.webp"]]);
+        const typst = markdownToTypst(source, {
+            anchorPrefix: "chapter",
+            images,
+            resolveRole: mapRole,
+        });
+        expect(typst).toContain("Map 1: Thorn Pass");
+        expect(typst).toContain("<chapter--thornpass>");
+    });
+});
+
 describe("what a figure fence refuses", () => {
     it("reports a second top-level /// at its own line", () => {
         const source = [

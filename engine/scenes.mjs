@@ -80,7 +80,7 @@ import { behaviorDocId, buildScene, isMapType, regionDocId } from "./map-notes.m
 import { buildItineraryScenes } from "./itinerary-scenes.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { rasterizeMapSvg } from "./map-raster.mjs";
-import { artPathname, artSlot } from "./art-fields.mjs";
+import { artPathname, artSlot, pathnameRoles } from "./art-fields.mjs";
 import { buildExportedScene } from "./exported-scene.mjs";
 
 /**
@@ -395,11 +395,15 @@ export class Scenes extends BasePackCompiler {
      * @param {string} markdown - The converted body.
      * @param {string} entryId - The JournalEntry's id.
      * @param {string} name - The map's name (its lead page).
+     * @param {(address: string) => string|undefined} resolveRole - See
+     *   {@link module:engine/journals.splitPages}; threaded through so an
+     *   unanchored map figure's page key agrees with the journal this pass
+     *   derives it against.
      * @returns {Map<string, string>} heading key → page id.
      */
-    #pageIds(markdown, entryId, name) {
+    #pageIds(markdown, entryId, name, resolveRole) {
         const pageIds = new Map();
-        splitPages(markdown, name).forEach((page) => {
+        splitPages(markdown, name, resolveRole).forEach((page) => {
             const id = journalPageId(entryId, page);
             if (page.anchorSlug) pageIds.set(page.anchorSlug, id);
             const slug = slugify(page.name);
@@ -439,6 +443,12 @@ export class Scenes extends BasePackCompiler {
     compileNote(fm, markdown) {
         const name = resolveName(fm);
         const hasBody = Boolean(String(markdown).trim());
+        // The markdown this pass reads has already had its embeds rewritten
+        // into ordinary images, each `src` the pathname `pathnameRoles` keys
+        // its roles by — see {@link module:engine/journals.Journals#buildEntry},
+        // which derives this same journal's pages the same way.
+        const roles = pathnameRoles(this.linkIndex);
+        const resolveRole = (pathname) => roles.get(pathname);
         // The same doc-entry id the journals pass derives, from the
         // shared `docEntryTypes` arrangement — so neither
         // pass has to read the other's output.
@@ -511,7 +521,8 @@ export class Scenes extends BasePackCompiler {
                         hasBody ?
                             this.#packRouter.resolve(fm, "JournalEntry")
                         :   this.#packRouter.defaultOf("JournalEntry"),
-                    pageIds: hasBody ? this.#pageIds(markdown, entryId, name) : new Map(),
+                    pageIds:
+                        hasBody ? this.#pageIds(markdown, entryId, name, resolveRole) : new Map(),
                     knownActions: this.knownActions,
                     warnings,
                     ...this.#resolvers(this.index, this.effectsByAddress, fm.shortcode),
@@ -535,6 +546,7 @@ export class Scenes extends BasePackCompiler {
                     name,
                     markdown,
                     leadName: name,
+                    resolveRole,
                     // As in the journals pass: an address resolves in the
                     // pack that emits it, which is what makes the folder
                     // materialise there too. The id spelling that used

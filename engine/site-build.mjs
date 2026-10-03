@@ -88,7 +88,8 @@ import { isNoteRecord, noteFile } from "./index-records.mjs";
 // The one statement of what an empty body means, shared with the index.
 import { isStubNote } from "./note-state.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
-import { ART_SLOTS, artPathname, assetAddressIndex } from "./art-fields.mjs";
+import { ART_SLOTS, artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
+import { embedRole } from "./content-embeds.mjs";
 import {
     HOMEPAGE_DESTINATION,
     checkHomepageCount,
@@ -745,10 +746,28 @@ export function renderSitePage(
         return src;
     };
     const artSrc = (value, type, accepts) => artPathname(artIndex, value, type, accepts).pathname;
+    // The role lookup a `:::figure` fence's `map` counter reaches through —
+    // see `engine/content-figures.mjs`'s `resolveRole`. Addressed form, for
+    // the page's own scan below, which runs before an embed is rewritten into
+    // an ordinary image; `roleByWebSrc` is the same lookup keyed by the web
+    // address each picture that reaches `renderImageFigures` resolves to,
+    // recorded as it is resolved rather than built across the whole corpus —
+    // `webSrc` itself reports an image's own problems as a side effect, which
+    // a speculative call over every asset would misfire for one this page
+    // never names.
+    const resolveRole = (address) => embedRole(artIndex, address);
+    const pathRoles = pathnameRoles(artIndex);
+    const roleByWebSrc = new Map();
+    const webSrcWithRole = (src) => {
+        const result = webSrc(src);
+        const role = pathRoles.get(src);
+        if (role) roleByWebSrc.set(result, role);
+        return result;
+    };
     const resolve = (text) => {
         let transformed = pass.beforeLinks ? pass.beforeLinks(text, page) : text;
         transformed = resolveWebWikilinks(transformed, ctx);
-        return renderImageFigures(transformed, webSrc);
+        return renderImageFigures(transformed, webSrcWithRole);
     };
 
     const { markdown, errors, lineMap } = expandContentTables(page.body, {
@@ -760,7 +779,7 @@ export function renderSitePage(
         self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
     });
     tableErrors.push(...errors);
-    const figureScan = scanFigures(markdown);
+    const figureScan = scanFigures(markdown, { resolveRole });
     ctx.captionLabels = new Map(
         figureScan.figures.filter((figure) => figure.id).map((figure) => [figure.id, figure.label]),
     );
@@ -790,7 +809,9 @@ export function renderSitePage(
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
     const blocks = renderBlocks(protectCode(expressions.markdown, resolve), "web");
-    const figured = renderFigureBlocks(blocks.markdown);
+    const figured = renderFigureBlocks(blocks.markdown, undefined, undefined, {
+        resolveRole: (address) => roleByWebSrc.get(address),
+    });
     for (const error of figureScan.errors)
         captionErrors.push({
             file: page.file,

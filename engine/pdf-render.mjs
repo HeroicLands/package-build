@@ -544,7 +544,7 @@ export function markdownToTypst(markdown, opts = {}) {
         }
     }
     const lines = source.split("\n");
-    const localFigures = scanFigures(source).figures;
+    const localFigures = scanFigures(source, { resolveRole: opts.resolveRole }).figures;
     // Numbered by the caller, which counts across the whole book, and placed by
     // the scan above, which is the only reading of *this* body. Paired by
     // position: two figures may share an id — a finding, and the book is built
@@ -575,13 +575,13 @@ export function markdownToTypst(markdown, opts = {}) {
         // last — see the counter it decrements, set only for a `figure`-kind
         // fence, where more than one image can share the one caption.
         const captioned =
-            caption.kind === "figure" ?
+            caption.kind === "figure" || caption.kind === "map" ?
                 { ...caption, imagesRemaining: { n: countImages(block) } }
             :   caption;
         const segments = [
             renderMarkdownSegment(block, md, { ...ctx, caption: captioned }, definitions),
         ];
-        if (caption.kind !== "table" && caption.kind !== "figure") {
+        if (caption.kind !== "table" && caption.kind !== "figure" && caption.kind !== "map") {
             segments.push(
                 `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]]${typstAnchor(anchorPrefix, caption)}\n\n`,
             );
@@ -1311,7 +1311,8 @@ function renderLink(href, inner, ctx) {
  * @returns {string} Typst markup.
  */
 function renderImage(token, ctx) {
-    const figureCaption = ctx.caption?.kind === "figure" ? ctx.caption : null;
+    const figureCaption =
+        ctx.caption?.kind === "figure" || ctx.caption?.kind === "map" ? ctx.caption : null;
     const remaining = figureCaption?.imagesRemaining;
     const isLastImage = !remaining || --remaining.n <= 0;
     const labelled = Boolean(figureCaption) && isLastImage;

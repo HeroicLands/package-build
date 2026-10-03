@@ -174,6 +174,25 @@ export function resolveEmbed(index, embed) {
 }
 
 /**
+ * The role an address's asset declares, read through the same resolution an
+ * embed's address takes.
+ *
+ * This is the lookup a `:::figure` fence's `map` counter reaches through —
+ * see {@link module:engine/content-figures.scanFigures}'s `resolveRole` — for
+ * an address still in its authored form, before {@link resolveEmbeds} has
+ * rewritten it into the ordinary image every surface renders.
+ *
+ * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex},
+ *   or the equivalent the site and the book build.
+ * @param {string} address - The address as authored, inside `![[...]]`.
+ * @returns {string|undefined} The role, or `undefined` for a note's address,
+ *   one that resolves nowhere, or a picture that declares none.
+ */
+export function embedRole(index, address) {
+    return readAssetAddress(index, address, EMBED_DEFAULT_TYPE).record?.asset?.role || undefined;
+}
+
+/**
  * What is wrong with one embed's directive or placement, if anything.
  *
  * Separate from the link findings beside it because the two speak different
