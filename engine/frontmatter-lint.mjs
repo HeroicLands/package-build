@@ -63,7 +63,7 @@ import {
 } from "./note-frontmatter.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { addressPositions } from "./note-addresses.mjs";
-import { authoredFields, readsLegacyKey, retiredKeyFields } from "./field-spec.mjs";
+import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
 import {
     legacyKeyOf,
     resolveFieldValue,
@@ -95,13 +95,11 @@ import {
     RETIRED_FIELD_ALIASES,
     declaresRetiredAlias,
     aliasesRetiredMessage,
-    authoredRetiredKeys,
     declaresRetiredAliasesField,
     draftRetiredMessage,
     legacyKeyMessage,
     readAliasedField,
     retiredAliasMessage,
-    retiredKeyMessage,
     sectionRetiredMessage,
     traitsRetiredMessage,
 } from "./retired-fields.mjs";
@@ -1790,30 +1788,11 @@ export function lintNote(
         // statement is `fields` can fall silent here.
         const own = spec?.fields;
         if (own && !own[type] && !spec?.fieldVocabulary && !spec?.known) continue;
-        // A retired key, reported below with the position to write instead. The
-        // key counts as accepted here so the two findings are one: an
-        // unrecognised-key error beside it would name the same line and say
-        // less.
-        // Whose declaration this block is held to — the note type's own
-        // vocabulary where the block takes it, and the system's registry for a
-        // second system's block. The same answer `accepted` below is built
-        // from, so a retirement is read from the list the keys came from.
-        const blockSchema = spec?.fieldVocabulary ? schema : own?.[type];
-        const retired = authoredRetiredKeys(fm, blockSchema, { block: blockName });
-        for (const field of retired) {
-            findings.push({
-                file: note.file,
-                ...at(/** @type {string} */ (field.retiredKey)),
-                severity: "error",
-                message: retiredKeyMessage(blockName, field),
-            });
-        }
         const accepted = new Set([
             ...UNIVERSAL_KEYS,
             ...(spec?.known ?? []),
             ...(spec?.fieldVocabulary ? declared : []),
             ...(own ? inBlockKeys(own[type]) : []),
-            ...retiredKeyFields(blockSchema).map((field) => field.retiredKey),
         ]);
         for (const key of unknownBlockKeys(fm, blockName, { known: accepted })) {
             // Reported above, with what to write instead — a retired spelling

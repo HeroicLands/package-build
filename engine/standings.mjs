@@ -40,11 +40,13 @@
  * what lets each be checked — a rung the body does not confer and an office it
  * does not hold are both findings naming the file, line and column.
  *
- * **An entry states a rung.** Belonging to a body is holding some standing in
- * it, so `1` is the ordinary member and `0` is the rung for someone cast out;
- * `office` is the optional half. An entry naming an office and no rung is
- * refused, because an office distinguishes a person within a standing rather
- * than standing in for one.
+ * **An entry states a rung, and `rank` is required.** Belonging to a body is
+ * holding some standing in it, so `1` is the ordinary member and `0` is the rung
+ * for someone cast out — between them they cover every standing a member can
+ * hold, which is what makes the requirement writable. `office` is the optional
+ * half, and an entry carrying one and no rung is the same fault rather than a
+ * second: an office distinguishes a person within a standing rather than
+ * standing in for one.
  *
  * @module
  */
@@ -427,16 +429,17 @@ function bodyFindings(note, body, path, isKey, found) {
  * both ends: `1` is the ordinary member, and `0` is a real rung rather than a
  * default — `0 Níding`, `0 Outlaw`, `0 Vrystrith`, `0 Struck from the Roll` all
  * name someone cast out, who still has a standing. So an entry naming a body
- * and no rung is incomplete, and the message says which number to write rather
- * than only that one is missing.
+ * and no rung is incomplete, and it is an **error**.
  *
- * **An office with no rung is an error, and a bare entry is a warning**, which
- * is the difference between incomplete and wrong. An office is what
- * distinguishes a person *within* a standing, so an entry holding one and no
- * rung puts a person in a post in nothing — there is no reading of it that is
- * right. A bare entry is merely terse: it compiles to a membership with no
- * level, which is a correct document as far as it goes, and failing a build
- * over one would red a tree whose remaining work is content.
+ * **The message carries the rule, not just the gap.** "States no `rank`" sends a
+ * reader to find out which number to write; naming `1` and `0` is the whole
+ * answer, and the two ends are what makes the requirement writable — there is no
+ * standing a member can hold that one of them does not cover.
+ *
+ * **One finding per entry.** An entry carrying an office and no rung is the same
+ * fault and not a second one: an office distinguishes a person *within* a
+ * standing rather than standing in for one, so the office is named here as the
+ * reason the entry looked complete, rather than reported on its own line as well.
  *
  * @param {object} note - The note.
  * @param {object} standing - The authored entry.
@@ -446,26 +449,18 @@ function bodyFindings(note, body, path, isKey, found) {
  */
 function absentRankFindings(note, standing, body, path) {
     if (standing.rank !== undefined && standing.rank !== null) return [];
-    const rungs = "an ordinary member is `1`, and `0` is the rung for someone cast out";
     const office = typeof standing.office === "string" ? standing.office.trim() : "";
-    if (office)
-        return [
-            {
-                ...position(note, [...path, "office"]),
-                message:
-                    `\`data.affiliations\` entry for ${body} holds the office ` +
-                    `${JSON.stringify(office)} and states no \`rank\` — an office ` +
-                    `distinguishes a person within a standing rather than standing in ` +
-                    `for one, so the entry states the rung as well: ${rungs}`,
-            },
-        ];
     return [
         {
             ...position(note, path, true),
-            severity: "warning",
             message:
-                `\`data.affiliations\` entry for ${body} states no \`rank\` — a being ` +
-                `that belongs to a body holds some standing in it: ${rungs}`,
+                `\`data.affiliations\` entry for ${body} states no \`rank\`` +
+                (office ?
+                    `, and the office ${JSON.stringify(office)} is not one — an office ` +
+                    `distinguishes a person within a standing rather than standing in ` +
+                    `for one`
+                :   " — a being that belongs to a body holds some standing in it") +
+                ". An ordinary member is `1`, and `0` is the rung for someone cast out",
         },
     ];
 }

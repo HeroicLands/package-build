@@ -132,12 +132,13 @@ describe("a being's standing names the body that confers it", () => {
         expect(checkStandings(note([]), { index })).toEqual([]);
     });
 
-    it("reports an entry that states no rung, in whichever way it states nothing", () => {
+    it("refuses an entry that states no rung, in whichever way it states nothing", () => {
         // `{}`, a key with nothing after it, and the `[]` an emptied map
         // arrives from the property editor as all say one thing.
         for (const nothing of [{}, null, []]) {
             const findings = checkStandings(note({ vrystwldtrbs: nothing }), { index });
-            expect(findings.map((f) => f.severity)).toEqual(["warning"]);
+            expect(findings.map((f) => f.severity)).toEqual(["error"]);
+            expect(findings[0].message).toMatch(/thalorna-note-affiliation-vrystwldtrbs/);
             expect(findings[0].message).toMatch(/states no `rank`/);
             expect(findings[0].message).toMatch(/ordinary member is `1`/);
             expect(findings[0].message).toMatch(/`0` is the rung for someone cast out/);
@@ -146,15 +147,25 @@ describe("a being's standing names the body that confers it", () => {
         }
     });
 
-    it("refuses an office with no rung, naming the body and the post", () => {
-        // An office distinguishes a person within a standing, so this one is
-        // wrong rather than terse — an error where a bare entry is advisory.
+    it("refuses an office with no rung once, naming the body and the post", () => {
+        // The same fault, not a second one — so one finding, on the entry, with
+        // the office named as the reason it looked complete.
         const findings = checkStandings(note({ vrystwldtrbs: { office: "War Chief" } }), { index });
         expect(findings.map((f) => f.severity)).toEqual(["error"]);
         expect(findings[0].message).toMatch(/thalorna-note-affiliation-vrystwldtrbs/);
-        expect(findings[0].message).toMatch(/holds the office "War Chief" and states no `rank`/);
+        expect(findings[0].message).toMatch(
+            /states no `rank`, and the office "War Chief" is not one/,
+        );
+        expect(findings[0].message).toMatch(/ordinary member is `1`/);
         expect(findings[0].line).toBeGreaterThan(0);
         expect(findings[0].column).toBeGreaterThan(0);
+    });
+
+    it("keeps a rank with no office valid, because `office` is the optional half", () => {
+        expect(checkStandings(note({ vrystwldtrbs: { rank: 4 } }), { index })).toEqual([]);
+        expect(
+            checkStandings(note({ greenwardens: {} }), { index }).map((f) => f.severity),
+        ).toEqual(["error"]);
     });
 
     it("leaves a rung of 0 alone, because being cast out is a standing", () => {

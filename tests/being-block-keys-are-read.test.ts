@@ -1,23 +1,19 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 /**
- * **The keys the actor pass reads and the keys a `being` may write are one
- * set.**
+ * **The actor pass reads nothing a `being` may not write.**
  *
- * A key read by no pass and a key read by a pass that no vocabulary declares
- * are the same quiet failure from either end: the note states a fact, one side
- * of the build accepts it, and nothing says the other never saw it.
+ * A pass reading a key no vocabulary declares is a quiet failure from both
+ * ends at once: the frontmatter check refuses the key, so no note can supply
+ * it, and the read sits there looking like a feature. The reverse — a declared
+ * key the pass does not read — is not a fault, because `attrRollFormula` is
+ * read by the publishing sites rather than by any compile pass, so the claim
+ * runs in the direction the reads can answer.
  *
- * So the two halves are compared rather than trusted. The vocabulary comes from
+ * The two halves are compared rather than trusted: the vocabulary comes from
  * the declarations at runtime and the reads are taken out of the pass's own
- * source, which means a key struck from one side and left on the other fails
- * here instead of shipping. A **retired** entry is held to the opposite rule:
- * it is declared so its refusal can name the position to write instead, and it
- * must have no reader at all.
- *
- * A declared key with no reader *here* is not a fault — `attrRollFormula` is
- * read by the publishing sites rather than by any compile pass — so the
- * completeness claim runs in the direction the reads can answer.
+ * source, so a key struck from the declaration and left in the pass fails here
+ * instead of shipping.
  */
 
 import fs from "node:fs";
@@ -26,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { authoredFields, retiredKeyFields } from "../engine/field-spec.mjs";
+import { authoredFields } from "../engine/field-spec.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 // eslint-disable-next-line
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -43,88 +39,63 @@ const BEING = (NOTE_SCHEMAS as unknown as Record<string, any[]>).being;
 const READS = new Set([...PASS.matchAll(/sohlField\(fm, "([^"]+)"/g)].map((match) => match[1]));
 
 describe("the accepted keys and the keys the pass reads", () => {
-    it("finds reads and retirements at all, so an empty set cannot pass by accident", () => {
+    it("finds reads at all, so an empty set cannot pass by accident", () => {
         expect(READS.size).toBeGreaterThan(0);
-        expect(retiredKeyFields(BEING).length).toBeGreaterThan(0);
+        expect(authoredFields(BEING).length).toBeGreaterThan(0);
     });
 
     it("reads nothing the vocabulary does not accept", () => {
         const accepted = new Set(authoredFields(BEING).map((field: any) => field.name));
         expect([...READS].filter((key) => !accepted.has(key))).toEqual([]);
     });
-
-    it("reads no retired key", () => {
-        const stillRead = retiredKeyFields(BEING)
-            .map((field: any) => field.retiredKey)
-            .filter((key: string) => READS.has(key));
-        expect(stillRead).toEqual([]);
-    });
-
-    it("keeps a retired entry out of the vocabulary an author is shown", () => {
-        // No `name`, so `authoredFields` excludes it and every surface built on
-        // that list — the generated reference included — reads as though the
-        // key were not in the vocabulary.
-        for (const field of retiredKeyFields(BEING) as any[]) {
-            expect(field.name).toBeUndefined();
-            expect(field.to).toBeUndefined();
-            expect(typeof field.retired).toBe("string");
-            expect(field.retired.length).toBeGreaterThan(0);
-        }
-    });
-
-    it("names no key on both sides", () => {
-        const authored = new Set(authoredFields(BEING).map((field: any) => field.name));
-        const retired = retiredKeyFields(BEING).map((field: any) => field.retiredKey);
-        expect(retired.filter((key: string) => authored.has(key))).toEqual([]);
-    });
 });
 
-describe("a note that writes a retired key", () => {
-    const note = (sohl: Record<string, unknown>) => ({
+describe("a being's block, as the frontmatter check holds it", () => {
+    const note = (sohl: Record<string, unknown>, raw = "") => ({
         fm: { type: "being", subType: "creature", shortcode: "someone", sohl },
         file: "Characters/Someone.md",
-        raw: "",
+        raw,
     });
-    const messages = (sohl: Record<string, unknown>) =>
-        lintNote(note(sohl), { schemas: NOTE_SCHEMAS }).map((finding: any) => finding.message);
+    const findings = (sohl: Record<string, unknown>, raw = "") =>
+        lintNote(note(sohl, raw), { schemas: NOTE_SCHEMAS }) as any[];
 
-    it("is told the key is retired and where the value belongs", () => {
-        for (const field of retiredKeyFields(BEING) as any[]) {
-            const found = messages({ [field.retiredKey]: {} }).filter((message: string) =>
-                message.includes(`\`sohl.${field.retiredKey}:\` is a retired frontmatter key`),
-            );
-            expect(found).toHaveLength(1);
-            expect(found[0]).toContain(field.retired);
-        }
-    });
+    it("refuses a key the vocabulary does not declare, at the line it is written on", () => {
+        // The whole of what a key outside the vocabulary meets: the block is
+        // closed, so an unrecognised key in it is an error rather than a value
+        // discarded in silence.
+        const raw = [
+            "---",
+            "type: being",
+            "subType: creature",
+            "shortcode: someone",
+            "sohl:",
+            "    thews: 14",
+            "---",
+            "",
+        ].join("\n");
+        const found = findings({ thews: 14 }, raw);
 
-    it("is not also told the key is unrecognised, which would say less", () => {
-        for (const field of retiredKeyFields(BEING) as any[]) {
-            expect(messages({ [field.retiredKey]: {} })).not.toContain(
-                expect.stringContaining("is not a property of a being"),
-            );
-        }
-    });
-
-    it("is sent to `sohl.system.body` for a body, which is where a being writes one", () => {
-        const [found] = messages({ body: { weight: { base: 180 } } }).filter((message: string) =>
-            message.includes("retired frontmatter key"),
-        );
-        expect(found).toContain("`sohl.system.body`");
+        expect(found.map((finding) => finding.severity)).toEqual(["error"]);
+        expect(found[0].message).toContain('"thews" is not a property of a being');
+        expect(found[0].message).toContain("discarded at compile with no warning");
+        expect(found[0].line).toBe(6);
     });
 
-    it("is sent to `sohl.items` for attributes and for skills", () => {
-        for (const key of ["attributes", "skills"]) {
-            const [found] = messages({ [key]: {} }).filter((message: string) =>
-                message.includes("retired frontmatter key"),
-            );
-            expect(found).toContain("`sohl.items`");
-        }
-    });
-
-    it("says nothing about a being that writes its body under `sohl.system`", () => {
+    it("says nothing about the fields a being authors under `sohl.system`", () => {
+        // The passthrough's region, written at the data model's own paths — a
+        // body and the movement that goes with it.
         expect(
-            messages({ system: { body: { weight: { base: 180 } }, currentMoveMedium: "walk" } }),
+            findings({
+                system: {
+                    body: { weight: { base: 180 } },
+                    currentMoveMedium: "terrestrial",
+                    movementProfiles: [{ medium: "terrestrial", feetPerRound: 20 }],
+                },
+            }),
         ).toEqual([]);
+    });
+
+    it("says nothing about the two keys the pass does read", () => {
+        expect(findings({ items: [], defaultCombatGroup: "melee" })).toEqual([]);
     });
 });

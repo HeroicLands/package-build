@@ -236,27 +236,6 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   boolean would record the decision and lose the case for it, and the reason
  *   is what the refusal's message and the generated reference both print. It
  *   completes the sentence "it holds …".
- * @property {string} [retiredKey] - **An in-block key the pass no longer
- *   reads** — `<system>.<retiredKey>`, declared beside `retired`.
- *
- *   An unrecognised key in a system block is already reported, so a key simply
- *   struck from a declaration is not silent. What that finding cannot say is
- *   where the value belongs now: "`body` is not a property of a being" is a
- *   puzzle to an author whose being does have a body, written one level in at
- *   `sohl.system.body`. The entry stays so the message can name the position.
- *
- *   It carries no `name`, so no author-facing surface lists it and nothing
- *   reads it as a field; {@link retiredKeyFields} is the only reader.
- *
- *   An entry is kept only while the refusal is needed. A key no tree writes
- *   and no author has learned is an ordinary unknown key, and dropping the
- *   entry is the whole of finishing the retirement — there is no tombstone to
- *   keep.
- * @property {string} [retired] - **Where the value belongs instead**, in the
- *   author's words, completing the sentence "write …". The value is the
- *   whole of what the refusal has to say, as {@link FieldSpec.runtimeOnly}'s
- *   is, so the message is written once and the declaration carries the part
- *   that differs per key.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -542,20 +521,4 @@ export function authoredFields(fields) {
  */
 export function runtimeOnlyFields(fields) {
     return (fields ?? []).filter((field) => Boolean(field?.runtimeOnly));
-}
-
-/**
- * The in-block keys of a declaration a note may **no longer** write.
- *
- * {@link runtimeOnlyFields}'s sibling for the other reason a key is refused:
- * that one is never content, this one is content nothing reads. Both stay out
- * of {@link authoredFields}, because neither carries a `name` — so no
- * author-facing surface lists either, which is what lets a reference read as
- * though a retired key were not in the vocabulary at all.
- *
- * @param {readonly FieldSpec[]} fields - The declaration.
- * @returns {FieldSpec[]} Only the entries declaring `retiredKey` and `retired`.
- */
-export function retiredKeyFields(fields) {
-    return (fields ?? []).filter((field) => field?.retiredKey && field?.retired);
 }

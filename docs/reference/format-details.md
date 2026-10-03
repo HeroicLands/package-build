@@ -2610,31 +2610,34 @@ data:
 
 #### The bodies a being belongs to, and its standing in each
 
-**Membership**: `{rank: number, office: string}`.
+**Membership**: `{rank: number, office: string}` — `rank` required, `office` not.
 
 `data.affiliations` is a **map keyed by the body's Address**, and each entry is
 the standing the being holds in that body. The key is what makes the pair
 expressible: a being in two bodies holds a standing in each, and two bodies may
 call a rung the same word.
 
-An entry carries two optional keys and nothing else:
+An entry carries two keys and nothing else:
 
-- **`rank`** — a **number**, the level on that body's own `governance.ranks`
-  ladder. The body declares `{level, title, description}` for every rung, so a
-  number indexes into it and the body stays the single source for what its
-  level 5 is called.
-- **`office`** — a **string**, matched against the keys of that body's
+- **`rank`** — **required**, a **number**, the level on that body's own
+  `governance.ranks` ladder. The body declares `{level, title, description}` for
+  every rung, so a number indexes into it and the body stays the single source
+  for what its level 5 is called.
+- **`office`** — optional, a **string**, matched against the keys of that body's
   `governance.offices` map.
 
 **Every entry states a `rank`**, because belonging to a body is holding some
 standing in it. Where nothing more is known the rung is `1`, the ordinary
 member; `0` is the rung for someone cast out, which is a real answer rather than
 a default — the ladders carry `0 Níding`, `0 Outlaw` and `0 Struck from the
-Roll`. An entry that states none is an advisory finding, so a tree whose
-standings are still content work is reported rather than failed. `office` is the
-optional half, and an entry naming an **office with no `rank`** is an error: an
-office distinguishes a person within a standing rather than standing in for one,
-so such an entry puts a person in a post in nothing.
+Roll`. Between them the two ends cover every standing a member can hold, so an
+entry that states no rank is an **error** at the entry's own line, and the
+message names both numbers rather than only the gap.
+
+An entry carrying an **office and no rank** is that same error and not a second
+one, reported once: an office distinguishes a person within a standing rather
+than standing in for one, so such an entry puts a person in a post in nothing.
+An entry carrying a rank and no office is complete.
 
 ```yaml
 data:
