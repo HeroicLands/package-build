@@ -1,21 +1,30 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 import { FENCE_LINE } from "./code-fences.mjs";
+import { PAGE_LIST_LANGUAGE } from "./page-lists.mjs";
 
 /**
- * Replace prepared SQL fences with Markdown tables while retaining source lines.
- * Query execution happens in the asynchronous SQL preparation pass.
+ * Replace prepared SQL fences and page lists with Markdown while retaining
+ * source lines.
+ *
+ * Both directives read the content index, so both are answered before this
+ * pass runs — query execution in the asynchronous SQL preparation pass, page
+ * lists in {@link module:engine/page-lists.preparePageLists} — and each is
+ * looked up by the ordinal of its own kind of fence within the body.
+ *
  * @param {string} markdown - The authored body.
- * @param {{source?: string, sqlTables?: object[]}} [context] - Prepared results.
+ * @param {{source?: string, sqlTables?: object[], pageLists?: object[]}} [context] -
+ *   Prepared results.
  * @returns {{markdown: string, errors: object[], warnings: object[], lineMap: object[]}}
  */
-export function expandContentTables(markdown, { source = "", sqlTables } = {}) {
+export function expandContentTables(markdown, { source = "", sqlTables, pageLists } = {}) {
     const lines = String(markdown ?? "").split("\n");
     const out = [];
     const lineMap = [];
     const errors = [];
     const warnings = [];
     let sqlOrdinal = 0;
+    let pageListOrdinal = 0;
     const emit = (value, line, generated = false) => {
         out.push(value);
         lineMap.push({ line, generated });
@@ -40,6 +49,38 @@ export function expandContentTables(markdown, { source = "", sqlTables } = {}) {
                 line: i,
                 column: indent.length + 1,
             });
+        }
+        if (language === PAGE_LIST_LANGUAGE) {
+            // The ordinal is consumed whether or not the fence was closed, so
+            // the two readings agree: `findPageListBlocks` records an unclosed
+            // directive as a directive with a problem rather than skipping it.
+            const prepared = pageLists?.[pageListOrdinal++];
+            const failure =
+                !prepared ? "page list was not prepared"
+                : prepared.reason ? prepared.reason
+                : prepared.pages === 0 && !prepared.allowEmpty ? prepared.empty
+                : undefined;
+            if (failure) {
+                errors.push({
+                    source,
+                    directive: block.join("\n"),
+                    reason: failure,
+                    line: i,
+                    column: indent.length + 1,
+                });
+                block.forEach((value, offset) => emit(value, i + offset));
+                i = close;
+                continue;
+            }
+            // A list the directive permitted to be empty leaves nothing
+            // behind, rather than a blank line where a list would have been.
+            if (prepared.markdown) {
+                if (out.length && out.at(-1).trim()) emit("", i, true);
+                for (const row of prepared.markdown.split("\n")) emit(`${indent}${row}`, i, true);
+                if (close + 1 < lines.length && lines[close + 1].trim()) emit("", i, true);
+            }
+            i = close;
+            continue;
         }
         if (language !== "sql" || close >= lines.length) {
             block.forEach((value, offset) => emit(value, i + offset));
