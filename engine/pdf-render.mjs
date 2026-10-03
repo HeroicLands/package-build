@@ -99,7 +99,11 @@ const BLOCK_PRINT = Object.freeze({
     warn: Object.freeze({ color: "#9a6700", background: "#fff5db", symbol: "!" }),
 });
 
-import { separateFootnotes } from "./content-footnotes.mjs";
+import {
+    misplacedFootnoteDefinitions,
+    separateFootnotes,
+    unresolvedFootnoteReferences,
+} from "./content-footnotes.mjs";
 
 /**
  * Characters that mean something to Typst's markup parser.
@@ -364,18 +368,14 @@ function reportUnrenderable(source, definitions, opts) {
                     "before the book is set, and nothing evaluated this one",
             );
     }
-    const defined = new Set(
-        [...String(definitions).matchAll(/^\[\^([^\]\s]+)\]:/gm)].map((match) => match[1]),
-    );
-    for (const match of matchAllOutsideCode(source, /\[\^([^\]\s]+)\]/g)) {
-        if (defined.has(match[1])) continue;
-        report(
-            offsetPosition(source, match.index, opts),
-            "error",
-            `footnote [^${match[1]}] has no definition, so the book sets the marker as ` +
-                `text — write \`[^${match[1]}]: …\` at the top level of the note`,
-        );
-    }
+    // Derived from the one place that already finds definitions, rather than
+    // a second scanner that could drift from {@link separateFootnotes} — the
+    // web and Foundry report the identical two findings from the identical
+    // functions.
+    for (const error of misplacedFootnoteDefinitions(source))
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of unresolvedFootnoteReferences(source, definitions))
+        report(linePosition(error.line, error.column, opts), "error", error.message);
 }
 
 /**

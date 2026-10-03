@@ -437,7 +437,9 @@ describe("buildSite end to end", () => {
             expect(result.secretErrors).toEqual([]);
             expect(page).toContain('<details class="secret">');
             expect(page).toContain('<summary class="secret">Secret</summary>');
-            expect(page).toContain("A <strong>hidden</strong> clue.");
+            // Left as Markdown for Hugo's own render, not pre-rendered here —
+            // see `engine/content-blocks.mjs`.
+            expect(page).toContain("A **hidden** clue.");
 
             fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("\n:::\n", "\n"));
             const malformed = buildSite({ config: configFor() });

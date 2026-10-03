@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { collectAnchors } from "../engine/anchors.mjs";
 import { numberCaptions, renderCaptionBlocks, scanCaptions } from "../engine/content-captions.mjs";
-import { renderFoundryMarkdown } from "../engine/helpers.mjs";
+import { md, renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { renderImageFigures } from "../engine/content-images.mjs";
 import { splitPages } from "../engine/journals.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
@@ -38,9 +38,12 @@ describe("caption directives", () => {
         const { markdown, errors } = renderCaptionBlocks(source);
         expect(errors).toEqual([]);
         expect(markdown).toContain('id="trade"');
-        expect(markdown).toContain("<table>");
         expect(markdown).toContain("Table 1: <strong>Regional</strong> trade");
         expect(markdown).not.toContain(":::caption");
+        // The table itself is left as Markdown, blank-line wrapped, for the
+        // page's own render to turn into `<table>` — see the module docs.
+        expect(markdown).toContain("| A | B |");
+        expect(md.render(markdown)).toContain("<table>");
     });
 
     it("uses one visible caption for an image while preserving its alt text", () => {

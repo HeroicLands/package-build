@@ -140,14 +140,18 @@ The road is passable in summer.[^season] The bridge has a toll.[^2]
 [^2]: The toll is collected at the eastern gate.
 ```
 
-Definitions can appear anywhere at the top level of the note. Indent a
-following paragraph or code block by four spaces to include it in the same
-footnote. Keep definitions outside lists, block quotes, and tables. On the web,
-linked footnotes appear in a Footnotes section at the bottom of the HTML page.
-In Foundry, each JournalEntryPage places its referenced footnotes in a Footnotes
-section at the bottom of that page; definitions remain available across pages
-of the same note. In a book, footnotes appear in smaller type at the bottom of
-the page that contains their reference.
+A reference may be written anywhere prose can be written — a word in a
+quotation, a bullet, a table cell, a heading, a named block, a caption. A
+definition belongs at the top level of the note: indent a following paragraph
+or code block by four spaces to include it in the same footnote, but never
+inside a list, a block quote, or a table. A definition written there, or a
+reference with none at the top level to resolve against, is reported at its
+own line rather than rendered. On the web, linked footnotes appear in a
+Footnotes section at the bottom of the HTML page. In Foundry, each
+JournalEntryPage places its referenced footnotes in a Footnotes section at the
+bottom of that page; definitions remain available across pages of the same
+note. In a book, footnotes appear in smaller type at the bottom of the page
+that contains their reference.
 
 A definition list gives a term one or more definitions:
 

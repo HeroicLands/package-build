@@ -64,6 +64,7 @@
 import { authoredFrontmatter } from "./index-records.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanCaptions } from "./content-captions.mjs";
+import { footnoteFindings } from "./content-footnotes.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { cloneAddressState } from "./address-values.mjs";
@@ -634,6 +635,18 @@ export class BasePackCompiler {
                     secretError.line === 1 ?
                         (this.currentNote?.bodyColumn ?? 1)
                     :   secretError.column,
+            };
+            throw error;
+        }
+        const footnoteError = footnoteFindings(body)[0];
+        if (footnoteError) {
+            const error = new Error(footnoteError.message);
+            error.position = {
+                line: (this.currentNote?.bodyLine ?? 1) + footnoteError.line - 1,
+                column:
+                    footnoteError.line === 1 ?
+                        (this.currentNote?.bodyColumn ?? 1)
+                    :   footnoteError.column,
             };
             throw error;
         }

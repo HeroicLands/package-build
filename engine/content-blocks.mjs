@@ -26,16 +26,23 @@
  * counted rather than claimed, so its closer is attributed to it and the pass
  * that owns it still finds it in the markdown this one passes through.
  *
+ * **A block's body is left as Markdown, not pre-rendered.** The wrapper is
+ * written with a blank line after the opening tag and before the closing one,
+ * which is what lets the surrounding renderer — Foundry's single parse of the
+ * whole page, or Hugo's of the whole site page — read the body as part of its
+ * own document rather than as an isolated fragment. A fragment rendered on its
+ * own has no access to the note's footnote definitions, which live at the top
+ * level outside every block, so a reference inside one used to fall through as
+ * literal `[^id]` text; reached by the one parse that also sees the
+ * definitions, it resolves exactly as a reference inside a list item or a
+ * block quote already does.
+ *
  * @module
  */
 
 import crypto from "node:crypto";
 import MarkdownIt from "markdown-it";
-import footnotePlugin from "markdown-it-footnote";
-import deflistPlugin from "markdown-it-deflist";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
-
-const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
 
 /**
  * Titles carry emphasis and nothing else. `html: false` escapes any tag an
@@ -296,14 +303,18 @@ function attributeText(block, target, classes) {
  * `foundry` emits a `<section>` whose heading is its first line; `web` emits a
  * `<details>` the reader opens. Neither carries an inline `style`.
  *
+ * The body is left as Markdown between the wrapper's tags, each separated from
+ * its tag by a blank line — see the module docs for why that is what lets the
+ * surrounding render treat the body as real content rather than an opaque
+ * fragment.
+ *
  * A finding does not stop the well-formed blocks around it from rendering.
  *
  * @param {string} source - Markdown containing named blocks.
  * @param {"foundry"|"web"} target - Publishing surface.
- * @param {(markdown: string) => string} [renderMarkdown] - Body renderer.
  * @returns {{markdown: string, errors: Array<{line: number, column: number, message: string}>}}
  */
-export function renderBlocks(source, target, renderMarkdown = parser.render.bind(parser)) {
+export function renderBlocks(source, target) {
     const { blocks, errors } = scanBlocks(source);
     if (!blocks.length) return { markdown: String(source ?? ""), errors };
     const lines = String(source ?? "").split("\n");
@@ -314,20 +325,22 @@ export function renderBlocks(source, target, renderMarkdown = parser.render.bind
         const classes = [block.name, ...block.classes];
         const attributes = attributeText(block, target, classes);
         const title = titleParser.renderInline(block.title);
-        // A container's body may hold a block of its own. Rendering it first
-        // leaves HTML the markdown renderer passes through, so the held block
-        // comes out as a block rather than as the `:::` lines an author wrote.
+        // A container's body may hold a block of its own, rendered first so
+        // its own wrapper is already written when the outer one wraps it in
+        // turn — nesting composes because each level is markdown-with-raw-HTML
+        // at every depth, never a rendered fragment.
         const held =
             BLOCK_CONTAINERS.includes(block.name) ?
-                renderBlocks(block.body, target, renderMarkdown).markdown
+                renderBlocks(block.body, target).markdown
             :   block.body;
-        const body = renderMarkdown(held).trim();
         if (target === "foundry") {
             output.push(
                 "",
                 `<section ${attributes}>`,
                 `<strong>${title}</strong>:<br/>`,
-                body,
+                "",
+                held,
+                "",
                 "</section>",
                 "",
             );
@@ -336,7 +349,9 @@ export function renderBlocks(source, target, renderMarkdown = parser.render.bind
                 "",
                 `<details ${attributes}>`,
                 `<summary class="${escapeAttribute(block.name)}">${title}</summary>`,
-                body,
+                "",
+                held,
+                "",
                 "</details>",
                 "",
             );

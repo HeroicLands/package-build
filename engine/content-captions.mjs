@@ -147,7 +147,20 @@ export function scanCaptions(source) {
     return { captions, errors };
 }
 
-/** Render captioned blocks as HTML, leaving other Markdown untouched. */
+/**
+ * Render captioned blocks as HTML, leaving other Markdown untouched.
+ *
+ * A code, table or prose caption's block is left as Markdown inside the
+ * wrapper, blank-line separated from its tags exactly as
+ * {@link module:engine/content-blocks.renderBlocks} leaves a named block's
+ * body — so the surrounding render sees it as part of its own document and a
+ * footnote reference inside it resolves against the note's own definitions.
+ *
+ * A figure's block is still rendered here, because its `<figcaption>` has to
+ * be stripped from HTML this pass controls directly; the surrounding render
+ * never sees it as Markdown, so a footnote reference inside a figure caption
+ * is not resolved, the same gap a block's own title carries.
+ */
 export function renderCaptionBlocks(source, renderMarkdown = parser.render.bind(parser), numbers) {
     const { captions, errors } = scanCaptions(source);
     if (errors.length) return { markdown: source, errors };
@@ -164,13 +177,21 @@ export function renderCaptionBlocks(source, renderMarkdown = parser.render.bind(
     for (const caption of captions) {
         output.push(...lines.slice(cursor, caption.line - 1));
         const numbered = byId.get(caption.id) ?? caption;
-        let html = renderMarkdown(lines.slice(caption.blockStart, caption.blockEnd).join("\n"));
-        if (caption.kind === "figure")
-            html = html.replace(/<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/i, "");
+        const block = lines.slice(caption.blockStart, caption.blockEnd).join("\n");
         const captionHtml = parser.renderInline(caption.text);
         output.push(
             `<div id="${escape(slugify(caption.id))}" class="content-caption content-caption-${caption.kind}">`,
-            html.trim(),
+        );
+        if (caption.kind === "figure") {
+            const html = renderMarkdown(block).replace(
+                /<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/i,
+                "",
+            );
+            output.push(html.trim());
+        } else {
+            output.push("", block, "");
+        }
+        output.push(
             `<p class="content-caption-label">${escape(numbered.label)}: ${captionHtml}</p>`,
             "</div>",
         );
