@@ -527,6 +527,9 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
             message:
                 type === "affiliation" && key === "commonSkills" ?
                     "`data.commonSkills` is not an affiliation field; write skill Addresses at `sohl.system.commonSkills`"
+                : type === "lore" && key === "event" ?
+                    "`data.event` is retired — write `data.events`, a list of occurrences, " +
+                    "instead, each `{ when, until?, recurs? }`; a note may state several"
                 :   `"${key}" is not a \`data:\` property declared by ${type}; ` +
                     `the container is closed, so the key reaches no document ` +
                     `and no page` +

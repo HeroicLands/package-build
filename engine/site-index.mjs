@@ -71,6 +71,7 @@ import {
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
+import { presentAmongRecords } from "./being-age.mjs";
 // The declared tag vocabulary, which is where `draft` is stated.
 import { isDraftNote } from "./note-vocabulary.mjs";
 
@@ -278,7 +279,12 @@ export function buildSiteIndex(
 
     return {
         contentPackage: ownPackage,
-        dateContext: reckoningContext({ notes: records }),
+        // Carried on the same context `resolvedDateFields` reads: a recurring
+        // event's `next` is computed against this present.
+        dateContext: {
+            ...reckoningContext({ notes: records }),
+            present: presentAmongRecords(records),
+        },
         referenceTargets: buildReferenceTargets(records, new Map([...foreignReferences, ...index])),
         index,
         ambiguous,

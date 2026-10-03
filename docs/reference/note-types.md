@@ -432,7 +432,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.namedDays` | list of `{ name, abbreviation?, day }`                                              | Names assigned to particular days of the year.                                                                                       |
 | `data.eras`      | list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, label? }` | The year-counts kept in this calendar. A marker names one era and uses these months.                                                 |
 | `data.formats`   | map of named Calendaria format strings                                              | Named patterns for reading and writing this calendar's dates.                                                                        |
-| `data.event`     | event metadata map                                                                  | A dated occurrence and its relationships to other events and places.                                                                 |
+| `data.events`    | list of `{ when, until?, recurs? }`                                                 | This note's dated occurrences — a founding once, an anniversary that recurs, or a list of recorded happenings.                       |
 
 ### map
 
