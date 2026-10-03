@@ -250,10 +250,22 @@ export function parseHeadingLine(line) {
 export function pageOpenings(source) {
     const lines = String(source ?? "").split("\n");
     const openings = new Map();
-    let inCodeBlock = false;
+    let codeFence = null;
     let inBlock = false;
     for (const [index, line] of lines.entries()) {
-        if (line.trim().startsWith("```")) inCodeBlock = !inCodeBlock;
+        // A fence's closer must carry the same character as its opener and
+        // be at least as long, same as {@link scanHeadingAttributes} tracks
+        // it below — a longer fence is what lets a fenced example carry a
+        // shorter fence of its own as literal content.
+        const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+        if (codeFence) {
+            if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length) {
+                codeFence = null;
+            }
+        } else if (fence) {
+            codeFence = fence[1];
+        }
+        const inCodeBlock = codeFence !== null;
         if (!inCodeBlock && /^:::secret[ \t]*$/.test(line)) inBlock = true;
         else if (!inCodeBlock && /^:::[ \t]*$/.test(line)) inBlock = false;
         if (inCodeBlock || inBlock) continue;

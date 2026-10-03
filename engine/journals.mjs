@@ -64,6 +64,7 @@ import {
     folderField,
 } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
+import { scanBlocks } from "./content-blocks.mjs";
 import { anchorPageId, resolveReference } from "./wikilinks.mjs";
 import { infoboxesToHtml, linkToUuid } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
@@ -86,10 +87,32 @@ import { IMAGE_EXTENSIONS } from "./asset-types.mjs";
 const WITHHELD_OWNERSHIP = 0;
 
 /**
+ * Every line a named block's own markup occupies, from its `:::name` opener
+ * to its closing `:::` inclusive.
+ *
+ * Read from {@link module:engine/content-blocks.scanBlocks}'s own ranges
+ * rather than restated here, so a figure cannot disagree with the blocks pass
+ * about what counts as a named block or where one ends. `scanBlocks` already
+ * recognises every name in its registry, carrying an attribute block or not,
+ * and already tracks a nested construct's own closer by depth rather than by
+ * a flag a bare `:::` clears regardless of whose closer it is.
+ *
+ * @param {string} markdown - A note's body, as {@link splitPages} receives it.
+ * @returns {Set<number>} 0-based line indices inside a named block.
+ */
+function namedBlockLines(markdown) {
+    const lines = new Set();
+    for (const { start, end } of scanBlocks(markdown).blocks) {
+        for (let i = start; i <= end; i++) lines.add(i);
+    }
+    return lines;
+}
+
+/**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
- * code blocks are respected so `# foo` inside ``` blocks doesn't trigger
- * a split. Content before the first H1 (if non-empty) becomes a leading
- * page. Each H1 yields a page whose name is the heading
+ * code blocks are respected so `# foo` inside ``` or ~~~ blocks doesn't
+ * trigger a split. Content before the first H1 (if non-empty) becomes a
+ * leading page. Each H1 yields a page whose name is the heading
  * text (with any `{#anchor-id}` suffix stripped out and surfaced as
  * `anchorSlug`). The classes the heading declares come along as `classes`, so
  * a surface that honours one has it without reading the suffix again.
@@ -117,11 +140,11 @@ export function splitPages(body, leadName = "Introduction") {
         scanFigures(markdown).figures.map((figure) => [figure.line - 1, figure]),
     );
     const openings = pageOpenings(markdown);
+    const blockLines = namedBlockLines(markdown);
     const pages = [];
     const beforeFirstH1 = [];
     let current = null;
-    let inCodeBlock = false;
-    let inSecret = false;
+    let codeFence = null;
 
     const closeCurrent = () => {
         if (!current) return;
@@ -137,11 +160,20 @@ export function splitPages(body, leadName = "Introduction") {
     };
 
     for (const [lineIndex, line] of lines.entries()) {
-        if (line.trim().startsWith("```")) {
-            inCodeBlock = !inCodeBlock;
+        // A fence's closer must carry the same character as its opener and
+        // be at least as long — a longer fence is what lets a fenced example
+        // carry a shorter fence of its own as literal content, same as
+        // {@link module:engine/content-blocks.scanBlocks} and
+        // {@link module:engine/content-figures.scanFigures} track it.
+        const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+        if (codeFence) {
+            if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length) {
+                codeFence = null;
+            }
+        } else if (fence) {
+            codeFence = fence[1];
         }
-        if (!inCodeBlock && /^:::secret[ \t]*$/.test(line)) inSecret = true;
-        else if (!inCodeBlock && /^:::[ \t]*$/.test(line)) inSecret = false;
+        const inCodeBlock = codeFence !== null;
 
         // An H1 starts a page, as does any heading carrying an `{#slug}`
         // anchor: a Foundry UUID can only address a page, so a linkable
@@ -154,7 +186,8 @@ export function splitPages(body, leadName = "Introduction") {
         // skips a fence and a named block. A figure fence opens a page of its
         // own, named for the figure's label.
         const opening = openings.get(lineIndex);
-        const figure = !inCodeBlock && !inSecret ? figureStarts.get(lineIndex) : null;
+        const figure =
+            !inCodeBlock && !blockLines.has(lineIndex) ? figureStarts.get(lineIndex) : null;
         if (figure) {
             closeCurrent();
             current = {

@@ -43,6 +43,79 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
         expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
         expect(pages[0].markdown).toContain("# GM heading");
     });
+
+    it.each(["info", "warn"])(
+        "keeps a figure inside a :::%s block on its containing page",
+        (name) => {
+            const pages = splitPages(
+                `# Public\n\n:::${name}\n:::figure {#a}\nAlpha.\n:::\n:::\n\n# Next`,
+            );
+            expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
+            expect(pages[0].markdown).toContain(":::figure {#a}");
+        },
+    );
+
+    it.each([":::secret {#hoard}", ':::secret {title="The hoard"}'])(
+        "keeps a figure inside %s on its containing page",
+        (opener) => {
+            const pages = splitPages(
+                `# Public\n\n${opener}\n:::figure {#a}\nAlpha.\n:::\n:::\n\n# Next`,
+            );
+            expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
+            expect(pages[0].markdown).toContain(":::figure {#a}");
+        },
+    );
+
+    it("keeps a second figure and the prose between two figures inside one secret on its containing page", () => {
+        const body = [
+            "# Public",
+            "",
+            ":::secret",
+            ":::figure {#a}",
+            "Alpha.",
+            ":::",
+            "",
+            "GM prose between figures.",
+            "",
+            ":::figure {#b}",
+            "Beta.",
+            ":::",
+            ":::",
+            "",
+            "# Next",
+        ].join("\n");
+        const pages = splitPages(body);
+        expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
+        expect(pages[0].markdown).toContain("GM prose between figures.");
+        expect(pages[0].markdown).toContain(":::figure {#b}");
+    });
+
+    it("still starts its own page for a figure at the top level", () => {
+        const pages = splitPages("# Public\n\n:::figure {#a}\nAlpha.\n:::\n\n# Next");
+        expect(pages.map((page) => page.name)).toEqual(["Public", "Prose 1", "Next"]);
+    });
+
+    it("ignores a heading inside a tilde-fenced code block", () => {
+        const pages = splitPages("# Real\n\n~~~\n# Not a heading {#nope}\n~~~\n");
+        expect(pages).toHaveLength(1);
+        expect(pages[0].name).toBe("Real");
+    });
+
+    it("keeps a four-backtick fence's own three-backtick line from closing it early", () => {
+        const body = [
+            "# Real",
+            "",
+            "````",
+            "# Not a heading {#nope}",
+            "```",
+            "more code",
+            "````",
+            "",
+            "# Next",
+        ].join("\n");
+        const pages = splitPages(body);
+        expect(pages.map((page) => page.name)).toEqual(["Real", "Next"]);
+    });
 });
 
 describe("assertUniquePages", () => {
