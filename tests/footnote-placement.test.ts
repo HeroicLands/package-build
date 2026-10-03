@@ -220,7 +220,7 @@ describe("a footnote inside a figure's contents resolves", () => {
         expect(findings).toEqual([]);
     });
 
-    it("still strips the figcaption from a genuine standalone figure", () => {
+    it("draws no figcaption for a genuine standalone figure, only its own label", () => {
         const source = [
             ":::figure {#note}",
             "![A ranger](ranger.webp)",

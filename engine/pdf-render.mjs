@@ -1290,8 +1290,9 @@ function renderLink(href, inner, ctx) {
  * `#image` on a path Typst cannot open is a compile error, and a compile error
  * in a 2,500-entry book is fatal at the very end of a run that otherwise
  * succeeded — over an illustration, which is the least important thing on the
- * page. An address the build could not stage prints its caption alone instead,
- * and the build reports the address it could not find.
+ * page. An address the build could not stage prints its authored caption alone
+ * instead, if it has one, and nothing at all if it does not; the build reports
+ * the address it could not find either way.
  *
  * ## A grouped figure's one label belongs to the last picture
  *
@@ -1310,15 +1311,11 @@ function renderLink(href, inner, ctx) {
  * @returns {string} Typst markup.
  */
 function renderImage(token, ctx) {
-    const alt = token.content || token.attrGet?.("alt") || "";
     const figureCaption = ctx.caption?.kind === "figure" ? ctx.caption : null;
     const remaining = figureCaption?.imagesRemaining;
     const isLastImage = !remaining || --remaining.n <= 0;
     const labelled = Boolean(figureCaption) && isLastImage;
-    const captionText =
-        labelled ? captionMarkup(figureCaption, ctx)
-        : figureCaption ? ""
-        : escapeTypst(alt);
+    const captionText = labelled ? captionMarkup(figureCaption, ctx) : "";
     const caption = captionText ? `[${captionText}]` : "none";
     const anchor = labelled ? typstAnchor(ctx.anchorPrefix, figureCaption) : "";
     const staged = ctx.images.get(token.attrGet?.("src") ?? "");

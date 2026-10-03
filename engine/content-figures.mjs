@@ -345,8 +345,9 @@ export function scanFigures(source) {
  * body — so the surrounding render sees it as part of its own document and a
  * footnote reference inside it resolves against the note's own definitions.
  *
- * A figure's contents are rendered here, because an alt-derived `<figcaption>`
- * has to be stripped from HTML this pass controls directly; the surrounding
+ * A figure's contents are rendered here rather than left for a later pass,
+ * because a picture-only fence has to become the surface's own `<figure>`
+ * markup directly inside the wrapper this function writes; the surrounding
  * render never sees it as Markdown, so a footnote reference inside one is not
  * resolved, the same gap a block's own title carries.
  *
@@ -375,11 +376,7 @@ export function renderFigureBlocks(source, renderMarkdown = parser.render.bind(p
         const id = figure.slug ? ` id="${escapeHtml(figure.slug)}"` : "";
         output.push(`<div${id} class="${escapeHtml(classes.join(" "))}">`);
         if (figure.kind === "figure") {
-            const html = renderMarkdown(contents).replace(
-                /<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/gi,
-                "",
-            );
-            output.push(html.trim());
+            output.push(renderMarkdown(contents).trim());
         } else {
             output.push("", contents, "");
         }

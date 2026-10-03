@@ -238,6 +238,37 @@ describe("the figure fence", () => {
         expect(result.markdown).toContain('alt="A ranger"');
     });
 
+    it("still draws a captioned figure's label, number and anchor on every surface", () => {
+        const source = fence("{#portrait}", "![A ranger](ranger.webp)", "The ranger");
+
+        const site = renderFigureBlocks(renderImageFigures(source));
+        expect(site.errors).toEqual([]);
+        expect(site.markdown).toContain('id="portrait"');
+        expect(site.markdown).toContain("Figure 1: The ranger");
+
+        expect(renderFoundryMarkdown(source)).toContain("Figure 1: The ranger");
+
+        const images = new Map([["ranger.webp", "assets/ranger.webp"]]);
+        const typst = markdownToTypst(source, { anchorPrefix: "chapter", images });
+        expect(typst).toContain("Figure 1: The ranger");
+        expect(typst).toContain("<chapter--portrait>");
+    });
+
+    it("draws no visible line for an uncaptioned figure's image, with or without alt text", () => {
+        const withAlt = renderFigureBlocks(
+            renderImageFigures(fence("{#a}", "![A ranger](ranger.webp)")),
+        );
+        const withoutAlt = renderFigureBlocks(
+            renderImageFigures(fence("{#b}", "![](ranger.webp)")),
+        );
+        expect(withAlt.markdown.match(/<figcaption\b/g)).toBeNull();
+        expect(withoutAlt.markdown.match(/<figcaption\b/g)).toBeNull();
+        expect(withAlt.markdown).toContain("Figure 1");
+        expect(withAlt.markdown).not.toContain("Figure 1:");
+        expect(withoutAlt.markdown).toContain("Figure 1");
+        expect(withoutAlt.markdown).not.toContain("Figure 1:");
+    });
+
     it("makes a figure an addressable Foundry page", () => {
         const source =
             "# Introduction\nBefore.\n\n" +
