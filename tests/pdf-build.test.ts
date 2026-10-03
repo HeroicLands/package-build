@@ -132,6 +132,67 @@ describe("stagedImagePath", () => {
         });
     });
 
+    it("stages a replacement for the package's own address, which is what declaring one buys", () => {
+        // The note writes this package's own address, as every note does. A
+        // declared replacement answers it, so the picture staged is the
+        // replacement's and not the one this package ships — the case the
+        // whole mechanism exists for.
+        const cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-build-own-"));
+        const archiveDir = path.join(cacheRoot, "thalornaaltart@1.0.0");
+        fs.mkdirSync(archiveDir, { recursive: true });
+        fs.writeFileSync(path.join(archiveDir, ".complete"), "");
+        const config = unitConfig({
+            relationships: {
+                requires: [
+                    {
+                        id: "thalornaaltart",
+                        contentPackage: "thalornaaltart",
+                        assetReplacement: true,
+                    },
+                ],
+            },
+            paths: { foreignCache: cacheRoot },
+        });
+        const index = new Map([
+            [
+                "thalornaaltart-none-image-thorn",
+                { package: "thalornaaltart", asset: { path: "images/beings/thorn.webp" } },
+            ],
+        ]);
+
+        const staged = stagedImagePath("images/beings/thorn.webp", config, {
+            foreignIndex: index,
+            resolveReplacement: stubResolver(),
+        });
+
+        expect(staged).toEqual({
+            from: path.join(archiveDir, "assets", "images", "beings", "thorn.webp"),
+            to: "assets/images/beings/thorn.webp",
+        });
+    });
+
+    it("stages the package's own file where a replacement is declared but answers nothing", () => {
+        const config = unitConfig({
+            relationships: {
+                requires: [
+                    {
+                        id: "thalornaaltart",
+                        contentPackage: "thalornaaltart",
+                        assetReplacement: true,
+                    },
+                ],
+            },
+        });
+        const staged = stagedImagePath("images/beings/groa.webp", config, {
+            foreignIndex: new Map(),
+            resolveReplacement: stubResolver(),
+        });
+        expect(staged).toEqual({
+            from: "/repo/assets/images/beings/groa.webp",
+            to: "assets/images/beings/groa.webp",
+        });
+    });
+
     it("throws a located error naming the relationship when the replacement answers but its archive was never fetched", () => {
         const cacheRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-build-cache-"));
         const config = unitConfig({

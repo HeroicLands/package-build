@@ -137,6 +137,7 @@ import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
 import { buildMaps, relatedPlaces } from "./map-build.mjs";
 import { mapWorld } from "./map-places.mjs";
+import { resolveAssetReplacement } from "./asset-replacement.mjs";
 
 /**
  * The file on disk an authored image pathname names, or `null`.
@@ -180,14 +181,20 @@ import { mapWorld } from "./map-places.mjs";
 export function stagedImagePath(src, config, opts = {}) {
     const forms = resolvePathname(src, config);
     if (!forms || forms.state !== "package") return null;
+    // A declared replacement answers before the package's own file does, which
+    // is the whole of what declaring one buys: the address a note writes is
+    // this package's own, and the picture staged for it is the replacement's.
+    // A miss falls through, so a package declaring none stages exactly what it
+    // ships.
+    const replaced = opts.resolveReplacement ? stagedReplacementPath(forms, config, opts) : null;
+    if (replaced) return replaced;
     if (forms.own) {
         return {
             from: path.resolve(config.rootDir, forms.local),
             to: forms.pdf,
         };
     }
-    if (!opts.resolveReplacement) return null;
-    return stagedReplacementPath(forms, config, opts);
+    return null;
 }
 
 /**
@@ -598,20 +605,15 @@ export async function buildPdf({
     const md = createParser(resolved.icons);
     const glyphs = resolveIconGlyphs(resolved.icons, resolved.pdf.iconFonts, findings);
 
-    // Loaded only when a relationship actually declares `assetReplacement:
-    // true` — the ordinary build, with no such relationship, never imports
-    // this module at all. {@link stagedImagePath}'s own fallback is `null`,
-    // the same answer it has always given a foreign pathname, so there is
-    // nothing to inject when nothing opted in.
-    const replacementRelationships = assetReplacementRelationships(resolved);
-    const replacementResolver =
-        resolveReplacement ??
-        (replacementRelationships.length ?
-            (await import("./asset-replacement.mjs")).resolveAssetReplacement
-        :   null);
+    // Asked only where a relationship declares `assetReplacement: true`: with
+    // none declared the resolver is never consulted, and staging gives the
+    // answer it gives a package that declares no replacement. A caller may
+    // supply its own, which is how the staging tests drive it.
     const stagingOpts = {
         foreignIndex: gates.foreign.index,
-        resolveReplacement: replacementResolver,
+        resolveReplacement:
+            resolveReplacement ??
+            (assetReplacementRelationships(resolved).length ? resolveAssetReplacement : null),
     };
 
     const outDir = path.resolve(
