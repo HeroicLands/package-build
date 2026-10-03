@@ -414,6 +414,35 @@ describe("a system-agnostic module stamps no system version", () => {
         ).toThrow(/systems\.sohl\.compatibility\.verified/);
     });
 
+    it("throws when a declared system's verified build is below its own minimum", () => {
+        expect(() =>
+            resolveIn(repoDir(), {
+                ...minimal(),
+                packageKind: "modules",
+                systems: { sohl: { compatibility: { minimum: "0.8.6", verified: "0.8.2" } } },
+            }),
+        ).toThrow(
+            /`systems\.sohl\.compatibility\.verified` declares `0\.8\.2`, below `systems\.sohl\.compatibility\.minimum`'s `0\.8\.6`/,
+        );
+    });
+
+    it("throws when a related system's verified build is below its own minimum", () => {
+        expect(() =>
+            resolveIn(repoDir(), {
+                ...minimal(),
+                packageKind: "modules",
+                stats: { lastModifiedBy: "harnbuild0000000" },
+                relationships: {
+                    systems: [
+                        { id: "sohl", compatibility: { minimum: "0.8.6", verified: "0.8.2" } },
+                    ],
+                },
+            }),
+        ).toThrow(
+            /`relationships\.systems\[0\]\.compatibility\.verified` declares `0\.8\.2`, below `relationships\.systems\[0\]\.compatibility\.minimum`'s `0\.8\.6`/,
+        );
+    });
+
     it("still derives from a relationship declared without a systemId", () => {
         const config = resolveIn(repoDir(), {
             ...minimal(),

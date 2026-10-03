@@ -51,6 +51,9 @@
 
 import { buildReferenceTargets } from "./reference-targets.mjs";
 import { standingsDigest } from "./standings.mjs";
+// The leaf reader, shared with the content index and the link checker, so a
+// page's anchors are read once rather than re-derived a third way here.
+import { collectAnchors } from "./anchors.mjs";
 
 import { resolveShortcodeReference } from "./shortcode-references.mjs";
 
@@ -83,16 +86,24 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  * @property {string} slug   URL segment.
  * @property {string} base   Source file's basename, e.g. `Climbing.md`.
  * @property {string} url    The page's published address.
+ * @property {string} [body] The note's markdown body, for its anchors. A
+ *                           content entry always carries one; absent, the
+ *                           page is indexed as declaring none.
  */
 
 /**
  * The resolved index and everything a wikilink resolver reads beside it.
  *
  * @typedef {object} SiteIndex
- * @property {Map<string, {url: string, name?: string, draft?: boolean}>} index
+ * @property {Map<string, {url: string, name?: string, draft?: boolean, anchors?: Set<string>|Record<string, string>}>} index
  *                                       Address → page. `draft` says the page
  *                                       carries the `draft` tag, which marks a
- *                                       link *into* it.
+ *                                       link *into* it. `anchors` names the
+ *                                       `{#slug}` sections it declares — a
+ *                                       `Set` for a local page, or the
+ *                                       `{slug: uuid}` map a foreign manifest
+ *                                       publishes — and is absent where
+ *                                       neither build recorded one.
  * @property {Set<string>} ambiguous     Short addresses claimed by two
  *                                       packages, and so deliberately absent
  *                                       from `index`.
@@ -229,6 +240,11 @@ export function buildSiteIndex(
             draft: isDraftNote(e.fm),
             ...(e.fm.subType ? { subType: e.fm.subType } : {}),
             ...(standings ? { standings } : {}),
+            // The `{#anchor}` slugs this page declares, so a `#section`
+            // written against it can be checked rather than joined onto the
+            // URL unverified. A Set even when empty: a page that declares no
+            // anchor still has a definite answer for one an author names.
+            anchors: new Set(collectAnchors(e.body ?? "").map((anchor) => anchor.slug)),
         };
 
         const shortcode = e.fm.shortcode;

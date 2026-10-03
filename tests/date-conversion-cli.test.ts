@@ -48,7 +48,7 @@ name: { full: Common Calendar }
 type: lore
 subType: calendar
 data:
-  epoch: 1.1
+  epoch: "1.1"
   months: [{ name: First, days: 30 }, { name: Second, days: 31 }, { name: Third, days: 30 }, { name: Taranis, days: 31 }, { name: Fifth, days: 243 }]
   formats: { std: "D MMMM [yearInEra] G", long: "DD MMMM [yearInEra] G" }
   eras: [{ shortcode: before, name: Before, abbreviation: BVR, start: null }, { shortcode: founding, name: Founding, marker: VR, abbreviation: VR, start: 1 }]

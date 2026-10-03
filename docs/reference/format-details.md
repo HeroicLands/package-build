@@ -354,6 +354,8 @@ order without changing the Markdown body.
 
 A canonical date is `<year>[.<day>[:HHMMSS]]`. The day is one-based within the world's year. `720` covers the whole year; `720.136` covers that day; `720.136:143005` identifies one second. Negative years are valid. Prefix either form with `~` to express uncertainty beyond its written interval. `unknown` is allowed only in fields that accept an unknown occurrence.
 
+**Quote a canonical date that states a day.** `born: "667.130"` is read as written; unquoted, YAML parses the scalar as a number and a trailing zero on the day is gone before any date reader sees it, so `667.130` and `667.13` arrive as one value. A number-valued date is an error wherever appending a zero to its day would still name a day inside the world's year — the message names the file, the line and both readings — and is read as written where no such day exists, since `675.2810` is no day of a 365-day year. A bare year loses nothing and needs no quotes.
+
 A named date uses `datefrom <calendar> <date>`, where the final text follows the calendar's `data.formats.std` pattern, or its first named pattern when `std` is absent. For example, a calendar with `std: "MM/DD/Y GGG"` reads `datefrom commoncal 01/23/326 VR`, `datefrom commoncal 01/326 VR`, and `datefrom commoncal 326 VR`. Omitting the day or month retains month or year precision in frontmatter. The CLI `datefrom` command requires a day to produce one canonical day. The calendar argument is a shortcode or Address. A time follows the day only when specified in the pattern, or as a trailing `HH:mm:ss` when the pattern has no clock tokens. A named date with an era-relative year names its era.
 
 `data.epoch` on a calendar is a canonical `<year>.<day>`: the day on which **calendar year 1, day 1** occurs. It cannot be year-only, approximate, or expressed through its own calendar. `data.moon.newOn` also locates a particular day. The `data.eras[].start` values are `null` or positive **calendar years**. Exactly one null era covers dates before calendar year 1, and exactly one era starts at year 1. Further era starts are distinct positive integers. Numeric start order determines era boundaries, regardless of array order. The null era numbers its years backwards; later eras begin at their own displayed year 1. An era may have a unique uppercase `marker` for resolving authored dates.
@@ -2608,31 +2610,41 @@ data:
 
 #### The bodies a being belongs to, and its standing in each
 
-**Membership**: `{rank: number, office: string}`, both optional.
+**Membership**: `{rank: number, office: string}` — `rank` required, `office` not.
 
 `data.affiliations` is a **map keyed by the body's Address**, and each entry is
 the standing the being holds in that body. The key is what makes the pair
 expressible: a being in two bodies holds a standing in each, and two bodies may
 call a rung the same word.
 
-An entry carries two optional keys and nothing else:
+An entry carries two keys and nothing else:
 
-- **`rank`** — a **number**, the level on that body's own `governance.ranks`
-  ladder. The body declares `{level, title, description}` for every rung, so a
-  number indexes into it and the body stays the single source for what its
-  level 5 is called.
-- **`office`** — a **string**, matched against the keys of that body's
+- **`rank`** — **required**, a **number**, the level on that body's own
+  `governance.ranks` ladder. The body declares `{level, title, description}` for
+  every rung, so a number indexes into it and the body stays the single source
+  for what its level 5 is called.
+- **`office`** — optional, a **string**, matched against the keys of that body's
   `governance.offices` map.
 
-An entry with neither is valid and is the ordinary shape: it says the being
-belongs to the body and nothing more.
+**Every entry states a `rank`**, because belonging to a body is holding some
+standing in it. Where nothing more is known the rung is `1`, the ordinary
+member; `0` is the rung for someone cast out, which is a real answer rather than
+a default — the ladders carry `0 Níding`, `0 Outlaw` and `0 Struck from the
+Roll`. Between them the two ends cover every standing a member can hold, so an
+entry that states no rank is an **error** at the entry's own line, and the
+message names both numbers rather than only the gap.
+
+An entry carrying an **office and no rank** is that same error and not a second
+one, reported once: an office distinguishes a person within a standing rather
+than standing in for one, so such an entry puts a person in a post in nothing.
+An entry carrying a rank and no office is complete.
 
 ```yaml
 data:
   affiliations:
     affiliation-vrystwldtrbs: { rank: 5, office: War Chief }
     affiliation-greenwardens: { rank: 1 }
-    affiliation-silverguild: {}
+    affiliation-silverguild: { rank: 0 }
 ```
 
 Both values are checked against the body the entry is keyed by. A `rank` that
@@ -3036,6 +3048,13 @@ with no title makes a standing that resolves to nothing, and one with no
 description ships a rung that says nothing on a sheet or a page. A rung accepts
 only these four keys, and each problem on a rung is reported separately, so a
 ladder with three is fixed in one pass rather than three builds.
+
+**A level belongs to one rung.** Two rungs claiming one level is an **error** on
+the second, naming the first, because the ladder is read by level: a member whose
+`rank` is that level answers to whichever rung is written higher in the file, and
+moving two lines renames the standing. A body that confers two titles at one
+standing writes them as one rung — `title: Knight or Dame` — or gives each its
+own level.
 
 ```yaml
 data:
@@ -3726,7 +3745,7 @@ name: { full: The Common Calendar }
 type: lore
 subType: calendar
 data:
-  epoch: 1.1
+  epoch: "1.1"
   months:
     - { name: Floralis, abbreviation: Flor, days: 30 }
     - { name: Lusenar, abbreviation: Luse, days: 31 }
@@ -3975,7 +3994,7 @@ data:
 # its moon — a note of its own, because a moon is a body and not a property
 data:
   body: { diameterKm: 3800, orbitalRadiusKm: 388600, orbit: circular, inclined: true }
-  moon: { cycle: 30, newOn: 720.1, eclipses: rare }
+  moon: { cycle: 30, newOn: "720.1", eclipses: rare }
 ```
 
 **`year.days` is where the year's length lives, and every calendar in the
