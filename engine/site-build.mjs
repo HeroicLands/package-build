@@ -69,7 +69,13 @@ import { footnoteFindings } from "./content-footnotes.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
-import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
+import {
+    buildSiteIndex,
+    figureIndexKeys,
+    resolveCrossNoteFigures,
+    resolveInfoboxRef,
+    wikiContext,
+} from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
@@ -699,6 +705,7 @@ export function renderSitePage(
         sqlTables,
         config,
         artIndex,
+        figuresByAddress = new Map(),
     },
 ) {
     const tableErrors = [];
@@ -766,8 +773,7 @@ export function renderSitePage(
     );
     // What the `ref` expression helper needs beyond the label: the caption
     // text and whether one was authored, by the same id `ctx.captionLabels`
-    // keys on. Only this page's own figures — a cross-note `ref` is reported
-    // unresolved rather than looked up.
+    // keys on.
     const figuresById = new Map(
         figureScan.figures
             .filter((figure) => figure.id)
@@ -785,7 +791,21 @@ export function renderSitePage(
         file: page.file,
         bodyLine: page.bodyLine,
         sqlResults: sqlTables?.inline?.get(page.file),
-        figures: figuresById,
+        figures: {
+            get: (id) => figuresById.get(id),
+            // A cross-note `ref` resolves the written address exactly as a
+            // wikilink does, against every page's figures scanned before any
+            // page's expressions render — see `renderPages`.
+            note: (target) =>
+                resolveCrossNoteFigures(target, {
+                    contentTypes: index.contentTypes,
+                    packages: index.packages,
+                    noIndexPackages: index.noIndexPackages,
+                    contentPackage: index.contentPackage,
+                    siteIndexMap: index.index,
+                    figuresByAddress,
+                }),
+        },
     });
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
@@ -903,6 +923,38 @@ export function renderPages(pages, options) {
         types: index?.contentTypes ?? [],
     });
 
+    // Every page's own figures, by the address a `ref` crossing into it would
+    // write — scanned once, before any page's own expressions render, so a
+    // page citing another's figure finds it already numbered. Numbering stays
+    // per page: each `scanFigures` call here starts its own counters, exactly
+    // as the page's own render does, so the number a cross-note `ref` reports
+    // is the one the target's own page carries.
+    const figuresByAddress = new Map();
+    for (const page of pages) {
+        const shortcode = page.fm.shortcode;
+        if (typeof shortcode !== "string" || !shortcode) continue;
+        const src = page.relPath ?? page.base;
+        const { markdown } = expandContentTables(page.body, {
+            docs: universe.get(page.pkg) ?? [],
+            linkable,
+            source: src,
+            sqlTables: sqlTables?.get(page.file),
+            pageLists: sqlTables?.pageLists?.get(page.file),
+            self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
+        });
+        const byId = new Map(
+            scanFigures(markdown)
+                .figures.filter((figure) => figure.id)
+                .map((figure) => [
+                    figure.id,
+                    { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+                ]),
+        );
+        const type = String(page.fm.type ?? "").toLowerCase();
+        for (const key of figureIndexKeys(page.pkg, type, shortcode))
+            figuresByAddress.set(key, byId);
+    }
+
     const tableErrors = [];
     const expressionErrors = [];
     const secretErrors = [];
@@ -947,6 +999,7 @@ export function renderPages(pages, options) {
             sqlTables,
             config,
             artIndex,
+            figuresByAddress,
         });
         tableErrors.push(...result.tableErrors);
         expressionErrors.push(...result.expressionErrors);

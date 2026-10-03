@@ -94,7 +94,12 @@ import {
     gatesFailed,
     resolveSitePass,
 } from "./site-build.mjs";
-import { resolveInfoboxRef, wikiContext } from "./site-index.mjs";
+import {
+    figureIndexKeys,
+    resolveCrossNoteFigures,
+    resolveInfoboxRef,
+    wikiContext,
+} from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
 import { positionOfLiteral } from "./diagnostics.mjs";
@@ -560,17 +565,77 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         config: resolved,
         book: true,
     });
+
+    /**
+     * Every entry's own figures, numbered across the whole book in reading
+     * order, before any entry's expressions render — so a cross-note `ref`
+     * finds the number its target carries in the finished book rather than a
+     * page-local recount. Walked in the same order {@link bodies} fills
+     * below, so `figureCounts` lands on the same final tallies either way;
+     * the note's table expansion is cached here too, so the render loop does
+     * not redo it.
+     *
+     * @type {Map<string, {markdown?: string, errors?: object[],
+     *   lineMap?: object[], numberedFigures: object[]}>}
+     */
+    const prepared = new Map();
+    // Every note's figures, by the address a `ref` crossing into it would
+    // write — see `engine/site-index.mjs`'s `figureIndexKeys`.
+    const figuresByAddress = new Map();
+    for (const entry of plan.entries) {
+        if (entry.kind === "note") {
+            const file = noteFile(contentBase, entry.record);
+            const page = byFile.get(file);
+            if (!page) continue; // reported as `missing` by the render loop below
+            const src = page.relPath ?? page.base;
+            const { markdown, errors, lineMap } = expandContentTables(page.body, {
+                docs: universe.get(page.pkg) ?? [],
+                linkable: (d) => Boolean(d.fm.shortcode),
+                source: src,
+                sqlTables: sqlTables?.get(page.file),
+                pageLists: sqlTables?.pageLists?.get(page.file),
+                self: { fm: page.fm, path: page.relPath },
+            });
+            const numberedFigures = numberFigures(scanFigures(markdown).figures, figureCounts);
+            prepared.set(entry.anchor, { markdown, errors, lineMap, numberedFigures });
+            const shortcode = page.fm.shortcode;
+            if (typeof shortcode === "string" && shortcode) {
+                const byId = new Map(
+                    numberedFigures
+                        .filter((figure) => figure.id)
+                        .map((figure) => [
+                            figure.id,
+                            {
+                                label: figure.label,
+                                caption: figure.caption,
+                                hasCaption: figure.hasCaption,
+                            },
+                        ]),
+                );
+                const type = String(page.fm.type ?? "").toLowerCase();
+                for (const key of figureIndexKeys(page.pkg, type, shortcode))
+                    figuresByAddress.set(key, byId);
+            }
+            continue;
+        }
+        if (entry.kind === "prose") {
+            const file = path.resolve(resolved.rootDir, entry.file);
+            let text;
+            try {
+                text = fs.readFileSync(file, "utf8");
+            } catch {
+                continue; // reported by the render loop below
+            }
+            prepared.set(entry.anchor, {
+                numberedFigures: numberFigures(scanFigures(text).figures, figureCounts),
+            });
+        }
+    }
+
     const renderPage = (page, headingOffset, anchorPrefix, columns) => {
         const src = page.relPath ?? page.base;
         const wikiErrors = [];
-        const { markdown, errors, lineMap } = expandContentTables(page.body, {
-            docs: universe.get(page.pkg) ?? [],
-            linkable: (d) => Boolean(d.fm.shortcode),
-            source: src,
-            sqlTables: sqlTables?.get(page.file),
-            pageLists: sqlTables?.pageLists?.get(page.file),
-            self: { fm: page.fm, path: page.relPath },
-        });
+        const { markdown, errors, lineMap, numberedFigures } = prepared.get(anchorPrefix);
         // A content-table finding states its `reason`, its 0-based line within
         // the body and its column, exactly as the site build reports them.
         // Reading it as `message` yields `[object Object]` and discards the
@@ -593,8 +658,6 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             foreignIndex: gates.foreign.index,
             assets,
         });
-        const figureScan = scanFigures(markdown);
-        const numberedFigures = numberFigures(figureScan.figures, figureCounts);
         linkCtx.captionLabels = new Map(
             numberedFigures
                 .filter((figure) => figure.id)
@@ -611,8 +674,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         // *book-wide* numbering rather than its page-local count: the book
         // numbers each kind across the whole book in reading order, so a
         // reference has to read the number the book gives the figure, not the
-        // number the note would give it alone. Cross-note references are not
-        // resolved here — only this page's own figures are offered.
+        // number the note would give it alone.
         const figuresById = new Map(
             numberedFigures
                 .filter((figure) => figure.id)
@@ -630,7 +692,25 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             sqlResults: sqlTables?.inline?.get(page.file),
             file: page.file,
             bodyLine: page.bodyLine,
-            figures: figuresById,
+            figures: {
+                get: (id) => figuresById.get(id),
+                // A cross-note `ref` resolves the written address exactly as
+                // a wikilink does, against every note's figures numbered
+                // before any entry's expressions render — see `prepared`
+                // above. The default link renders the target's own web
+                // address, which `renderLink` in `engine/pdf-render.mjs`
+                // resolves to the entry the book gave it, exactly as an
+                // ordinary cross-note wikilink does.
+                note: (target) =>
+                    resolveCrossNoteFigures(target, {
+                        contentTypes: gates.index.contentTypes,
+                        packages: gates.index.packages,
+                        noIndexPackages: gates.index.noIndexPackages,
+                        contentPackage: gates.index.contentPackage,
+                        siteIndexMap: gates.index.index,
+                        figuresByAddress,
+                    }),
+            },
         });
         findings.push(...expressions.findings);
         const resolvedBody = protectCode(expressions.markdown, (text) =>
@@ -745,7 +825,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                     images,
                     headingOffset: entry.depth,
                     anchorPrefix: entry.anchor,
-                    captions: numberFigures(scanFigures(text).figures, figureCounts),
+                    captions: prepared.get(entry.anchor).numberedFigures,
                     url: site,
                     findings,
                     file,

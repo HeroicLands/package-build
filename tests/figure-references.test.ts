@@ -5,12 +5,8 @@ import { describe, expect, it } from "vitest";
 import { renderMarkdownExpressions } from "../engine/markdown-expressions.mjs";
 import { scanFigures } from "../engine/content-figures.mjs";
 
-/**
- * The `figures` map {@link renderMarkdownExpressions} takes for the `ref`
- * helper, built the way `engine/site-build.mjs` builds it — id to the fields
- * the helper needs, from a real `scanFigures` pass.
- */
-function figuresById(source: string) {
+/** A note's figures, by id, in the shape the `ref` helper's `get` reads. */
+function figureMap(source: string) {
     return new Map(
         scanFigures(source)
             .figures.filter((figure) => figure.id)
@@ -19,6 +15,34 @@ function figuresById(source: string) {
                 { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
             ]),
     );
+}
+
+/**
+ * The `figures` context {@link renderMarkdownExpressions} takes for the `ref`
+ * helper, built the way `engine/site-build.mjs` builds it — `get` for this
+ * note's own figures, by id, from a real `scanFigures` pass.
+ */
+function figuresById(source: string) {
+    const own = figureMap(source);
+    return { get: (id: string) => own.get(id) };
+}
+
+/**
+ * A `figures` context spanning more than one note — the shape
+ * `engine/site-build.mjs` and `engine/pdf-build.mjs` build for the `ref`
+ * helper's cross-note case: `get` reads the citing note's own figures, and
+ * `note` resolves another note's address, the way a wikilink would. An
+ * address absent from `others` is a note this build does not resolve.
+ */
+function corpusFigures(own: string, others: Record<string, string>) {
+    const ownMap = figureMap(own);
+    return {
+        get: (id: string) => ownMap.get(id),
+        note: (address: string) => {
+            if (!Object.hasOwn(others, address)) return undefined;
+            return { url: `/pkg/${address}/`, figures: figureMap(others[address]) };
+        },
+    };
 }
 
 const WITH_CAPTION = [
@@ -172,24 +196,6 @@ describe("the ref expression helper", () => {
         ]);
     });
 
-    it("reports a cross-note anchor as unresolved here, rather than inventing a number", () => {
-        const result = renderMarkdownExpressions('{{ref "place-thornford#thorn"}}', {
-            figures: figuresById(WITH_CAPTION),
-            file: "Note.md",
-            bodyLine: 1,
-        });
-        expect(result.markdown).toBe('{{ref "place-thornford#thorn"}}');
-        expect(result.findings).toEqual([
-            {
-                file: "Note.md",
-                line: 1,
-                column: 1,
-                severity: "error",
-                message: expect.stringContaining("addresses a figure in another note"),
-            },
-        ]);
-    });
-
     it("locates a fault at the expression's position on its own line", () => {
         const source = 'First line.\nSecond line names {{ref "#nosuch"}} here.';
         const result = renderMarkdownExpressions(source, {
@@ -199,6 +205,123 @@ describe("the ref expression helper", () => {
         });
         expect(result.findings).toEqual([
             expect.objectContaining({ file: "Note.md", line: 11, column: 19 }),
+        ]);
+    });
+});
+
+describe("the ref expression helper, addressing another note", () => {
+    const OTHERS = { "place-thornford": WITH_CAPTION };
+
+    it("resolves the number form to the target's own number, as a link to its page", () => {
+        const result = renderMarkdownExpressions('{{ref "place-thornford#thorn"}}', {
+            figures: corpusFigures("", OTHERS),
+        });
+        expect(result).toEqual({
+            markdown: "[Figure 1](/pkg/place-thornford/#thorn)",
+            findings: [],
+        });
+    });
+
+    it("resolves the full form to the target's number and caption", () => {
+        const result = renderMarkdownExpressions('{{ref "place-thornford#thorn" form="full"}}', {
+            figures: corpusFigures("", OTHERS),
+        });
+        expect(result).toEqual({
+            markdown:
+                "[Figure 1: The great beast, as drawn by Havard, in *ink*.](/pkg/place-thornford/#thorn)",
+            findings: [],
+        });
+    });
+
+    it("resolves the title form to the target's caption alone", () => {
+        const result = renderMarkdownExpressions('{{ref "place-thornford#thorn" form="title"}}', {
+            figures: corpusFigures("", OTHERS),
+        });
+        expect(result).toEqual({
+            markdown:
+                "[The great beast, as drawn by Havard, in *ink*.](/pkg/place-thornford/#thorn)",
+            findings: [],
+        });
+    });
+
+    it("flattens a link in the target's caption to its label text, as it does within one note", () => {
+        const result = renderMarkdownExpressions('{{ref "place-thornford#thorn" form="title"}}', {
+            figures: corpusFigures("", OTHERS),
+        });
+        expect(result.markdown.match(/\]\(/g)).toHaveLength(1);
+        expect(result.markdown).toContain("Havard");
+    });
+
+    it("refuses full or title aimed at another note's captionless figure", () => {
+        const others = { "place-thornford": NO_CAPTION };
+        const full = renderMarkdownExpressions('{{ref "place-thornford#plain" form="full"}}', {
+            figures: corpusFigures("", others),
+            file: "Note.md",
+            bodyLine: 1,
+        });
+        expect(full.findings).toEqual([
+            expect.objectContaining({
+                message: expect.stringContaining(
+                    'form="full" needs a caption, and figure "#plain" has none',
+                ),
+            }),
+        ]);
+        const number = renderMarkdownExpressions('{{ref "place-thornford#plain"}}', {
+            figures: corpusFigures("", others),
+        });
+        expect(number.findings).toEqual([]);
+    });
+
+    it("reports an anchor matching no figure in the addressed note", () => {
+        const result = renderMarkdownExpressions('{{ref "place-thornford#nosuch"}}', {
+            figures: corpusFigures("", OTHERS),
+            file: "Note.md",
+            bodyLine: 1,
+        });
+        expect(result.findings).toEqual([
+            {
+                file: "Note.md",
+                line: 1,
+                column: 1,
+                severity: "error",
+                message: expect.stringContaining(
+                    'names no figure for anchor "#nosuch" in "place-thornford"',
+                ),
+            },
+        ]);
+    });
+
+    it("reports an address naming a note that does not exist", () => {
+        const result = renderMarkdownExpressions('{{ref "place-nowhere#thorn"}}', {
+            figures: corpusFigures("", OTHERS),
+            file: "Note.md",
+            bodyLine: 1,
+        });
+        expect(result.findings).toEqual([
+            {
+                file: "Note.md",
+                line: 1,
+                column: 1,
+                severity: "error",
+                message: expect.stringContaining(
+                    'addresses "place-nowhere", which names no note this build resolves',
+                ),
+            },
+        ]);
+    });
+
+    it("refuses a cross-note address when the build offers no cross-note resolution", () => {
+        // `figures.note` is omitted entirely — the shape a build that does not
+        // resolve cross-note references hands the helper.
+        const result = renderMarkdownExpressions('{{ref "place-thornford#thorn"}}', {
+            figures: figuresById(WITH_CAPTION),
+            file: "Note.md",
+            bodyLine: 1,
+        });
+        expect(result.findings).toEqual([
+            expect.objectContaining({
+                message: expect.stringContaining("names no note this build resolves"),
+            }),
         ]);
     });
 });
