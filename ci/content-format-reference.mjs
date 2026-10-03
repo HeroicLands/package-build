@@ -13,6 +13,7 @@ import {
     SHARED_DATA_FIELDS,
 } from "../engine/note-vocabulary.mjs";
 import { EXPRESSION_HELPERS } from "../engine/markdown-expressions.mjs";
+import { PAGE_LIST_ATTRIBUTES } from "../engine/page-lists.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = path.join(root, "docs/reference/note-types.md");
@@ -110,31 +111,53 @@ if (process.argv.includes("--check")) {
     fs.writeFileSync(output, result);
 }
 
-// Every helper an expression may call, written from the one list the engine
-// registers from, so the document cannot fall behind a new one.
+// The two tables `docs/authoring/links-and-markup.md` generates: every helper
+// an expression may call, and every attribute a page-list fence takes. Both are
+// written from the one list the engine reads, so neither document can fall
+// behind a new entry. Replaced in one pass and written once, so a `--check` run
+// names the file rather than one of the tables in it.
 const markupPath = path.join(root, "docs/authoring/links-and-markup.md");
 const markup = fs.readFileSync(markupPath, "utf8");
-if (!/<!-- expression-helpers:start -->[\s\S]*?<!-- expression-helpers:end -->/.test(markup)) {
-    throw new Error("The expression helper reference requires its generation markers");
+const GENERATED_TABLES = [
+    {
+        marker: "expression-helpers",
+        rows: [
+            "| Helper | Parameters | What it gives you |",
+            "| ------ | ---------- | ----------------- |",
+            ...Object.entries(EXPRESSION_HELPERS).map(
+                ([name, { params, summary }]) =>
+                    `| \`${name}\` | \`${params}\` | ${cell(summary)} |`,
+            ),
+        ],
+    },
+    {
+        marker: "page-list-attributes",
+        rows: [
+            "| Attribute | Value | Default | What it does |",
+            "| --------- | ----- | ------- | ------------ |",
+            ...Object.entries(PAGE_LIST_ATTRIBUTES).map(
+                ([name, { value, default: fallback, summary }]) =>
+                    `| \`${name}\` | ${cell(value)} | ${cell(fallback)} | ${cell(summary)} |`,
+            ),
+        ],
+    },
+];
+let markupBody = markup;
+for (const { marker, rows } of GENERATED_TABLES) {
+    const region = new RegExp(`<!-- ${marker}:start -->[\\s\\S]*?<!-- ${marker}:end -->`);
+    if (!region.test(markupBody)) {
+        throw new Error(`The ${marker} reference requires its generation markers`);
+    }
+    markupBody = markupBody.replace(
+        region,
+        `<!-- ${marker}:start -->\n\n${rows.join("\n")}\n\n<!-- ${marker}:end -->`,
+    );
 }
-const helperRows = [
-    "| Helper | Parameters | What it gives you |",
-    "| ------ | ---------- | ----------------- |",
-    ...Object.entries(EXPRESSION_HELPERS).map(
-        ([name, { params, summary }]) => `| \`${name}\` | \`${params}\` | ${cell(summary)} |`,
-    ),
-].join("\n");
-const updatedMarkup = await formatGenerated(
-    markup.replace(
-        /<!-- expression-helpers:start -->[\s\S]*?<!-- expression-helpers:end -->/,
-        `<!-- expression-helpers:start -->\n\n${helperRows}\n\n<!-- expression-helpers:end -->`,
-    ),
-    markupPath,
-);
+const updatedMarkup = await formatGenerated(markupBody, markupPath);
 if (process.argv.includes("--check")) {
     if (markup !== updatedMarkup) {
         console.error(
-            "docs/authoring/links-and-markup.md: error: run node ci/content-format-reference.mjs to refresh the expression helper reference",
+            "docs/authoring/links-and-markup.md: error: run node ci/content-format-reference.mjs to refresh its generated tables",
         );
         process.exitCode = 1;
     }

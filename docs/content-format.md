@@ -31,7 +31,9 @@ Body extensions use braces with space-separated `key=value` attributes:
 `![[icon-harbor|Harbor]]{float=top-left size=medium}` and an SQL fence with
 `{allow-empty=true}` are examples. Inline font glyphs use the package's icon
 registry, as in `:icon warning:{size=lg}`; image icons use asset Addresses.
-`:::info` and `:::warn` add labelled boxes within the prose. The
+`:::info` and `:::warn` add labelled boxes within the prose. A
+`pagelist` fence renders the pages carrying a tag as a list of links, so a
+landing page states a group by intent rather than enumerating it. The
 [links and markup guide](authoring/links-and-markup.md) gives the complete syntax.
 Footnotes use `[^id]` references and `[^id]:` definitions, with numeric output
 markers scoped to each note. Definition lists use a term followed by one or

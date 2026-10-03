@@ -18,6 +18,7 @@ import { reckoningContext } from "./reckoning-markers.mjs";
 import { cachedMetadataIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { buildSiteIndex } from "./site-index.mjs";
 import { openNotesDatabase, prepareSqlTables, findSqlBlocks } from "./sql-tables.mjs";
+import { findPageListBlocks } from "./page-lists.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { relatedPages } from "./related-pages.mjs";
 import { holdingsNode, holdingsPages, foreignHoldingsNodes } from "./holdings.mjs";
@@ -90,9 +91,13 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
         );
         try {
             const sources = pages
-                .filter((page) => findSqlBlocks(page.body).length)
+                .filter(
+                    (page) =>
+                        findSqlBlocks(page.body).length || findPageListBlocks(page.body).length,
+                )
                 .map((page) => ({ source: page.file, markdown: page.body }));
-            const sqlTables = await prepareSqlTables(db, sources);
+            const publicRecords = records.filter((record) => !isGmNote(record));
+            const sqlTables = await prepareSqlTables(db, sources, { records: publicRecords });
             const rendered = renderPages(pages, {
                 index: gates.index,
                 foreign: gates.foreign,
@@ -214,9 +219,11 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                         },
                     );
                 }
-                const sqlTables = await prepareSqlTables(db, [
-                    { source: absolute, markdown: body },
-                ]);
+                const sqlTables = await prepareSqlTables(
+                    db,
+                    [{ source: absolute, markdown: body }],
+                    { records: records.filter((record) => !isGmNote(record)) },
+                );
                 const allPages = snapshot.pages.map((item) =>
                     item.file === absolute ? page : item,
                 );

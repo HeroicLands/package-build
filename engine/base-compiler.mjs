@@ -680,6 +680,7 @@ export class BasePackCompiler {
             name,
             bodyLine,
             sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
+            pageLists: absPath ? this.sqlTables?.pageLists?.get(absPath) : undefined,
         });
         for (const captionError of scanCaptions(tabulated).errors) {
             findings.push({
