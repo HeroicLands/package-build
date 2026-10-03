@@ -26,6 +26,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.resolve(HERE, "..");
 const CONFIG_URL = pathToFileURL(path.join(PACKAGE_ROOT, "content-config.mjs")).href;
@@ -159,46 +160,56 @@ const RELIC_FM = `{
 describe("a consumer's own itemBuilders table is the one that compiles", () => {
     const configPath = consumerRepo();
 
-    it("dispatches to the builder the consumer configured", () => {
-        const entry = underConfig(
-            configPath,
-            `${PREAMBLE}
+    it(
+        "dispatches to the builder the consumer configured",
+        () => {
+            const entry = underConfig(
+                configPath,
+                `${PREAMBLE}
             const entry = items.buildEntry(${RELIC_FM}, "");
             process.stdout.write(JSON.stringify(entry));`,
-        );
+            );
 
-        expect(entry.type).toBe("relic");
-        // Only the consumer's table can have produced this: SoHL's registry has
-        // no `relic` builder, and no SoHL builder writes `builtBy`.
-        expect(entry.system.builtBy).toBe("consumer");
-        expect(entry.system.power).toBe(7);
-    });
+            expect(entry.type).toBe("relic");
+            // Only the consumer's table can have produced this: SoHL's registry has
+            // no `relic` builder, and no SoHL builder writes `builtBy`.
+            expect(entry.system.builtBy).toBe("consumer");
+            expect(entry.system.power).toBe(7);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("claims exactly the types that consumer's table registers", () => {
-        const selected = underConfig(
-            configPath,
-            `${PREAMBLE}
+    it(
+        "claims exactly the types that consumer's table registers",
+        () => {
+            const selected = underConfig(
+                configPath,
+                `${PREAMBLE}
             process.stdout.write(JSON.stringify({
                 relic: items.selects({ type: "relic" }),
                 skill: items.selects({ type: "skill" }),
                 types: [...loadPackConfig().itemTypes],
             }));`,
-        );
+            );
 
-        expect(selected.relic).toBe(true);
-        // The registry guarantee, from the other side: the whitelist is the keys of
-        // the table the consumer supplied, so SoHL's types are not in it.
-        expect(selected.skill).toBe(false);
-        expect(selected.types).toEqual(["relic"]);
-    });
+            expect(selected.relic).toBe(true);
+            // The registry guarantee, from the other side: the whitelist is the keys of
+            // the table the consumer supplied, so SoHL's types are not in it.
+            expect(selected.skill).toBe(false);
+            expect(selected.types).toEqual(["relic"]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("cannot fall back to the package's own builders", () => {
-        // The bug this test exists for: the whitelist came from configuration
-        // while the dispatch read the module-level table, so a type the
-        // consumer never declared still compiled — with SoHL's builder.
-        const outcome = underConfig(
-            configPath,
-            `${PREAMBLE}
+    it(
+        "cannot fall back to the package's own builders",
+        () => {
+            // The bug this test exists for: the whitelist came from configuration
+            // while the dispatch read the module-level table, so a type the
+            // consumer never declared still compiled — with SoHL's builder.
+            const outcome = underConfig(
+                configPath,
+                `${PREAMBLE}
             let error = null;
             try {
                 items.buildEntry({
@@ -213,10 +224,12 @@ describe("a consumer's own itemBuilders table is the one that compiles", () => {
                 error = String(e.message);
             }
             process.stdout.write(JSON.stringify({ error }));`,
-        );
+            );
 
-        expect(outcome.error).toMatch(/no builder.*skill/i);
-    });
+            expect(outcome.error).toMatch(/no builder.*skill/i);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 /** The file `RELIC_FM` names, after the asset-root resolution every note gets. */
@@ -232,57 +245,71 @@ const RELIC_FM_NO_IMG = `{
 }`;
 
 describe("a consumer's own item type has default art of its own", () => {
-    it("falls back to the art paired with the consumer's builder", () => {
-        // The whole point: no `img:` on the note, no entry in any SoHL-owned
-        // table, and the item still compiles with a sensible icon.
-        const entry = underConfig(
-            consumerRepo(PAIRED_BUILDER),
-            `${PREAMBLE}
+    it(
+        "falls back to the art paired with the consumer's builder",
+        () => {
+            // The whole point: no `img:` on the note, no entry in any SoHL-owned
+            // table, and the item still compiles with a sensible icon.
+            const entry = underConfig(
+                consumerRepo(PAIRED_BUILDER),
+                `${PREAMBLE}
             const entry = items.buildEntry(${RELIC_FM_NO_IMG}, "");
             process.stdout.write(JSON.stringify(entry));`,
-        );
+            );
 
-        expect(entry.img).toBe(RELIC_ART_RESOLVED);
-        expect(entry.system.builtBy).toBe("consumer");
-    });
+            expect(entry.img).toBe(RELIC_ART_RESOLVED);
+            expect(entry.system.builtBy).toBe("consumer");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("still lets a note override the configured default", () => {
-        // Paired art is a *default*, not a policy: the address the note names
-        // wins, as it always has.
-        const entry = underConfig(
-            consumerRepo(PAIRED_BUILDER),
-            `${PREAMBLE}
+    it(
+        "still lets a note override the configured default",
+        () => {
+            // Paired art is a *default*, not a policy: the address the note names
+            // wins, as it always has.
+            const entry = underConfig(
+                consumerRepo(PAIRED_BUILDER),
+                `${PREAMBLE}
             const entry = items.buildEntry(${RELIC_FM}, "");
             process.stdout.write(JSON.stringify(entry));`,
-        );
+            );
 
-        expect(entry.img).toBe(NOTE_IMG_RESOLVED);
-        expect(entry.img).not.toBe(RELIC_ART_RESOLVED);
-    });
+            expect(entry.img).toBe(NOTE_IMG_RESOLVED);
+            expect(entry.img).not.toBe(RELIC_ART_RESOLVED);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("keeps the bare-function entry working when every note names its own art", () => {
-        // Pairing art is opt-in. A consumer whose notes all name art never
-        // needs it, and its existing single-function table must keep compiling.
-        const entry = underConfig(
-            consumerRepo(BARE_BUILDER),
-            `${PREAMBLE}
+    it(
+        "keeps the bare-function entry working when every note names its own art",
+        () => {
+            // Pairing art is opt-in. A consumer whose notes all name art never
+            // needs it, and its existing single-function table must keep compiling.
+            const entry = underConfig(
+                consumerRepo(BARE_BUILDER),
+                `${PREAMBLE}
             const entry = items.buildEntry(${RELIC_FM}, "");
             process.stdout.write(JSON.stringify(entry));`,
-        );
+            );
 
-        expect(entry.img).toBe(NOTE_IMG_RESOLVED);
-        expect(entry.system.builtBy).toBe("consumer");
-    });
+            expect(entry.img).toBe(NOTE_IMG_RESOLVED);
+            expect(entry.system.builtBy).toBe("consumer");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("fails naming the consumer's own registry, not a SoHL module", () => {
-        // The reported bug. It is still an error to have neither — the build
-        // must not silently ship a mismatched icon — but the error has to point
-        // at a table the consumer can actually add to, rather than naming
-        // `@heroiclands/package-build/sohl/default-item-art`, which is SoHL's
-        // runtime data and closed to consumers.
-        const outcome = underConfig(
-            consumerRepo(BARE_BUILDER),
-            `${PREAMBLE}
+    it(
+        "fails naming the consumer's own registry, not a SoHL module",
+        () => {
+            // The reported bug. It is still an error to have neither — the build
+            // must not silently ship a mismatched icon — but the error has to point
+            // at a table the consumer can actually add to, rather than naming
+            // `@heroiclands/package-build/sohl/default-item-art`, which is SoHL's
+            // runtime data and closed to consumers.
+            const outcome = underConfig(
+                consumerRepo(BARE_BUILDER),
+                `${PREAMBLE}
             let error = null;
             try {
                 items.buildEntry(${RELIC_FM_NO_IMG}, "");
@@ -290,10 +317,12 @@ describe("a consumer's own item type has default art of its own", () => {
                 error = String(e.message);
             }
             process.stdout.write(JSON.stringify({ error }));`,
-        );
+            );
 
-        expect(outcome.error).toMatch(/no default art.*relic/i);
-        expect(outcome.error).toMatch(/itemBuilders/);
-        expect(outcome.error).not.toMatch(/default-item-art/);
-    });
+            expect(outcome.error).toMatch(/no default art.*relic/i);
+            expect(outcome.error).toMatch(/itemBuilders/);
+            expect(outcome.error).not.toMatch(/default-item-art/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

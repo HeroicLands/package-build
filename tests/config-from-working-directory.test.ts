@@ -44,6 +44,7 @@ import YAML from "yaml";
 
 import { CONFIG_BASENAME, resolveConfigFile } from "../engine/pack-config.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.dirname(HERE);
 
@@ -166,58 +167,82 @@ afterAll(() => {
 });
 
 describe("a build run in a nested worktree with no node_modules of its own", () => {
-    it("reads the worktree's configuration, not the parent checkout's", () => {
-        // The whole defect in one assertion: this was `parent`, and the build
-        // said so only in absolute paths that are easy to read past.
-        const { status, config, stderr } = loadFrom(nested);
-        expect(status, stderr).toBe(0);
-        expect(config.rootDir).toBe(nested);
-        expect(config.foundryPackage).toBe("nested-tree");
-    });
+    it(
+        "reads the worktree's configuration, not the parent checkout's",
+        () => {
+            // The whole defect in one assertion: this was `parent`, and the build
+            // said so only in absolute paths that are easy to read past.
+            const { status, config, stderr } = loadFrom(nested);
+            expect(status, stderr).toBe(0);
+            expect(config.rootDir).toBe(nested);
+            expect(config.foundryPackage).toBe("nested-tree");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("names both configurations rather than passing over the one it ignored", () => {
-        // The disagreement is also the only cheap signal that this tree is
-        // compiling on another checkout's `node_modules`, so it is said out
-        // loud even though the answer is now the right one.
-        const { stderr } = loadFrom(nested);
-        expect(stderr).toContain("warning:");
-        expect(stderr).toContain(path.join(nested, `${CONFIG_BASENAME}.yaml`));
-        expect(stderr).toContain(path.join(parent, `${CONFIG_BASENAME}.yaml`));
-    });
+    it(
+        "names both configurations rather than passing over the one it ignored",
+        () => {
+            // The disagreement is also the only cheap signal that this tree is
+            // compiling on another checkout's `node_modules`, so it is said out
+            // loud even though the answer is now the right one.
+            const { stderr } = loadFrom(nested);
+            expect(stderr).toContain("warning:");
+            expect(stderr).toContain(path.join(nested, `${CONFIG_BASENAME}.yaml`));
+            expect(stderr).toContain(path.join(parent, `${CONFIG_BASENAME}.yaml`));
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("every other shape resolves as it always did", () => {
-    it("reads its own configuration from the checkout that installed the toolchain", () => {
-        const { config, stderr } = loadFrom(parent);
-        expect(config.rootDir).toBe(parent);
-        expect(stderr).not.toContain("warning:");
-    });
+    it(
+        "reads its own configuration from the checkout that installed the toolchain",
+        () => {
+            const { config, stderr } = loadFrom(parent);
+            expect(config.rootDir).toBe(parent);
+            expect(stderr).not.toContain("warning:");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("reads it from a subdirectory too, since the walk climbs", () => {
-        // What this buys is one tree per build however it is launched, and
-        // an upward walk from the working directory keeps exactly that.
-        const deep = path.join(parent, "assets", "content", "Items");
-        fs.mkdirSync(deep, { recursive: true });
-        expect(loadFrom(deep).config.rootDir).toBe(parent);
-    });
+    it(
+        "reads it from a subdirectory too, since the walk climbs",
+        () => {
+            // What this buys is one tree per build however it is launched, and
+            // an upward walk from the working directory keeps exactly that.
+            const deep = path.join(parent, "assets", "content", "Items");
+            fs.mkdirSync(deep, { recursive: true });
+            expect(loadFrom(deep).config.rootDir).toBe(parent);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("falls back to the installed package's own when the working directory has none", () => {
-        // Launched from outside any repository: the module walk is the only one
-        // with an answer, so it is still the one used — and silently, because
-        // nothing is being passed over.
-        const { config, stderr } = loadFrom(sandbox);
-        expect(config.rootDir).toBe(parent);
-        expect(stderr).not.toContain("warning:");
-    });
+    it(
+        "falls back to the installed package's own when the working directory has none",
+        () => {
+            // Launched from outside any repository: the module walk is the only one
+            // with an answer, so it is still the one used — and silently, because
+            // nothing is being passed over.
+            const { config, stderr } = loadFrom(sandbox);
+            expect(config.rootDir).toBe(parent);
+            expect(stderr).not.toContain("warning:");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("still lets PACKAGE_BUILD_CONFIG override both walks, without a warning", () => {
-        // An explicit name is not a search result, so there is no disagreement
-        // to report — which is what made it the workaround for.
-        const named = path.join(parent, `${CONFIG_BASENAME}.yaml`);
-        const { config, stderr } = loadFrom(nested, { PACKAGE_BUILD_CONFIG: named });
-        expect(config.rootDir).toBe(parent);
-        expect(stderr).not.toContain("warning:");
-    });
+    it(
+        "still lets PACKAGE_BUILD_CONFIG override both walks, without a warning",
+        () => {
+            // An explicit name is not a search result, so there is no disagreement
+            // to report — which is what made it the workaround for.
+            const named = path.join(parent, `${CONFIG_BASENAME}.yaml`);
+            const { config, stderr } = loadFrom(nested, { PACKAGE_BUILD_CONFIG: named });
+            expect(config.rootDir).toBe(parent);
+            expect(stderr).not.toContain("warning:");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("resolveConfigFile, asked about a tree it is not standing in", () => {

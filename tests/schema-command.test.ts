@@ -27,6 +27,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
@@ -90,33 +91,45 @@ describe("package-build schema", () => {
         fs.rmSync(path.join(root, "schema.json"), { force: true });
     });
 
-    it("writes build/schema.json and leaves the repository root untouched", () => {
-        const { code, err } = run("schema");
+    it(
+        "writes build/schema.json and leaves the repository root untouched",
+        () => {
+            const { code, err } = run("schema");
 
-        expect(err).toBe("");
-        expect(code).toBe(0);
-        expect(fs.existsSync(path.join(root, "build", "schema.json"))).toBe(true);
-        expect(fs.existsSync(path.join(root, "schema.json"))).toBe(false);
-    });
+            expect(err).toBe("");
+            expect(code).toBe(0);
+            expect(fs.existsSync(path.join(root, "build", "schema.json"))).toBe(true);
+            expect(fs.existsSync(path.join(root, "schema.json"))).toBe(false);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("publishes an artifact `package-build content-format schema` can read", () => {
-        run("schema");
-        const artifact = JSON.parse(
-            fs.readFileSync(path.join(root, "build", "schema.json"), "utf8"),
-        );
-        expect(artifact.documents.Item.gear.own).toEqual(["weight"]);
-    });
+    it(
+        "publishes an artifact `package-build content-format schema` can read",
+        () => {
+            run("schema");
+            const artifact = JSON.parse(
+                fs.readFileSync(path.join(root, "build", "schema.json"), "utf8"),
+            );
+            expect(artifact.documents.Item.gear.own).toEqual(["weight"]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("package-build schema --check", () => {
-    it("is refused as an unknown argument, not silently accepted", () => {
-        // `--check` compared against a committed copy that no longer exists —
-        // accepting it quietly would mean a lint chain still gating on it
-        // reports success having checked nothing.
-        const { code, err } = run("schema", "--check");
+    it(
+        "is refused as an unknown argument, not silently accepted",
+        () => {
+            // `--check` compared against a committed copy that no longer exists —
+            // accepting it quietly would mean a lint chain still gating on it
+            // reports success having checked nothing.
+            const { code, err } = run("schema", "--check");
 
-        expect(code).not.toBe(0);
-        expect(err).toMatch(/[Uu]nknown argument/);
-        expect(err).toContain("check");
-    });
+            expect(code).not.toBe(0);
+            expect(err).toMatch(/[Uu]nknown argument/);
+            expect(err).toContain("check");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
