@@ -701,12 +701,12 @@ exactly as `seat` declares `place` — a bare shortcode takes its type from the
 declaration, and qualification climbs the same short-form ladder every other
 link uses.
 
-| field       | default type | accepts         | resolves into                | on                                        |
-| ----------- | ------------ | --------------- | ---------------------------- | ----------------------------------------- |
-| `icon`      | `icon`       | `icon`, `image` | `document.img`               | every Actor/Item type, and embedded items |
-| `tokenIcon` | `icon`       | `icon`, `image` | `prototypeToken.texture.src` | Actor types                               |
-| `bgImage`   | `image`      | `icon`, `image` | `background.src`             | map types                                 |
-| `banner`    | `image`      | `icon`, `image` | the site hero image          | any note; not a Foundry field             |
+| field       | default type | accepts         | resolves into                 | on                                        |
+| ----------- | ------------ | --------------- | ----------------------------- | ----------------------------------------- |
+| `icon`      | `icon`       | `icon`, `image` | `document.img`                | every Actor/Item type, and embedded items |
+| `tokenIcon` | `icon`       | `icon`, `image` | `prototypeToken.texture.src`  | Actor types                               |
+| `bgImage`   | `image`      | `icon`, `image` | `background.src`              | map types                                 |
+| `banner`    | `image`      | `icon`, `image` | the site hero image, 1792×768 | any note; not a Foundry field             |
 
 All four are authored under `data:`:
 
@@ -750,7 +750,7 @@ noticed:
 | `packFolder`           | `Address` or pack map  | The shared compendium folder Address.                                |
 | `harnworld`            | `Map<string, unknown>` | HârnWorld source details.                                            |
 | `icon`                 | `Address`              | The document's profile art — an `icon` address, resolved into `img`. |
-| `banner`               | `Address`              | The page's hero image — an `image` address.                          |
+| `banner`               | `Address`              | The page's hero image — an `image` address, cut to 1792×768.         |
 
 `icon` is legal everywhere because most types compile into a document that
 carries one; where a type's passes emit none, the lint says so and the value is
@@ -926,6 +926,18 @@ segment to state.
 Foundry destination: searching a built `packs-json` tree for it turns up
 nothing. It reaches the generated page and the book's section plates, and
 nothing else.
+
+**A hero image is 1792×768.** It fills one fixed strip wherever it is drawn, so
+every banner is cut to that size and a picture of any other size is a finding
+naming both sizes — resize the picture to match. The size is stated once, by the
+slot itself, which is what gives an artist a figure to work to before any file
+exists.
+
+No other art slot states a size, and none of them asks anything of a picture's
+dimensions. An `icon` is drawn at a nominal size per medium whatever its file
+holds; a map's `bgImage` sets its own scene's dimensions, so it is whatever size
+the map is; and a picture written in prose is fitted to the room it has. Those
+three accept whatever they are given.
 
 It is an `Address` all the same, defaulting to type `image`, so a section note
 writes `banner: skillbnr` and a note borrowing another package's plate writes

@@ -12,4 +12,5 @@
 **Art provenance**
 
 - A picture states what it is for, and a record saying a file is not machine-generated is published saying so.
-- A package may refuse generated art in its own tree, and a picture whose shape or resolution does not suit the purpose it states is reported.
+- A page's hero image is 1792×768, and one of any other size is refused, naming the size to cut it to.
+- A package may refuse generated art in its own tree.

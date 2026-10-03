@@ -44,6 +44,8 @@
  * @module
  */
 
+import path from "node:path";
+
 import { encodeAddresses } from "./address-values.mjs";
 import { ASSET_SYSTEM, isAssetType } from "./asset-types.mjs";
 import { ASSETS_SEGMENT } from "./pathnames.mjs";
@@ -198,6 +200,54 @@ export function readAssetAddress(index, value, defaultType, accepts) {
  */
 export function resolveArtRecord(index, value, defaultType, accepts) {
     return readAssetAddress(index, value, defaultType, accepts).record;
+}
+
+/**
+ * Flag a note whose art slot names a picture that is not the size that slot
+ * is cut to.
+ *
+ * The size is stated by the slot itself, in
+ * {@link module:engine/art-slots.ART_SLOTS}, so it is written once and a slot
+ * that states none asks nothing of the picture it names. Today the hero image
+ * is the one slot with a fixed strip to fill; a picture written in prose is
+ * fitted to the room it has and is never measured here.
+ *
+ * A vector carries no pixel size to compare, and neither does a raster whose
+ * header cannot be read; neither is flagged.
+ *
+ * @param {readonly object[]} records - The corpus, notes and assets together.
+ * @param {object} [opts]
+ * @param {object} [opts.config] - The resolved build configuration.
+ * @param {string} [opts.assetsBase] - Where the asset roots sit, so a finding
+ *   names the file from the working directory as every other finding does.
+ * @returns {object[]} A finding per picture off its slot's size,
+ *   `severity: "error"`.
+ */
+export function checkArtSlotSizes(records = [], { config, assetsBase = "" } = {}) {
+    const sized = ART_SLOTS.filter((slot) => slot.size);
+    if (!sized.length) return [];
+    const index = assetAddressIndex(records, { config });
+    const findings = [];
+    for (const record of records) {
+        const data = record?.data;
+        if (!data) continue;
+        for (const slot of sized) {
+            const value = data[slot.key];
+            if (!value) continue;
+            const asset = resolveArtRecord(index, value, slot.type, slot.accepts);
+            const { path: file, width, height } = asset?.asset ?? {};
+            if (!file || !width || !height) continue;
+            if (Number(width) === slot.size.width && Number(height) === slot.size.height) continue;
+            findings.push({
+                file: path.join(assetsBase, file),
+                severity: "error",
+                message:
+                    `${width}×${height} is not the ${slot.size.width}×${slot.size.height} ` +
+                    `a \`${slot.key}\` is cut to`,
+            });
+        }
+    }
+    return findings;
 }
 
 /**

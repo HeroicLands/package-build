@@ -76,6 +76,12 @@ export const ART_SLOTS = Object.freeze([
         type: "image",
         accepts: ART_TYPES,
         document: false,
-        describe: "The page's hero image. Reaches no compiled document.",
+        // A hero image fills one fixed strip wherever it is drawn, so every
+        // banner is cut to one size and a picture of another size is resized
+        // to it. A picture written in prose fills no fixed strip and is
+        // fitted to whatever room it has, so no slot but this one states a
+        // size.
+        size: Object.freeze({ width: 1792, height: 768 }),
+        describe: "The page's hero image, cut to 1792×768. Reaches no compiled document.",
     }),
 ]);
