@@ -97,11 +97,11 @@ import {
 import { resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
+import { positionOfLiteral } from "./diagnostics.mjs";
 import { artPathname, assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
-import { renderSecretBlocks } from "./content-secrets.mjs";
-import { scanAdmonitions } from "./content-admonitions.mjs";
+import { scanBlocks } from "./content-blocks.mjs";
 import { numberCaptions, scanCaptions } from "./content-captions.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imagesIn, parseImageDirective } from "./content-images.mjs";
@@ -557,11 +557,18 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             sqlTables: sqlTables?.get(page.file),
             self: { fm: page.fm, path: page.relPath },
         });
+        // A content-table finding states its `reason`, its 0-based line within
+        // the body and its column, exactly as the site build reports them.
+        // Reading it as `message` yields `[object Object]` and discards the
+        // position, which is the one thing a reader needs to find the fence.
         for (const err of errors) {
             findings.push({
                 file: page.file,
+                ...(typeof err.line === "number" ?
+                    { line: (page.bodyLine ?? 1) + err.line, column: err.column }
+                :   {}),
                 severity: "error",
-                message: String(err.message ?? err),
+                message: err.reason ?? String(err.message ?? err),
             });
         }
         const linkCtx = wikiContext(gates.index, {
@@ -600,9 +607,26 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         const resolvedBody = protectCode(expressions.markdown, (text) =>
             resolveWebWikilinks(pass.beforeLinks ? pass.beforeLinks(text, page) : text, linkCtx),
         );
+        // A link finding carries the authored link and which occurrence of it
+        // this was, which is exactly what locates it: the position is implicit
+        // in the literal the pass matched, so it is recovered by searching the
+        // note for it rather than dropped. Read once per page, and only when
+        // there is a finding to locate.
+        let raw;
+        const noteSource = () => {
+            if (raw === undefined) {
+                try {
+                    raw = fs.readFileSync(page.file, "utf8");
+                } catch {
+                    raw = "";
+                }
+            }
+            return raw;
+        };
         for (const err of wikiErrors) {
             findings.push({
                 file: page.file,
+                ...positionOfLiteral(noteSource(), err.link, err.occurrence),
                 severity: "warning",
                 // A link finding names a `reason` from the shared table and no
                 // sentence of its own; an embed's directive complaint carries
@@ -610,8 +634,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 message: err.message ?? (err.reason ? linkFindingMessage(err) : String(err)),
             });
         }
-        const secrets = renderSecretBlocks(resolvedBody, "book");
-        for (const error of renderSecretBlocks(page.body, "book").errors) {
+        for (const error of scanBlocks(page.body).errors) {
             findings.push({
                 file: page.file,
                 line: (page.bodyLine ?? 1) + error.line - 1,
@@ -620,17 +643,8 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 message: error.message,
             });
         }
-        for (const error of scanAdmonitions(page.body).errors) {
-            findings.push({
-                file: page.file,
-                line: (page.bodyLine ?? 1) + error.line - 1,
-                column: error.column,
-                severity: "error",
-                message: error.message,
-            });
-        }
-        stageImages(secrets.markdown, page.file, columns);
-        const prose = markdownToTypst(secrets.markdown, {
+        stageImages(resolvedBody, page.file, columns);
+        const prose = markdownToTypst(resolvedBody, {
             md,
             links: plan.links,
             glyphs,

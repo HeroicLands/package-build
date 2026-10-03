@@ -954,6 +954,13 @@ export function auditLinks(index) {
                 deadAnchors.push({
                     note,
                     link: `${rawTarget}#${anchor}`,
+                    // The two the shared `unknown-anchor` wording reads, in the
+                    // same spelling the build's own pass gives them: the
+                    // address alone, and the slug the heading would have had to
+                    // declare. Carrying them is what lets one sentence serve
+                    // the checker and the build.
+                    target: rawTarget,
+                    anchor: slugify(anchor),
                     dest,
                     text,
                     occurrence,

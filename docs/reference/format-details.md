@@ -2381,48 +2381,74 @@ block is prose. The website and Foundry number each category within a note;
 the PDF numbers each category through the book. Foundry gives a captioned block
 its own JournalEntryPage, so its anchor has a page UUID.
 
-`:::info` and `:::warn` mark explanatory and cautionary boxes inline. Their
-content is Markdown, and the boxes carry a label and icon on the web, in
-Foundry, and in the book. An optional `{#id}` gives a box an HTML anchor.
-Close each with a whole-line `:::`. Empty, nested, and unclosed boxes are
-errors at the opening line.
+##### Named blocks
+
+`:::secret`, `:::info` and `:::warn` set a passage apart from the prose around
+it. The opener and the closing `:::` each take a whole line, the content is
+Markdown and renders normally, and the fences stay outside code blocks. An
+empty, nested or unclosed block is an error at its opening line, as is a name
+that is not one of the three.
+
+A braced attribute block may follow the name. It takes an id as `#id`, classes
+as `.class`, and any other attribute as `key="value"`. `title` is reserved and
+supplies the heading; without it a block heads itself **Secret**, **Info** or
+**Warn**. A title carries its own emphasis and nothing else — a tag written
+there is escaped. `id=` and `class=` are refused in favour of `#id` and
+`.class`, and an attribute beginning `on` is refused as an event handler.
 
 ```markdown
 :::info
 The harbor remains open through winter.
 :::
 
-:::warn {#flood-warning}
+:::warn {#flood-warning title="Seasonal closure"}
 Spring floods close the eastern road.
 :::
-```
 
-```
-:::secret
-This is secret text
+:::secret {#harbor .wide}
+The harbor master is working for the smugglers.
 :::
 ```
 
-Use a whole-line `:::secret` opener and a whole-line `:::` closer to mark a GM passage. Markdown inside the block, including links and emphasis, renders normally. Keep the fences outside code blocks and close each one before starting another. An unclosed or nested block is a build error at the source line.
+The block's name is the first class on the emitted element and the author's
+classes follow it. **No block carries an inline `style`**, so the appearance is
+a stylesheet's. The base stylesheet styles `section.info` and `section.warn`;
+`section.secret` is left to Foundry, which styles it and owns the reveal control
+on it.
 
-In FoundryVTT, the passage is a secret section visible to the GM and owners of the journal:
+In FoundryVTT a block is a section whose first line is its heading, and a
+`secret` is the section Foundry shows to the GM and to owners of the journal:
 
 ```html
-<section class="secret" id="secret-example">
-  <p>This is secret text</p>
+<section class="secret wide" id="harbor">
+  <strong>Secret</strong><br />
+  <p>The harbor master is working for the smugglers.</p>
 </section>
 ```
 
-On webpages, the passage appears as a collapsed spoiler that any reader can open:
+A `secret` that states no id of its own is given one derived from its body, so
+that Foundry can remember the section once a reader reveals it.
+
+On webpages a block is a disclosure any reader can open, titled in its summary:
 
 ```html
-<details>
-  <summary>Spoiler</summary>
-  <p>This is secret text</p>
+<details class="secret wide" id="harbor">
+  <summary class="secret">Secret</summary>
+  <p>The harbor master is working for the smugglers.</p>
 </details>
 ```
 
-In books, the passage is visible under a **GM note** label. A printed page has no reader permissions or interactive disclosure control.
+In a book each block is a coloured box headed by its title. A printed page has
+no reader permissions and no interactive disclosure control, so a `secret` is
+visible there.
+
+**A secret is a presentation distinction and not access control.** It is in the
+same authored note as the prose around it, and a reader who inspects source or
+generated output may see it.
+
+**A malformed block does not silence the blocks around it.** It is reported at
+its own line and left as the author wrote it, and every well-formed block in the
+note still renders.
 
 #### Actors
 

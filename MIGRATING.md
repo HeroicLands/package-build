@@ -13,6 +13,35 @@ that also creates a prose JournalEntry, configure one private JournalEntry pack.
 The public site and book omit GM notes, and links from untagged notes to them
 are build errors. Untagged notes need no changes.
 
+## Named blocks take a title
+
+`:::secret`, `:::info` and `:::warn` share one syntax, and a braced attribute
+block may follow the name:
+
+```markdown
+:::secret {#harbor title="For the GM" .wide}
+The harbor master is working for the smugglers.
+:::
+```
+
+**No note has to change.** What changes without one is the heading a block
+carries: a `:::warn` heads `Warn` where it headed `Warning`, and a `:::secret`
+heads `Secret` where it headed `GM note`. Write `title="GM note"` on a block that
+needs the old wording.
+
+Three things that used to pass are now reported, each at the line of the block
+that caused it:
+
+- A name that is not `secret`, `info` or `warn`. A `:::caution` block was
+  previously left in the page as the literal text an author typed.
+- `id=` or `class=` as a key. Use `#id` and `.class`.
+- An attribute beginning `on`, which would be an event handler.
+
+A package that styled a box by overriding the inline `style` the block used to
+carry restyles `section.info` and `section.warn` instead. The shared stylesheet
+styles both; `section.secret` is left to Foundry, which owns the reveal control
+on it.
+
 ## A complexion holds one value or several
 
 `data.appearance.complexion` accepts a single value as it always has, and now
