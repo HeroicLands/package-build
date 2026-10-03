@@ -25,8 +25,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { renderSecretBlocks } from "../engine/content-secrets.mjs";
-import { renderAdmonitions, scanAdmonitions } from "../engine/content-admonitions.mjs";
+import { renderBlocks, scanBlocks } from "../engine/content-blocks.mjs";
 import { renderCaptionBlocks, scanCaptions } from "../engine/content-captions.mjs";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
@@ -41,16 +40,15 @@ const body = (...lines: string[]) => lines.join("\n");
 /**
  * The findings every surface would raise for a body.
  *
- * Read out of the passes the compilers call rather than restated: the Foundry
- * pack compiler reads `renderSecretBlocks` and `scanAdmonitions` and then
- * `scanCaptions`, and the site and book builds read the same three. A surface
- * reporting a finding the others do not is the asymmetry worth failing on, so
- * they are collected together and compared as one set.
+ * Read out of the passes the compilers call rather than restated. The named
+ * blocks are one pass over all three names, and captions are the other; every
+ * compiler reads both. A surface reporting a finding the others do not is the
+ * asymmetry worth failing on, so they are collected together and compared as
+ * one set.
  */
 function findings(source: string) {
     return [
-        ...renderSecretBlocks(source, "book").errors.map((e) => `secret ${e.line}: ${e.message}`),
-        ...scanAdmonitions(source).errors.map((e) => `admonition ${e.line}: ${e.message}`),
+        ...scanBlocks(source).errors.map((e) => `block ${e.line}: ${e.message}`),
         ...scanCaptions(source).errors.map((e) => `caption ${e.line}: ${e.message}`),
     ];
 }
@@ -62,20 +60,18 @@ function foundry(source: string) {
 
 /** The body as the site build renders it, in the order `site-build` runs. */
 function web(source: string) {
-    const secrets = renderSecretBlocks(source, "web");
-    const admonitions = renderAdmonitions(secrets.markdown);
-    return renderCaptionBlocks(admonitions.markdown).markdown;
+    const blocks = renderBlocks(source, "web");
+    return renderCaptionBlocks(blocks.markdown).markdown;
 }
 
 /**
  * The body as the book renders it.
  *
- * `markdownToTypst` reads admonitions and captions itself but not secrets, so
- * the order `pdf-build` runs them in is the order here: handing it a body with
- * `:::secret` still in it emits the literal line into the Typst source.
+ * `markdownToTypst` reads every named block itself, as `pdf-build` relies on,
+ * so a body goes to it as authored and each block becomes a print box.
  */
 function book(source: string) {
-    return markdownToTypst(renderSecretBlocks(source, "book").markdown);
+    return markdownToTypst(source);
 }
 
 /**
@@ -146,18 +142,19 @@ describe("every surface renders every construct", () => {
         });
     }
 
-    it("renders a secret as a section, a spoiler and a GM note", () => {
+    it("renders a secret as a section, a disclosure and a print box", () => {
         const source = CASES.secret;
 
         expect(foundry(source)).toContain('class="secret"');
-        expect(web(source)).toContain("<details><summary>Spoiler</summary>");
-        expect(book(source)).toContain("GM note");
+        expect(web(source)).toContain('<details class="secret"');
+        expect(web(source)).toContain('<summary class="secret">Secret</summary>');
+        expect(book(source)).toContain("Secret");
     });
 
-    it("renders info and warning blocks as labelled boxes", () => {
-        expect(web(CASES.info)).toContain("<aside");
-        expect(foundry(CASES.warn)).toContain("<aside");
-        expect(book(CASES.warn)).toContain("Warning");
+    it("renders info and warning blocks headed by their kind", () => {
+        expect(web(CASES.info)).toContain('<details class="info"');
+        expect(foundry(CASES.warn)).toContain('<section class="warn"');
+        expect(book(CASES.warn)).toContain("Warn");
     });
 
     it("carries a warning block's id through as an anchor", () => {
@@ -240,10 +237,7 @@ describe("the documented failure modes still report", () => {
     });
 
     it("a nested admonition", () => {
-        reports(
-            body(":::info", "Outer.", ":::warn", "Inner.", ":::", ":::"),
-            "nested info and warning blocks",
-        );
+        reports(body(":::info", "Outer.", ":::warn", "Inner.", ":::", ":::"), "nested warn blocks");
     });
 
     it("a caption with no id", () => {

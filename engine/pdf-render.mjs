@@ -80,7 +80,19 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
 });
 import { slugify } from "./content-slug.mjs";
 import { scanCaptions } from "./content-captions.mjs";
-import { scanAdmonitions } from "./content-admonitions.mjs";
+import { scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
+
+/**
+ * How each named block prints. Typst has no stylesheet to defer to, so the
+ * colours live here rather than in the emitted markup; the HTML surfaces carry
+ * a class and let CSS decide.
+ */
+const BLOCK_PRINT = Object.freeze({
+    info: Object.freeze({ color: "#2f6f9f", background: "#eef6fb", symbol: "i" }),
+    secret: Object.freeze({ color: "#5c4b8a", background: "#f2eefb", symbol: "!" }),
+    warn: Object.freeze({ color: "#9a6700", background: "#fff5db", symbol: "!" }),
+});
+
 import { separateFootnotes } from "./content-footnotes.mjs";
 
 /**
@@ -206,7 +218,7 @@ export function markdownToTypst(markdown, opts = {}) {
     const footnoteState = opts.footnoteState ?? { seen: new Set() };
     const sharedOptions = { ...opts, footnoteDefinitions: definitions, footnoteState };
     if (!opts.insideAdmonition) {
-        const { blocks } = scanAdmonitions(source);
+        const { blocks } = scanBlocks(source);
         if (blocks.length) {
             const lines = source.split("\n");
             const output = [];
@@ -218,10 +230,8 @@ export function markdownToTypst(markdown, opts = {}) {
                         insideAdmonition: true,
                     }),
                 );
-                const color = block.kind === "warn" ? "#9a6700" : "#2f6f9f";
-                const background = block.kind === "warn" ? "#fff5db" : "#eef6fb";
-                const label = block.kind === "warn" ? "Warning" : "Info";
-                const symbol = block.kind === "warn" ? "!" : "i";
+                const { color, background, symbol } = BLOCK_PRINT[block.name];
+                const label = block.title;
                 const content = markdownToTypst(block.body, {
                     ...sharedOptions,
                     insideAdmonition: true,

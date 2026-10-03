@@ -62,8 +62,7 @@ import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { renderSecretBlocks } from "./content-secrets.mjs";
-import { renderAdmonitions, scanAdmonitions } from "./content-admonitions.mjs";
+import { renderBlocks, scanBlocks } from "./content-blocks.mjs";
 import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
@@ -767,9 +766,8 @@ export function renderSitePage(
     });
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
-    const secrets = renderSecretBlocks(protectCode(expressions.markdown, resolve), "web");
-    const admonitions = renderAdmonitions(secrets.markdown);
-    const captioned = renderCaptionBlocks(admonitions.markdown);
+    const blocks = renderBlocks(protectCode(expressions.markdown, resolve), "web");
+    const captioned = renderCaptionBlocks(blocks.markdown);
     for (const error of captionScan.errors)
         captionErrors.push({
             file: page.file,
@@ -777,14 +775,7 @@ export function renderSitePage(
             column: error.column,
             message: error.message,
         });
-    for (const error of renderSecretBlocks(page.body, "book").errors)
-        secretErrors.push({
-            file: page.file,
-            line: (page.bodyLine ?? 1) + error.line - 1,
-            column: error.column,
-            message: error.message,
-        });
-    for (const error of scanAdmonitions(page.body).errors)
+    for (const error of scanBlocks(page.body).errors)
         secretErrors.push({
             file: page.file,
             line: (page.bodyLine ?? 1) + error.line - 1,

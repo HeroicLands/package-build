@@ -57,18 +57,10 @@ The table displays **Table 1: Regional trade routes**, and the reference display
 
 An image or icon embed stands on its own line. `size` accepts `auto`, `small`, `medium`, `large`, `xlarge` and `full-width`; the medium maps those names to suitable dimensions, and `full-width` is the full page in the book and the full content width elsewhere. `float` controls placement and takes `top-left`, `top-right`, `bottom-left`, `bottom-right` or `center`; on a page a float occupies the column measure, so only the vertical half of a corner position has an effect there. The asset remains an Address, so moving the file within its asset root does not change the link. See [assets](assets.md) and [image directives](../reference/format-details.md#images).
 
-A `:::secret` block marks GM material while keeping it in the same authored note:
+### Named blocks
 
-```markdown
-:::secret
-The harbor master is working for the smugglers.
-:::
-```
-
-Players who deliberately inspect source or generated output may see it; the block is a presentation distinction, not access control. The [detailed reference](../reference/format-details.md#what-a-note-produces) describes each medium's handling.
-
-Use `:::info` for a neutral note and `:::warn` for a caution. Both render as
-labelled, colored boxes on the web and in Foundry, and as print boxes in a book:
+Three named blocks set a passage apart from the prose around it. `:::secret`
+marks GM material, `:::info` a neutral note, and `:::warn` a caution:
 
 ```markdown
 :::warn
@@ -76,8 +68,57 @@ The bridge closes during the spring flood.
 :::
 ```
 
-An optional `{#id}` gives the box an HTML anchor. These blocks need a closing
-`:::` and cannot be nested.
+Each heads itself with its own name — **Secret**, **Info**, **Warn** — and takes
+a closing `:::`. A name that is not one of the three is reported.
+
+**A GM-only section holds a box.** A `:::secret` is a container for whatever the
+GM reads, boxes included, and a box written inside one stays inside it. A box
+holds no named block of its own, so a second box inside a box is reported. A
+`:::caption` belongs to the caption construct and may be written inside any of
+them.
+
+**An attribute block follows the name.** It is the same braced grammar the other
+body extensions use, so it carries an id, classes, and any attribute the element
+should have. `title` is reserved and supplies the heading in place of the default:
+
+```markdown
+:::secret {#harbor title="For the GM" .wide data-stage="two"}
+The harbor master is working for the smugglers.
+:::
+```
+
+That block carries the classes `secret wide`, the id `harbor`, and
+`data-stage="two"`, and it heads **For the GM**. A title carries emphasis of its
+own — `title="The *Genzet* only"` — and nothing else: a tag written there is
+shown rather than obeyed. Set the id with `#id` and classes with `.class` rather
+than through an `id=` or `class=` key, and note that an event handler such as
+`onclick=` is refused rather than written.
+
+**The name is the first class on the element, and the appearance belongs to a
+stylesheet.** No block is emitted with an inline `style`, so a package restyles
+one from its own sheet. `info` and `warn` are styled by the base stylesheet;
+`secret` is left to Foundry, which styles `section.secret` itself and owns the
+reveal control on it.
+
+Each surface renders the same block its own way:
+
+| Surface | Output                                                                             |
+| ------- | ---------------------------------------------------------------------------------- |
+| Foundry | `<section class="secret" id="harbor">` with the title as its first line            |
+| Web     | `<details class="secret" id="harbor">` the reader opens, titled in its `<summary>` |
+| Book    | a coloured print box headed by the title                                           |
+
+A `secret` with no id of its own is given one derived from its body on the
+Foundry surface, because Foundry remembers a revealed section by its id.
+
+**A secret is a presentation distinction, not access control.** Players who
+deliberately inspect source or generated output may see it. The
+[detailed reference](../reference/format-details.md#what-a-note-produces)
+describes each medium's handling.
+
+**One malformed block does not silence the others.** A block whose attributes do
+not parse is reported at its own line and left as written; every well-formed
+block in the same note still renders.
 
 ## Footnotes and definition lists
 

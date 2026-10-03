@@ -435,7 +435,8 @@ describe("buildSite end to end", () => {
                 "utf8",
             );
             expect(result.secretErrors).toEqual([]);
-            expect(page).toContain("<details><summary>Spoiler</summary>");
+            expect(page).toContain('<details class="secret">');
+            expect(page).toContain('<summary class="secret">Secret</summary>');
             expect(page).toContain("A <strong>hidden</strong> clue.");
 
             fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("\n:::\n", "\n"));
