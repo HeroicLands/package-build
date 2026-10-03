@@ -8,8 +8,9 @@ import { describe, expect, it } from "vitest";
 
 import { collectAnchors } from "../engine/anchors.mjs";
 import { extractAnchorSection } from "../engine/anchored-sections.mjs";
+import { scanBlocks } from "../engine/content-blocks.mjs";
 import { scanCaptions } from "../engine/content-captions.mjs";
-import { splitHeadingAttributes } from "../engine/heading-attributes.mjs";
+import { parseHeadingLine, splitHeadingAttributes } from "../engine/heading-attributes.mjs";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { splitPages } from "../engine/journals.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
@@ -88,6 +89,69 @@ describe("one reading of a heading's attribute block", () => {
         expect(splitHeadingAttributes("Create the actor {#8qHUveVr9fydLyt2}").id).toBe(
             "8qHUveVr9fydLyt2",
         );
+    });
+});
+
+describe("one reading of what starts a page", () => {
+    it("reads the line's level, text and attributes through the same parse", () => {
+        expect(parseHeadingLine("## The Harbor {#harbor .wide}")).toEqual({
+            level: 2,
+            text: "The Harbor",
+            id: "harbor",
+            classes: ["wide"],
+            values: {},
+            problems: [],
+            startsPage: true,
+        });
+        expect(parseHeadingLine("Not a heading")).toBeNull();
+    });
+
+    it("starts a page on an H1 or an anchor, and not on a bare lower heading", () => {
+        expect(parseHeadingLine("# Plain").startsPage).toBe(true);
+        expect(parseHeadingLine("## Anchored {#x}").startsPage).toBe(true);
+        expect(parseHeadingLine("## Classed {.wide}").startsPage).toBe(false);
+        expect(parseHeadingLine("## Plain").startsPage).toBe(false);
+    });
+
+    /**
+     * The block and caption refusals ask the same parse, so an opener carrying
+     * its own attribute block does not hide a page-opening heading written
+     * inside it, and an anchored heading carrying a class is still one.
+     */
+    it.each([
+        ":::secret",
+        ":::secret {#cellar}",
+        ":::info",
+        ":::info {#note .wide}",
+        ":::warn",
+        ':::warn {title="Careful"}',
+    ])("refuses a page-opening heading inside %s", (opener) => {
+        for (const heading of [
+            "# An H1",
+            "## Anchored {#x}",
+            "## Anchored and classed {#x .wide}",
+        ]) {
+            const errors = scanBlocks([opener, heading, "Body text.", ":::"].join("\n")).errors;
+            expect(errors.map((e) => e.message).join(" ")).toContain("cannot be written inside");
+        }
+        // A bare lower heading is still the ordinary way to structure a box.
+        const fine = scanBlocks([opener, "## Plain sub", "Body text.", ":::"].join("\n")).errors;
+        expect(fine.map((e) => e.message).join(" ")).not.toContain("cannot be written inside");
+    });
+
+    it("refuses a page-opening heading inside a caption, by the same parse", () => {
+        for (const heading of [
+            "# An H1",
+            "## Anchored {#x}",
+            "## Anchored and classed {#x .wide}",
+        ]) {
+            const errors = scanCaptions(
+                [":::caption {#cap}", heading, ":::", "", "A paragraph."].join("\n"),
+            ).errors;
+            expect(errors.map((e) => e.message).join(" ")).toContain(
+                "cannot be written inside a caption",
+            );
+        }
     });
 });
 

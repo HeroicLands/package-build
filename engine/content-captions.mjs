@@ -8,7 +8,8 @@ import deflistPlugin from "markdown-it-deflist";
 
 import { slugify } from "./content-slug.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
-import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
+import { HEADING_LINE, parseHeadingLine, splitHeadingAttributes } from "./heading-attributes.mjs";
+import { imagesIn } from "./content-images.mjs";
 
 const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
 const OPEN = /^:::caption\s+(\{[^}\n]*\})\s*$/;
@@ -98,6 +99,20 @@ export function scanCaptions(source) {
             .join("\n")
             .trim();
         if (!caption) errors.push({ line: start + 1, column: 1, message: "caption text is empty" });
+        // An H1, or an anchored heading at any level, starts a Foundry
+        // journal page — see `engine/content-blocks.mjs`'s identical refusal
+        // for a named block.
+        for (let at = i + 1; at < close; at++) {
+            if (!parseHeadingLine(lines[at])?.startsPage) continue;
+            errors.push({
+                line: at + 1,
+                column: 1,
+                message:
+                    "a heading that starts a page cannot be written inside a caption — " +
+                    "keep an H1 or an anchored heading at the top level, or drop the " +
+                    "anchor and the level to stay inside it",
+            });
+        }
         if (ids.has(slugify(id)))
             errors.push({ line: start + 1, column: 1, message: `duplicate caption id "${id}"` });
         ids.add(slugify(id));
@@ -118,11 +133,22 @@ export function scanCaptions(source) {
         }
         const blockEnd = next + first.map[1];
         const block = lines.slice(next, blockEnd).join("\n");
+        const trimmedBlock = block.trim();
+        // A markdown image is only a figure when it stands alone — nothing
+        // else in the block, which is also what decides whether the image
+        // plugin wraps it in a `<figure>` at all. A trailing footnote
+        // reference, or any other trailing text, disqualifies it exactly as
+        // it disqualifies `standsAlone`; such a block is prose with an inline
+        // image in it, left as Markdown so a reference inside resolves
+        // rather than classified as a figure whose own render strips nothing.
+        const aloneImage =
+            /^(?:!\[|!\[\[)/.test(trimmedBlock) &&
+            imagesIn(trimmedBlock).some((image) => image.block);
         const kind =
             first.type === "table_open" ? "table"
             : first.type === "fence" && /^\s*sql\b/i.test(first.info ?? "") ? "table"
             : first.type === "fence" || first.type === "code_block" ? "code"
-            : /^(?:!\[|!\[\[|<figure\b|<img\b)/.test(block.trim()) ? "figure"
+            : aloneImage || /^(?:<figure\b|<img\b)/.test(trimmedBlock) ? "figure"
             : "prose";
         const number = ++counts[kind];
         captions.push({
@@ -149,7 +175,20 @@ export function scanCaptions(source) {
     return { captions, errors };
 }
 
-/** Render captioned blocks as HTML, leaving other Markdown untouched. */
+/**
+ * Render captioned blocks as HTML, leaving other Markdown untouched.
+ *
+ * A code, table or prose caption's block is left as Markdown inside the
+ * wrapper, blank-line separated from its tags exactly as
+ * {@link module:engine/content-blocks.renderBlocks} leaves a named block's
+ * body — so the surrounding render sees it as part of its own document and a
+ * footnote reference inside it resolves against the note's own definitions.
+ *
+ * A figure's block is still rendered here, because its `<figcaption>` has to
+ * be stripped from HTML this pass controls directly; the surrounding render
+ * never sees it as Markdown, so a footnote reference inside a figure caption
+ * is not resolved, the same gap a block's own title carries.
+ */
 export function renderCaptionBlocks(source, renderMarkdown = parser.render.bind(parser), numbers) {
     const { captions, errors } = scanCaptions(source);
     if (errors.length) return { markdown: source, errors };
@@ -166,13 +205,21 @@ export function renderCaptionBlocks(source, renderMarkdown = parser.render.bind(
     for (const caption of captions) {
         output.push(...lines.slice(cursor, caption.line - 1));
         const numbered = byId.get(caption.id) ?? caption;
-        let html = renderMarkdown(lines.slice(caption.blockStart, caption.blockEnd).join("\n"));
-        if (caption.kind === "figure")
-            html = html.replace(/<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/i, "");
+        const block = lines.slice(caption.blockStart, caption.blockEnd).join("\n");
         const captionHtml = parser.renderInline(caption.text);
         output.push(
             `<div id="${escape(slugify(caption.id))}" class="content-caption content-caption-${caption.kind}">`,
-            html.trim(),
+        );
+        if (caption.kind === "figure") {
+            const html = renderMarkdown(block).replace(
+                /<figcaption\b[^>]*>[\s\S]*?<\/figcaption>/i,
+                "",
+            );
+            output.push(html.trim());
+        } else {
+            output.push("", block, "");
+        }
+        output.push(
             `<p class="content-caption-label">${escape(numbered.label)}: ${captionHtml}</p>`,
             "</div>",
         );

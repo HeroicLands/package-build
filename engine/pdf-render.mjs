@@ -105,7 +105,12 @@ const BLOCK_PRINT = Object.freeze({
     warn: Object.freeze({ color: "#9a6700", background: "#fff5db", symbol: "!" }),
 });
 
-import { separateFootnotes } from "./content-footnotes.mjs";
+import {
+    misplacedFootnoteDefinitions,
+    separateFootnotes,
+    unresolvedFootnoteReferences,
+    unusedFootnoteDefinitions,
+} from "./content-footnotes.mjs";
 
 /**
  * Characters that mean something to Typst's markup parser.
@@ -292,9 +297,12 @@ function offsetPosition(source, offset, opts = {}) {
  * @param {string} source - The body, comments already stripped.
  * @param {string} definitions - The footnote definitions separated from it.
  * @param {object} opts - As {@link markdownToTypst} takes.
+ * @param {string} original - `source` before its definitions were blanked —
+ *   {@link unusedFootnoteDefinitions} locates a definition by searching for
+ *   its own text, which `source` no longer carries.
  * @returns {void}
  */
-function reportUnrenderable(source, definitions, opts) {
+function reportUnrenderable(source, definitions, opts, original) {
     const findings = opts.findings;
     if (!findings) return;
     const file = opts.file ? { file: opts.file } : {};
@@ -374,18 +382,16 @@ function reportUnrenderable(source, definitions, opts) {
                     "before the book is set, and nothing evaluated this one",
             );
     }
-    const defined = new Set(
-        [...String(definitions).matchAll(/^\[\^([^\]\s]+)\]:/gm)].map((match) => match[1]),
-    );
-    for (const match of matchAllOutsideCode(source, /\[\^([^\]\s]+)\]/g)) {
-        if (defined.has(match[1])) continue;
-        report(
-            offsetPosition(source, match.index, opts),
-            "error",
-            `footnote [^${match[1]}] has no definition, so the book sets the marker as ` +
-                `text — write \`[^${match[1]}]: …\` at the top level of the note`,
-        );
-    }
+    // Derived from the one place that already finds definitions, rather than
+    // a second scanner that could drift from {@link separateFootnotes} — the
+    // web and Foundry report the identical three findings from the identical
+    // functions.
+    for (const error of misplacedFootnoteDefinitions(source))
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of unresolvedFootnoteReferences(source, definitions))
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of unusedFootnoteDefinitions(original))
+        report(linePosition(error.line, error.column, opts), "error", error.message);
 }
 
 /**
@@ -450,7 +456,7 @@ export function markdownToTypst(markdown, opts = {}) {
     };
     // Read once, over the body as it arrived: every position a finding carries
     // is an offset into *this* string, and the renderer below walks slices of it.
-    if (!opts.nested) reportUnrenderable(source, definitions, opts);
+    if (!opts.nested) reportUnrenderable(source, definitions, opts, given);
     // One map for the whole body, not one per block: a heading inside a
     // blockquote or a list item shares the entry's anchor namespace with every
     // other heading in the same body, because `sectionLabel` scopes by entry
@@ -1224,10 +1230,16 @@ function renderLink(href, inner, ctx) {
  */
 function renderImage(token, ctx) {
     const alt = token.content || token.attrGet?.("alt") || "";
-    const captionText = ctx.caption ? captionMarkup(ctx.caption, ctx) : escapeTypst(alt);
+    // Only a genuine figure caption labels the image inline — a caption
+    // reclassified as prose, because something besides the image shares its
+    // block, gets its label from the generic block-level caption print in
+    // {@link markdownToTypst} instead, the same as a code or prose caption
+    // always has. Reading it here regardless of kind printed the label twice.
+    const figureCaption = ctx.caption?.kind === "figure" ? ctx.caption : null;
+    const captionText = figureCaption ? captionMarkup(figureCaption, ctx) : escapeTypst(alt);
     const caption = captionText ? `[${captionText}]` : "none";
     const anchor =
-        ctx.caption ? ` <${sectionLabel(ctx.anchorPrefix, slugify(ctx.caption.id))}>` : "";
+        figureCaption ? ` <${sectionLabel(ctx.anchorPrefix, slugify(figureCaption.id))}>` : "";
     const staged = ctx.images.get(token.attrGet?.("src") ?? "");
     if (!staged)
         return captionText ?

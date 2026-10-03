@@ -201,6 +201,37 @@ export function headingAttributesPlugin(md) {
 }
 
 /**
+ * Parse one line as a heading, and say whether it starts a journal page.
+ *
+ * The single reading of that rule. {@link module:engine/journals.splitPages}
+ * builds its pages from it; `scanBlocks` and `scanCaptions` refuse a heading
+ * that starts a page written where it cannot become one. All three ask this, so
+ * none of them can disagree about what a heading line means or about what starts
+ * a page — and the attribute block comes off here, so a class beside an anchor
+ * is not read as part of the anchor by any of them.
+ *
+ * @param {string} line - One line of a note's body.
+ * @returns {{level: number, text: string, id: string, classes: string[],
+ *   values: Record<string, string>, problems: string[], startsPage: boolean}|null}
+ *   `null` when the line is not a heading.
+ */
+export function parseHeadingLine(line) {
+    const heading = HEADING_LINE.exec(line);
+    if (!heading) return null;
+    const level = heading[1].length;
+    const parsed = splitHeadingAttributes(heading[2]);
+    return {
+        level,
+        text: parsed.text,
+        id: parsed.id,
+        classes: parsed.classes,
+        values: parsed.values,
+        problems: parsed.problems,
+        startsPage: opensPage({ level, id: parsed.id }),
+    };
+}
+
+/**
  * Every heading that opens a journal page, by the line it sits on.
  *
  * The walk that decides it: fenced code holds no headings, a named block holds
@@ -227,19 +258,9 @@ export function pageOpenings(source) {
         if (!inCodeBlock && /^:::secret[ \t]*$/.test(line)) inBlock = true;
         else if (!inCodeBlock && /^:::[ \t]*$/.test(line)) inBlock = false;
         if (inCodeBlock || inBlock) continue;
-        const heading = HEADING_LINE.exec(line);
-        if (!heading) continue;
-        const parsed = splitHeadingAttributes(heading[2]);
-        const level = heading[1].length;
-        if (!opensPage({ level, id: parsed.id })) continue;
-        openings.set(index, {
-            level,
-            line: index + 1,
-            text: parsed.text,
-            id: parsed.id,
-            classes: parsed.classes,
-            values: parsed.values,
-        });
+        const heading = parseHeadingLine(line);
+        if (!heading?.startsPage) continue;
+        openings.set(index, { ...heading, line: index + 1 });
     }
     return openings;
 }

@@ -138,8 +138,13 @@ export function splitPages(body, leadName = "Introduction") {
 
         // An H1 starts a page, as does any heading carrying an `{#slug}`
         // anchor: a Foundry UUID can only address a page, so a linkable
-        // section has to be one. Which lines those are is read once, by the
-        // walk every pass that honours a class on one shares.
+        // section has to be one.
+        // {@link module:engine/heading-attributes.parseHeadingLine} is the one
+        // reading of that rule — `scanBlocks` and `scanCaptions` refuse such a
+        // heading written where it cannot become a page, from the same
+        // function, so none of them can disagree about what starts one. The
+        // lines it claims here are collected by `pageOpenings`, which also
+        // skips a fence and a named block.
         const opening = openings.get(lineIndex);
         const caption = !inCodeBlock && !inSecret ? captionStarts.get(lineIndex) : null;
         if (caption) {
