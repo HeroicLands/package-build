@@ -110,18 +110,22 @@ describe("defining social ties", () => {
     it("renders one row for a target written in short and canonical forms", () => {
         // The box canonicalises each key before grouping, so one target named
         // twice is one row. A note states no package of its own, so the short
-        // form takes the ambient one and a canonical key has to agree with it
-        // to be the same target.
-        const rows = noteInfobox({
-            type: "being",
-            name: { full: "Subject" },
-            data: {
-                socialTies: {
-                    "being-ally": "friend",
-                    "local-note-being-ally": "nemesis",
+        // form takes the build's own content package, and a canonical key
+        // naming that same package has to agree with it to be the same
+        // target.
+        const rows = noteInfobox(
+            {
+                type: "being",
+                name: { full: "Subject" },
+                data: {
+                    socialTies: {
+                        "being-ally": "friend",
+                        "thalorna-note-being-ally": "nemesis",
+                    },
                 },
             },
-        }).sections[0].rows;
+            { contentPackage: "thalorna" },
+        ).sections[0].rows;
         expect(rows.filter((row: { label: string }) => row.label === "Friend")).toHaveLength(1);
         expect(rows.some((row: { label: string }) => row.label === "Nemesis")).toBe(false);
     });
@@ -140,17 +144,25 @@ describe("defining social ties", () => {
             },
         };
         const resolve = (ref: unknown) => ({ name: String(ref), url: `/notes/${ref}` });
-        const rows = noteInfobox(fm, { resolve }).sections[0].rows;
+        const contentPackage = "thalorna";
+        const rows = noteInfobox(fm, { resolve, contentPackage }).sections[0].rows;
         expect(rows.find((row: { label: string }) => row.label === "Patron").value).toHaveLength(2);
         expect(rows.find((row: { label: string }) => row.label === "Friend").kind).toBe("links");
         expect(rows.find((row: { label: string }) => row.label === "Nemesis").kind).toBe("links");
-        expect(noteInfobox({ ...fm, data: { socialTies: {} } }).sections[0].rows).toHaveLength(1);
-        expect(noteInfobox({ ...fm, data: { socialTies: [] } }).sections[0].rows).toHaveLength(1);
         expect(
-            noteInfobox({
-                ...fm,
-                data: { socialTies: { "place-village": "friend", "being-ally": "unknown" } },
-            }).sections[0].rows,
+            noteInfobox({ ...fm, data: { socialTies: {} } }, { contentPackage }).sections[0].rows,
+        ).toHaveLength(1);
+        expect(
+            noteInfobox({ ...fm, data: { socialTies: [] } }, { contentPackage }).sections[0].rows,
+        ).toHaveLength(1);
+        expect(
+            noteInfobox(
+                {
+                    ...fm,
+                    data: { socialTies: { "place-village": "friend", "being-ally": "unknown" } },
+                },
+                { contentPackage },
+            ).sections[0].rows,
         ).toHaveLength(1);
     });
 });

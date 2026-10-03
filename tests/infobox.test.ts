@@ -247,7 +247,7 @@ describe("the note box's fields are the type's own vocabulary", () => {
     it("carries every field the vocabulary declares, unless the overlay withholds it", () => {
         const missing: Record<string, string[]> = {};
         for (const type of Object.keys(NOTE_VOCABULARY)) {
-            const box = noteInfobox(fullyStated(type));
+            const box = noteInfobox(fullyStated(type), { contentPackage: "test" });
             const labels = new Set(box.sections[0].rows.map((row: { label: string }) => row.label));
             for (const field of NOTE_VOCABULARY[type].data) {
                 const overlay = overlayFor(NOTE_FIELD_PRESENTATION, type, field.name);

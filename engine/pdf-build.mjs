@@ -691,6 +691,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
             router: routerFor(resolved),
             dates: gates.index.dateContext,
+            contentPackage: gates.index.contentPackage,
         });
         const panel = infoboxesToTypst(boxes, {
             link: (value) => linkToTypst(value, plan.links, labelFor, site),

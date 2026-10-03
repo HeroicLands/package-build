@@ -695,8 +695,15 @@ function rankRows(raw, resolve) {
     return rows;
 }
 
-/** Expand structured references using the existing linked-row shape. */
-function structuredRows(field, raw, resolve, label, fm) {
+/**
+ * Expand structured references using the existing linked-row shape.
+ *
+ * @param {string} [contentPackage] - This build's content package, the
+ *   default a short-form Address resolves against — the same value the site
+ *   build and the pack compiler read `contentPackage()` for. A row naming a
+ *   short Address with none handed to it skips rather than guesses.
+ */
+function structuredRows(field, raw, resolve, label, contentPackage) {
     if (field.standings) return standingRows(field, raw, resolve, label);
     if (field.roster) {
         const roster = rosterRows(raw);
@@ -739,7 +746,7 @@ function structuredRows(field, raw, resolve, label, fm) {
                 const address = parseAddress(
                     target,
                     {
-                        package: "local",
+                        package: contentPackage,
                         system: "note",
                         types: new Set(field.accepts),
                     },
@@ -832,6 +839,8 @@ export function linkValue(ref, resolve, hint) {
  * @param {object} [options] - Options.
  * @param {(ref: unknown) => object|undefined} [options.resolve] - Resolves a
  *   reference to `{name, url?, uuid?, address?}`.
+ * @param {string} [options.contentPackage] - This build's content package,
+ *   the default a relation row's short-form Address resolves against.
  * @param {object} [options.vocabulary] - The note vocabulary to read.
  * @param {object} [options.presentation] - The overlay to read.
  * @returns {object} The box.
@@ -857,7 +866,13 @@ export function noteInfobox(fm, options = {}) {
  */
 function noteBox(
     fm,
-    { resolve, dates, vocabulary = NOTE_VOCABULARY, presentation = NOTE_FIELD_PRESENTATION } = {},
+    {
+        resolve,
+        dates,
+        contentPackage,
+        vocabulary = NOTE_VOCABULARY,
+        presentation = NOTE_FIELD_PRESENTATION,
+    } = {},
 ) {
     const rows = [];
     /** @type {Set<string>} */
@@ -916,7 +931,7 @@ function noteBox(
             raw,
             resolve,
             overlay.label ?? humanizeFieldName(field.name),
-            fm,
+            contentPackage,
         );
         if (structured) {
             rows.push(...structured);
@@ -1136,6 +1151,8 @@ export function systemRowsSection(
  *   Resolves one declared field against the note.
  * @param {(ref: unknown) => object|undefined} [options.resolve] - Resolves a
  *   reference to `{name, url?, uuid?, address?}`.
+ * @param {string} [options.contentPackage] - This build's content package,
+ *   the default a note box's short-form Address resolves against.
  * @param {object} [options.vocabulary] - The note vocabulary to read.
  * @returns {object[]} The boxes.
  */
@@ -1146,11 +1163,12 @@ export function buildInfoboxes(fm, options) {
         compilesDocument,
         resolveField,
         resolve,
+        contentPackage,
         vocabulary = NOTE_VOCABULARY,
         dates,
     } = options;
 
-    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary, dates });
+    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary, dates, contentPackage });
     const boxes = [note];
 
     for (const map of maps ?? []) {

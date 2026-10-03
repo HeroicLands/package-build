@@ -112,11 +112,13 @@ export function compilesSystemDocument(fm, map, router) {
  * @param {object} [options.router] - The pack router deciding which system
  *   compiles a document for this note. Defaults to the consuming repository's.
  * @param {object} [options.dates] - Calendar conversion context.
+ * @param {string} [options.contentPackage] - This build's content package,
+ *   the default a note box's short-form Address resolves against.
  * @returns {object[]} The boxes, in the order every medium renders them.
  * @throws {Error} When the built set disagrees with what the note's type maps
  *   to — see {@link module:engine/infobox.assertInfoboxSet}.
  */
-export function noteInfoboxes(fm, { resolve, router = packRouter(), dates } = {}) {
+export function noteInfoboxes(fm, { resolve, router = packRouter(), dates, contentPackage } = {}) {
     const boxes = buildInfoboxes(fm, {
         maps: KNOWN_DOCUMENT_SUBTYPE_MAPS,
         providers: KNOWN_INFOBOXES,
@@ -124,6 +126,7 @@ export function noteInfoboxes(fm, { resolve, router = packRouter(), dates } = {}
         resolveField: resolveFieldValue,
         resolve,
         dates,
+        contentPackage,
     });
     return /** @type {object[]} */ (
         assertInfoboxSet(boxes, fm, { maps: KNOWN_DOCUMENT_SUBTYPE_MAPS })
