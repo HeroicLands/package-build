@@ -620,6 +620,9 @@ export function publishesContentPages(config) {
  * @property {string[]} [skipDirectories]   Directory names the content walk ignores
  *                                          wherever they appear (e.g. Obsidian's
  *                                          `Templates`). Default `[]`.
+ * @property {boolean} [forbidGeneratedArt]  Whether `lint` refuses an asset
+ *                                          record of this package carrying
+ *                                          `ai: true`. Default `false`.
  * @property {PackageBuildSection} [packageBuild]  Reserved for
  *                                          `@heroiclands/package-build`, which
  *                                          validates it. Not read here.
@@ -700,6 +703,8 @@ export function publishesContentPages(config) {
  *                                     types. The one set the compilers and the
  *                                     link-manifest emitter both read.
  * @property {readonly string[]} skipDirectories
+ * @property {boolean} forbidGeneratedArt  Whether `lint` refuses an asset
+ *                                     record of this package carrying `ai: true`.
  * @property {import("./engine/content-icons.mjs").IconRegistry} icons  The
  *                                     fonts this package ships and the names it
  *                                     draws from them; empty when it declares
@@ -728,6 +733,7 @@ const CONFIG_KEYS = [
     "itemBuilders",
     "paths",
     "skipDirectories",
+    "forbidGeneratedArt",
     "icons",
     "packs",
     "docs",
@@ -2694,6 +2700,12 @@ export function defineConfig(config) {
         requireNonEmptyString(name, `skipDirectories[${index}]`),
     );
 
+    const forbidGeneratedArt = optionalBoolean(
+        input.forbidGeneratedArt,
+        "forbidGeneratedArt",
+        false,
+    );
+
     // Refused above for a documentation package, so there is nothing to read
     // and nothing to derive an asset root or a package-wide system from.
     const foundryPackage =
@@ -2800,6 +2812,7 @@ export function defineConfig(config) {
         itemTypes,
         docEntryTypes,
         skipDirectories: Object.freeze(skipDirectories),
+        forbidGeneratedArt,
         icons: normalizeIcons(input.icons, rootDir),
         packs: Object.freeze(packs),
         packDirectories: Object.freeze(packDirectories),

@@ -55,7 +55,7 @@ around its own evaluation.
 
 ### Quick reference
 
-22 top-level keys. `rootDir` is not one of them — a data configuration never
+23 top-level keys. `rootDir` is not one of them — a data configuration never
 writes it — and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
@@ -72,6 +72,7 @@ authoring.
 | [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                      |
 | [`paths`](#paths)                           | object                                                                     | no                                                                                                 | see [`paths`](#paths)     |
 | [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                                                                                 | `[]`                      |
+| [`forbidGeneratedArt`](#forbidgeneratedart) | boolean                                                                    | no                                                                                                 | `false`                   |
 | [`icons`](#icons)                           | object, or a path to a file holding one                                    | no                                                                                                 | empty registry            |
 | [`packs`](#packs)                           | array                                                                      | yes, at least one entry, in a `systems` or `modules` package; refused in a `documentation` package | —                         |
 | [`docs`](#docs)                             | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                      |
@@ -87,7 +88,7 @@ authoring.
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -546,6 +547,26 @@ skipDirectories: [Templates]
 > ``package-build config: `skipDirectories` must be an array.``
 
 > ``package-build config: `skipDirectories[<index>]` must be a non-empty string.``
+
+### `forbidGeneratedArt`
+
+**Type:** boolean · **Optional** · default `false`.
+
+With it `true`, `package-build lint` refuses every asset record of this
+package whose `ai` field states `true` — a licensing stance, not a build
+detail: this package carries no machine-generated art. With it absent or
+`false`, `lint` reports nothing extra about an `ai: true` record.
+
+```yaml
+forbidGeneratedArt: true
+```
+
+`lint` reports a located error naming the record and its file for each one it
+finds:
+
+> ``<file>: error: `<address>` is machine-generated art (`ai: true`), and `forbidGeneratedArt` refuses it in this package``
+
+> ``package-build config: `forbidGeneratedArt` must be a boolean.``
 
 ### `icons`
 

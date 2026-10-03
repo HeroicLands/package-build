@@ -1685,14 +1685,14 @@ carries no frontmatter, no anchors and no `foundry` block: a file declares
 nothing about itself, compiles into no document, and publishes no page, so the
 `address` holds the canonical key and no page slug.
 
-| `asset` field | Source     | What it says                                                       |
-| ------------- | ---------- | ------------------------------------------------------------------ |
-| `path`        | the walk   | Where the file sits inside the emitting package's asset directory. |
-| `attribution` | provenance | The person holding the rights, to whom attribution is legally due. |
-| `source`      | provenance | Where it came from — a URL, or a sentence.                         |
-| `ai`          | provenance | Whether the file is machine-generated — `true` or `false`.         |
-| `license`     | provenance | The licence it is used under — an SPDX identifier, or terms.       |
-| `notes`       | provenance | Anything else a person reading the attribution needs.              |
+| `asset` field | Source     | What it says                                                                                                                                                                 |
+| ------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `path`        | the walk   | Where the file sits inside the emitting package's asset directory.                                                                                                           |
+| `attribution` | provenance | The person holding the rights, to whom attribution is legally due.                                                                                                           |
+| `source`      | provenance | Where it came from — a URL, or a sentence.                                                                                                                                   |
+| `ai`          | provenance | Whether the file is machine-generated — strictly the YAML boolean `true` or `false`; any other value is a finding, never a stringified record. Unstated resolves to `false`. |
+| `license`     | provenance | The licence it is used under — an SPDX identifier, or terms.                                                                                                                 |
+| `notes`       | provenance | Anything else a person reading the attribution needs.                                                                                                                        |
 
 Every field is present on every record, blank where nothing states one. A fixed
 shape is what lets a consumer read `asset.license` without first asking whether

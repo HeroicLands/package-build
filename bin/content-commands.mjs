@@ -109,6 +109,7 @@ import {
     authoredFrontmatter,
     emitContentIndex,
     indexRecordsFor,
+    isAssetRecord,
     isNoteRecord,
     noteFile,
 } from "../engine/content-index.mjs";
@@ -139,6 +140,7 @@ import { buildMaps, FROM_ALL, MAP_DIR } from "../engine/map-build.mjs";
 import { CHART_HORIZON_DAYS } from "../engine/map-layout.mjs";
 import { GRAPHVIZ_ENGINES } from "../engine/map-graphviz.mjs";
 import { loadMapWorld } from "../engine/map-places.mjs";
+import { encodeAddresses } from "../engine/address-values.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -1175,6 +1177,25 @@ function lintCommand() {
                 });
                 for (const line of states.summary) log.info(line);
 
+                // Generated art, when this package declares it carries none.
+                // `records` already holds every asset of this build, so the
+                // check is a filter over the corpus already in hand rather
+                // than a second enumeration of the asset trees.
+                const generatedArt =
+                    config.forbidGeneratedArt ?
+                        records
+                            .filter(isAssetRecord)
+                            .filter((record) => record.asset.ai === true)
+                            .map((record) => ({
+                                file: path.join(config.paths.assets, record.asset.path),
+                                severity: "error",
+                                message:
+                                    `\`${encodeAddresses(record.address.canonical)}\` is ` +
+                                    "machine-generated art (`ai: true`), and " +
+                                    "`forbidGeneratedArt` refuses it in this package",
+                            }))
+                    :   [];
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
@@ -1185,6 +1206,7 @@ function lintCommand() {
                     ...images.findings,
                     ...taskLists.findings,
                     ...states.findings,
+                    ...generatedArt,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // by then, so this changes nothing on its own —

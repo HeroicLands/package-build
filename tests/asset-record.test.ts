@@ -274,9 +274,106 @@ describe("provenance resolves per address", () => {
         const base = assetTree({ "images/thorn.webp": "webp" });
         const [record] = collectAssetRecords(base, { contentPackage: "harnensemble" });
         for (const field of ASSET_RECORD_FIELDS) {
-            expect(typeof record.asset[field.name], field.name).toBe("string");
+            // `ai` is the one field whose blank is a boolean rather than an
+            // empty string — every other field states nothing by carrying "".
+            const expected = field.type === "boolean" ? "boolean" : "string";
+            expect(typeof record.asset[field.name], field.name).toBe(expected);
         }
         expect(record.asset.attribution).toBe("");
+        expect(record.asset.ai).toBe(false);
+    });
+
+    it("states `ai` as the boolean the file declares, false and true alike", () => {
+        const base = assetTree({
+            [`icons/noun/${PROVENANCE_FILE}`]: [
+                "attribution: Someone",
+                "license: CC0",
+                "ai: false",
+            ].join("\n"),
+            "icons/noun/anvil.svg": "<svg/>",
+            [`images/drawn/${PROVENANCE_FILE}`]: [
+                "attribution: Someone Else",
+                "license: CC0",
+                "ai: true",
+            ].join("\n"),
+            "images/drawn/thorn.webp": "webp",
+        });
+        const records = collectAssetRecords(base, { contentPackage: "sohl" });
+        const anvil = recordFor(records, "sohl-none-icon-anvil");
+        const thorn = recordFor(records, "sohl-none-image-thorn");
+        expect(anvil?.asset.ai).toBe(false);
+        expect(thorn?.asset.ai).toBe(true);
+    });
+
+    it("accepts a case-variant spelling the YAML parser itself resolves to a boolean", () => {
+        // `TRUE` is not a string here — the YAML 1.2 core schema this parser
+        // reads resolves it to the native boolean `true` before this code ever
+        // sees a value, so there is nothing for the strict check to refuse.
+        const base = assetTree({
+            [`icons/${PROVENANCE_FILE}`]: ["attribution: Someone", "license: CC0", "ai: TRUE"].join(
+                "\n",
+            ),
+            "icons/anvil.svg": "<svg/>",
+        });
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        expect(record.asset.ai).toBe(true);
+    });
+
+    it("defaults `ai` to false when nothing states it", () => {
+        const base = assetTree({ "images/thorn.webp": "webp" });
+        const [record] = collectAssetRecords(base, { contentPackage: "harnensemble" });
+        expect(record.asset.ai).toBe(false);
+    });
+
+    it.each(["yes", "1", "maybe"])(
+        "refuses a non-boolean `ai: %s` with a located finding distinct from the unknown-key one",
+        (malformed) => {
+            const base = assetTree({
+                [`icons/${PROVENANCE_FILE}`]: [
+                    "attribution: Someone",
+                    "license: CC0",
+                    `ai: ${malformed}`,
+                ].join("\n"),
+                "icons/anvil.svg": "<svg/>",
+            });
+            const problems: any[] = [];
+            const records = collectAssetRecords(base, { contentPackage: "sohl", problems });
+
+            // Accepted and stringified is exactly what this must not do: the
+            // record carries no `ai` at all rather than a value that would read
+            // as truthy either way.
+            expect(records).toHaveLength(1);
+            expect(records[0].asset.ai).toBe(false);
+
+            const finding = problems.find((p) => /`ai`/.test(p.message));
+            expect(finding).toBeDefined();
+            expect(finding.severity).toBe("error");
+            expect(finding.line).toBeTypeOf("number");
+            expect(finding.message).not.toMatch(/is not a provenance key/);
+            expect(finding.message).toMatch(/boolean/);
+        },
+    );
+
+    it("keeps the present string parsing for every other provenance key", () => {
+        const base = assetTree({
+            [`icons/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "source: https://example.test/",
+                "ai: false",
+                "license: CC-BY-SA-4.0",
+                "notes: a note",
+            ].join("\n"),
+            "icons/anvil.svg": "<svg/>",
+        });
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        expect(record.asset.attribution).toBe("Tom Rodriguez");
+        expect(record.asset.source).toBe("https://example.test/");
+        expect(record.asset.license).toBe("CC-BY-SA-4.0");
+        expect(record.asset.notes).toBe("a note");
+        expect(typeof record.asset.attribution).toBe("string");
+        expect(typeof record.asset.source).toBe("string");
+        expect(typeof record.asset.license).toBe("string");
+        expect(typeof record.asset.notes).toBe("string");
     });
 
     it("reports an unknown key rather than dropping it", () => {

@@ -92,6 +92,11 @@ export const PROVENANCE_SIDECAR_SUFFIX = ".yaml";
  *   state this key. Omitting one is a finding rather than a blank, because a
  *   record resolves wholesale: the nearest one is the whole answer, so a key it
  *   leaves out is not inherited from above but simply absent.
+ * @property {"boolean"} [type] - The value's own type, for a field whose answer
+ *   is not a string. Omitted for every string field; `ai` is the one exception,
+ *   so a YAML boolean is carried through as itself rather than stringified, and
+ *   anything else is refused rather than coerced into a string that reads as
+ *   truthy either way.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -134,7 +139,10 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "ai",
         from: "provenance",
-        describe: "Whether the file is machine-generated — `true` or `false`.",
+        type: "boolean",
+        describe:
+            "Whether the file is machine-generated — the YAML boolean `true` " +
+            "or `false`, never a string.",
     }),
     Object.freeze({
         name: "license",
@@ -182,11 +190,29 @@ export const REQUIRED_PROVENANCE_KEYS = Object.freeze(
 );
 
 /**
+ * The provenance field declaring each key, by name.
+ *
+ * Read in the parsing loop below to ask whether a key has its own `type`
+ * rather than the ordinary string one — derived from {@link ASSET_RECORD_FIELDS}
+ * for the same reason {@link PROVENANCE_KEYS} is, so the field declaration
+ * stays the one place a key's shape is stated.
+ *
+ * @type {ReadonlyMap<string, AssetRecordField>}
+ */
+const PROVENANCE_FIELD_BY_KEY = new Map(
+    ASSET_RECORD_FIELDS.filter((field) => field.from === "provenance").map((field) => [
+        field.name,
+        field,
+    ]),
+);
+
+/**
  * Read one provenance file, reporting every key that is not a provenance key.
  *
  * @param {string} file - The provenance file.
  * @param {object[]} findings - Collects a diagnostic per unknown key.
- * @returns {Record<string, string>} The recognised keys, as strings.
+ * @returns {Record<string, string|boolean>} The recognised keys — a string for
+ *   every field but `ai`, which carries the YAML boolean itself.
  */
 function readProvenanceFile(file, findings) {
     let text;
@@ -236,6 +262,26 @@ function readProvenanceFile(file, findings) {
                     `${[...PROVENANCE_KEYS].join(", ")}, and anything else is ` +
                     "dropped rather than recorded",
             });
+            continue;
+        }
+        const field = PROVENANCE_FIELD_BY_KEY.get(key);
+        if (field?.type === "boolean") {
+            if (typeof value === "boolean") {
+                out[key] = value;
+            } else {
+                // Distinct from the unknown-key finding above: this key is
+                // recognised, and the problem is the shape of its value — a
+                // quoted `"false"` or a YAML `yes`/`1` would otherwise be
+                // stringified and read as truthy regardless of which it was.
+                findings.push({
+                    file,
+                    ...positionOfYamlPath(text, [key], { key: true }),
+                    severity: "error",
+                    message:
+                        `\`${key}\` must be the YAML boolean \`true\` or \`false\`, ` +
+                        `not ${JSON.stringify(value)}`,
+                });
+            }
             continue;
         }
         out[key] = value == null ? "" : String(value);
@@ -300,14 +346,19 @@ function inheritedProvenance(dir, root, cache, findings) {
  * The `asset` block for one file.
  *
  * @param {string} relPath - The file's path below the package's asset directory.
- * @param {Record<string, string>|null} provenance - The resolved record.
- * @returns {Record<string, string>} The block, every field present.
+ * @param {Record<string, string|boolean>|null} provenance - The resolved record.
+ * @returns {Record<string, string|boolean>} The block, every field present —
+ *   blank (`""`) for a string field nothing states, `false` for `ai`.
  */
 function assetBlock(relPath, provenance) {
     const block = {};
     for (const field of ASSET_RECORD_FIELDS) {
         const value = field.from === "walk" ? relPath : provenance?.[field.name];
-        block[field.name] = typeof value === "string" ? value : "";
+        if (field.type === "boolean") {
+            block[field.name] = typeof value === "boolean" ? value : false;
+        } else {
+            block[field.name] = typeof value === "string" ? value : "";
+        }
     }
     return block;
 }
