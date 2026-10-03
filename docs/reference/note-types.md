@@ -32,14 +32,14 @@ These are the only keys a note writes at its top level, in the order the formatt
 
 These fields are accepted by every note type. A field's value can still be irrelevant to a particular output; the build reports that where it can.
 
-| Field             | Shape                                           | Meaning                                                                   |
-| ----------------- | ----------------------------------------------- | ------------------------------------------------------------------------- |
-| `data.id`         | string                                          | A fixed document identity when the derived identity is unsuitable.        |
-| `data.pack`       | string                                          | The shared compendium route, with a system block overriding it.           |
-| `data.packFolder` | an Address, or a map of Addresses keyed by pack | The shared compendium folder Address, with a system block overriding it.  |
-| `data.harnworld`  | map                                             | HârnWorld source details shared by every system.                          |
-| `data.icon`       | an Address                                      | The document's profile art — an `icon` address, resolved into `img`.      |
-| `data.banner`     | an Address                                      | The page's hero image — an `image` address. Reaches no compiled document. |
+| Field             | Shape                                           | Meaning                                                                                    |
+| ----------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `data.id`         | string                                          | A fixed document identity when the derived identity is unsuitable.                         |
+| `data.pack`       | string                                          | The shared compendium route, with a system block overriding it.                            |
+| `data.packFolder` | an Address, or a map of Addresses keyed by pack | The shared compendium folder Address, with a system block overriding it.                   |
+| `data.harnworld`  | map                                             | HârnWorld source details shared by every system.                                           |
+| `data.icon`       | an Address                                      | The document's profile art — an `icon` address, resolved into `img`.                       |
+| `data.banner`     | an Address                                      | The page's hero image — an `image` address, cut to 1792×768. Reaches no compiled document. |
 
 ## Type-specific fields
 

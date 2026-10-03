@@ -469,7 +469,9 @@ export const SHARED_DATA_FIELDS = Object.freeze([
         ...LINK,
         ref: "image",
         accepts: ART_SLOTS.find((slot) => slot.key === "banner").accepts,
-        describe: "The page's hero image — an `image` address. Reaches no compiled document.",
+        describe:
+            "The page's hero image — an `image` address, cut to 1792×768. " +
+            "Reaches no compiled document.",
     }),
 ]);
 

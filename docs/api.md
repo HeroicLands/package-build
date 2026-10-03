@@ -907,8 +907,6 @@ The asset record: one line of the content index per addressable file. The record
 | `PROVENANCE_FILE`           | `const PROVENANCE_FILE`                                         | `string` — `provenance.yaml`  | naming the file a directory records provenance for its subtree in                                                                                       |
 | `PROVENANCE_SIDECAR_SUFFIX` | `const PROVENANCE_SIDECAR_SUFFIX`                               | `string` — `.yaml`            | naming a per-file record, which replaces an inherited one wholesale                                                                                     |
 | `collectAssetRecords`       | `collectAssetRecords(assetsBase, { contentPackage, problems })` | `Array<Record<string, any>>`  | reading a package's asset roots into index records, without walking its notes                                                                           |
-| `checkAssetShapes`          | `checkAssetShapes(records)`                                     | `Finding[]` — one per outlier | refusing a picture whose aspect departs from the median of the pictures sharing its role, the expectation derived from that group rather than stated    |
-| `checkAssetResolutions`     | `checkAssetResolutions(records)`                                | `Finding[]` — warnings        | warning that a picture carries fewer pixels than its role's largest slot needs at the print floor                                                       |
 
 ### `engine.packages`
 
