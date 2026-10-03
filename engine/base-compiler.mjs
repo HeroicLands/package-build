@@ -126,6 +126,25 @@ import { reckoningContext } from "./reckoning-markers.mjs";
  */
 
 /**
+ * A `ref` call's Foundry rendering: a same-page wikilink rather than a
+ * Markdown link, so the wikilink pass that runs after expressions render
+ * addresses it exactly as an authored `[[#anchor|Text]]` is — by the
+ * JournalEntryPage the figure's own fence became, whether that page holds
+ * only the figure or carries it alongside other prose. A Markdown link's
+ * `#anchor` fragment resolves nowhere in Foundry, which addresses a page by
+ * UUID and an anchor within a page by that page's own anchor; this is why the
+ * two surfaces do not share a renderer.
+ *
+ * @param {{anchor: string}} target - The figure's own anchor.
+ * @param {string} label - The link's text, which may itself carry Markdown.
+ * @returns {string} `[[#anchor|label]]`, with a literal `|` in the label
+ *   escaped so it cannot be read as the wikilink's own separator.
+ */
+function foundryRefLink({ anchor }, label) {
+    return `[[#${anchor}|${label.replace(/\|/g, "\\|")}]]`;
+}
+
+/**
  * The shared walk → filter → expand → convert → build → write → count loop.
  *
  * Subclass it, implement {@link BasePackCompiler#selects} and
@@ -711,7 +730,8 @@ export class BasePackCompiler {
             sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
             pageLists: absPath ? this.sqlTables?.pageLists?.get(absPath) : undefined,
         });
-        for (const captionError of scanFigures(tabulated).errors) {
+        const figureScan = scanFigures(tabulated);
+        for (const captionError of figureScan.errors) {
             findings.push({
                 message: captionError.message,
                 line:
@@ -720,12 +740,27 @@ export class BasePackCompiler {
                 column: captionError.column,
             });
         }
+        // What the `ref` expression helper needs: this note's own figures, by
+        // id, and how a reference renders — a same-page wikilink rather than
+        // a Markdown link, so the wikilink pass below addresses it exactly as
+        // an authored `[[#anchor|Text]]` is, by the page the figure's own
+        // fence became. Cross-note resolution is omitted: a journal addresses
+        // a page by UUID, which this pass has none of for another note.
+        const figuresById = new Map(
+            figureScan.figures
+                .filter((figure) => figure.id)
+                .map((figure) => [
+                    figure.id,
+                    { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+                ]),
+        );
         const expressions = renderMarkdownExpressions(tabulated, {
             fm,
             dates: reckoningContext(this.linkIndex),
             sqlResults: absPath ? this.sqlTables?.inline?.get(absPath) : undefined,
             file: absPath,
             bodyLine,
+            figures: { get: (id) => figuresById.get(id), link: foundryRefLink },
         });
         for (const finding of expressions.findings) {
             findings.push({ message: finding.message, line: finding.line, column: finding.column });
