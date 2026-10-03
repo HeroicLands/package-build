@@ -36,7 +36,7 @@
 
 import { encodeAddresses } from "./address-values.mjs";
 import { sectionHolds } from "./infobox.mjs";
-import { escapeTypst, escapeTypstString } from "./pdf-render.mjs";
+import { absolutePageUrl, escapeTypst, escapeTypstString } from "./pdf-render.mjs";
 
 /**
  * How many cells an attribute grid packs into a row.
@@ -226,16 +226,22 @@ export function sectionHasContent(section) {
  * reference, so the link works on paper as a cross-reference and in a PDF
  * viewer as a jump. Everything else is set as its own words.
  *
+ * A panel's rows address pages the same way prose does, so a page the book does
+ * not print is set as the absolute URL a reader can follow — see
+ * {@link module:engine/pdf-render.absolutePageUrl}.
+ *
  * @param {object} value - A `link` value.
  * @param {Map<string, string>} links - Address slug → the book's anchor.
  * @param {(anchor: string) => string} labelFor - The anchor's Typst label.
+ * @param {string} [site] - The absolute address this book's pages are served at.
  * @returns {string} Typst markup.
  */
-export function linkToTypst(value, links, labelFor) {
+export function linkToTypst(value, links, labelFor, site) {
     const text = escapeTypst(value?.text ?? "");
     const anchor = value?.address ? links?.get(encodeAddresses(value.address)) : undefined;
     if (anchor) return `#link(<${labelFor(anchor)}>)[${text}]`;
-    if (value?.url) return `#link("${escapeTypstString(value.url)}")[${text}]`;
+    if (value?.url)
+        return `#link("${escapeTypstString(absolutePageUrl(value.url, site))}")[${text}]`;
     return text;
 }
 

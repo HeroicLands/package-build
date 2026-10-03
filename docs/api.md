@@ -420,15 +420,15 @@ The infobox declarations this toolchain ships, one per system, and the single ca
 
 Drawing a declared infobox: HTML for separate Foundry pages appended after authored pages, Typst panels after each note’s authored body in the book. The website's boxes travel in front matter and the site theme draws them, so there is no renderer for it here.
 
-| Export                 | Signature                             | Returns   | Use it when                                                              |
-| ---------------------- | ------------------------------------- | --------- | ------------------------------------------------------------------------ |
-| `infoboxTypstPreamble` | `infoboxTypstPreamble()`              | `string`  | emitting the panel definitions the book's bodies call, once per document |
-| `infoboxesToHtml`      | `infoboxesToHtml(boxes, options)`     | `string`  | drawing the boxes as `<details>` disclosures, open by default            |
-| `infoboxesToTypst`     | `infoboxesToTypst(boxes, options)`    | `string`  | drawing the boxes as panels that break between their sections            |
-| `linkToHtml`           | `linkToHtml(value)`                   | `string`  | drawing a link value as an anchor on its URL                             |
-| `linkToTypst`          | `linkToTypst(value, links, labelFor)` | `string`  | drawing a link value as a cross-reference into the book                  |
-| `linkToUuid`           | `linkToUuid(value)`                   | `string`  | drawing a link value as a Foundry document reference                     |
-| `sectionHasContent`    | `sectionHasContent(section)`          | `boolean` | deciding whether a section holds anything worth drawing                  |
+| Export                 | Signature                                   | Returns   | Use it when                                                              |
+| ---------------------- | ------------------------------------------- | --------- | ------------------------------------------------------------------------ |
+| `infoboxTypstPreamble` | `infoboxTypstPreamble()`                    | `string`  | emitting the panel definitions the book's bodies call, once per document |
+| `infoboxesToHtml`      | `infoboxesToHtml(boxes, options)`           | `string`  | drawing the boxes as `<details>` disclosures, open by default            |
+| `infoboxesToTypst`     | `infoboxesToTypst(boxes, options)`          | `string`  | drawing the boxes as panels that break between their sections            |
+| `linkToHtml`           | `linkToHtml(value)`                         | `string`  | drawing a link value as an anchor on its URL                             |
+| `linkToTypst`          | `linkToTypst(value, links, labelFor, site)` | `string`  | drawing a link value as a cross-reference into the book                  |
+| `linkToUuid`           | `linkToUuid(value)`                         | `string`  | drawing a link value as a Foundry document reference                     |
+| `sectionHasContent`    | `sectionHasContent(section)`                | `boolean` | deciding whether a section holds anything worth drawing                  |
 
 ### `engine.noteState`
 
@@ -694,10 +694,11 @@ invokes the check during frontmatter lint.
 
 `renderMarkdownExpressions(body, { fm, dates, sqlResults, file, bodyLine })` expands scalar frontmatter references and registered Handlebars helpers outside Markdown code. The `dateformat` helper uses `formatDateInCalendar`; `gt`, `gte`, `lt`, `lte`, `eq`, `and`, `or`, and `not` evaluate explicit comparisons. The `sql` helper reads a prepared scalar result, which must contain one row and one column. `sqlQueriesInMarkdown` discovers SQL calls, including nested calls; `prepareInlineSqlExpressions` evaluates them through the same DuckDB connection as SQL tables. The renderer returns `{ markdown, findings }`, with source positions for invalid expressions. Site, Foundry and PDF passes invoke it after generated tables expand and before links resolve. Hugo shortcodes remain literal for the site renderer.
 
-| Export                      | Signature                                  | Returns                | Use it when                                     |
-| --------------------------- | ------------------------------------------ | ---------------------- | ----------------------------------------------- |
-| `renderMarkdownExpressions` | `renderMarkdownExpressions(body, options)` | `{markdown, findings}` | expanding authored expressions in prose         |
-| `sqlQueriesInMarkdown`      | `sqlQueriesInMarkdown(body)`               | query strings          | preparing inline SQL alongside generated tables |
+| Export                      | Signature                                  | Returns                | Use it when                                      |
+| --------------------------- | ------------------------------------------ | ---------------------- | ------------------------------------------------ |
+| `renderMarkdownExpressions` | `renderMarkdownExpressions(body, options)` | `{markdown, findings}` | expanding authored expressions in prose          |
+| `sqlQueriesInMarkdown`      | `sqlQueriesInMarkdown(body)`               | query strings          | preparing inline SQL alongside generated tables  |
+| `EXPRESSION`                | `const EXPRESSION`                         | `RegExp`               | recognising an expression a pass has yet to read |
 
 ### `engine.reckoningMarkers`
 
@@ -1250,6 +1251,8 @@ A note's markdown, and a document plan, rendered as Typst source. **This module 
 | `iconNamesIn`           | `function iconNamesIn(markdown)`                                                          | {string[]} The names, in order of appearance, with repeats.  | Every icon name a body uses, so a build can resolve them once.           |
 | `BOOK_IMAGE_WIDTHS`     | `const BOOK_IMAGE_WIDTHS`                                                                 | —                                                            | The book measure requested by each named image size.                     |
 | `bookTypstPreamble`     | `function bookTypstPreamble()`                                                            | {string} Typst markup.                                       | The Typst definitions the book's page furniture is drawn with.           |
+| `stripHtmlComments`     | `function stripHtmlComments(markdown)`                                                    | {string} The same body, its comments replaced by newlines.   | A markdown body with its HTML comments taken out.                        |
+| `absolutePageUrl`       | `function absolutePageUrl(url, site)`                                                     | {string} An absolute URL a reader of the book can follow.    | A page address as a reader of the book can follow it.                    |
 
 ### `engine.pdfFonts`
 
