@@ -1462,6 +1462,7 @@ packageBuild:
 | [`packageBuild.stageDir`](#packagebuildstagedir-and-packagebuildassets)                    | string                                      | no       | `build/stage`                                              |
 | [`packageBuild.assets`](#packagebuildstagedir-and-packagebuildassets)                      | array                                       | no       | `[]`                                                       |
 | [`packageBuild.assetTransform`](#packagebuildassettransform-and-packagebuildmanifestflags) | string (path to a module)                   | no       | `null`                                                     |
+| [`packageBuild.baseStyles`](#packagebuildbasestyles)                                       | boolean                                     | no       | `true`                                                     |
 | [`packageBuild.manifest`](#packagebuildmanifest)                                           | object, pass-through                        | no       | `{}`                                                       |
 | [`packageBuild.manifestFlags`](#packagebuildassettransform-and-packagebuildmanifestflags)  | string (path to a module)                   | no       | `null`                                                     |
 | [`packageBuild.schema`](#packagebuildschema)                                               | object (`{documentType: {from, registry}}`) | no       | `[]`                                                       |
@@ -1475,7 +1476,7 @@ packageBuild:
 | [`packageBuild.proseLint`](#packagebuildproselint)                                         | object                                      | no       | `{age: 21, threshold: 5, minWords: 8, rules: readability}` |
 | [`packageBuild.proseScore`](#packagebuildprosescore)                                       | object                                      | no       | `{minWords: 80, bands: {}}`                                |
 
-> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, manifest, manifestFlags, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore).``
+> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, baseStyles, manifest, manifestFlags, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore).``
 
 ### `packageBuild.proseLint`
 
@@ -1560,6 +1561,31 @@ repository has to compute. Neither declares anything, both default to
 > ``package-build config: `packageBuild.assetTransform` must be a non-empty string.``
 
 > ``package-build config: `packageBuild.manifestFlags` must be a non-empty string.``
+
+### `packageBuild.baseStyles`
+
+Whether the package takes the shared base stylesheet. It defaults to `true`,
+is staged to `styles/package-build-base.css` under the stage root, and is
+named first in the generated manifest's `styles`.
+
+The sheet carries only what every package's compiled content relies on to be
+legible — the definition-list style an infobox and the markdown `Term` /
+`: definition` syntax both emit — and is scoped to the journal, enriched-field
+and editor containers so it cannot reach Foundry's own interface.
+
+It loads into the cascade layer Foundry reserves for the package kind,
+`system` or `modules`, which is the weakest layer a package can occupy. A
+package overrides any rule in it from its own stylesheet, whether that sheet
+names a layer or none at all, with no specificity contest and no
+`!important`. The term column, the gutter and the width at which the list
+stacks are custom properties — `--pb-deflist-term-width`,
+`--pb-deflist-gutter` and `--pb-deflist-row-gap` — so a package adjusts them
+without copying the rule.
+
+Declare `false` to decline it; nothing is staged and nothing is added to
+`styles`:
+
+> ``package-build config: `packageBuild.baseStyles` must be true or false.``
 
 ### `packageBuild.manifest`
 

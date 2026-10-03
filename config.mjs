@@ -65,6 +65,7 @@ const SECTION_KEYS = [
     "stageDir",
     "assets",
     "assetTransform",
+    "baseStyles",
     "manifest",
     "manifestFlags",
     "schema",
@@ -203,6 +204,23 @@ function requireNonEmptyString(value, where) {
         fail(where, "must be a non-empty string");
     }
     return /** @type {string} */ (value);
+}
+
+/**
+ * A declared switch, with the behaviour that applies when it is not declared.
+ *
+ * A truthy string is refused rather than coerced: `baseStyles: "false"` reads
+ * as off and would be on, which is the one wrong answer available here.
+ *
+ * @param {unknown} value - What was declared, or `undefined`.
+ * @param {boolean} fallback - The undeclared behaviour.
+ * @param {string} where - Dotted path, for the error.
+ * @returns {boolean} The setting.
+ */
+function requireBoolean(value, fallback, where) {
+    if (value === undefined) return fallback;
+    if (typeof value !== "boolean") fail(where, "must be true or false");
+    return value;
 }
 
 /**
@@ -537,6 +555,9 @@ function normalizeExceptions(value, field, where) {
  * @property {string} stageDir      The staged package root, relative to
  *                                   `rootDir`. Every asset `to:` lands under it.
  * @property {readonly Readonly<AssetSpec>[]} assets
+ * @property {boolean} baseStyles    Whether the package takes the shared base
+ *                                   stylesheet, staged into `stageDir` and
+ *                                   named first in the manifest's `styles`.
  * @property {Readonly<Record<string, unknown>>} manifest  The manifest
  *                                   specification, emitted as declared.
  * @property {string|null} manifestFlags  Module to load a `flags` function
@@ -877,6 +898,11 @@ export function resolvePackageBuildConfig(shared) {
                 ARTIFACT_OF_KIND[/** @type {"systems"|"modules"} */ (shared.packageKind)]
             :   requireNonEmptyString(releaseInput.artifact, "packageBuild.release.artifact"),
         assets: Object.freeze(assets),
+        // On by default, because the rules it carries are what compiled content
+        // needs to be legible and a package that declined them by omission
+        // would ship the content unstyled without anything saying so. A package
+        // that wants the surface entirely to itself says so.
+        baseStyles: requireBoolean(section.baseStyles, true, "packageBuild.baseStyles"),
         schema: normalizeSchema(section.schema),
         assetTransform:
             section.assetTransform === undefined ?
