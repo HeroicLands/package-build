@@ -764,6 +764,18 @@ export function renderSitePage(
     ctx.captionLabels = new Map(
         figureScan.figures.filter((figure) => figure.id).map((figure) => [figure.id, figure.label]),
     );
+    // What the `ref` expression helper needs beyond the label: the caption
+    // text and whether one was authored, by the same id `ctx.captionLabels`
+    // keys on. Only this page's own figures — a cross-note `ref` is reported
+    // unresolved rather than looked up.
+    const figuresById = new Map(
+        figureScan.figures
+            .filter((figure) => figure.id)
+            .map((figure) => [
+                figure.id,
+                { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+            ]),
+    );
     // This page's own anchors, so a `[[#slug]]` self-link is checked against
     // what the page actually declares rather than trusted unconditionally.
     ctx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
@@ -773,6 +785,7 @@ export function renderSitePage(
         file: page.file,
         bodyLine: page.bodyLine,
         sqlResults: sqlTables?.inline?.get(page.file),
+        figures: figuresById,
     });
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
