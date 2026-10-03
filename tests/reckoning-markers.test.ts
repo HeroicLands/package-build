@@ -15,8 +15,8 @@ function calendar(eras, pkg = "thalorna", epoch = "1.1") {
     return {
         file: `${pkg}-Calendar.md`,
         raw: "",
+        package: pkg,
         fm: {
-            package: pkg,
             shortcode: "commoncal",
             type: "lore",
             subType: "calendar",

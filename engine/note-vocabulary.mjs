@@ -559,7 +559,7 @@ function checkPlacePurpose(note) {
             },
         ];
     if (hasTag(note.fm, value)) return [];
-    const tags = note.fm?.tags ?? note.fm?.tag;
+    const tags = note.fm?.tags;
     return [
         {
             ...at(),
@@ -775,14 +775,12 @@ export function exclusiveTagGroups(type, groups = DECLARED_TAGS) {
  * The spelling of the tag *itself* still is — a near miss is a near miss, and
  * the frontmatter lint is what reports it; nothing here guesses.
  *
- * Reads `tags` and the singular `tag` spelling.
- *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} tag - The tag to look for, in its declared spelling.
  * @returns {boolean} Whether the note carries it.
  */
 export function hasTag(fm, tag) {
-    const raw = fm?.tags ?? fm?.tag;
+    const raw = fm?.tags;
     if (raw == null) return false;
     const wanted = String(tag).toLowerCase();
     for (const entry of Array.isArray(raw) ? raw : [raw]) {

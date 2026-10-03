@@ -50,6 +50,10 @@ import fs from "fs";
 import path from "path";
 import log from "loglevel";
 
+// The one reader of a system block's own properties, so a scene's effect
+// references resolve from the same position the item compiler emits from.
+import { blockProperty } from "./system-block.mjs";
+
 import {
     parseMarkdownFile,
     sohlField,
@@ -235,7 +239,11 @@ export class Scenes extends BasePackCompiler {
             // `resolveNoteId(fm)` with no package, which falls back to the
             // ambient one. What remains unset is a file with no address.
             if (!fm || !fm.id) continue;
-            if (fm.shortcode && Array.isArray(fm.effects) && fm.effects.length) {
+            // The Active Effects a region behaviour may point at, read from
+            // the block that carries them onto the document — the one position
+            // the format accepts for them.
+            const effects = blockProperty(fm, "sohl", "effects");
+            if (fm.shortcode && Array.isArray(effects) && effects.length) {
                 effectsByAddress.set(`${fm.type}-${fm.shortcode}`, {
                     id: fm.id,
                     type: fm.type,
@@ -246,7 +254,7 @@ export class Scenes extends BasePackCompiler {
                     // second router is a second answer to where the document
                     // landed, resolved from the working directory.
                     pack: this.#packRouter.resolveOrNull(fm, packForType(fm.type).docType),
-                    effects: fm.effects,
+                    effects,
                 });
             }
             if (!isMapType(fm.type)) continue;
@@ -532,7 +540,6 @@ export class Scenes extends BasePackCompiler {
                     // materialise there too. The id spelling that used
                     // to cross packs verbatim is retired.
                     folder: this.folderResolver(authoredFolder, { isAddress: true }),
-                    flags: fm.flags,
                 })
             :   null;
 

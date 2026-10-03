@@ -40,8 +40,8 @@ import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 describe("reading the field", () => {
-    it("prefers `packFolder`, and says it is an address", () => {
-        expect(folderField({ packFolder: "folder-cooking" })).toEqual({
+    it("reads `packFolder`, and says it is an address", () => {
+        expect(folderField({ data: { packFolder: "folder-cooking" } })).toEqual({
             value: "folder-cooking",
             isAddress: true,
         });
@@ -62,7 +62,10 @@ describe("reading the field", () => {
 
     it("treats a blank `packFolder` as naming no folder", () => {
         // A key cleared in an editor means the note names no folder.
-        expect(folderField({ packFolder: "" })).toEqual({ value: null, isAddress: true });
+        expect(folderField({ data: { packFolder: "" } })).toEqual({
+            value: null,
+            isAddress: true,
+        });
     });
 
     it("reports nothing for a note that names no folder", () => {
@@ -82,10 +85,11 @@ const gear = (name: string, code: string, folderKey: string, folderValue: string
 name:
   full: ${name}
 description: A ${name.toLowerCase()}.
-id: ${code.padEnd(16, "x")}
 shortcode: ${code}
 type: miscgear
-${folderKey}: ${folderValue}
+data:
+  id: ${code.padEnd(16, "x")}
+${folderKey === "folder" ? `folder: ${folderValue}` : `  ${folderKey}: ${folderValue}`}
 sohl:
   archetype: 0
   quality: 0

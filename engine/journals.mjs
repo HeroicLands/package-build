@@ -351,7 +351,6 @@ export function buildPages(rawPages, entryId, noteName, captions) {
  * @param {string} [params.leadName] - Name for the page before the first
  *   heading; see {@link splitPages}.
  * @param {string|null} [params.folder] - The folder id, or `null`.
- * @param {object} [params.flags] - Document flags.
  * @param {object} [params.stats] - The `_stats` block to stamp. Passed by the
  *   caller because it is a property of the *pack* being written, not of the
  *   entry: a module may ship the same content for two systems, and each pack's
@@ -374,7 +373,6 @@ export function buildJournalEntry({
     markdown,
     leadName,
     folder = null,
-    flags,
     stats = defaultStats(),
     infoboxes = [],
     notice = "",
@@ -401,7 +399,7 @@ export function buildJournalEntry({
         folder,
         sort: 0,
         ownership: { default: 0 },
-        flags: flags || {},
+        flags: {},
         _id: id,
         _stats: stats,
         _key: `!journal!${id}`,
@@ -568,7 +566,6 @@ export class Journals extends BasePackCompiler {
             // "Introduction" — see {@link splitPages}.
             leadName: ownsDoc ? name : undefined,
             folder,
-            flags: fm.flags,
             stats: this.stats,
         });
     }

@@ -107,15 +107,18 @@ describe("defining social ties", () => {
         ).toEqual([]);
     });
 
-    it("renders one row for a target written in short and full forms", () => {
+    it("renders one row for a target written in short and canonical forms", () => {
+        // The box canonicalises each key before grouping, so one target named
+        // twice is one row. A note states no package of its own, so the short
+        // form takes the ambient one and a canonical key has to agree with it
+        // to be the same target.
         const rows = noteInfobox({
             type: "being",
-            package: "thalorna",
             name: { full: "Subject" },
             data: {
                 socialTies: {
                     "being-ally": "friend",
-                    "thalorna-note-being-ally": "nemesis",
+                    "local-note-being-ally": "nemesis",
                 },
             },
         }).sections[0].rows;

@@ -384,7 +384,7 @@ function resolveBody(note, index, body) {
     const tuple = parseAddress(
         body,
         {
-            package: index?.contentPackage ?? note.fm?.package,
+            package: index?.contentPackage,
             system: "note",
             type: "affiliation",
             types: index?.types,

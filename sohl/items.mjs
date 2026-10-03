@@ -93,7 +93,7 @@ export class Items extends SystemItemCompiler {
             // it — an undeclared `system` key is discarded at construction
             // without a warning.
             templatePriority: systemTemplatePriority(fm, label),
-            actionDefs: Array.isArray(fm.actionDefs) ? fm.actionDefs : [],
+            actionDefs: [],
             notes: "",
             docHtml: description || "",
         };

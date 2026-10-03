@@ -84,7 +84,7 @@ export function checkSocialTies(note, { index } = {}) {
         const tuple = parseAddress(
             key,
             {
-                package: index?.contentPackage ?? note.fm?.package,
+                package: index?.contentPackage,
                 system: "note",
                 types: index?.types,
                 packages: index?.packages,
@@ -112,7 +112,7 @@ export function checkSocialTies(note, { index } = {}) {
                 seen.set(target, sourceKey);
             }
             if (
-                tuple.package === (index?.contentPackage ?? note.fm?.package) &&
+                tuple.package === index?.contentPackage &&
                 tuple.type === "being" &&
                 tuple.shortcode === note.fm?.shortcode
             ) {
