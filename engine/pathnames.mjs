@@ -443,3 +443,39 @@ export function resolvePathname(raw, config) {
         pdf: `${ASSETS_SEGMENT}/${suffix}`,
     };
 }
+
+/**
+ * The pathname one authored image address keys an asset's role and pixel
+ * size under — `<package>/assets/<suffix>`, the same key
+ * {@link module:engine/art-fields.assetImageInfoByPathname} builds from the
+ * asset record itself.
+ *
+ * **Why this exists apart from `resolvePathname`'s own forms.** An embed
+ * rewrites to that exact pathname — see
+ * {@link module:engine/content-embeds.resolveEmbeds} — but an author's own
+ * body image is free to write the bare, own-package form instead
+ * (`images/m.webp`), which names the identical file without naming the
+ * package. The two forms have to key the same lookup, and `resolvePathname`
+ * already answers which package a bare form belongs to; this just restates
+ * that answer in the one shape a renderer looks a picture's role up by.
+ *
+ * **Never throws.** A lookup is a best-effort read, not a validation — the
+ * pathname lint is what refuses a Foundry-spelled address — so a value
+ * {@link resolvePathname} refuses outright answers `null` here as well, the
+ * same as a blank or an external one.
+ *
+ * @param {string} src - The address, as authored or as an embed resolved it.
+ * @param {object} config - The resolved build configuration.
+ * @returns {string|null} The pathname, or `null` for an address naming no
+ *   asset record to look up.
+ */
+export function assetPathnameKey(src, config) {
+    let forms;
+    try {
+        forms = resolvePathname(src, config);
+    } catch {
+        return null;
+    }
+    if (!forms || forms.state !== "package" || !forms.package) return null;
+    return `${forms.package}/${ASSETS_SEGMENT}/${forms.suffix}`;
+}

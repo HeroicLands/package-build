@@ -36,8 +36,10 @@ license: CC-BY-SA-4.0
 role: portrait
 ```
 
-**A hero image is 1792×768.** `data.banner` fills one fixed strip wherever it is drawn, so every banner is cut to that size and a picture of any other size is a finding naming both sizes — resize the picture to match. That is the one size any art field requires. An icon is drawn at a nominal size per medium whatever its file holds, a map's `bgImage` sets its own scene's dimensions, and a picture written in prose is fitted to the room it has, so none of those asks anything of a picture's dimensions.
+**A hero image is 1792×768.** `data.banner` fills one fixed strip wherever it is drawn, so every banner is cut to that size and a picture of any other size is a finding naming both sizes — resize the picture to match. That is the one size any art field requires. A map's `bgImage` sets its own scene's dimensions, so that asks nothing of a picture's dimensions either.
 
 `role` is one of `portrait`, `emblem`, `banner`, `plate` or `map`, and belongs to the `image` type only — declaring it in a `provenance.yaml` under `assets/icons` is a finding, since an icon carries one nominal size per medium whatever the file holds. Leave the key out for an ordinary picture; there is no default role name, only its absence.
+
+**A role decides how large a picture written in prose draws, when nothing else states a size.** Each medium maps a role to a maximum, and the drawn size is the smaller of that slot and what the file's own pixels support — see [what a role draws at](../reference/format-details.md#what-a-role-draws-at). A named `size=` beside the embed still overrides it outright; an icon draws at the medium's nominal icon size whatever role it might otherwise have had, because `role` never reaches an icon address at all.
 
 The build writes transformed or optimized copies under `build/`; the authored file remains the input for the next build. Output paths are derived from the owning package, asset type, and build target. The [icon guide](../guides/icons.md) covers generated icon variants and placement in Foundry.

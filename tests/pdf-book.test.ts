@@ -9,6 +9,10 @@ import { randomBytes } from "node:crypto";
 import sharp from "sharp";
 
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { BOOK_ROLE_SLOTS, PDF_PAGE, pdfTextWidth } from "../engine/pdf-images.mjs";
+
+/** Mirrors the private rounding {@link module:engine/pdf-render} draws a role at. */
+const typstIn = (inches: number) => `${Math.round(inches * 1000) / 1000}in`;
 const ROOT = path.resolve(__dirname, "..");
 
 /** Whether a Typst compiler is reachable, which the PDF-level cases need. */
@@ -696,3 +700,84 @@ it("prints a Scene background on a landscape page at its print resolution", asyn
         fs.rmSync(dir, { recursive: true, force: true });
     }
 }, 30_000);
+
+describe("a picture's declared role sizes it in the book", () => {
+    it(
+        "draws a body image written in the bare, own-package form at its role's slot",
+        async () => {
+            // The address names no package — `images/portrait.webp`, not
+            // `sohl/assets/images/portrait.webp` — which is the form most authored
+            // body images take, and the one a lookup keyed by canonical pathname
+            // alone would miss.
+            const dir = makeRepo("content");
+            try {
+                const imageDir = path.join(dir, "assets", "images");
+                fs.mkdirSync(imageDir, { recursive: true });
+                fs.writeFileSync(
+                    path.join(imageDir, "provenance.yaml"),
+                    ["attribution: Tom Rodriguez", "license: CC-BY-SA-4.0", "role: portrait"].join(
+                        "\n",
+                    ),
+                );
+                const slot = BOOK_ROLE_SLOTS.portrait * pdfTextWidth;
+                const pixels = Math.ceil(slot * PDF_PAGE.dpi) + 600;
+                const source = await sharp(randomBytes(pixels * Math.round(pixels * 1.5) * 3), {
+                    raw: { width: pixels, height: Math.round(pixels * 1.5), channels: 3 },
+                })
+                    .webp({ quality: 95 })
+                    .toBuffer();
+                fs.writeFileSync(path.join(imageDir, "portrait.webp"), source);
+                fs.appendFileSync(
+                    path.join(dir, "assets/content/Gear/dagger.md"),
+                    "\n![A portrait](images/portrait.webp)\n",
+                );
+
+                const built = build(dir, "--no-compile");
+                expect(built.status, built.out).toBe(0);
+                const dist = path.join(dir, "build", "dist");
+                const typ = fs.readFileSync(
+                    path.join(
+                        dist,
+                        fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!,
+                    ),
+                    "utf8",
+                );
+                expect(typ).toContain(`requested: ${typstIn(slot)}`);
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "draws an icon-type body image at the medium's nominal icon size",
+        async () => {
+            const dir = makeRepo("content");
+            try {
+                const iconDir = path.join(dir, "assets", "icons");
+                fs.mkdirSync(iconDir, { recursive: true });
+                fs.writeFileSync(path.join(iconDir, "anvil.svg"), "<svg/>");
+                fs.appendFileSync(
+                    path.join(dir, "assets/content/Gear/dagger.md"),
+                    "\n![[icon-anvil|An anvil]]\n",
+                );
+
+                const built = build(dir, "--no-compile");
+                expect(built.status, built.out).toBe(0);
+                const dist = path.join(dir, "build", "dist");
+                const typ = fs.readFileSync(
+                    path.join(
+                        dist,
+                        fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!,
+                    ),
+                    "utf8",
+                );
+                expect(typ).toContain("requested: 1in");
+            } finally {
+                fs.rmSync(dir, { recursive: true, force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+});
