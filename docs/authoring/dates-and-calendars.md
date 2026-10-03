@@ -9,9 +9,11 @@ subType: howto
 
 A canonical date uses the world's year and day count without choosing a culture's calendar. Write `<year>[.<day>[:HHMMSS]]`: `720` covers year 720, `720.136` covers its day 136, and `720.136:143005` identifies 14:30:05 on that day. The dot separates the year from the **day of year**, not a month. Negative years are valid, and the day must fit the world's declared year length. Prefix a date with `~` when its uncertainty extends outside the stated year, day, or second. `unknown` records an occurrence whose date is not known, in fields that permit it.
 
+**Put a date that states a day in quotes.** Write `born: "667.130"`, not `born: 667.130`. Unquoted, YAML reads the scalar as a number, and a number keeps no trailing zero — `667.130` becomes `667.13`, which is day 13 rather than day 130, and the authored digits are gone before any reader of the date can object. A date whose lost zero would still name a day inside the world's year is therefore refused, naming the line and both readings, so quoting it is the fix. A bare year such as `born: 667` loses nothing and needs no quotes.
+
 ## Define a calendar
 
-A `lore` note with `subType: calendar` names months, weekdays, seasons, named days, eras, and date formats. Its `data.epoch` is the **canonical day that equals calendar year 1, day 1**. For a calendar beginning on canonical day `1.91`, write `epoch: 1.91`: calendar year 1 still starts at its own day 1. A calendar does not state the length of the world year: its months must sum to `data.year.days` on the world's `place` note.
+A `lore` note with `subType: calendar` names months, weekdays, seasons, named days, eras, and date formats. Its `data.epoch` is the **canonical day that equals calendar year 1, day 1**. For a calendar beginning on canonical day `1.91`, write `epoch: "1.91"` — quoted, like every canonical date that states a day: calendar year 1 still starts at its own day 1. A calendar does not state the length of the world year: its months must sum to `data.year.days` on the world's `place` note.
 
 ```yaml
 shortcode: commoncal
@@ -19,7 +21,7 @@ name: { full: The Common Calendar }
 type: lore
 subType: calendar
 data:
-  epoch: 1.1
+  epoch: "1.1"
   months:
     - { name: Floralis, abbreviation: Flor, days: 30 }
     - { name: Lusenar, abbreviation: Luse, days: 31 }

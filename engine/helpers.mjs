@@ -153,7 +153,7 @@ md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
 
 /** Render a note body with Foundry's named-block markup. */
 export function renderFoundryMarkdown(body, captions, footnoteNumbers, docId) {
-    const blocks = renderBlocks(body, "foundry", (inner) => md.render(inner));
+    const blocks = renderBlocks(body, "foundry");
     const captioned = renderCaptionBlocks(blocks.markdown, (block) => md.render(block), captions);
     return md.render(captioned.markdown, { footnoteNumbers, docId });
 }

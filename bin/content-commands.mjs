@@ -70,6 +70,7 @@ import { lintContentCharset } from "../engine/content-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
 import { lintContentIcons } from "../engine/content-icons.mjs";
 import { lintContentImages } from "../engine/content-images.mjs";
+import { lintContentTaskLists } from "../engine/content-tasklists.mjs";
 import {
     declaredSystems,
     lintFrontmatter,
@@ -1156,6 +1157,13 @@ function lintCommand() {
                     config,
                 });
 
+                // A list item opened with `[ ]` or `[x]` — nothing here is
+                // miscompiled, since every surface sets the marker as the
+                // item's own text and all three agree, so this is advisory.
+                const taskLists = lintContentTaskLists(root, {
+                    skipDirectories: config.skipDirectories,
+                });
+
                 // Whether every empty body is a stub on purpose, and how
                 // finished the tree is. The counts and the oldest drafts are
                 // prose rather than findings: a note nobody has finished is not
@@ -1175,6 +1183,7 @@ function lintCommand() {
                     ...icons.findings,
                     ...html.findings,
                     ...images.findings,
+                    ...taskLists.findings,
                     ...states.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
@@ -1805,6 +1814,9 @@ function siteCommand() {
                 for (const e of result.captionErrors) {
                     emitDiagnostic({ ...e, severity: "error" });
                 }
+                for (const e of result.footnoteErrors) {
+                    emitDiagnostic({ ...e, severity: "error" });
+                }
                 // Reported the way the pack build reports the very same
                 // finding: `file:line:column: error: message`, path first, and
                 // the message from the shared table, not a
@@ -1844,6 +1856,7 @@ function siteCommand() {
                     result.expressionErrors.length ||
                     result.secretErrors.length ||
                     result.captionErrors.length ||
+                    result.footnoteErrors.length ||
                     result.wikiErrors.length ||
                     result.imageErrors.length
                 ) {

@@ -36,6 +36,7 @@ import { UNIVERSAL_KEYS } from "../engine/frontmatter-lint.mjs";
 import { folderAddress } from "../engine/folder-notes.mjs";
 import { makeId } from "../engine/ids.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 describe("reading the field", () => {
@@ -222,145 +223,177 @@ describe("compiling a note that names its folder by address", () => {
         for (const dir of roots) fs.rmSync(dir, { recursive: true, force: true });
     });
 
-    it("files it in the folder note's derived id", () => {
-        const root = folderRepo({
-            ...TREE_NOTES,
-            "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
-        });
-        roots.push(root);
-        const result = compile(root);
-        const items = packDocs(root, "items");
+    it(
+        "files it in the folder note's derived id",
+        () => {
+            const root = folderRepo({
+                ...TREE_NOTES,
+                "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
+            });
+            roots.push(root);
+            const result = compile(root);
+            const items = packDocs(root, "items");
 
-        expect(result.errors).toBe(0);
-        expect(items["Bowl By Address"].folder).toBe(
-            makeId("folder", folderAddress("sohl", "cookware")),
-        );
-    });
+            expect(result.errors).toBe(0);
+            expect(items["Bowl By Address"].folder).toBe(
+                makeId("folder", folderAddress("sohl", "cookware")),
+            );
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("materialises the folder, and its ancestors, in the pack that references it", () => {
-        // A `Folder` whose parent is absent is an orphan Foundry renders at the
-        // root, so the chain comes with it or the tree breaks at the top.
-        const root = folderRepo({
-            ...TREE_NOTES,
-            "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
-        });
-        roots.push(root);
-        compile(root);
-        const items = packDocs(root, "items");
+    it(
+        "materialises the folder, and its ancestors, in the pack that references it",
+        () => {
+            // A `Folder` whose parent is absent is an orphan Foundry renders at the
+            // root, so the chain comes with it or the tree breaks at the top.
+            const root = folderRepo({
+                ...TREE_NOTES,
+                "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
+            });
+            roots.push(root);
+            compile(root);
+            const items = packDocs(root, "items");
 
-        expect(items["Cookware"]).toMatchObject({ type: "Item", color: "#7a4b2a" });
-        expect(items["Gear"]).toMatchObject({ type: "Item", folder: null });
-        expect(items["Cookware"].folder).toBe(items["Gear"]._id);
-    });
+            expect(items["Cookware"]).toMatchObject({ type: "Item", color: "#7a4b2a" });
+            expect(items["Gear"]).toMatchObject({ type: "Item", folder: null });
+            expect(items["Cookware"].folder).toBe(items["Gear"]._id);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("files the documentation journal in the same folder, in the journals pack", () => {
-        // The defect this removes. Under the path form this fails unless a
-        // second folder file mirrored the first — `sohl-thalorna` was missing
-        // 57 such folders and `sohl-kethira-basic` had no journal folder file
-        // at all. There is no journal folder file here either, and it compiles:
-        // the journals pack materialises the folder its own document points at.
-        const root = folderRepo({
-            ...TREE_NOTES,
-            "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
-        });
-        roots.push(root);
-        const result = compile(root);
-        const items = packDocs(root, "items");
-        const journals = packDocs(root, "journals");
+    it(
+        "files the documentation journal in the same folder, in the journals pack",
+        () => {
+            // The defect this removes. Under the path form this fails unless a
+            // second folder file mirrored the first — `sohl-thalorna` was missing
+            // 57 such folders and `sohl-kethira-basic` had no journal folder file
+            // at all. There is no journal folder file here either, and it compiles:
+            // the journals pack materialises the folder its own document points at.
+            const root = folderRepo({
+                ...TREE_NOTES,
+                "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
+            });
+            roots.push(root);
+            const result = compile(root);
+            const items = packDocs(root, "items");
+            const journals = packDocs(root, "journals");
 
-        expect(result.errors).toBe(0);
-        expect(journals["Cookware"]).toMatchObject({ type: "JournalEntry" });
-        // The same id in both packs: a documentation journal filed *beside* its
-        // item, not in a folder that merely looks alike.
-        expect(journals["Cookware"]._id).toBe(items["Cookware"]._id);
-        expect(journals["Bowl By Address"].folder).toBe(journals["Cookware"]._id);
-    });
+            expect(result.errors).toBe(0);
+            expect(journals["Cookware"]).toMatchObject({ type: "JournalEntry" });
+            // The same id in both packs: a documentation journal filed *beside* its
+            // item, not in a folder that merely looks alike.
+            expect(journals["Cookware"]._id).toBe(items["Cookware"]._id);
+            expect(journals["Bowl By Address"].folder).toBe(journals["Cookware"]._id);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("does not materialise a folder nothing references", () => {
-        // A folder with nothing in it materialises nowhere — the answer the
-        // rule
-        // left open, settled the way it expected.
-        const root = folderRepo({
-            ...TREE_NOTES,
-            "folders/Unused.md": folderNote("unused", "Unused", "gear"),
-            "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
-        });
-        roots.push(root);
-        compile(root);
+    it(
+        "does not materialise a folder nothing references",
+        () => {
+            // A folder with nothing in it materialises nowhere — the answer the
+            // rule
+            // left open, settled the way it expected.
+            const root = folderRepo({
+                ...TREE_NOTES,
+                "folders/Unused.md": folderNote("unused", "Unused", "gear"),
+                "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "cookware"),
+            });
+            roots.push(root);
+            compile(root);
 
-        expect(packDocs(root, "items")["Unused"]).toBeUndefined();
-    });
+            expect(packDocs(root, "items")["Unused"]).toBeUndefined();
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("fails loudly on an address no folder note answers to", () => {
-        const root = folderRepo({
-            ...TREE_NOTES,
-            "Bad.md": gear("Bowl Nowhere", "bowlbad", "packFolder", "nowhere"),
-        });
-        roots.push(root);
-        const result = compile(root);
+    it(
+        "fails loudly on an address no folder note answers to",
+        () => {
+            const root = folderRepo({
+                ...TREE_NOTES,
+                "Bad.md": gear("Bowl Nowhere", "bowlbad", "packFolder", "nowhere"),
+            });
+            roots.push(root);
+            const result = compile(root);
 
-        expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/no folder note is addressed "sohl-none-folder-nowhere"/);
-    });
+            expect(result.errors).toBeGreaterThan(0);
+            expect(result.output).toMatch(/no folder note is addressed "sohl-none-folder-nowhere"/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("refuses a note that still names a Foundry id, naming `packFolder`", () => {
-        // The retirement, through a real compile: the id spelling has
-        // nothing left to resolve against, so it fails rather than filing the
-        // note somewhere arbitrary — or, worse, nowhere and silently.
-        const root = folderRepo({
-            ...TREE_NOTES,
-            "ById.md": gear("Bowl By Id", "bowlid", "folder", "dddddddddddddddd"),
-        });
-        roots.push(root);
-        const result = compile(root);
+    it(
+        "refuses a note that still names a Foundry id, naming `packFolder`",
+        () => {
+            // The retirement, through a real compile: the id spelling has
+            // nothing left to resolve against, so it fails rather than filing the
+            // note somewhere arbitrary — or, worse, nowhere and silently.
+            const root = folderRepo({
+                ...TREE_NOTES,
+                "ById.md": gear("Bowl By Id", "bowlid", "folder", "dddddddddddddddd"),
+            });
+            roots.push(root);
+            const result = compile(root);
 
-        expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/retired frontmatter field/);
-        expect(result.output).toMatch(/packFolder/);
-    });
+            expect(result.errors).toBeGreaterThan(0);
+            expect(result.output).toMatch(/retired frontmatter field/);
+            expect(result.output).toMatch(/packFolder/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("gives one folder a different parent in each pack it materialises in", () => {
-        // The arrangement both large trees rely on: an item root sits at the
-        // root of the items compendium and one level deeper in the journals
-        // one, beside the other rules chapters. Same folder, same id, two
-        // hierarchies.
-        const root = folderRepo({
-            "folders/Rules.md": folderNote("rules", "Rules"),
-            "folders/Descriptions.md": folderNote("descriptions", "Descriptions", "rules"),
-            "folders/Gear.md": perPackFolderNote("gear", "Gear", {
-                default: null,
-                journals: "descriptions",
-            }),
-            "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "gear"),
-        });
-        roots.push(root);
-        const result = compile(root);
-        const items = packDocs(root, "items");
-        const journals = packDocs(root, "journals");
+    it(
+        "gives one folder a different parent in each pack it materialises in",
+        () => {
+            // The arrangement both large trees rely on: an item root sits at the
+            // root of the items compendium and one level deeper in the journals
+            // one, beside the other rules chapters. Same folder, same id, two
+            // hierarchies.
+            const root = folderRepo({
+                "folders/Rules.md": folderNote("rules", "Rules"),
+                "folders/Descriptions.md": folderNote("descriptions", "Descriptions", "rules"),
+                "folders/Gear.md": perPackFolderNote("gear", "Gear", {
+                    default: null,
+                    journals: "descriptions",
+                }),
+                "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "gear"),
+            });
+            roots.push(root);
+            const result = compile(root);
+            const items = packDocs(root, "items");
+            const journals = packDocs(root, "journals");
 
-        expect(result.errors).toBe(0);
-        // Same folder document id in both packs...
-        expect(journals["Gear"]._id).toBe(items["Gear"]._id);
-        // ...filed at the root of one and under Rules/Descriptions in the other.
-        expect(items["Gear"].folder).toBeNull();
-        expect(journals["Gear"].folder).toBe(journals["Descriptions"]._id);
-        expect(journals["Descriptions"].folder).toBe(journals["Rules"]._id);
-        // The journals-only chain does not leak into the items pack.
-        expect(items["Descriptions"]).toBeUndefined();
-        expect(items["Rules"]).toBeUndefined();
-    });
+            expect(result.errors).toBe(0);
+            // Same folder document id in both packs...
+            expect(journals["Gear"]._id).toBe(items["Gear"]._id);
+            // ...filed at the root of one and under Rules/Descriptions in the other.
+            expect(items["Gear"].folder).toBeNull();
+            expect(journals["Gear"].folder).toBe(journals["Descriptions"]._id);
+            expect(journals["Descriptions"].folder).toBe(journals["Rules"]._id);
+            // The journals-only chain does not leak into the items pack.
+            expect(items["Descriptions"]).toBeUndefined();
+            expect(items["Rules"]).toBeUndefined();
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("leaves a note that names no folder at the pack root", () => {
-        const root = folderRepo({
-            ...TREE_NOTES,
-            "None.md": gear("Bowl Loose", "bowlloose", "shortcode", "bowlloose").replace(
-                /^shortcode: bowlloose$/m,
-                "",
-            ),
-        });
-        roots.push(root);
-        compile(root);
+    it(
+        "leaves a note that names no folder at the pack root",
+        () => {
+            const root = folderRepo({
+                ...TREE_NOTES,
+                "None.md": gear("Bowl Loose", "bowlloose", "shortcode", "bowlloose").replace(
+                    /^shortcode: bowlloose$/m,
+                    "",
+                ),
+            });
+            roots.push(root);
+            compile(root);
 
-        expect(packDocs(root, "items")["Bowl Loose"].folder).toBeNull();
-    });
+            expect(packDocs(root, "items")["Bowl Loose"].folder).toBeNull();
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

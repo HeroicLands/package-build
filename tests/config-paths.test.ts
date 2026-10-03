@@ -18,6 +18,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -164,14 +165,16 @@ describe("the core version is configuration, and the stamp follows it", () => {
 });
 
 describe("path resolution does not depend on the working directory", () => {
-    it("resolves the same tree from any launch directory", () => {
-        // The failure this rules out is invisible in-repo, because the
-        // repository root is almost always the cwd: a path resolved against
-        // `process.cwd()` works for `npm run build` at the root and breaks for
-        // `npm test -w @heroiclands/package-build`, or for a consumer whose CI
-        // launches from anywhere else.
-        const root = sandbox("14.377");
-        const script = `
+    it(
+        "resolves the same tree from any launch directory",
+        () => {
+            // The failure this rules out is invisible in-repo, because the
+            // repository root is almost always the cwd: a path resolved against
+            // `process.cwd()` works for `npm run build` at the root and breaks for
+            // `npm test -w @heroiclands/package-build`, or for a consumer whose CI
+            // launches from anywhere else.
+            const root = sandbox("14.377");
+            const script = `
             const { defineConfig } = await import(${JSON.stringify(CONFIG_URL)});
             const { buildStats } = await import(${JSON.stringify(HELPERS_URL)});
             const config = defineConfig({
@@ -192,23 +195,25 @@ describe("path resolution does not depend on the working directory", () => {
             }));
         `;
 
-        /** Run the script with `cwd` as the working directory. */
-        const from = (cwd: string) => {
-            const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
-                cwd,
-                encoding: "utf8",
-            });
-            expect(result.stderr).toBe("");
-            expect(result.status).toBe(0);
-            return result.stdout;
-        };
+            /** Run the script with `cwd` as the working directory. */
+            const from = (cwd: string) => {
+                const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+                    cwd,
+                    encoding: "utf8",
+                });
+                expect(result.stderr).toBe("");
+                expect(result.status).toBe(0);
+                return result.stdout;
+            };
 
-        const expected = JSON.stringify({
-            content: path.join(root, "vault/notes"),
-            core: "14.377",
-        });
-        expect(from(PKG_ROOT)).toBe(expected);
-        expect(from(PKG_SUBDIR)).toBe(expected);
-        expect(from(os.tmpdir())).toBe(expected);
-    });
+            const expected = JSON.stringify({
+                content: path.join(root, "vault/notes"),
+                core: "14.377",
+            });
+            expect(from(PKG_ROOT)).toBe(expected);
+            expect(from(PKG_SUBDIR)).toBe(expected);
+            expect(from(os.tmpdir())).toBe(expected);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

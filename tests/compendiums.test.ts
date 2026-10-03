@@ -16,6 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 // Build-time pack library (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
 import { compilePacks, unpackPacks, cleanPacks } from "../engine/compendiums.mjs";
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LIBRARY = path.resolve(HERE, "../engine/compendiums.mjs");
@@ -88,59 +89,75 @@ describe("the compendium library is importable", () => {
         expect(cleanPacks).toBeTypeOf("function");
     });
 
-    it("creates nothing in the caller's working directory", () => {
-        const { cwd, status, stderr } = importInEmptyCwd(
-            `process.stdout.write(Object.keys(lib).sort().join(","));`,
-        );
-        expect(stderr).toBe("");
-        expect(status).toBe(0);
-        // No `build/tmp/packs`, no stray anything: a library that is merely
-        // imported must not touch the filesystem of whoever imported it.
-        expect(fs.readdirSync(cwd)).toEqual([]);
-    });
+    it(
+        "creates nothing in the caller's working directory",
+        () => {
+            const { cwd, status, stderr } = importInEmptyCwd(
+                `process.stdout.write(Object.keys(lib).sort().join(","));`,
+            );
+            expect(stderr).toBe("");
+            expect(status).toBe(0);
+            // No `build/tmp/packs`, no stray anything: a library that is merely
+            // imported must not touch the filesystem of whoever imported it.
+            expect(fs.readdirSync(cwd)).toEqual([]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("imports from a tree with no Foundry package manifest", () => {
-        // The hardest edge: a *module* repository ships
-        // `module.json`, not `system.template.json`, and an empty directory
-        // ships neither. Importing the library must not go looking for one in
-        // the caller's tree — the eager `./assets/templates/system.template.json`
-        // read throws here unless the CLI owns it.
-        //
-        // (`helpers.mjs` still resolves that manifest by a *module*-relative
-        // path, so this proves the caller's tree is untouched, not that the
-        // pipeline is manifest-free. Hoisting that read into configuration is
-        // )
-        const { status, stdout, stderr } = importInEmptyCwd(
-            `process.stdout.write(typeof lib.compilePacks);`,
-        );
-        expect(stderr).toBe("");
-        expect(status).toBe(0);
-        expect(stdout).toBe("function");
-    });
+    it(
+        "imports from a tree with no Foundry package manifest",
+        () => {
+            // The hardest edge: a *module* repository ships
+            // `module.json`, not `system.template.json`, and an empty directory
+            // ships neither. Importing the library must not go looking for one in
+            // the caller's tree — the eager `./assets/templates/system.template.json`
+            // read throws here unless the CLI owns it.
+            //
+            // (`helpers.mjs` still resolves that manifest by a *module*-relative
+            // path, so this proves the caller's tree is untouched, not that the
+            // pipeline is manifest-free. Hoisting that read into configuration is
+            // )
+            const { status, stdout, stderr } = importInEmptyCwd(
+                `process.stdout.write(typeof lib.compilePacks);`,
+            );
+            expect(stderr).toBe("");
+            expect(status).toBe(0);
+            expect(stdout).toBe("function");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("does not reconfigure the shared loglevel singleton", () => {
-        const { status, stdout, stderr } = importInEmptyCwd(
-            `const log = (await import(${JSON.stringify(LOGLEVEL_URL)})).default;
+    it(
+        "does not reconfigure the shared loglevel singleton",
+        () => {
+            const { status, stdout, stderr } = importInEmptyCwd(
+                `const log = (await import(${JSON.stringify(LOGLEVEL_URL)})).default;
              process.stdout.write(String(log.getLevel()));`,
-        );
-        expect(stderr).toBe("");
-        expect(status).toBe(0);
-        // loglevel's untouched default is WARN (3). An import that configures
-        // the singleton would leave INFO (2) behind for the whole process.
-        expect(stdout).toBe("3");
-    });
+            );
+            expect(stderr).toBe("");
+            expect(status).toBe(0);
+            // loglevel's untouched default is WARN (3). An import that configures
+            // the singleton would leave INFO (2) behind for the whole process.
+            expect(stdout).toBe("3");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("does not parse argv or run a command", () => {
-        const { cwd, status, stdout, stderr } = importInEmptyCwd(
-            `process.stdout.write("imported");`,
-            ["package", "compile", "--help"],
-        );
-        expect(stderr).toBe("");
-        expect(status).toBe(0);
-        // yargs would have printed usage and (for `compile`) started a build.
-        expect(stdout).toBe("imported");
-        expect(fs.readdirSync(cwd)).toEqual([]);
-    });
+    it(
+        "does not parse argv or run a command",
+        () => {
+            const { cwd, status, stdout, stderr } = importInEmptyCwd(
+                `process.stdout.write("imported");`,
+                ["package", "compile", "--help"],
+            );
+            expect(stderr).toBe("");
+            expect(status).toBe(0);
+            // yargs would have printed usage and (for `compile`) started a build.
+            expect(stdout).toBe("imported");
+            expect(fs.readdirSync(cwd)).toEqual([]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("a prebuilt pack compiles without a content tree", () => {

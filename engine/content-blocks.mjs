@@ -20,22 +20,35 @@
  * Each block stands on its own: a malformed one is a finding at its own line
  * and the blocks around it still render.
  *
+ * **An H1, or an anchored heading at any level, is refused inside a block.**
+ * Either starts a Foundry journal page, which would tear the block's own
+ * page in two and publish the rest with no wrapper around it at all.
+ *
+
  * **One pass reads all three names.** Reading them in two passes made the first
  * one meet the second's closers with nothing open, and report a block the author
  * had not written. A construct this pass does not own — `:::caption` — is
  * counted rather than claimed, so its closer is attributed to it and the pass
  * that owns it still finds it in the markdown this one passes through.
  *
+ * **A block's body is left as Markdown, not pre-rendered.** The wrapper is
+ * written with a blank line after the opening tag and before the closing one,
+ * which is what lets the surrounding renderer — Foundry's single parse of the
+ * whole page, or Hugo's of the whole site page — read the body as part of its
+ * own document rather than as an isolated fragment. A fragment rendered on its
+ * own has no access to the note's footnote definitions, which live at the top
+ * level outside every block, so a reference inside one used to fall through as
+ * literal `[^id]` text; reached by the one parse that also sees the
+ * definitions, it resolves exactly as a reference inside a list item or a
+ * block quote already does.
+ *
  * @module
  */
 
 import crypto from "node:crypto";
 import MarkdownIt from "markdown-it";
-import footnotePlugin from "markdown-it-footnote";
-import deflistPlugin from "markdown-it-deflist";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
-
-const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
+import { parseHeadingLine } from "./page-headings.mjs";
 
 /**
  * Titles carry emphasis and nothing else. `html: false` escapes any tag an
@@ -164,6 +177,23 @@ export function scanBlocks(source) {
                 });
                 opening = null;
                 continue;
+            }
+            // An H1, or an anchored heading at any level, starts a Foundry
+            // journal page — splitting the block's own page in two and
+            // publishing the rest with no wrapper around it, a GM-only
+            // section included. Refused rather than split: a lower heading
+            // with no anchor is still the ordinary way to structure a box.
+            for (let at = opening.start + 1; at < i; at++) {
+                if (!parseHeadingLine(lines[at])?.startsPage) continue;
+                const article = /^[aeiou]/i.test(opening.name) ? "an" : "a";
+                errors.push({
+                    line: at + 1,
+                    column: 1,
+                    message:
+                        `a heading that starts a page cannot be written inside ${article} ` +
+                        `${opening.name} block — keep an H1 or an anchored heading ` +
+                        "at the top level, or drop the anchor and the level to stay inside it",
+                });
             }
             blocks.push({ ...opening, end: i, body });
             opening = null;
@@ -296,14 +326,18 @@ function attributeText(block, target, classes) {
  * `foundry` emits a `<section>` whose heading is its first line; `web` emits a
  * `<details>` the reader opens. Neither carries an inline `style`.
  *
+ * The body is left as Markdown between the wrapper's tags, each separated from
+ * its tag by a blank line — see the module docs for why that is what lets the
+ * surrounding render treat the body as real content rather than an opaque
+ * fragment.
+ *
  * A finding does not stop the well-formed blocks around it from rendering.
  *
  * @param {string} source - Markdown containing named blocks.
  * @param {"foundry"|"web"} target - Publishing surface.
- * @param {(markdown: string) => string} [renderMarkdown] - Body renderer.
  * @returns {{markdown: string, errors: Array<{line: number, column: number, message: string}>}}
  */
-export function renderBlocks(source, target, renderMarkdown = parser.render.bind(parser)) {
+export function renderBlocks(source, target) {
     const { blocks, errors } = scanBlocks(source);
     if (!blocks.length) return { markdown: String(source ?? ""), errors };
     const lines = String(source ?? "").split("\n");
@@ -314,20 +348,22 @@ export function renderBlocks(source, target, renderMarkdown = parser.render.bind
         const classes = [block.name, ...block.classes];
         const attributes = attributeText(block, target, classes);
         const title = titleParser.renderInline(block.title);
-        // A container's body may hold a block of its own. Rendering it first
-        // leaves HTML the markdown renderer passes through, so the held block
-        // comes out as a block rather than as the `:::` lines an author wrote.
+        // A container's body may hold a block of its own, rendered first so
+        // its own wrapper is already written when the outer one wraps it in
+        // turn — nesting composes because each level is markdown-with-raw-HTML
+        // at every depth, never a rendered fragment.
         const held =
             BLOCK_CONTAINERS.includes(block.name) ?
-                renderBlocks(block.body, target, renderMarkdown).markdown
+                renderBlocks(block.body, target).markdown
             :   block.body;
-        const body = renderMarkdown(held).trim();
         if (target === "foundry") {
             output.push(
                 "",
                 `<section ${attributes}>`,
                 `<strong>${title}</strong>:<br/>`,
-                body,
+                "",
+                held,
+                "",
                 "</section>",
                 "",
             );
@@ -336,7 +372,9 @@ export function renderBlocks(source, target, renderMarkdown = parser.render.bind
                 "",
                 `<details ${attributes}>`,
                 `<summary class="${escapeAttribute(block.name)}">${title}</summary>`,
-                body,
+                "",
+                held,
+                "",
                 "</details>",
                 "",
             );

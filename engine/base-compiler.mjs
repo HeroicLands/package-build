@@ -64,6 +64,7 @@
 import { authoredFrontmatter } from "./index-records.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanCaptions } from "./content-captions.mjs";
+import { footnoteFindings } from "./content-footnotes.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { cloneAddressState } from "./address-values.mjs";
@@ -614,6 +615,34 @@ export class BasePackCompiler {
     }
 
     /**
+     * Report every finding {@link BasePackCompiler#convertBody} collected
+     * across its passes, and decline the note if there were any.
+     *
+     * Reported directly, one `noteError` per finding, rather than thrown as a
+     * single wrapped message: the site build and the book report the same way,
+     * each finding at its own line, and a note with three problems meets all
+     * three in the run that found them instead of one per rebuild. The thrown
+     * sentinel carries `alreadyReported` so the compile loop's generic catch
+     * does not add a fourth, vaguer line on top of the three already said.
+     *
+     * @param {readonly {message: string, line?: number, column?: number}[]} findings
+     * @throws {Error} When `findings` is non-empty, after reporting all of them.
+     */
+    reportConvertBodyFindings(findings) {
+        for (const finding of findings) {
+            this.errorCount++;
+            this.noteError(finding.message, { line: finding.line, column: finding.column });
+        }
+        if (findings.length) {
+            const error = new Error(
+                `${findings.length} finding(s) in the note body, each reported above`,
+            );
+            error.alreadyReported = true;
+            throw error;
+        }
+    }
+
+    /**
      * The body {@link BasePackCompiler#buildEntry} receives.
      *
      * Generated tables expand before wikilinks are converted, so a cell a
@@ -625,19 +654,37 @@ export class BasePackCompiler {
      *   that does not convert.
      */
     convertBody(fm, body) {
-        const secretError = scanBlocks(body).errors[0];
-        if (secretError) {
-            const error = new Error(secretError.message);
-            error.position = {
+        // Every pass's own findings are collected before any of them is
+        // reported, so a note with a malformed block *and* a malformed
+        // caption *and* a bad expression surfaces all three in one run
+        // instead of one per rebuild. Each pass already returns every finding
+        // it made — `errors` or `findings`, never just the first — so nothing
+        // here re-scans; it only stops taking `[0]`.
+        const findings = [];
+        for (const secretError of scanBlocks(body).errors) {
+            findings.push({
+                message: secretError.message,
                 line: (this.currentNote?.bodyLine ?? 1) + secretError.line - 1,
                 column:
                     secretError.line === 1 ?
                         (this.currentNote?.bodyColumn ?? 1)
                     :   secretError.column,
-            };
-            throw error;
+            });
         }
-        if (!this.constructor.convertsWikilinks) return body;
+        for (const footnoteError of footnoteFindings(body)) {
+            findings.push({
+                message: footnoteError.message,
+                line: (this.currentNote?.bodyLine ?? 1) + footnoteError.line - 1,
+                column:
+                    footnoteError.line === 1 ?
+                        (this.currentNote?.bodyColumn ?? 1)
+                    :   footnoteError.column,
+            });
+        }
+        if (!this.constructor.convertsWikilinks) {
+            this.reportConvertBodyFindings(findings);
+            return body;
+        }
         const name = resolveName(fm);
         const { absPath, bodyLine, bodyColumn } = this.currentNote ?? {};
         const { markdown: tabulated, lineMap } = expandNoteTables(body, {
@@ -646,16 +693,14 @@ export class BasePackCompiler {
             sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
             pageLists: absPath ? this.sqlTables?.pageLists?.get(absPath) : undefined,
         });
-        const captionError = scanCaptions(tabulated).errors[0];
-        if (captionError) {
-            const error = new Error(captionError.message);
-            error.position = {
+        for (const captionError of scanCaptions(tabulated).errors) {
+            findings.push({
+                message: captionError.message,
                 line:
                     (bodyLine ?? 1) +
                     (lineMap[captionError.line - 1]?.line ?? captionError.line - 1),
                 column: captionError.column,
-            };
-            throw error;
+            });
         }
         const expressions = renderMarkdownExpressions(tabulated, {
             fm,
@@ -664,12 +709,10 @@ export class BasePackCompiler {
             file: absPath,
             bodyLine,
         });
-        if (expressions.findings.length) {
-            const finding = expressions.findings[0];
-            const error = new Error(finding.message);
-            error.position = { line: finding.line, column: finding.column };
-            throw error;
+        for (const finding of expressions.findings) {
+            findings.push({ message: finding.message, line: finding.line, column: finding.column });
         }
+        this.reportConvertBodyFindings(findings);
         const { markdown, unresolved } = convertNoteWikilinks(expressions.markdown, {
             type: fm.type,
             id: fm.id,
@@ -1236,6 +1279,11 @@ export class BasePackCompiler {
                 stats.compiled++;
                 this.onCompiled(fm, doc);
             } catch (err) {
+                // `convertBody` already reported every finding it collected,
+                // one `noteError` each, before throwing this sentinel — so the
+                // generic wrap below would only restate "failed to compile" on
+                // top of findings an author has already been told about.
+                if (err.alreadyReported) continue;
                 this.errorCount++;
                 const repeatedAnchor = err.message.match(
                     /declares the anchor \{#([^}]+)\} on more than one heading/,

@@ -65,6 +65,26 @@ import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-s
 import { resolveEmbeds } from "./content-embeds.mjs";
 
 /**
+ * Whether a page's declared anchors include the slug a link names.
+ *
+ * A local page's entry carries a `Set` (built by {@link module:engine/site-index});
+ * a foreign one carries the `{slug: uuid}` map a fetched manifest publishes.
+ * `undefined` means neither build recorded an answer, which keeps a target
+ * this check cannot speak for exactly as unchecked as it always was.
+ *
+ * @param {Set<string>|Record<string, string>|undefined} anchors - The page's
+ *   declared anchors, or `undefined` where none were recorded.
+ * @param {string} slug - The anchor a link names.
+ * @returns {boolean} Whether the anchor is declared, or `true` when `anchors`
+ *   is `undefined` — which reads as "nothing to check against" rather than
+ *   "declares none".
+ */
+function hasAnchor(anchors, slug) {
+    if (!anchors) return true;
+    return anchors instanceof Set ? anchors.has(slug) : Object.hasOwn(anchors, slug);
+}
+
+/**
  * The index key a **piped** target resolves to, or `null` when it does not
  * parse as an address at all.
  *
@@ -315,7 +335,9 @@ function isPlainMap(value) {
  *   resolves against. `src` is the page's display
  *   path and `file` the source file a diagnostic should name — absent, `src`
  *   stands in. `resolved`, when supplied, is the array every resolved
- *   target's index entry is appended to.
+ *   target's index entry is appended to. `anchors` is the `{#slug}` set
+ *   *this* page declares, which a `[[#slug]]` self-link is checked against;
+ *   absent, a self-link is not checked, exactly as before this existed.
  * @returns {string} The body with embeds and wikilinks rewritten.
  */
 export function resolveWebWikilinks(body, ctx) {
@@ -399,6 +421,16 @@ export function resolveWebWikilinks(body, ctx) {
 
         // `[[#section-slug|Text]]` — a section of this same page.
         if (isSamePage({ target, anchor })) {
+            // Checked against this page's own anchors, exactly as a link into
+            // another page is: a self-link naming a section the page does not
+            // declare is as dead as one naming a section nowhere does.
+            if (!hasAnchor(ctx.anchors, anchor)) {
+                return report(
+                    all,
+                    { target, reason: "unknown-anchor", anchor, addressed: true },
+                    label ?? anchor,
+                );
+            }
             return `[${label ?? ctx.captionLabels?.get(anchor) ?? anchor}](#${slugify(anchor)})`;
         }
 
@@ -419,6 +451,21 @@ export function resolveWebWikilinks(body, ctx) {
                 lookupRead(ctx.foreign, read, ctx.contentPackage)
             :   undefined);
         if (hit) {
+            // A `#section` the target declares no heading for. Checked only
+            // where there is a page to check against — a pack-only hit has no
+            // `url` and therefore nothing for the anchor to address, which is
+            // the asset-like case this must not touch. `anchorPageId` on the
+            // pack build and the KB manifest's own `{slug: uuid}` map both
+            // hash any slug into something that resolves, so an undeclared
+            // one otherwise joins onto the URL unchecked and dead-ends for
+            // the reader.
+            if (anchor && hit.url && !hasAnchor(hit.anchors, anchor)) {
+                return report(
+                    all,
+                    { target, reason: "unknown-anchor", anchor, addressed: true },
+                    label ?? hit.name ?? target,
+                );
+            }
             // The edge, for a caller reading the link graph off this pass.
             ctx.resolved?.push(hit);
             // An address with an *empty* label has no prose to show (a

@@ -87,6 +87,8 @@ describe("a content lint locates a finding from the working directory", () => {
                 "",
                 "![A map](maps/x.png){.no-such-width}",
                 "",
+                "- [ ] a checklist line",
+                "",
             ].join("\n"),
         );
     });
@@ -100,6 +102,7 @@ describe("a content lint locates a finding from the working directory", () => {
             "lintContentHtml",
             "lintContentIcons",
             "lintContentImages",
+            "lintContentTaskLists",
             "lintContentTree",
         ]);
     });

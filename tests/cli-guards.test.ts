@@ -32,6 +32,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, "..", "bin", "package-build.mjs");
 
@@ -67,125 +68,185 @@ function run(...args: string[]) {
 }
 
 describe("an invocation that names no command", () => {
-    it("fails, rather than exiting 0 in silence", () => {
-        const { code } = run();
-        expect(code).not.toBe(0);
-    });
+    it(
+        "fails, rather than exiting 0 in silence",
+        () => {
+            const { code } = run();
+            expect(code).not.toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("says what it wanted, and lists the commands", () => {
-        const { out, err } = run();
-        const shown = out + err;
-        expect(shown).toMatch(/command/i);
-        for (const command of ["package", "docs", "lint", "links", "deps", "reachability"]) {
-            expect(shown).toContain(command);
-        }
-    });
+    it(
+        "says what it wanted, and lists the commands",
+        () => {
+            const { out, err } = run();
+            const shown = out + err;
+            expect(shown).toMatch(/command/i);
+            for (const command of ["package", "docs", "lint", "links", "deps", "reachability"]) {
+                expect(shown).toContain(command);
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("an invocation the CLI cannot perform", () => {
-    it("rejects an unknown command", () => {
-        // Previously exited 0: a typo in a build script read as success.
-        const { code, out, err } = run("bogus");
-        expect(code).not.toBe(0);
-        expect(out + err).toContain("bogus");
-    });
+    it(
+        "rejects an unknown command",
+        () => {
+            // Previously exited 0: a typo in a build script read as success.
+            const { code, out, err } = run("bogus");
+            expect(code).not.toBe(0);
+            expect(out + err).toContain("bogus");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("rejects an unknown option", () => {
-        const { code } = run("lint", "--not-an-option");
-        expect(code).not.toBe(0);
-    });
+    it(
+        "rejects an unknown option",
+        () => {
+            const { code } = run("lint", "--not-an-option");
+            expect(code).not.toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("a command whose action decides the work", () => {
-    it("rejects `package` with no action", () => {
-        // The worst of the four: it exited 0 having compiled nothing, so a
-        // build chain carried on as though the packs were built.
-        const { code } = run("package");
-        expect(code).not.toBe(0);
-    });
+    it(
+        "rejects `package` with no action",
+        () => {
+            // The worst of the four: it exited 0 having compiled nothing, so a
+            // build chain carried on as though the packs were built.
+            const { code } = run("package");
+            expect(code).not.toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("names the actions `package` accepts", () => {
-        const { out, err } = run("package");
-        const shown = out + err;
-        for (const action of ["compile", "unpack", "clean"]) {
-            expect(shown).toContain(action);
-        }
-    });
+    it(
+        "names the actions `package` accepts",
+        () => {
+            const { out, err } = run("package");
+            const shown = out + err;
+            for (const action of ["compile", "unpack", "clean"]) {
+                expect(shown).toContain(action);
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("rejects an unknown action", () => {
-        const { code } = run("package", "recompile");
-        expect(code).not.toBe(0);
-    });
+    it(
+        "rejects an unknown action",
+        () => {
+            const { code } = run("package", "recompile");
+            expect(code).not.toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("rejects `docs` with no action", () => {
-        // It must not render the item-field reference regardless of what is
-        // asked for, because the handler never read `argv.action`.
-        const { code } = run("docs");
-        expect(code).not.toBe(0);
-    });
+    it(
+        "rejects `docs` with no action",
+        () => {
+            // It must not render the item-field reference regardless of what is
+            // asked for, because the handler never read `argv.action`.
+            const { code } = run("docs");
+            expect(code).not.toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("names the actions `docs` accepts", () => {
-        expect(run("docs").out + run("docs").err).toContain("item-fields");
-    });
+    it(
+        "names the actions `docs` accepts",
+        () => {
+            expect(run("docs").out + run("docs").err).toContain("item-fields");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("what still answers without a configuration", () => {
-    it("--version reports this package's own version", () => {
-        const manifest = JSON.parse(
-            fs.readFileSync(path.join(HERE, "..", "package.json"), "utf8"),
-        ) as { version: string };
-        const { code, out } = run("--version");
+    it(
+        "--version reports this package's own version",
+        () => {
+            const manifest = JSON.parse(
+                fs.readFileSync(path.join(HERE, "..", "package.json"), "utf8"),
+            ) as { version: string };
+            const { code, out } = run("--version");
 
-        expect(code).toBe(0);
-        expect(out.trim()).toBe(manifest.version);
-    });
+            expect(code).toBe(0);
+            expect(out.trim()).toBe(manifest.version);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     // `manifest` was the command that wrote the vendored link manifest, and it
     // is gone with the mechanism. A retired command must fail rather
     // than be quietly accepted as an unknown positional.
-    it("refuses the retired `manifest` command", () => {
-        const { code, err } = run("manifest");
+    it(
+        "refuses the retired `manifest` command",
+        () => {
+            const { code, err } = run("manifest");
 
-        expect(code).toBe(1);
-        expect(err).not.toBe("");
-    });
+            expect(code).toBe(1);
+            expect(err).not.toBe("");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("--help answers, and lists every command", () => {
-        const { code, out } = run("--help");
+    it(
+        "--help answers, and lists every command",
+        () => {
+            const { code, out } = run("--help");
 
-        expect(code).toBe(0);
-        for (const command of ["package", "docs", "lint", "links", "reachability"]) {
-            expect(out).toContain(command);
-        }
-    });
+            expect(code).toBe(0);
+            for (const command of ["package", "docs", "lint", "links", "reachability"]) {
+                expect(out).toContain(command);
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("package-build pdf's own error handling", () => {
     // A thrown error — as opposed to a finding `buildPdf` reports — must
     // reach the same located diagnostic every other command's catch block
     // produces, not crash the process trying to report itself.
-    it("reports a thrown error as a located diagnostic instead of crashing", () => {
-        const { code, err } = run("pdf");
+    it(
+        "reports a thrown error as a located diagnostic instead of crashing",
+        () => {
+            const { code, err } = run("pdf");
 
-        expect(err).not.toMatch(/ReferenceError/);
-        expect(err).toMatch(/PACKAGE_BUILD_CONFIG names .*which does not exist/);
-        expect(code).toBe(1);
-    });
+            expect(err).not.toMatch(/ReferenceError/);
+            expect(err).toMatch(/PACKAGE_BUILD_CONFIG names .*which does not exist/);
+            expect(code).toBe(1);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("accepts a value for --book-version rather than rejecting it as unknown", () => {
-        const { err } = run("pdf", "--book-version", "9.9.9");
+    it(
+        "accepts a value for --book-version rather than rejecting it as unknown",
+        () => {
+            const { err } = run("pdf", "--book-version", "9.9.9");
 
-        expect(err).not.toMatch(/Unknown argument/);
-        // Still fails for the same configuration reason as the bare command —
-        // the option parsed, and the failure is the fixture's, not the flag's.
-        expect(err).toMatch(/PACKAGE_BUILD_CONFIG names .*which does not exist/);
-    });
+            expect(err).not.toMatch(/Unknown argument/);
+            // Still fails for the same configuration reason as the bare command —
+            // the option parsed, and the failure is the fixture's, not the flag's.
+            expect(err).toMatch(/PACKAGE_BUILD_CONFIG names .*which does not exist/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("registers no option named the yargs-reserved `version`", () => {
-        // Node's own warning for the collision this used to have
-        // (`"version" is a reserved word.`) would appear on stderr here.
-        const { err } = run("pdf", "--help");
+    it(
+        "registers no option named the yargs-reserved `version`",
+        () => {
+            // Node's own warning for the collision this used to have
+            // (`"version" is a reserved word.`) would appear on stderr here.
+            const { err } = run("pdf", "--help");
 
-        expect(err).not.toMatch(/reserved word/);
-    });
+            expect(err).not.toMatch(/reserved word/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

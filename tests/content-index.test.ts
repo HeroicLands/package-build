@@ -282,14 +282,14 @@ describe("collectAnchors", () => {
 describe("buildIndexRecord", () => {
     it("carries the whole frontmatter through unflattened", () => {
         const record = buildIndexRecord({
-            frontmatter: { type: "being", sohl: { body: { weight: { base: 1500 } } } },
+            frontmatter: { type: "being", sohl: { system: { body: { weight: { base: 1500 } } } } },
             relPath: path.join("Bestiary", "Animal", "Aurochs.md"),
             contentPackage: "sohl",
         });
         expect(record.type).toBe("being");
         // The nested path survives as written — a reader addresses what the
         // note says, which is what a dataview query writes.
-        expect(record.sohl.body.weight.base).toBe(1500);
+        expect(record.sohl.system.body.weight.base).toBe(1500);
     });
 
     it("namespaces the note's place in the tree under `file`", () => {

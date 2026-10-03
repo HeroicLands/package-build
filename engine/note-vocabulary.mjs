@@ -894,8 +894,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...STANDINGS,
                 describe:
                     "Bodies the being belongs to, keyed by Address, each entry holding the " +
-                    "standing it holds there — `rank`, a level on that body's own ladder, " +
-                    "and `office`, a post that body names.",
+                    "standing it holds there — `rank`, required, a level on that body's own " +
+                    "ladder, and `office`, optional, a post that body names.",
             },
             {
                 name: "socialTies",
