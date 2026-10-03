@@ -1,8 +1,9 @@
 ---
-"@heroiclands/package-build": patch
+"@heroiclands/package-build": minor
 ---
 
 **Authoring**
 
-- A frontmatter error about an unrecognised top-level key now lists every key the format accepts, the `dnd5e:` block included, and names the declared key a misspelling was probably meant to be.
-- The note-type reference lists the top-level keys and what each one means, beside the `data:` fields it already listed.
+- A note's frontmatter accepts only the documented keys; an unrecognised one is an error at its own line, naming every accepted key and the one it was probably meant to be.
+- A page takes its heading from the note's name, so a homepage stating a title any other way publishes the name its package manifest carries.
+- Active Effects and document flags are read from the game-system block that carries them, so a note stating either outside one ships a document without them.
