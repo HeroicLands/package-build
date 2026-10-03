@@ -206,3 +206,76 @@ describe("an undeclared top-level key", () => {
         expect(result.some((finding) => finding.message.includes('"_editorial"'))).toBe(true);
     });
 });
+
+/* -------------------------------------------------------------------- */
+/*  Nothing reads a key the region refuses                               */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The top-level properties a pass may read although no note writes them.
+ *
+ * Three, and each is a fact about the toolchain rather than a key an author
+ * may author — which is what makes the scan below provable rather than a list
+ * of exceptions that grows:
+ *
+ * - `id` is **derived**. `resolveNoteId` fills it in on the parsed frontmatter
+ *   before any pass sees it, so forty-odd readers consult a value no note
+ *   wrote.
+ * - `package` and `folder` are **refused by name**. Each has one reader, whose
+ *   whole job is to throw — a compile does not run the frontmatter lint, so
+ *   without them a note carrying either key would compile silently.
+ */
+const READABLE_WITHOUT_DECLARATION = Object.freeze(["id", "package", "folder"]);
+
+/** Every `.mjs` under the directories a build runs from. */
+function sources(): string[] {
+    const found: string[] = [];
+    const walk = (dir: string) => {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const full = path.join(dir, entry.name);
+            if (entry.isDirectory()) walk(full);
+            else if (entry.name.endsWith(".mjs")) found.push(full);
+        }
+    };
+    for (const dir of ["engine", "sohl", "hm3", "bin", "ci"]) walk(path.join(root, dir));
+    return found;
+}
+
+/** The source with its comments removed, so prose cannot trip the scan. */
+function code(text: string): string {
+    return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+}
+
+describe("the passes that read a note's frontmatter", () => {
+    it("consult no top-level key the region does not declare", () => {
+        const allowed = new Set([...NOTE_TOP_LEVEL_KEYS, ...READABLE_WITHOUT_DECLARATION]);
+        const offenders: string[] = [];
+        for (const file of sources()) {
+            const text = code(fs.readFileSync(file, "utf8"));
+            for (const match of text.matchAll(/(?:^|[^.\w])fm\??\.([A-Za-z_][A-Za-z0-9_]*)/g)) {
+                if (allowed.has(match[1])) continue;
+                offenders.push(`${path.relative(root, file)}: fm.${match[1]}`);
+            }
+            for (const match of text.matchAll(/\.fm\??\.([A-Za-z_][A-Za-z0-9_]*)/g)) {
+                if (allowed.has(match[1])) continue;
+                offenders.push(`${path.relative(root, file)}: .fm.${match[1]}`);
+            }
+        }
+
+        expect([...new Set(offenders)]).toEqual([]);
+    });
+
+    it("scans a body of source large enough for the result to mean something", () => {
+        // Guards the guard: a scan that found no files, or a regex that matched
+        // nothing, would pass the assertion above vacuously.
+        const hits = sources().reduce(
+            (total, file) =>
+                total +
+                [...code(fs.readFileSync(file, "utf8")).matchAll(/fm\??\.[A-Za-z_]/g)].length,
+            0,
+        );
+
+        expect(sources().length).toBeGreaterThan(100);
+        expect(hits).toBeGreaterThan(200);
+    });
+});
