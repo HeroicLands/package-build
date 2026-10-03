@@ -80,7 +80,13 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
 });
 import { slugify } from "./content-slug.mjs";
 import { scanCaptions } from "./content-captions.mjs";
-import { scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
+import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
+import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
+import { HTML_TAG, htmlMessage } from "./content-html.mjs";
+import { EXPRESSION } from "./markdown-expressions.mjs";
+import { WIKILINK } from "./wikilink-syntax.mjs";
+import { EMBED_PATTERN } from "./content-embeds.mjs";
+import { positionInBody } from "./diagnostics.mjs";
 
 /**
  * How each named block prints. Typst has no stylesheet to defer to, so the
@@ -181,6 +187,198 @@ export function createParser(registry) {
 }
 
 /**
+ * A closed HTML comment, however many lines it spans.
+ *
+ * Closed only: an unclosed `<!--` is text by CommonMark's reading, and a
+ * pattern that ran to the end of the file for want of a closer would delete
+ * every line after the mistake. {@link reportUnrenderable} names it instead.
+ *
+ * @type {RegExp}
+ */
+const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+
+/**
+ * A markdown body with its HTML comments taken out.
+ *
+ * A comment is an author's aside to the next author — a `markdownlint` pragma, a
+ * note recording why a notice is quoted verbatim — and no surface shows one: the
+ * packs and the website emit it into HTML, where it is a comment still. Typst
+ * has nowhere to put it, so markdown-it hands the delimiters over as prose and
+ * the aside is typeset. It comes out here instead, and a comment inside a fence
+ * or a code span stays, because there it is an example of a comment.
+ *
+ * **The line count is preserved.** Every finding this module reports is located
+ * in the markdown it was handed, so a pass that removed a line would move every
+ * position after it.
+ *
+ * @param {string} markdown - The body, as authored.
+ * @returns {string} The same body, its comments replaced by their own newlines.
+ */
+export function stripHtmlComments(markdown) {
+    return replaceOutsideCode(String(markdown ?? ""), HTML_COMMENT, (comment) =>
+        "\n".repeat((comment.match(/\n/g) ?? []).length),
+    );
+}
+
+/**
+ * Where a position in the markdown handed in falls in the file that holds it.
+ *
+ * The three corrections {@link module:engine/diagnostics.positionInBody} makes,
+ * applied to a line and column rather than to an offset: the frontmatter above
+ * the body, the indentation a trimmed first line lost, and a line that a
+ * content table generated and no author wrote — which has no column to point at.
+ *
+ * @param {number} line - 1-based line within the markdown.
+ * @param {number} column - 1-based column within that line.
+ * @param {object} [opts] - As {@link markdownToTypst} takes.
+ * @returns {{line: number, column?: number}} The position, in the file.
+ */
+function linePosition(line, column, { bodyLine = 1, bodyColumn = 1, lineMap } = {}) {
+    const mapped = lineMap?.[line - 1];
+    const sourceLine = mapped ? mapped.line : line - 1;
+    if (mapped?.generated) return { line: bodyLine + sourceLine };
+    return {
+        line: bodyLine + sourceLine,
+        column: sourceLine === 0 ? bodyColumn + column - 1 : column,
+    };
+}
+
+/**
+ * Where a character offset within the markdown handed in falls in its file.
+ *
+ * @param {string} source - The markdown the offset indexes into.
+ * @param {number} offset - 0-based character offset.
+ * @param {object} [opts] - As {@link markdownToTypst} takes.
+ * @returns {{line: number, column?: number}} The position, in the file.
+ */
+function offsetPosition(source, offset, opts = {}) {
+    const { line, column, generated } = positionInBody(source, offset, opts);
+    return generated ? { line } : { line, column };
+}
+
+/**
+ * Everything in one body that the book cannot set, reported.
+ *
+ * **The renderer owes a finding for every construct it meets and cannot
+ * render.** It emits text and reads nothing, so there is no state it can refuse
+ * from; what it can do is say what it met, at the line it met it, and let the
+ * caller decide. Without that a body carrying a construct this pass does not
+ * handle is typeset as its own markup — delimiters, braces and all — and the
+ * build exits 0 having printed the mistake into the book.
+ *
+ * Two families are named here, and they fail for opposite reasons:
+ *
+ * - **A construct no book renderer reads.** Raw HTML, and an HTML comment that
+ *   is never closed. Both reach Typst as prose, and the first is reported in
+ *   {@link module:engine/content-html}'s own words so one authored tag does not
+ *   get two explanations.
+ * - **A pass's output that never arrived.** A wikilink, an embed and an inline
+ *   `{{…}}` expression are each resolved before the book sees them; one that is
+ *   still in the markdown means the pass that owns it did not run over this
+ *   body, and the markup is about to be typeset verbatim. Reported only where
+ *   those passes did not run — `opts.prepared` — because each of them leaves the
+ *   markup as written when it fails and has already said so in its own words.
+ *
+ * A `:::` block and a `:::caption` are the pair this pass does handle, and their
+ * own scanners decide what is well formed; their findings are reported here so
+ * that a front-matter file, a prose file and a note body all get them.
+ *
+ * @param {string} source - The body, comments already stripped.
+ * @param {string} definitions - The footnote definitions separated from it.
+ * @param {object} opts - As {@link markdownToTypst} takes.
+ * @returns {void}
+ */
+function reportUnrenderable(source, definitions, opts) {
+    const findings = opts.findings;
+    if (!findings) return;
+    const file = opts.file ? { file: opts.file } : {};
+    /**
+     * @param {{line: number, column?: number}} position - Where it is.
+     * @param {"warning"|"error"} severity - Which level.
+     * @param {string} message - What is wrong.
+     * @returns {void}
+     */
+    const report = (position, severity, message) => {
+        findings.push({ ...file, ...position, severity, message });
+    };
+
+    const blocks = scanBlocks(source);
+    for (const error of blocks.errors)
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    // A container's body, read for faults of its own — an empty box, an
+    // attribute that does not parse — which the scan above passes over, because
+    // there an inner opener is a counted line rather than a block.
+    //
+    // Only where that reading was sound. One mistake draws several findings from
+    // a single scan already, and a body read from a misread outer block draws
+    // more that say the same thing in other words. One level down and no
+    // further: a box inside a GM-only section is the only nesting the format
+    // admits.
+    const lines = source.split("\n");
+    if (!blocks.errors.length) {
+        for (const block of blocks.blocks) {
+            if (!BLOCK_CONTAINERS.includes(block.name)) continue;
+            const body = lines.slice(block.start + 1, block.end).join("\n");
+            for (const error of scanBlocks(body).errors)
+                report(
+                    linePosition(block.start + 1 + error.line, error.column, opts),
+                    "error",
+                    error.message,
+                );
+        }
+    }
+    for (const error of scanCaptions(source).errors)
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+
+    // Every closed comment is gone by the time this runs, so an opener still
+    // here is one that was never closed — on the website that swallows the rest
+    // of the page, and here it is typeset.
+    for (const match of matchAllOutsideCode(source, /<!--/g))
+        report(
+            offsetPosition(source, match.index, opts),
+            "error",
+            "an HTML comment is opened and never closed — close it with `-->`",
+        );
+    for (const match of matchAllOutsideCode(source, HTML_TAG))
+        report(offsetPosition(source, match.index, opts), "warning", htmlMessage(match[0]));
+    if (!opts.prepared) {
+        for (const match of matchAllOutsideCode(source, EMBED_PATTERN))
+            report(
+                offsetPosition(source, match.index, opts),
+                "error",
+                `\`${match[0]}\` reaches the book as written — an embed is resolved to a ` +
+                    "picture before the book is set, and nothing resolved this one",
+            );
+        for (const match of matchAllOutsideCode(source, WIKILINK))
+            report(
+                offsetPosition(source, match.index, opts),
+                "error",
+                `\`${match[0]}\` reaches the book as written — a link is resolved to an ` +
+                    "address before the book is set, and nothing resolved this one",
+            );
+        for (const match of matchAllOutsideCode(source, EXPRESSION))
+            report(
+                offsetPosition(source, match.index, opts),
+                "error",
+                `\`${match[0]}\` reaches the book as written — an expression is evaluated ` +
+                    "before the book is set, and nothing evaluated this one",
+            );
+    }
+    const defined = new Set(
+        [...String(definitions).matchAll(/^\[\^([^\]\s]+)\]:/gm)].map((match) => match[1]),
+    );
+    for (const match of matchAllOutsideCode(source, /\[\^([^\]\s]+)\]/g)) {
+        if (defined.has(match[1])) continue;
+        report(
+            offsetPosition(source, match.index, opts),
+            "error",
+            `footnote [^${match[1]}] has no definition, so the book sets the marker as ` +
+                `text — write \`[^${match[1]}]: …\` at the top level of the note`,
+        );
+    }
+}
+
+/**
  * Render markdown as Typst content.
  *
  * @param {string} markdown - The note's body, tables expanded and links resolved.
@@ -198,8 +396,26 @@ export function createParser(registry) {
  *   note's own `##` nests beneath the entry heading the book gave it.
  * @param {string} [opts.anchorPrefix] - The entry's anchor, which namespaces
  *   every `{#slug}` the body declares.
- *   capital. Set for an entry, which begins a page; not for front matter or a
- *   prose file, which carry headings of their own.
+ * @param {object[]} [opts.findings] - Collected here rather than thrown. Every
+ *   construct this pass cannot render is reported into it — see
+ *   {@link reportUnrenderable} — and a caller that passes none renders the same
+ *   Typst and is told nothing.
+ * @param {string} [opts.file] - The file the markdown came from, named in every
+ *   finding.
+ * @param {number} [opts.bodyLine] - The 1-based file line the body starts on, so
+ *   a finding's line is the file's rather than the body's.
+ * @param {number} [opts.bodyColumn] - The 1-based column the body starts at.
+ * @param {Array<{line: number, generated: boolean}>} [opts.lineMap] - From
+ *   table expansion, mapping each line handed in back to the line an author
+ *   wrote.
+ * @param {boolean} [opts.prepared] - Whether this body has been through the
+ *   passes that resolve a wikilink, an embed and an inline expression. A note's
+ *   has; a front-matter file's and a prose file's have not, and markup of theirs
+ *   left in one is reported rather than typeset in silence.
+ * @param {string} [opts.url] - The absolute address this book's pages are served
+ *   at. Every link the book sets as a URL is resolved against it, because a
+ *   reader holding a PDF has no page to resolve a path against — see
+ *   {@link renderLink}.
  * @returns {string} Typst markup.
  */
 export function markdownToTypst(markdown, opts = {}) {
@@ -211,12 +427,36 @@ export function markdownToTypst(markdown, opts = {}) {
         headingOffset = 0,
         anchorPrefix = "",
     } = opts;
-    const separated =
-        opts.footnoteDefinitions === undefined ? separateFootnotes(String(markdown ?? "")) : null;
-    const source = separated?.markdown ?? String(markdown ?? "");
+    const given = opts.nested ? String(markdown ?? "") : stripHtmlComments(markdown);
+    const separated = opts.footnoteDefinitions === undefined ? separateFootnotes(given) : null;
+    const source = separated?.markdown ?? given;
     const definitions = opts.footnoteDefinitions ?? separated?.definitions ?? "";
     const footnoteState = opts.footnoteState ?? { seen: new Set() };
-    const sharedOptions = { ...opts, footnoteDefinitions: definitions, footnoteState };
+    const sharedOptions = {
+        ...opts,
+        footnoteDefinitions: definitions,
+        footnoteState,
+        nested: true,
+    };
+    // Read once, over the body as it arrived: every position a finding carries
+    // is an offset into *this* string, and the renderer below walks slices of it.
+    if (!opts.nested) reportUnrenderable(source, definitions, opts);
+    // One map for the whole body, not one per block: a heading inside a
+    // blockquote or a list item shares the entry's anchor namespace with every
+    // other heading in the same body, because `sectionLabel` scopes by entry
+    // rather than by container.
+    const ctx = {
+        md,
+        links,
+        glyphs,
+        images,
+        headingOffset,
+        anchorPrefix,
+        url: opts.url,
+        seen: new Map(),
+        footnoteState,
+        footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
+    };
     if (!opts.insideAdmonition) {
         const { blocks } = scanBlocks(source);
         if (blocks.length) {
@@ -231,10 +471,17 @@ export function markdownToTypst(markdown, opts = {}) {
                     }),
                 );
                 const { color, background, symbol } = BLOCK_PRINT[block.name];
-                const label = block.title;
+                // The title is inline markdown, rendered the way every other
+                // phrase in the book is. Set as it was written it would be read
+                // by Typst instead: `*word*` is bold there and emphasis here, a
+                // `#` opens a function call, and one unbalanced `]` ends the box
+                // and takes the rest of the document with it.
+                const label = inlineMarkup(block.title, ctx);
+                // A GM-only section holds a box, so its body is read for blocks
+                // of its own; a box holds none, and the scan has already said so.
                 const content = markdownToTypst(block.body, {
                     ...sharedOptions,
-                    insideAdmonition: true,
+                    insideAdmonition: !BLOCK_CONTAINERS.includes(block.name),
                 });
                 output.push(
                     `\n#block(width: 100%, fill: rgb("${background}"), stroke: (left: 2pt + rgb("${color}")), inset: 8pt, above: 0.7em, below: 0.7em)[#text(fill: rgb("${color}"), weight: "bold")[${symbol} ${label}]\n\n${content}]\n`,
@@ -250,27 +497,20 @@ export function markdownToTypst(markdown, opts = {}) {
             return output.join("\n");
         }
     }
-    // One map for the whole body, not one per block: a heading inside a
-    // blockquote or a list item shares the entry's anchor namespace with every
-    // other heading in the same body, because `sectionLabel` scopes by entry
-    // rather than by container.
-    const ctx = {
-        md,
-        links,
-        glyphs,
-        images,
-        headingOffset,
-        anchorPrefix,
-        seen: new Map(),
-        footnoteState,
-        footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
-    };
     const lines = source.split("\n");
     const localCaptions = scanCaptions(source).captions;
-    const numbered = new Map(
-        (opts.captions ?? localCaptions).map((caption) => [caption.id, caption]),
-    );
-    const captions = localCaptions.map((caption) => numbered.get(caption.id) ?? caption);
+    // Numbered by the caller, which counts across the whole book, and placed by
+    // the scan above, which is the only reading of *this* body. Paired by
+    // position: two captions may share an id — a finding, and the book is built
+    // anyway — and keying on one would give the second caption's lines to the
+    // first, printing its block twice and losing its label.
+    const provided = opts.captions ?? localCaptions;
+    const numbered = new Map(provided.map((caption) => [caption.id, caption]));
+    const captions = localCaptions.map((caption, at) => {
+        const counted =
+            provided[at]?.id === caption.id ? provided[at] : (numbered.get(caption.id) ?? caption);
+        return { ...caption, label: counted.label, number: counted.number };
+    });
     if (!captions.length) return renderMarkdownSegment(source, md, ctx, definitions);
     const out = [];
     let cursor = 0;
@@ -560,10 +800,26 @@ function listItems(tokens, start, end, ctx) {
     return items;
 }
 
+/**
+ * A phrase of inline Markdown, set the way the prose around it is.
+ *
+ * A caption, a named block's title: text an author writes outside a paragraph
+ * and still expects emphasis in. Rendering it through the same walk is also what
+ * makes it inert — Typst's own markup characters are escaped on the way, which
+ * handing the string over raw does not do.
+ *
+ * @param {string} text - The phrase, as authored.
+ * @param {object} ctx - Render context.
+ * @returns {string} Typst markup.
+ */
+function inlineMarkup(text, ctx) {
+    const inline = ctx.md.parseInline(String(text ?? ""), {})[0];
+    return inline ? renderInline(inline, ctx) : "";
+}
+
 /** Caption text with the same inline Markdown handling as the surrounding prose. */
 function captionMarkup(caption, ctx) {
-    const inline = ctx.md.parseInline(caption.text, {})[0];
-    return `${escapeTypst(caption.label)}: ${renderInline(inline, ctx)}`;
+    return `${escapeTypst(caption.label)}: ${inlineMarkup(caption.text, ctx)}`;
 }
 
 /**
@@ -794,6 +1050,39 @@ function inlineRaw(content) {
 }
 
 /**
+ * A page address as a reader of the book can follow it.
+ *
+ * **Every link the book sets as a URL is absolute.** A page's address is written
+ * from the root of the site that serves it — `/sohl/skill-guil/` — because on the
+ * website that is the shortest form that is right wherever the page is read
+ * from. A PDF is read from nowhere: a viewer handed a path has no document to
+ * resolve it against, so it either does nothing or looks for a file on the
+ * reader's own disk, and a book of a thousand pages carries a thousand links
+ * that do neither.
+ *
+ * So a root-relative address is resolved against the site's own, which is the
+ * one absolute address a build already holds. A **dependency's** page keeps its
+ * own package prefix, from the registry in
+ * {@link module:engine/content-address.PACKAGE_BASE}, so it resolves to the host
+ * serving that package — and where the registry names a host of its own the
+ * address is already absolute and is left exactly as it is.
+ *
+ * @param {string} url - The address, as the link pass resolved it.
+ * @param {string} [site] - The absolute address this book's pages are served at.
+ * @returns {string} An absolute URL, or the address unchanged when there is no
+ *   site to resolve it against or it is already absolute.
+ */
+export function absolutePageUrl(url, site) {
+    const address = String(url ?? "");
+    if (!site || !address.startsWith("/") || address.startsWith("//")) return address;
+    try {
+        return new URL(address, site).href;
+    } catch {
+        return address;
+    }
+}
+
+/**
  * A link, internal when the book prints its destination and external otherwise.
  *
  * The address slug is read from the tail of the URL, which is where every
@@ -826,7 +1115,7 @@ function renderLink(href, inner, ctx) {
         return `#link(<${target}>)[${inner}]`;
     }
     if (!url) return inner;
-    return `#link("${escapeTypstString(url)}")[${inner}]`;
+    return `#link("${escapeTypstString(absolutePageUrl(url, ctx.url))}")[${inner}]`;
 }
 
 /**

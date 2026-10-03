@@ -61,8 +61,13 @@ export const BLOCK_NAMES = Object.freeze({
  * container for whatever the GM reads, boxes included — so a `secret` holds one
  * and the box stays inside it. A box inside a box is noise, so `info` and `warn`
  * hold no named block and a second opener inside one is a finding.
+ *
+ * Exported because a renderer has to know it: the body of a container is read
+ * for blocks of its own, and the body of a box is not.
+ *
+ * @type {readonly string[]}
  */
-const CONTAINERS = Object.freeze(["secret"]);
+export const BLOCK_CONTAINERS = Object.freeze(["secret"]);
 
 /**
  * Constructs another pass owns. A `:::caption` is read by the caption pass, so
@@ -180,7 +185,7 @@ export function scanBlocks(source) {
             continue;
         }
         if (opening) {
-            if (CONTAINERS.includes(opening.name) && !CONTAINERS.includes(name)) {
+            if (BLOCK_CONTAINERS.includes(opening.name) && !BLOCK_CONTAINERS.includes(name)) {
                 // Held by the block it is written in, and counted so the
                 // closers are attributed in the order they were opened. The
                 // body is rendered for its own blocks before it is rendered as
@@ -313,7 +318,7 @@ export function renderBlocks(source, target, renderMarkdown = parser.render.bind
         // leaves HTML the markdown renderer passes through, so the held block
         // comes out as a block rather than as the `:::` lines an author wrote.
         const held =
-            CONTAINERS.includes(block.name) ?
+            BLOCK_CONTAINERS.includes(block.name) ?
                 renderBlocks(block.body, target, renderMarkdown).markdown
             :   block.body;
         const body = renderMarkdown(held).trim();

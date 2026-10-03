@@ -7,8 +7,17 @@ import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { formatDateInCalendar, parseNoteDate } from "./note-dates.mjs";
 import { numberWords, numberDigits } from "./number-words.mjs";
 
-// Hugo shortcodes begin `{{<` or `{{%` and stay in the source for Hugo.
-const EXPRESSION = /(?<![\\{])\{\{(?![{<%])([^{}\n]+)\}\}(?!\})/g;
+/**
+ * An inline expression, as an author writes one.
+ *
+ * Hugo shortcodes begin `{{<` or `{{%` and stay in the source for Hugo.
+ *
+ * Exported because a renderer that meets one has met a body this pass never ran
+ * over, and has to be able to say so.
+ *
+ * @type {RegExp}
+ */
+export const EXPRESSION = /(?<![\\{])\{\{(?![{<%])([^{}\n]+)\}\}(?!\})/g;
 
 /**
  * Every helper an expression may call, with the parameters it takes.

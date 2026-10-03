@@ -11,6 +11,7 @@ import {
     resolveDanglingLabels,
 } from "../engine/pdf-render.mjs";
 import { ICON_SIZES, iconHtml } from "../engine/content-icons.mjs";
+import { htmlMessage } from "../engine/content-html.mjs";
 
 describe("escapeTypst", () => {
     it("makes Typst's markup characters inert", () => {
@@ -180,6 +181,270 @@ describe("markdownToTypst", () => {
         // The visible failure `content-icons` was designed to produce.
         const out = markdownToTypst("press :icon nonesuch: now");
         expect(out).toContain(":icon nonesuch:");
+    });
+
+    it("sets a named block's title as markdown rather than handing it to Typst", () => {
+        // A title is authored prose: `*word*` is emphasis where Typst reads it
+        // as bold, a `#` opens a function call, and one unbalanced `]` closes
+        // the box and takes the rest of the document with it.
+        expect(markdownToTypst(':::info {title="The *Genzet* only"}\nBody.\n:::')).toContain(
+            "[i The #emph[Genzet] only]",
+        );
+        expect(markdownToTypst(':::info {title="Cost #3"}\nBody.\n:::')).toContain("[i Cost \\#3]");
+        expect(markdownToTypst(':::warn {title="Cost ]"}\nBody.\n:::')).toContain("[! Cost \\]]");
+        expect(markdownToTypst(':::warn {title="@dawn $5"}\nBody.\n:::')).toContain(
+            "[! \\@dawn \\$5]",
+        );
+    });
+
+    it("prints a box inside a GM-only section as a box", () => {
+        const out = markdownToTypst(
+            [":::secret", "For the GM.", "", ":::info", "The ford floods.", ":::", "", ":::"].join(
+                "\n",
+            ),
+        );
+        // Two coloured blocks, the inner one inside the outer: the section is a
+        // container for whatever the GM reads, boxes included.
+        expect(out).toContain('fill: rgb("#f2eefb")');
+        expect(out).toContain('fill: rgb("#eef6fb")');
+        expect(out).not.toContain(":::info");
+    });
+
+    it("prints each of two captions sharing an id once, and reports the id", () => {
+        const findings: { line?: number; severity: string; message: string }[] = [];
+        const out = markdownToTypst(
+            [
+                ":::caption {#a}",
+                "First",
+                ":::",
+                "",
+                "| a |",
+                "| - |",
+                "| 1 |",
+                "",
+                ":::caption {#a}",
+                "Second",
+                ":::",
+                "",
+                "| c |",
+                "| - |",
+                "| 3 |",
+            ].join("\n"),
+            { findings },
+        );
+        expect(out).toContain("Table 1: First");
+        expect(out).toContain("Table 2: Second");
+        expect(out.match(/table\.header\(\[c\]\)/g)).toHaveLength(1);
+        expect(out).not.toContain(":::caption");
+        expect(findings).toEqual([
+            { line: 9, column: 1, severity: "error", message: 'duplicate caption id "a"' },
+        ]);
+    });
+});
+
+describe("a page link a reader of the book can follow", () => {
+    // A page's address is written from the root of the site that serves it,
+    // which is right everywhere on the web and nowhere in a PDF: a viewer handed
+    // a path has no document to resolve it against.
+    const site = "https://www.heroiclands.org/kethira/";
+
+    it("resolves a root-relative page address against the site", () => {
+        expect(markdownToTypst("see [it](/kethira/skill-guil/)", { url: site })).toBe(
+            'see #link("https://www.heroiclands.org/kethira/skill-guil/")[it]',
+        );
+    });
+
+    it("keeps a dependency's own package prefix, so it resolves to that package's pages", () => {
+        expect(markdownToTypst("see [it](/sohl/skill-guil/)", { url: site })).toBe(
+            'see #link("https://www.heroiclands.org/sohl/skill-guil/")[it]',
+        );
+    });
+
+    it("leaves an address that already names a host exactly as it is", () => {
+        const absolute = "https://www.kelestia.com/";
+        expect(markdownToTypst(`see [it](${absolute})`, { url: site })).toBe(
+            `see #link("${absolute}")[it]`,
+        );
+    });
+
+    it("leaves the address alone when there is no site to resolve it against", () => {
+        expect(markdownToTypst("see [it](/kethira/skill-guil/)")).toBe(
+            'see #link("/kethira/skill-guil/")[it]',
+        );
+    });
+
+    it("sends a link the book prints inward, whatever the site is", () => {
+        const out = markdownToTypst("see [it](/kethira/skill-guil/)", {
+            url: site,
+            links: new Map([["skill-guil", "skill-guil"]]),
+        });
+        expect(out).toBe("see #link(<skill-guil>)[it]");
+    });
+});
+
+describe("what the book cannot set", () => {
+    /** The findings one body produces, and the Typst it still returns. */
+    function render(markdown: string, opts: Record<string, unknown> = {}) {
+        const findings: {
+            file?: string;
+            line?: number;
+            column?: number;
+            severity: string;
+            message: string;
+        }[] = [];
+        const typst = markdownToTypst(markdown, { findings, file: "note.md", ...opts });
+        return { findings, typst };
+    }
+
+    it("takes an HTML comment out of the page", () => {
+        // The pair a verbatim legal notice needs: the notice carries bare URLs
+        // that MD034 would otherwise reject and that may not be rewritten.
+        const { findings, typst } = render(
+            [
+                "<!-- markdownlint-disable MD034 -->",
+                "",
+                "This is unofficial fan material (https://example.com/).",
+                "",
+                "<!-- markdownlint-enable MD034 -->",
+            ].join("\n"),
+        );
+        expect(typst).toBe("This is unofficial fan material (https://example.com/).");
+        expect(findings).toEqual([]);
+    });
+
+    it("takes a comment out from the middle of a line, and from across lines", () => {
+        expect(render("A notice <!-- why --> continues.").typst).toBe("A notice  continues.");
+        expect(render("<!--\nseveral\nlines\n-->\n\nText.").typst).toBe("Text.");
+    });
+
+    it("keeps a comment written inside a fence, where it is an example", () => {
+        expect(render("```markdown\n<!-- keep me -->\n```").typst).toContain("<!-- keep me -->");
+    });
+
+    it("keeps the lines a comment occupied, so a later finding is at its own line", () => {
+        const { findings } = render(["<!--", "two lines", "-->", "", ":::"].join("\n"));
+        expect(findings).toEqual([
+            {
+                file: "note.md",
+                line: 5,
+                column: 1,
+                severity: "error",
+                message: "a ::: line closes no block",
+            },
+        ]);
+    });
+
+    it("names a comment that is never closed", () => {
+        const { findings } = render("Line one.\n\n<!-- open and never closed");
+        expect(findings).toHaveLength(1);
+        expect(findings[0]).toMatchObject({ line: 3, column: 1, severity: "error" });
+        expect(findings[0].message).toContain("never closed");
+    });
+
+    it("reports a `:::` block a front-matter or prose file cannot have scanned for it", () => {
+        // Nothing else reads these two: a note's body is scanned by the pass that
+        // resolves its links, and a front-matter file is read by this one alone.
+        expect(render(":::aside\nBody.\n:::").findings[0]).toMatchObject({
+            line: 1,
+            severity: "error",
+            message: "there is no aside block; the blocks are info, secret, warn",
+        });
+        expect(render(":::secret\nhidden").findings[0]).toMatchObject({
+            line: 1,
+            severity: "error",
+            message: "secret block needs a closing ::: line",
+        });
+        expect(render("Prose.\n\n:::caption {#a}\nOnly\n:::").findings[0]).toMatchObject({
+            line: 3,
+            severity: "error",
+            message: "caption needs a following block",
+        });
+    });
+
+    it("reads a GM-only section's body for faults the outer scan passes over", () => {
+        // There an inner opener is a counted line rather than a block, so an
+        // empty box and an attribute that does not parse are only found by
+        // reading the body.
+        expect(render(":::secret\nouter\n\n:::info\n:::\n\n:::").findings).toEqual([
+            {
+                file: "note.md",
+                line: 4,
+                column: 1,
+                severity: "error",
+                message: "info block is empty",
+            },
+        ]);
+        expect(
+            render(":::secret\nouter\n\n:::info {title=}\nBody.\n:::\n\n:::").findings[0],
+        ).toMatchObject({ line: 4, message: "title needs a value" });
+        // And only where that reading was sound: a body read from a misread
+        // outer block says the same mistake over again in other words.
+        expect(render(":::secret\nouter\n:::secret\ninner\n:::\n:::").findings).toHaveLength(2);
+    });
+
+    it("reports raw HTML in the words the HTML check uses", () => {
+        const { findings } = render("A <strong>bold</strong> claim.");
+        expect(findings).toHaveLength(2);
+        expect(findings[0]).toMatchObject({ line: 1, column: 3, severity: "warning" });
+        expect(findings[0].message).toBe(htmlMessage("<strong>"));
+    });
+
+    it("reports a wikilink, an embed and an expression that no pass resolved", () => {
+        const link = render("See [[lore-harbor|the harbor]].").findings;
+        expect(link[0]).toMatchObject({ line: 1, column: 5, severity: "error" });
+        expect(link[0].message).toContain("[[lore-harbor|the harbor]]");
+
+        const embed = render("![[image-harbor|Harbor]]{size=medium}").findings;
+        expect(embed[0]).toMatchObject({ line: 1, column: 1, severity: "error" });
+
+        const expression = render("{{name.full}} was born then.").findings;
+        expect(expression[0]).toMatchObject({ line: 1, column: 1, severity: "error" });
+        expect(expression[0].message).toContain("{{name.full}}");
+    });
+
+    it("says nothing about those three on a body the passes have been over", () => {
+        // Each of them leaves its markup as written when it fails, and has
+        // already reported it in its own words; a second finding for one mistake
+        // is noise on a build that is already failing.
+        expect(
+            render("See [[lore-harbor|x]] and {{name.full}}.", { prepared: true }).findings,
+        ).toEqual([]);
+    });
+
+    it("reports a footnote reference with no definition, and says nothing about one with", () => {
+        const { findings, typst } = render("a[^y] only");
+        expect(typst).toContain("\\[^y\\]");
+        expect(findings[0]).toMatchObject({ line: 1, column: 2, severity: "error" });
+        expect(findings[0].message).toContain("[^y]");
+        expect(render("a[^x] only\n\n[^x]: note").findings).toEqual([]);
+    });
+
+    it("locates a finding in the file rather than in the body it was handed", () => {
+        // A note's body starts below its frontmatter, and a line a content table
+        // generated is reported at the directive that produced it with no column
+        // to point at.
+        const { findings } = render("Prose.\n\n:::", { bodyLine: 12 });
+        expect(findings[0]).toMatchObject({ line: 14, column: 1 });
+
+        const generated = render("Prose.\n\n:::", {
+            bodyLine: 12,
+            lineMap: [
+                { line: 0, generated: false },
+                { line: 1, generated: false },
+                { line: 1, generated: true },
+            ],
+        });
+        expect(generated.findings[0]).toEqual({
+            file: "note.md",
+            line: 13,
+            severity: "error",
+            message: "a ::: line closes no block",
+        });
+    });
+
+    it("renders the same Typst for a caller that asks for no findings", () => {
+        const body = "A <strong>bold</strong> claim with [[a|link]].";
+        expect(markdownToTypst(body)).toBe(markdownToTypst(body, { findings: [] }));
     });
 });
 

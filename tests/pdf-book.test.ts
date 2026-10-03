@@ -26,7 +26,14 @@ function makeRepo(mode: "homepage" | "content", withPdf = true, withTree = true)
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pdf-book-"));
     fs.writeFileSync(
         path.join(dir, "package.json"),
-        JSON.stringify({ name: "bookpkg", version: "2.0.0" }),
+        JSON.stringify({
+            name: "bookpkg",
+            version: "2.0.0",
+            // The address the book resolves every page link against, and the one
+            // the site reads its `baseURL` from. A package publishing either
+            // declares it, so a fixture without one is not a package.
+            homepage: "https://www.heroiclands.org/sohl/",
+        }),
     );
 
     if (withTree) {
@@ -222,6 +229,90 @@ it("renders draft and unresolved links as book text", () => {
         expect(source).toContain("missing gear (unresolved link)");
         expect(source).not.toContain("sohl-draft-link");
         expect(source).not.toContain("sohl-unresolved-link");
+        // An **error**, as the same address is from the pack build and the site
+        // build. The source is written and the compiler still runs — a reader
+        // can see which page the marker is on — and the run fails, because a
+        // reader holding paper is the one who cannot act on the defect.
+        expect(built.status).toBe(1);
+        expect(built.out).toMatch(
+            /dagger\.md:\d+:\d+: error: address \[\[weapongear-missing\]\] resolves to no note/,
+        );
+        // A draft link is not a defect: the note exists and renders marked.
+        expect(built.out).not.toMatch(/weapongear-shield.*error/);
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+it("keeps an HTML comment in a front-matter file off the typeset page", () => {
+    const dir = makeRepo("content");
+    try {
+        // The pair a verbatim legal notice needs: the notice carries bare URLs
+        // that MD034 would otherwise reject and that may not be rewritten as
+        // links, so the rule is suppressed rather than the wording changed.
+        fs.writeFileSync(
+            path.join(dir, "book-front.md"),
+            [
+                "<!-- markdownlint-disable MD034 -->",
+                "",
+                "This is unofficial fan material (https://example.com/).",
+                "",
+                "<!-- markdownlint-enable MD034 -->",
+            ].join("\n") + "\n",
+        );
+        fs.appendFileSync(
+            path.join(dir, "package-build.config.yaml"),
+            ["    front:", "        - book-front.md"].join("\n") + "\n",
+        );
+
+        const built = build(dir, "--no-compile");
+        expect(built.status, built.out).toBe(0);
+        const dist = path.join(dir, "build/dist");
+        const source = fs.readFileSync(
+            path.join(
+                dist,
+                fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!,
+            ),
+            "utf8",
+        );
+        expect(source).toContain("This is unofficial fan material");
+        expect(source).not.toContain("markdownlint");
+        expect(source).not.toContain("<!--");
+    } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+it("sets every page link in the book as an address a reader can follow", () => {
+    const dir = makeRepo("content");
+    try {
+        // One entry printed, so the dagger's link to the sword addresses a page
+        // the reader does not have in their hand — which is the case that is set
+        // as a URL rather than as a cross-reference.
+        fs.writeFileSync(
+            path.join(dir, "book.yaml"),
+            [
+                "contents:",
+                "  - sectionName: Gear",
+                "    contents:",
+                "      - filter: \"shortcode = 'dagger'\"",
+            ].join("\n") + "\n",
+        );
+
+        const built = build(dir, "--no-compile");
+        expect(built.status, built.out).toBe(0);
+        const dist = path.join(dir, "build/dist");
+        const source = fs.readFileSync(
+            path.join(
+                dist,
+                fs.readdirSync(dist).find((file) => file.endsWith(".typ"))!,
+            ),
+            "utf8",
+        );
+        expect(source).toContain('#link("https://www.heroiclands.org/sohl/weapongear-sword/")');
+        // Not one link in the book is a path: a PDF viewer has no document to
+        // resolve one against.
+        expect(source).not.toMatch(/#link\("\//);
     } finally {
         fs.rmSync(dir, { recursive: true, force: true });
     }

@@ -101,7 +101,6 @@ import { positionOfLiteral } from "./diagnostics.mjs";
 import { artPathname, assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
-import { scanBlocks } from "./content-blocks.mjs";
 import { numberCaptions, scanCaptions } from "./content-captions.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imagesIn, parseImageDirective } from "./content-images.mjs";
@@ -378,6 +377,23 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     // addresses collide would print the wrong entry under the right name.
     const scheme = resolved.publish.address;
     const base = resolved.site.base || `/${resolved.contentPackage}/`;
+    // Where the pages this book cites are served. A page's address is written
+    // from the root of a site, which is right everywhere on the web and nowhere
+    // in a PDF, so the book resolves each one against this — see
+    // {@link module:engine/pdf-render.absolutePageUrl}. `package.json`'s
+    // `homepage` is the one absolute address a build holds, and the site reads
+    // its own `baseURL` from it, so the book and the website cannot disagree
+    // about where a page is.
+    const site = typeof resolved.homepage === "string" ? resolved.homepage : "";
+    if (!site) {
+        findings.push({
+            file: "package.json",
+            severity: "error",
+            message:
+                "`homepage` is not declared, so a page the book cites is set as a path " +
+                `rather than an address a reader can follow — add \`https://www.heroiclands.org/${resolved.contentPackage}/\``,
+        });
+    }
     const ctx = {
         packages: new Set(
             resolved.site.packages.length ? resolved.site.packages : [resolved.contentPackage],
@@ -528,15 +544,11 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     for (const file of resolved.pdf.front) {
         try {
             const scan = scanCaptions(fs.readFileSync(file, "utf8"));
+            // Numbered here, because a number runs across the whole book and only
+            // this loop knows the order; what is *wrong* with a caption is
+            // reported by the renderer, which reads every one of the three kinds
+            // of markdown a book is made of.
             frontCaptions.set(file, numberCaptions(scan.captions, captionCounts));
-            for (const error of scan.errors)
-                findings.push({
-                    file,
-                    line: error.line,
-                    column: error.column,
-                    severity: "error",
-                    message: error.message,
-                });
         } catch {
             // The rendering pass reports an unreadable front-matter file.
         }
@@ -584,14 +596,6 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         linkCtx.captionLabels = new Map(
             numberedCaptions.map((caption) => [caption.id, caption.label]),
         );
-        for (const error of captionScan.errors)
-            findings.push({
-                file: page.file,
-                line: (page.bodyLine ?? 1) + (lineMap[error.line - 1]?.line ?? error.line - 1),
-                column: error.column,
-                severity: "error",
-                message: error.message,
-            });
         linkCtx.output = "book";
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
@@ -623,24 +627,22 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             }
             return raw;
         };
+        // An **error**, as it is from the pack build and from the site build. One
+        // authored address that resolves nowhere is one defect, and a reader of
+        // the book is the one reader who cannot act on it: a page printing
+        // `(unresolved link)` has shipped the mistake to somebody holding paper.
+        // The source is written and the compiler still runs, so the finding is a
+        // report on a book that was built, exactly as the site writes its pages
+        // and refuses the run.
         for (const err of wikiErrors) {
             findings.push({
                 file: page.file,
                 ...positionOfLiteral(noteSource(), err.link, err.occurrence),
-                severity: "warning",
+                severity: "error",
                 // A link finding names a `reason` from the shared table and no
                 // sentence of its own; an embed's directive complaint carries
                 // the sentence instead.
                 message: err.message ?? (err.reason ? linkFindingMessage(err) : String(err)),
-            });
-        }
-        for (const error of scanBlocks(page.body).errors) {
-            findings.push({
-                file: page.file,
-                line: (page.bodyLine ?? 1) + error.line - 1,
-                column: error.column,
-                severity: "error",
-                message: error.message,
             });
         }
         stageImages(resolvedBody, page.file, columns);
@@ -652,6 +654,12 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             headingOffset,
             anchorPrefix,
             captions: numberedCaptions,
+            url: site,
+            findings,
+            file: page.file,
+            bodyLine: page.bodyLine,
+            lineMap,
+            prepared: true,
         });
         // Infoboxes follow the authored body within this note's entry.
         const boxes = noteInfoboxes(page.fm, {
@@ -660,7 +668,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             dates: gates.index.dateContext,
         });
         const panel = infoboxesToTypst(boxes, {
-            link: (value) => linkToTypst(value, plan.links, labelFor),
+            link: (value) => linkToTypst(value, plan.links, labelFor, site),
         });
         // Whether the entry is settled comes before anything it says: the
         // notice leads the leaf, before the authored body.
@@ -713,6 +721,9 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                     headingOffset: entry.depth,
                     anchorPrefix: entry.anchor,
                     captions: numberCaptions(scanCaptions(text).captions, captionCounts),
+                    url: site,
+                    findings,
+                    file,
                 }),
             );
         }
@@ -738,6 +749,9 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 images,
                 footnotePrefix: `footnote-front-${index + 1}`,
                 captions: frontCaptions.get(file),
+                url: site,
+                findings,
+                file,
             });
         } catch {
             findings.push({
