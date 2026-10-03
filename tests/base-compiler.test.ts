@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -258,6 +258,65 @@ describe("BasePackCompiler's per-pass switches", () => {
         await pack.compile();
         expect(pack.errorCount).toBe(0);
         expect(pack.compiledCount).toBe(0);
+    });
+});
+
+describe("BasePackCompiler's convertBody reports every finding in one run", () => {
+    // Two malformed captions, each missing its required `{#anchor}`
+    // attributes — the scanner returns both as `errors[0]` and `errors[1]`,
+    // and the fix under test is that the compiler reports both rather than
+    // only the first.
+    const TWO_CAPTION_PROBLEMS = path.join(os.tmpdir(), "sohl-base-compiler-two-caption-problems");
+
+    beforeAll(() => {
+        fs.mkdirSync(TWO_CAPTION_PROBLEMS, { recursive: true });
+        fs.writeFileSync(
+            path.join(TWO_CAPTION_PROBLEMS, "TwoProblems.md"),
+            note(
+                [
+                    ":::caption",
+                    "A paragraph.",
+                    ":::",
+                    "",
+                    ":::caption",
+                    "Another paragraph.",
+                    ":::",
+                ].join("\n"),
+                {
+                    name: { full: "Probe Two Problems" },
+                    id: "PROBEPROBE000006",
+                    shortcode: "twoproblems",
+                    type: "probe",
+                },
+            ),
+        );
+    });
+
+    afterAll(() => fs.rmSync(TWO_CAPTION_PROBLEMS, { recursive: true, force: true }));
+
+    it("reports every caption finding, not only the first", async () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            const out = dest("two-caption-problems");
+            const pack = new Probe({
+                skipDirectories: [],
+                contentBase: TWO_CAPTION_PROBLEMS,
+                dest: out,
+            });
+            await pack.compile();
+            // Both captions are missing `{#anchor}` attributes, and both are
+            // counted — a single rebuild cycle sees the whole note's problem,
+            // not just the first caption's.
+            expect(pack.errorCount).toBe(2);
+            expect(read(out)["Probe Two Problems"]).toBeUndefined();
+            const messages = spy.mock.calls.map((call) => String(call[0]));
+            expect(messages.filter((m) => m.includes("caption needs {#anchor}"))).toHaveLength(2);
+            // Each finding is reported once, at its own line — not wrapped in
+            // a generic "failed to compile" line on top of it.
+            expect(messages.some((m) => m.includes("failed to compile"))).toBe(false);
+        } finally {
+            spy.mockRestore();
+        }
     });
 });
 

@@ -28,6 +28,7 @@ import {
 import { indexRecordsFor } from "../engine/content-index.mjs";
 import { noteDocId } from "../engine/note-ids.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 
 /** A compiled item document, in the shape a pack's JSON output has. */
 function itemDoc(type: string, shortcode: string, id: string, name = shortcode): object {
@@ -368,29 +369,45 @@ describe("the `addresses` command's own guards", () => {
         return { code: r.status, shown: (r.stdout ?? "") + (r.stderr ?? "") };
     }
 
-    it("is listed among the commands", () => {
-        // Matched on the usage form, not the bare word: `lint`'s description
-        // already says "addresses", so a substring check passes vacuously.
-        expect(run().shown).toMatch(/addresses <action>/);
-    });
+    it(
+        "is listed among the commands",
+        () => {
+            // Matched on the usage form, not the bare word: `lint`'s description
+            // already says "addresses", so a substring check passes vacuously.
+            expect(run().shown).toMatch(/addresses <action>/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("rejects `addresses` with no action, naming the one it takes", () => {
-        const { code, shown } = run("addresses");
-        expect(code).not.toBe(0);
-        expect(shown).toContain("diff");
-    });
+    it(
+        "rejects `addresses` with no action, naming the one it takes",
+        () => {
+            const { code, shown } = run("addresses");
+            expect(code).not.toBe(0);
+            expect(shown).toContain("diff");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("rejects an action it does not have", () => {
-        expect(run("addresses", "compare").code).not.toBe(0);
-    });
+    it(
+        "rejects an action it does not have",
+        () => {
+            expect(run("addresses", "compare").code).not.toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("refuses to diff against a baseline nobody named", () => {
-        // Without this it would resolve a config, compile nothing, and have to
-        // invent what "the previous release" is.
-        const { code, shown } = run("addresses", "diff");
-        expect(code).not.toBe(0);
-        expect(shown).toContain("--from");
-    });
+    it(
+        "refuses to diff against a baseline nobody named",
+        () => {
+            // Without this it would resolve a config, compile nothing, and have to
+            // invent what "the previous release" is.
+            const { code, shown } = run("addresses", "diff");
+            expect(code).not.toBe(0);
+            expect(shown).toContain("--from");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("a shortcode change", () => {

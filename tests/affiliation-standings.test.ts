@@ -123,15 +123,56 @@ describe("a being's standing names the body that confers it", () => {
         expect(typed.entries[0].standing).toEqual({ rank: 5 });
     });
 
-    it("accepts a membership with no standing, a rung, and a post", () => {
-        expect(checkStandings(note({ vrystwldtrbs: {} }), { index })).toEqual([]);
-        expect(checkStandings(note({ vrystwldtrbs: null }), { index })).toEqual([]);
+    it("accepts a rung on its own and a rung with a post", () => {
         expect(checkStandings(note({ vrystwldtrbs: { rank: 4 } }), { index })).toEqual([]);
         expect(
             checkStandings(note({ vrystwldtrbs: { rank: 5, office: "War Chief" } }), { index }),
         ).toEqual([]);
         expect(checkStandings(note(["vrystwldtrbs"]), { index })).toEqual([]);
         expect(checkStandings(note([]), { index })).toEqual([]);
+    });
+
+    it("refuses an entry that states no rung, in whichever way it states nothing", () => {
+        // `{}`, a key with nothing after it, and the `[]` an emptied map
+        // arrives from the property editor as all say one thing.
+        for (const nothing of [{}, null, []]) {
+            const findings = checkStandings(note({ vrystwldtrbs: nothing }), { index });
+            expect(findings.map((f) => f.severity)).toEqual(["error"]);
+            expect(findings[0].message).toMatch(/thalorna-note-affiliation-vrystwldtrbs/);
+            expect(findings[0].message).toMatch(/states no `rank`/);
+            expect(findings[0].message).toMatch(/ordinary member is `1`/);
+            expect(findings[0].message).toMatch(/`0` is the rung for someone cast out/);
+            expect(findings[0].file).toBe("subject.md");
+            expect(findings[0].line).toBeGreaterThan(0);
+        }
+    });
+
+    it("refuses an office with no rung once, naming the body and the post", () => {
+        // The same fault, not a second one — so one finding, on the entry, with
+        // the office named as the reason it looked complete.
+        const findings = checkStandings(note({ vrystwldtrbs: { office: "War Chief" } }), { index });
+        expect(findings.map((f) => f.severity)).toEqual(["error"]);
+        expect(findings[0].message).toMatch(/thalorna-note-affiliation-vrystwldtrbs/);
+        expect(findings[0].message).toMatch(
+            /states no `rank`, and the office "War Chief" is not one/,
+        );
+        expect(findings[0].message).toMatch(/ordinary member is `1`/);
+        expect(findings[0].line).toBeGreaterThan(0);
+        expect(findings[0].column).toBeGreaterThan(0);
+    });
+
+    it("keeps a rank with no office valid, because `office` is the optional half", () => {
+        expect(checkStandings(note({ vrystwldtrbs: { rank: 4 } }), { index })).toEqual([]);
+        expect(
+            checkStandings(note({ greenwardens: {} }), { index }).map((f) => f.severity),
+        ).toEqual(["error"]);
+    });
+
+    it("leaves a rung of 0 alone, because being cast out is a standing", () => {
+        expect(checkStandings(note({ vrystwldtrbs: { rank: 0 } }), { index })).toEqual([]);
+        expect(
+            checkStandings(note({ vrystwldtrbs: { rank: 0, office: "War Chief" } }), { index }),
+        ).toEqual([]);
     });
 
     it("refuses a rung the named body does not confer", () => {
@@ -152,19 +193,22 @@ describe("a being's standing names the body that confers it", () => {
     });
 
     it("refuses a post the named body does not name", () => {
-        const [finding] = checkStandings(note({ vrystwldtrbs: { office: "Harbour-reeve" } }), {
-            index,
-        });
+        const [finding] = checkStandings(
+            note({ vrystwldtrbs: { rank: 4, office: "Harbour-reeve" } }),
+            { index },
+        );
         expect(finding.message).toMatch(/is not an office/);
         expect(finding.message).toMatch(/War Chief, Treasurer/);
         expect(finding.line).toBeGreaterThan(0);
 
         expect(
-            checkStandings(note({ greenwardens: { office: "Speaker" } }), { index })[0].message,
+            checkStandings(note({ greenwardens: { rank: 1, office: "Speaker" } }), { index })
+                .map((f: any) => f.message)
+                .join(" "),
         ).toMatch(/declares no `data.governance.offices`/);
-        expect(checkStandings(note({ vrystwldtrbs: { office: 7 } }), { index })[0].message).toMatch(
-            /must name a post/,
-        );
+        expect(
+            checkStandings(note({ vrystwldtrbs: { rank: 4, office: 7 } }), { index })[0].message,
+        ).toMatch(/must name a post/);
     });
 
     it("refuses an unknown standing key, a non-map standing, and a body named twice", () => {

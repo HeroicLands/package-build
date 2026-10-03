@@ -20,6 +20,7 @@ import { generatePacksJson } from "../engine/generate.mjs";
 import { indexRecordsFor } from "../engine/content-index.mjs";
 import { auditLinks, buildLinkIndex } from "../engine/content-links.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const roots: string[] = [];
 const CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../bin/package-build.mjs");
 
@@ -157,18 +158,22 @@ describe("the dnd5e system vocabulary", () => {
         expect(auditLinks(index).deadAddresses).toEqual([]);
     });
 
-    it("accepts a note carrying an empty dnd5e block through package-build lint", () => {
-        const root = fixture();
-        const result = spawnSync(process.execPath, [CLI, "lint"], {
-            cwd: root,
-            env: {
-                ...process.env,
-                PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
-            },
-            encoding: "utf8",
-        });
-        expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
-    });
+    it(
+        "accepts a note carrying an empty dnd5e block through package-build lint",
+        () => {
+            const root = fixture();
+            const result = spawnSync(process.execPath, [CLI, "lint"], {
+                cwd: root,
+                env: {
+                    ...process.env,
+                    PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
+                },
+                encoding: "utf8",
+            });
+            expect(result.status, `${result.stdout}\n${result.stderr}`).toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     it("compiles a note carrying a dnd5e block into its declared core document", async () => {
         const root = fixture();

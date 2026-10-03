@@ -1905,6 +1905,44 @@ function normalizePdf(value, rootDir) {
 }
 
 /**
+ * A dotted version string as the three-element tuple Foundry compares.
+ *
+ * A missing component reads as `0`, so `"14"` compares as `14.0.0` — the
+ * common way an author writes a major-only floor or pin. A non-numeric
+ * component reads as `0` too, rather than throwing: this runs on values
+ * {@link requireNonEmptyString} has already accepted as non-empty strings,
+ * and a version with a qualifier (`"14.359.0-beta"`) is not this function's
+ * place to refuse.
+ *
+ * @param {string} version - A dotted version string.
+ * @returns {readonly [number, number, number]} Major, minor, patch.
+ */
+function versionTriple(version) {
+    const parts = version.split(".");
+    return [0, 1, 2].map((index) => {
+        const n = Number.parseInt(parts[index] ?? "0", 10);
+        return Number.isNaN(n) ? 0 : n;
+    });
+}
+
+/**
+ * Whether `verified` names a build below `minimum`, compared as version
+ * triples.
+ *
+ * @param {string} minimum - The declared floor.
+ * @param {string} verified - The declared verified build.
+ * @returns {boolean} `true` when `verified` sorts below `minimum`.
+ */
+function verifiedBelowMinimum(minimum, verified) {
+    const a = versionTriple(verified);
+    const b = versionTriple(minimum);
+    for (let i = 0; i < 3; i++) {
+        if (a[i] !== b[i]) return a[i] < b[i];
+    }
+    return false;
+}
+
+/**
  * Validate a Foundry version range.
  *
  * `minimum` is required of the package's own range, because it is stamped into
@@ -1912,6 +1950,12 @@ function normalizePdf(value, rootDir) {
  * migrates on it. Inside a *relationship* neither field is required: what is
  * load-bearing there is `verified`, and a relationship may reasonably name a
  * package without pinning a floor at all.
+ *
+ * **The two keys are a range, not two independent facts.** Foundry reads
+ * `verified` as the build inside `minimum`'s floor that was actually tested,
+ * so a `verified` below `minimum` names a build the package already refuses
+ * to install on. Caught only when both are present — a relationship naming
+ * `verified` alone has nothing to compare it against.
  *
  * @param {unknown} value - The declared range, or `undefined`.
  * @param {string} where - Dotted path, for the error.
@@ -1929,6 +1973,18 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
     }
     if (input.verified !== undefined) {
         out.verified = requireNonEmptyString(input.verified, `${where}.verified`);
+    }
+    if (
+        out.minimum !== undefined &&
+        out.verified !== undefined &&
+        verifiedBelowMinimum(out.minimum, out.verified)
+    ) {
+        fail(
+            `${where}.verified`,
+            `declares \`${out.verified}\`, below \`${where}.minimum\`'s \`${out.minimum}\` — ` +
+                "Foundry reads the two as one range, so a build below the floor is " +
+                "never the one verified against it",
+        );
     }
     return Object.freeze(out);
 }
@@ -2023,6 +2079,21 @@ function normalizeSystems(value) {
         // declaration that cannot answer "which version was this built
         // against" is the gap this block exists to close.
         const verified = requireNonEmptyString(compat.verified, `${at}.compatibility.verified`);
+        const minimum =
+            compat.minimum === undefined || compat.minimum === null ?
+                null
+            :   requireNonEmptyString(compat.minimum, `${at}.compatibility.minimum`);
+        // Caught here too: the shape is the one {@link normalizeCompatibility}
+        // validates, and the same contradiction is possible wherever it
+        // appears.
+        if (minimum !== null && verifiedBelowMinimum(minimum, verified)) {
+            fail(
+                `${at}.compatibility.verified`,
+                `declares \`${verified}\`, below \`${at}.compatibility.minimum\`'s ` +
+                    `\`${minimum}\` — Foundry reads the two as one range, so a build ` +
+                    "below the floor is never the one verified against it",
+            );
+        }
 
         out[id] = Object.freeze({
             manifest:
@@ -2030,10 +2101,7 @@ function normalizeSystems(value) {
                     null
                 :   requireNonEmptyString(spec.manifest, `${at}.manifest`),
             compatibility: Object.freeze({
-                minimum:
-                    compat.minimum === undefined || compat.minimum === null ?
-                        null
-                    :   requireNonEmptyString(compat.minimum, `${at}.compatibility.minimum`),
+                minimum,
                 verified,
             }),
         });

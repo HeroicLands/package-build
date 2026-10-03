@@ -203,6 +203,21 @@ describe("a configuration error carries the position of its key", () => {
         expect(textAt(text, line, column)).toMatch(/^type: Item/);
     });
 
+    it("locates a `verified` build declared below the package's own `minimum`", () => {
+        const text = MINIMAL.replace(
+            '    minimum: "14.359"\n',
+            '    minimum: "14.359"\n    verified: "14.356"\n',
+        );
+        const { err } = failureFor(text);
+
+        expect(err.message).toContain(
+            "`compatibility.verified` declares `14.356`, below " +
+                "`compatibility.minimum`'s `14.359`",
+        );
+        const { line, column } = locatorOf(err.message);
+        expect(textAt(text, line, column)).toMatch(/^verified: "14\.356"/);
+    });
+
     it("drops the position, keeping the file, for a missing top-level key", () => {
         const text = `${MINIMAL.split("\n").slice(0, 6).join("\n")}\n`;
         const { err, file } = failureFor(text);

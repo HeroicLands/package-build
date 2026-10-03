@@ -16,6 +16,7 @@ import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PACKAGE_ROOT, "bin", "package-build.mjs");
 const systems = { sohl: { fields: ITEM_FIELDS, fieldVocabulary: true } };
@@ -201,26 +202,38 @@ describe("references authored in a system block", () => {
         ).toEqual([]);
     });
 
-    it("reports an unresolved shortcode through package-build links", () => {
-        const result = run("links");
+    it(
+        "reports an unresolved shortcode through package-build links",
+        () => {
+            const result = run("links");
 
-        expect(result.status, result.output).toBe(1);
-        expect(result.output).toMatch(
-            /Affiliation\.md:\d+:\d+: error: `sohl\.system\.commonSkills\.1` names .*probemodelzz.*does not resolve/,
-        );
-        expect(result.output).not.toContain("every address resolves");
-    });
+            expect(result.status, result.output).toBe(1);
+            expect(result.output).toMatch(
+                /Affiliation\.md:\d+:\d+: error: `sohl\.system\.commonSkills\.1` names .*probemodelzz.*does not resolve/,
+            );
+            expect(result.output).not.toContain("every address resolves");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("reports an unresolved shortcode through package-build lint", () => {
-        const result = run("lint");
+    it(
+        "reports an unresolved shortcode through package-build lint",
+        () => {
+            const result = run("lint");
 
-        expect(result.status, result.output).toBe(1);
-        expect(result.output).toMatch(/commonSkills.*probemodelzz.*does not resolve/);
-    });
+            expect(result.status, result.output).toBe(1);
+            expect(result.output).toMatch(/commonSkills.*probemodelzz.*does not resolve/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("honours --no-references for system-block addresses", () => {
-        const result = run("lint", "--no-references");
+    it(
+        "honours --no-references for system-block addresses",
+        () => {
+            const result = run("lint", "--no-references");
 
-        expect(result.output).not.toMatch(/commonSkills.*probemodelzz.*does not resolve/);
-    });
+            expect(result.output).not.toMatch(/commonSkills.*probemodelzz.*does not resolve/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

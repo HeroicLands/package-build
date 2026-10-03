@@ -42,6 +42,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { CONTAINER_ACTIONS } from "../container.mjs";
 import { E2E_MODES } from "../e2e.mjs";
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const DOC_PATH = path.join(ROOT, "docs", "commands.md");
@@ -243,19 +244,23 @@ describe("the command's real surface, extracted from source", () => {
         );
     });
 
-    it("lists every top-level command in root help", () => {
-        const help = execFileSync(
-            process.execPath,
-            [path.join(ROOT, "bin/package-build.mjs"), "--help"],
-            {
-                encoding: "utf8",
-            },
-        );
-        for (const node of nodes.filter((entry) => entry.path.length === 1)) {
-            expect(help).toContain(`package-build ${node.path[0]}`);
-        }
-        expect(help).toContain("package-build <command> --help");
-    });
+    it(
+        "lists every top-level command in root help",
+        () => {
+            const help = execFileSync(
+                process.execPath,
+                [path.join(ROOT, "bin/package-build.mjs"), "--help"],
+                {
+                    encoding: "utf8",
+                },
+            );
+            for (const node of nodes.filter((entry) => entry.path.length === 1)) {
+                expect(help).toContain(`package-build ${node.path[0]}`);
+            }
+            expect(help).toContain("package-build <command> --help");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     const commandHelp = (command: string) =>
         execFileSync(
@@ -266,19 +271,31 @@ describe("the command's real surface, extracted from source", () => {
             },
         );
 
-    it("shows package actions in command help", () => {
-        const help = commandHelp("package");
-        expect(help).toContain("compile");
-        expect(help).toContain("unpack");
-    });
+    it(
+        "shows package actions in command help",
+        () => {
+            const help = commandHelp("package");
+            expect(help).toContain("compile");
+            expect(help).toContain("unpack");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("shows documentation actions in command help", () => {
-        expect(commandHelp("docs")).toContain("item-fields");
-    });
+    it(
+        "shows documentation actions in command help",
+        () => {
+            expect(commandHelp("docs")).toContain("item-fields");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("shows PDF options in command help", () => {
-        expect(commandHelp("pdf")).toContain("--book-version");
-    });
+    it(
+        "shows PDF options in command help",
+        () => {
+            expect(commandHelp("pdf")).toContain("--book-version");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     // A representative sample of the parse itself, independent of the
     // document — if this drifts, the parser is wrong, not the document.
