@@ -23,6 +23,13 @@ const cell = (value) =>
     String(value ?? "")
         .replaceAll("|", "\\|")
         .replaceAll("\n", " ");
+/** What each declared requirement is called in the reference. */
+const REQUIREMENT = {
+    nonempty: "Yes",
+    present: "Yes, may be empty",
+    map: "Yes, with `full` and `aliases`",
+    byType: "Where the type declares subtypes",
+};
 const fields = (list) =>
     list.map(
         (field) =>
@@ -46,10 +53,13 @@ const rows = [
     "",
     "These are the only keys a note writes at its top level, in the order the formatter puts them. A key absent from this table is a lint error at its own line: the region is closed, so the key reaches no document and no page. Facts about the subject belong under `data`, and values for one game system belong inside that system's block.",
     "",
-    "| Key | Meaning |",
-    "| --- | --- |",
+    "Most of them are required. `name.aliases` and `tags` need only be written — an empty list satisfies either — while `shortcode`, `name.full`, `type` and `description` must carry a value. `subType` is required of every type that declares subtypes and refused by every type that declares none; the per-type sections below say which is which.",
+    "",
+    "| Key | Required | Meaning |",
+    "| --- | --- | --- |",
     ...NOTE_TOP_LEVEL_FIELDS.map(
-        (field) => `| \`${cell(field.name)}\` | ${cell(field.describe)} |`,
+        (field) =>
+            `| \`${cell(field.name)}\` | ${cell(REQUIREMENT[field.required] ?? "No")} | ${cell(field.describe)} |`,
     ),
     "",
     "## Shared `data` fields",

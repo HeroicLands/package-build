@@ -86,7 +86,9 @@ import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import {
     BEING_ARCHETYPES,
     dataFields,
+    NOTE_TOP_LEVEL_FIELDS,
     declaredTags,
+    requiredNoteFields,
     subTypeCharsetMessage,
     typeCharsetMessage,
 } from "./note-vocabulary.mjs";
@@ -905,6 +907,85 @@ function checkSubType(note, { type, entry }) {
 }
 
 /**
+ * The keys a note must write, against the keys it wrote.
+ *
+ * Derived from {@link module:engine/note-vocabulary.requiredNoteFields}, so the
+ * contract is stated once and `subType`'s condition comes from the type's own
+ * declaration. Nothing here names a key.
+ *
+ * **Presence and emptiness are two findings, not one.** A key an author forgot
+ * and a key an author left blank need different sentences, and the blank one
+ * has a line to point at while the missing one does not — so an absent key is
+ * located by the file alone rather than by a guessed `1:1`, which would send
+ * every reader to the first line of the frontmatter.
+ *
+ * @param {object} note - The note.
+ * @param {object} opts
+ * @param {string} opts.type - The note's content type.
+ * @param {object} [opts.vocabulary] - The registry, passed through.
+ * @returns {object[]} One finding per key the note owes.
+ */
+function checkRequired(note, { type, vocabulary }) {
+    const fm = note.fm ?? {};
+    const raw = note.raw ?? "";
+    const findings = [];
+    const blank = (value) => typeof value !== "string" || !value.trim();
+    for (const field of requiredNoteFields(type, vocabulary)) {
+        const { name } = field;
+        if (!Object.hasOwn(fm, name)) {
+            findings.push({
+                file: note.file,
+                severity: "error",
+                message: `\`${name}\` is required: ${field.describe.replace(/\.$/, "")}`,
+            });
+            continue;
+        }
+        const value = fm[name];
+        const at = positionInFrontmatter(raw, name, undefined, { topLevel: true });
+        if (field.required === "nonempty" && blank(value)) {
+            findings.push({
+                file: note.file,
+                ...at,
+                severity: "error",
+                message: `\`${name}\` must be a nonempty string`,
+            });
+            continue;
+        }
+        if (field.required === "map" && (!value || typeof value !== "object")) {
+            // The shape is the name check's finding, which says what the map
+            // must hold rather than merely that it is not one.
+            continue;
+        }
+        if (field.required === "present" && value == null) {
+            findings.push({
+                file: note.file,
+                ...at,
+                severity: "error",
+                message:
+                    `\`${name}\` is required, and an empty list satisfies it — ` +
+                    `write \`${name}: []\` for a note that has none`,
+            });
+            continue;
+        }
+    }
+    return findings;
+}
+
+/**
+ * The keys a note must write inside `name`.
+ *
+ * The same declaration {@link checkRequired} reads, one level down — so the
+ * contract is stated once and the name check neither repeats it nor disagrees
+ * with it. A `nonempty` key is reported by the shape check below, which has the
+ * better sentence for a blank one; this answers presence alone.
+ *
+ * @type {readonly {name: string, required: string}[]}
+ */
+const REQUIRED_NAME_KEYS = Object.freeze(
+    NOTE_TOP_LEVEL_FIELDS.find((field) => field.name === "name")?.keys ?? [],
+);
+
+/**
  * Check a note's `tags` for near misses against the tags that classify.
  *
  * `tags:` is a closed key holding an open vocabulary of values, so an
@@ -1280,6 +1361,24 @@ export function lintNote(
                     message: "`name.full` must be a nonempty string",
                 });
             }
+            for (const inner of REQUIRED_NAME_KEYS) {
+                // A `nonempty` key is reported above whether it is blank or
+                // absent, with the sentence that says what it must be, so this
+                // loop answers for the keys an empty value satisfies.
+                if (inner.required !== "present") continue;
+                if (Object.hasOwn(name, inner.name)) continue;
+                findings.push({
+                    file: note.file,
+                    ...nameAt([]),
+                    severity: "error",
+                    message:
+                        `\`name.${inner.name}\` is required` +
+                        (inner.required === "present" ?
+                            `, and an empty list satisfies it — write ` +
+                            `\`${inner.name}: []\` for a note that has none`
+                        :   ""),
+                });
+            }
             if (Object.hasOwn(name, "aliases")) {
                 if (
                     !Array.isArray(name.aliases) ||
@@ -1566,6 +1665,10 @@ export function lintNote(
     // type's property — `draft` belongs to any note and `village` to a place —
     // so the finding must survive the early returns below.
     findings.push(...checkTags(note, { type }));
+    // What every note owes, whatever its type. Here for the reason the tag
+    // check is: a note missing its name or its summary is missing it whether
+    // or not its type resolves to a schema.
+    findings.push(...checkRequired(note, { type, vocabulary }));
 
     // A refused field must be one the note *wrote*: `resolveNoteId` fills
     // `fm.id` in place, so the parsed frontmatter carries a derived id the

@@ -331,6 +331,13 @@ const TOKEN_ICON = Object.freeze({
  * @property {string} name - The key, as a note writes it.
  * @property {boolean} [system] - The key opens a game system's block, so it is
  *   one of {@link module:engine/systems.SYSTEM_IDS} rather than a fixed key.
+ * @property {"nonempty"|"present"|"map"|"byType"} [required] - What the note
+ *   must do about the key. `nonempty` is present and not blank; `present` is
+ *   written, where an empty list or map satisfies it; `map` is present as a
+ *   map, whose own keys are declared in `keys`; `byType` is required exactly
+ *   where the note's type declares subTypes. Absent means optional.
+ * @property {readonly {name: string, required: "nonempty"|"present"}[]} [keys] -
+ *   For a `map` key, the keys inside it a note must write.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -348,6 +355,19 @@ const TOKEN_ICON = Object.freeze({
  * a misspelling into a value nothing reads — `title` beside `name`, or `pack`
  * where `data.pack` was meant.
  *
+ * **Most of it is required.** A note states what it is called, what it is about
+ * and how it is classified, or the surfaces built from it have a hole in them —
+ * a page with no heading, a card with no summary, a note absent from every
+ * query that reads a tag. So `shortcode`, `name` (with `full` and `aliases`),
+ * `type`, `description` and `tags` are required of every note, and `subType` of
+ * every type that declares one. `data:` and the system blocks are the optional
+ * ones: a note describing something no system compiles carries neither.
+ *
+ * `aliases` and `tags` are required to be *written*, not to be filled: a note
+ * with no other names writes `aliases: []`, and one nobody has classified yet
+ * writes `tags: []`. `full` and `description` are what a reader meets, so a
+ * blank one is a finding.
+ *
  * **The system blocks are derived from the system registry**, so recognising a
  * further system is a change to {@link module:engine/systems.SYSTEM_IDS} and to
  * nothing else. They sort by name after the fixed keys: a block is the largest
@@ -363,26 +383,36 @@ const TOKEN_ICON = Object.freeze({
 export const NOTE_TOP_LEVEL_FIELDS = Object.freeze([
     Object.freeze({
         name: "shortcode",
+        required: "nonempty",
         describe: "The note's own address segment, unique within its type.",
     }),
     Object.freeze({
         name: "name",
-        describe: "The display names — a required `full`, and any `aliases`.",
+        required: "map",
+        keys: Object.freeze([
+            Object.freeze({ name: "full", required: "nonempty" }),
+            Object.freeze({ name: "aliases", required: "present" }),
+        ]),
+        describe: "The display names — a `full` the note publishes under, and its `aliases`.",
     }),
     Object.freeze({
         name: "type",
+        required: "nonempty",
         describe: "What the note is about, which decides its vocabulary and its document.",
     }),
     Object.freeze({
         name: "subType",
-        describe: "The type's own genre, where it declares one.",
+        required: "byType",
+        describe: "The type's own genre, required of every type that declares one.",
     }),
     Object.freeze({
         name: "description",
+        required: "nonempty",
         describe: "The short page summary.",
     }),
     Object.freeze({
         name: "tags",
+        required: "present",
         describe: "Draft state, GM routing, and the descriptive labels a page list reads.",
     }),
     Object.freeze({
@@ -399,6 +429,25 @@ export const NOTE_TOP_LEVEL_FIELDS = Object.freeze([
         }),
     ),
 ]);
+
+/**
+ * The top-level keys a note of this type must write, and how.
+ *
+ * `subType`'s condition resolved against the type's own declaration rather
+ * than restated: a type that enumerates subtypes, or declares the key with its
+ * values left open, requires one; a type that declares none refuses it, which
+ * {@link module:engine/frontmatter-lint} reports from the same fact.
+ *
+ * @param {string} type - The note's content type.
+ * @param {object} [vocabulary] - The registry, for a caller holding its own.
+ * @returns {readonly TopLevelFieldSpec[]} The required keys, in declared order.
+ */
+export function requiredNoteFields(type, vocabulary = NOTE_VOCABULARY) {
+    const declaresSubTypes = Object.hasOwn(vocabulary[currentType(type)] ?? {}, "subTypes");
+    return NOTE_TOP_LEVEL_FIELDS.filter((field) =>
+        field.required === "byType" ? declaresSubTypes : field.required !== undefined,
+    );
+}
 
 /**
  * The top-level keys, in formatted order.

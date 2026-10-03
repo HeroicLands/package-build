@@ -34,6 +34,8 @@ import {
     NOTE_TOP_LEVEL_KEYS,
     NOTE_TOP_LEVEL_KEY_SET,
     NOTE_VOCABULARY,
+    requiredNoteFields,
+    subTypes,
 } from "../engine/note-vocabulary.mjs";
 import { SYSTEM_IDS } from "../engine/systems.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -197,12 +199,147 @@ describe("an undeclared top-level key", () => {
     });
 
     it("ignores commented-out fields", () => {
+        // A comment is not an authored key, so the closed region says nothing
+        // about it. The note still owes the keys every note owes.
         const result = findings("shortcode: example\ntype: lore\n# terran_analog: Earth");
-        expect(result).toEqual([]);
+        expect(result.filter((f) => /unknown top-level frontmatter key/.test(f.message))).toEqual(
+            [],
+        );
     });
 
     it("rejects underscore-prefixed fields", () => {
         const result = findings("shortcode: example\ntype: lore\n_editorial: Earth");
         expect(result.some((finding) => finding.message.includes('"_editorial"'))).toBe(true);
+    });
+});
+
+/* -------------------------------------------------------------------- */
+/*  What every note owes                                                 */
+/* -------------------------------------------------------------------- */
+
+/** One note of a type, with every required key supplied. */
+function complete(type: string, extra: Record<string, unknown> = {}) {
+    const declared = subTypes(type);
+    return {
+        shortcode: "example",
+        name: { full: "Example", aliases: [] },
+        type,
+        ...(declared === undefined ? {} : { subType: declared?.[0] ?? "whatever" }),
+        description: "A summary.",
+        tags: [],
+        ...extra,
+    };
+}
+
+function lintOf(fm: Record<string, unknown>) {
+    const source = YAML.stringify(fm).trimEnd();
+    const raw = `---\n${source}\n---\n\nBody.\n`;
+    return lintNote(
+        { file: "note.md", type: String(fm.type), raw, fm },
+        { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
+    );
+}
+
+describe("the keys every note must write", () => {
+    it("requires exactly what the declaration says, and nothing it does not", () => {
+        // Derived both ways: the required keys come off the declaration, and
+        // the optional ones are whatever is left, so a key gaining or losing
+        // its requirement cannot go unnoticed here.
+        const required = requiredNoteFields("lore").map((field) => field.name);
+        const optional = NOTE_TOP_LEVEL_KEYS.filter((key) => !required.includes(key));
+
+        expect(required).toEqual(["shortcode", "name", "type", "subType", "description", "tags"]);
+        expect(optional).toEqual(["data", "dnd5e", "hm3", "sohl"]);
+    });
+
+    it("accepts a note that supplies all of them", () => {
+        expect(lintOf(complete("lore", { subType: "culture" }))).toEqual([]);
+    });
+
+    it("reports each missing key, by the file alone rather than a guessed line", () => {
+        for (const field of requiredNoteFields("lore")) {
+            const fm = complete("lore", { subType: "culture" });
+            delete (fm as Record<string, unknown>)[field.name];
+            const finding = lintOf(fm).find((f) => new RegExp(`\`${field.name}\``).test(f.message));
+
+            expect(finding, field.name).toBeDefined();
+            // A position that is not known is dropped, never defaulted to the
+            // first line of the frontmatter.
+            if (!Object.hasOwn(fm, field.name)) expect(finding!.line, field.name).toBeUndefined();
+        }
+    });
+
+    it("takes an empty list for the two keys an empty list satisfies", () => {
+        for (const field of requiredNoteFields("lore")) {
+            if (field.required !== "present") continue;
+            const fm = complete("lore", { subType: "culture", [field.name]: [] });
+
+            expect(lintOf(fm), field.name).toEqual([]);
+        }
+    });
+
+    it("refuses a blank value for the keys that carry one", () => {
+        for (const field of requiredNoteFields("lore")) {
+            if (field.required !== "nonempty") continue;
+            const fm = complete("lore", { subType: "culture", [field.name]: "" });
+            const finding = lintOf(fm).find((f) =>
+                f.message.includes(`\`${field.name}\` must be a nonempty string`),
+            );
+
+            expect(finding, field.name).toBeDefined();
+            expect(finding!.line, field.name).toBeDefined();
+        }
+    });
+
+    it("requires each key `name` declares, and takes an empty alias list", () => {
+        const keys = NOTE_TOP_LEVEL_FIELDS.find((field) => field.name === "name")!.keys!;
+
+        expect(keys.map((key) => key.name)).toEqual(["full", "aliases"]);
+        for (const key of keys) {
+            const fm = complete("lore", { subType: "culture" });
+            delete (fm.name as Record<string, unknown>)[key.name];
+
+            expect(
+                lintOf(fm).some((f) => new RegExp(`name\\.${key.name}`).test(f.message)),
+                key.name,
+            ).toBe(true);
+        }
+    });
+
+    it("asks for `subType` from every type that declares one, and from no other", () => {
+        for (const type of Object.keys(NOTE_VOCABULARY)) {
+            const declared = subTypes(type);
+            const asked = requiredNoteFields(type).some((field) => field.name === "subType");
+
+            expect(asked, type).toBe(declared !== undefined);
+        }
+    });
+
+    it("states the contract in the authoring guide", () => {
+        const guide = read("docs/authoring/frontmatter.md");
+
+        expect(guide).toContain("every note writes both of its keys");
+        expect(guide).toContain("every note carries a nonempty one");
+        expect(guide).toContain("every type declaring subtypes requires");
+    });
+
+    it("marks each key's requirement in the note-type reference", () => {
+        const reference = read("docs/reference/note-types.md");
+        const section = reference.split("## Top-level keys")[1].split("\n## ")[0];
+        const rows = new Map(
+            section
+                .split("\n")
+                .filter((line) => /^\| `/.test(line))
+                .map((line) => {
+                    const cells = line.split("|").map((cell) => cell.trim());
+                    return [quoted(cells[1])[0], cells[2]];
+                }),
+        );
+
+        for (const field of NOTE_TOP_LEVEL_FIELDS) {
+            expect(rows.get(field.name), field.name).toEqual(
+                field.required === undefined ? "No" : expect.stringMatching(/^(Yes|Where)/),
+            );
+        }
     });
 });

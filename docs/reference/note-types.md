@@ -15,18 +15,20 @@ The [first-note guide](../authoring/first-note.md) teaches the shape of a note. 
 
 These are the only keys a note writes at its top level, in the order the formatter puts them. A key absent from this table is a lint error at its own line: the region is closed, so the key reaches no document and no page. Facts about the subject belong under `data`, and values for one game system belong inside that system's block.
 
-| Key           | Meaning                                                                                   |
-| ------------- | ----------------------------------------------------------------------------------------- |
-| `shortcode`   | The note's own address segment, unique within its type.                                   |
-| `name`        | The display names — a required `full`, and any `aliases`.                                 |
-| `type`        | What the note is about, which decides its vocabulary and its document.                    |
-| `subType`     | The type's own genre, where it declares one.                                              |
-| `description` | The short page summary.                                                                   |
-| `tags`        | Draft state, GM routing, and the descriptive labels a page list reads.                    |
-| `data`        | The facts about the subject itself, shared by every system.                               |
-| `dnd5e`       | What the `dnd5e` system makes of the subject — its document's mechanics, routing and art. |
-| `hm3`         | What the `hm3` system makes of the subject — its document's mechanics, routing and art.   |
-| `sohl`        | What the `sohl` system makes of the subject — its document's mechanics, routing and art.  |
+Most of them are required. `name.aliases` and `tags` need only be written — an empty list satisfies either — while `shortcode`, `name.full`, `type` and `description` must carry a value. `subType` is required of every type that declares subtypes and refused by every type that declares none; the per-type sections below say which is which.
+
+| Key           | Required                         | Meaning                                                                                   |
+| ------------- | -------------------------------- | ----------------------------------------------------------------------------------------- |
+| `shortcode`   | Yes                              | The note's own address segment, unique within its type.                                   |
+| `name`        | Yes, with `full` and `aliases`   | The display names — a `full` the note publishes under, and its `aliases`.                 |
+| `type`        | Yes                              | What the note is about, which decides its vocabulary and its document.                    |
+| `subType`     | Where the type declares subtypes | The type's own genre, required of every type that declares one.                           |
+| `description` | Yes                              | The short page summary.                                                                   |
+| `tags`        | Yes, may be empty                | Draft state, GM routing, and the descriptive labels a page list reads.                    |
+| `data`        | No                               | The facts about the subject itself, shared by every system.                               |
+| `dnd5e`       | No                               | What the `dnd5e` system makes of the subject — its document's mechanics, routing and art. |
+| `hm3`         | No                               | What the `hm3` system makes of the subject — its document's mechanics, routing and art.   |
+| `sohl`        | No                               | What the `sohl` system makes of the subject — its document's mechanics, routing and art.  |
 
 ## Shared `data` fields
 
