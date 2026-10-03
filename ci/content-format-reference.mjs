@@ -106,7 +106,7 @@ if (process.argv.includes("--check")) {
         process.exitCode = 1;
     }
 } else {
-    process.stdout.write(result);
+    fs.writeFileSync(output, result);
 }
 
 const detailsPath = path.join(root, "docs/reference/format-details.md");

@@ -219,6 +219,16 @@ const TEXT = Object.freeze({ shape: "string", kind: "string" });
 /** A list. */
 const LIST = Object.freeze({ shape: "list", kind: "list" });
 
+/**
+ * One value, or several.
+ *
+ * The two are the same fact at different lengths rather than two different
+ * facts, so a single value means a list of one and a consumer reads one shape.
+ * That is what separates this from `list-or-map`, whose halves say different
+ * things.
+ */
+const TEXT_OR_LIST = Object.freeze({ shape: "string or list", kind: "string-or-list" });
+
 /** A single Address. */
 const LINK = Object.freeze({ shape: "an Address", kind: "address" });
 
@@ -795,7 +805,14 @@ export const NOTE_VOCABULARY = Object.freeze({
                 check: checkSocialTies,
                 describe: `Defining ties directed from this being to others: ${SOCIAL_TIES.map(({ term, meaning }) => `\`${term}\` (${meaning})`).join("; ")}`,
             },
-            { name: "gender", ...TEXT, describe: "`male`, `female` or `other`." },
+            {
+                name: "gender",
+                ...TEXT,
+                describe:
+                    "One of `male`, `female`, `nonbinary`, `none` or `other`. " +
+                    "`none` says the being has no gender; an absent field says its " +
+                    "gender is unrecorded.",
+            },
             {
                 name: "species",
                 ...LINK,
@@ -863,12 +880,19 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "frame",
                 ...TEXT,
-                describe: "Relative frame — `scant`, `light`, `medium`, `large` or `massive`.",
+                describe:
+                    "Relative frame — one of `scant`, `light`, `medium`, `heavy` or `massive`.",
             },
             { name: "appearance.eye_color", ...TEXT, describe: "Eye colour." },
             { name: "appearance.hair_color", ...TEXT, describe: "Hair colour." },
             { name: "appearance.skin_color", ...TEXT, describe: "Skin colour." },
-            { name: "appearance.complexion", ...TEXT, describe: "Complexion." },
+            {
+                name: "appearance.complexion",
+                ...TEXT_OR_LIST,
+                describe:
+                    "The skin's condition — one value, or several, because a face " +
+                    "carries more than one at once. A single value means a list of one.",
+            },
             {
                 name: "appearance.extra_features",
                 ...LIST,
