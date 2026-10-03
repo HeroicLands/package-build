@@ -353,6 +353,43 @@ describe("defineConfig — the layout a consumer supplies", () => {
         );
     });
 
+    it("refuses a `verified` below `minimum`, since Foundry reads the two as one range", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                compatibility: { minimum: "14.359", verified: "14.356" },
+            }),
+        ).toThrow(
+            /`compatibility\.verified` declares `14\.356`, below `compatibility\.minimum`'s `14\.359`/,
+        );
+
+        // A major-only value is the common way to write the lower one, and the
+        // comparison is on the version triple, so it is caught the same way.
+        expect(() =>
+            defineConfig({ ...minimal(), compatibility: { minimum: "14.359", verified: "14" } }),
+        ).toThrow(
+            /`compatibility\.verified` declares `14`, below `compatibility\.minimum`'s `14\.359`/,
+        );
+    });
+
+    it("accepts `verified` equal to `minimum`, and anything above it", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                compatibility: { minimum: "14.359", verified: "14.359" },
+            }),
+        ).not.toThrow();
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                compatibility: { minimum: "14.359", verified: "14.360" },
+            }),
+        ).not.toThrow();
+        expect(() =>
+            defineConfig({ ...minimal(), compatibility: { minimum: "14.359", verified: "15" } }),
+        ).not.toThrow();
+    });
+
     it("freezes the added blocks too", () => {
         const config = defineConfig(minimal());
         expect(Object.isFrozen(config.paths)).toBe(true);
