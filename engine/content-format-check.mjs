@@ -104,6 +104,9 @@ import { authoredFields } from "./field-spec.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { RETIRED_FIELD_ALIASES } from "./retired-fields.mjs";
 import { authoredKey } from "./system-block.mjs";
+// The top-level vocabulary, read rather than restated — a second list of the
+// keys a note's own identity uses is one more thing to drift.
+import { NOTE_TOP_LEVEL_KEY_SET } from "./note-vocabulary.mjs";
 
 /**
  * Every field path any subtype of a published schema declares.
@@ -273,18 +276,18 @@ function nearest(key, candidates) {
 /**
  * Top-level keys the format names as the note's own, whatever its type.
  *
- * Top level is otherwise **open** — an unrecognised key there is a Hugo or
- * theme parameter this build has no standing to refuse — so this set exists
- * only to keep a note's own identity fields from being mistaken for a
- * misplaced `data` property where the two share a name. `type` and `subType`
- * are the pair that matters: several mapping tables name `subType` as a shared
- * source, and it is authored at top level by design.
+ * The top-level vocabulary itself, read rather than restated: this set exists
+ * to keep a note's own identity fields from being mistaken for a misplaced
+ * `data` property where the two share a name, and the keys that are a note's
+ * own are exactly the ones the region declares. `type` and `subType` are the
+ * pair that matters — several mapping tables name `subType` as a shared source,
+ * and it is authored at top level by design. A key the region does *not*
+ * declare, such as `id` beside `data.id`, is reported as the misplaced `data`
+ * property it is.
  *
  * @type {ReadonlySet<string>}
  */
-export const NOTE_LEVEL_KEYS = Object.freeze(
-    new Set(["id", "type", "subType", "shortcode", "description", "tags", "name"]),
-);
+export const NOTE_LEVEL_KEYS = NOTE_TOP_LEVEL_KEY_SET;
 
 /** Whether a value is a plain object a block could be written as. */
 function isBlock(value) {
@@ -379,9 +382,9 @@ export function measureNote(note, format, { severity = "warning" } = {}) {
     }
 
     // The two regions a shared source is written in today, and neither is where
-    // the format puts it. Top level is open in general — but a key the type's
-    // own table declares is not an unrecognised one, it is one whose home the
-    // format states.
+    // the format puts it. A key the type's own table declares is not merely an
+    // unrecognised one — it is one whose home the format states, so the finding
+    // names that home rather than the vocabulary.
     for (const key of spec.dataKeys) {
         if (NOTE_LEVEL_KEYS.has(key)) continue;
         if (Object.hasOwn(fm, key)) {

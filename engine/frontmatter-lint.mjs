@@ -60,6 +60,7 @@ import {
     CHARACTER_NAME_KEYS,
     NOTE_NAME_KEYS,
     NOTE_TOP_LEVEL_KEY_SET,
+    NOTE_TOP_LEVEL_KEYS,
 } from "./note-frontmatter.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { addressPositions } from "./note-addresses.mjs";
@@ -292,6 +293,21 @@ function distance(a, b) {
 }
 
 /**
+ * A closed vocabulary as an English list, for the message that names it.
+ *
+ * Written from the declaration rather than spelled into the message, so a key
+ * the vocabulary gains cannot go unmentioned by the finding that refuses its
+ * neighbours.
+ *
+ * @param {readonly string[]} keys - The declared keys, in declared order.
+ * @returns {string} `"a, b, or c"`.
+ */
+function listed(keys) {
+    if (keys.length < 2) return keys.join("");
+    return `${keys.slice(0, -1).join(", ")}, or ${keys[keys.length - 1]}`;
+}
+
+/**
  * The declared key an unknown one was most likely meant to be.
  *
  * @param {string} key - The unknown key.
@@ -420,9 +436,8 @@ function dataBlock(fm) {
  * Check a note's `data:` container against the closed vocabulary its type
  * declares.
  *
- * Unlike the top level, which is passed through to the published page and so
- * cannot be refused, `data:` holds the type-specific facts about the subject
- * and every key of it is declared. An unrecognised key is therefore a finding
+ * `data:` holds the type-specific facts about the subject, and every key of it
+ * is declared by the note's type. An unrecognised key is therefore a finding
  * naming the note, with the key it was most likely meant to be — the same
  * capped edit distance {@link nearest} applies to a `sohl:` key, drawn from
  * this type's own vocabulary rather than from every type's.
@@ -497,8 +512,8 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
                 type === "affiliation" && key === "commonSkills" ?
                     "`data.commonSkills` is not an affiliation field; write skill Addresses at `sohl.system.commonSkills`"
                 :   `"${key}" is not a \`data:\` property declared by ${type}; ` +
-                    `the container is closed, so unlike a top-level key it is ` +
-                    `not passed through to the page` +
+                    `the container is closed, so the key reaches no document ` +
+                    `and no page` +
                     (guess ? `. Did you mean "${guess}"?` : ""),
         });
     }
@@ -892,9 +907,9 @@ function checkSubType(note, { type, entry }) {
 /**
  * Check a note's `tags` for near misses against the tags that classify.
  *
- * `tags:` is top-level and the top level is open, so an unrecognised tag is
- * **not** a finding: a theme, a region or a working state is the author's own
- * vocabulary and this build has no standing to refuse it.
+ * `tags:` is a closed key holding an open vocabulary of values, so an
+ * unrecognised tag is **not** a finding: a theme, a region or a working state
+ * is the author's own vocabulary and this build has no standing to refuse it.
  *
  * **Distance alone is not enough either**, which the corpus settles rather than
  * argues: `azravan` on a faith, `barter` on an economy note and `secret` on
@@ -1624,11 +1639,16 @@ export function lintNote(
         ) {
             continue;
         }
+        const guess = nearest(key, NOTE_TOP_LEVEL_KEYS);
         findings.push({
             file: note.file,
             ...position,
             severity: "error",
-            message: `unknown top-level frontmatter key ${JSON.stringify(key)}; use shortcode, name, type, subType, description, tags, data, hm3, or sohl`,
+            message:
+                `unknown top-level frontmatter key ${JSON.stringify(key)}; ` +
+                `the region is closed, so the key reaches no document and no ` +
+                `page. Use ${listed(NOTE_TOP_LEVEL_KEYS)}` +
+                (guess ? `. Did you mean "${guess}"?` : ""),
         });
     }
 
