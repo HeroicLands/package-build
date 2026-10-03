@@ -126,6 +126,17 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             },
         }),
     },
+    lore: {
+        covers: ["events"],
+        fm: () => ({
+            type: "lore",
+            subType: "history",
+            shortcode: "founding",
+            data: {
+                events: [{ when: "412.1", until: "612.1", recurs: { every: 1 } }],
+            },
+        }),
+    },
 };
 
 /** A decoded note for one type, built once per test from its fixture. */
