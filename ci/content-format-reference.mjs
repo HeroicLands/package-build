@@ -137,7 +137,7 @@ const GENERATED_TABLES = [
             "| ------ | ---------- | ----------------- |",
             ...Object.entries(EXPRESSION_HELPERS).map(
                 ([name, { params, summary }]) =>
-                    `| \`${name}\` | \`${params}\` | ${cell(summary)} |`,
+                    `| \`${cell(name)}\` | \`${cell(params)}\` | ${cell(summary)} |`,
             ),
         ],
     },
