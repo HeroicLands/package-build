@@ -85,3 +85,39 @@ package-build dateto commoncal 326.114 --format long
 The CLI `datefrom` command requires a day and reads the default (`std`, or first) pattern. `dateto` prints the era covering the canonical day. A clock time makes a date exact; a year or day without one spans the stated interval. `data.epoch` and `data.moon.newOn` require a day. The [detailed date rules](../reference/format-details.md#dates-and-calendars) describe precision and bounds.
 
 In prose, `{{dateformat "commoncal" data.born}}` prints a date in the chosen calendar. `{{dateformat data.calendar data.born}}` uses the note's calendar Address. A third argument chooses another named pattern. A being or place can set `data.calendar`; its infobox uses that calendar for dates.
+
+## Write a recurring date
+
+A `lore` note states its dated occurrences under `data.events`, a list — a note may record a founding once and an annual festival beside it. Each entry is `{ when, until?, recurs? }`, with `when` the occurrence's anchor and first instance:
+
+```yaml
+data:
+  events:
+    - when: 412.1
+      recurs: { every: 1 }
+    - when: 689.5
+      until: 1203.9
+      recurs: { every: 514 }
+```
+
+The first entry is annual, with no end. The second recurs every five hundred fourteen years and stopped after canonical year 1203; `recurs.every` always counts whole years on the canonical axis. In place of a period, `recurs.on` lists the dates somebody actually recorded, strictly increasing and each later than `when`:
+
+```yaml
+data:
+  events:
+    - when: 326.1
+      recurs:
+        on: ["412.1", "689.5"]
+```
+
+A build computes the next occurrence against the world's declared present the way it computes a being's age against it, and publishes it on the web page, in the content index, and in the infobox.
+
+**A day that recurs every year, with no founding date of its own, writes year `0`** — quoted, since every canonical date stating a day must be:
+
+```yaml
+data:
+  events:
+    - when: "0.286"
+```
+
+`when: "0.286"` is the two-hundred-eighty-sixth day of the year, every year — a harvest rite nobody dates to a founding. `recurs` is refused beside it, since the entry is already annual; `until` is allowed, and bounds how long the rite was kept.

@@ -3897,18 +3897,49 @@ the setting itself, rather than instructions or other apparatus for the GM.
   tournament is not a matter of time-reckoning at all — and from `culture`, which is a grouping
   of people rather than an occasion they attend.
 
-| `data` property | Values                                                                        | Description                                                  |
-| --------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `epoch`         | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1         |
-| `months`        | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year           |
-| `weekdays`      | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously |
-| `seasons`       | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                   |
-| `namedDays`     | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                     |
-| `eras`          | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year        |
-| `formats`       | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default           |
-| `event`         | map                                                                           | A dated occurrence and its chronology metadata               |
+| `data` property         | Values                                                                        | Description                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `epoch`                 | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                |
+| `months`                | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                  |
+| `weekdays`              | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                        |
+| `seasons`               | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                          |
+| `namedDays`             | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                            |
+| `eras`                  | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                               |
+| `formats`               | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                  |
+| `events`                | `{ when, until?, recurs? }[]`                                                 | This note's dated occurrences, each with its own relationships and chronicle fields |
+| `events[].when`         | a date, or `"0.<day>"`                                                        | The occurrence's anchor and first instance — required                               |
+| `events[].until`        | a date                                                                        | Where the occurrence ran to, or where a recurring series stopped                    |
+| `events[].recurs`       | `{ every }` or `{ on }`                                                       | How further occurrences are found, absent for a one-time occurrence                 |
+| `events[].recurs.every` | whole number of years, 1 or more                                              | A period counted on the canonical axis from `when`                                  |
+| `events[].recurs.on`    | list of dates, strictly increasing, each later than `when`                    | Recorded occurrences beyond the first, in place of a period                         |
 
-`data.event` is available on every `lore` subType. It holds structured chronology metadata, including an event's kind, date, sources, and affected places. The shared format checks that it is a map; a content package can check its details. It does not appear as an infobox row.
+`data.events` is available on every `lore` subType. Each entry's `kind`, `depth`, `summary`, `sources`, `standing`, `accounts`, `who`, `where`, `unresolved`, `follows` and `names` hold its chronicle detail; their shapes belong to whatever design governs chronicle records, and this format only asks that they sit inside an entry. The shared format checks `when`, `until` and `recurs`; a content package can check the rest. `events` itself does not appear as an infobox row, but a recurring entry's computed next occurrence does.
+
+An entry reads by what it authors beside `when`:
+
+| authored                          | reads as                                        |
+| --------------------------------- | ----------------------------------------------- |
+| `when`                            | happened once                                   |
+| `when` + `until`                  | ran continuously from then to then              |
+| `when` + `recurs`                 | happened then and happens still                 |
+| `when` + `until` + `recurs.every` | happened then, again on the period, and stopped |
+
+`recurs.every` and `recurs.on` are exclusive — a period with named exceptions is written as an enumeration instead. `recurs` is refused beside `born` or `died`, and beside a `when` of year `0`. `until` is refused beside `recurs.on`, whose own last entry already bounds it.
+
+**The period advances the canonical year, never the era-relative year.** There is no year `0` in era-relative numbering — era year `-1` sits immediately before era year `1` — but canonical year `0` is an ordinary integer on the continuous axis `canonicalYear` builds, so a period of whole years steps on it with no special case at an epoch crossing. Precision and approximation carry through untouched: a year-precision anchor yields year-precision occurrences, an approximate anchor's occurrences are approximate too, and an anchor inside a short intercalary month recurs on that same day in every occurrence, with no special case for the month being short. Each occurrence selects its own era by testing its position against the anchor's calendar, so a later occurrence may print in a different era than its anchor, or print bare where no count was proclaimed for that year — neither is ever a finding, since nobody authored the occurrence.
+
+**Year `0` means any year.** An entry whose `when` states year `0` recurs on that day of every year — `when: "0.5"` is the fifth day of the year, in every year. The value must be quoted, for the reason every canonical date stating a day must be: an unquoted `<year>.<day>` reaches the check as a float, and a day's trailing zero is lost before a date is read. Beside a year-`0` entry, `recurs` is refused (the entry is already annual), `until` is allowed and bounds the series, and the entry carries no `canonicalYear`, era or `sort` — it cannot date its own note. A note's date is its first entry stating a real year.
+
+```yaml
+data:
+  events:
+    - when: 412.1
+      recurs: { every: 1 }
+    - when: "0.286"
+      until: 940.1
+```
+
+The first entry is an anniversary counted from canonical day `412.1`, recurring every year with no end. The second is an autumn rite — the two-hundred-eighty-sixth day of every year — that was kept until canonical year 940 and no longer is.
 
 #### Calendar note structure
 
