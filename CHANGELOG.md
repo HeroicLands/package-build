@@ -1,5 +1,196 @@
 # @heroiclands/package-build
 
+## 22.22.0
+
+### Minor Changes
+
+**Diagnostics**
+
+- A dead `#anchor` now fails the website build, matching the compendium build
+  and the link checker — a link that used to publish a dead section quietly now
+  reports it.
+- A note with more than one problem in its body now reports every one of them
+  in a single build, instead of only the first.
+
+**The book**
+
+- A page link in a book now goes where it says, and one into a package the book
+  depends on reaches that package's pages; the address they are built from is
+  `package.json`'s `homepage`, which a book now needs.
+- A note written for the next author — a `markdownlint` pragma, an aside about a
+  quoted notice — no longer appears on the page.
+- A box written inside a GM-only section prints as a box.
+- A box's title prints as written, emphasis included, and one carrying a bracket,
+  a `#` or a `$` no longer stops the book being made.
+- Two captions sharing one id each print their own block once, under their own
+  number.
+- A link that resolves nowhere now fails the book build, as it already fails the
+  compendium and website builds, and the book is still written so the page
+  carrying the link can be found.
+- Markup the book cannot set is reported at the file and line it is written on
+  rather than printed on the page, in a title page and a prose file as well as in
+  a note.
+- A table query that selects no rows now says so, and names the line, where it
+  read `[object Object]`.
+- A link the book cannot resolve names the line and column it is written on.
+
+**Affiliations**
+
+- A rank with no title or no description is now reported instead of shipping, so
+  a member's standing can no longer resolve to a blank on a sheet or a page.
+- A rank level that is not a whole number, and a key a rank does not take, are
+  reported too, each naming the line the rank is written on.
+- Every problem on one rank is reported at once, so a ladder is fixed in a single
+  pass.
+- A rank needs only its level, title and description; the lore note is for a
+  standing that needs more said about it than a description can hold.
+- An affiliation's rank ladder now appears on its page, alongside its offices,
+  ordered by level.
+- A note's `lore`, `parents`, `domains` and `economy` lists now reach the page
+  wherever they are authored, instead of vanishing silently.
+- A being's entry in a body states the rung it stands on — an ordinary member is
+  1, someone cast out is 0 — and an entry that states none is reported.
+- An office is not a rung, so an entry naming a post and no standing is reported
+  with the rest of them.
+- A body that gives two rungs one level is reported on the second, so what a
+  standing is called does not depend on which rung is written first.
+
+**Authoring**
+
+- A note's frontmatter accepts only the documented keys; an unrecognised one is an error at its own line, naming every accepted key and the one it was probably meant to be.
+- A page takes its heading from the note's name, so a homepage stating a title any other way publishes the name its package manifest carries.
+- Active Effects and document flags are read from the game-system block that carries them, so a note stating either outside one ships a document without them.
+- Info boxes, warning boxes and captions can be written again: any note using
+  one failed its build with an error about a secret block it did not contain.
+- A note may now mix boxes, captions and GM-only sections freely, and a box
+  inside a GM-only section stays inside it.
+- A `:::` line that closes nothing says so plainly instead of naming the wrong
+  construct.
+- An image may be sized `full-width`, and a float takes a named corner — both
+  always worked and neither was written down.
+
+**Beings**
+
+- A being's complexion can now hold several values, because a face is weathered
+  and ruddy at once rather than only one of them.
+- Several of them read as one phrase on a sheet or a page — "weathered, ruddy and
+  scarred complexion" — rather than saying the word once per value.
+- A being may be recorded as `nonbinary`, or as having no gender at all, where
+  before only `male`, `female` and `other` were named.
+- A frame is `scant`, `light`, `medium`, `heavy` or `massive`. The reference named
+  a `heavy` frame `large`, which nothing wrote.
+- A being's body and movement are authored under `sohl.system`, and its
+  attributes and skills as `sohl.items` entries; a note writing either
+  elsewhere in the block is reported.
+
+**Actors**
+
+- An `{#appearance}` or `{#dossier}` anchor written on a heading below the top
+  level now fails the build naming the file and the line, instead of compiling
+  a blank appearance or biography with nothing to say why.
+
+**Dates**
+
+- A birth or death date written without quotes is reported where a day's
+  trailing zero could have been lost, naming both days the value could mean. A
+  calendar's epoch and a moon's new day read the same way.
+
+**Definition lists**
+
+- Every package now ships a definition-list style, so a term and its definition
+  line up in two columns with the terms sharing one right edge.
+- A narrow journal window stacks each term above its own definition instead of
+  cramping both into columns, and widening the window restores them.
+- A term is bold wherever it appears, so writing one needs no `**` around it.
+- Infobox rows in the book sit against the same right edge, with space between
+  rows rather than run together.
+
+**Packages**
+
+- `packageBuild.baseStyles: false` declines the shared style for a package that
+  wants the surface entirely to itself.
+
+**Named blocks**
+
+- A `:::secret`, `:::info` or `:::warn` block now takes a title of its own, so a
+  GM passage can say "For the GM" or "If they ask about the harbour" instead of
+  one fixed word.
+- A block also takes an id, classes and other attributes, so a note can link to
+  one and a package can style a particular kind its own way.
+- Without a title a block heads itself **Secret**, **Info** or **Warn**. A
+  warning that used to head "Warning" now heads "Warn", and a secret that used to
+  head "GM note" now heads "Secret"; writing `title="GM note"` keeps the old
+  wording.
+- A secret on a web page now opens with its own title rather than the word
+  "Spoiler", and carries its kind so a site can style it.
+- A block's colours come from a stylesheet rather than from the block itself,
+  so a light panel no longer keeps a light background against dark page text.
+- A misspelled block name is now reported instead of being left in the page as
+  the literal `:::name` an author typed.
+- One malformed block no longer stops every other block in the same note from
+  rendering.
+- A box written inside a GM-only section stays inside it, and a box inside
+  another box says so rather than rendering as a muddle.
+
+**Configuration**
+
+- A `compatibility.verified` build below the package's own `compatibility.minimum`
+  is now reported instead of shipping a manifest that claims a build was verified
+  against a floor it cannot install on.
+- The same check applies to a declared system's and a related package's own
+  `compatibility`, naming the file and line of the offending `verified`.
+
+### Patch Changes
+
+**Lists**
+
+- A list item opened with `- [ ]` or `- [x]` reads as its own words everywhere
+  — on the website, in the compendium, and in the book — never as a checkbox.
+- Writing one that way is reported at its own line, naming the ordinary list
+  it belongs in.
+
+**Footnotes**
+
+- A footnote referenced inside a box or a caption now prints and numbers with
+  the rest of the note instead of showing as literal text.
+- A definition written below the top level of a note is reported, as is a
+  reference nothing defines.
+- A definition no reference uses is reported rather than dropped from the page.
+
+**Named blocks and captions**
+
+- A heading that would open a page of its own is reported when it is written
+  inside a box or a caption.
+
+**Headings**
+
+- A heading carrying classes or attributes beside its anchor now anchors on the
+  anchor alone, so a link written to it resolves on every surface.
+- A Foundry journal and a web page carry a heading's classes and attributes onto
+  the heading, and no surface prints the braces.
+- A heading whose braces hold something other than an attribute block is
+  reported at its own line instead of being typeset.
+- `.secret` on the heading that opens a section makes its Foundry page the
+  GM's alone.
+- A withheld section reads as a spoiler on the web and a labelled block in the
+  book, which conceal it rather than withhold it.
+- A heading refuses `id=`, `class=` and any key beginning `on`, as a named block
+  does, so no note writes an event handler onto a page.
+
+**Page lists**
+
+- A note can now write a page list: name a tag, and the pages carrying it come out as a list of links.
+- The list reaches a reader in Foundry, on the website and in the book alike, from the one directive.
+- A page joins the list by carrying its tag and leaves by losing it, so a landing page stays true as notes are written.
+- A list can print each page's description beside its link, and can be restricted to one note type.
+- A tag that no page carries is reported with the tag it looked for, rather than printing nothing.
+
+**Beings**
+
+- A being's `socialTies` map now builds without the two findings it always
+  produced, so a patron, friend, dependent, acquaintance, rival or nemesis
+  can be written.
+
 ## 22.21.0
 
 ### Minor Changes
