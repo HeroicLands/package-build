@@ -352,7 +352,7 @@ order without changing the Markdown body.
 
 #### Dates and calendars
 
-A canonical date is `<year>[.<day>[:HHMMSS]]`. The day is one-based within the world's year. `720` covers the whole year; `720.136` covers that day; `720.136:143005` identifies one second. Negative years are valid. Prefix either form with `~` to express uncertainty beyond its written interval. `unknown` is allowed only in fields that accept an unknown occurrence.
+A canonical date is `<year>[.<day>[:HHMMSS]]`. The day is one-based within the world's year, bound against `data.year.days` on the world's `place` note. A tree whose notes declare no world year bounds no day: the value is read as written, however large. `720` covers the whole year; `720.136` covers that day; `720.136:143005` identifies one second. Negative years are valid. Prefix either form with `~` to express uncertainty beyond its written interval. `unknown` is allowed only in fields that accept an unknown occurrence.
 
 **Quote a canonical date that states a day.** `born: "667.130"` is read as written; unquoted, YAML parses the scalar as a number and a trailing zero on the day is gone before any date reader sees it, so `667.130` and `667.13` arrive as one value. A number-valued date is an error wherever appending a zero to its day would still name a day inside the world's year — the message names the file, the line and both readings — and is read as written where no such day exists, since `675.2810` is no day of a 365-day year. A bare year loses nothing and needs no quotes.
 
