@@ -362,8 +362,38 @@ export function blockProperty(fm, block, key, defaultValue = undefined) {
 }
 
 /**
- * A system override followed by a shared `data:` value. The top-level value
- * remains readable while content repositories move their authored fields.
+ * A system override followed by a shared `data:` value followed by the
+ * retiring top-level spelling `data:` gathered it off, reporting which one
+ * answered.
+ *
+ * {@link module:engine/field-spec.resolveFieldValue}'s counterpart for a
+ * universal `data:` key — `pack` and `packFolder`, declared for every note
+ * type rather than per type, so neither is a `FieldSpec` that resolver takes.
+ * The order is the same shape: a system's own override, then the shared
+ * `data:` position, then the bare top-level key a tree authored before
+ * `data:` existed. The top-level value stays readable while a tree still on
+ * it moves its authored fields.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {string} block - The system block key.
+ * @param {string} key - The shared property.
+ * @param {any} [defaultValue] - Returned when no position declares it.
+ * @returns {{value: any, from: FieldSource}} The value, and where it came
+ *   from.
+ */
+export function resolveDataProperty(fm, block, key, defaultValue = undefined) {
+    const declared = systemBlock(fm, block)?.[key];
+    if (declared !== undefined && declared !== null) return { value: declared, from: "block" };
+    const shared = isMapping(fm?.data) ? fm.data[key] : undefined;
+    if (shared !== undefined && shared !== null) return { value: shared, from: "shared" };
+    const legacy = isMapping(fm) ? fm[key] : undefined;
+    if (legacy !== undefined && legacy !== null) return { value: legacy, from: "topLevel" };
+    return { value: defaultValue, from: "default" };
+}
+
+/**
+ * {@link resolveDataProperty}'s value alone, for a caller that only compiles
+ * a document and has no use for which position answered.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {string} block - The system block key.
@@ -372,12 +402,7 @@ export function blockProperty(fm, block, key, defaultValue = undefined) {
  * @returns {any} The selected value.
  */
 export function blockDataProperty(fm, block, key, defaultValue = undefined) {
-    const declared = systemBlock(fm, block)?.[key];
-    if (declared !== undefined && declared !== null) return declared;
-    const shared = isMapping(fm?.data) ? fm.data[key] : undefined;
-    if (shared !== undefined && shared !== null) return shared;
-    const legacy = isMapping(fm) ? fm[key] : undefined;
-    return legacy === undefined || legacy === null ? defaultValue : legacy;
+    return resolveDataProperty(fm, block, key, defaultValue).value;
 }
 
 /**
