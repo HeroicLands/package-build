@@ -103,7 +103,8 @@ import {
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
 import { positionOfLiteral } from "./diagnostics.mjs";
-import { artPathname, assetAddressIndex } from "./art-fields.mjs";
+import { artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
+import { embedRole } from "./content-embeds.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { numberFigures, scanFigures } from "./content-figures.mjs";
@@ -545,11 +546,19 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      * @param {number} columns - The entry's page columns.
      * @returns {string} Typst markup.
      */
-    const figureCounts = { code: 0, table: 0, figure: 0, prose: 0 };
+    const figureCounts = { code: 0, table: 0, figure: 0, map: 0, prose: 0 };
+    // The role lookup a `:::figure` fence's `map` counter reaches through —
+    // see `engine/content-figures.mjs`'s `resolveRole`. Addressed form, for a
+    // page's own scan below, which runs before its embeds are rewritten into
+    // ordinary images; `pathRoles` is the same lookup keyed by the pathname
+    // that rewrite leaves behind, for the renderer's own rescan of the
+    // resolved body.
+    const resolveRole = (address) => embedRole(assets, address);
+    const pathRoles = pathnameRoles(assets);
     const frontFigures = new Map();
     for (const file of resolved.pdf.front) {
         try {
-            const scan = scanFigures(fs.readFileSync(file, "utf8"));
+            const scan = scanFigures(fs.readFileSync(file, "utf8"), { resolveRole });
             // Numbered here, because a number runs across the whole book and only
             // this loop knows the order; what is *wrong* with a figure is
             // reported by the renderer, which reads every one of the three kinds
@@ -596,7 +605,10 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 pageLists: sqlTables?.pageLists?.get(page.file),
                 self: { fm: page.fm, path: page.relPath },
             });
-            const numberedFigures = numberFigures(scanFigures(markdown).figures, figureCounts);
+            const numberedFigures = numberFigures(
+                scanFigures(markdown, { resolveRole }).figures,
+                figureCounts,
+            );
             prepared.set(entry.anchor, { markdown, errors, lineMap, numberedFigures });
             const shortcode = page.fm.shortcode;
             if (typeof shortcode === "string" && shortcode) {
@@ -627,7 +639,10 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 continue; // reported by the render loop below
             }
             prepared.set(entry.anchor, {
-                numberedFigures: numberFigures(scanFigures(text).figures, figureCounts),
+                numberedFigures: numberFigures(
+                    scanFigures(text, { resolveRole }).figures,
+                    figureCounts,
+                ),
             });
         }
     }
@@ -765,6 +780,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             bodyLine: page.bodyLine,
             lineMap,
             prepared: true,
+            resolveRole: (pathname) => pathRoles.get(pathname),
         });
         // Infoboxes follow the authored body within this note's entry.
         const boxes = noteInfoboxes(page.fm, {

@@ -104,6 +104,8 @@ import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
 import { ownDocumentSystem } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
+import { assetAddressIndex } from "./art-fields.mjs";
+import { embedRole } from "./content-embeds.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
 // builds that emit a link. Re-exported because this is where callers
 // have always addressed it.
@@ -443,6 +445,10 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
  *   entries are derived against.
  * @param {object} [options.addressContext] - Address resolution context.
  * @param {object} [options.dateContext] - Calendar conversion context.
+ * @param {(address: string) => string|undefined} [options.resolveRole] - From
+ *   a picture's address to the role its asset declares, so a figure anchor's
+ *   `name` reads `Map 1` rather than `Figure 1` where it is due — see
+ *   {@link module:engine/content-figures.scanFigures}.
  * @returns {Record<string, any>} The record, keys sorted at every depth. A
  *   **stub** — a note with an empty body, on a type an empty body suppresses —
  *   carries `address` and `anchors` as `null`: it publishes no page, so it
@@ -464,6 +470,7 @@ export function buildIndexRecord({
     manifest,
     addressContext,
     dateContext,
+    resolveRole,
 }) {
     assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage);
 
@@ -514,7 +521,7 @@ export function buildIndexRecord({
                 // there rather than search for the heading.
                 anchors:
                     stub ? null : (
-                        collectAnchors(body, bodyLine).map((a) => ({
+                        collectAnchors(body, bodyLine, resolveRole).map((a) => ({
                             ...a,
                             link: address ? `${address.slug}#${a.slug}` : null,
                         }))
@@ -615,6 +622,7 @@ export function indexRecordsForNote({
     manifest,
     addressContext,
     dateContext,
+    resolveRole,
 }) {
     resolveNoteId(frontmatter, { pkg: contentPackage });
     const record = buildIndexRecord({
@@ -627,6 +635,7 @@ export function indexRecordsForNote({
         manifest,
         addressContext,
         dateContext,
+        resolveRole,
     });
     const records = [decodeIndexAddresses(record, addressContext ?? { package: contentPackage })];
     const address = noteAddress(frontmatter, contentPackage);
@@ -728,6 +737,17 @@ export function collectContentIndex(
     const present = presentAmongFrontmatters(parsedNotes.map((n) => n.frontmatter));
     const dates = reckoningContext({ notes: parsedNotes.map((n) => n.frontmatter) });
 
+    // Walked ahead of the notes, rather than after them as the records
+    // themselves are emitted: a note's anchors are collected below, and a
+    // figure fence's `map` counter needs this package's own asset roles
+    // before the first note is read, the same precedent the book's own
+    // cross-file numbering sets. A package with no `assetsBase` resolves no
+    // role, which is the one it would have resolved anyway.
+    const assetRecords =
+        assetsBase ? collectAssetRecords(assetsBase, { contentPackage, problems }) : [];
+    const assetIndex = assetAddressIndex(assetRecords, { config: { contentPackage } });
+    const resolveRole = (address) => embedRole(assetIndex, address);
+
     for (const { frontmatter, body, bodyLine, absPath } of parsedNotes) {
         const fm = frontmatter ?? {};
         applyComputedBeingAge(fm, present, dates);
@@ -744,6 +764,7 @@ export function collectContentIndex(
                     manifest,
                     addressContext,
                     dateContext: dates,
+                    resolveRole,
                 }),
             );
         } catch (err) {
@@ -776,14 +797,13 @@ export function collectContentIndex(
         }
     }
 
-    if (assetsBase) {
-        // Sorted at every depth like a note's record, and for the same reason:
-        // the declaration order of the `asset` fields is a fact about the
-        // emitter, not about the content, and the artifact is meant to be
-        // byte-identical across two runs over an unchanged tree.
-        for (const record of collectAssetRecords(assetsBase, { contentPackage, problems })) {
-            records.push(/** @type {Record<string, any>} */ (sortKeysDeep(record)));
-        }
+    // Sorted at every depth like a note's record, and for the same reason: the
+    // declaration order of the `asset` fields is a fact about the emitter, not
+    // about the content, and the artifact is meant to be byte-identical across
+    // two runs over an unchanged tree. Collected above, ahead of the notes —
+    // see `resolveRole` — rather than walked a second time here.
+    for (const record of assetRecords) {
+        records.push(/** @type {Record<string, any>} */ (sortKeysDeep(record)));
     }
 
     // Source path, then the canonical address, then the note id. The walk

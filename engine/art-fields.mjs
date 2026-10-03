@@ -203,6 +203,34 @@ export function resolveArtRecord(index, value, defaultType, accepts) {
 }
 
 /**
+ * Every asset's role, keyed by the pathname it resolves to — the form a body
+ * carries once an embed's address has been rewritten into the ordinary image
+ * every surface renders ({@link module:engine/content-embeds.resolveEmbeds}).
+ *
+ * This is the lookup a `:::figure` fence's `map` counter reaches through —
+ * see {@link module:engine/content-figures.scanFigures}'s `resolveRole` —
+ * for a caller that reads a body after that rewrite: a Foundry journal, an
+ * item or actor's documentation, and the book.
+ *
+ * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex},
+ *   or the equivalent the site and the book build.
+ * @returns {Map<string, string>} Pathname → role, one entry per asset that
+ *   declares one.
+ */
+export function pathnameRoles(index) {
+    const roles = new Map();
+    for (const record of [
+        ...(index?.assets?.values() ?? []),
+        ...(index?.foreign?.values() ?? []),
+    ]) {
+        const role = record?.asset?.role;
+        if (!role || !record.asset?.path || !record.package) continue;
+        roles.set(`${record.package}/${ASSETS_SEGMENT}/${record.asset.path}`, role);
+    }
+    return roles;
+}
+
+/**
  * Flag a note whose art slot names a picture that is not the size that slot
  * is cut to.
  *

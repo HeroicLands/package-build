@@ -42,7 +42,7 @@ import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
 import { iconPlugin } from "./content-icons.mjs";
 import { imagePlugin, imagesIn } from "./content-images.mjs";
-import { resolveEmbeds } from "./content-embeds.mjs";
+import { embedRole, resolveEmbeds } from "./content-embeds.mjs";
 import { foundryAddressProblem, pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import log from "loglevel";
 
@@ -155,10 +155,25 @@ md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
     return `<li id="fn${id}" class="footnote-item" value="${number}">`;
 };
 
-/** Render a note body with Foundry's named-block markup. */
-export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId) {
+/**
+ * Render a note body with Foundry's named-block markup.
+ *
+ * @param {string} body - The body, tables expanded and wikilinks resolved.
+ * @param {Array<{id: string, label: string}>} [figures] - Labels assigned by
+ *   a note-wide scan, matched by id — see
+ *   {@link module:engine/content-figures.renderFigureBlocks}.
+ * @param {Map<string, number>} [footnoteNumbers] - Shared across the note.
+ * @param {string} [docId] - Threaded into footnote anchors.
+ * @param {(address: string) => string|undefined} [resolveRole] - From a
+ *   picture's address to the role its asset declares — see
+ *   {@link module:engine/content-figures.scanFigures}.
+ * @returns {string} The rendered HTML.
+ */
+export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, resolveRole) {
     const blocks = renderBlocks(body, "foundry");
-    const figured = renderFigureBlocks(blocks.markdown, (block) => md.render(block), figures);
+    const figured = renderFigureBlocks(blocks.markdown, (block) => md.render(block), figures, {
+        resolveRole,
+    });
     return md.render(figured.markdown, { footnoteNumbers, docId });
 }
 
@@ -941,7 +956,7 @@ export function convertNoteWikilinks(
         docPack,
         index,
         captionLabels: new Map(
-            scanFigures(source)
+            scanFigures(source, { resolveRole: (address) => embedRole(index, address) })
                 .figures.filter((figure) => figure.id)
                 .map((figure) => [figure.id, figure.label]),
         ),
