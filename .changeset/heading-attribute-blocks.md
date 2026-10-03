@@ -10,7 +10,7 @@
   the heading, and no surface prints the braces.
 - A heading whose braces hold something other than an attribute block is
   reported at its own line instead of being typeset.
-- `.secret` on the heading that opens a section withholds that section: the
-  Foundry page is the GM's alone, and the web page and the book set it in the
-  spoiler and the labelled block a secret block already gets. On the web it is a
-  spoiler and not access control.
+- `.secret` on the heading that opens a section makes its Foundry page the
+  GM's alone.
+- A withheld section reads as a spoiler on the web and a labelled block in the
+  book, which conceal it rather than withhold it.
