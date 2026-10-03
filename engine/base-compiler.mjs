@@ -63,6 +63,7 @@
 
 import { authoredFrontmatter } from "./index-records.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
+import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
 import { scanCaptions } from "./content-captions.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
@@ -669,6 +670,23 @@ export class BasePackCompiler {
                     secretError.line === 1 ?
                         (this.currentNote?.bodyColumn ?? 1)
                     :   secretError.column,
+            });
+        }
+        // A heading's attribute block, and a `.secret` written where no surface
+        // can honour it. Read off the body as authored, before the tables
+        // expand, because a heading is a heading whatever a pass does with the
+        // prose under it — so a pass that converts nothing reports these too.
+        for (const headingError of [
+            ...scanHeadingAttributes(body, this.currentNote?.bodyLine ?? 1).errors,
+            ...withheldSections(body, this.currentNote?.bodyLine ?? 1).errors,
+        ]) {
+            findings.push({
+                message: headingError.message,
+                line: headingError.line,
+                column:
+                    headingError.line === (this.currentNote?.bodyLine ?? 1) ?
+                        (this.currentNote?.bodyColumn ?? 1) + headingError.column - 1
+                    :   headingError.column,
             });
         }
         for (const footnoteError of footnoteFindings(body)) {

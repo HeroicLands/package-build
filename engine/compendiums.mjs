@@ -191,7 +191,14 @@ function cleanPackEntry(
 
     if (data.effects) data.effects.forEach((i) => cleanPackEntry(i, { clearSourceId: false }));
     if (data.items) data.items.forEach((i) => cleanPackEntry(i, { clearSourceId: false }));
-    if (data.pages) data.pages.forEach((i) => cleanPackEntry(i, { ownership: -1 }));
+    // A page's own stated default survives, because a page compiled as GM-only
+    // says so here and nowhere else; the per-user grants beside it do not, which
+    // is what the reset is for. `-1` is `INHERIT`, the value a page that says
+    // nothing takes.
+    if (data.pages)
+        data.pages.forEach((page) =>
+            cleanPackEntry(page, { ownership: page.ownership?.default ?? -1 }),
+        );
     if (data.system?.description) data.system.description = cleanString(data.system.description);
     if (data.system?.biography) data.system.biography = cleanString(data.system.biography);
     if (data.system?.textReference)

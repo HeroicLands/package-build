@@ -1814,6 +1814,9 @@ function siteCommand() {
                 for (const e of result.captionErrors) {
                     emitDiagnostic({ ...e, severity: "error" });
                 }
+                for (const e of result.headingErrors) {
+                    emitDiagnostic({ ...e, severity: "error" });
+                }
                 for (const e of result.footnoteErrors) {
                     emitDiagnostic({ ...e, severity: "error" });
                 }
@@ -1856,6 +1859,7 @@ function siteCommand() {
                     result.expressionErrors.length ||
                     result.secretErrors.length ||
                     result.captionErrors.length ||
+                    result.headingErrors.length ||
                     result.footnoteErrors.length ||
                     result.wikiErrors.length ||
                     result.imageErrors.length
