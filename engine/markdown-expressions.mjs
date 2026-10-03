@@ -158,7 +158,9 @@ const HELPERS = Object.freeze([
             '`"note-address#thorn"` on another. `form` is `number` (the default, and ' +
             'admitted explicitly), rendering "Figure 13"; `full`, the number and the ' +
             "caption; or `title`, the caption alone. Always renders as a link to the " +
-            "figure, and a link inside the caption contributes only its label text.",
+            "figure, and a link inside the caption contributes only its label text. " +
+            "The number rendered is the one the figure carries on the surface doing " +
+            "the rendering, whichever note names it.",
         make:
             ({ figures }) =>
             (address, options) => {
@@ -168,11 +170,12 @@ const HELPERS = Object.freeze([
                 if (formFault) throw new RangeError(formFault);
                 if (typeof address !== "string" || !address.trim())
                     throw new TypeError("ref needs an address naming a figure's anchor");
-                const { parsed, figure, crossNote } = refFigure(address, figures);
-                if (!figure) throw new RangeError(refNotFoundFault(address, parsed, crossNote));
+                const { parsed, figure, crossNote, noteFound, url } = refFigure(address, figures);
+                if (!figure)
+                    throw new RangeError(refNotFoundFault(address, parsed, crossNote, noteFound));
                 if (form !== "number" && !figure.hasCaption)
                     throw new RangeError(refNoCaptionFault(form, parsed));
-                return renderRef(figure, parsed, form);
+                return renderRef(figure, parsed, form, { url, link: figures?.link });
             },
     }),
 ]);
@@ -193,24 +196,51 @@ function refFormFault(form) {
  * The figure a `ref` address names, read through the wikilink grammar's own
  * address parsing rather than a second parser.
  *
+ * A same-page address reads `figures.get`. A cross-note address reads
+ * `figures.note`, which resolves the written address exactly as a wikilink
+ * does and hands back the target's own figures and its own address — a build
+ * that resolves no cross-note reference simply omits `note`, and every
+ * cross-note address is then refused alike.
+ *
  * @param {string} address - `"#thorn"` or `"note-address#thorn"`.
- * @param {Map<string, {label: string, caption: string, hasCaption: boolean}>} [figures]
- *   This note's figures, by the id a `:::figure` fence declares.
- * @returns {{parsed: object, figure: object|null, crossNote: boolean}} The
- *   parsed address, the figure it names (`null` when none matches), and
- *   whether the address names another note.
+ * @param {{get: (id: string) => object|undefined,
+ *   note?: (address: string) => {url: string|null,
+ *   figures: Map<string, object>}|undefined, link?: Function}} [figures] -
+ *   This note's figures, and how to reach another note's.
+ * @returns {{parsed: object, figure: object|null, crossNote: boolean,
+ *   noteFound: boolean, url: string|null}} The parsed address, the figure it
+ *   names (`null` when none matches), whether the address names another
+ *   note, whether that note was found at all, and the target's own address
+ *   (`null` for a same-page reference).
  */
 function refFigure(address, figures) {
     const parsed = parseWikilink(address);
-    if (!isSamePage(parsed)) return { parsed, figure: null, crossNote: true };
-    return { parsed, figure: figures?.get(parsed.anchor) ?? null, crossNote: false };
+    if (isSamePage(parsed)) {
+        return {
+            parsed,
+            figure: figures?.get(parsed.anchor) ?? null,
+            crossNote: false,
+            noteFound: true,
+            url: null,
+        };
+    }
+    const note = figures?.note?.(parsed.target);
+    if (!note) return { parsed, figure: null, crossNote: true, noteFound: false, url: null };
+    return {
+        parsed,
+        figure: note.figures.get(parsed.anchor) ?? null,
+        crossNote: true,
+        noteFound: true,
+        url: note.url ?? null,
+    };
 }
 
 /** The message for a `ref` address naming no figure, same-note or across notes. */
-function refNotFoundFault(address, parsed, crossNote) {
-    return crossNote ?
-            `ref "${address}" addresses a figure in another note, which this build does not resolve`
-        :   `ref "${address}" names no figure for anchor "#${parsed.anchor}"`;
+function refNotFoundFault(address, parsed, crossNote, noteFound) {
+    if (!crossNote) return `ref "${address}" names no figure for anchor "#${parsed.anchor}"`;
+    if (!noteFound)
+        return `ref "${address}" addresses "${parsed.target}", which names no note this build resolves`;
+    return `ref "${address}" names no figure for anchor "#${parsed.anchor}" in "${parsed.target}"`;
 }
 
 /** The message for a `full` or `title` reference to a figure with no caption. */
@@ -237,12 +267,45 @@ function flattenCaptionLinks(caption) {
         .replace(/\[([^\]\n]*)\]\([^)\n]*\)/g, "$1");
 }
 
-/** A `ref` call's rendered Markdown, always a link to the figure's anchor. */
-function renderRef(figure, parsed, form) {
-    const href = `#${slugify(parsed.anchor)}`;
-    if (form === "number") return `[${figure.label}](${href})`;
+/** A `ref` call's label text, for the form it was asked to render. */
+function refLabel(figure, form) {
+    if (form === "number") return figure.label;
     const title = flattenCaptionLinks(figure.caption);
-    return form === "title" ? `[${title}](${href})` : `[${figure.label}: ${title}](${href})`;
+    return form === "title" ? title : `${figure.label}: ${title}`;
+}
+
+/**
+ * The default rendering of a `ref` call — a Markdown link to the figure's
+ * anchor, on the target's own address when the reference crosses notes.
+ *
+ * @param {{anchor: string, url: string|null}} target - The anchor, and the
+ *   target note's own address (`null` for a same-page reference).
+ * @param {string} label - The link's text.
+ * @returns {string} `[label](url#anchor)`, `url` empty for a same-page link.
+ */
+function defaultRefLink({ anchor, url }, label) {
+    return `[${label}](${url ?? ""}#${slugify(anchor)})`;
+}
+
+/**
+ * A `ref` call's rendered Markdown, always a link to the figure's anchor.
+ *
+ * `link`, when the surface supplies one, replaces the default Markdown link
+ * — the one override this build needs is Foundry, which addresses a figure
+ * through its own wikilink conversion rather than through an anchor fragment
+ * a journal page cannot resolve.
+ *
+ * @param {object} figure - The figure record.
+ * @param {object} parsed - The parsed `ref` address.
+ * @param {string} form - One of {@link REF_FORMS}.
+ * @param {{url: string|null, link?: (target: {anchor: string, url: string|null},
+ *   label: string) => string}} context - The target's own address, and the
+ *   surface's own link renderer.
+ */
+function renderRef(figure, parsed, form, { url, link } = {}) {
+    const label = refLabel(figure, form);
+    const render = link ?? defaultRefLink;
+    return render({ anchor: parsed.anchor, url }, label);
 }
 
 /**
@@ -313,7 +376,8 @@ export function sqlQueriesInMarkdown(body, fm = {}) {
  * and the distinction is gone.
  *
  * @param {object} node - A `MustacheStatement`/`SubExpression` AST node.
- * @param {Map<string, object>} [figures] - This note's figures, by id.
+ * @param {object} [figures] - This note's figures, and how to reach another
+ *   note's — see {@link refFigure}.
  * @returns {string|null} A finding message, or `null` when the call is sound.
  */
 function refCallFault(node, figures) {
@@ -328,8 +392,8 @@ function refCallFault(node, figures) {
     // Not a literal address: left to the render pass, which reports whatever
     // the resolved value turns out to be.
     if (typeof address !== "string" || !address.trim()) return null;
-    const { parsed, figure, crossNote } = refFigure(address, figures);
-    if (!figure) return refNotFoundFault(address, parsed, crossNote);
+    const { parsed, figure, crossNote, noteFound } = refFigure(address, figures);
+    if (!figure) return refNotFoundFault(address, parsed, crossNote, noteFound);
     if (form !== "number" && !figure.hasCaption) return refNoCaptionFault(form, parsed);
     return null;
 }
@@ -341,7 +405,8 @@ function refCallFault(node, figures) {
  * can.
  *
  * @param {string} body
- * @param {Map<string, object>} [figures] - This note's figures, by id.
+ * @param {object} [figures] - This note's figures, and how to reach another
+ *   note's — see {@link refFigure}.
  * @returns {Array<{offset: number, message: string}>} One entry per faulty
  *   `{{...}}` expression, `offset` into `body`.
  */
@@ -378,10 +443,15 @@ function positionAt(body, offset, bodyLine) {
  * Expand scalar frontmatter references and registered functions in Markdown prose.
  * @param {string} body
  * @param {{fm?: object, dates?: object, sqlResults?: Map<string, object>,
- *   figures?: Map<string, {label: string, caption: string, hasCaption: boolean}>,
- *   file?: string, bodyLine?: number}} [options] - `figures` is this note's
- *   own `:::figure` fences, by id, for the `ref` helper; a cross-note address
- *   is reported as unresolved rather than looked up.
+ *   figures?: {get: (id: string) => {label: string, caption: string,
+ *   hasCaption: boolean}|undefined, note?: (address: string) =>
+ *   {url: string|null, figures: Map<string, object>}|undefined,
+ *   link?: Function}, file?: string, bodyLine?: number}} [options] -
+ *   `figures` is the `ref` helper's own view of the corpus: `get` reads this
+ *   note's `:::figure` fences by id, and `note` resolves another note's the
+ *   way a wikilink would — omitted, a cross-note address is refused rather
+ *   than looked up. `link` overrides how a resolved reference renders; the
+ *   default is a Markdown link to the target's own anchor.
  */
 export function renderMarkdownExpressions(
     body,

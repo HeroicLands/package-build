@@ -47,6 +47,8 @@ function makeRepo(): string {
             "",
             'See {{ref "#c1"}} for the mechanism, drawn in full as {{ref "#c1" form="full"}}.',
             "",
+            'The beta note carries {{ref "weapongear-beta#c2"}} of its own.',
+            "",
             ":::figure {#c1}",
             "```js",
             "1",
@@ -172,6 +174,25 @@ describe("a figure fence in the book", () => {
             expect(source).toContain(
                 `#block(below: 0.6em)[#text(size: 7.6pt, style: "italic")[Code 1: The alpha listing.]] <${label}>`,
             );
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "resolves a cross-note {{ref}} to the target's own book-wide number",
+        () => {
+            const dir = makeRepo();
+            const { out, status, source } = buildTypstSource(dir);
+            expect(status, out).toBe(0);
+            // The alpha note's reference names the beta note's figure, which
+            // is "Code 2" in the book's own reading order — not "Code 1",
+            // which is what a page-local recount of beta alone would give it.
+            expect(out).not.toMatch(/names no figure/);
+            expect(out).not.toMatch(/names no note/);
+            const anchorMatch = source.match(/<([\w-]*--c2)>/);
+            expect(anchorMatch).not.toBeNull();
+            const label = anchorMatch![1];
+            expect(source).toContain(`#link(<${label}>)[Code 2]`);
         },
         SUBPROCESS_TEST_TIMEOUT,
     );

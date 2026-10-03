@@ -422,6 +422,58 @@ describe("buildSite end to end", () => {
         }
     });
 
+    it("resolves a cross-note {{ref}}, as a link to the target's own page and number", () => {
+        const targetFile = note(
+            "Rules/Target.md",
+            "type: doc\nsubType: rules\nshortcode: target\nname:\n    full: Target",
+            [
+                ":::figure {#thorn}",
+                "```text",
+                "alpha",
+                "```",
+                "///",
+                "The great beast.",
+                ":::",
+            ].join("\n") + "\n",
+        );
+        const citingFile = note(
+            "Rules/Citing.md",
+            "type: doc\nsubType: rules\nshortcode: citing\nname:\n    full: Citing",
+            'See {{ref "doc-target#thorn"}}, in full as {{ref "doc-target#thorn" form="full"}}.\n',
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(result.expressionErrors).toEqual([]);
+            const page = fs.readFileSync(
+                path.join(root, "build/hugo/content/kb/doc-citing.md"),
+                "utf8",
+            );
+            expect(page).toContain("[Code 1](/demo/doc-target/#thorn)");
+            expect(page).toContain("[Code 1: The great beast.](/demo/doc-target/#thorn)");
+        } finally {
+            fs.rmSync(targetFile);
+            fs.rmSync(citingFile);
+        }
+    });
+
+    it("refuses a {{ref}} naming a note that does not exist", () => {
+        const file = note(
+            "Rules/NoSuchTarget.md",
+            "type: doc\nsubType: rules\nshortcode: nosuchtarget\nname:\n    full: No Such Target",
+            'See {{ref "doc-nowhere#thorn"}}.\n',
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(result.expressionErrors).toEqual([
+                expect.objectContaining({
+                    message: expect.stringContaining("names no note this build resolves"),
+                }),
+            ]);
+        } finally {
+            fs.rmSync(file);
+        }
+    });
+
     it("publishes secret passages as expandable prose and locates malformed fences", () => {
         const file = note(
             "Rules/Secrets.md",
