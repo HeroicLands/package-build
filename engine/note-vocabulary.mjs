@@ -12,30 +12,32 @@
  */
 
 /**
- * The **closed** half of a note's frontmatter: the `data:` container, and the
- * `subType` each note type declares.
+ * The **closed vocabularies** of a note's frontmatter: the top-level keys, the
+ * `data:` container, and the `subType` each note type declares.
  *
- * A note's frontmatter has three regions, and only one of them is open. The
- * **top level** describes the note as a published artefact, every key of it is
- * copied into the generated web page, and an unrecognised key there is a Hugo
- * or theme parameter this build has no standing to refuse. The **system
- * blocks** describe the subject as one system's documents. Between them sits
- * `data:` — the type-specific facts about the subject itself, system-agnostic,
- * and closed.
+ * A note's frontmatter has three regions and every one of them is closed. The
+ * **top level** describes the note as a published artefact and is a fixed list
+ * — {@link NOTE_TOP_LEVEL_FIELDS} — so a key it does not name is a finding at
+ * its own line rather than a value copied into the generated page. The
+ * **system blocks** describe the subject as one system's documents, and are
+ * checked against the published schema. Between them sits `data:` — the
+ * type-specific facts about the subject itself, system-agnostic.
  *
- * Closed is the whole point. Those facts previously sat at the top level, where
- * the pass-through rule applied to them too, so a misspelled `wieght` became a
- * theme parameter rather than a finding — indistinguishable, from the outside,
- * from a weapon that simply weighs nothing. Under `data:` the same misspelling
- * is an error naming the note and the key it was probably meant to be.
+ * Closed is the whole point, and the failure it answers is a misspelling. A
+ * region that passes an unrecognised key through cannot tell `wieght` from a
+ * weapon that weighs nothing: the note says one thing, the build does another,
+ * and nothing says so. Under a closed vocabulary the same misspelling is an
+ * error naming the note and the key it was probably meant to be.
  *
- * **`subType` rides along, and stays at the top level.** It is not a `data:`
- * key: a note's `(type, subType)` is what each system's map reads to derive a
- * document type, so it describes the note rather than the subject. But it is
- * the other per-type vocabulary the format closes, it is enumerated in the same
- * `### type:` section of the specification that enumerates the `data:` keys,
- * and keeping the two together means one entry per type rather than two
- * registries free to disagree about which types exist.
+ * **`subType` is a top-level key with a per-type vocabulary**, which is why it
+ * is declared twice over: once in {@link NOTE_TOP_LEVEL_FIELDS} as a key the
+ * region accepts, and once per type below as the closed set of values that type
+ * takes. It is not a `data:` key — a note's `(type, subType)` is what each
+ * system's map reads to derive a document type, so it describes the note rather
+ * than the subject — but its values are enumerated in the same `### type:`
+ * section of the specification that enumerates the `data:` keys, and keeping
+ * the two together means one entry per type rather than two registries free to
+ * disagree about which types exist.
  *
  * **This is note-format knowledge, so it lives in `engine/`.** `data:` holds
  * what is true of the *thing* — a weapon's weight, an affliction's
@@ -79,6 +81,9 @@
 // is how a disagreement between the three arises.
 import { ART_SLOTS } from "./art-slots.mjs";
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
+// The system registry, so the top-level block keys below are the systems this
+// toolchain recognises rather than a second list of them.
+import { SYSTEM_IDS } from "./systems.mjs";
 // The retirement window for a renamed type, read rather than restated: a
 // vocabulary that answered only to the current spelling would report every key
 // of an unswept note as unknown.
@@ -315,6 +320,101 @@ const TOKEN_ICON = Object.freeze({
 });
 
 /**
+ * One top-level frontmatter key.
+ *
+ * Narrower than a {@link DataFieldSpec}: the top level is a fixed list rather
+ * than a per-type vocabulary, nothing there is keyed by pack or resolved as an
+ * Address, and the value's shape is checked by whatever owns the region the key
+ * opens — `name`, `tags` and each system block each have their own check.
+ *
+ * @typedef {object} TopLevelFieldSpec
+ * @property {string} name - The key, as a note writes it.
+ * @property {boolean} [system] - The key opens a game system's block, so it is
+ *   one of {@link module:engine/systems.SYSTEM_IDS} rather than a fixed key.
+ * @property {string} describe - One line, for the author-facing reference.
+ */
+
+/**
+ * **The top-level vocabulary**, in the order a formatted note writes it.
+ *
+ * The region describes the note as a published artefact: what it is called,
+ * what kind of thing it is about, how it is classified, and which of the other
+ * two regions it opens. Everything else a note states is a fact about the
+ * subject, which belongs under `data:`, or a fact about one system's document,
+ * which belongs inside that system's block.
+ *
+ * **Closed, like the other two regions.** A key this list does not name is a
+ * finding at its own line, because a region that passed one through would turn
+ * a misspelling into a value nothing reads — `title` beside `name`, or `pack`
+ * where `data.pack` was meant.
+ *
+ * **The system blocks are derived from the system registry**, so recognising a
+ * further system is a change to {@link module:engine/systems.SYSTEM_IDS} and to
+ * nothing else. They sort by name after the fixed keys: a block is the largest
+ * thing a note writes, every one of them belongs at the end, and a rule a
+ * reader can restate in one sentence is worth more than a hand-kept order.
+ *
+ * Five readers derive from this one list — the frontmatter lint's accepted set,
+ * the message it prints, the formatter's key order, the content-format check,
+ * and the author-facing reference — so none of them can fall behind the others.
+ *
+ * @type {readonly TopLevelFieldSpec[]}
+ */
+export const NOTE_TOP_LEVEL_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "shortcode",
+        describe: "The note's own address segment, unique within its type.",
+    }),
+    Object.freeze({
+        name: "name",
+        describe: "The display names — a required `full`, and any `aliases`.",
+    }),
+    Object.freeze({
+        name: "type",
+        describe: "What the note is about, which decides its vocabulary and its document.",
+    }),
+    Object.freeze({
+        name: "subType",
+        describe: "The type's own genre, where it declares one.",
+    }),
+    Object.freeze({
+        name: "description",
+        describe: "The short page summary.",
+    }),
+    Object.freeze({
+        name: "tags",
+        describe: "Draft state, GM routing, and the descriptive labels a page list reads.",
+    }),
+    Object.freeze({
+        name: "data",
+        describe: "The facts about the subject itself, shared by every system.",
+    }),
+    ...[...SYSTEM_IDS].sort().map((system) =>
+        Object.freeze({
+            name: system,
+            system: true,
+            describe:
+                `What the \`${system}\` system makes of the subject — its ` +
+                `document's mechanics, routing and art.`,
+        }),
+    ),
+]);
+
+/**
+ * The top-level keys, in formatted order.
+ *
+ * @type {readonly string[]}
+ */
+export const NOTE_TOP_LEVEL_KEYS = Object.freeze(NOTE_TOP_LEVEL_FIELDS.map((field) => field.name));
+
+/**
+ * Membership test for the top-level vocabulary.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const NOTE_TOP_LEVEL_KEY_SET = Object.freeze(new Set(NOTE_TOP_LEVEL_KEYS));
+
+/**
  * The `data:` keys **every** note type accepts, whatever it is.
  *
  * `data:` is a closed container and the per-type vocabularies are the only
@@ -459,7 +559,7 @@ function checkPlacePurpose(note) {
             },
         ];
     if (hasTag(note.fm, value)) return [];
-    const tags = note.fm?.tags ?? note.fm?.tag;
+    const tags = note.fm?.tags;
     return [
         {
             ...at(),
@@ -493,15 +593,17 @@ export const GM_TAG = "gm";
 /**
  * The tags that **classify** a note, grouped by what they classify.
  *
- * `tags:` lives at the open top level and most tags belong there: a theme, a
- * region, a working state is the author's own and this build has no opinion
- * about it. A classifying tag is different, because something queries it — a
+ * `tags:` holds an open vocabulary of *values*, and most tags belong there: a
+ * theme, a region, a working state is the author's own and this build has no
+ * opinion about it. A classifying tag is different, because something queries
+ * it — a
  * settlement tagged `village` appears in the list of villages and an untagged
  * one does not, so `vilage` does not merely look wrong, it removes the note from
  * an index while the index still renders a table that looks complete.
  *
  * **This list is not a closed set.** An unrecognised tag is legal, because the
- * region is open; what is reported is a **near miss** — a tag close enough to a
+ * values are the author's; what is reported is a **near miss** — a tag close
+ * enough to a
  * declared one to be a typo of it.
  *
  * **Each group names the types it applies to**, and that scope is what makes the
@@ -673,14 +775,12 @@ export function exclusiveTagGroups(type, groups = DECLARED_TAGS) {
  * The spelling of the tag *itself* still is — a near miss is a near miss, and
  * the frontmatter lint is what reports it; nothing here guesses.
  *
- * Reads `tags` and the singular `tag` spelling.
- *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} tag - The tag to look for, in its declared spelling.
  * @returns {boolean} Whether the note carries it.
  */
 export function hasTag(fm, tag) {
-    const raw = fm?.tags ?? fm?.tag;
+    const raw = fm?.tags;
     if (raw == null) return false;
     const wanted = String(tag).toLowerCase();
     for (const entry of Array.isArray(raw) ? raw : [raw]) {

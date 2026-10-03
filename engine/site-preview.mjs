@@ -276,7 +276,7 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                 const entries = new Map(snapshot.rendered.entries);
                 entries.delete(original.url);
                 entries.set(page.url, {
-                    title: fm.title ?? page.name,
+                    title: page.name,
                     url: page.url,
                     type: String(fm.type),
                 });
@@ -284,7 +284,7 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                 if (related) result.data.related = related;
                 const holdings = holdingsPages([
                     ...allPages.map((item) =>
-                        holdingsNode(item.fm, { title: item.fm.title ?? item.name, url: item.url }),
+                        holdingsNode(item.fm, { title: item.name, url: item.url }),
                     ),
                     ...foreignHoldingsNodes(snapshot.gates.foreign.index),
                 ]);

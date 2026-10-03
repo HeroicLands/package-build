@@ -525,20 +525,15 @@ describe('an authored `icon: ""`', () => {
         }
     });
 
-    it('warns on `title: ""` too, for the page\'s heading', () => {
-        // The collision that kept `title` off this rule is gone: the field
-        // declares `topLevelMeans`, so the top-level key no longer feeds an
-        // affiliation's `system.title` and `title: null` no longer compiles
-        // the literal `"null"`. What remains is the page heading, and the
-        // emitter is `fm.title ?? name` — so `""` survives, the page
-        // publishes unnamed, and it sorts ahead of every named page in its
-        // section. Fifteen notes in `sohl-thalorna` are in that state.
-        const findings = lintNote(note("skill", {}, { title: "" }), { schemas });
-        const titleFindings = findings.filter((f) => /title: ""/.test(f.message));
+    it("says nothing about a page heading, which is not an art path", () => {
+        // A page's heading is `name.full`, and a blank one there is a finding
+        // of its own — a harder one, because the name is required.
+        const findings = lintNote(note("skill", {}, { name: { full: "" } }), { schemas });
 
-        expect(titleFindings).toHaveLength(1);
-        expect(titleFindings[0].severity).toBe("warning");
-        expect(titleFindings[0].message).toMatch(/title: null/);
+        expect(findings.filter((f) => /ship no art at all/.test(f.message))).toHaveLength(0);
+        expect(findings.some((f) => /`name.full` must be a nonempty string/.test(f.message))).toBe(
+            true,
+        );
     });
 });
 
@@ -547,39 +542,27 @@ describe('an authored `icon: ""`', () => {
 /* -------------------------------------------------------------------- */
 
 describe("a system field that merely shares a note-level field's name", () => {
-    /** The blank-heading finding, whichever position provoked it. */
-    const blankHeading = (findings: Array<{ message: string }>) =>
-        findings.filter((f) => /publishes a page with no heading/.test(f.message));
+    /** The "ship no art at all" finding, whichever position provoked it. */
+    const inertArt = (findings: Array<{ message: string }>) =>
+        findings.filter((f) => /ship no art at all/.test(f.message));
 
     it("says nothing about an affiliation whose office has no style of address", () => {
         // `sohl.title` on an affiliation is the style of address the office
         // carries — "Ajaw", "Warden" — and `""` is the ordinary way to say an
-        // office carries none. The note's *heading* is its top-level `title`,
-        // which this note does not author at all, so its page takes `name.full`
-        // exactly as intended. Twenty-eight `sohl-kethira-basic` affiliations
+        // office carries none. Twenty-eight `sohl-kethira-basic` affiliations
         // are in this state and every one of them was reported.
         const findings = lintNote(note("affiliation", { title: "" }), { schemas: NOTE_SCHEMAS });
 
-        expect(blankHeading(findings)).toHaveLength(0);
+        expect(findings.filter((f) => /title/.test(f.message))).toHaveLength(0);
     });
 
-    it("still reports the note-level `title` on that same type", () => {
-        // The exemption removes one position, not the check: an affiliation
-        // that really does publish a blank heading is still reported.
-        const findings = lintNote(note("affiliation", {}, { title: "" }), {
-            schemas: NOTE_SCHEMAS,
-        });
+    it("still resolves through the block for a key no type claims", () => {
+        // `icon` is an art slot and no shipped type declares a system field of
+        // that name, so nothing competes for the spelling and a `sohl.icon: ""`
+        // answers for the note's own art.
+        const findings = lintNote(note("skill", { icon: "" }), { schemas: NOTE_SCHEMAS });
 
-        expect(blankHeading(findings)).toHaveLength(1);
-    });
-
-    it("still resolves through the block on a type that claims nothing there", () => {
-        // `skill` declares no `title`, so nothing competes for the spelling and
-        // the resolution is the unchanged one — a `sohl.title: ""` is the note's
-        // own heading, written in the block.
-        const findings = lintNote(note("skill", { title: "" }), { schemas: NOTE_SCHEMAS });
-
-        expect(blankHeading(findings)).toHaveLength(1);
+        expect(inertArt(findings)).toHaveLength(1);
     });
 
     it("reads the declaration rather than the field name", () => {

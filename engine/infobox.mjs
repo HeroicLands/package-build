@@ -739,7 +739,7 @@ function structuredRows(field, raw, resolve, label, fm) {
                 const address = parseAddress(
                     target,
                     {
-                        package: fm.package ?? "local",
+                        package: "local",
                         system: "note",
                         types: new Set(field.accepts),
                     },
@@ -862,7 +862,7 @@ function noteBox(
     const rows = [];
     /** @type {Set<string>} */
     const shown = new Set();
-    const name = fm?.name?.full ?? fm?.title;
+    const name = fm?.name?.full;
     if (hasValue(name)) rows.push({ label: "Name", kind: "text", value: String(name) });
     if (Array.isArray(fm?.name?.aliases) && fm.name.aliases.length) {
         rows.push({ label: "Aliases", kind: "list", value: fm.name.aliases });

@@ -603,8 +603,7 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
 }
 
 /**
- * The title a content page publishes under: an authored `title`, else the
- * note's name.
+ * The title a content page publishes under — the note's name.
  *
  * One rule, read by the page's own front matter and by every `related` entry
  * that names the page, so a card lists a page by exactly the title its heading
@@ -614,7 +613,7 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
  * @returns {string} The title.
  */
 function pageTitle(page) {
-    return page.fm.title ?? page.name;
+    return page.name;
 }
 
 /**

@@ -58,11 +58,9 @@
  * one of them in. Every note that carried one has been moved, across four
  * repositories, and this is the third step of that retirement.
  *
- * Refusing it matters more than refusing an ordinary dead key, because top
- * level is *deliberately open*: an unrecognised key there is passed through to
- * Hugo, so a stray `traits:` would not be ignored loudly but would arrive on
- * the page as a theme parameter, checked by nothing. The whole argument for
- * `data:` being closed is the argument for refusing this.
+ * Refusing it by name rather than as an unknown key is what names the home the
+ * facts have: the finding says which `data:` key each one becomes, which an
+ * author cannot read off a list of the keys the region declares.
  *
  * `sohl.traits` is a different field that shares the name — `projectilegear`
  * declares one, and the theme's gear sidebar reads it — so the refusal is
@@ -350,8 +348,7 @@ export function traitsRetiredMessage(file) {
         (file ? ` — ${file}` : "") +
         ". A being's own description belongs in the closed container the " +
         "content format declares, where `being` declares every one of its " +
-        "keys; at the top level it was passed through to the page unchecked, " +
-        "so a misspelling became a theme parameter rather than a finding. " +
+        "keys. " +
         "`gender`, `species`, `age` and `appearance.*` move unchanged; " +
         "`traits.birthday` becomes `data.born`; three reshape — " +
         "`traits.height.m` becomes `data.height` " +
@@ -526,12 +523,10 @@ export function legacyKeyMessage(block, field, file) {
  * What a note writing a field at the **top-level key `data:` gathered it off**
  * is told.
  *
- * {@link legacyKeyMessage}'s counterpart for the other retiring position. The
- * sweep
- * did not invent the facts `data:` holds — it collected them out of the note's
- * open top level — so `portrait:` beside `img:` is the *pre-`data:`* spelling
- * of `data.portrait`, and both are read for the same reason both in-block
- * spellings are: a package moves its corpus when it is ready, not on a flag day.
+ * {@link legacyKeyMessage}'s counterpart for the other retiring position.
+ * `portrait:` beside `img:` is the bare spelling of `data.portrait`, and both
+ * are read for the same reason both in-block spellings are: a package moves its
+ * corpus when it is ready, not on a flag day.
  *
  * It says nothing about which value is emitted, because that is not what an
  * author needs from it. The value is the same either way; what the finding

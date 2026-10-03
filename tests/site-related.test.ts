@@ -57,7 +57,7 @@ beforeAll(() => {
     // — twice to one page, and once to somewhere outside the site.
     note(
         "homepage.md",
-        "type: homepage\nshortcode: root\ntitle: The Demo",
+        "type: homepage\nshortcode: root\nname: { full: The Demo }",
         "Start with [Ash](being-ash/), or [Ash again](/demo/being-ash/).\n\n" +
             "Elsewhere: [the source](https://example.com/demo).\n",
     );

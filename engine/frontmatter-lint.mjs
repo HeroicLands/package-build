@@ -60,6 +60,7 @@ import {
     CHARACTER_NAME_KEYS,
     NOTE_NAME_KEYS,
     NOTE_TOP_LEVEL_KEY_SET,
+    NOTE_TOP_LEVEL_KEYS,
 } from "./note-frontmatter.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { addressPositions } from "./note-addresses.mjs";
@@ -292,6 +293,21 @@ function distance(a, b) {
 }
 
 /**
+ * A closed vocabulary as an English list, for the message that names it.
+ *
+ * Written from the declaration rather than spelled into the message, so a key
+ * the vocabulary gains cannot go unmentioned by the finding that refuses its
+ * neighbours.
+ *
+ * @param {readonly string[]} keys - The declared keys, in declared order.
+ * @returns {string} `"a, b, or c"`.
+ */
+function listed(keys) {
+    if (keys.length < 2) return keys.join("");
+    return `${keys.slice(0, -1).join(", ")}, or ${keys[keys.length - 1]}`;
+}
+
+/**
  * The declared key an unknown one was most likely meant to be.
  *
  * @param {string} key - The unknown key.
@@ -420,9 +436,8 @@ function dataBlock(fm) {
  * Check a note's `data:` container against the closed vocabulary its type
  * declares.
  *
- * Unlike the top level, which is passed through to the published page and so
- * cannot be refused, `data:` holds the type-specific facts about the subject
- * and every key of it is declared. An unrecognised key is therefore a finding
+ * `data:` holds the type-specific facts about the subject, and every key of it
+ * is declared by the note's type. An unrecognised key is therefore a finding
  * naming the note, with the key it was most likely meant to be — the same
  * capped edit distance {@link nearest} applies to a `sohl:` key, drawn from
  * this type's own vocabulary rather than from every type's.
@@ -497,8 +512,8 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
                 type === "affiliation" && key === "commonSkills" ?
                     "`data.commonSkills` is not an affiliation field; write skill Addresses at `sohl.system.commonSkills`"
                 :   `"${key}" is not a \`data:\` property declared by ${type}; ` +
-                    `the container is closed, so unlike a top-level key it is ` +
-                    `not passed through to the page` +
+                    `the container is closed, so the key reaches no document ` +
+                    `and no page` +
                     (guess ? `. Did you mean "${guess}"?` : ""),
         });
     }
@@ -892,9 +907,9 @@ function checkSubType(note, { type, entry }) {
 /**
  * Check a note's `tags` for near misses against the tags that classify.
  *
- * `tags:` is top-level and the top level is open, so an unrecognised tag is
- * **not** a finding: a theme, a region or a working state is the author's own
- * vocabulary and this build has no standing to refuse it.
+ * `tags:` is a closed key holding an open vocabulary of values, so an
+ * unrecognised tag is **not** a finding: a theme, a region or a working state
+ * is the author's own vocabulary and this build has no standing to refuse it.
  *
  * **Distance alone is not enough either**, which the corpus settles rather than
  * argues: `azravan` on a faith, `barter` on an economy note and `secret` on
@@ -994,13 +1009,10 @@ function inBlockKeys(schema) {
  * note-level field either, and a check about the note-level field must not read
  * it.
  *
- * `affiliation`'s `title` is the case that named this. A note's top-level
- * `title` is its page heading, which the site emitter publishes as
- * `fm.title ?? name`; `sohl.title` is the style of address an office carries —
- * "Ajaw", "Warden". Twenty-eight `sohl-kethira-basic` affiliations author
- * `sohl.title: ""` — an office with no style of address, which is ordinary —
- * and every one of them was reported as publishing a page with no heading. None
- * of them does; their pages take `name.full` exactly as intended.
+ * `affiliation`'s `commonSkills` is the case to read it against: the skills
+ * common among a society's members belong to the SoHL affiliation item, so
+ * nothing outside that item supplies them and a note-level check must not go
+ * looking in the block for one.
  *
  * Keyed on the **in-block** key — `legacyKey` where a field declares one, and
  * its first segment where that is dotted — because that is the position a note
@@ -1367,26 +1379,16 @@ export function lintNote(
     // it. It is transitional in the same sense — `""` is a legal thing to mean,
     // and the message says so, but nothing in any tree means it yet.
     //
-    // **These two only, never `title`.** The rule reads as a general one about
-    // optional strings, and it is not — it belongs to `resolveImg`, and `title`
-    // never goes through it.
+    // **The art slots only.** The rule reads as a general one about optional
+    // strings, and it is not — it belongs to `resolveImg`, and nothing else
+    // goes through it.
     //
-    // It once had a sharper reason: a note's top-level `title` was
-    // simultaneously the shared source for an `affiliation` item's
-    // `system.title`, so asking an author for `title: null` would have compiled
-    // the literal string `"null"` into the document. The field declares
-    // `topLevelMeans` now, so the top-level key is no longer a source for it and
-    // `title: null` is harmless. `title: ""` is warned about on its own account
-    // below, as the *page's* heading rather than as an art path.
-    //
-    // **The collision itself did not go away, and this was where that was
-    // misread.** `topLevelMeans` settles which position the *emitted field*
-    // reads; it says nothing about which position a *check* reads, and
-    // `authoredValue` went on resolving through the block regardless — so an
-    // office with no style of address answered for its note's heading, in
-    // twenty-eight `sohl-kethira-basic` affiliations. Hence
-    // `blockCollisions`: a note-level check reads past a block key its type
-    // claims for something else.
+    // **A block key a type claims for something else is read past.**
+    // `topLevelMeans` settles which position the *emitted field* reads; it says
+    // nothing about which position a *check* reads, and `authoredValue` would
+    // go on resolving through the block regardless — so an office with no style
+    // of address would answer for a note's art, in twenty-eight
+    // `sohl-kethira-basic` affiliations. Hence `blockCollisions`.
 
     // The template priority is a *shared source* — the specification states it
     // once for every type, as it does `pack` — so its retirement is reported
@@ -1513,35 +1515,6 @@ export function lintNote(
                 "meant to have no image",
         });
     }
-    // `title: ""` publishes a blank heading. The rule the art fields
-    // follow — `null` falls back, `""` is blank on purpose — reads the same way
-    // here, and for a *page heading* the deliberate blank is almost never what
-    // anyone wants: the emitter is `fm.title ?? name`, so `""` survives, the
-    // page publishes with no name, and it sorts to the front of its section
-    // landing ahead of every named page. Fifteen notes in `sohl-thalorna` are
-    // in exactly that state.
-    //
-    // A warning rather than an error: the value is legal under the rule, and a
-    // note that genuinely wants no heading may keep it — it just has to mean it.
-    //
-    // **The emitter reads `fm.title`, so this reads the note level.** On an
-    // `affiliation` `sohl.title` is the office's style of address, which the
-    // heading has nothing to do with — and `blockCollisions` is what keeps the
-    // two apart. On every other type nothing claims the block key, so the
-    // resolution is the unchanged one.
-    if (authoredValue(fm, "title", { blockCollides: blockCollisions.has("title") }) === "") {
-        findings.push({
-            file: note.file,
-            ...at("title"),
-            severity: "warning",
-            message:
-                '`title: ""` publishes a page with no heading, which sorts to ' +
-                "the front of its section ahead of every named page. Write " +
-                "`title: null` to fall back to `name.full`, or give the page a " +
-                'heading; keep `""` only where the blank is meant',
-        });
-    }
-
     if (Object.hasOwn(fm, "draft")) {
         findings.push({
             file: note.file,
@@ -1624,11 +1597,16 @@ export function lintNote(
         ) {
             continue;
         }
+        const guess = nearest(key, NOTE_TOP_LEVEL_KEYS);
         findings.push({
             file: note.file,
             ...position,
             severity: "error",
-            message: `unknown top-level frontmatter key ${JSON.stringify(key)}; use shortcode, name, type, subType, description, tags, data, hm3, or sohl`,
+            message:
+                `unknown top-level frontmatter key ${JSON.stringify(key)}; ` +
+                `the region is closed, so the key reaches no document and no ` +
+                `page. Use ${listed(NOTE_TOP_LEVEL_KEYS)}` +
+                (guess ? `. Did you mean "${guess}"?` : ""),
         });
     }
 

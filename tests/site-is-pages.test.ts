@@ -247,7 +247,7 @@ describe("the homepage is written as the mount's `_index.md`", () => {
             [
                 `type: ${HOMEPAGE_TYPE}`,
                 `shortcode: ${HOMEPAGE_SHORTCODE}`,
-                "title: The World of Demo",
+                "name: { full: The World of Demo }",
                 "description: A demonstration.",
                 "banner: brand/banner.webp",
                 "tags:",

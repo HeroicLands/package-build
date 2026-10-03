@@ -6,26 +6,24 @@
  */
 
 /**
- * **A field whose name collides with a note property that means something else**.
+ * **A field a note level has no business supplying.**
  *
- * A note's top-level `title` is *the title of the note* — the page heading, the
- * display name the site emitter reads. An `affiliation` item's `system.title`
- * is *the style of address the office carries* — "Ajaw", "Warden". The two are
- * unrelated quantities that happen to be spelled the same, and until this change
- * one fed the other: `resolveFieldValue`'s third step reads the top-level
- * property named after the field, so a note's own heading landed in the item's
- * `system.title`.
+ * `resolveFieldValue`'s third step reads the top-level property named after the
+ * field, on the reasoning that a shared source and the field it feeds are
+ * usually the same quantity. For some fields they are not. An `affiliation`
+ * item's `system.title` is the style of address the office carries — "Ajaw",
+ * "Warden" — and it belongs to the membership that holds the office, so nothing
+ * outside the item supplies it.
  *
- * It surfaced as a stringified `null`. Step 3 returns *without* applying
- * `field.default` — only step 2 does — so an authored `title: null` reached the
- * `STRING` coercion as-is and fifteen documents shipped
+ * The failure step 3 produces where that holds is a stringified `null`: it
+ * returns *without* applying `field.default` — only step 2 does — so a null
+ * reaches the `STRING` coercion as-is and the document ships
  * `"system": { "title": "null" }`.
  *
  * The exemption is declared with {@link FieldSpec.topLevelMeans}, whose value is
- * the reason: what the top-level key of that name means *instead*. Step 3 is the
- * right default — most shared sources genuinely are the same quantity at both
- * levels — so the mechanism is a per-field opt-out that states its case, not a
- * change to the resolution order.
+ * the reason the note level is not a source for this field. Step 3 is the right
+ * default for most fields, so the mechanism is a per-field opt-out that states
+ * its case, not a change to the resolution order.
  */
 
 import { describe, it, expect } from "vitest";
@@ -107,21 +105,21 @@ describe("a field that declares what the top-level key means instead", () => {
 /* --------------------------------------------------------------------- */
 
 describe("an affiliation's `system.title`", () => {
-    it("declares why the note's own `title` is not its source", () => {
+    it("declares why the note level is not its source", () => {
         // The reason is the mechanism: a bare boolean would record the decision
         // and lose the case for it, and the next person adding a field needs to
         // know the question exists.
         expect(TITLE?.topLevelMeans).toMatch(/\S/);
     });
 
-    it("does not take the note's own title", () => {
+    it("takes nothing from a note-level property of its name", () => {
         const fm = { subType: "order", title: "The Order of the Silver Hand", sohl: {} };
         expect(buildAffiliation(fm).title).toBe("");
     });
 
-    it("does not stringify an authored `title: null`", () => {
-        // The reported symptom, exactly: fifteen documents shipped the literal
-        // string "null" because step 3 answered without applying the default.
+    it("does not stringify a note-level `title: null`", () => {
+        // The symptom step 3 produces unguarded: the literal string "null",
+        // because it answers without applying the default.
         expect(buildAffiliation({ subType: "order", title: null, sohl: {} }).title).toBe("");
     });
 
@@ -131,8 +129,8 @@ describe("an affiliation's `system.title`", () => {
 
     it("is still authorable at `sohl.system.title`", () => {
         // The position that has to keep working, or the field becomes
-        // unauthorable. It is also the only one the frontmatter lint accepts:
-        // `title` is not a `data:` property any type declares.
+        // unauthorable. It is also the only one the format accepts: `title` is
+        // neither a top-level key nor a `data:` property any type declares.
         const fm = {
             subType: "order",
             title: "The Order of the Silver Hand",

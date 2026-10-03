@@ -211,20 +211,29 @@ describe("sharedProperty", () => {
 /* --------------------------------------------------------------------- */
 
 describe("blockProperty", () => {
-    it("prefers the block's value over the shared top-level one", () => {
-        const fm = { pack: "items", hm3: { pack: "items-hm3" } };
+    it("reads the block that declares it, and only that block", () => {
+        const fm = { hm3: { pack: "items-hm3" }, sohl: { pack: "items-sohl" } };
         expect(blockProperty(fm, "hm3", "pack")).toBe("items-hm3");
-        expect(blockProperty(fm, "sohl", "pack")).toBe("items");
+        expect(blockProperty(fm, "sohl", "pack")).toBe("items-sohl");
     });
 
-    it("gives `effects` and `flags` their per-system form for free", () => {
-        const fm = { effects: [{ shared: true }], sohl: { effects: [{ own: true }] }, flags: {} };
+    it("gives `effects` and `flags` their per-system form", () => {
+        const fm = { sohl: { effects: [{ own: true }] }, hm3: { flags: {} } };
         expect(blockProperty(fm, "sohl", "effects")).toEqual([{ own: true }]);
-        expect(blockProperty(fm, "hm3", "effects")).toEqual([{ shared: true }]);
         expect(blockProperty(fm, "hm3", "flags")).toEqual({});
     });
 
-    it("returns the supplied default when neither declares it", () => {
+    it("takes nothing from the note level, which declares no such key", () => {
+        // `effects` and `flags` are properties of a document, and a note
+        // compiles into one document per system — so the position is inside
+        // the block whose document carries them, and the top level has no
+        // spelling of either.
+        const fm = { effects: [{ shared: true }], flags: { shared: true } };
+        expect(blockProperty(fm, "sohl", "effects")).toBeUndefined();
+        expect(blockProperty(fm, "sohl", "flags", {})).toEqual({});
+    });
+
+    it("returns the supplied default when the block does not declare it", () => {
         expect(blockProperty({}, "sohl", "pack", "items")).toBe("items");
     });
 });

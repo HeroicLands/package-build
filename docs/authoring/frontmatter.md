@@ -7,7 +7,7 @@ subType: howto
 
 # Frontmatter and system blocks
 
-HeroicLands notes begin with YAML frontmatter. A file is recognized as a note when its opening frontmatter has nonempty `shortcode` and `type` values. Ordinary Markdown files need neither. Keep top-level keys in this order, omitting keys that do not apply: `shortcode`, `name`, `type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`. Any other top-level key is an error.
+HeroicLands notes begin with YAML frontmatter. A file is recognized as a note when its opening frontmatter has nonempty `shortcode` and `type` values. Ordinary Markdown files need neither. Keep top-level keys in this order, omitting keys that do not apply: `shortcode`, `name`, `type`, `subType`, `description`, `tags`, `data`, `dnd5e`, `hm3`, `sohl`. Any other top-level key is an error at its own line, naming the closed vocabulary and the declared key it was most likely meant to be. The [note-type reference](../reference/note-types.md#top-level-keys) says what each one means.
 
 ```yaml
 ---
@@ -35,7 +35,7 @@ The [note-type reference](../reference/note-types.md) lists every field accepted
 
 A being's `data.archetypes` names the roles it can fill in an adventure. Choose every specific role that fits, such as `entertainer` for a performer or `guildsperson` for someone whose professional training or connections matter. Use `[commoner]` when no specific archetype fits. `commoner` cannot share the list with another value. The [archetype reference](../reference/format-details.md#actors) defines the available roles.
 
-A `sohl:` or `hm3:` block holds values for that Foundry system. Its `system:` child contains values sent to the system's DataModel. The system block can override shared routing and art where the declared field permits it. `data.pack` and `data.packFolder` are shared routes; a system-specific route belongs in that system block. The [detailed mapping reference](../reference/format-details.md#mappings-every-type-shares) and [system-block explanation](../reference/format-details.md#frontmatter-has-three-regions) cover precedence and emitted fields.
+A `sohl:`, `hm3:` or `dnd5e:` block holds values for that Foundry system. Its `system:` child contains values sent to the system's DataModel. The system block can override shared routing and art where the declared field permits it. `data.pack` and `data.packFolder` are shared routes; a system-specific route belongs in that system block. The [detailed mapping reference](../reference/format-details.md#mappings-every-type-shares) and [system-block explanation](../reference/format-details.md#frontmatter-has-three-regions) cover precedence and emitted fields.
 
 One body describes the subject for both systems. A being's `{#appearance}` and `{#dossier}` sections feed SoHL Actor `system.appearance` and `system.dossier`, and HM3 Actor `system.description` and `system.biography`. An Item's `{#description}` page becomes a shared JournalEntryPage. Its resolved `@UUID[...]` pointer is stored in SoHL Item `system.docHtml` and HM3 Item `system.description`. An Item with no `{#description}` anchor uses its first page. Other H1 pages remain linkable.
 

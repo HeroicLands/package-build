@@ -9,6 +9,7 @@ import { formatGenerated } from "../engine/format-generated.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     BEING_ARCHETYPES,
+    NOTE_TOP_LEVEL_FIELDS,
     NOTE_VOCABULARY,
     SHARED_DATA_FIELDS,
 } from "../engine/note-vocabulary.mjs";
@@ -40,6 +41,16 @@ const rows = [
     "Choose a note's `type` for the subject it describes. Use `subType` when its type declares a more specific genre. Field rules are declared in `engine/note-vocabulary.mjs`; mapping claims and closed vocabularies are recorded in `engine/content-format.yaml`. This page is checked against both declarations.",
     "",
     "The [first-note guide](../authoring/first-note.md) teaches the shape of a note. [Frontmatter](../authoring/frontmatter.md) explains shared and system-specific values. The [detailed reference](format-details.md) gives the full behavior and examples.",
+    "",
+    "## Top-level keys",
+    "",
+    "These are the only keys a note writes at its top level, in the order the formatter puts them. A key absent from this table is a lint error at its own line: the region is closed, so the key reaches no document and no page. Facts about the subject belong under `data`, and values for one game system belong inside that system's block.",
+    "",
+    "| Key | Meaning |",
+    "| --- | --- |",
+    ...NOTE_TOP_LEVEL_FIELDS.map(
+        (field) => `| \`${cell(field.name)}\` | ${cell(field.describe)} |`,
+    ),
     "",
     "## Shared `data` fields",
     "",

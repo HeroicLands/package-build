@@ -19,8 +19,8 @@ const dates = {
         {
             notes: [
                 {
+                    package: "thalorna",
                     fm: {
-                        package: "thalorna",
                         shortcode: "vrcal",
                         type: "lore",
                         subType: "calendar",

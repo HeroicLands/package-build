@@ -144,12 +144,21 @@ describe("`type: homepage` is note format, so it lives in the engine", () => {
         expect(isHomepage(undefined)).toBe(false);
     });
 
-    it("defaults its title to the manifest's, and yields to an authored one", () => {
+    it("defaults its title to the manifest's, and yields to an authored name", () => {
         const config = configFor();
         expect(homepageTitle({ type: HOMEPAGE_TYPE }, config)).toBe("The Demo Module");
-        expect(homepageTitle({ type: HOMEPAGE_TYPE, title: "Kethira" }, config)).toBe("Kethira");
         expect(homepageTitle({ type: HOMEPAGE_TYPE, name: { full: "Kethira" } }, config)).toBe(
             "Kethira",
+        );
+    });
+
+    it("takes no title from a key the note format refuses", () => {
+        // A page's heading is its `name.full`. The manifest answers for a
+        // homepage that states no name, so a note writing anything else is
+        // titled as though it had written nothing.
+        const config = configFor();
+        expect(homepageTitle({ type: HOMEPAGE_TYPE, title: "Kethira" }, config)).toBe(
+            "The Demo Module",
         );
     });
 

@@ -339,17 +339,18 @@ export function sharedProperty(fm, source, defaultValue = undefined) {
 }
 
 /**
- * A property a system block may override, else the shared top-level one.
+ * A property a system block declares, else the default.
  *
- * This is what gives `pack`, `effects`, `flags` and `img` their per-system form
- * without inventing a mechanism for each: a note that wants one value for both
- * systems says it once at the top, and a note that needs them to differ says so
- * in the block that differs.
+ * This is what gives `effects` and `flags` their per-system form without
+ * inventing a mechanism for each: a note states them inside the block whose
+ * document carries them, which is the only position the format accepts for
+ * either. A note needing one value for both systems writes it in both blocks —
+ * they are properties of a document, and there are two documents.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {string} block - The block key.
  * @param {string} key - The property.
- * @param {any} [defaultValue] - Returned when neither declares it.
+ * @param {any} [defaultValue] - Returned when the block does not declare it.
  * @returns {any} The value.
  */
 export function blockProperty(fm, block, key, defaultValue = undefined) {
@@ -357,8 +358,7 @@ export function blockProperty(fm, block, key, defaultValue = undefined) {
     if (declared && declared[key] !== undefined && declared[key] !== null) {
         return declared[key];
     }
-    const shared = isMapping(fm) ? /** @type {Record<string, unknown>} */ (fm)[key] : undefined;
-    return shared === undefined || shared === null ? defaultValue : shared;
+    return defaultValue;
 }
 
 /**
@@ -411,12 +411,10 @@ const DATA_PREFIX = "data.";
 /**
  * The bare top-level key a `data:`-sourced field is being swept off — step 3b.
  *
- * `data:` did not invent the facts it holds; it *gathered* them, out of
- * the note's open top level where each was a sibling of `img` and `shortcode`.
- * So the retiring spelling of `data.portrait` is not a second declaration
- * anyone has to write — it is `portrait`, mechanically, and the same holds for
- * every other key that move relocated. Deriving it is what keeps the two
- * spellings of one field from disagreeing the way two declarations would.
+ * The retiring spelling of `data.portrait` is not a second declaration anyone
+ * has to write — it is `portrait`, mechanically, and the same holds for every
+ * other key the container gathered. Deriving it is what keeps the two spellings
+ * of one field from disagreeing the way two declarations would.
  *
  * **Only a `data.` source has one.** `protection.blunt` and `impact.die` are
  * paths into containers a note has always written at the top level; they were

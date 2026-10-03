@@ -78,7 +78,7 @@ describe("the retired `folder:` spelling", () => {
 
 describe("`folderField`, once the id spelling is gone", () => {
     it("reads `packFolder` and always reports an address", () => {
-        expect(folderField({ packFolder: "miscgear" })).toEqual({
+        expect(folderField({ data: { packFolder: "miscgear" } })).toEqual({
             value: "miscgear",
             isAddress: true,
         });

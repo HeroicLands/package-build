@@ -131,12 +131,12 @@ export function isHomepage(fm) {
  * `name` and `shortcode` are permitted: the shortcode is what a link is
  * written with, and `name` titles the page like every other note's.
  *
- * **A named class, not an allow-list, and that boundary is the decision.** A
- * homepage's frontmatter is *emitted into the published page*
- * ({@link homepageFrontmatter}), so an unrecognised key is a Hugo or theme
- * parameter this build has never heard of and has no standing to refuse.
- * Rejecting unknown keys would make every new theme parameter wait on a
- * package-build release.
+ * **A named class, not an allow-list, and that boundary is the decision.**
+ * What this class answers is a key the top-level vocabulary *accepts* and a
+ * homepage still cannot use, which is a different question from an unknown
+ * key: the frontmatter lint refuses those for every note alike, naming the
+ * closed vocabulary, so repeating that judgement per type would be a second
+ * answer to one question.
  *
  * `aliases` is deliberately not in the class: it is a **retired** field, refused
  * on every note whatever its type, so it is answered there rather than
@@ -340,7 +340,7 @@ function positionOfType(file) {
  * `packageBuild.manifest.title` — the name Foundry already shows for the
  * package — so a homepage that adds nothing to it need not restate it. An
  * authored `name.full` wins, because a front page may greet a reader
- * differently from a package browser. A top-level `title` is also readable.
+ * differently from a package browser.
  *
  * Falls back to `contentPackage` last, so a package that has no manifest of its
  * own still yields a titled page rather than a blank heading.
@@ -350,7 +350,7 @@ function positionOfType(file) {
  * @returns {string} The title.
  */
 export function homepageTitle(fm, config) {
-    const authored = fm?.name?.full ?? fm?.title;
+    const authored = fm?.name?.full;
     if (typeof authored === "string" && authored.trim()) return authored;
     const manifest = /** @type {Record<string, unknown>|undefined} */ (
         config?.packageBuild?.manifest

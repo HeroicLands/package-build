@@ -347,7 +347,7 @@ The note types the engine itself declares — vocabulary that is a fact about th
 
 ### `engine.noteVocabulary`
 
-An addressed content note accepts exactly these top-level keys, in this order: `shortcode`, `name`, `type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`, `dnd5e`. A key outside this list is an error. The address vocabulary recognizes three systems: `sohl`, `hm3`, and `dnd5e`. No dnd5e-specific document types are declared. Within that shape, the closed vocabularies are the `data:` container and each type's `subType`.
+An addressed content note accepts exactly these top-level keys, in this order: `shortcode`, `name`, `type`, `subType`, `description`, `tags`, `data`, `dnd5e`, `hm3`, `sohl`. A key outside this list is an error at its own line. The system blocks are one per system the address vocabulary recognizes, sorted by name after the fixed keys, so a further system is a change to `SYSTEM_IDS` alone. No dnd5e-specific document types are declared. Within that shape, the closed vocabularies are the `data:` container and each type's `subType`.
 
 | Export                    | Signature                                    | Returns                                  | Use it when                                                                                  |
 | ------------------------- | -------------------------------------------- | ---------------------------------------- | -------------------------------------------------------------------------------------------- |
@@ -355,6 +355,9 @@ An addressed content note accepts exactly these top-level keys, in this order: `
 | `GM_TAG`                  | `const GM_TAG`                               | —                                        | naming the declared tag that marks a GM-only note                                            |
 | `BEING_ARCHETYPES`        | `const BEING_ARCHETYPES`                     | `Readonly<Record<string, string>>`       | looking up the case-sensitive being archetypes and their meanings                            |
 | `NOTE_VOCABULARY`         | `const NOTE_VOCABULARY`                      | —                                        | looking up, per content type, its `data:` field list and its closed `subType` values         |
+| `NOTE_TOP_LEVEL_FIELDS`   | `const NOTE_TOP_LEVEL_FIELDS`                | `readonly TopLevelFieldSpec[]`           | reading the top-level keys a note accepts, in formatted order, with what each one means      |
+| `NOTE_TOP_LEVEL_KEYS`     | `const NOTE_TOP_LEVEL_KEYS`                  | `readonly string[]`                      | reading just the key names, in the order the formatter writes them                           |
+| `NOTE_TOP_LEVEL_KEY_SET`  | `const NOTE_TOP_LEVEL_KEY_SET`               | `ReadonlySet<string>`                    | testing whether a top-level key is one the note format declares                              |
 | `SHARED_DATA_FIELDS`      | `const SHARED_DATA_FIELDS`                   | `readonly DataFieldSpec[]`               | reading the `data:` keys every type accepts, whatever it is — the art slots legal everywhere |
 | `DECLARED_TAGS`           | `const DECLARED_TAGS`                        | —                                        | looking up the tags a note type may declare, grouped                                         |
 | `declaredTags`            | `declaredTags(type, groups)`                 | `readonly string[]`                      | reading the declared tags a note of a type may carry, flattened                              |
