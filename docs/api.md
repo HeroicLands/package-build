@@ -883,16 +883,17 @@ Emitting this package's content index. Every content build already walks the who
 
 The asset types — `icon`, `image` and `audio` — and the three roots they are walked from. An asset is addressed exactly as a note is; what differs is that a `.webp` carries no frontmatter and has nowhere to say what it is, so the root supplies the type and the list of roots is closed.
 
-| Export             | Signature                     | Returns                                                      | Use it when                                                                                               |
-| ------------------ | ----------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
-| `ASSET_TYPES`      | `const ASSET_TYPES`           | `readonly AssetType[]` — type, root, extensions, description | walking the roots, or presenting the vocabulary                                                           |
-| `ASSET_TYPE_NAMES` | `const ASSET_TYPE_NAMES`      | `ReadonlySet<string>`                                        | admitting the asset types into a type vocabulary an address is parsed against                             |
-| `ASSET_SYSTEM`     | `const ASSET_SYSTEM`          | `string` — always `none`                                     | writing an asset address, whose `<system>` segment is a property of the type rather than of the reference |
-| `IMAGE_EXTENSIONS` | `const IMAGE_EXTENSIONS`      | `readonly string[]` — lowercase, dot-led                     | deciding whether a file under a picture root is an asset at all                                           |
-| `AUDIO_EXTENSIONS` | `const AUDIO_EXTENSIONS`      | `readonly string[]` — lowercase, dot-led                     | the same question for `audio/`                                                                            |
-| `isAssetType`      | `isAssetType(type)`           | `boolean`                                                    | scoping a rewrite rule, which may substitute a file and nothing else                                      |
-| `assetTypeOfRoot`  | `assetTypeOfRoot(root)`       | `AssetType \| undefined`                                     | reading a root directory name back to the type it declares                                                |
-| `isAssetShortcode` | `isAssetShortcode(shortcode)` | `boolean`                                                    | telling an addressable filename from one that carries a version string, a hyphen or a date stamp          |
+| Export             | Signature                       | Returns                                                      | Use it when                                                                                                             |
+| ------------------ | ------------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| `ASSET_TYPES`      | `const ASSET_TYPES`             | `readonly AssetType[]` — type, root, extensions, description | walking the roots, or presenting the vocabulary                                                                         |
+| `ASSET_TYPE_NAMES` | `const ASSET_TYPE_NAMES`        | `ReadonlySet<string>`                                        | admitting the asset types into a type vocabulary an address is parsed against                                           |
+| `ASSET_SYSTEM`     | `const ASSET_SYSTEM`            | `string` — always `none`                                     | writing an asset address, whose `<system>` segment is a property of the type rather than of the reference               |
+| `IMAGE_EXTENSIONS` | `const IMAGE_EXTENSIONS`        | `readonly string[]` — lowercase, dot-led                     | deciding whether a file under a picture root is an asset at all                                                         |
+| `AUDIO_EXTENSIONS` | `const AUDIO_EXTENSIONS`        | `readonly string[]` — lowercase, dot-led                     | the same question for `audio/`                                                                                          |
+| `isAssetType`      | `isAssetType(type)`             | `boolean`                                                    | scoping a rewrite rule, which may substitute a file and nothing else                                                    |
+| `assetTypeOfRoot`  | `assetTypeOfRoot(root)`         | `AssetType \| undefined`                                     | reading a root directory name back to the type it declares                                                              |
+| `isAssetShortcode` | `isAssetShortcode(shortcode)`   | `boolean`                                                    | telling an addressable filename from one that carries a version string, a hyphen or a date stamp                        |
+| `imageDimensions`  | `imageDimensions(absPath, ext)` | `{width, height} \| undefined`                               | reading a raster file's own pixel size from its header, which an SVG carries none of and a partial file fails closed on |
 
 ### `engine.assetIndex`
 
@@ -906,6 +907,8 @@ The asset record: one line of the content index per addressable file. The record
 | `PROVENANCE_FILE`           | `const PROVENANCE_FILE`                                         | `string` — `provenance.yaml`  | naming the file a directory records provenance for its subtree in                                                                                       |
 | `PROVENANCE_SIDECAR_SUFFIX` | `const PROVENANCE_SIDECAR_SUFFIX`                               | `string` — `.yaml`            | naming a per-file record, which replaces an inherited one wholesale                                                                                     |
 | `collectAssetRecords`       | `collectAssetRecords(assetsBase, { contentPackage, problems })` | `Array<Record<string, any>>`  | reading a package's asset roots into index records, without walking its notes                                                                           |
+| `checkAssetShapes`          | `checkAssetShapes(records)`                                     | `Finding[]` — one per outlier | refusing a picture whose aspect departs from the median of the pictures sharing its role, the expectation derived from that group rather than stated    |
+| `checkAssetResolutions`     | `checkAssetResolutions(records)`                                | `Finding[]` — warnings        | warning that a picture carries fewer pixels than its role's largest slot needs at the print floor                                                       |
 
 ### `engine.packages`
 

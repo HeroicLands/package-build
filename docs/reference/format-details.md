@@ -1685,14 +1685,17 @@ carries no frontmatter, no anchors and no `foundry` block: a file declares
 nothing about itself, compiles into no document, and publishes no page, so the
 `address` holds the canonical key and no page slug.
 
-| `asset` field | Source     | What it says                                                                                                                                                                 |
-| ------------- | ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `path`        | the walk   | Where the file sits inside the emitting package's asset directory.                                                                                                           |
-| `attribution` | provenance | The person holding the rights, to whom attribution is legally due.                                                                                                           |
-| `source`      | provenance | Where it came from — a URL, or a sentence.                                                                                                                                   |
-| `ai`          | provenance | Whether the file is machine-generated — strictly the YAML boolean `true` or `false`; any other value is a finding, never a stringified record. Unstated resolves to `false`. |
-| `license`     | provenance | The licence it is used under — an SPDX identifier, or terms.                                                                                                                 |
-| `notes`       | provenance | Anything else a person reading the attribution needs.                                                                                                                        |
+| `asset` field | Source     | What it says                                                                                                                                                                                                                         |
+| ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `path`        | the walk   | Where the file sits inside the emitting package's asset directory.                                                                                                                                                                   |
+| `attribution` | provenance | The person holding the rights, to whom attribution is legally due.                                                                                                                                                                   |
+| `source`      | provenance | Where it came from — a URL, or a sentence.                                                                                                                                                                                           |
+| `ai`          | provenance | Whether the file is machine-generated — strictly the YAML boolean `true` or `false`; any other value is a finding, never a stringified record. Unstated resolves to `false`.                                                         |
+| `license`     | provenance | The licence it is used under — an SPDX identifier, or terms.                                                                                                                                                                         |
+| `notes`       | provenance | Anything else a person reading the attribution needs.                                                                                                                                                                                |
+| `role`        | provenance | What the picture is for — `portrait`, `emblem`, `banner`, `plate` or `map`. Absent for an ordinary picture; a value outside that set is a finding. The `image` type only — a value on an `icon` address is a finding and is dropped. |
+| `width`       | the walk   | The file's pixel width, read from its own header. Blank for an SVG, which has no pixel dimensions.                                                                                                                                   |
+| `height`      | the walk   | The file's pixel height, read from its own header. Blank for an SVG, which has no pixel dimensions.                                                                                                                                  |
 
 Every field is present on every record, blank where nothing states one. A fixed
 shape is what lets a consumer read `asset.license` without first asking whether
@@ -1710,6 +1713,34 @@ joins its own root onto it:
 
 Foundry paths use the **Foundry package id**. The two values are both `thalorna`
 for this image; `harnensemble` content uses `harn-ensemble` in its Foundry paths.
+
+##### What a role declares
+
+`role` names what the picture is for, from a closed set:
+
+| Role       | What it names                                            |
+| ---------- | -------------------------------------------------------- |
+| `portrait` | A picture of a subject — a being, a building, an object. |
+| `emblem`   | A device, arms, a sigil — a mark rather than a scene.    |
+| `banner`   | A wide strip across the head of a page or a book plate.  |
+| `plate`    | A full-measure illustration meant to be looked at.       |
+| `map`      | A plan or chart, read by examining its detail.           |
+
+An asset declaring no role is an ordinary picture: there is no default role
+name, only the absence of one. A value outside this set is refused with a
+finding naming the file, the key and the accepted values, and the record
+carries no role rather than the one it was given. `role` belongs to the
+`image` type only — an `icon` address carries one nominal size per medium
+whatever the file holds, so a `role` declared there is a finding and is
+dropped rather than carried through.
+
+A declared role makes two checks possible. **Shape**, an error, flags an
+asset whose aspect ratio departs from the median of every other asset
+sharing its role — the expectation is derived from the role-sharing group
+itself at build time, never from a second, hand-kept table. **Resolution**,
+a warning, flags an asset whose pixel width falls short of what its role's
+largest print slot needs. Both exempt a vector asset, which carries no pixel
+dimensions and no aspect that survives being drawn at a nominal size.
 
 ##### Where provenance comes from
 
@@ -1738,7 +1769,7 @@ resolving a chain by hand.
 That is also why `attribution` and `license` are **required in any record that
 exists**: a key left out is not inherited from above, it is simply absent, so a
 record stating neither leaves every file it covers with no rights holder and no
-terms. Omitting one is a finding. `source`, `ai` and `notes` stay optional,
+terms. Omitting one is a finding. `source`, `ai`, `notes` and `role` stay optional,
 because a blank is a truthful answer for each of them.
 
 #### A font is not an asset

@@ -411,3 +411,95 @@ describe("the roots are a closed list", () => {
         expect(ASSET_TYPES.map((entry) => entry.type)).not.toContain("font");
     });
 });
+
+/** A minimal PNG whose header states the given pixel size, nothing else. */
+function pngBytes(width: number, height: number): Buffer {
+    const signature = Buffer.from("89504e470d0a1a0a", "hex");
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(13, 0);
+    const type = Buffer.from("IHDR", "ascii");
+    const w = Buffer.alloc(4);
+    w.writeUInt32BE(width, 0);
+    const h = Buffer.alloc(4);
+    h.writeUInt32BE(height, 0);
+    return Buffer.concat([signature, length, type, w, h]);
+}
+
+describe("`role` names what a picture is for, and is closed to the `image` type", () => {
+    it.each(["portrait", "emblem", "banner", "plate", "map"])(
+        "accepts the declared role %s on an image address",
+        (role) => {
+            const base = assetTree({
+                [`images/${PROVENANCE_FILE}`]: [
+                    "attribution: Tom Rodriguez",
+                    "license: CC-BY-SA-4.0",
+                    `role: ${role}`,
+                ].join("\n"),
+                "images/thorn.webp": "webp",
+            });
+            const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+            expect(record.asset.role).toBe(role);
+        },
+    );
+
+    it("refuses a value outside the closed set, with its position", () => {
+        const base = assetTree({
+            [`images/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "license: CC-BY-SA-4.0",
+                "role: cover",
+            ].join("\n"),
+            "images/thorn.webp": "webp",
+        });
+        const problems: any[] = [];
+        const records = collectAssetRecords(base, { contentPackage: "sohl", problems });
+        expect(records[0].asset.role).toBe("");
+
+        const finding = problems.find((p) => /`role`/.test(p.message));
+        expect(finding).toBeDefined();
+        expect(finding.severity).toBe("error");
+        expect(finding.line).toBeTypeOf("number");
+        expect(finding.message).toMatch(/portrait/);
+        expect(finding.message).toMatch(/cover/);
+    });
+
+    it("refuses a role declared on an icon address", () => {
+        const base = assetTree({
+            [`icons/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "license: CC-BY-SA-4.0",
+                "role: portrait",
+            ].join("\n"),
+            "icons/anvil.svg": "<svg/>",
+        });
+        const problems: any[] = [];
+        const records = collectAssetRecords(base, { contentPackage: "sohl", problems });
+        expect(records[0].asset.role).toBe("");
+
+        const finding = problems.find((p) => /`role`/.test(p.message));
+        expect(finding).toBeDefined();
+        expect(finding.severity).toBe("error");
+        expect(finding.message).toMatch(/icon/);
+        expect(finding.message).toMatch(/image/);
+    });
+});
+
+describe("`width` and `height` come from the walk, not from provenance", () => {
+    it("measures a raster file's own pixel dimensions", () => {
+        const base = assetTree({});
+        fs.mkdirSync(path.join(base, "images"), { recursive: true });
+        fs.writeFileSync(path.join(base, "images", "thorn.png"), pngBytes(640, 480));
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        expect(record.asset.width).toBe(640);
+        expect(record.asset.height).toBe(480);
+    });
+
+    it("leaves an SVG's dimensions blank, rather than guessing from a viewBox", () => {
+        const base = assetTree({
+            "images/thorn.svg": '<svg viewBox="0 0 640 480"></svg>',
+        });
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        expect(record.asset.width).toBe("");
+        expect(record.asset.height).toBe("");
+    });
+});

@@ -50,6 +50,13 @@
  * drop: `licence` beside `license` is otherwise an attribution record that looks
  * complete and carries nothing.
  *
+ * **`role` names what the picture is for**, from a closed set, and belongs to
+ * the `image` type only — an `icon` address carries one nominal size per medium
+ * whatever the file holds, so a `role` declared there is a finding and is
+ * dropped rather than carried through. **`width` and `height` come from the
+ * walk itself**, read from the file's own header rather than declared, and are
+ * blank for an SVG, which has no pixel dimensions to state.
+ *
  * @module
  */
 
@@ -60,7 +67,8 @@ import YAML from "yaml";
 
 import { canonicalKey } from "./content-address.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
-import { ASSET_SYSTEM, ASSET_TYPES, isAssetShortcode } from "./asset-types.mjs";
+import { ASSET_SYSTEM, ASSET_TYPES, imageDimensions, isAssetShortcode } from "./asset-types.mjs";
+import { PDF_PAGE, pdfColumnWidth, pdfTextWidth } from "./pdf-images.mjs";
 
 /**
  * The file a directory records provenance for its subtree in.
@@ -92,11 +100,18 @@ export const PROVENANCE_SIDECAR_SUFFIX = ".yaml";
  *   state this key. Omitting one is a finding rather than a blank, because a
  *   record resolves wholesale: the nearest one is the whole answer, so a key it
  *   leaves out is not inherited from above but simply absent.
- * @property {"boolean"} [type] - The value's own type, for a field whose answer
- *   is not a string. Omitted for every string field; `ai` is the one exception,
- *   so a YAML boolean is carried through as itself rather than stringified, and
- *   anything else is refused rather than coerced into a string that reads as
- *   truthy either way.
+ * @property {"boolean"|"integer"} [type] - The value's own type, for a field
+ *   whose answer is not a string. Omitted for every string field; `ai` carries
+ *   the YAML boolean itself rather than a stringified copy, and `width` and
+ *   `height` carry the pixel count the walk measured. Each is refused rather
+ *   than coerced when the value does not match.
+ * @property {readonly string[]} [values] - The closed set a provenance
+ *   declaration must choose one of; a value outside it is a finding and the
+ *   key is left blank, the same treatment an `ai` value of the wrong shape
+ *   gets. `role` is the one field that carries it.
+ * @property {string} [onlyType] - The one asset type this field may be
+ *   declared for. A provenance record stating it for another type is a
+ *   finding, and the value is dropped rather than carried through.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -154,6 +169,32 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
         name: "notes",
         from: "provenance",
         describe: "Anything else a person reading the attribution needs.",
+    }),
+    Object.freeze({
+        name: "role",
+        from: "provenance",
+        onlyType: "image",
+        values: Object.freeze(["portrait", "emblem", "banner", "plate", "map"]),
+        describe:
+            "What the picture is for — portrait, emblem, banner, plate or map. " +
+            "Absent for an ordinary picture, and refused outside that set. " +
+            "The `image` type only; a value on an `icon` address is a finding.",
+    }),
+    Object.freeze({
+        name: "width",
+        from: "walk",
+        type: "integer",
+        describe:
+            "The file's pixel width, read from its own header during the " +
+            "asset walk. Blank for an SVG, which has no pixel dimensions.",
+    }),
+    Object.freeze({
+        name: "height",
+        from: "walk",
+        type: "integer",
+        describe:
+            "The file's pixel height, read from its own header during the " +
+            "asset walk. Blank for an SVG, which has no pixel dimensions.",
     }),
 ]);
 
@@ -284,6 +325,24 @@ function readProvenanceFile(file, findings) {
             }
             continue;
         }
+        if (field?.values) {
+            if (field.values.includes(value)) {
+                out[key] = value;
+            } else {
+                // Distinct from the unknown-key finding above: this key is
+                // recognised, and the problem is that its value is not one of
+                // the closed set it accepts.
+                findings.push({
+                    file,
+                    ...positionOfYamlPath(text, [key], { key: true }),
+                    severity: "error",
+                    message:
+                        `\`${key}\` must be one of ${field.values.join(", ")}, ` +
+                        `not ${JSON.stringify(value)}`,
+                });
+            }
+            continue;
+        }
         out[key] = value == null ? "" : String(value);
     }
 
@@ -345,17 +404,27 @@ function inheritedProvenance(dir, root, cache, findings) {
 /**
  * The `asset` block for one file.
  *
- * @param {string} relPath - The file's path below the package's asset directory.
+ * @param {Record<string, unknown>} walkValues - Every `from: "walk"` field's
+ *   value, keyed by field name.
  * @param {Record<string, string|boolean>|null} provenance - The resolved record.
- * @returns {Record<string, string|boolean>} The block, every field present —
- *   blank (`""`) for a string field nothing states, `false` for `ai`.
+ * @param {string} type - The asset type this file was walked as, so a field
+ *   declaring `onlyType` can be dropped for every other type.
+ * @returns {Record<string, string|boolean|number>} The block, every field
+ *   present — blank (`""`) for a string or integer field nothing states,
+ *   `false` for `ai`.
  */
-function assetBlock(relPath, provenance) {
+function assetBlock(walkValues, provenance, type) {
     const block = {};
     for (const field of ASSET_RECORD_FIELDS) {
-        const value = field.from === "walk" ? relPath : provenance?.[field.name];
+        if (field.onlyType && field.onlyType !== type) {
+            block[field.name] = field.type === "boolean" ? false : "";
+            continue;
+        }
+        const value = field.from === "walk" ? walkValues[field.name] : provenance?.[field.name];
         if (field.type === "boolean") {
             block[field.name] = typeof value === "boolean" ? value : false;
+        } else if (field.type === "integer") {
+            block[field.name] = typeof value === "number" ? value : "";
         } else {
             block[field.name] = typeof value === "string" ? value : "";
         }
@@ -469,6 +538,18 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
                     // ancestor walk is not consulted when one is present.
                 :   inheritedProvenance(path.dirname(absPath), rootDir, cache, findings);
 
+            for (const field of ASSET_RECORD_FIELDS) {
+                if (field.onlyType && field.onlyType !== type && provenance?.[field.name]) {
+                    report(
+                        absPath,
+                        `\`${field.name}\` only applies to the \`${field.onlyType}\` type, ` +
+                            `and this address is \`${type}\` — the declaration is dropped`,
+                    );
+                }
+            }
+
+            const dimensions = imageDimensions(absPath, path.extname(absPath).toLowerCase());
+
             records.push({
                 package: contentPackage,
                 type,
@@ -478,7 +559,15 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
                 address: {
                     canonical: canonicalKey(contentPackage, ASSET_SYSTEM, type, shortcode),
                 },
-                asset: assetBlock(`${root}/${relPath}`, provenance),
+                asset: assetBlock(
+                    {
+                        path: `${root}/${relPath}`,
+                        width: dimensions?.width,
+                        height: dimensions?.height,
+                    },
+                    provenance,
+                    type,
+                ),
             });
         }
     }
@@ -494,4 +583,122 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
         problems.push(...findings);
     }
     return records;
+}
+
+/**
+ * The print-column width, in inches, each role draws at its largest.
+ *
+ * `portrait` and `emblem` sit beside running text at half the measure;
+ * `banner`, `plate` and `map` draw across the full measure — read from
+ * {@link module:engine/pdf-images} rather than restated, so the slot this
+ * guard checks against and the slot the book draws into cannot disagree.
+ *
+ * @type {ReadonlyMap<string, number>}
+ */
+const ROLE_PRINT_SLOT_IN = new Map([
+    ["portrait", pdfColumnWidth(2)],
+    ["emblem", pdfColumnWidth(2)],
+    ["banner", pdfTextWidth],
+    ["plate", pdfTextWidth],
+    ["map", pdfTextWidth],
+]);
+
+/**
+ * The relative spread a role's aspect ratios may vary from their group's
+ * median before the shape guard refuses the outlier.
+ *
+ * @type {number}
+ */
+const ASPECT_TOLERANCE = 0.2;
+
+/**
+ * The median of a list of numbers.
+ *
+ * @param {readonly number[]} values
+ * @returns {number}
+ */
+function median(values) {
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 1 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/**
+ * Flag an `image` record whose aspect ratio departs from its role-sharing
+ * group.
+ *
+ * Every asset declaring one role is expected to draw at roughly one shape —
+ * a `banner` is wide, a `portrait` is tall — so the group's own median
+ * aspect ratio is the expectation this derives at runtime, rather than a
+ * second, hand-kept table of "the right shape for a portrait" that the
+ * corpus could drift away from unnoticed.
+ *
+ * A vector asset carries no pixel dimensions and no aspect that survives
+ * being drawn at a nominal size, so it never joins a group and is never
+ * flagged; neither does an asset declaring no role, since it joins no group
+ * at all.
+ *
+ * @param {Array<Record<string, any>>} records - Records from
+ *   {@link collectAssetRecords}.
+ * @returns {object[]} A finding per outlier, `severity: "error"`.
+ */
+export function checkAssetShapes(records) {
+    const findings = [];
+    const groups = new Map();
+    for (const record of records) {
+        const { role, width, height } = record.asset ?? {};
+        if (record.type !== "image" || !role || !width || !height) continue;
+        if (!groups.has(role)) groups.set(role, []);
+        groups.get(role).push(record);
+    }
+    for (const [role, group] of groups) {
+        const ratios = group.map((record) => record.asset.width / record.asset.height);
+        const groupMedian = median(ratios);
+        group.forEach((record, index) => {
+            const ratio = ratios[index];
+            if (Math.abs(ratio - groupMedian) / groupMedian <= ASPECT_TOLERANCE) return;
+            findings.push({
+                file: record.asset.path,
+                severity: "error",
+                message:
+                    `${record.asset.width}×${record.asset.height} departs from the ` +
+                    `\`${role}\` group's median aspect ratio of ${groupMedian.toFixed(2)} ` +
+                    `by more than ${Math.round(ASPECT_TOLERANCE * 100)}%`,
+            });
+        });
+    }
+    return findings;
+}
+
+/**
+ * Warn when an `image` record's pixel width falls short of what its role's
+ * largest print slot needs at {@link PDF_PAGE}'s dpi.
+ *
+ * A warning rather than an error: nothing in any tree meets the largest
+ * target today, and a check that reddens every build on the day it lands is
+ * a check that gets disabled.
+ *
+ * @param {Array<Record<string, any>>} records - Records from
+ *   {@link collectAssetRecords}.
+ * @returns {object[]} A finding per asset below its role's floor,
+ *   `severity: "warning"`.
+ */
+export function checkAssetResolutions(records) {
+    const findings = [];
+    for (const record of records) {
+        const { role, width } = record.asset ?? {};
+        if (record.type !== "image" || !role || !width) continue;
+        const slotIn = ROLE_PRINT_SLOT_IN.get(role);
+        if (!slotIn) continue;
+        const floor = Math.ceil(slotIn * PDF_PAGE.dpi);
+        if (width >= floor) continue;
+        findings.push({
+            file: record.asset.path,
+            severity: "warning",
+            message:
+                `${width}px wide falls short of the ${floor}px a \`${role}\` needs to fill ` +
+                `its largest slot at ${PDF_PAGE.dpi} dpi`,
+        });
+    }
+    return findings;
 }

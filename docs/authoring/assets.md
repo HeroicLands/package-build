@@ -28,4 +28,14 @@ The embed's label is alternative text. `![[icon-harbor|]]` is decorative. `size=
 
 Record provenance for the assets you ship. Put `provenance.yaml` in an asset directory to describe files there and below, or put a YAML sidecar beside one asset to give that file its own record. A sidecar takes precedence over a directory record for that asset. An asset with no record still enters the index with blank provenance fields. Keep attribution with the authored asset so movement through the tree does not lose its source or license. See the [asset record reference](../reference/format-details.md#the-asset-record) for the accepted keys, inheritance, and examples.
 
+A directory of portraits also states what the pictures in it are for:
+
+```yaml
+attribution: Tom Rodriguez
+license: CC-BY-SA-4.0
+role: portrait
+```
+
+`role` is one of `portrait`, `emblem`, `banner`, `plate` or `map`, and belongs to the `image` type only — declaring it in a `provenance.yaml` under `assets/icons` is a finding, since an icon carries one nominal size per medium whatever the file holds. Leave the key out for an ordinary picture; there is no default role name, only its absence.
+
 The build writes transformed or optimized copies under `build/`; the authored file remains the input for the next build. Output paths are derived from the owning package, asset type, and build target. The [icon guide](../guides/icons.md) covers generated icon variants and placement in Foundry.
