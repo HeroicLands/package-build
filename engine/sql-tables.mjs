@@ -53,6 +53,31 @@ const EMPTY_CELL = "—";
  */
 export const RENDER_ALIASES = Object.freeze({ ref: "_ref", section: "_section" });
 
+/**
+ * The attributes an SQL fence takes, with what each one is for.
+ *
+ * **This is the one list.** The fence is validated against it and the authoring
+ * document is checked against it, so an attribute added here is one the document
+ * must describe, and anything else an author writes is reported by name.
+ *
+ * @type {Readonly<Record<string, Readonly<{value: string, default: string, summary: string}>>>}
+ */
+export const SQL_FENCE_ATTRIBUTES = Object.freeze({
+    "allow-empty": Object.freeze({
+        value: "`true` or `false`",
+        default: "`false`",
+        summary:
+            "Whether a query selecting no rows is allowed. A zero-row result is a finding " +
+            "otherwise, because a table that silently prints nothing is the commonest way a " +
+            "query goes wrong unnoticed.",
+    }),
+    "section-level": Object.freeze({
+        value: "an integer from 1 through 6",
+        default: "`2`",
+        summary: "The heading level given to each group a `_section` column creates.",
+    }),
+});
+
 /** A table cell may not carry a raw `|` or a line break. */
 const escapeCell = (text) =>
     String(text)
@@ -92,7 +117,7 @@ export function findSqlBlocks(markdown) {
         const level = Number(args["section-level"] ?? 2);
         const errors = [...problems];
         for (const key of Object.keys(args)) {
-            if (!["allow-empty", "section-level"].includes(key))
+            if (!Object.hasOwn(SQL_FENCE_ATTRIBUTES, key))
                 errors.push(`${key} is not an SQL fence attribute`);
         }
         let allowEmpty = false;
