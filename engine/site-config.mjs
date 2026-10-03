@@ -102,9 +102,18 @@ export const DISABLE_KINDS = Object.freeze(["section", "taxonomy", "term", "RSS"
  * `<span>` marking an unresolved link — and Goldmark drops raw HTML unless
  * told otherwise. A theme cannot supply this: Hugo does not merge a theme's
  * `markup` block.
+ *
+ * `extensions.taskList` is off because the format has no checkbox: Goldmark
+ * enables it by default, which is the only reason a list item opened with
+ * `[ ]` renders a `<input type="checkbox">` here and the same two characters as
+ * plain text in the pack and the book. Off, a list item's text begins right
+ * after its marker on every surface.
  */
 export const MARKUP = Object.freeze({
-    goldmark: Object.freeze({ renderer: Object.freeze({ unsafe: true }) }),
+    goldmark: Object.freeze({
+        renderer: Object.freeze({ unsafe: true }),
+        extensions: Object.freeze({ taskList: false }),
+    }),
 });
 
 /** Where the navigation is published. */

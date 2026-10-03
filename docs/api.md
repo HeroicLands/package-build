@@ -1072,6 +1072,17 @@ An image saying how wide it is and where it sits. A directive in the curly-attri
 | `renderImageFigures`  | `function renderImageFigures(body, resolveSrc)` | {string} The same body, with each block image as a `<figure>`.                                                                                   | Rewrite every block image in a body into the figure the website publishes.   |
 | `imagePlugin`         | `function imagePlugin()`                        | {(md: object) => void} A markdown-it plugin.                                                                                                     | A markdown-it plugin that reads an image's directive and renders its figure. |
 
+### `engine.contentTaskLists`
+
+A list item opened with `[ ]` or `[x]`, reported. The format has no checkbox: a list is written in plain markdown, and the two characters right after a list item's marker are read as the start of its own text on every surface.
+
+| Export                 | Signature                                    | Returns                                                                                                                                                              | Use it when                                                                |
+| ---------------------- | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `TASK_LIST_MARKER`     | `const TASK_LIST_MARKER`                     | —                                                                                                                                                                    | A list item's marker, immediately followed by `[ ]` or `[x]` and a space.  |
+| `taskListMessage`      | `function taskListMessage(marker)`           | {string} The message, unpunctuated at the end as a finding is.                                                                                                       | What a note opening a list item with `[ ]` or `[x]` is told.               |
+| `checkTaskLists`       | `function checkTaskLists(body, file,`        | {Array<{file: string, line: number, column: number, severity: "warning", message: string}>} One finding per item, in source order.                                   | Every list item opened with `[ ]` or `[x]` in one note's body.             |
+| `lintContentTaskLists` | `function lintContentTaskLists(contentBase,` | `{{findings: Array<{file: string, line: number, column: number, severity: "warning", message: string}>, files: number}}` The findings, and how many files were read. | Walk a content tree and report every list item opened with `[ ]` or `[x]`. |
+
 ### `engine.pathnames`
 
 One authored pathname, and the four addresses it resolves to. A note names a file once — in `img:`, in `data.portrait:`, in the body of a markdown image — and the first segment says which package owns it when an `assets/` follows. Every surface derives its own address from that one statement: the path inside a Foundry install, the file in the owning repository's tree, the address the website serves, and where the book stages its copy.

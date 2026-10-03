@@ -1580,6 +1580,7 @@ export const DERIVED_HUGO_KEYS = Object.freeze({
     "params.brand": "the organisation's brand links, in `engine/site-config.mjs`",
     "params.notfound": "`site.notfound`",
     "markup.goldmark.renderer.unsafe": "the toolchain, whose pages carry raw HTML",
+    "markup.goldmark.extensions.taskList": "the toolchain, whose format has no checkbox",
     menu: "the navigation `package-build deps fetch` caches from heroiclands.org",
 });
 

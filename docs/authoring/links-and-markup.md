@@ -164,6 +164,16 @@ Janapada
 The web and Foundry render a definition list with HTML `<dl>`, `<dt>`, and
 `<dd>` elements. The book renders it as a term list.
 
+## Lists
+
+A list item's text begins right after its marker. `[ ]` and `[x]` there are
+plain words, not a checkbox — write what is done into the item itself:
+
+```markdown
+- the harbor toll: paid
+- the ferry crossing: owed
+```
+
 ## SQL generated tables
 
 A fence marked `sql` is replaced by a table built from the content index. The query reads the frontmatter of every indexed note, so a table is written once and stays true as notes are added.
