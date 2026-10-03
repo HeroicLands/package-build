@@ -42,6 +42,33 @@ carry restyles `section.info` and `section.warn` instead. The shared stylesheet
 styles both; `section.secret` is left to Foundry, which owns the reveal control
 on it.
 
+## A complexion holds one value or several
+
+`data.appearance.complexion` accepts a single value as it always has, and now
+accepts a list of them, because a face carries more than one condition at once:
+
+```yaml
+data:
+  appearance:
+    complexion: weathered
+```
+
+```yaml
+data:
+  appearance:
+    complexion: [weathered, ruddy, scarred]
+```
+
+A single value means a list of one, so **no note has to change**. Several read as
+one phrase where a surface shows them — "weathered, ruddy and scarred complexion".
+The other appearance colours still hold one value each.
+
+A being's `gender` is one of `male`, `female`, `nonbinary`, `none` or `other`.
+`none` says the being has no gender; an absent field says its gender is
+unrecorded. A being's `frame` is one of `scant`, `light`, `medium`, `heavy` or
+`massive` — the reference previously named the fourth `large`, which no package
+wrote.
+
 ## Being archetypes
 
 Every `type: being` note with `subType: character` or `subType: npc` requires

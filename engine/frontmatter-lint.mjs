@@ -357,6 +357,11 @@ export function matchesKind(value, kind, context = {}) {
             // this answers is whether the value has one of the two shapes the
             // field admits. A list has neither.
             return matchesKind(value, "string") || matchesKind(value, "map");
+        case "string-or-list":
+            // One value or several of the same kind. Unlike `list-or-map` the
+            // two halves say the same thing at different lengths, so either is
+            // accepted here and the entries are read by the field's own check.
+            return matchesKind(value, "string") || Array.isArray(value);
         case "list-or-map":
             // A list, or a map. The two carry different facts rather than
             // being two spellings of one — a map keyed by Address says what is

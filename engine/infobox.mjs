@@ -327,7 +327,8 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     }),
     "being.appearance.complexion": Object.freeze({
         group: "appearance",
-        phrase: (v) => `${humanizeValue(v)} complexion`,
+        whole: true,
+        phrase: (v) => `${humanizedList(v)} complexion`,
     }),
     "being.appearance.extra_features": Object.freeze({ group: "appearance" }),
 });
@@ -467,6 +468,24 @@ export function humanizeValue(value) {
     return String(value ?? "")
         .replace(/[_-]+/g, " ")
         .trim();
+}
+
+/**
+ * Several enumerated values as one clause — `weathered, ruddy and scarred`.
+ *
+ * A field that admits one value or a list of them reads as a single phrase, so
+ * the noun it qualifies is said once rather than once per value. Internal: the
+ * phrase that wants it is declared in this module.
+ *
+ * @param {unknown} value - One value, or a list of them.
+ * @returns {string} The text.
+ */
+function humanizedList(value) {
+    const parts = (Array.isArray(value) ? value : [value])
+        .filter((entry) => entry !== undefined && entry !== null && entry !== "")
+        .map((entry) => humanizeValue(entry));
+    if (parts.length < 2) return parts[0] ?? "";
+    return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
 }
 
 /**
@@ -857,7 +876,9 @@ function noteBox(
                 label: GROUP_LABELS[overlay.group] ?? humanizeFieldName(overlay.group),
                 entries: [],
             };
-            const parts = Array.isArray(raw) ? raw.filter(hasValue) : [raw];
+            // A `whole` phrase reads the value entire, so several values compose
+            // into one clause rather than repeating the noun once each.
+            const parts = overlay.whole || !Array.isArray(raw) ? [raw] : raw.filter(hasValue);
             for (const part of parts) {
                 group.entries.push(overlay.phrase ? overlay.phrase(part) : humanizeValue(part));
             }
