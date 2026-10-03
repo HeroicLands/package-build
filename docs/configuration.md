@@ -1226,15 +1226,16 @@ system relationship it declares — see [`stats.systemVersion`](#statssystemvers
 
 Each entry, in any of the four lists:
 
-| Key (under `relationships.<kind>[]`)     | Type                            | Required | Default |
-| ---------------------------------------- | ------------------------------- | -------- | ------- |
-| `relationships.systems[].id`             | string                          | yes      | —       |
-| `relationships.systems[].contentPackage` | string                          | no       | the id  |
-| `relationships.systems[].type`           | string                          | no       | none    |
-| `relationships.systems[].manifest`       | string                          | no       | none    |
-| `relationships.systems[].compatibility`  | object, `{minimum?, verified?}` | no       | none    |
-| `relationships.systems[].itemCatalog`    | boolean                         | no       | `false` |
-| `relationships.systems[].contentIndex`   | boolean                         | no       | `true`  |
+| Key (under `relationships.<kind>[]`)       | Type                            | Required | Default |
+| ------------------------------------------ | ------------------------------- | -------- | ------- |
+| `relationships.systems[].id`               | string                          | yes      | —       |
+| `relationships.systems[].contentPackage`   | string                          | no       | the id  |
+| `relationships.systems[].type`             | string                          | no       | none    |
+| `relationships.systems[].manifest`         | string                          | no       | none    |
+| `relationships.systems[].compatibility`    | object, `{minimum?, verified?}` | no       | none    |
+| `relationships.systems[].itemCatalog`      | boolean                         | no       | `false` |
+| `relationships.systems[].contentIndex`     | boolean                         | no       | `true`  |
+| `relationships.systems[].assetReplacement` | boolean                         | no       | `false` |
 
 (the same keys apply under `requires[]`, `recommends[]` and
 `conflicts[]`.)
@@ -1243,7 +1244,7 @@ Each entry, in any of the four lists:
 
 > ``package-build config: `relationships.<kind>[<index>].id` must be a non-empty string.``
 
-> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog, contentIndex).``
+> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog, contentIndex, assetReplacement).``
 
 `contentPackage` names what the other package's _content_ is called, where
 that differs from its Foundry id. A note addresses a file by the content
@@ -1280,6 +1281,35 @@ demand.
 > ``package-build config: `relationships.<kind>[<index>].contentIndex` must be true or false.``
 
 > ``package-build config: `relationships.<kind>[<index>].contentIndex` cannot be false together with `itemCatalog: true` — a catalogue is fetched from the same index.``
+
+`assetReplacement` opts a relationship into serving this package's own asset
+addresses from the named dependency's tree instead of its local one —
+`engine/asset-replacement.mjs`'s `resolveAssetReplacement` is what reads the
+declaration. Off by default: declaring a dependency is not the same as
+wanting its pictures in place of the ones this package ships itself. It
+requires a fetched index to check the replacement against, so it cannot pair
+with `contentIndex: false`:
+
+```yaml
+relationships:
+  requires:
+    - id: thalornaaltart
+      manifest: https://…/releases/latest/download/module.json
+      assetReplacement: true
+      contentIndex: true
+```
+
+With that declared, an address `thalorna` would otherwise answer itself —
+`thalorna-none-image-thorn` — resolves against
+`thalornaaltart-none-image-thorn` first, falling back to `thalorna`'s own
+record when `thalornaaltart` carries no file at that address. A package
+declaring more than one `assetReplacement: true` relationship is tried in
+the order the relationships are declared, and the first one carrying the
+address wins.
+
+> ``package-build config: `relationships.<kind>[<index>].assetReplacement` must be true or false.``
+
+> ``package-build config: `relationships.<kind>[<index>].assetReplacement` cannot be true together with `contentIndex: false` — a replacement with no fetched index to check against resolves nothing.``
 
 ### `systems`
 
