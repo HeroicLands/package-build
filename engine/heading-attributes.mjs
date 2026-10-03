@@ -244,14 +244,19 @@ export function parseHeadingLine(line) {
  * found by the figure pass, and the page it opens is named for its label.
  *
  * @param {string} source - A note's markdown body.
+ * @param {ReadonlySet<number>} [blockLines] - The 0-based lines sitting inside
+ *   a named block, supplied by the caller. A named block is read by
+ *   {@link module:engine/content-blocks.scanBlocks}, which knows every name in
+ *   the registry, reads an opener's attribute block, and tracks nesting by
+ *   depth — so the caller that already holds that answer passes it rather than
+ *   a second reading of the same lines being kept here.
  * @returns {Map<number, {level: number, line: number, text: string, id: string,
  *   classes: string[], values: Record<string, string>}>} Keyed by 0-based line.
  */
-export function pageOpenings(source) {
+export function pageOpenings(source, blockLines = new Set()) {
     const lines = String(source ?? "").split("\n");
     const openings = new Map();
     let codeFence = null;
-    let inBlock = false;
     for (const [index, line] of lines.entries()) {
         // A fence's closer must carry the same character as its opener and
         // be at least as long, same as {@link scanHeadingAttributes} tracks
@@ -265,10 +270,7 @@ export function pageOpenings(source) {
         } else if (fence) {
             codeFence = fence[1];
         }
-        const inCodeBlock = codeFence !== null;
-        if (!inCodeBlock && /^:::secret[ \t]*$/.test(line)) inBlock = true;
-        else if (!inCodeBlock && /^:::[ \t]*$/.test(line)) inBlock = false;
-        if (inCodeBlock || inBlock) continue;
+        if (codeFence !== null || blockLines.has(index)) continue;
         const heading = parseHeadingLine(line);
         if (!heading?.startsPage) continue;
         openings.set(index, { ...heading, line: index + 1 });

@@ -9,6 +9,17 @@ import { describe, it, expect } from "vitest";
 // Build-time pack helper (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
 import { splitPages, assertUniquePages } from "../engine/journals.mjs";
+import { pageOpenings } from "../engine/heading-attributes.mjs";
+import { scanBlocks } from "../engine/content-blocks.mjs";
+
+/** The lines inside a named block, as the page splitter supplies them. */
+function blockLines(markdown: string): Set<number> {
+    const lines = new Set<number>();
+    for (const { start, end } of scanBlocks(markdown).blocks) {
+        for (let i = start; i <= end; i++) lines.add(i);
+    }
+    return lines;
+}
 
 describe("splitPages (a page per H1, and per anchored heading)", () => {
     it("splits on an H1 and keeps its heading depth", () => {
@@ -189,5 +200,36 @@ describe("assertUniquePages", () => {
                 "Mystical Ability",
             ),
         ).toThrow(/Mystical Ability.*before-you-start/);
+    });
+});
+
+describe("a page-opening heading inside a named block", () => {
+    it("is no opening, for every name and however the opener is written", () => {
+        // `pageOpenings` is told which lines sit inside a named block rather
+        // than reading them itself, so every name in the registry, an opener
+        // carrying an attribute block, and a nested construct's own closing
+        // line are all answered by the one reading `scanBlocks` performs.
+        for (const opener of [":::secret", ":::info", ":::warn", ":::secret {#hoard}"]) {
+            const body = [
+                "# Public",
+                "Before.",
+                "",
+                opener,
+                "# Hidden {#hidden}",
+                "Inside.",
+                ":::",
+                "",
+                "# Next",
+                "After.",
+            ].join("\n");
+            const names = [...pageOpenings(body, blockLines(body)).values()].map((o) => o.text);
+            expect(names, opener).toEqual(["Public", "Next"]);
+        }
+    });
+
+    it("is an opening at the top level, with no block to sit inside", () => {
+        const body = ["# Public", "Before.", "", "# Next {#next}", "After."].join("\n");
+        const names = [...pageOpenings(body, blockLines(body)).values()].map((o) => o.text);
+        expect(names).toEqual(["Public", "Next"]);
     });
 });

@@ -139,8 +139,8 @@ export function splitPages(body, leadName = "Introduction") {
     const figureStarts = new Map(
         scanFigures(markdown).figures.map((figure) => [figure.line - 1, figure]),
     );
-    const openings = pageOpenings(markdown);
     const blockLines = namedBlockLines(markdown);
+    const openings = pageOpenings(markdown, blockLines);
     const pages = [];
     const beforeFirstH1 = [];
     let current = null;
