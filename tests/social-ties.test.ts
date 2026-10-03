@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { SOCIAL_TIES, checkSocialTies } from "../engine/social-ties.mjs";
 import { isAddressSegment } from "../engine/address-charset.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
+import { decodeNoteAddresses } from "../engine/note-addresses.mjs";
 
 const index = {
     contentPackage: "thalorna",
@@ -50,6 +51,28 @@ describe("defining social ties", () => {
         expect(checkSocialTies(note({ "kethira-note-being-kin": "dependent" }), { index })).toEqual(
             [],
         );
+    });
+
+    it("passes the documented form through the note boundary's decode step silently", () => {
+        // The note boundary normalises `kind: "map"` into an AddressEntries
+        // wrapper before this check ever sees the field — the shape every
+        // compile hands it. A check that only read the authored map would
+        // report the wrapper's own `entries` key as a bad Address and the
+        // whole decoded array as an unknown term.
+        const decoded: any = decodeNoteAddresses(
+            {
+                type: "being",
+                shortcode: "subject",
+                data: { socialTies: { "being-ally": "patron", "being-foe": "rival" } },
+            },
+            { package: "thalorna", system: "note" },
+        );
+        const subject = {
+            fm: decoded,
+            file: "subject.md",
+            raw: `---\nshortcode: subject\ntype: being\ndata:\n  socialTies:\n    being-ally: patron\n    being-foe: rival\n---`,
+        };
+        expect(checkSocialTies(subject, { index })).toEqual([]);
     });
 
     it("locates a malformed value on its Address key", () => {
