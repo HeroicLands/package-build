@@ -8,6 +8,8 @@ import deflistPlugin from "markdown-it-deflist";
 
 import { slugify } from "./content-slug.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
+import { parseHeadingLine } from "./page-headings.mjs";
+import { imagesIn } from "./content-images.mjs";
 
 const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
 const OPEN = /^:::caption\s+(\{[^}\n]*\})\s*$/;
@@ -96,6 +98,20 @@ export function scanCaptions(source) {
             .join("\n")
             .trim();
         if (!caption) errors.push({ line: start + 1, column: 1, message: "caption text is empty" });
+        // An H1, or an anchored heading at any level, starts a Foundry
+        // journal page — see `engine/content-blocks.mjs`'s identical refusal
+        // for a named block.
+        for (let at = i + 1; at < close; at++) {
+            if (!parseHeadingLine(lines[at])?.startsPage) continue;
+            errors.push({
+                line: at + 1,
+                column: 1,
+                message:
+                    "a heading that starts a page cannot be written inside a caption — " +
+                    "keep an H1 or an anchored heading at the top level, or drop the " +
+                    "anchor and the level to stay inside it",
+            });
+        }
         if (ids.has(slugify(id)))
             errors.push({ line: start + 1, column: 1, message: `duplicate caption id "${id}"` });
         ids.add(slugify(id));
@@ -116,11 +132,22 @@ export function scanCaptions(source) {
         }
         const blockEnd = next + first.map[1];
         const block = lines.slice(next, blockEnd).join("\n");
+        const trimmedBlock = block.trim();
+        // A markdown image is only a figure when it stands alone — nothing
+        // else in the block, which is also what decides whether the image
+        // plugin wraps it in a `<figure>` at all. A trailing footnote
+        // reference, or any other trailing text, disqualifies it exactly as
+        // it disqualifies `standsAlone`; such a block is prose with an inline
+        // image in it, left as Markdown so a reference inside resolves
+        // rather than classified as a figure whose own render strips nothing.
+        const aloneImage =
+            /^(?:!\[|!\[\[)/.test(trimmedBlock) &&
+            imagesIn(trimmedBlock).some((image) => image.block);
         const kind =
             first.type === "table_open" ? "table"
             : first.type === "fence" && /^\s*sql\b/i.test(first.info ?? "") ? "table"
             : first.type === "fence" || first.type === "code_block" ? "code"
-            : /^(?:!\[|!\[\[|<figure\b|<img\b)/.test(block.trim()) ? "figure"
+            : aloneImage || /^(?:<figure\b|<img\b)/.test(trimmedBlock) ? "figure"
             : "prose";
         const number = ++counts[kind];
         captions.push({

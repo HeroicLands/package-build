@@ -121,4 +121,19 @@ describe("caption directives", () => {
                 .message,
         ).toContain("same anchor");
     });
+
+    it("refuses a page-starting heading written as a caption's own text", () => {
+        const h1 = scanCaptions(directive("x", "# A heading", "Some prose.")).errors;
+        expect(h1).toHaveLength(1);
+        expect(h1[0]).toMatchObject({ line: 2 });
+        expect(h1[0].message).toContain("starts a page");
+
+        const anchored = scanCaptions(directive("x", "## A heading {#y}", "Some prose.")).errors;
+        expect(anchored).toHaveLength(1);
+        expect(anchored[0]).toMatchObject({ line: 2 });
+    });
+
+    it("leaves a caption's ordinary label text legal", () => {
+        expect(scanCaptions(directive("x", "A plain label", "Some prose.")).errors).toEqual([]);
+    });
 });

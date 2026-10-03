@@ -20,6 +20,11 @@
  * Each block stands on its own: a malformed one is a finding at its own line
  * and the blocks around it still render.
  *
+ * **An H1, or an anchored heading at any level, is refused inside a block.**
+ * Either starts a Foundry journal page, which would tear the block's own
+ * page in two and publish the rest with no wrapper around it at all.
+ *
+
  * **One pass reads all three names.** Reading them in two passes made the first
  * one meet the second's closers with nothing open, and report a block the author
  * had not written. A construct this pass does not own — `:::caption` — is
@@ -43,6 +48,7 @@
 import crypto from "node:crypto";
 import MarkdownIt from "markdown-it";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
+import { parseHeadingLine } from "./page-headings.mjs";
 
 /**
  * Titles carry emphasis and nothing else. `html: false` escapes any tag an
@@ -171,6 +177,23 @@ export function scanBlocks(source) {
                 });
                 opening = null;
                 continue;
+            }
+            // An H1, or an anchored heading at any level, starts a Foundry
+            // journal page — splitting the block's own page in two and
+            // publishing the rest with no wrapper around it, a GM-only
+            // section included. Refused rather than split: a lower heading
+            // with no anchor is still the ordinary way to structure a box.
+            for (let at = opening.start + 1; at < i; at++) {
+                if (!parseHeadingLine(lines[at])?.startsPage) continue;
+                const article = /^[aeiou]/i.test(opening.name) ? "an" : "a";
+                errors.push({
+                    line: at + 1,
+                    column: 1,
+                    message:
+                        `a heading that starts a page cannot be written inside ${article} ` +
+                        `${opening.name} block — keep an H1 or an anchored heading ` +
+                        "at the top level, or drop the anchor and the level to stay inside it",
+                });
             }
             blocks.push({ ...opening, end: i, body });
             opening = null;

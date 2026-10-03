@@ -256,6 +256,18 @@ describe("the documented failure modes still report", () => {
         reports(body(":::caption {#t}", "", ":::", "", "Prose."), "empty");
     });
 
+    it("an H1 inside a secret block, which would tear its own page", () => {
+        reports(body(":::secret", "# A heading", "Text.", ":::"), "starts a page");
+    });
+
+    it("an anchored heading inside an info block, the same as an H1", () => {
+        reports(body(":::info", "## A heading {#x}", "Text.", ":::"), "starts a page");
+    });
+
+    it("a page-starting heading written as a caption's own text", () => {
+        reports(body(":::caption {#t}", "# A heading", ":::", "", "Prose."), "starts a page");
+    });
+
     it("two captions sharing an id", () => {
         reports(
             body(

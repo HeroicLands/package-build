@@ -128,6 +128,13 @@ describes each medium's handling.
 not parse is reported at its own line and left as written; every well-formed
 block in the same note still renders.
 
+**A heading that would start its own journal page cannot be written inside a
+block, or inside a caption.** An H1, or a heading of any level carrying an
+`{#anchor}`, is reported at its own line there — starting a page would tear
+the block in two, and a reader could open the second half with none of the
+box around it. A lower heading with no anchor is unaffected and is the
+ordinary way to structure a long box.
+
 ## Footnotes and definition lists
 
 Write a footnote reference as `[^id]` and its definition as `[^id]: text`.

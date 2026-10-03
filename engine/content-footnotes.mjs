@@ -168,9 +168,47 @@ export function unresolvedFootnoteReferences(source, definitions) {
 }
 
 /**
+ * A top-level footnote definition no reference anywhere in the note uses.
+ *
+ * `separateFootnotes` lifts it out correctly, nothing resolves against it,
+ * and the paragraph it held vanishes from every surface with the build
+ * exiting 0 — a dropped paragraph is not something a reader can notice is
+ * missing, so it is an error here rather than a warning, the same severity
+ * every other silent loss this pass catches already carries. A note mid-edit,
+ * with the reference already deleted and the definition not yet followed, is
+ * exactly the case this refuses — which is the point: the alternative is
+ * shipping it.
+ *
+ * @param {string} source - A note's markdown body.
+ * @returns {Array<{line: number, column: number, message: string}>}
+ */
+export function unusedFootnoteDefinitions(source) {
+    const src = String(source ?? "");
+    const { definitions } = separateFootnotes(src);
+    const referenced = new Set(
+        [...matchAllOutsideCode(src, /\[\^([^\]\s]+)\](?!:)/g)].map((m) => m[1]),
+    );
+    const errors = [];
+    for (const match of definitions.matchAll(/^\[\^([^\]\s]+)\]:/gm)) {
+        const label = match[1];
+        if (referenced.has(label)) continue;
+        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const at = new RegExp(`^\\[\\^${escaped}\\]:`, "m").exec(src);
+        if (!at) continue;
+        errors.push({
+            ...lineColumn(src, at.index),
+            message:
+                `footnote [^${label}] is defined but no reference uses it — delete the ` +
+                `definition, or add a [^${label}] where it belongs`,
+        });
+    }
+    return errors;
+}
+
+/**
  * Every footnote placement finding for one note body — the union
- * {@link misplacedFootnoteDefinitions} and {@link unresolvedFootnoteReferences}
- * report, in document order.
+ * {@link misplacedFootnoteDefinitions}, {@link unresolvedFootnoteReferences}
+ * and {@link unusedFootnoteDefinitions} report, in document order.
  *
  * @param {string} source - A note's markdown body.
  * @returns {Array<{line: number, column: number, message: string}>}
@@ -178,5 +216,8 @@ export function unresolvedFootnoteReferences(source, definitions) {
 export function footnoteFindings(source) {
     const misplaced = misplacedFootnoteDefinitions(source).map(({ label, ...rest }) => rest);
     const unresolved = unresolvedFootnoteReferences(source);
-    return [...misplaced, ...unresolved].sort((a, b) => a.line - b.line || a.column - b.column);
+    const unused = unusedFootnoteDefinitions(source);
+    return [...misplaced, ...unresolved, ...unused].sort(
+        (a, b) => a.line - b.line || a.column - b.column,
+    );
 }

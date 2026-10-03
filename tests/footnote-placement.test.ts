@@ -21,6 +21,7 @@ import {
     footnoteFindings,
     misplacedFootnoteDefinitions,
     unresolvedFootnoteReferences,
+    unusedFootnoteDefinitions,
 } from "../engine/content-footnotes.mjs";
 
 /** The body as the Foundry pack compiler renders it. */
@@ -160,5 +161,75 @@ describe("a footnote example inside a code fence produces no finding", () => {
         const errors = unresolvedFootnoteReferences(source);
         expect(errors).toHaveLength(1);
         expect(errors[0].message).toContain("[^x]");
+    });
+});
+
+describe("a footnote definition no reference uses is a finding", () => {
+    it("at the definition's own line, on every surface", () => {
+        const source =
+            "A line of prose with no reference at all.\n\n" +
+            "[^orphan]: A definition nobody points at.\n";
+        const errors = unusedFootnoteDefinitions(source);
+        expect(errors).toEqual([
+            { line: 3, column: 1, message: expect.stringContaining("[^orphan]") },
+        ]);
+        expect(footnoteFindings(source)).toHaveLength(1);
+
+        const { findings } = book(source);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("[^orphan]");
+    });
+
+    it("produces no finding once something references it", () => {
+        const source = "A line.[^used]\n\n[^used]: Fine.";
+        expect(unusedFootnoteDefinitions(source)).toEqual([]);
+        expect(footnoteFindings(source)).toEqual([]);
+    });
+
+    it("does not pile onto a definition already reported as misplaced", () => {
+        // A misplaced definition is never counted as "used" by
+        // `unresolvedFootnoteReferences`, and must not also be flagged as
+        // unused on top of that — one mistake, one finding.
+        const source = "Body.\n\n- item\n- [^a]: A note nobody references either.";
+        expect(unusedFootnoteDefinitions(source)).toEqual([]);
+    });
+});
+
+describe("a footnote inside a figure caption's block resolves", () => {
+    it("when a reference trails the image on the same line", () => {
+        const source = [
+            ":::caption {#note}",
+            "A figure",
+            ":::",
+            "",
+            "![A ranger](ranger.webp)[^x]",
+            "",
+            "[^x]: A footnote about the ranger.",
+        ].join("\n");
+        expect(footnoteFindings(source)).toEqual([]);
+
+        const foundryHtml = foundry(source);
+        expect(foundryHtml).toContain("A footnote about the ranger.");
+        expect(foundryHtml).not.toMatch(/\[\^x\]/);
+        expect(foundryHtml.match(/class="footnotes"/g)).toHaveLength(1);
+
+        const webMarkdown = web(source);
+        expect(webMarkdown).toContain("[^x]");
+
+        const { findings } = book(source);
+        expect(findings).toEqual([]);
+    });
+
+    it("still strips the figcaption from a genuine standalone figure", () => {
+        const source = [
+            ":::caption {#note}",
+            "A figure",
+            ":::",
+            "",
+            "![A ranger](ranger.webp)",
+        ].join("\n");
+        const html = foundry(source);
+        expect(html.match(/<figcaption\b/g)).toBeNull();
+        expect(html).toContain("Figure 1: A figure");
     });
 });
