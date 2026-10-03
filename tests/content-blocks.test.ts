@@ -163,26 +163,27 @@ describe("named body blocks", () => {
     });
 
     it("counts another construct's block rather than claiming it", () => {
-        // `:::caption` belongs to the caption pass. Claiming it would report a
-        // block that does not exist and take the caption out of the note; not
+        // `:::figure` belongs to the figure pass. Claiming it would report a
+        // block that does not exist and take the figure out of the note; not
         // counting it would leave its closer looking like a stray `:::`.
-        const source = ":::caption {#trade}\nTrade routes\n:::\n\n:::info\nBody.\n:::\n";
+        const source =
+            ":::figure {#trade}\nRoutes\n///\nTrade routes\n:::\n\n:::info\nBody.\n:::\n";
         const { blocks, errors } = scanBlocks(source);
         expect(errors).toEqual([]);
         expect(blocks).toHaveLength(1);
         expect(blocks[0].name).toBe("info");
-        // the caption is left exactly as the author wrote it
-        expect(renderBlocks(source, "web").markdown).toContain(":::caption {#trade}");
+        // the figure is left exactly as the author wrote it
+        expect(renderBlocks(source, "web").markdown).toContain(":::figure {#trade}");
     });
 
     it("keeps another construct's block inside the block it was written in", () => {
         const source =
-            ":::secret\nBefore.\n\n:::caption {#trade}\nTrade routes\n:::\n\nAfter.\n:::\n";
+            ":::secret\nBefore.\n\n:::figure {#trade}\nRoutes\n///\nTrade routes\n:::\n\nAfter.\n:::\n";
         const { blocks, errors } = scanBlocks(source);
         expect(errors).toEqual([]);
         expect(blocks).toHaveLength(1);
         expect(blocks[0].name).toBe("secret");
-        expect(blocks[0].body).toContain(":::caption {#trade}");
+        expect(blocks[0].body).toContain(":::figure {#trade}");
         expect(blocks[0].body).toContain("After.");
     });
 

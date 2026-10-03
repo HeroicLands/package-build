@@ -67,7 +67,7 @@ import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderBlocks } from "./content-blocks.mjs";
 import { headingAttributesPlugin } from "./heading-attributes.mjs";
-import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
+import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
 // registry can import them without reaching back through this one.
@@ -156,10 +156,10 @@ md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
 };
 
 /** Render a note body with Foundry's named-block markup. */
-export function renderFoundryMarkdown(body, captions, footnoteNumbers, docId) {
+export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId) {
     const blocks = renderBlocks(body, "foundry");
-    const captioned = renderCaptionBlocks(blocks.markdown, (block) => md.render(block), captions);
-    return md.render(captioned.markdown, { footnoteNumbers, docId });
+    const figured = renderFigureBlocks(blocks.markdown, (block) => md.render(block), figures);
+    return md.render(figured.markdown, { footnoteNumbers, docId });
 }
 
 /**
@@ -941,7 +941,9 @@ export function convertNoteWikilinks(
         docPack,
         index,
         captionLabels: new Map(
-            scanCaptions(source).captions.map((caption) => [caption.id, caption.label]),
+            scanFigures(source)
+                .figures.filter((figure) => figure.id)
+                .map((figure) => [figure.id, figure.label]),
         ),
     });
     /**

@@ -253,11 +253,22 @@ describe("the website is handed markup Hugo renders", () => {
             [
                 '<figure class="note-image note-image-full-width note-image-float-top-right">',
                 '<img src="images/m.webp" alt="A map">',
-                "<figcaption>A map</figcaption>",
                 "</figure>",
                 "",
             ].join("\n"),
         );
+    });
+
+    it("draws no caption line for an uncaptioned image, keeping its alt attribute", () => {
+        const html = renderImageFigures("![A map](images/m.webp)\n");
+        expect(html).not.toContain("<figcaption");
+        expect(html).toContain('alt="A map"');
+    });
+
+    it("draws no caption line for an image with empty alt text either", () => {
+        const html = renderImageFigures("![](images/m.webp)\n");
+        expect(html).not.toContain("<figcaption");
+        expect(html).toContain('alt=""');
     });
 
     it("escapes the alt text and the address", () => {
@@ -290,6 +301,7 @@ describe("a Foundry journal page gets the same figure", () => {
         const html = render("![A map](images/m.webp){float=top-left}\n");
         expect(html).toContain('<figure class="note-image note-image-float-top-left">');
         expect(html).not.toContain("<p>");
+        expect(html).not.toContain("<figcaption");
     });
 
     it("keeps an inline image an inline image", () => {
@@ -354,16 +366,29 @@ describe("the book prints the picture at the measure the class names", () => {
         );
     });
 
-    it("draws the alt text as the caption, since print has no alt attribute", () => {
-        expect(typst("![A map](images/m.webp)\n")).toContain("[A map]");
+    it("draws no caption for an uncaptioned image, since alt text is not one", () => {
+        const out = typst("![A map](images/m.webp)\n");
+        expect(out).not.toContain("[A map]");
+        expect(out).toContain("caption: none");
     });
 
-    it("prints the caption alone when no file was staged for the address", () => {
+    it("draws no caption for an uncaptioned image with empty alt text either", () => {
+        expect(typst("![](images/m.webp)\n")).toContain("caption: none");
+    });
+
+    it("draws nothing at all when no file was staged for an uncaptioned address", () => {
         // `#image` on a path Typst cannot open is a compile error, and one of
-        // those is fatal to a whole book at the very end of a long run.
+        // those is fatal to a whole book at the very end of a long run — so an
+        // address the build could not stage draws nothing rather than falling
+        // back to its alt text.
         const out = markdownToTypst("![A map](https://example.org/m.webp)\n");
         expect(out).not.toContain("#image(");
-        expect(out).toContain("[A map]");
+        expect(out).not.toContain("[A map]");
+        expect(out.trim()).toBe("");
+    });
+
+    it("draws nothing for an unstaged image with empty alt text either", () => {
+        expect(markdownToTypst("![](https://example.org/m.webp)\n").trim()).toBe("");
     });
 });
 

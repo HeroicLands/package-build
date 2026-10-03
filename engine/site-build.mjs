@@ -64,7 +64,7 @@ import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderBlocks, renderWithheldSections, scanBlocks } from "./content-blocks.mjs";
 import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
-import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
+import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { renderImageFigures } from "./content-images.mjs";
@@ -760,8 +760,22 @@ export function renderSitePage(
         self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
     });
     tableErrors.push(...errors);
-    const captionScan = scanCaptions(markdown);
-    ctx.captionLabels = new Map(captionScan.captions.map((caption) => [caption.id, caption.label]));
+    const figureScan = scanFigures(markdown);
+    ctx.captionLabels = new Map(
+        figureScan.figures.filter((figure) => figure.id).map((figure) => [figure.id, figure.label]),
+    );
+    // What the `ref` expression helper needs beyond the label: the caption
+    // text and whether one was authored, by the same id `ctx.captionLabels`
+    // keys on. Only this page's own figures — a cross-note `ref` is reported
+    // unresolved rather than looked up.
+    const figuresById = new Map(
+        figureScan.figures
+            .filter((figure) => figure.id)
+            .map((figure) => [
+                figure.id,
+                { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+            ]),
+    );
     // This page's own anchors, so a `[[#slug]]` self-link is checked against
     // what the page actually declares rather than trusted unconditionally.
     ctx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
@@ -771,12 +785,13 @@ export function renderSitePage(
         file: page.file,
         bodyLine: page.bodyLine,
         sqlResults: sqlTables?.inline?.get(page.file),
+        figures: figuresById,
     });
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
     const blocks = renderBlocks(protectCode(expressions.markdown, resolve), "web");
-    const captioned = renderCaptionBlocks(blocks.markdown);
-    for (const error of captionScan.errors)
+    const figured = renderFigureBlocks(blocks.markdown);
+    for (const error of figureScan.errors)
         captionErrors.push({
             file: page.file,
             line: (page.bodyLine ?? 1) + (lineMap[error.line - 1]?.line ?? error.line - 1),
@@ -806,7 +821,7 @@ export function renderSitePage(
         // The disclosure is written last, over the Markdown the page ships: the
         // passes before this one carry line positions into their findings, and a
         // line inserted ahead of them would move every one of them.
-        body: renderWithheldSections(captioned.markdown),
+        body: renderWithheldSections(figured.markdown),
         data,
         resolved,
         tableErrors,

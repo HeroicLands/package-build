@@ -37,7 +37,9 @@ The harbor faces west.
 Travelers present their papers here. See [[#harbor|the harbor]].
 ```
 
-A `:::caption` block starts a JournalEntryPage too, named for the caption's own label, in Foundry alone — the web and the book keep the caption in the flow of the page around it. The prose introducing a captioned block and the block itself land on two different Foundry pages, so a reference such as `[[#trade|]]` written just above a caption sends a Foundry reader to a different page than the one carrying the sentence. Give the introducing prose its own heading, or accept that following the reference leaves the page, before relying on a caption to sit inside a longer page's flow.
+A `:::figure` fence starts a JournalEntryPage too, in Foundry alone — the web and the book keep the fence in the flow of the page around it. A fence holding exactly one picture, captioned with plain text and nothing else, becomes a page of type `image`: the picture is its `src`, the caption is `image.caption`, and the page is named for the figure's own number, such as "Figure 3". A fence carrying no caption still takes the `image` type when it holds one picture, named the same way. Every other fence takes a page of type `text` instead — a grouped fence holding more than one picture, an audio embed, a fence whose caption carries emphasis, an icon, or a link, and a fence that shares its page with trailing prose before the next heading or fence.
+
+The prose introducing a fence and the fence itself land on two different Foundry pages, so a reference such as `{{ref "#trade"}}` written just above a fence sends a Foundry reader to a different page than the one carrying the sentence. Give the introducing prose its own heading, or accept that following the reference leaves the page, before relying on a fence to sit inside a longer page's flow.
 
 A heading's braces hold an attribute block, not an anchor alone: `#slug` names the anchor, `.class` adds a CSS class, and `key="value"` writes an attribute. The website and a Foundry journal carry all three onto the heading; a book keeps the anchor and drops the rest, because Typst has no stylesheet to name a class in. Braces holding anything but an attribute block — `# The set {a, b}` — are reported at the heading's line and set as written.
 
@@ -61,23 +63,84 @@ A `:::secret` block inside the section is legal and renders as it does anywhere 
 
 The special Actor anchors `{#appearance}` and `{#dossier}` feed the same authored sections to each system's Actor fields, and take an H1 only — not the lower-level heading a journal page may otherwise start from. The section runs to the next H1, nested headings included. An anchor declared on a lower heading is still found, and is a build error rather than a quietly empty field: move the heading to the top level, or drop the anchor if the section is meant to stay unaddressed prose.
 
-## Captions and numbered references
+## Figures and numbered references
 
-A caption fence labels the next Markdown block. Give it an ID so prose can refer to the block without hard-coding its number:
+A `:::figure` fence numbers whatever it holds and, written with an id, makes it a target `{{ref}}` can point to:
 
 ````markdown
-Refer to [[#trade|]] for the market routes.
-
-:::caption {#trade}
-Regional trade routes
-:::
+:::figure {#trade}
 
 ```sql
 SELECT name.full AS "Market" FROM notes WHERE type = 'place'
 ```
+
+///
+Regional trade routes
+:::
+
+Refer to {{ref "#trade"}} for the market routes.
 ````
 
-The table displays **Table 1: Regional trade routes**, and the reference displays **Table 1**. The number is assigned by the output. An explicit link label, such as `[[#trade|the trade table]]`, displays the written label. A caption can precede a code fence, table, image, or any prose block. An ordinary code fence is code; an SQL result is a table; an image is a figure; every other block is prose. Web pages and Foundry journals number each kind within the note. Books number each kind across the book in reading order. A caption needs a unique ID, nonempty text, a closing `:::`, and a following block.
+The fence displays **Table 1: Regional trade routes**, and `{{ref "#trade"}}` displays **Table 1** as a link. **A figure is numbered because it is a fence, not because it carries caption text** — an ordinary table or picture written outside any fence is numbered not at all.
+
+**The construct is `:::figure`**, with an optional `{#id .border}` attribute block, closed by `:::`. Everything between the opening line and the closing `:::` is the captioned thing.
+
+**The first `///` at the top level of the fence separates the captioned thing from its caption.** A second `///` at the top level is an error — a figure holds one caption. A `///` written inside a nested code fence is content, not a separator, so a captioned code listing can carry `///` as a comment of its own.
+
+**The caption is optional.** A fence with no `///` draws its label alone, with nothing under it. So the counter and the label come from the fence itself, whether or not an author writes a caption.
+
+**`{#id}` is optional too.** A fence that declares none is still numbered and drawn; it carries no anchor, so nothing can refer to it. Give a figure an id only when prose needs to point at it.
+
+**`.border` draws the figure and its label inside a border.** It is the only class the construct accepts — any other class, such as `.wide`, is an error naming the class. `key="value"` is refused outright: a figure takes an id and classes, nothing else.
+
+**The counter is derived from the fence's contents, never authored.** A table is a table; an `sql` fence is a table, because its rendered output is one; any other fence or code block is code; pictures alone, one or several, are a figure; everything else is prose. A fence around prose with `.border` is a numbered, referable boxed aside — the `Prose` counter's whole purpose. The counters are `Code`, `Table`, `Figure`, and `Prose`. The website and a Foundry journal number each counter within the note; a book numbers each counter across the book in reading order.
+
+**A reference is written `{{ref "#thorn"}}`**, rendering as a link reading "Figure 13". `form="full"` renders the number and the caption; `form="title"` renders the caption alone; `form="number"` is the default, and may be written explicitly. A link written inside the caption contributes only its label text to a `full` or `title` reference, because the reference is itself a link and an anchor cannot nest inside another. A reference naming another note's anchor — `{{ref "other-note#anchor"}}` — reports that this build does not resolve a figure outside the note carrying the reference; only a same-note anchor, `{{ref "#anchor"}}`, resolves, on the website and in the book.
+
+**A figure needs contents and a closing `:::`.** Its id, when one is given, must be unique in the note; its caption, when one is given, is the one `///` section the fence carries.
+
+A few worked examples. A captioned picture:
+
+```markdown
+:::figure {#thorn}
+![[being-foobar|The Great Beast]]
+///
+The great beast, as drawn by [[person-havard|Havard]].
+:::
+```
+
+This draws **Figure 1**, labelled "Figure 1: The great beast, as drawn by Havard." beneath the picture.
+
+A grouped fence holding two pictures as one figure — a plate rather than two separate plates:
+
+```markdown
+:::figure {#passes}
+![[image-northpass|Northern approach]]
+![[image-southpass|Southern approach]]
+///
+The two approaches to the pass.
+:::
+```
+
+Both pictures draw together under one label, **Figure 2**, because the fence is the unit the counter numbers — not the pictures inside it.
+
+A fence with no caption:
+
+```markdown
+:::figure {#anvil}
+![[icon-anvil|A worn anvil]]
+:::
+```
+
+This draws **Figure 3**, with no caption line beneath it, and still carries the anchor `#anvil`.
+
+A reference in running prose:
+
+```markdown
+See {{ref "#thorn"}} for the plate, or {{ref "#thorn" form="full"}} for the full description.
+```
+
+This displays as "See [Figure 1](#thorn) for the plate, or [Figure 1: The great beast, as drawn by Havard.](#thorn) for the full description," each bracketed phrase a link to the figure.
 
 ## Images and protected content
 
@@ -100,8 +163,10 @@ a closing `:::`. A name that is not one of the three is reported.
 **A GM-only section holds a box.** A `:::secret` is a container for whatever the
 GM reads, boxes included, and a box written inside one stays inside it. A box
 holds no named block of its own, so a second box inside a box is reported. A
-`:::caption` belongs to the caption construct and may be written inside any of
-them.
+`:::figure` fence may be written inside any of them. The two draw a box for
+different reasons: a named block says what kind of aside a passage is, while a
+`:::figure` fence makes a passage numbered and referable — nesting one inside
+the other gives a passage both.
 
 **An attribute block follows the name.** It is the same braced grammar the other
 body extensions use, so it carries an id, classes, and any attribute the element
@@ -147,11 +212,11 @@ not parse is reported at its own line and left as written; every well-formed
 block in the same note still renders.
 
 **A heading that would start its own journal page cannot be written inside a
-block, or inside a caption.** An H1, or a heading of any level carrying an
-`{#anchor}`, is reported at its own line there — starting a page would tear
-the block in two, and a reader could open the second half with none of the
-box around it. A lower heading with no anchor is unaffected and is the
-ordinary way to structure a long box.
+block, or inside a `:::figure` fence.** An H1, or a heading of any level
+carrying an `{#anchor}`, is reported at its own line there — starting a page
+would tear the block or the figure in two, and a reader could open the second
+half with none of the box around it. A lower heading with no anchor is
+unaffected and is the ordinary way to structure a long box.
 
 ## Footnotes and definition lists
 
@@ -170,7 +235,8 @@ The road is passable in summer.[^season] The bridge has a toll.[^2]
 ```
 
 A reference may be written anywhere prose can be written — a word in a
-quotation, a bullet, a table cell, a heading, a named block, a caption. A
+quotation, a bullet, a table cell, a heading, a named block, a figure's
+caption. A
 definition belongs at the top level of the note: indent a following paragraph
 or code block by four spaces to include it in the same footnote, but never
 inside a list, a block quote, or a table. A definition written there, or a
@@ -324,20 +390,21 @@ There are {{words (sql "SELECT COUNT(*) FROM notes WHERE type = 'being'")}} bein
 
 <!-- expression-helpers:start -->
 
-| Helper       | Parameters                 | What it gives you                                                                                                                                                         |
-| ------------ | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eq`         | `a b`                      | True when both are the same value. Compares exactly, so 1 and "1" differ.                                                                                                 |
-| `gt`         | `a b`                      | True when a is greater than b. Both must be finite numbers.                                                                                                               |
-| `gte`        | `a b`                      | True when a is greater than or equal to b. Both must be finite numbers.                                                                                                   |
-| `lt`         | `a b`                      | True when a is less than b. Both must be finite numbers.                                                                                                                  |
-| `lte`        | `a b`                      | True when a is less than or equal to b. Both must be finite numbers.                                                                                                      |
-| `not`        | `value`                    | True when the value is false, zero, empty or absent.                                                                                                                      |
-| `and`        | `value …`                  | True when every value given is true. Takes two or more.                                                                                                                   |
-| `or`         | `value …`                  | True when any value given is true. Takes two or more.                                                                                                                     |
-| `words`      | `number`                   | The number spelled out for running prose — `1200` becomes one thousand two hundred. Whole numbers only; a decimal is a finding, and `digits` takes one.                   |
-| `digits`     | `number`                   | The number as a grouped numeral — `1200` becomes 1,200, and a fractional part is kept.                                                                                    |
-| `sql`        | `"query"`                  | The single value a query returns, for use inside a sentence. The query is a quoted string, the same SQL a table fence takes.                                              |
-| `dateformat` | `calendar date ["format"]` | A date written in a calendar. The calendar is an Address or its shortcode, the date is the value a note carries, and the optional third argument names an output pattern. |
+| Helper       | Parameters                                 | What it gives you                                                                                                                                                                                                                                                                                                                                                      |
+| ------------ | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `eq`         | `a b`                                      | True when both are the same value. Compares exactly, so 1 and "1" differ.                                                                                                                                                                                                                                                                                              |
+| `gt`         | `a b`                                      | True when a is greater than b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                            |
+| `gte`        | `a b`                                      | True when a is greater than or equal to b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                |
+| `lt`         | `a b`                                      | True when a is less than b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                               |
+| `lte`        | `a b`                                      | True when a is less than or equal to b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                   |
+| `not`        | `value`                                    | True when the value is false, zero, empty or absent.                                                                                                                                                                                                                                                                                                                   |
+| `and`        | `value …`                                  | True when every value given is true. Takes two or more.                                                                                                                                                                                                                                                                                                                |
+| `or`         | `value …`                                  | True when any value given is true. Takes two or more.                                                                                                                                                                                                                                                                                                                  |
+| `words`      | `number`                                   | The number spelled out for running prose — `1200` becomes one thousand two hundred. Whole numbers only; a decimal is a finding, and `digits` takes one.                                                                                                                                                                                                                |
+| `digits`     | `number`                                   | The number as a grouped numeral — `1200` becomes 1,200, and a fractional part is kept.                                                                                                                                                                                                                                                                                 |
+| `sql`        | `"query"`                                  | The single value a query returns, for use inside a sentence. The query is a quoted string, the same SQL a table fence takes.                                                                                                                                                                                                                                           |
+| `dateformat` | `calendar date ["format"]`                 | A date written in a calendar. The calendar is an Address or its shortcode, the date is the value a note carries, and the optional third argument names an output pattern.                                                                                                                                                                                              |
+| `ref`        | `address [form="number"\|"full"\|"title"]` | A link to a `:::figure` fence, by its anchor — `"#thorn"` on this note, `"note-address#thorn"` on another. `form` is `number` (the default, and admitted explicitly), rendering "Figure 13"; `full`, the number and the caption; or `title`, the caption alone. Always renders as a link to the figure, and a link inside the caption contributes only its label text. |
 
 <!-- expression-helpers:end -->
 

@@ -11,7 +11,7 @@
  *
  * **The second half is the guard.** The three surfaces each assemble the body
  * out of the same passes in the same order — secrets, then admonitions, then
- * captions — and each pass scans the whole body for its own `:::` lines. A pass
+ * figures — and each pass scans the whole body for its own `:::` lines. A pass
  * that mistakes another construct's closer for its own reports an error on
  * correct markup, and every one of these surfaces fails the build on an error.
  * That failure is invisible to a test driving one pass in isolation with input
@@ -26,7 +26,7 @@
 import { describe, it, expect } from "vitest";
 
 import { renderBlocks, scanBlocks } from "../engine/content-blocks.mjs";
-import { renderCaptionBlocks, scanCaptions } from "../engine/content-captions.mjs";
+import { renderFigureBlocks, scanFigures } from "../engine/content-figures.mjs";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 import { IMAGE_FLOATS, IMAGE_SIZES } from "../engine/content-images.mjs";
@@ -41,7 +41,7 @@ const body = (...lines: string[]) => lines.join("\n");
  * The findings every surface would raise for a body.
  *
  * Read out of the passes the compilers call rather than restated. The named
- * blocks are one pass over all three names, and captions are the other; every
+ * blocks are one pass over all three names, and figures are the other; every
  * compiler reads both. A surface reporting a finding the others do not is the
  * asymmetry worth failing on, so they are collected together and compared as
  * one set.
@@ -49,19 +49,19 @@ const body = (...lines: string[]) => lines.join("\n");
 function findings(source: string) {
     return [
         ...scanBlocks(source).errors.map((e) => `block ${e.line}: ${e.message}`),
-        ...scanCaptions(source).errors.map((e) => `caption ${e.line}: ${e.message}`),
+        ...scanFigures(source).errors.map((e) => `figure ${e.line}: ${e.message}`),
     ];
 }
 
 /** The body as the Foundry pack compiler renders it. */
 function foundry(source: string) {
-    return renderFoundryMarkdown(source, scanCaptions(source).captions, undefined, undefined);
+    return renderFoundryMarkdown(source, scanFigures(source).figures, undefined, undefined);
 }
 
 /** The body as the site build renders it, in the order `site-build` runs. */
 function web(source: string) {
     const blocks = renderBlocks(source, "web");
-    return renderCaptionBlocks(blocks.markdown).markdown;
+    return renderFigureBlocks(blocks.markdown).markdown;
 }
 
 /**
@@ -84,14 +84,41 @@ const CASES: Record<string, string> = {
     info: body(":::info", "Ships pay the harbour due on arrival.", ":::"),
     warn: body(":::warn", "The shoals are uncovered at low water.", ":::"),
     "warn with an id": body(":::warn {#risk}", "The shoals are uncovered.", ":::"),
-    caption: body(
-        ":::caption {#trade}",
-        "Trade routes out of the harbour",
-        ":::",
-        "",
+    figure: body(
+        ":::figure {#trade}",
         "| Route | Days |",
         "| ----- | ---- |",
         "| North | 4    |",
+        "///",
+        "Trade routes out of the harbour",
+        ":::",
+    ),
+    "figure with no caption": body(
+        ":::figure {#shoals}",
+        "| Shoal | Depth |",
+        "| ----- | ----- |",
+        "| Bar   | 2     |",
+        ":::",
+    ),
+    "bordered prose figure": body(
+        ":::figure {#aside .border}",
+        "The harbourmaster keeps the tide table himself.",
+        "///",
+        "The tide table",
+        ":::",
+    ),
+    "figure inside a secret": body(
+        ":::secret",
+        "Before.",
+        "",
+        ":::figure {#takings}",
+        "The cut is a tenth.",
+        "///",
+        "What the harbourmaster takes",
+        ":::",
+        "",
+        "After.",
+        ":::",
     ),
     footnotes: body("Spring brings the floods.[^flood]", "", "[^flood]: Snowmelt off the ridge."),
     "definition list": body("Harbour due", ": A toll on every hull that ties up."),
@@ -108,13 +135,13 @@ const CASES: Record<string, string> = {
         "The harbourmaster takes a cut.",
         ":::",
         "",
-        ":::caption {#trade}",
-        "Trade routes out of the harbour",
-        ":::",
-        "",
+        ":::figure {#trade}",
         "| Route | Days |",
         "| ----- | ---- |",
         "| North | 4    |",
+        "///",
+        "Trade routes out of the harbour",
+        ":::",
         "",
         "Spring brings the floods.[^flood]",
         "",
@@ -161,12 +188,23 @@ describe("every surface renders every construct", () => {
         expect(web(CASES["warn with an id"])).toContain('id="risk"');
     });
 
-    it("labels and numbers a caption", () => {
-        expect(scanCaptions(CASES.caption).captions).toMatchObject([
-            { id: "trade", kind: "table" },
-        ]);
-        expect(web(CASES.caption)).toContain('id="trade"');
-        expect(book(CASES.caption)).toContain("Trade routes out of the harbour");
+    it("labels and numbers a figure", () => {
+        expect(scanFigures(CASES.figure).figures).toMatchObject([{ id: "trade", kind: "table" }]);
+        expect(web(CASES.figure)).toContain('id="trade"');
+        expect(web(CASES.figure)).toContain("Table 1: Trade routes out of the harbour");
+        expect(book(CASES.figure)).toContain("Trade routes out of the harbour");
+    });
+
+    it("draws an uncaptioned figure's label alone", () => {
+        expect(web(CASES["figure with no caption"])).toContain(
+            '<p class="content-figure-label">Table 1</p>',
+        );
+    });
+
+    it("carries a figure's authored class through to the web", () => {
+        expect(web(CASES["bordered prose figure"])).toContain(
+            '<div id="aside" class="content-figure content-figure-prose border">',
+        );
     });
 
     it("renders footnotes", () => {
@@ -240,20 +278,32 @@ describe("the documented failure modes still report", () => {
         reports(body(":::info", "Outer.", ":::warn", "Inner.", ":::", ":::"), "nested warn blocks");
     });
 
-    it("a caption with no id", () => {
-        reports(body(":::caption", "Trade routes", ":::", "", "Prose."), "{#anchor}");
+    it("a figure whose attributes are not braced", () => {
+        reports(body(":::figure #trade", "Trade routes", ":::"), "{#id");
     });
 
-    it("a caption with no closing :::", () => {
-        reports(body(":::caption {#t}", "Trade routes"), "closing");
+    it("a figure carrying a class the construct does not declare", () => {
+        reports(body(":::figure {#t .wide}", "Trade routes", ":::"), ".wide");
     });
 
-    it("a caption with no following block", () => {
-        reports(body("Prose.", "", ":::caption {#t}", "Trade routes", ":::"), "following block");
+    it("a figure carrying a key=value attribute", () => {
+        reports(body(':::figure {#t kind="table"}', "Trade routes", ":::"), "kind=");
     });
 
-    it("a caption with empty text", () => {
-        reports(body(":::caption {#t}", "", ":::", "", "Prose."), "empty");
+    it("a figure with no closing :::", () => {
+        reports(body(":::figure {#t}", "Trade routes"), "closing");
+    });
+
+    it("a figure with no contents", () => {
+        reports(body(":::figure {#t}", "///", "Trade routes", ":::"), "no contents");
+    });
+
+    it("a figure whose /// section is blank", () => {
+        reports(body(":::figure {#t}", "Trade routes", "///", "", ":::"), "write no ///");
+    });
+
+    it("a figure carrying a second top-level ///", () => {
+        reports(body(":::figure {#t}", "Routes", "///", "One", "///", "Two", ":::"), "one caption");
     });
 
     it("an H1 inside a secret block, which would tear its own page", () => {
@@ -264,26 +314,26 @@ describe("the documented failure modes still report", () => {
         reports(body(":::info", "## A heading {#x}", "Text.", ":::"), "starts a page");
     });
 
-    it("a page-starting heading written as a caption's own text", () => {
-        reports(body(":::caption {#t}", "# A heading", ":::", "", "Prose."), "starts a page");
+    it("a page-starting heading written inside a figure", () => {
+        reports(body(":::figure {#t}", "# A heading", "///", "A caption.", ":::"), "starts a page");
     });
 
-    it("two captions sharing an id", () => {
+    it("two figures sharing an id", () => {
         reports(
             body(
-                ":::caption {#t}",
-                "One",
+                ":::figure {#t}",
+                "One.",
+                "///",
+                "First",
                 ":::",
                 "",
-                "Prose one.",
-                "",
-                ":::caption {#t}",
-                "Two",
+                ":::figure {#t}",
+                "Two.",
+                "///",
+                "Second",
                 ":::",
-                "",
-                "Prose two.",
             ),
-            "duplicate caption id",
+            "duplicate figure id",
         );
     });
 });

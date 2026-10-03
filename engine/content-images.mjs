@@ -58,10 +58,12 @@
  * agree: a figure is a block on all three, and nothing has to decide what a
  * floated run of text inside a paragraph would mean.
  *
- * **The alt text is the caption.** Print has no `alt` attribute and has to put
- * those words somewhere visible; rather than one surface showing them and two
- * hiding them, every surface draws them under the picture, and the HTML
- * surfaces carry them as `alt` as well.
+ * **Alt text renders as a caption on no surface.** A caption is drawn only for
+ * an image inside a `:::figure` fence that carries an authored caption, and the
+ * text drawn is always that caption. An image with no fence, or a fence with no
+ * caption, draws no line under the picture anywhere. The HTML surfaces still
+ * carry the alt text as the `img` element's `alt` attribute, for the reader a
+ * screen reader serves.
  *
  * ## Where the address resolves
  *
@@ -313,30 +315,46 @@ export function escapeHtml(text) {
  * function, so the two cannot drift into styling the same directive through
  * different class names.
  *
+ * **No `<figcaption>` is emitted here.** A `:::figure` fence draws its own
+ * label and authored caption around whatever this returns; the alt text stays
+ * on the `img` element alone.
+ *
  * @param {object} image - The image.
  * @param {string} image.src - The address, resolved for the surface.
- * @param {string} [image.alt] - The alt text, which is also the caption.
+ * @param {string} [image.alt] - The alt text, for a reader who cannot see the
+ *   picture.
  * @param {string[]} [image.classes] - Width classes, from the directive.
  * @param {string} [image.size] - Named display size, from the directive.
  * @param {string} [image.float] - The float position, from the directive.
  * @returns {string} The figure, as one HTML block.
  */
 export function imageFigureHtml({ src, alt = "", classes = [], size = "auto", float = "" }) {
-    const caption = alt ? `\n<figcaption>${escapeHtml(alt)}</figcaption>` : "";
     return (
         `<figure class="${figureClasses({ classes, size, float })}">\n` +
-        `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">${caption}\n` +
+        `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">\n` +
         `</figure>`
     );
 }
 
 /**
+ * A body extension's own delimiter — a `:::` opener or closer, or a figure's
+ * `///`.
+ *
+ * It bounds a paragraph exactly as a blank line does: the line belongs to the
+ * construct rather than to the prose, and the pass that owns the construct
+ * hands its body on by itself. So a picture written tight against one is a
+ * block of its own, which is how `:::figure` is written.
+ */
+const DELIMITER = /^(?::{3,}[^\n]*|\/{3,}[ \t]*)$/;
+
+/**
  * Whether a match sits alone in its own paragraph.
  *
- * "Alone" is the whole of a block: nothing else on its line, and a blank line
- * or the end of the body either side of it. A leading `>` or list marker
- * disqualifies it for the same reason a word does — the paragraph it belongs to
- * holds something the figure would have to be lifted out of.
+ * "Alone" is the whole of a block: nothing else on its line, and a blank line,
+ * a body-extension delimiter or the end of the body either side of it. A
+ * leading `>` or list marker disqualifies it for the same reason a word does —
+ * the paragraph it belongs to holds something the figure would have to be
+ * lifted out of.
  *
  * @param {string} text - The body the match indexes into.
  * @param {number} start - Where the match begins.
@@ -353,9 +371,12 @@ export function standsAlone(text, start, end) {
     if (!/^[ \t]*$/.test(src.slice(end, lineEnd === -1 ? src.length : lineEnd))) return false;
 
     const before = src.slice(0, lineStart);
-    if (before.trim() && !/\n[ \t]*\n[ \t]*$/.test(before)) return false;
+    const previous = before.replace(/\n$/, "").split("\n").pop() ?? "";
+    if (before.trim() && !/\n[ \t]*\n[ \t]*$/.test(before) && !DELIMITER.test(previous))
+        return false;
     const after = lineEnd === -1 ? "" : src.slice(lineEnd);
-    if (after.trim() && !/^\n[ \t]*\n/.test(after)) return false;
+    const next = after.replace(/^\n/, "").split("\n")[0] ?? "";
+    if (after.trim() && !/^\n[ \t]*\n/.test(after) && !DELIMITER.test(next)) return false;
     return true;
 }
 
@@ -454,7 +475,7 @@ export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, config }
             report(
                 image.index,
                 `\`"${image.title}"\` is a title on an image, and no surface here draws ` +
-                    "one — an image's alt text is its caption",
+                    "one — a caption is written in a `:::figure` fence's /// section",
             );
         }
         if (!image.block) {

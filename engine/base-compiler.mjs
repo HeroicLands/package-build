@@ -64,7 +64,7 @@
 import { authoredFrontmatter } from "./index-records.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
-import { scanCaptions } from "./content-captions.mjs";
+import { scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
@@ -711,7 +711,7 @@ export class BasePackCompiler {
             sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
             pageLists: absPath ? this.sqlTables?.pageLists?.get(absPath) : undefined,
         });
-        for (const captionError of scanCaptions(tabulated).errors) {
+        for (const captionError of scanFigures(tabulated).errors) {
             findings.push({
                 message: captionError.message,
                 line:

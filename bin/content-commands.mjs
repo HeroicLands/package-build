@@ -64,6 +64,7 @@ import {
 import { fetchNavigation, generateHugoConfig, writeHugoConfig } from "../engine/site-config.mjs";
 import { renderItemFieldReference, renderItemFieldsPage } from "../engine/field-reference.mjs";
 import { checkDocLinks, checkDocIndex } from "../engine/docs-checks.mjs";
+import { checkAssetResolutions, checkAssetShapes } from "../engine/asset-index.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
@@ -109,6 +110,7 @@ import {
     authoredFrontmatter,
     emitContentIndex,
     indexRecordsFor,
+    isAssetRecord,
     isNoteRecord,
     noteFile,
 } from "../engine/content-index.mjs";
@@ -139,6 +141,7 @@ import { buildMaps, FROM_ALL, MAP_DIR } from "../engine/map-build.mjs";
 import { CHART_HORIZON_DAYS } from "../engine/map-layout.mjs";
 import { GRAPHVIZ_ENGINES } from "../engine/map-graphviz.mjs";
 import { loadMapWorld } from "../engine/map-places.mjs";
+import { encodeAddresses } from "../engine/address-values.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -1175,6 +1178,34 @@ function lintCommand() {
                 });
                 for (const line of states.summary) log.info(line);
 
+                // Generated art, when this package declares it carries none.
+                // `records` already holds every asset of this build, so the
+                // check is a filter over the corpus already in hand rather
+                // than a second enumeration of the asset trees.
+                const generatedArt =
+                    config.forbidGeneratedArt ?
+                        records
+                            .filter(isAssetRecord)
+                            .filter((record) => record.asset.ai === true)
+                            .map((record) => ({
+                                file: path.join(config.paths.assets, record.asset.path),
+                                severity: "error",
+                                message:
+                                    `\`${encodeAddresses(record.address.canonical)}\` is ` +
+                                    "machine-generated art (`ai: true`), and " +
+                                    "`forbidGeneratedArt` refuses it in this package",
+                            }))
+                    :   [];
+
+                // A picture's shape and its pixel count, against the role
+                // it declares. Both read the records already in hand: the
+                // expectation for a shape is the median of the pictures
+                // sharing that role, so it comes from the tree rather than
+                // from a figure kept by hand here.
+                const assetRecords = records.filter(isAssetRecord);
+                const assetShapes = checkAssetShapes(assetRecords);
+                const assetResolutions = checkAssetResolutions(assetRecords);
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
@@ -1185,6 +1216,9 @@ function lintCommand() {
                     ...images.findings,
                     ...taskLists.findings,
                     ...states.findings,
+                    ...generatedArt,
+                    ...assetShapes,
+                    ...assetResolutions,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // by then, so this changes nothing on its own —
