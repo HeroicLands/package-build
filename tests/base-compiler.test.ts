@@ -20,6 +20,7 @@ import { Journals } from "../engine/journals.mjs";
 import { Actors } from "../sohl/actors.mjs";
 import { Macros } from "../engine/macros.mjs";
 import { Scenes } from "../engine/scenes.mjs";
+import { anchorPageId } from "../engine/wikilinks.mjs";
 /**
  * A note in the tree's shape. It declares no package: a note's package is the
  * repository's configured `contentPackage` and `package:` is retired.
@@ -320,6 +321,107 @@ describe("BasePackCompiler's convertBody reports every finding in one run", () =
     });
 });
 
+describe("a {{ref}} resolves in a compiled journal entry", () => {
+    // An image this repository's own default pack config resolves — the same
+    // asset `figure-pages.test.ts` draws on.
+    const THORN = "sohl/assets/images/other/thorn.webp";
+    const SECOND_IMAGE = "sohl/assets/images/other/second.webp";
+    const REF_JOURNAL = path.join(os.tmpdir(), "sohl-base-compiler-ref-journal");
+
+    beforeAll(() => {
+        fs.mkdirSync(REF_JOURNAL, { recursive: true });
+        fs.writeFileSync(
+            path.join(REF_JOURNAL, "RefJournal.md"),
+            note(
+                [
+                    'See {{ref "#thorn"}} for the image, and the plate in full: ' +
+                        '{{ref "#plate" form="full"}}.',
+                    "",
+                    ":::figure {#thorn}",
+                    `![Thorn](${THORN})`,
+                    "///",
+                    "The great beast.",
+                    ":::",
+                    "",
+                    ":::figure {#plate}",
+                    `![A](${THORN})`,
+                    "",
+                    `![B](${SECOND_IMAGE})`,
+                    "///",
+                    "Two together.",
+                    ":::",
+                ].join("\n"),
+                {
+                    name: { full: "Ref Journal" },
+                    id: "0123456789abcdef",
+                    shortcode: "refjournal",
+                    type: "doc",
+                },
+            ),
+        );
+    });
+
+    afterAll(() => fs.rmSync(REF_JOURNAL, { recursive: true, force: true }));
+
+    it("addresses a figure that became a page of its own, and one inside a text page", async () => {
+        const out = dest("ref-journal");
+        const pack = new Journals({ skipDirectories: [], contentBase: REF_JOURNAL, dest: out });
+        await pack.compile();
+        expect(pack.errorCount).toBe(0);
+        const doc = read(out)["Ref Journal"];
+        const intro = doc.pages.find((p: any) => p.name === "Introduction");
+        const imagePage = doc.pages.find((p: any) => p.type === "image");
+        const textPage = doc.pages.find((p: any) => p.type === "text" && p.name !== "Introduction");
+
+        // The image page is the figure fence wholesale, addressed by its own
+        // anchor — the same id an authored `[[#thorn|Text]]` would resolve to.
+        expect(imagePage._id).toBe(anchorPageId(doc._id, "thorn"));
+        // The grouped fence stays a text page, addressed the same way.
+        expect(textPage._id).toBe(anchorPageId(doc._id, "plate"));
+
+        expect(intro.text.content).toContain(`JournalEntryPage.${imagePage._id}]{Figure 1}`);
+        expect(intro.text.content).toContain(
+            `JournalEntryPage.${textPage._id}]{Figure 2: Two together.}`,
+        );
+        // A plain Markdown link to an anchor fragment resolves nowhere in
+        // Foundry, and none is emitted.
+        expect(intro.text.content).not.toContain("](#thorn)");
+        expect(intro.text.content).not.toContain("](#plate)");
+    });
+
+    it("refuses an anchor matching no figure, before anything compiles", async () => {
+        const broken = path.join(os.tmpdir(), "sohl-base-compiler-ref-journal-broken");
+        fs.mkdirSync(broken, { recursive: true });
+        try {
+            fs.writeFileSync(
+                path.join(broken, "Broken.md"),
+                note('See {{ref "#nosuch"}}.', {
+                    name: { full: "Ref Broken" },
+                    id: "0123456789abcdef",
+                    shortcode: "refbroken",
+                    type: "doc",
+                }),
+            );
+            const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+            try {
+                const out = dest("ref-journal-broken");
+                const pack = new Journals({ skipDirectories: [], contentBase: broken, dest: out });
+                await pack.compile();
+                expect(pack.errorCount).toBe(1);
+                expect(read(out)["Ref Broken"]).toBeUndefined();
+                const messages = spy.mock.calls.map((call) => String(call[0]));
+                expect(
+                    messages.some((m) => m.includes('names no figure for anchor "#nosuch"')),
+                ).toBe(true);
+            } finally {
+                spy.mockRestore();
+            }
+        } finally {
+            fs.rmSync(broken, { recursive: true, force: true });
+        }
+    });
+});
+
 describe("BasePackCompiler's constructor contract", () => {
     it("requires a content root", () => {
         expect(() => new Probe({ skipDirectories: [], dest: tmp } as any)).toThrow(
@@ -332,5 +434,78 @@ describe("BasePackCompiler's constructor contract", () => {
             () =>
                 new Probe({ skipDirectories: [], contentBase: path.join(tmp, "nope"), dest: tmp }),
         ).toThrow(/Content tree not found/);
+    });
+});
+
+describe("BasePackCompiler's convertBody agrees with the lint about an image", () => {
+    // `lintContentImages` already refuses this exact shape — an image sharing
+    // its paragraph with prose — so the pack compile must refuse it too,
+    // rather than compiling the directive as though it were absent.
+    const INLINE_IMAGE = path.join(os.tmpdir(), "sohl-base-compiler-inline-image");
+    const FENCED_IMAGE = path.join(os.tmpdir(), "sohl-base-compiler-fenced-image");
+
+    beforeAll(() => {
+        fs.mkdirSync(INLINE_IMAGE, { recursive: true });
+        fs.writeFileSync(
+            path.join(INLINE_IMAGE, "Inline.md"),
+            note("A ranger. ![A ranger](ranger.webp) stands watch.", {
+                name: { full: "Probe Inline Image" },
+                id: "PROBEPROBE000007",
+                shortcode: "inlineimage",
+                type: "probe",
+            }),
+        );
+        fs.mkdirSync(FENCED_IMAGE, { recursive: true });
+        fs.writeFileSync(
+            path.join(FENCED_IMAGE, "Fenced.md"),
+            note([":::figure", "![A ranger](ranger.webp)", "///", "A ranger.", ":::"].join("\n"), {
+                name: { full: "Probe Fenced Image" },
+                id: "PROBEPROBE000008",
+                shortcode: "fencedimage",
+                type: "probe",
+            }),
+        );
+    });
+
+    afterAll(() => {
+        fs.rmSync(INLINE_IMAGE, { recursive: true, force: true });
+        fs.rmSync(FENCED_IMAGE, { recursive: true, force: true });
+    });
+
+    it("refuses an inline embed sharing its paragraph with prose", async () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            const out = dest("image-problems-inline");
+            const pack = new Probe({
+                skipDirectories: [],
+                contentBase: INLINE_IMAGE,
+                dest: out,
+            });
+            await pack.compile();
+            expect(read(out)["Probe Inline Image"]).toBeUndefined();
+            const messages = spy.mock.calls.map((call) => String(call[0]));
+            expect(messages.some((m) => m.includes("shares its paragraph with other text"))).toBe(
+                true,
+            );
+        } finally {
+            spy.mockRestore();
+        }
+    });
+
+    it("still compiles a picture that stands alone inside a `:::figure` fence", async () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            const out = dest("image-problems-fenced");
+            const pack = new Probe({
+                skipDirectories: [],
+                contentBase: FENCED_IMAGE,
+                dest: out,
+            });
+            await pack.compile();
+            expect(read(out)["Probe Fenced Image"]).toBeDefined();
+            expect(pack.errorCount).toBe(0);
+        } finally {
+            spy.mockRestore();
+        }
     });
 });

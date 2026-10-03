@@ -67,9 +67,15 @@ import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mj
 import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
 import { collectAnchors } from "./anchors.mjs";
-import { renderImageFigures } from "./content-images.mjs";
-import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
-import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
+import { checkImages, renderImageFigures } from "./content-images.mjs";
+import { assetPathnameKey, pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import {
+    buildSiteIndex,
+    figureIndexKeys,
+    resolveCrossNoteFigures,
+    resolveInfoboxRef,
+    wikiContext,
+} from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
@@ -88,7 +94,8 @@ import { isNoteRecord, noteFile } from "./index-records.mjs";
 // The one statement of what an empty body means, shared with the index.
 import { isStubNote } from "./note-state.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
-import { ART_SLOTS, artPathname, assetAddressIndex } from "./art-fields.mjs";
+import { ART_SLOTS, artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
+import { embedRole } from "./content-embeds.mjs";
 import {
     HOMEPAGE_DESTINATION,
     checkHomepageCount,
@@ -699,6 +706,7 @@ export function renderSitePage(
         sqlTables,
         config,
         artIndex,
+        figuresByAddress = new Map(),
     },
 ) {
     const tableErrors = [];
@@ -709,6 +717,7 @@ export function renderSitePage(
     const footnoteErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
+    const embedErrors = [];
     const resolved = [];
     const src = page.relPath ?? page.base;
     const ctx = wikiContext(index, {
@@ -745,10 +754,36 @@ export function renderSitePage(
         return src;
     };
     const artSrc = (value, type, accepts) => artPathname(artIndex, value, type, accepts).pathname;
+    // The role lookup a `:::figure` fence's `map` counter reaches through —
+    // see `engine/content-figures.mjs`'s `resolveRole`. Addressed form, for
+    // the page's own scan below, which runs before an embed is rewritten into
+    // an ordinary image; `roleByWebSrc` is the same lookup keyed by the web
+    // address each picture that reaches `renderImageFigures` resolves to,
+    // recorded as it is resolved rather than built across the whole corpus —
+    // `webSrc` itself reports an image's own problems as a side effect, which
+    // a speculative call over every asset would misfire for one this page
+    // never names.
+    const resolveRole = (address) => embedRole(artIndex, address);
+    const pathRoles = pathnameRoles(artIndex);
+    const roleByWebSrc = new Map();
+    const webSrcWithRole = (src) => {
+        const result = webSrc(src);
+        const role = pathRoles.get(src);
+        if (role) roleByWebSrc.set(result, role);
+        return result;
+    };
+    // The picture's role and pixel size, by the address it resolved to — read
+    // before `webSrc` translates it to the page's own host. A body image is
+    // free to write the bare, own-package form, so the address is normalized
+    // to the pathname the asset index keys by first.
+    const lookupAsset = (src) => {
+        const key = assetPathnameKey(src, config);
+        return key ? artIndex?.byPath?.get(key) : undefined;
+    };
     const resolve = (text) => {
         let transformed = pass.beforeLinks ? pass.beforeLinks(text, page) : text;
         transformed = resolveWebWikilinks(transformed, ctx);
-        return renderImageFigures(transformed, webSrc);
+        return renderImageFigures(transformed, webSrcWithRole, lookupAsset);
     };
 
     const { markdown, errors, lineMap } = expandContentTables(page.body, {
@@ -760,14 +795,13 @@ export function renderSitePage(
         self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
     });
     tableErrors.push(...errors);
-    const figureScan = scanFigures(markdown);
+    const figureScan = scanFigures(markdown, { resolveRole });
     ctx.captionLabels = new Map(
         figureScan.figures.filter((figure) => figure.id).map((figure) => [figure.id, figure.label]),
     );
     // What the `ref` expression helper needs beyond the label: the caption
     // text and whether one was authored, by the same id `ctx.captionLabels`
-    // keys on. Only this page's own figures — a cross-note `ref` is reported
-    // unresolved rather than looked up.
+    // keys on.
     const figuresById = new Map(
         figureScan.figures
             .filter((figure) => figure.id)
@@ -785,12 +819,28 @@ export function renderSitePage(
         file: page.file,
         bodyLine: page.bodyLine,
         sqlResults: sqlTables?.inline?.get(page.file),
-        figures: figuresById,
+        figures: {
+            get: (id) => figuresById.get(id),
+            // A cross-note `ref` resolves the written address exactly as a
+            // wikilink does, against every page's figures scanned before any
+            // page's expressions render — see `renderPages`.
+            note: (target) =>
+                resolveCrossNoteFigures(target, {
+                    contentTypes: index.contentTypes,
+                    packages: index.packages,
+                    noIndexPackages: index.noIndexPackages,
+                    contentPackage: index.contentPackage,
+                    siteIndexMap: index.index,
+                    figuresByAddress,
+                }),
+        },
     });
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
     const blocks = renderBlocks(protectCode(expressions.markdown, resolve), "web");
-    const figured = renderFigureBlocks(blocks.markdown);
+    const figured = renderFigureBlocks(blocks.markdown, undefined, undefined, {
+        resolveRole: (address) => roleByWebSrc.get(address),
+    });
     for (const error of figureScan.errors)
         captionErrors.push({
             file: page.file,
@@ -816,6 +866,12 @@ export function renderSitePage(
             column: error.column,
             message: error.message,
         });
+    // An image sharing its paragraph with other text, or an address or title
+    // the lint already refuses — asked here too, so a site build run on its
+    // own fails on the same input `renderImageFigures` otherwise renders as
+    // though the directive were absent.
+    for (const error of checkImages(page.body, page.file, { bodyLine: page.bodyLine ?? 1 }))
+        embedErrors.push(error);
     return {
         page,
         // The disclosure is written last, over the Markdown the page ships: the
@@ -832,6 +888,7 @@ export function renderSitePage(
         footnoteErrors,
         wikiErrors,
         imageErrors,
+        embedErrors,
     };
 }
 
@@ -870,7 +927,7 @@ export function renderSitePage(
  *   it by wikilink, and its own markdown links name content pages. `maps` is
  *   each drawing by the URL of the page that carries it.
  * @returns {{written: number, byKind: Record<string, number>, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[],
+ *   wikiErrors: object[], imageErrors: object[], embedErrors: object[],
  *   related: Map<string, import("./related-pages.mjs").Related>,
  *   maps: number}} `related`
  *   is keyed by page URL, and holds the homepage's block beside every content
@@ -903,6 +960,38 @@ export function renderPages(pages, options) {
         types: index?.contentTypes ?? [],
     });
 
+    // Every page's own figures, by the address a `ref` crossing into it would
+    // write — scanned once, before any page's own expressions render, so a
+    // page citing another's figure finds it already numbered. Numbering stays
+    // per page: each `scanFigures` call here starts its own counters, exactly
+    // as the page's own render does, so the number a cross-note `ref` reports
+    // is the one the target's own page carries.
+    const figuresByAddress = new Map();
+    for (const page of pages) {
+        const shortcode = page.fm.shortcode;
+        if (typeof shortcode !== "string" || !shortcode) continue;
+        const src = page.relPath ?? page.base;
+        const { markdown } = expandContentTables(page.body, {
+            docs: universe.get(page.pkg) ?? [],
+            linkable,
+            source: src,
+            sqlTables: sqlTables?.get(page.file),
+            pageLists: sqlTables?.pageLists?.get(page.file),
+            self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
+        });
+        const byId = new Map(
+            scanFigures(markdown)
+                .figures.filter((figure) => figure.id)
+                .map((figure) => [
+                    figure.id,
+                    { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+                ]),
+        );
+        const type = String(page.fm.type ?? "").toLowerCase();
+        for (const key of figureIndexKeys(page.pkg, type, shortcode))
+            figuresByAddress.set(key, byId);
+    }
+
     const tableErrors = [];
     const expressionErrors = [];
     const secretErrors = [];
@@ -911,6 +1000,7 @@ export function renderPages(pages, options) {
     const footnoteErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
+    const embedErrors = [];
     const byKind = {};
     // The link graph, as `(source URL, target URL)` — read off each page's
     // resolution below, and off the homepage's markdown links.
@@ -947,6 +1037,7 @@ export function renderPages(pages, options) {
             sqlTables,
             config,
             artIndex,
+            figuresByAddress,
         });
         tableErrors.push(...result.tableErrors);
         expressionErrors.push(...result.expressionErrors);
@@ -956,6 +1047,7 @@ export function renderPages(pages, options) {
         footnoteErrors.push(...result.footnoteErrors);
         wikiErrors.push(...result.wikiErrors);
         imageErrors.push(...result.imageErrors);
+        embedErrors.push(...result.embedErrors);
         rendered.push({ page, body: result.body, data: result.data });
         for (const hit of result.resolved) if (hit.url) edges.push([page.url, hit.url]);
     }
@@ -1001,6 +1093,7 @@ export function renderPages(pages, options) {
         footnoteErrors,
         wikiErrors,
         imageErrors,
+        embedErrors,
         related,
         maps: withMap,
         ...(capture ? { ...(outputs ? { outputs } : {}), edges, entries } : {}),
@@ -1051,6 +1144,7 @@ export function sitePageDecorator(config, index) {
             resolve: (ref, hint) => resolveInfoboxRef(index, ref, hint),
             router,
             dates: index.dateContext,
+            contentPackage: index.contentPackage,
         });
     };
 }
@@ -1072,7 +1166,8 @@ export function sitePageDecorator(config, index) {
  *   `sql` directive with none prepared is a table error: nothing here runs a
  *   query.
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[], mapFindings: object[],
+ *   wikiErrors: object[], imageErrors: object[], embedErrors: object[],
+ *   mapFindings: object[],
  *   manifests: object|null}} `mapFindings` is what drawing the maps found —
  *   warnings, never a reason to fail the build.
  */
@@ -1171,6 +1266,7 @@ export function buildSite({ config, sqlTables } = {}) {
             footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            embedErrors: [],
             mapFindings: [],
             stats: null,
         };
@@ -1195,6 +1291,7 @@ export function buildSite({ config, sqlTables } = {}) {
             footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            embedErrors: [],
             mapFindings: [],
             stats: {
                 homepages: writeHomepages(homeRoot, homepages, resolved),
@@ -1245,6 +1342,7 @@ export function buildSite({ config, sqlTables } = {}) {
             footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            embedErrors: [],
             mapFindings: [],
         };
     }
@@ -1305,6 +1403,7 @@ export function buildSite({ config, sqlTables } = {}) {
         footnoteErrors: rendered.footnoteErrors,
         wikiErrors: rendered.wikiErrors,
         imageErrors: rendered.imageErrors,
+        embedErrors: rendered.embedErrors,
         mapFindings: drawn.findings,
         stats: {
             ...rendered.byKind,

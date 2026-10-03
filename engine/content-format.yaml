@@ -242,7 +242,7 @@ types:
             - namedDays
             - eras
             - formats
-            - event
+            - events
         subTypes:
             - cosmology
             - deity

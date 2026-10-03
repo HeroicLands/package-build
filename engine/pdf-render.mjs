@@ -67,7 +67,14 @@ import deflistPlugin from "markdown-it-deflist";
 
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
 import { iconPlugin, ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
-import { IMAGE_CLASSES, IMAGE_FLOATS, IMAGE_PATTERN, imagePlugin } from "./content-images.mjs";
+import {
+    IMAGE_CLASSES,
+    IMAGE_FLOATS,
+    IMAGE_PATTERN,
+    checkImages,
+    imagePlugin,
+} from "./content-images.mjs";
+import { bookImageWidthIn } from "./pdf-images.mjs";
 
 /** Requested print width for every named image size. */
 export const BOOK_IMAGE_WIDTHS = Object.freeze({
@@ -343,6 +350,13 @@ function reportUnrenderable(source, definitions, opts, original) {
     }
     for (const error of scanFigures(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
+    // An image sharing its paragraph with other text, or an address or title
+    // the website's own lint already refuses — asked here too, so the book
+    // fails on the same input rather than typesetting the directive as
+    // though it were absent. `checkImages` resolves `opts.bodyLine` and
+    // `opts.bodyColumn` itself.
+    for (const error of checkImages(source, opts.file ?? "", opts))
+        report({ line: error.line, column: error.column }, error.severity, error.message);
     for (const error of scanHeadingAttributes(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
     for (const error of withheldSections(source).errors)
@@ -408,6 +422,12 @@ function reportUnrenderable(source, definitions, opts, original) {
  *   the staged file's path, relative to the `.typ`. An address this does not
  *   carry has no file the compiler can open, so the figure prints its caption
  *   alone — see {@link renderImage}.
+ * @param {Map<string, {type: string, role?: string, width: number|"", height: number|""}>}
+ *   [opts.assets] - An image's address as authored → what
+ *   {@link module:engine/art-fields.assetImageInfoByPathname} records for it,
+ *   which is what sizes a picture carrying no named `size=` — see
+ *   {@link module:engine/pdf-images.bookImageWidthIn}. An address missing from
+ *   this map draws at the medium's ordinary size, the same as today.
  * @param {number} [opts.headingOffset] - Added to every heading level, so a
  *   note's own `##` nests beneath the entry heading the book gave it.
  * @param {string} [opts.anchorPrefix] - The entry's anchor, which namespaces
@@ -440,6 +460,7 @@ export function markdownToTypst(markdown, opts = {}) {
         links = new Map(),
         glyphs = new Map(),
         images = new Map(),
+        assets = new Map(),
         headingOffset = 0,
         anchorPrefix = "",
     } = opts;
@@ -466,6 +487,7 @@ export function markdownToTypst(markdown, opts = {}) {
         links,
         glyphs,
         images,
+        assets,
         headingOffset,
         anchorPrefix,
         url: opts.url,
@@ -544,7 +566,7 @@ export function markdownToTypst(markdown, opts = {}) {
         }
     }
     const lines = source.split("\n");
-    const localFigures = scanFigures(source).figures;
+    const localFigures = scanFigures(source, { resolveRole: opts.resolveRole }).figures;
     // Numbered by the caller, which counts across the whole book, and placed by
     // the scan above, which is the only reading of *this* body. Paired by
     // position: two figures may share an id — a finding, and the book is built
@@ -575,13 +597,13 @@ export function markdownToTypst(markdown, opts = {}) {
         // last — see the counter it decrements, set only for a `figure`-kind
         // fence, where more than one image can share the one caption.
         const captioned =
-            caption.kind === "figure" ?
+            caption.kind === "figure" || caption.kind === "map" ?
                 { ...caption, imagesRemaining: { n: countImages(block) } }
             :   caption;
         const segments = [
             renderMarkdownSegment(block, md, { ...ctx, caption: captioned }, definitions),
         ];
-        if (caption.kind !== "table" && caption.kind !== "figure") {
+        if (caption.kind !== "table" && caption.kind !== "figure" && caption.kind !== "map") {
             segments.push(
                 `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]]${typstAnchor(anchorPrefix, caption)}\n\n`,
             );
@@ -1256,6 +1278,16 @@ function renderLink(href, inner, ctx) {
 }
 
 /**
+ * A width in inches, as a Typst length literal.
+ *
+ * @param {number} inches - The width.
+ * @returns {string} A Typst length, rounded to a thousandth of an inch.
+ */
+function typstInches(inches) {
+    return `${Math.round(inches * 1000) / 1000}in`;
+}
+
+/**
  * One image, as the figure the book prints.
  *
  * ## The width class is the measure
@@ -1311,20 +1343,34 @@ function renderLink(href, inner, ctx) {
  * @returns {string} Typst markup.
  */
 function renderImage(token, ctx) {
-    const figureCaption = ctx.caption?.kind === "figure" ? ctx.caption : null;
+    const figureCaption =
+        ctx.caption?.kind === "figure" || ctx.caption?.kind === "map" ? ctx.caption : null;
     const remaining = figureCaption?.imagesRemaining;
     const isLastImage = !remaining || --remaining.n <= 0;
     const labelled = Boolean(figureCaption) && isLastImage;
     const captionText = labelled ? captionMarkup(figureCaption, ctx) : "";
     const caption = captionText ? `[${captionText}]` : "none";
     const anchor = labelled ? typstAnchor(ctx.anchorPrefix, figureCaption) : "";
-    const staged = ctx.images.get(token.attrGet?.("src") ?? "");
+    const src = token.attrGet?.("src") ?? "";
+    const staged = ctx.images.get(src);
     if (!staged)
         return captionText ?
                 `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic", fill: luma(45%))${caption}]${anchor}\n\n`
             :   "";
 
-    const size = BOOK_IMAGE_WIDTHS[token.meta?.size] ?? BOOK_IMAGE_WIDTHS.auto;
+    // A named `size=` is the author's own statement and wins outright. Left
+    // unstated — `auto`, written or implied — the picture's role or its icon
+    // type decides instead, and only a picture declaring neither falls back to
+    // the natural-pixel `auto` Typst resolves for itself.
+    const requestedSize = token.meta?.size;
+    const roleWidthIn =
+        requestedSize && requestedSize !== "auto" ?
+            undefined
+        :   bookImageWidthIn(ctx.assets?.get(src));
+    const size =
+        roleWidthIn !== undefined ?
+            typstInches(roleWidthIn)
+        :   (BOOK_IMAGE_WIDTHS[requestedSize] ?? BOOK_IMAGE_WIDTHS.auto);
     const figure = `#book-image("${escapeTypstString(staged)}", requested: ${size}, caption: ${caption})${anchor}`;
 
     const width = token.meta?.classes?.[0];

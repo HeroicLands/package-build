@@ -104,21 +104,24 @@
  *
  * A field's `name` is both its identity and the shared property it draws from,
  * and those coincide only while the two vocabularies agree about what the
- * spelling means. They do not always. An `affiliation` item's `system.title` is
- * the style of address an office carries — "Ajaw", "Warden"; a note's top-level
- * `title` is the note's own heading, which the site emitter publishes. Two
- * unrelated quantities, one spelling, and step 3 fed the first from the second.
+ * spelling means — or while the top-level vocabulary admits the spelling at
+ * all. They do not always. An `affiliation` item's `system.title` is the style
+ * of address an office carries — "Ajaw", "Warden"; a note's top-level `title`
+ * is refused outright by the closed top-level vocabulary, which has no `title`
+ * entry. Nothing relates them, and step 3 fed the first from the second anyway.
  *
  * It was not a harmless coincidence either, because step 3 answers **without**
  * applying `field.default` — only step 2 does — so an authored `title: null`
  * reached the field's coercion unguarded and shipped as the literal string
  * `"null"` in fifteen documents.
  *
- * So a field may declare `topLevelMeans`: what the top-level key of that name
- * means *instead*. Declaring it removes the whole shared level — step 3 and the
- * retiring 3b alike, since both read the note's top level and the objection is
- * to that level, not to a spelling — leaving the two positions that describe
- * the document rather than the note. It is deliberately
+ * So a field may declare `topLevelMeans`: why the note's top-level key of this
+ * name is not this field's source — declared wherever that key's spelling
+ * means something else at the note level, or the closed top-level vocabulary
+ * refuses it outright. Declaring it removes the whole shared level — step 3
+ * and the retiring 3b alike, since both read the note's top level and the
+ * objection is to that level, not to a spelling — leaving the two positions
+ * that describe the document rather than the note. It is deliberately
  * a per-field opt-out rather than a change to the order — step 3 is right
  * wherever the two levels state the same quantity, which is nearly everywhere —
  * and its value is the reason rather than a bare flag, so the collision is
@@ -362,8 +365,38 @@ export function blockProperty(fm, block, key, defaultValue = undefined) {
 }
 
 /**
- * A system override followed by a shared `data:` value. The top-level value
- * remains readable while content repositories move their authored fields.
+ * A system override followed by a shared `data:` value followed by the
+ * retiring top-level spelling `data:` gathered it off, reporting which one
+ * answered.
+ *
+ * {@link module:engine/field-spec.resolveFieldValue}'s counterpart for a
+ * universal `data:` key — `pack` and `packFolder`, declared for every note
+ * type rather than per type, so neither is a `FieldSpec` that resolver takes.
+ * The order is the same shape: a system's own override, then the shared
+ * `data:` position, then the bare top-level key a tree authored before
+ * `data:` existed. The top-level value stays readable while a tree still on
+ * it moves its authored fields.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {string} block - The system block key.
+ * @param {string} key - The shared property.
+ * @param {any} [defaultValue] - Returned when no position declares it.
+ * @returns {{value: any, from: FieldSource}} The value, and where it came
+ *   from.
+ */
+export function resolveDataProperty(fm, block, key, defaultValue = undefined) {
+    const declared = systemBlock(fm, block)?.[key];
+    if (declared !== undefined && declared !== null) return { value: declared, from: "block" };
+    const shared = isMapping(fm?.data) ? fm.data[key] : undefined;
+    if (shared !== undefined && shared !== null) return { value: shared, from: "shared" };
+    const legacy = isMapping(fm) ? fm[key] : undefined;
+    if (legacy !== undefined && legacy !== null) return { value: legacy, from: "topLevel" };
+    return { value: defaultValue, from: "default" };
+}
+
+/**
+ * {@link resolveDataProperty}'s value alone, for a caller that only compiles
+ * a document and has no use for which position answered.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {string} block - The system block key.
@@ -372,12 +405,7 @@ export function blockProperty(fm, block, key, defaultValue = undefined) {
  * @returns {any} The selected value.
  */
 export function blockDataProperty(fm, block, key, defaultValue = undefined) {
-    const declared = systemBlock(fm, block)?.[key];
-    if (declared !== undefined && declared !== null) return declared;
-    const shared = isMapping(fm?.data) ? fm.data[key] : undefined;
-    if (shared !== undefined && shared !== null) return shared;
-    const legacy = isMapping(fm) ? fm[key] : undefined;
-    return legacy === undefined || legacy === null ? defaultValue : legacy;
+    return resolveDataProperty(fm, block, key, defaultValue).value;
 }
 
 /**

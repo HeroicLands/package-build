@@ -422,6 +422,58 @@ describe("buildSite end to end", () => {
         }
     });
 
+    it("resolves a cross-note {{ref}}, as a link to the target's own page and number", () => {
+        const targetFile = note(
+            "Rules/Target.md",
+            "type: doc\nsubType: rules\nshortcode: target\nname:\n    full: Target",
+            [
+                ":::figure {#thorn}",
+                "```text",
+                "alpha",
+                "```",
+                "///",
+                "The great beast.",
+                ":::",
+            ].join("\n") + "\n",
+        );
+        const citingFile = note(
+            "Rules/Citing.md",
+            "type: doc\nsubType: rules\nshortcode: citing\nname:\n    full: Citing",
+            'See {{ref "doc-target#thorn"}}, in full as {{ref "doc-target#thorn" form="full"}}.\n',
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(result.expressionErrors).toEqual([]);
+            const page = fs.readFileSync(
+                path.join(root, "build/hugo/content/kb/doc-citing.md"),
+                "utf8",
+            );
+            expect(page).toContain("[Code 1](/demo/doc-target/#thorn)");
+            expect(page).toContain("[Code 1: The great beast.](/demo/doc-target/#thorn)");
+        } finally {
+            fs.rmSync(targetFile);
+            fs.rmSync(citingFile);
+        }
+    });
+
+    it("refuses a {{ref}} naming a note that does not exist", () => {
+        const file = note(
+            "Rules/NoSuchTarget.md",
+            "type: doc\nsubType: rules\nshortcode: nosuchtarget\nname:\n    full: No Such Target",
+            'See {{ref "doc-nowhere#thorn"}}.\n',
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(result.expressionErrors).toEqual([
+                expect.objectContaining({
+                    message: expect.stringContaining("names no note this build resolves"),
+                }),
+            ]);
+        } finally {
+            fs.rmSync(file);
+        }
+    });
+
     it("publishes secret passages as expandable prose and locates malformed fences", () => {
         const file = note(
             "Rules/Secrets.md",
@@ -446,6 +498,47 @@ describe("buildSite end to end", () => {
             expect(malformed.secretErrors).toEqual([
                 expect.objectContaining({ file, line: 11, column: 1 }),
             ]);
+        } finally {
+            fs.rmSync(file, { force: true });
+        }
+    });
+
+    it("refuses an inline image embed the lint already refuses", () => {
+        // `lintContentImages` reports this exact shape — an image sharing its
+        // paragraph with prose — so a site build run on its own must refuse
+        // it too, rather than publishing the directive as though it were
+        // absent.
+        const file = note(
+            "Rules/InlineImage.md",
+            "type: doc\nsubType: rules\nshortcode: inlineimage\nname:\n    full: Inline Image",
+            "A ranger. ![A ranger](ranger.webp) stands watch.\n",
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(result.embedErrors).toEqual([
+                expect.objectContaining({
+                    file,
+                    severity: "error",
+                    message: expect.stringContaining("shares its paragraph with other text"),
+                }),
+            ]);
+        } finally {
+            fs.rmSync(file, { force: true });
+        }
+    });
+
+    it("still publishes a picture that stands alone inside a `:::figure` fence", () => {
+        const file = note(
+            "Rules/FencedImage.md",
+            "type: doc\nsubType: rules\nshortcode: fencedimage\nname:\n    full: Fenced Image",
+            [":::figure", "![A ranger](ranger.webp)", "///", "A ranger.", ":::", ""].join("\n"),
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(result.embedErrors).toEqual([]);
+            expect(fs.existsSync(path.join(root, "build/hugo/content/kb/doc-fencedimage.md"))).toBe(
+                true,
+            );
         } finally {
             fs.rmSync(file, { force: true });
         }

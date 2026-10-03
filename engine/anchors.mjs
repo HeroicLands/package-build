@@ -43,10 +43,14 @@ import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
  * @param {number} [bodyLine] - The 1-based file line the body starts on, from
  *   `parseMarkdownFile`. Anchors are reported at their position in the **file**,
  *   so an editor can jump straight to one; passing nothing numbers from the body.
+ * @param {(address: string) => string|undefined} [resolveRole] - From a
+ *   picture's address to the role its asset declares, so a figure anchor's
+ *   `name` reads `Map 1` rather than `Figure 1` where it is due — see
+ *   {@link module:engine/content-figures.scanFigures}.
  * @returns {Array<{slug: string, name: string, level: number, line: number}>}
  *   In document order.
  */
-export function collectAnchors(body, bodyLine = 1) {
+export function collectAnchors(body, bodyLine = 1, resolveRole) {
     const anchors = [];
     let inCodeBlock = false;
     const lines = String(body ?? "").split("\n");
@@ -71,7 +75,7 @@ export function collectAnchors(body, bodyLine = 1) {
             line: bodyLine + i,
         });
     }
-    for (const figure of scanFigures(body).figures) {
+    for (const figure of scanFigures(body, { resolveRole }).figures) {
         if (!figure.id) continue;
         anchors.push({
             slug: figure.id,

@@ -352,7 +352,7 @@ order without changing the Markdown body.
 
 #### Dates and calendars
 
-A canonical date is `<year>[.<day>[:HHMMSS]]`. The day is one-based within the world's year. `720` covers the whole year; `720.136` covers that day; `720.136:143005` identifies one second. Negative years are valid. Prefix either form with `~` to express uncertainty beyond its written interval. `unknown` is allowed only in fields that accept an unknown occurrence.
+A canonical date is `<year>[.<day>[:HHMMSS]]`. The day is one-based within the world's year, bound against `data.year.days` on the world's `place` note. A tree whose notes declare no world year bounds no day: the value is read as written, however large. `720` covers the whole year; `720.136` covers that day; `720.136:143005` identifies one second. Negative years are valid. Prefix either form with `~` to express uncertainty beyond its written interval. `unknown` is allowed only in fields that accept an unknown occurrence.
 
 **Quote a canonical date that states a day.** `born: "667.130"` is read as written; unquoted, YAML parses the scalar as a number and a trailing zero on the day is gone before any date reader sees it, so `667.130` and `667.13` arrive as one value. A number-valued date is an error wherever appending a zero to its day would still name a day inside the world's year — the message names the file, the line and both readings — and is read as written where no such day exists, since `675.2810` is no day of a 365-day year. A bare year loses nothing and needs no quotes.
 
@@ -853,12 +853,12 @@ ships as the Foundry module `harn-ensemble`) writing `images/map.webp`:
 And for the same note writing `sohl/assets/icons/noun/shield.svg`, a file the
 system ships and this repository does not hold:
 
-| Surface     | Address                                                   |
-| ----------- | --------------------------------------------------------- |
-| **Foundry** | `systems/sohl/assets/icons/noun/shield.svg`               |
-| **Local**   | `assets/icons/noun/shield.svg`, in the `sohl` repository  |
-| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`  |
-| **Book**    | not carried — a build stages only what this package ships |
+| Surface     | Address                                                       |
+| ----------- | ------------------------------------------------------------- |
+| **Foundry** | `systems/sohl/assets/icons/noun/shield.svg`                   |
+| **Local**   | `assets/icons/noun/shield.svg`, in the `sohl` repository      |
+| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`      |
+| **Book**    | not carried, unless a declared replacement carries it instead |
 
 **The content package name and Foundry id are separate values.**
 `harnensemble` is what the content is called, what a note writes, and what the
@@ -883,6 +883,29 @@ then acts as a shortcode for the declared package and type. The related
 index enabled, an asset with no matching note is a located build error. See
 [asset bindings](../configuration.md#packagebuildstagedir-and-packagebuildassets)
 for the configuration and cache requirements.
+
+**A package declared as a replacement is carried into the book, from its
+fetched archive, when it answers the address; every other foreign package
+stays not carried.** A relationship declaring `assetReplacement: true` names a
+dependency whose asset tree answers this package's own addresses first — see
+[`relationships`](../configuration.md#relationships) — and the book is the one
+surface that otherwise refuses a foreign file outright, so it is the one
+surface this changes. A `thalorna` note embedding
+`![[thalornaaltart-none-icon-anvil|An anvil]]` names `thalornaaltart`'s own
+address, exactly as a note citing `sohl`'s shared bestiary art would; when
+`thalornaaltart` is declared with `assetReplacement: true` and its fetched
+archive carries `icon-anvil` under its own package, the book stages that file
+from the archive instead of printing the caption with no picture. A note
+citing a different package's own address this way — `sohl`'s bestiary art,
+say — stays refused exactly as the row above states, because `sohl` was never
+declared as a replacement: a package answers in place of another only when it
+opted in, never because its archive happens to carry a file at the same type
+and shortcode.
+
+A relationship declaring `assetReplacement: true` whose archive was never
+fetched is a configuration mistake, not an ordinary unresolved address: the
+book reports a located error naming the relationship and instructing
+`package-build deps fetch`, rather than printing a caption with no picture.
 
 **The host is configuration.** `site.assets` in `package-build.config.yaml` is
 the root the web form is joined onto, and a package-owned image on a page with
@@ -1754,6 +1777,62 @@ a warning, flags an asset whose pixel width falls short of what its role's
 largest print slot needs. Both exempt a vector asset, which carries no pixel
 dimensions and no aspect that survives being drawn at a nominal size.
 
+`role: map` also selects a `:::figure` fence's counter — see
+[figures and numbered references](../authoring/links-and-markup.md#figures-and-numbered-references).
+A fence whose picture draws an address with that role counts as `Map` rather
+than `Figure`, on every surface that numbers it, because the role is the one
+fact the fence's own markup cannot state.
+
+##### What a role draws at
+
+A role names what a picture is for; it says nothing about how large one
+draws. Deciding that is a medium's own job — the book owns a table mapping
+each role to a maximum, and a website's or a Foundry system's stylesheet owns
+the equivalent table for its own surface, keyed off the role class and the
+`width`/`height` attributes the emitted markup carries (blank for a vector).
+Changing a role's slot is one line in that table, not an edit to every note
+drawing one.
+
+**Every size is a maximum, never a target.** The drawn width is the smaller of
+the role's slot and what the file's own pixels support at the medium's print
+floor:
+
+> drawn width = min(the role's slot, natural pixels ÷ the print floor)
+
+A picture is never drawn larger than it was made: a 512px portrait stretched
+across the slot a `plate` fills is a soft rectangle that reads as broken. A
+vector carries no pixel count, so nothing narrows its role's slot; it always
+draws at the slot. An `icon` address takes the medium's nominal icon size
+whatever role it might otherwise have had — `role` never reaches one, since
+the asset record refuses it there.
+
+The book's table, and the print floor it reads from the same constant its page
+geometry is set against (300 dpi):
+
+| Role                        | The book's slot                   |
+| --------------------------- | --------------------------------- |
+| `portrait`, `emblem`        | half the page's text measure      |
+| `banner`, `plate`, `map`    | the full page's text measure      |
+| an `icon` address, any role | one inch, whatever the file holds |
+
+On this book's US Letter page the text measure is about 7.00in, so a
+`portrait` or an `emblem` draws at up to about 3.50in and a `banner`, a
+`plate` or a `map` draws at up to about 7.00in — still the smaller of that
+and what the file's pixels support.
+
+**A worked example.** A `portrait`-role file measuring 900×1350px, drawn with
+no named `size=`: at 300 dpi its pixels support 900 ÷ 300 = 3.00in, which is
+narrower than the role's 3.50in slot, so the book draws it at 3.00in. The same
+picture at 1200×1800px supports 4.00in, wider than the slot, so the book draws
+it at its 3.50in slot instead — the slot bounds it, exactly as a maximum
+should. Either way the emitted markup for the website and for a Foundry
+journal carries `note-image-role-portrait` as a class and `900`/`1350` (or
+`1200`/`1800`) as its `width`/`height` attributes, which is what a stylesheet
+on either surface sizes a `portrait` from.
+
+A named `size=` written beside the embed overrides a role's slot outright, the
+same as it always has — a role decides the size nothing else states.
+
 ##### Where provenance comes from
 
 A `provenance.yaml` states the provenance fields in the table above, and nothing
@@ -1783,6 +1862,37 @@ exists**: a key left out is not inherited from above, it is simply absent, so a
 record stating neither leaves every file it covers with no rights holder and no
 terms. Omitting one is a finding. `source`, `ai`, `notes` and `role` stay optional,
 because a blank is a truthful answer for each of them.
+
+##### A declared replacement resolves first
+
+A package may declare, on a `relationships.<kind>[]` entry, that a
+dependency's asset tree answers this package's own asset addresses ahead of
+its local record — `assetReplacement: true` in `package-build.config.yaml`.
+Once declared, an asset address resolves in this order:
+
+1. **Every declared replacement, in declaration order.** The package segment
+   of each relationship declaring `assetReplacement: true` is tried in the
+   order those relationships are written, and the first one carrying the
+   address wins.
+2. **Falling through to the package's own record** when no declared
+   replacement carries the address — the resolution this package already
+   performs with no `assetReplacement` declared at all.
+
+**This reaches asset types only.** A being, an item or a lore note is never
+replaced this way, whatever a relationship declares: the rule tests the
+address's type, not the relationship. A replacement answers only `icon`,
+`image` and `audio` addresses whose package segment is this package's own; an
+address naming any other type, or naming a different package, is untouched.
+
+**A replacement's own output address is never itself looked up against
+another replacement.** Resolving `thalornaaltart-none-image-thorn` never asks
+whether something replaces `thalornaaltart` — resolution is a single pass over
+the declared list, not a chain, which forecloses a cycle by construction.
+
+This is distinct from a `foreign` lookup, which serves a declared dependency's
+own content for an address this package's local index does not carry. A
+replacement is consulted **before** the local address; a foreign lookup only
+**after** it misses locally.
 
 #### A font is not an asset
 
@@ -3897,18 +4007,49 @@ the setting itself, rather than instructions or other apparatus for the GM.
   tournament is not a matter of time-reckoning at all — and from `culture`, which is a grouping
   of people rather than an occasion they attend.
 
-| `data` property | Values                                                                        | Description                                                  |
-| --------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `epoch`         | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1         |
-| `months`        | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year           |
-| `weekdays`      | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously |
-| `seasons`       | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                   |
-| `namedDays`     | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                     |
-| `eras`          | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year        |
-| `formats`       | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default           |
-| `event`         | map                                                                           | A dated occurrence and its chronology metadata               |
+| `data` property         | Values                                                                        | Description                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| `epoch`                 | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                |
+| `months`                | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                  |
+| `weekdays`              | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                        |
+| `seasons`               | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                          |
+| `namedDays`             | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                            |
+| `eras`                  | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                               |
+| `formats`               | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                  |
+| `events`                | `{ when, until?, recurs? }[]`                                                 | This note's dated occurrences, each with its own relationships and chronicle fields |
+| `events[].when`         | a date, or `"0.<day>"`                                                        | The occurrence's anchor and first instance — required                               |
+| `events[].until`        | a date                                                                        | Where the occurrence ran to, or where a recurring series stopped                    |
+| `events[].recurs`       | `{ every }` or `{ on }`                                                       | How further occurrences are found, absent for a one-time occurrence                 |
+| `events[].recurs.every` | whole number of years, 1 or more                                              | A period counted on the canonical axis from `when`                                  |
+| `events[].recurs.on`    | list of dates, strictly increasing, each later than `when`                    | Recorded occurrences beyond the first, in place of a period                         |
 
-`data.event` is available on every `lore` subType. It holds structured chronology metadata, including an event's kind, date, sources, and affected places. The shared format checks that it is a map; a content package can check its details. It does not appear as an infobox row.
+`data.events` is available on every `lore` subType. Each entry's `kind`, `depth`, `summary`, `sources`, `standing`, `accounts`, `who`, `where`, `unresolved`, `follows` and `names` hold its chronicle detail; their shapes belong to whatever design governs chronicle records, and this format only asks that they sit inside an entry. The shared format checks `when`, `until` and `recurs`; a content package can check the rest. `events` itself does not appear as an infobox row, but a recurring entry's computed next occurrence does.
+
+An entry reads by what it authors beside `when`:
+
+| authored                          | reads as                                        |
+| --------------------------------- | ----------------------------------------------- |
+| `when`                            | happened once                                   |
+| `when` + `until`                  | ran continuously from then to then              |
+| `when` + `recurs`                 | happened then and happens still                 |
+| `when` + `until` + `recurs.every` | happened then, again on the period, and stopped |
+
+`recurs.every` and `recurs.on` are exclusive — a period with named exceptions is written as an enumeration instead. `recurs` is refused beside `born` or `died`, and beside a `when` of year `0`. `until` is refused beside `recurs.on`, whose own last entry already bounds it.
+
+**The period advances the canonical year, never the era-relative year.** There is no year `0` in era-relative numbering — era year `-1` sits immediately before era year `1` — but canonical year `0` is an ordinary integer on the continuous axis `canonicalYear` builds, so a period of whole years steps on it with no special case at an epoch crossing. Precision and approximation carry through untouched: a year-precision anchor yields year-precision occurrences, an approximate anchor's occurrences are approximate too, and an anchor inside a short intercalary month recurs on that same day in every occurrence, with no special case for the month being short. Each occurrence selects its own era by testing its position against the anchor's calendar, so a later occurrence may print in a different era than its anchor, or print bare where no count was proclaimed for that year — neither is ever a finding, since nobody authored the occurrence.
+
+**Year `0` means any year.** An entry whose `when` states year `0` recurs on that day of every year — `when: "0.5"` is the fifth day of the year, in every year. The value must be quoted, for the reason every canonical date stating a day must be: an unquoted `<year>.<day>` reaches the check as a float, and a day's trailing zero is lost before a date is read. Beside a year-`0` entry, `recurs` is refused (the entry is already annual), `until` is allowed and bounds the series, and the entry carries no `canonicalYear`, era or `sort` — it cannot date its own note. A note's date is its first entry stating a real year.
+
+```yaml
+data:
+  events:
+    - when: 412.1
+      recurs: { every: 1 }
+    - when: "0.286"
+      until: 940.1
+```
+
+The first entry is an anniversary counted from canonical day `412.1`, recurring every year with no end. The second is an autumn rite — the two-hundred-eighty-sixth day of every year — that was kept until canonical year 940 and no longer is.
 
 #### Calendar note structure
 

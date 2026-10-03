@@ -823,6 +823,17 @@ describe("a `<year>.<day>` date written unquoted", () => {
         expect(date?.day).toBe(13);
     });
 
+    it("bounds no day at all where the world declares no year length", () => {
+        // `harn-ensemble` alone authors 2,507 unquoted dotted dates with no
+        // world year declared, so bounding a day here would refuse all of
+        // them over a check nothing could evaluate — the same reasoning the
+        // trailing-zero check above already follows. Day 1000 is read as
+        // written, exactly as day 13 is.
+        const { date, findings } = parse("677.1000", { field: "data.born" });
+        expect(findings).toEqual([]);
+        expect(date?.day).toBe(1000);
+    });
+
     it("locates the finding on the key the note wrote", () => {
         const raw = ["---", "type: being", "data:", "    born: 667.130", "---", ""].join("\n");
         const [finding] = parse(667.13, {

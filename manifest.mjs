@@ -48,6 +48,7 @@
  * @module
  */
 
+import { RELATIONSHIP_KEYS } from "./content-config.mjs";
 import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
@@ -390,33 +391,38 @@ export function packFolderFindings({ packFolders, packs = [] }) {
 }
 
 /**
- * Relationship keys that direct the **build**, rather than describe the
- * package.
+ * The relationship keys Foundry's own schema names.
  *
- * `relationships` is the one manifest block with a second reader.
- * `@heroiclands/package-build` consumes it too, and v1.8.0 added
- * `itemCatalog: true` as an opt-in on a declared dependency: it selects that
- * package's Item packs as a resolution
- * source for the actors pass. That is an instruction to the build, not a fact
- * about the shipped package — Foundry's relationship schema does not define
- * it, and someone reading a published manifest cannot tell a build directive
- * from a declaration about what the package needs.
- *
- * So the block is filtered rather than copied whole. The rule is the
- * distinction, not the name: a key listed here answers *how is this built?*,
- * and every key that survives answers *what does this package depend on?*.
- * `itemCatalog` is the first build-time key to land on a relationship and is
- * unlikely to be the last.
- *
- * A list is enough, and needs no prefix agreed between the two packages,
- * because the input is already closed: package-build normalises a relationship
- * to `id`, `type`, `manifest`, `compatibility` and its own build keys, and
- * rejects anything else at configuration time. A key that reaches here is one
- * the toolchain itself put there.
+ * `RelatedPackage` declares exactly these (`common/packages/base-package.mjs`),
+ * so a key outside them is one the build put there for itself.
  *
  * @type {readonly string[]}
  */
-export const BUILD_ONLY_RELATIONSHIP_KEYS = Object.freeze(["itemCatalog"]);
+export const FOUNDRY_RELATIONSHIP_KEYS = Object.freeze([
+    "id",
+    "type",
+    "manifest",
+    "compatibility",
+    "reason",
+]);
+
+/**
+ * The relationship keys the published manifest drops.
+ *
+ * Derived rather than listed: every key this package accepts on a relationship
+ * that Foundry's schema does not name is one the build reads for itself, so a
+ * key added to the configuration is dropped from the manifest without a second
+ * list being kept in step.
+ *
+ * The filter stays a denylist for the reason the pass-through below gives — a
+ * key Foundry adds later reaches the manifest unread rather than being stripped
+ * by an allowlist that has not heard of it.
+ *
+ * @type {readonly string[]}
+ */
+export const BUILD_ONLY_RELATIONSHIP_KEYS = Object.freeze(
+    RELATIONSHIP_KEYS.filter((key) => !FOUNDRY_RELATIONSHIP_KEYS.includes(key)),
+);
 
 /**
  * The `relationships` block as published — every declared dependency, with the

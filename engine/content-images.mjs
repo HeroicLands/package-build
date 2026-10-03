@@ -81,7 +81,9 @@ import path from "node:path";
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
 import { positionInBody } from "./diagnostics.mjs";
+import { FOOTNOTE_REFERENCE } from "./content-footnotes.mjs";
 import { foundryAddressProblem, pathnameProblem, servesFoundry } from "./pathnames.mjs";
+import { ASSET_ROLES } from "./asset-index.mjs";
 
 /**
  * The width classes an image may carry, and what each means to a renderer.
@@ -275,13 +277,27 @@ export function parseImageDirective(raw) {
 }
 
 /**
- * The classes a figure carries, from a parsed directive.
+ * The class a picture's role names, or `""` for no role or one outside the
+ * closed set — the same silent-degrade rule every other unrecognised value
+ * here gets, since a role this far downstream has already been validated or
+ * dropped by the asset record that carries it.
  *
- * @param {{classes?: string[], size?: string, float?: string}} [directive] - As parsed.
+ * @param {string} [role] - The role, from the resolved asset record.
+ * @returns {string} The class, or `""`.
+ */
+export function roleClass(role) {
+    return role && ASSET_ROLES.includes(role) ? `note-image-role-${role}` : "";
+}
+
+/**
+ * The classes a figure carries, from a parsed directive and its asset's role.
+ *
+ * @param {{classes?: string[], size?: string, float?: string, role?: string}} [directive] -
+ *   As parsed, plus the role the resolved asset record carries, if any.
  * @returns {string} A space-separated class list, always naming
  *   {@link IMAGE_FIGURE_CLASS} first.
  */
-export function figureClasses({ classes = [], size = "auto", float = "" } = {}) {
+export function figureClasses({ classes = [], size = "auto", float = "", role = "" } = {}) {
     const names = [IMAGE_FIGURE_CLASS];
     for (const name of classes) {
         const spec = IMAGE_CLASSES[/** @type {keyof typeof IMAGE_CLASSES} */ (name)];
@@ -290,6 +306,8 @@ export function figureClasses({ classes = [], size = "auto", float = "" } = {}) 
     if (size !== "auto" && IMAGE_SIZES.includes(size)) names.push(`note-image-size-${size}`);
     const position = IMAGE_FLOATS[/** @type {keyof typeof IMAGE_FLOATS} */ (float)];
     if (position) names.push(position.class);
+    const roleName = roleClass(role);
+    if (roleName) names.push(roleName);
     return names.join(" ");
 }
 
@@ -319,6 +337,15 @@ export function escapeHtml(text) {
  * label and authored caption around whatever this returns; the alt text stays
  * on the `img` element alone.
  *
+ * **The role class and the `width`/`height` attributes are what a stylesheet
+ * elsewhere keys a role's size on.** This module states none — the measure a
+ * `portrait` fills on a page is a Hugo theme's or a Foundry system's own
+ * decision — and emits only what the resolved asset record states: a role
+ * class when the picture declares one, and the attributes whenever the
+ * picture resolved to an asset record at all, blank for a vector. The
+ * attributes reserve the picture's own layout space before it loads, which is
+ * what lets a page avoid reflowing as pictures load in.
+ *
  * @param {object} image - The image.
  * @param {string} image.src - The address, resolved for the surface.
  * @param {string} [image.alt] - The alt text, for a reader who cannot see the
@@ -326,12 +353,31 @@ export function escapeHtml(text) {
  * @param {string[]} [image.classes] - Width classes, from the directive.
  * @param {string} [image.size] - Named display size, from the directive.
  * @param {string} [image.float] - The float position, from the directive.
+ * @param {string} [image.role] - The picture's declared role, from the
+ *   resolved asset record.
+ * @param {number|""} [image.width] - The file's own pixel width, from the
+ *   resolved asset record; `""` for a vector. Omitted entirely when the
+ *   address resolved to no asset record at all.
+ * @param {number|""} [image.height] - As `width`.
  * @returns {string} The figure, as one HTML block.
  */
-export function imageFigureHtml({ src, alt = "", classes = [], size = "auto", float = "" }) {
+export function imageFigureHtml({
+    src,
+    alt = "",
+    classes = [],
+    size = "auto",
+    float = "",
+    role = "",
+    width,
+    height,
+}) {
+    const dims =
+        width !== undefined && height !== undefined ?
+            ` width="${escapeHtml(String(width))}" height="${escapeHtml(String(height))}"`
+        :   "";
     return (
-        `<figure class="${figureClasses({ classes, size, float })}">\n` +
-        `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">\n` +
+        `<figure class="${figureClasses({ classes, size, float, role })}">\n` +
+        `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${dims}>\n` +
         `</figure>`
     );
 }
@@ -348,6 +394,12 @@ export function imageFigureHtml({ src, alt = "", classes = [], size = "auto", fl
 const DELIMITER = /^(?::{3,}[^\n]*|\/{3,}[ \t]*)$/;
 
 /**
+ * A footnote reference immediately trailing a match, anchored so it only
+ * consumes one sitting right against the end of it.
+ */
+const TRAILING_FOOTNOTE_REFERENCE = new RegExp(`^${FOOTNOTE_REFERENCE.source}`);
+
+/**
  * Whether a match sits alone in its own paragraph.
  *
  * "Alone" is the whole of a block: nothing else on its line, and a blank line,
@@ -355,6 +407,11 @@ const DELIMITER = /^(?::{3,}[^\n]*|\/{3,}[ \t]*)$/;
  * leading `>` or list marker disqualifies it for the same reason a word does —
  * the paragraph it belongs to holds something the figure would have to be
  * lifted out of.
+ *
+ * **A footnote reference trailing the match is not "other text."** `[^note]`
+ * annotates the picture rather than sitting beside it in prose, the same
+ * standing its own directive already has, so `![A ranger](r.webp)[^note]` is
+ * still alone.
  *
  * @param {string} text - The body the match indexes into.
  * @param {number} start - Where the match begins.
@@ -368,7 +425,10 @@ export function standsAlone(text, start, end) {
     // makes it an indented code block, which `matchAllOutsideCode` skips.
     if (!/^[ \t]*$/.test(src.slice(lineStart, start))) return false;
     const lineEnd = src.indexOf("\n", end);
-    if (!/^[ \t]*$/.test(src.slice(end, lineEnd === -1 ? src.length : lineEnd))) return false;
+    const afterMatch = src.slice(end, lineEnd === -1 ? src.length : lineEnd);
+    const reference = TRAILING_FOOTNOTE_REFERENCE.exec(afterMatch);
+    if (!/^[ \t]*$/.test(reference ? afterMatch.slice(reference[0].length) : afterMatch))
+        return false;
 
     const before = src.slice(0, lineStart);
     const previous = before.replace(/\n$/, "").split("\n").pop() ?? "";
@@ -435,6 +495,9 @@ export function imageSourcesIn(body) {
  * @param {object} [opts]
  * @param {number} [opts.bodyLine=1] - The 1-based file line the body starts on.
  * @param {number} [opts.bodyColumn=1] - The 1-based file column it starts at.
+ * @param {Array<{line: number, generated: boolean}>} [opts.lineMap] - From
+ *   table expansion, mapping each line of `body` back to the line an author
+ *   wrote, for a caller handing in a body whose tables already expanded.
  * @param {object} [opts.config] - The resolved build configuration. Supplied,
  *   an address is also held to the one surface a pathname can be dead on
  *   without any other pass noticing — see the Foundry address below. Omitted,
@@ -444,7 +507,7 @@ export function imageSourcesIn(body) {
  *   severity: "error", message: string}>} One finding per defect, in source
  *   order.
  */
-export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, config } = {}) {
+export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, lineMap, config } = {}) {
     const text = String(body ?? "");
     if (!text) return [];
 
@@ -455,7 +518,7 @@ export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, config }
      * @param {string} message - What is wrong.
      */
     const report = (offset, message) => {
-        const { line, column } = positionInBody(text, offset, { bodyLine, bodyColumn });
+        const { line, column } = positionInBody(text, offset, { bodyLine, bodyColumn, lineMap });
         findings.push({ file, line, column, severity: /** @type {"error"} */ ("error"), message });
     };
 
@@ -608,9 +671,13 @@ export function lintContentImages(contentBase, { skipDirectories = [], config } 
  * @param {(src: string) => string} [resolveSrc] - Translates an authored
  *   pathname into the address this surface serves. The default is the identity,
  *   for a caller rendering the format rather than publishing it.
+ * @param {(src: string) => {type?: string, role?: string, width?: number|"", height?: number|""}|undefined}
+ *   [lookupAsset] - What the resolved asset record says about the address, as
+ *   authored — before `resolveSrc` translates it. The default answers nothing,
+ *   which is what an address resolving to no asset record gets anyway.
  * @returns {string} The same body, with each block image as a `<figure>`.
  */
-export function renderImageFigures(body, resolveSrc = (src) => src) {
+export function renderImageFigures(body, resolveSrc = (src) => src, lookupAsset = () => undefined) {
     const text = String(body ?? "");
     let out = "";
     let last = 0;
@@ -619,12 +686,16 @@ export function renderImageFigures(body, resolveSrc = (src) => src) {
         const { classes, size, float, problems } = parseImageDirective(image.directive);
         if (problems.length) continue;
         out += text.slice(last, image.index);
+        const asset = lookupAsset(image.src);
         out += imageFigureHtml({
             src: resolveSrc(image.src),
             alt: image.alt,
             classes,
             size,
             float,
+            role: asset?.role,
+            width: asset?.width,
+            height: asset?.height,
         });
         last = image.index + image.length;
     }
@@ -653,9 +724,13 @@ export function renderImageFigures(body, resolveSrc = (src) => src) {
  *   address into the one this surface serves. Foundry is handed the path inside
  *   the install; a renderer that resolves the address itself — the book stages
  *   its own copy — passes nothing and gets the address as authored.
+ * @param {(src: string) => {type?: string, role?: string, width?: number|"", height?: number|""}|undefined}
+ *   [lookupAsset] - What the resolved asset record says about the address, as
+ *   authored — before `resolveSrc` runs. The default answers nothing, which is
+ *   what an address resolving to no asset record gets anyway.
  * @returns {(md: object) => void} A markdown-it plugin.
  */
-export function imagePlugin(resolveSrc = (src) => src) {
+export function imagePlugin(resolveSrc = (src) => src, lookupAsset = () => undefined) {
     return (md) => {
         /** @type {any} */ (md).core.ruler.push("heroiclands_image", (state) => {
             attachImageDirectives(state.tokens);
@@ -670,12 +745,17 @@ export function imagePlugin(resolveSrc = (src) => src) {
         ) => {
             const token = tokens[idx];
             if (!token.meta?.block) return base(tokens, idx, options, env, self);
+            const src = token.attrGet("src") ?? "";
+            const asset = lookupAsset(src);
             return `${imageFigureHtml({
-                src: resolveSrc(token.attrGet("src") ?? ""),
+                src: resolveSrc(src),
                 alt: token.content ?? "",
                 classes: token.meta.classes,
                 size: token.meta.size,
                 float: token.meta.float,
+                role: asset?.role,
+                width: asset?.width,
+                height: asset?.height,
             })}\n`;
         };
     };

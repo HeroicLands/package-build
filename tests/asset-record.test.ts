@@ -36,6 +36,8 @@ import {
     collectAssetRecords,
 } from "../engine/asset-index.mjs";
 import { ASSET_TYPES } from "../engine/asset-types.mjs";
+import { assetImageInfoByPathname } from "../engine/art-fields.mjs";
+import { ASSETS_SEGMENT } from "../engine/pathnames.mjs";
 
 const SPEC = fs.readFileSync(
     path.resolve(__dirname, "../docs/reference/format-details.md"),
@@ -501,5 +503,47 @@ describe("`width` and `height` come from the walk, not from provenance", () => {
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
         expect(record.asset.width).toBe("");
         expect(record.asset.height).toBe("");
+    });
+});
+
+describe("a renderer sizes a picture by the pathname it resolved to", () => {
+    it("keys an image's role and pixels by the same pathname `readAssetAddress` resolves", () => {
+        const base = assetTree({
+            [`images/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "license: CC-BY-SA-4.0",
+                "role: portrait",
+            ].join("\n"),
+        });
+        fs.writeFileSync(path.join(base, "images", "thorn.png"), pngBytes(640, 480));
+        const records = collectAssetRecords(base, { contentPackage: "sohl" });
+        const info = assetImageInfoByPathname(records);
+        const key = `sohl/${ASSETS_SEGMENT}/images/thorn.png`;
+        expect(info.get(key)).toEqual({
+            type: "image",
+            role: "portrait",
+            width: 640,
+            height: 480,
+        });
+    });
+
+    it("carries a vector's blank width and height through rather than dropping them", () => {
+        const base = assetTree({
+            "icons/anvil.svg": "<svg/>",
+        });
+        const records = collectAssetRecords(base, { contentPackage: "sohl" });
+        const info = assetImageInfoByPathname(records);
+        const key = `sohl/${ASSETS_SEGMENT}/icons/anvil.svg`;
+        expect(info.get(key)).toEqual({ type: "icon", role: undefined, width: "", height: "" });
+    });
+
+    it("omits a role an asset never declared, rather than a blank one", () => {
+        const base = assetTree({
+            "images/map.webp": "webp",
+        });
+        const records = collectAssetRecords(base, { contentPackage: "sohl" });
+        const info = assetImageInfoByPathname(records);
+        const key = `sohl/${ASSETS_SEGMENT}/images/map.webp`;
+        expect(info.get(key)?.role).toBeUndefined();
     });
 });

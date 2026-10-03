@@ -107,6 +107,7 @@ import { STANDING_BODY_TYPES } from "./standing-terms.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
 import { checkRankLadder } from "./rank-ladder.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
+import { checkLoreEvents } from "./lore-events.mjs";
 import { checkCultureChoice } from "./culture-choice.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
@@ -1495,10 +1496,13 @@ export const NOTE_VOCABULARY = Object.freeze({
         data: Object.freeze([
             ...CALENDAR_FIELDS,
             {
-                name: "event",
-                kind: "map",
-                shape: "event metadata map",
-                describe: "A dated occurrence and its relationships to other events and places.",
+                name: "events",
+                kind: "list",
+                shape: "list of `{ when, until?, recurs? }`",
+                check: checkLoreEvents,
+                describe:
+                    "This note's dated occurrences — a founding once, an anniversary " +
+                    "that recurs, or a list of recorded happenings.",
             },
         ]),
     }),

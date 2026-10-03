@@ -70,6 +70,17 @@ import { positionOfYamlPath } from "./diagnostics.mjs";
 import { ASSET_SYSTEM, ASSET_TYPES, imageDimensions, isAssetShortcode } from "./asset-types.mjs";
 
 /**
+ * The closed set of roles a picture may declare.
+ *
+ * Shared with the field declaration below and with every medium that sizes a
+ * picture by its role, so the vocabulary cannot drift between the record that
+ * carries it and the renderer that reads it.
+ *
+ * @type {readonly string[]}
+ */
+export const ASSET_ROLES = Object.freeze(["portrait", "emblem", "banner", "plate", "map"]);
+
+/**
  * The file a directory records provenance for its subtree in.
  *
  * @type {string}
@@ -173,7 +184,7 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
         name: "role",
         from: "provenance",
         onlyType: "image",
-        values: Object.freeze(["portrait", "emblem", "banner", "plate", "map"]),
+        values: ASSET_ROLES,
         describe:
             "What the picture is for — portrait, emblem, banner, plate or map. " +
             "Absent for an ordinary picture, and refused outside that set. " +

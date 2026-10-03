@@ -66,10 +66,12 @@ import {
     renderAddress,
     isAddressTuple,
     ownDocumentSystem,
+    expandAddress,
 } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
+import { presentAmongRecords } from "./being-age.mjs";
 // The declared tag vocabulary, which is where `draft` is stated.
 import { isDraftNote } from "./note-vocabulary.mjs";
 
@@ -277,7 +279,12 @@ export function buildSiteIndex(
 
     return {
         contentPackage: ownPackage,
-        dateContext: reckoningContext({ notes: records }),
+        // Carried on the same context `resolvedDateFields` reads: a recurring
+        // event's `next` is computed against this present.
+        dateContext: {
+            ...reckoningContext({ notes: records }),
+            present: presentAmongRecords(records),
+        },
         referenceTargets: buildReferenceTargets(records, new Map([...foreignReferences, ...index])),
         index,
         ambiguous,
@@ -286,6 +293,70 @@ export function buildSiteIndex(
         noIndexPackages,
         refIndex,
     };
+}
+
+/**
+ * The address keys one page's figures are reachable by — the same two forms
+ * {@link buildSiteIndex} assigns the page itself, so a `ref` crossing into it
+ * resolves by exactly the address a wikilink would use.
+ *
+ * @param {string} pkg - The page's own content package.
+ * @param {string} type - The note's `type`.
+ * @param {string} shortcode - The note's `shortcode`.
+ * @returns {Set<string>} The short `type/shortcode` key and the canonical
+ *   `package-system-type-shortcode` one.
+ */
+export function figureIndexKeys(pkg, type, shortcode) {
+    const system = ownDocumentSystem(type);
+    const keys = new Set([
+        `${type}/${shortcode}`.toLowerCase(),
+        canonicalKey(pkg, system, type, shortcode),
+    ]);
+    if (system !== NOTE_SYSTEM) keys.add(canonicalKey(pkg, NOTE_SYSTEM, type, shortcode));
+    return keys;
+}
+
+/**
+ * Resolve a `ref` call's cross-note address to the target's own figures and
+ * its own address — the `figures.note` a `ref` helper's render context reads,
+ * built once and threaded into every page.
+ *
+ * Reads the written address exactly as a wikilink does
+ * ({@link readQualifier}, {@link expandAddress}), so a `ref` crossing into
+ * another note and a `[[…]]` link to the same note agree on what resolves and
+ * what does not: a target naming no known type or no fetched package's index
+ * is unresolved for both, and one address names one note for both.
+ *
+ * @param {string} target - The address as written, anchor already removed —
+ *   {@link module:engine/wikilink-syntax.ParsedWikilink.target}.
+ * @param {object} options
+ * @param {Set<string>} options.contentTypes - Every type this build reads as
+ *   an address qualifier.
+ * @param {Set<string>} options.packages - Every package an address may name.
+ * @param {Set<string>} options.noIndexPackages - Packages declared
+ *   `contentIndex: false`.
+ * @param {string} options.contentPackage - The package a target with no
+ *   package segment defaults to.
+ * @param {Map<string, {url: string}>} options.siteIndexMap - {@link SiteIndex}'s
+ *   own `index`, read for the target's existence and its URL.
+ * @param {Map<string, Map<string, object>>} options.figuresByAddress - Every
+ *   note's figures, by id, keyed as {@link figureIndexKeys} keys the note.
+ * @returns {{url: string, figures: Map<string, object>}|undefined} The
+ *   target's own address and figures, or `undefined` when the address names
+ *   no note this build resolves.
+ */
+export function resolveCrossNoteFigures(
+    target,
+    { contentTypes, packages, noIndexPackages, contentPackage, siteIndexMap, figuresByAddress },
+) {
+    const read = readQualifier(target, contentTypes, packages, noIndexPackages);
+    if (!read || read.reason) return undefined;
+    const key = expandAddress(read, { package: contentPackage, system: NOTE_SYSTEM });
+    const shortKey = `${read.itemDoc ? "doc" : ""}${read.type}/${read.shortcode}`.toLowerCase();
+    const entry = siteIndexMap.get(key) ?? siteIndexMap.get(shortKey);
+    if (!entry) return undefined;
+    const figures = figuresByAddress.get(key) ?? figuresByAddress.get(shortKey) ?? new Map();
+    return { url: entry.url, figures };
 }
 
 /**

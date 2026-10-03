@@ -131,7 +131,47 @@ export function assetAddressIndex(records = [], { config, foreign, types = [] } 
                 .filter(([key]) => key),
         ),
         foreign: foreign?.index ?? new Map(),
+        // Foreign first, local last: a renderer sizing a picture looks it up
+        // by the pathname the record resolved to, never by address, and a
+        // local record is entered after a foreign one so it wins the lookup on
+        // the collision neither should ever cause.
+        byPath: assetImageInfoByPathname([
+            ...(foreign?.index?.values() ?? []),
+            ...records.filter(isAssetRecord),
+        ]),
     };
+}
+
+/**
+ * What a renderer needs to size one picture, keyed by the pathname its
+ * address resolves to.
+ *
+ * An image reaches a renderer as the resolved pathname an embed or an authored
+ * body image already carries — see {@link readAssetAddress} — never as the
+ * address that produced it, so the lookup a renderer wants is by pathname, not
+ * by {@link assetAddressIndex}'s own `assets` map.
+ *
+ * @param {readonly object[]} records - Asset records, local or foreign.
+ * @returns {Map<string, {type: string, role?: string, width: number|"", height: number|""}>}
+ *   One entry per addressable file, carrying only what a renderer sizes a
+ *   picture from. `role` is omitted when the record states none; `width` and
+ *   `height` are always present, blank (`""`) for a vector — the record's own
+ *   convention, carried through rather than collapsed into an absence a
+ *   renderer could not tell apart from "no asset resolved at all".
+ */
+export function assetImageInfoByPathname(records = []) {
+    const map = new Map();
+    for (const record of records) {
+        if (!record?.asset?.path || !record.package) continue;
+        const key = `${record.package}/${ASSETS_SEGMENT}/${record.asset.path}`;
+        map.set(key, {
+            type: record.type,
+            role: record.asset.role || undefined,
+            width: typeof record.asset.width === "number" ? record.asset.width : "",
+            height: typeof record.asset.height === "number" ? record.asset.height : "",
+        });
+    }
+    return map;
 }
 
 /**
@@ -200,6 +240,34 @@ export function readAssetAddress(index, value, defaultType, accepts) {
  */
 export function resolveArtRecord(index, value, defaultType, accepts) {
     return readAssetAddress(index, value, defaultType, accepts).record;
+}
+
+/**
+ * Every asset's role, keyed by the pathname it resolves to — the form a body
+ * carries once an embed's address has been rewritten into the ordinary image
+ * every surface renders ({@link module:engine/content-embeds.resolveEmbeds}).
+ *
+ * This is the lookup a `:::figure` fence's `map` counter reaches through —
+ * see {@link module:engine/content-figures.scanFigures}'s `resolveRole` —
+ * for a caller that reads a body after that rewrite: a Foundry journal, an
+ * item or actor's documentation, and the book.
+ *
+ * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex},
+ *   or the equivalent the site and the book build.
+ * @returns {Map<string, string>} Pathname → role, one entry per asset that
+ *   declares one.
+ */
+export function pathnameRoles(index) {
+    const roles = new Map();
+    for (const record of [
+        ...(index?.assets?.values() ?? []),
+        ...(index?.foreign?.values() ?? []),
+    ]) {
+        const role = record?.asset?.role;
+        if (!role || !record.asset?.path || !record.package) continue;
+        roles.set(`${record.package}/${ASSETS_SEGMENT}/${record.asset.path}`, role);
+    }
+    return roles;
 }
 
 /**

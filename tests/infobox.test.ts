@@ -176,10 +176,25 @@ describe("the note box's fields are the type's own vocabulary", () => {
         const box = noteInfobox({
             type: "lore",
             name: { full: "The Founding" },
-            data: { event: { kind: "founding", when: { year: 1 } } },
+            data: { events: [{ when: "412.1" }] },
         });
         expect(box.sections[0].rows).toEqual([
             { label: "Name", kind: "text", value: "The Founding" },
+        ]);
+    });
+
+    it("shows a recurring event's next occurrence, and nothing else of the family", () => {
+        const box = noteInfobox(
+            {
+                type: "lore",
+                name: { full: "Founders' Day" },
+                data: { events: [{ when: "412.1", recurs: { every: 10 } }] },
+            },
+            { dates: { daysPerYear: 365, present: "707.1" } },
+        );
+        expect(box.sections[0].rows).toEqual([
+            { label: "Name", kind: "text", value: "Founders' Day" },
+            { label: "Next occurrence", kind: "text", value: "712.1" },
         ]);
     });
 
@@ -247,7 +262,7 @@ describe("the note box's fields are the type's own vocabulary", () => {
     it("carries every field the vocabulary declares, unless the overlay withholds it", () => {
         const missing: Record<string, string[]> = {};
         for (const type of Object.keys(NOTE_VOCABULARY)) {
-            const box = noteInfobox(fullyStated(type));
+            const box = noteInfobox(fullyStated(type), { contentPackage: "test" });
             const labels = new Set(box.sections[0].rows.map((row: { label: string }) => row.label));
             for (const field of NOTE_VOCABULARY[type].data) {
                 const overlay = overlayFor(NOTE_FIELD_PRESENTATION, type, field.name);

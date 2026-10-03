@@ -440,6 +440,27 @@ describe("what the book cannot set", () => {
         expect(findings[0].message).toContain("never closed");
     });
 
+    it("refuses an inline image embed the lint already refuses", () => {
+        // `lintContentImages` reports this exact shape — an image sharing its
+        // paragraph with prose — so the book must refuse it too, rather than
+        // typesetting the directive as though it were absent.
+        const { findings } = render("A ranger. ![A ranger](ranger.webp) stands watch.");
+        expect(findings).toEqual([
+            expect.objectContaining({
+                file: "note.md",
+                severity: "error",
+                message: expect.stringContaining("shares its paragraph with other text"),
+            }),
+        ]);
+    });
+
+    it("still typesets a picture that stands alone inside a `:::figure` fence", () => {
+        const { findings } = render(
+            [":::figure", "![A ranger](ranger.webp)", "///", "A ranger.", ":::"].join("\n"),
+        );
+        expect(findings).toEqual([]);
+    });
+
     it("reports a `:::` block a front-matter or prose file cannot have scanned for it", () => {
         // Nothing else reads these two: a note's body is scanned by the pass that
         // resolves its links, and a front-matter file is read by this one alone.

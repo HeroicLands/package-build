@@ -69,6 +69,14 @@ export function separateFootnotes(source) {
 const TOP_LEVEL_DEF = /^\[\^([^\]\s]+)\]:/;
 
 /**
+ * A footnote reference's shape, wherever it is written — excluding a
+ * definition's own `[^id]:` opener, which this never matches.
+ *
+ * @type {RegExp}
+ */
+export const FOOTNOTE_REFERENCE = /\[\^([^\]\s]+)\](?!:)/;
+
+/**
  * A list marker or a block quote marker, stripped as many times as it
  * repeats — a block quote can hold a list, and either can nest.
  */
@@ -154,7 +162,7 @@ export function unresolvedFootnoteReferences(source, definitions) {
     const resolved = new Set([...resolvedAgainst.matchAll(/\[\^([^\]\s]+)\]:/g)].map((m) => m[1]));
     const misplaced = new Set(misplacedFootnoteDefinitions(src).map((e) => e.label));
     const errors = [];
-    for (const match of matchAllOutsideCode(src, /\[\^([^\]\s]+)\](?!:)/g)) {
+    for (const match of matchAllOutsideCode(src, new RegExp(FOOTNOTE_REFERENCE.source, "g"))) {
         const label = match[1];
         if (resolved.has(label) || misplaced.has(label)) continue;
         errors.push({
@@ -186,7 +194,7 @@ export function unusedFootnoteDefinitions(source) {
     const src = String(source ?? "");
     const { definitions } = separateFootnotes(src);
     const referenced = new Set(
-        [...matchAllOutsideCode(src, /\[\^([^\]\s]+)\](?!:)/g)].map((m) => m[1]),
+        [...matchAllOutsideCode(src, new RegExp(FOOTNOTE_REFERENCE.source, "g"))].map((m) => m[1]),
     );
     const errors = [];
     for (const match of definitions.matchAll(/^\[\^([^\]\s]+)\]:/gm)) {

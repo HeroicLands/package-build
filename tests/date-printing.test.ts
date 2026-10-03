@@ -2,7 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 import { canonicalYear, eraYear } from "../engine/calendars.mjs";
-import { eraCovering, formatNoteDate, parseNoteDate } from "../engine/note-dates.mjs";
+import {
+    calendarEras,
+    eraCovering,
+    formatNoteDate,
+    occurrencesOf,
+    parseNoteDate,
+} from "../engine/note-dates.mjs";
 import { resolveReckoningMarkers } from "../engine/reckoning-markers.mjs";
 import { buildIndexRecord } from "../engine/content-index.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
@@ -342,5 +348,58 @@ describe("printable reckoning dates", () => {
                 message: expect.stringContaining("not calendar"),
             }),
         ]);
+    });
+});
+
+describe("a recurring event's occurrences, each selecting its own era", () => {
+    const context = { ...resolveReckoningMarkers(index, 365), daysPerYear: 365 };
+    // Derived from the fixture corpus at runtime, the way `resolvedDateFields`
+    // composes `occurrencesOf` with `calendarEras` and `eraCovering`: an era
+    // added to `latercal` and never exercised below fails this suite.
+    const latercalEras = calendarEras("latercal", context);
+
+    it("declares the three eras this suite exercises", () => {
+        expect(latercalEras.map((era) => era.era).sort()).toEqual(
+            ["latercal.before", "latercal.early", "latercal.later"].sort(),
+        );
+    });
+
+    it("selects a different era for an earlier and a later occurrence of the same series", () => {
+        const anchor = parseNoteDate("20 latercal.early", context).date;
+        const [early, stillEarly, later] = occurrencesOf(
+            anchor,
+            { every: 350 },
+            { from: 20, to: 720 },
+        );
+        expect([early, stillEarly, later].map((occ) => occ.canonicalYear)).toEqual([20, 370, 720]);
+
+        expect(formatNoteDate(early, eraCovering(early, latercalEras, 365), 365)?.text).toContain(
+            "ER",
+        );
+        expect(
+            formatNoteDate(stillEarly, eraCovering(stillEarly, latercalEras, 365), 365)?.text,
+        ).toContain("ER");
+        expect(formatNoteDate(later, eraCovering(later, latercalEras, 365), 365)?.text).toContain(
+            "LR",
+        );
+    });
+
+    it("selects the era that opens the axis for an anchor dated before it", () => {
+        const anchor = parseNoteDate("400 latercal.before", context).date;
+        const [occurrence] = occurrencesOf(anchor, { every: 1 }, { from: anchor.canonicalYear });
+        const era = eraCovering(occurrence, latercalEras, 365);
+        expect(era?.era).toBe("latercal.before");
+    });
+
+    it("prints bare rather than failing, where a generated occurrence outruns the eras it is checked against", () => {
+        // A generated occurrence is never a finding — not even one that
+        // outruns every era it is checked against, as this one does by
+        // construction: only `early` is offered, and the occurrence lies
+        // past where `early` ends.
+        const anchor = parseNoteDate("20 latercal.early", context).date;
+        const [farFuture] = occurrencesOf(anchor, { every: 350 }, { from: 720, to: 720 });
+        const early = latercalEras.find((era) => era.era === "latercal.early");
+        expect(eraCovering(farFuture, [early], 365)).toBeNull();
+        expect(formatNoteDate(farFuture, null, 365)?.prose).toBeNull();
     });
 });

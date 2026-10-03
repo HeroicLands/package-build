@@ -119,7 +119,12 @@ import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { readAliasedField } from "./retired-fields.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
-import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
+import {
+    formatDateInCalendar,
+    formatNoteDate,
+    parseNoteDate,
+    resolvedDateFields,
+} from "./note-dates.mjs";
 import { displayBeingHeight, displayBeingWeight } from "./being-measurements.mjs";
 import {
     officeAnchor,
@@ -290,7 +295,7 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     bgImage: Object.freeze({ withheld: "an image, which the box never carries" }),
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
-    "lore.event": Object.freeze({ withheld: "chronology machinery, not a summary row" }),
+    "lore.events": Object.freeze({ withheld: "chronology machinery, not a summary row" }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),
@@ -695,8 +700,15 @@ function rankRows(raw, resolve) {
     return rows;
 }
 
-/** Expand structured references using the existing linked-row shape. */
-function structuredRows(field, raw, resolve, label, fm) {
+/**
+ * Expand structured references using the existing linked-row shape.
+ *
+ * @param {string} [contentPackage] - This build's content package, the
+ *   default a short-form Address resolves against — the same value the site
+ *   build and the pack compiler read `contentPackage()` for. A row naming a
+ *   short Address with none handed to it skips rather than guesses.
+ */
+function structuredRows(field, raw, resolve, label, contentPackage) {
     if (field.standings) return standingRows(field, raw, resolve, label);
     if (field.roster) {
         const roster = rosterRows(raw);
@@ -739,7 +751,7 @@ function structuredRows(field, raw, resolve, label, fm) {
                 const address = parseAddress(
                     target,
                     {
-                        package: "local",
+                        package: contentPackage,
                         system: "note",
                         types: new Set(field.accepts),
                     },
@@ -832,6 +844,8 @@ export function linkValue(ref, resolve, hint) {
  * @param {object} [options] - Options.
  * @param {(ref: unknown) => object|undefined} [options.resolve] - Resolves a
  *   reference to `{name, url?, uuid?, address?}`.
+ * @param {string} [options.contentPackage] - This build's content package,
+ *   the default a relation row's short-form Address resolves against.
  * @param {object} [options.vocabulary] - The note vocabulary to read.
  * @param {object} [options.presentation] - The overlay to read.
  * @returns {object} The box.
@@ -857,7 +871,13 @@ export function noteInfobox(fm, options = {}) {
  */
 function noteBox(
     fm,
-    { resolve, dates, vocabulary = NOTE_VOCABULARY, presentation = NOTE_FIELD_PRESENTATION } = {},
+    {
+        resolve,
+        dates,
+        contentPackage,
+        vocabulary = NOTE_VOCABULARY,
+        presentation = NOTE_FIELD_PRESENTATION,
+    } = {},
 ) {
     const rows = [];
     /** @type {Set<string>} */
@@ -916,7 +936,7 @@ function noteBox(
             raw,
             resolve,
             overlay.label ?? humanizeFieldName(field.name),
-            fm,
+            contentPackage,
         );
         if (structured) {
             rows.push(...structured);
@@ -952,6 +972,22 @@ function noteBox(
         const { kind, value } = applyUnit(declaredKind, built, overlay.unit);
         rows.push({ label: overlay.label ?? humanizeFieldName(field.name), kind, value });
         shown.add(field.name);
+    }
+
+    // `events` itself stays withheld — the family's shape is chronology
+    // machinery, not a summary row — but a reader meets each occurrence's
+    // own next date, the way a being's computed `age` reaches the box.
+    if (fm?.type === "lore" && Array.isArray(data.events) && data.events.length && dates) {
+        const resolved = resolvedDateFields(fm, dates);
+        for (const eventEntry of resolved.events ?? []) {
+            if (!eventEntry.next) continue;
+            rows.push({
+                label: "Next occurrence",
+                kind: "text",
+                value: eventEntry.next.prose ?? eventEntry.next.text,
+            });
+            shown.add("events");
+        }
     }
 
     return {
@@ -1136,6 +1172,8 @@ export function systemRowsSection(
  *   Resolves one declared field against the note.
  * @param {(ref: unknown) => object|undefined} [options.resolve] - Resolves a
  *   reference to `{name, url?, uuid?, address?}`.
+ * @param {string} [options.contentPackage] - This build's content package,
+ *   the default a note box's short-form Address resolves against.
  * @param {object} [options.vocabulary] - The note vocabulary to read.
  * @returns {object[]} The boxes.
  */
@@ -1146,11 +1184,12 @@ export function buildInfoboxes(fm, options) {
         compilesDocument,
         resolveField,
         resolve,
+        contentPackage,
         vocabulary = NOTE_VOCABULARY,
         dates,
     } = options;
 
-    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary, dates });
+    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary, dates, contentPackage });
     const boxes = [note];
 
     for (const map of maps ?? []) {
