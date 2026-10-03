@@ -605,6 +605,22 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         // checks it.
         linkCtx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
         linkCtx.output = "book";
+        // What the `ref` expression helper needs beyond the label — the
+        // caption text and whether one was authored — keyed as
+        // `engine/site-build.mjs` keys its own, but built from this note's
+        // *book-wide* numbering rather than its page-local count: the book
+        // numbers each kind across the whole book in reading order, so a
+        // reference has to read the number the book gives the figure, not the
+        // number the note would give it alone. Cross-note references are not
+        // resolved here — only this page's own figures are offered.
+        const figuresById = new Map(
+            numberedFigures
+                .filter((figure) => figure.id)
+                .map((figure) => [
+                    figure.id,
+                    { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+                ]),
+        );
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
         // wikilink, and resolving it would make the example impossible to write.
@@ -614,6 +630,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             sqlResults: sqlTables?.inline?.get(page.file),
             file: page.file,
             bodyLine: page.bodyLine,
+            figures: figuresById,
         });
         findings.push(...expressions.findings);
         const resolvedBody = protectCode(expressions.markdown, (text) =>

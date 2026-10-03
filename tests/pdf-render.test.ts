@@ -241,6 +241,104 @@ describe("markdownToTypst", () => {
             { line: 9, column: 1, severity: "error", message: 'duplicate figure id "a"' },
         ]);
     });
+
+    it("labels a grouped figure once, with one Typst anchor, not once per image", () => {
+        // Two images sharing one `///` caption: the label describes the plate,
+        // not either picture, so it is drawn once. Drawing it per image would
+        // also emit the same Typst label twice, which is a compile error.
+        const out = markdownToTypst(
+            [
+                ":::figure {#plate}",
+                "![One](one.webp)",
+                "",
+                "![Two](two.webp)",
+                "///",
+                "Two portraits as one plate.",
+                ":::",
+            ].join("\n"),
+            { anchorPrefix: "chapter" },
+        );
+        expect(out.match(/Figure 1: Two portraits as one plate\./g)).toHaveLength(1);
+        expect(out.match(/<chapter--plate>/g)).toHaveLength(1);
+    });
+
+    it("draws a captionless figure's number alone, with no colon", () => {
+        const out = markdownToTypst([":::figure {#plain}", "![One](one.webp)", ":::"].join("\n"), {
+            anchorPrefix: "chapter",
+        });
+        expect(out).toContain("Figure 1");
+        expect(out).not.toContain("Figure 1:");
+    });
+
+    it("gives an idless figure no Typst anchor, and two of them do not collide", () => {
+        const out = markdownToTypst(
+            [
+                ":::figure",
+                "![One](one.webp)",
+                "///",
+                "First.",
+                ":::",
+                "",
+                ":::figure",
+                "![Two](two.webp)",
+                "///",
+                "Second.",
+                ":::",
+            ].join("\n"),
+            { anchorPrefix: "chapter" },
+        );
+        expect(out).toContain("Figure 1: First.");
+        expect(out).toContain("Figure 2: Second.");
+        expect(out).not.toMatch(/<chapter--[^>]*>/);
+    });
+
+    it("draws a `.border` figure inside a hairline box", () => {
+        const plain = markdownToTypst(
+            [":::figure {#a}", "Prose.", "///", "Caption.", ":::"].join("\n"),
+        );
+        const bordered = markdownToTypst(
+            [":::figure {#a .border}", "Prose.", "///", "Caption.", ":::"].join("\n"),
+        );
+        expect(bordered).not.toBe(plain);
+        expect(bordered).toContain("stroke:");
+        expect(bordered).toContain("Prose.");
+        expect(bordered).toContain("Prose 1: Caption.");
+    });
+
+    it("numbers each of the four kinds independently within one document", () => {
+        const out = markdownToTypst(
+            [
+                ":::figure {#a}",
+                "A boxed aside.",
+                ":::",
+                "",
+                ":::figure {#b}",
+                "```js",
+                "1",
+                "```",
+                ":::",
+                "",
+                ":::figure {#c}",
+                "| x |",
+                "| - |",
+                "| 1 |",
+                ":::",
+                "",
+                ":::figure {#d}",
+                "![One](one.webp)",
+                ":::",
+                "",
+                ":::figure {#e}",
+                "Another boxed aside.",
+                ":::",
+            ].join("\n"),
+        );
+        expect(out).toContain("Prose 1");
+        expect(out).toContain("Prose 2");
+        expect(out).toContain("Code 1");
+        expect(out).toContain("Table 1");
+        expect(out).toContain("Figure 1");
+    });
 });
 
 describe("a page link a reader of the book can follow", () => {

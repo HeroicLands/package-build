@@ -67,7 +67,7 @@ import deflistPlugin from "markdown-it-deflist";
 
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
 import { iconPlugin, ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
-import { IMAGE_CLASSES, IMAGE_FLOATS, imagePlugin } from "./content-images.mjs";
+import { IMAGE_CLASSES, IMAGE_FLOATS, IMAGE_PATTERN, imagePlugin } from "./content-images.mjs";
 
 /** Requested print width for every named image size. */
 export const BOOK_IMAGE_WIDTHS = Object.freeze({
@@ -570,12 +570,27 @@ export function markdownToTypst(markdown, opts = {}) {
             ),
         );
         const block = lines.slice(caption.bodyStart, caption.bodyEnd).join("\n");
-        out.push(renderMarkdownSegment(block, md, { ...ctx, caption }, definitions));
+        // A grouped figure's images are rendered through the same call that
+        // reads `ctx.caption`, so `renderImage` needs to know which one is
+        // last — see the counter it decrements, set only for a `figure`-kind
+        // fence, where more than one image can share the one caption.
+        const captioned =
+            caption.kind === "figure" ?
+                { ...caption, imagesRemaining: { n: countImages(block) } }
+            :   caption;
+        const segments = [
+            renderMarkdownSegment(block, md, { ...ctx, caption: captioned }, definitions),
+        ];
         if (caption.kind !== "table" && caption.kind !== "figure") {
-            out.push(
+            segments.push(
                 `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]]${typstAnchor(anchorPrefix, caption)}\n\n`,
             );
         }
+        out.push(
+            caption.classes.includes("border") ?
+                figureBorder(segments.join(""))
+            :   segments.join(""),
+        );
         cursor = caption.close + 1;
     }
     out.push(renderMarkdownSegment(lines.slice(cursor).join("\n"), md, ctx, definitions));
@@ -898,6 +913,36 @@ function inlineMarkup(text, ctx) {
 function captionMarkup(caption, ctx) {
     const label = escapeTypst(caption.label);
     return caption.hasCaption ? `${label}: ${inlineMarkup(caption.caption, ctx)}` : label;
+}
+
+/**
+ * How many markdown images a figure's contents carry.
+ *
+ * A grouped figure's `///` caption describes the whole plate, not any one
+ * picture in it, so {@link renderImage} needs to know which image is the
+ * last — the one that carries the group's single label and anchor — and this
+ * is the count it counts down from.
+ *
+ * @param {string} contents - The figure's captioned contents, as authored.
+ * @returns {number} How many images the contents hold.
+ */
+function countImages(contents) {
+    return (String(contents ?? "").match(IMAGE_PATTERN) ?? []).length;
+}
+
+/**
+ * `.border` draws the whole figure — its content and its label together —
+ * inside a hairline box. A thin stroke is print's equivalent of a border and
+ * padding on the web and in a Foundry journal: a figure already sits inside
+ * its own column or float, so the book's version of a border is the lightest
+ * mark that still reads as one rather than a second, heavier frame around a
+ * frame.
+ *
+ * @param {string} body - The figure's own rendered Typst, content and label.
+ * @returns {string} Typst markup.
+ */
+function figureBorder(body) {
+    return `\n#block(width: 100%, stroke: 0.4pt + luma(60%), inset: 8pt, above: 0.6em, below: 0.6em)[\n${body}\n]\n\n`;
 }
 
 /**
@@ -1248,20 +1293,34 @@ function renderLink(href, inner, ctx) {
  * page. An address the build could not stage prints its caption alone instead,
  * and the build reports the address it could not find.
  *
+ * ## A grouped figure's one label belongs to the last picture
+ *
+ * Only a figure-kind fence labels an image inline — a fence holding anything
+ * besides pictures is prose, and gets its label from the generic block-level
+ * print in {@link markdownToTypst} instead, the same as a code or a table
+ * fence. Within a figure-kind fence, `ctx.caption.imagesRemaining` counts down
+ * one picture at a time; the picture that brings it to zero is the last one in
+ * document order, and only that one carries the caption and the anchor. Every
+ * other picture in the group draws with no caption at all. Attaching the label
+ * to each of them would print the same text under every picture and emit the
+ * same Typst label more than once, which Typst refuses to compile.
+ *
  * @param {object} token - An `image` token.
  * @param {object} ctx - Render context.
  * @returns {string} Typst markup.
  */
 function renderImage(token, ctx) {
     const alt = token.content || token.attrGet?.("alt") || "";
-    // Only a figure-kind fence labels the image inline — a fence holding
-    // anything besides pictures is prose, and gets its label from the generic
-    // block-level print in {@link markdownToTypst} instead, the same as a code
-    // or a table fence. Reading it here regardless of kind prints it twice.
     const figureCaption = ctx.caption?.kind === "figure" ? ctx.caption : null;
-    const captionText = figureCaption ? captionMarkup(figureCaption, ctx) : escapeTypst(alt);
+    const remaining = figureCaption?.imagesRemaining;
+    const isLastImage = !remaining || --remaining.n <= 0;
+    const labelled = Boolean(figureCaption) && isLastImage;
+    const captionText =
+        labelled ? captionMarkup(figureCaption, ctx)
+        : figureCaption ? ""
+        : escapeTypst(alt);
     const caption = captionText ? `[${captionText}]` : "none";
-    const anchor = figureCaption ? typstAnchor(ctx.anchorPrefix, figureCaption) : "";
+    const anchor = labelled ? typstAnchor(ctx.anchorPrefix, figureCaption) : "";
     const staged = ctx.images.get(token.attrGet?.("src") ?? "");
     if (!staged)
         return captionText ?
