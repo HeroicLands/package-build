@@ -494,6 +494,13 @@ export function publishesContentPages(config) {
  *                                   `itemCatalog: true` on the same entry,
  *                                   since a catalogue is fetched from the same
  *                                   index.
+ * @property {boolean} [assetReplacement]  Whether this dependency's asset
+ *                                   tree answers this package's own asset
+ *                                   addresses ahead of its local record.
+ *                                   Default `false`. Refuses `contentIndex:
+ *                                   false` on the same entry, since a
+ *                                   replacement with no fetched index to
+ *                                   check against resolves nothing.
  */
 
 /**
@@ -779,6 +786,7 @@ const RELATIONSHIP_KEYS = [
     "compatibility",
     "itemCatalog",
     "contentIndex",
+    "assetReplacement",
 ];
 const AUTHOR_KEYS = ["name", "email", "url"];
 const ITEM_BUILDER_KEYS = ["system", "img", "fields"];
@@ -2221,6 +2229,26 @@ function normalizeRelationships(value) {
                         );
                     }
                     spec.contentIndex = rel.contentIndex;
+                }
+                // Opt-in: this dependency's asset tree answers this
+                // package's own asset addresses ahead of its local record —
+                // the "rewrite table" `engine/asset-replacement.mjs` reads.
+                // A replacement with no fetched index to check against
+                // resolves nothing, so it cannot pair with
+                // `contentIndex: false`.
+                if (rel.assetReplacement !== undefined) {
+                    if (typeof rel.assetReplacement !== "boolean") {
+                        fail(`${at}.assetReplacement`, "must be true or false");
+                    }
+                    if (rel.assetReplacement && rel.contentIndex === false) {
+                        fail(
+                            `${at}.assetReplacement`,
+                            "cannot be true together with `contentIndex: false` — a " +
+                                "replacement with no fetched index to check against resolves " +
+                                "nothing",
+                        );
+                    }
+                    spec.assetReplacement = rel.assetReplacement;
                 }
                 return Object.freeze(spec);
             }),

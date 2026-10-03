@@ -1784,6 +1784,37 @@ record stating neither leaves every file it covers with no rights holder and no
 terms. Omitting one is a finding. `source`, `ai`, `notes` and `role` stay optional,
 because a blank is a truthful answer for each of them.
 
+##### A declared replacement resolves first
+
+A package may declare, on a `relationships.<kind>[]` entry, that a
+dependency's asset tree answers this package's own asset addresses ahead of
+its local record — `assetReplacement: true` in `package-build.config.yaml`.
+Once declared, an asset address resolves in this order:
+
+1. **Every declared replacement, in declaration order.** The package segment
+   of each relationship declaring `assetReplacement: true` is tried in the
+   order those relationships are written, and the first one carrying the
+   address wins.
+2. **Falling through to the package's own record** when no declared
+   replacement carries the address — the resolution this package already
+   performs with no `assetReplacement` declared at all.
+
+**This reaches asset types only.** A being, an item or a lore note is never
+replaced this way, whatever a relationship declares: the rule tests the
+address's type, not the relationship. A replacement answers only `icon`,
+`image` and `audio` addresses whose package segment is this package's own; an
+address naming any other type, or naming a different package, is untouched.
+
+**A replacement's own output address is never itself looked up against
+another replacement.** Resolving `thalornaaltart-none-image-thorn` never asks
+whether something replaces `thalornaaltart` — resolution is a single pass over
+the declared list, not a chain, which forecloses a cycle by construction.
+
+This is distinct from a `foreign` lookup, which serves a declared dependency's
+own content for an address this package's local index does not carry. A
+replacement is consulted **before** the local address; a foreign lookup only
+**after** it misses locally.
+
 #### A font is not an asset
 
 `assets/fonts` is not a root, and a font has no address.
