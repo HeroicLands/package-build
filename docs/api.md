@@ -1589,9 +1589,11 @@ HM3's Item pass — the parts of compiling a note into an HM3 Item that are fact
 
 HM3's Actor pass — what an HM3 `character` or `creature` holds. A being note authors which HM3 subtype it becomes via `hm3.type` (never defaulted), and only four of the content format's `being` mapping-table rows have an HM3 destination (`portrait`, `species`, `gender`, `occupation`, `templatePriority`) plus the two anchored prose sections (`{#appearance}` → `description`, `{#dossier}` → `biography`); `gender` and `occupation` are written only on a `character`.
 
-| Export      | Signature         | Returns | Use it when                                                        |
-| ----------- | ----------------- | ------- | ------------------------------------------------------------------ |
-| `Hm3Actors` | `class Hm3Actors` | —       | not called directly — imported and driven by `engine/generate.mjs` |
+| Export             | Signature                | Returns | Use it when                                                                   |
+| ------------------ | ------------------------ | ------- | ----------------------------------------------------------------------------- |
+| `Hm3Actors`        | `class Hm3Actors`        | —       | not called directly — imported and driven by `engine/generate.mjs`            |
+| `ACTOR_FIELDS`     | `const ACTOR_FIELDS`     | —       | reading the fields native to every HM3 actor subtype                          |
+| `CHARACTER_FIELDS` | `const CHARACTER_FIELDS` | —       | reading the fields `hm3.actors` declares on `character` and not on `creature` |
 
 ### `hm3.templatePriority`
 
