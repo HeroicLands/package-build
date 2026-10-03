@@ -516,7 +516,7 @@ HeroicLands layout, resolved against `rootDir`:
 | `paths.packJson`        | `build/packs-json`       | Build-only per-entry JSON intermediate.                                                         |
 | `paths.stage`           | `build/stage/packs`      | Compiled LevelDB packs.                                                                         |
 | `paths.unpack`          | `build/tmp/packs`        | Where `unpack` extracts JSON back to.                                                           |
-| `paths.foreignCache`    | `build/cache/foreign`    | Where a dependency declaring `itemCatalog: true` is unpacked.                                   |
+| `paths.foreignCache`    | `build/cache/foreign`    | Where a dependency declaring `itemCatalog: true` or `assetArchive: true` is unpacked.           |
 | `paths.metadataCache`   | `build/cache/metadata`   | Where a dependency's published content index is fetched to, for every declared dependency.      |
 | `paths.navigationCache` | `build/cache/navigation` | Where the site navigation heroiclands.org publishes is fetched to, for the generated Hugo menu. |
 
@@ -1234,6 +1234,7 @@ Each entry, in any of the four lists:
 | `relationships.systems[].manifest`       | string                          | no       | none    |
 | `relationships.systems[].compatibility`  | object, `{minimum?, verified?}` | no       | none    |
 | `relationships.systems[].itemCatalog`    | boolean                         | no       | `false` |
+| `relationships.systems[].assetArchive`   | boolean                         | no       | `false` |
 | `relationships.systems[].contentIndex`   | boolean                         | no       | `true`  |
 
 (the same keys apply under `requires[]`, `recommends[]` and
@@ -1243,7 +1244,7 @@ Each entry, in any of the four lists:
 
 > ``package-build config: `relationships.<kind>[<index>].id` must be a non-empty string.``
 
-> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog, contentIndex).``
+> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog, assetArchive, contentIndex).``
 
 `contentPackage` names what the other package's _content_ is called, where
 that differs from its Foundry id. A note addresses a file by the content
@@ -1261,6 +1262,31 @@ item catalogue at build time. It requires a `manifest`:
 > ``package-build config: `relationships.<kind>[<index>].itemCatalog` must be true or false.``
 
 > ``package-build config: `relationships.<kind>[<index>].itemCatalog` needs a `manifest` naming the package to fetch.``
+
+`assetArchive` opts into unpacking the named package's release archive for
+its asset bytes alone — the sibling of `itemCatalog`, for a dependency whose
+bytes are wanted and whose items are not. It builds no item catalogue from
+the archive, which is what distinguishes it from `itemCatalog: true`. It
+requires a `manifest`:
+
+> ``package-build config: `relationships.<kind>[<index>].assetArchive` must be true or false.``
+
+> ``package-build config: `relationships.<kind>[<index>].assetArchive` needs a `manifest` naming the package to fetch.``
+
+A relationship with no items of its own to extract, such as an asset
+replacement module, declares only `assetArchive: true`:
+
+```yaml
+relationships:
+  requires:
+    - id: thalornaaltart
+      manifest: https://…/releases/latest/download/module.json
+      compatibility: { verified: "1.0.0" }
+      assetArchive: true
+```
+
+A relationship declaring both `itemCatalog: true` and `assetArchive: true` is
+fetched once: `deps fetch` does not download the archive twice for one entry.
 
 `contentIndex` and `itemCatalog` are the two edges a relationship may declare,
 and a package may have either without the other. `itemCatalog` says a

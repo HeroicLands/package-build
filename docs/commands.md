@@ -1455,15 +1455,17 @@ package-build deps fetch [--from <zip|dir>] [--id <id>]
 **DESCRIPTION**
 
 The only action is `fetch`, which fills three caches under `build/cache/`:
-the **content index** of every declared dependency, the **item catalogue**
-of those that additionally declare `itemCatalog: true`, and the **site
-navigation** — `https://www.heroiclands.org/nav.json`, the header menu
-every package site renders, fetched for every package because every package
-publishes a site. Its own command rather than a step of `package compile`
-or `site`, so neither reaches the network — a build that downloads silently
-is not reproducible and hides a dependency's version change behind a
-passing run. Each cache is stamped complete only once its fetch finishes,
-so a half-finished one reads as cold.
+the **content index** of every declared dependency, the **item catalogue or
+asset archive** of those that additionally declare `itemCatalog: true` or
+`assetArchive: true`, and the **site navigation** —
+`https://www.heroiclands.org/nav.json`, the header menu every package site
+renders, fetched for every package because every package publishes a site.
+A relationship declaring both `itemCatalog: true` and `assetArchive: true`
+is fetched once. Its own command rather than a step of `package compile` or
+`site`, so neither reaches the network — a build that downloads silently is
+not reproducible and hides a dependency's version change behind a passing
+run. Each cache is stamped complete only once its fetch finishes, so a
+half-finished one reads as cold.
 
 `lint`, `links`, `site`, `pdf`, `map`, `reachability`, and `package compile`
 check the declared dependencies' content-index cache before reading notes or
@@ -1501,7 +1503,7 @@ including when the repository declares no dependencies at all.
 ```
 $ package-build deps fetch
 […] Fetched the site navigation to build/cache/navigation/nav.json.
-[…] No relationship declares `itemCatalog: true`; nothing to fetch.
+[…] No relationship declares `itemCatalog: true` or `assetArchive: true`; nothing to fetch.
 […] This package declares no dependencies.
 
 $ package-build deps fetch --from build/dist/module.zip
