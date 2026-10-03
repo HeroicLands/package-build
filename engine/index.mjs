@@ -220,6 +220,9 @@ export * as contentHtml from "./content-html.mjs";
 /** An image saying how wide it is and where it sits, in two closed vocabularies. */
 export * as contentImages from "./content-images.mjs";
 
+/** A list item opened with `[ ]` or `[x]`, which every surface reads as text. */
+export * as contentTaskLists from "./content-tasklists.mjs";
+
 /** `![[…]]` — the wikilink that renders a picture where it stands. */
 export * as contentEmbeds from "./content-embeds.mjs";
 

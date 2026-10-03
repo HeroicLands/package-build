@@ -229,6 +229,12 @@ describe("everything the generator writes is a key `site.hugo` may not author", 
         ).toThrow(/`site\.hugo\.markup\.goldmark\.renderer\.unsafe` is derived from/);
     });
 
+    it("refuses `site.hugo.markup.goldmark.extensions.taskList`, naming the derivation", () => {
+        expect(() =>
+            configFor({}, { hugo: { markup: { goldmark: { extensions: { taskList: true } } } } }),
+        ).toThrow(/`site\.hugo\.markup\.goldmark\.extensions\.taskList` is derived from/);
+    });
+
     it("accepts the key nobody anticipated, and merges it last", () => {
         const config = configFor(
             {},
@@ -240,9 +246,13 @@ describe("everything the generator writes is a key `site.hugo` may not author", 
         const out = generated({
             hugo: { markup: { goldmark: { extensions: { linkify: false } } } },
         });
-        // Deep-merged: the toolchain's own renderer setting survives beside it.
+        // Deep-merged: the toolchain's own renderer and extension settings
+        // survive beside it.
         expect(out.markup).toEqual({
-            goldmark: { renderer: { unsafe: true }, extensions: { linkify: false } },
+            goldmark: {
+                renderer: { unsafe: true },
+                extensions: { linkify: false, taskList: false },
+            },
         });
     });
 
@@ -282,7 +292,9 @@ describe("the generated configuration", () => {
         // `<figure>` and `<span class="sohl-unresolved-link">` are written into
         // pages by the toolchain itself, so this is its requirement, not a
         // consumer's choice.
-        expect(generated().markup).toEqual({ goldmark: { renderer: { unsafe: true } } });
+        expect(generated().markup).toEqual({
+            goldmark: { renderer: { unsafe: true }, extensions: { taskList: false } },
+        });
     });
 
     it("emits neither `[taxonomies]` nor `[outputs]`", () => {
