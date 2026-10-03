@@ -64,6 +64,7 @@ import {
 import { fetchNavigation, generateHugoConfig, writeHugoConfig } from "../engine/site-config.mjs";
 import { renderItemFieldReference, renderItemFieldsPage } from "../engine/field-reference.mjs";
 import { checkDocLinks, checkDocIndex } from "../engine/docs-checks.mjs";
+import { checkAssetResolutions, checkAssetShapes } from "../engine/asset-index.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
@@ -1196,6 +1197,15 @@ function lintCommand() {
                             }))
                     :   [];
 
+                // A picture's shape and its pixel count, against the role
+                // it declares. Both read the records already in hand: the
+                // expectation for a shape is the median of the pictures
+                // sharing that role, so it comes from the tree rather than
+                // from a figure kept by hand here.
+                const assetRecords = records.filter(isAssetRecord);
+                const assetShapes = checkAssetShapes(assetRecords);
+                const assetResolutions = checkAssetResolutions(assetRecords);
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
@@ -1207,6 +1217,8 @@ function lintCommand() {
                     ...taskLists.findings,
                     ...states.findings,
                     ...generatedArt,
+                    ...assetShapes,
+                    ...assetResolutions,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // by then, so this changes nothing on its own —
