@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { checkDocIndex, checkDocLinks } from "../engine/docs-checks.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 function fixture(files: Record<string, string>) {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "package-build-docs-"));
     for (const [name, text] of Object.entries(files)) {
@@ -21,19 +22,23 @@ function fixture(files: Record<string, string>) {
 }
 
 describe("documentation checks", () => {
-    it("emits a located CLI diagnostic for a dead relative link", () => {
-        const root = fixture({ "README.md": "[missing](gone.md)\n" });
-        const binary = path.resolve(
-            path.dirname(fileURLToPath(import.meta.url)),
-            "../bin/package-build.mjs",
-        );
-        const result = spawnSync(process.execPath, [binary, "docs", "links", "--root", root], {
-            cwd: root,
-            encoding: "utf8",
-        });
-        expect(result.status).toBe(1);
-        expect(result.stderr).toMatch(/^README\.md:1:11: error: link gone\.md /m);
-    });
+    it(
+        "emits a located CLI diagnostic for a dead relative link",
+        () => {
+            const root = fixture({ "README.md": "[missing](gone.md)\n" });
+            const binary = path.resolve(
+                path.dirname(fileURLToPath(import.meta.url)),
+                "../bin/package-build.mjs",
+            );
+            const result = spawnSync(process.execPath, [binary, "docs", "links", "--root", root], {
+                cwd: root,
+                encoding: "utf8",
+            });
+            expect(result.status).toBe(1);
+            expect(result.stderr).toMatch(/^README\.md:1:11: error: link gone\.md /m);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     it("locates a missing relative file and heading while ignoring code examples", () => {
         const root = fixture({
@@ -53,27 +58,34 @@ describe("documentation checks", () => {
         expect(findings[1].message).toContain("anchor nobody declares");
     });
 
-    it("finds orphaned section pages and accepts indexed pages", () => {
-        const root = fixture({
-            "README.md": "[One](guides/one.md)\n",
-            "guides/one.md": "# One\n",
-            "guides/two.md": "# Two\n",
-        });
-        expect(checkDocIndex(root)).toEqual([
-            expect.objectContaining({ file: path.join(root, "guides/two.md"), severity: "error" }),
-        ]);
-        const binary = path.resolve(
-            path.dirname(fileURLToPath(import.meta.url)),
-            "../bin/package-build.mjs",
-        );
-        const result = spawnSync(process.execPath, [binary, "docs", "index", "--root", root], {
-            cwd: root,
-            encoding: "utf8",
-        });
-        expect(result.status).toBe(1);
-        expect(result.stderr).toMatch(/^guides\/two\.md: error: not linked from /m);
-        fs.appendFileSync(path.join(root, "README.md"), "[Two](guides/two.md)\n");
-        expect(checkDocIndex(root)).toEqual([]);
-        expect(checkDocLinks(root)).toEqual([]);
-    });
+    it(
+        "finds orphaned section pages and accepts indexed pages",
+        () => {
+            const root = fixture({
+                "README.md": "[One](guides/one.md)\n",
+                "guides/one.md": "# One\n",
+                "guides/two.md": "# Two\n",
+            });
+            expect(checkDocIndex(root)).toEqual([
+                expect.objectContaining({
+                    file: path.join(root, "guides/two.md"),
+                    severity: "error",
+                }),
+            ]);
+            const binary = path.resolve(
+                path.dirname(fileURLToPath(import.meta.url)),
+                "../bin/package-build.mjs",
+            );
+            const result = spawnSync(process.execPath, [binary, "docs", "index", "--root", root], {
+                cwd: root,
+                encoding: "utf8",
+            });
+            expect(result.status).toBe(1);
+            expect(result.stderr).toMatch(/^guides\/two\.md: error: not linked from /m);
+            fs.appendFileSync(path.join(root, "README.md"), "[Two](guides/two.md)\n");
+            expect(checkDocIndex(root)).toEqual([]);
+            expect(checkDocLinks(root)).toEqual([]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

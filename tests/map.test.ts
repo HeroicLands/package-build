@@ -38,6 +38,7 @@ import { fromDot, travelDot, treeDot } from "../engine/map-dot.mjs";
 import { buildMaps } from "../engine/map-build.mjs";
 import { layoutChart, layoutFrom, rimRadius, travelGraph } from "../engine/map-layout.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
@@ -806,17 +807,23 @@ describe("`package-build map`", () => {
         });
     }
 
-    it("writes under build/map and reports the anomalies as findings", () => {
-        const r = run("--tree");
-        expect(fs.existsSync(path.join(repo, "build", "map", "tree.svg"))).toBe(true);
-        expect(fs.existsSync(path.join(repo, "build", "map", "tree.dot"))).toBe(true);
-        expect(r.stderr).toMatch(
-            /^assets\/content\/Regions\/Orphan\.md(:\d+)*: error: .*no parent/m,
-        );
-        expect(r.stderr).toMatch(/^assets\/content\/Regions\/Loop_A\.md:\d+:\d+: error: .*cycle/m);
-        // Errors among the findings fail the command, as `lint` does.
-        expect(r.status).toBe(1);
-    });
+    it(
+        "writes under build/map and reports the anomalies as findings",
+        () => {
+            const r = run("--tree");
+            expect(fs.existsSync(path.join(repo, "build", "map", "tree.svg"))).toBe(true);
+            expect(fs.existsSync(path.join(repo, "build", "map", "tree.dot"))).toBe(true);
+            expect(r.stderr).toMatch(
+                /^assets\/content\/Regions\/Orphan\.md(:\d+)*: error: .*no parent/m,
+            );
+            expect(r.stderr).toMatch(
+                /^assets\/content\/Regions\/Loop_A\.md:\d+:\d+: error: .*cycle/m,
+            );
+            // Errors among the findings fail the command, as `lint` does.
+            expect(r.status).toBe(1);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     it("draws the map from a place, and from every place", () => {
         expect(run("--from", "alpha").status).toBe(0);
@@ -825,26 +832,38 @@ describe("`package-build map`", () => {
         expect(fs.existsSync(path.join(repo, "build", "map", "from-theta.svg"))).toBe(true);
     }, 30_000);
 
-    it("draws the chart from a place, at the horizon asked for", () => {
-        expect(run("--chart", "alpha").status).toBe(0);
-        const chart = path.join(repo, "build", "map", "chart-alpha.svg");
-        expect(fs.existsSync(chart)).toBe(true);
-        expect(fs.readFileSync(chart, "utf8")).toMatch(/360 d/);
-        expect(run("--chart", "alpha", "--horizon", "30").status).toBe(0);
-        expect(fs.readFileSync(chart, "utf8")).not.toMatch(/45 d/);
-        const bad = run("--chart", "alpha", "--horizon", "100");
-        expect(bad.status).toBe(1);
-        expect(bad.stderr).toMatch(/100/);
-    });
+    it(
+        "draws the chart from a place, at the horizon asked for",
+        () => {
+            expect(run("--chart", "alpha").status).toBe(0);
+            const chart = path.join(repo, "build", "map", "chart-alpha.svg");
+            expect(fs.existsSync(chart)).toBe(true);
+            expect(fs.readFileSync(chart, "utf8")).toMatch(/360 d/);
+            expect(run("--chart", "alpha", "--horizon", "30").status).toBe(0);
+            expect(fs.readFileSync(chart, "utf8")).not.toMatch(/45 d/);
+            const bad = run("--chart", "alpha", "--horizon", "100");
+            expect(bad.status).toBe(1);
+            expect(bad.stderr).toMatch(/100/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("draws the route graph", () => {
-        expect(run("--travel").status).toBe(0);
-        expect(fs.existsSync(path.join(repo, "build", "map", "travel.svg"))).toBe(true);
-    });
+    it(
+        "draws the route graph",
+        () => {
+            expect(run("--travel").status).toBe(0);
+            expect(fs.existsSync(path.join(repo, "build", "map", "travel.svg"))).toBe(true);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("asks for a mode when given none", () => {
-        const r = run();
-        expect(r.status).not.toBe(0);
-        expect(`${r.stdout}${r.stderr}`).toMatch(/--tree|--from|--chart|--travel/);
-    });
+    it(
+        "asks for a mode when given none",
+        () => {
+            const r = run();
+            expect(r.status).not.toBe(0);
+            expect(`${r.stdout}${r.stderr}`).toMatch(/--tree|--from|--chart|--travel/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

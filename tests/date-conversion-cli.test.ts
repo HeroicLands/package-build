@@ -7,6 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const cli = path.join(
     path.dirname(path.dirname(fileURLToPath(import.meta.url))),
     "bin/package-build.mjs",
@@ -67,21 +68,29 @@ function run(...args: string[]) {
 }
 
 describe("date conversion commands", () => {
-    it("prints only the exact converted value", () => {
-        const from = run("datefrom", "vrcal", "23 Taranis 326 VR");
-        expect(from.status).toBe(0);
-        expect(from.stdout).toBe("326.114\n");
-        const to = run("dateto", "vrcal", "326.114");
-        expect(to.status).toBe(0);
-        expect(to.stdout).toBe("23 Taranis 326 VR\n");
-        const long = run("dateto", "vrcal", "326.94", "--format", "long");
-        expect(long.status).toBe(0);
-        expect(long.stdout).toBe("03 Taranis 326 VR\n");
-    });
+    it(
+        "prints only the exact converted value",
+        () => {
+            const from = run("datefrom", "vrcal", "23 Taranis 326 VR");
+            expect(from.status).toBe(0);
+            expect(from.stdout).toBe("326.114\n");
+            const to = run("dateto", "vrcal", "326.114");
+            expect(to.status).toBe(0);
+            expect(to.stdout).toBe("23 Taranis 326 VR\n");
+            const long = run("dateto", "vrcal", "326.94", "--format", "long");
+            expect(long.status).toBe(0);
+            expect(long.stdout).toBe("03 Taranis 326 VR\n");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("rejects a date without a day", () => {
-        const result = run("datefrom", "vrcal", "326 VR");
-        expect(result.status).toBe(1);
-        expect(result.stderr).toContain("precise to the day");
-    });
+    it(
+        "rejects a date without a day",
+        () => {
+            const result = run("datefrom", "vrcal", "326 VR");
+            expect(result.status).toBe(1);
+            expect(result.stderr).toContain("precise to the day");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
