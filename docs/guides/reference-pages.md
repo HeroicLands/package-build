@@ -45,6 +45,21 @@ WHERE type = 'affiliation'
 ```
 ````
 
+Where the page introduces a _group_ rather than a type, a `pagelist` fence
+states the group by its tag and lists the pages carrying it:
+
+````markdown
+```pagelist {tag="key-concept" descriptions=true}
+
+```
+````
+
+That keeps the entry page true as notes are written: a page joins the list by
+carrying the tag, so nobody has to remember to add it here. A tag no page
+carries is a build error naming the tag. See
+[page lists](../authoring/links-and-markup.md#page-lists) for the attributes it
+takes.
+
 `data.pack: none` is appropriate when the page belongs on the site and in the
 index but does not need a Foundry compendium entry. A documentation package
 has no packs at all. A page with an empty body is a stub: it remains in the

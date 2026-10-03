@@ -302,24 +302,25 @@ export function buildLinkIndex(
     };
 
     /**
-     * One note's body with its SQL tables expanded.
+     * One note's body with its SQL tables and page lists expanded.
      *
      * The body every body-level check reads, so a link and an embed in one note
-     * are found in the same text — a generated table is as free to carry either
-     * as prose is.
+     * are found in the same text — a generated table or list is as free to
+     * carry either as prose is.
      *
      * @param {object} note - A note from this index.
      * @returns {string} The markdown.
      */
     function expandedBody(note) {
         const body = note.body;
-        if (!/^[ \t]*(?:`{3,}|~{3,})[ \t]*sql\b/im.test(body)) return body;
+        if (!/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:sql|pagelist)\b/im.test(body)) return body;
         return expandContentTables(body, {
             source: note.file,
-            // A `sql` table's links are checked like an authored one's, so
-            // its rows are prepared ahead of this walk — see
+            // A generated link is checked like an authored one, so both
+            // directives are prepared ahead of this walk — see
             // {@link module:engine/sql-tables.prepareTreeSqlTables}.
             sqlTables: sqlTables?.get(note.file),
+            pageLists: sqlTables?.pageLists?.get(note.file),
         }).markdown;
     }
 

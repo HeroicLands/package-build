@@ -2354,6 +2354,59 @@ errors. Duplicate and unknown attributes are errors.
 | `allow-empty=true`                          | Permits a query selecting no rows. Default `false`. |
 | `section-level=1` through `section-level=6` | Sets the heading level for `_section`. Default `2`. |
 
+##### Page lists
+
+A fenced `pagelist` block renders a list of the pages carrying a tag. It is the
+companion of a content table and answers the other question: a table says what
+a set of notes contains, a page list says which pages belong to a group.
+
+````markdown
+```pagelist {tag="key-concept" type=lore sort=type descriptions=true}
+
+```
+````
+
+**The group is the tag, not an enumeration.** A hand-written list of links is
+a second place the membership is recorded, and the two drift the moment a page
+is written and nobody edits the landing that should name it. A page list reads
+`tags:` instead, so tagging a page files it and untagging it removes it.
+
+**The fence takes no body.** Every statement about the directive is an
+attribute in the shared braced grammar, so there is one grammar to learn; text
+written inside the fence is reported rather than printed, and a fence nobody
+closed is reported rather than swallowing the rest of the note.
+
+| Attribute           | What it does                                                              |
+| ------------------- | ------------------------------------------------------------------------- |
+| `tag=`              | Required. The tag a page carries to join the list.                        |
+| `type=`             | Restricts the list to one note type. Every type by default.               |
+| `sort=name`         | Alphabetical, case and accents folded, tiebroken on address. The default. |
+| `sort=type`         | Groups the note types and orders by name within each.                     |
+| `descriptions=true` | Follows each link with the page's `description`. Default `false`.         |
+| `allow-empty=true`  | Permits a tag no page carries. Default `false`.                           |
+
+The tag is matched the way `tags:` is read everywhere else — a leading `#`,
+surrounding space and letter case are all insignificant, while the spelling of
+the tag itself is exact. Nothing guesses at a near miss.
+
+**What a list holds.** Every note of this package that carries the tag and
+publishes a page. A **stub** publishes no page, so it holds no address and joins
+no list. A documentation journal is not listed beside the note it documents,
+because they are one page. A note tagged `gm` is listed in Foundry and left out
+of the website and the book, which is the same audience rule a content table's
+relations follow.
+
+**Each entry is a link, resolved by the surface that is building.** The
+directive is answered before the body is walked and spliced in where the fence
+sat, so the list reaches a reader as compendium journal links in Foundry and
+page links on the website and in the book — the same resolution an authored
+`[[…]]` gets, including the cue on a link into a `draft` note.
+
+**A tag no page carries is an error at the fence's line and column**, naming
+the tag and, where the directive restricts one, the type. An empty list under
+an authored heading is how a misspelled tag survives a build, so the
+directive's silence is what is refused rather than its output.
+
 ##### Captioned blocks
 
 `:::caption {#anchor}` labels the next Markdown block, whether it is prose,
