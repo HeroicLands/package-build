@@ -78,7 +78,7 @@ import {
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
-const ACTOR_FIELDS = Object.freeze([
+export const ACTOR_FIELDS = Object.freeze([
     {
         name: "species",
         to: "species",
@@ -97,7 +97,7 @@ const ACTOR_FIELDS = Object.freeze([
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
-const CHARACTER_FIELDS = Object.freeze([
+export const CHARACTER_FIELDS = Object.freeze([
     {
         name: "data.gender",
         legacyKey: "gender",

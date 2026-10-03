@@ -124,6 +124,25 @@ function fieldTable(fields) {
 }
 
 /**
+ * The one line explaining why a single field's shared top-level fallback is
+ * off.
+ *
+ * Exported so a guard can walk every field declaring `topLevelMeans` across
+ * every registry and check that each one composes into a grammatical
+ * sentence, without reimplementing the frame it is checking.
+ *
+ * @param {import("./field-spec.mjs").FieldSpec} field - A field declaring
+ *   `topLevelMeans`.
+ * @returns {string} The composed markdown line.
+ */
+export function topLevelExemptionLine(field) {
+    return (
+        `**\`${field.name}\` is not read from the note's top level.** There it means ` +
+        `${field.topLevelMeans}`
+    );
+}
+
+/**
  * The fields of one type that are **not** filled from the note's top level.
  *
  * A field ordinarily falls back to the top-level property spelled like its
@@ -144,11 +163,7 @@ function fieldTable(fields) {
 function sharedExemptions(fields) {
     const exempt = authoredFields(fields).filter((field) => field.topLevelMeans);
     if (!exempt.length) return [];
-    return exempt.flatMap((field) => [
-        `**\`${field.name}\` is not read from the note's top level.** There it means ` +
-            `${field.topLevelMeans}`,
-        "",
-    ]);
+    return exempt.flatMap((field) => [topLevelExemptionLine(field), ""]);
 }
 
 /**
