@@ -692,12 +692,13 @@ invokes the check during frontmatter lint.
 
 ### `engine.markdownExpressions`
 
-`renderMarkdownExpressions(body, { fm, dates, sqlResults, file, bodyLine })` expands scalar frontmatter references and registered Handlebars helpers outside Markdown code. The `dateformat` helper uses `formatDateInCalendar`; `gt`, `gte`, `lt`, `lte`, `eq`, `and`, `or`, and `not` evaluate explicit comparisons. The `sql` helper reads a prepared scalar result, which must contain one row and one column. `sqlQueriesInMarkdown` discovers SQL calls, including nested calls; `prepareInlineSqlExpressions` evaluates them through the same DuckDB connection as SQL tables. The renderer returns `{ markdown, findings }`, with source positions for invalid expressions. Site, Foundry and PDF passes invoke it after generated tables expand and before links resolve. Hugo shortcodes remain literal for the site renderer.
+`renderMarkdownExpressions(body, { fm, dates, sqlResults, file, bodyLine })` expands scalar frontmatter references and registered Handlebars helpers outside Markdown code. The `dateformat` helper uses `formatDateInCalendar`; `gt`, `gte`, `lt`, `lte`, `eq`, `and`, `or`, and `not` evaluate explicit comparisons. The `sql` helper reads a prepared scalar result, which must contain one row and one column. `sqlQueriesInMarkdown` discovers SQL calls, including nested calls; `prepareInlineSqlExpressions` evaluates them through the same DuckDB connection as SQL tables. `EXPRESSION_HELPERS` is the one list of helpers: the engine registers from it and the authoring document is checked against it, so each name there carries the parameters it takes and a sentence on what it does. The renderer returns `{ markdown, findings }`, with source positions for invalid expressions. Site, Foundry and PDF passes invoke it after generated tables expand and before links resolve. Hugo shortcodes remain literal for the site renderer.
 
 | Export                      | Signature                                  | Returns                | Use it when                                     |
 | --------------------------- | ------------------------------------------ | ---------------------- | ----------------------------------------------- |
 | `renderMarkdownExpressions` | `renderMarkdownExpressions(body, options)` | `{markdown, findings}` | expanding authored expressions in prose         |
 | `sqlQueriesInMarkdown`      | `sqlQueriesInMarkdown(body)`               | query strings          | preparing inline SQL alongside generated tables |
+| `EXPRESSION_HELPERS`        | `EXPRESSION_HELPERS`                       | helpers by name        | listing what an expression may call             |
 
 ### `engine.reckoningMarkers`
 

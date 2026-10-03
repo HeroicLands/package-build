@@ -12,6 +12,7 @@ import {
     NOTE_VOCABULARY,
     SHARED_DATA_FIELDS,
 } from "../engine/note-vocabulary.mjs";
+import { EXPRESSION_HELPERS } from "../engine/markdown-expressions.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const output = path.join(root, "docs/reference/note-types.md");
@@ -107,6 +108,38 @@ if (process.argv.includes("--check")) {
     }
 } else {
     process.stdout.write(result);
+}
+
+// Every helper an expression may call, written from the one list the engine
+// registers from, so the document cannot fall behind a new one.
+const markupPath = path.join(root, "docs/authoring/links-and-markup.md");
+const markup = fs.readFileSync(markupPath, "utf8");
+if (!/<!-- expression-helpers:start -->[\s\S]*?<!-- expression-helpers:end -->/.test(markup)) {
+    throw new Error("The expression helper reference requires its generation markers");
+}
+const helperRows = [
+    "| Helper | Parameters | What it gives you |",
+    "| ------ | ---------- | ----------------- |",
+    ...Object.entries(EXPRESSION_HELPERS).map(
+        ([name, { params, summary }]) => `| \`${name}\` | \`${params}\` | ${cell(summary)} |`,
+    ),
+].join("\n");
+const updatedMarkup = await formatGenerated(
+    markup.replace(
+        /<!-- expression-helpers:start -->[\s\S]*?<!-- expression-helpers:end -->/,
+        `<!-- expression-helpers:start -->\n\n${helperRows}\n\n<!-- expression-helpers:end -->`,
+    ),
+    markupPath,
+);
+if (process.argv.includes("--check")) {
+    if (markup !== updatedMarkup) {
+        console.error(
+            "docs/authoring/links-and-markup.md: error: run node ci/content-format-reference.mjs to refresh the expression helper reference",
+        );
+        process.exitCode = 1;
+    }
+} else {
+    fs.writeFileSync(markupPath, updatedMarkup);
 }
 
 const detailsPath = path.join(root, "docs/reference/format-details.md");
