@@ -214,6 +214,14 @@ describe("a refusal is located and fatal", () => {
         expect(findings.map((f) => f.message).join(" ")).toContain("shares its paragraph");
     });
 
+    it("reports an inline image even when its own directive would parse", () => {
+        // The directive is not what fails here: sharing a paragraph with other
+        // text is what fails, whether or not a `{…}` follows the image — a
+        // lint this does not catch is a lint an author has no reason to run.
+        const findings = checkImages("Text ![A](images/m.webp){size=medium} more.\n", "x.md");
+        expect(findings.map((f) => f.message).join(" ")).toContain("shares its paragraph");
+    });
+
     it("reports a title, rather than dropping the words in silence", () => {
         const findings = checkImages('![A map](images/m.webp "The realm")\n', "x.md");
         expect(findings.map((f) => f.message).join(" ")).toContain("is a title on an image");
@@ -265,6 +273,14 @@ describe("the website is handed markup Hugo renders", () => {
 
     it("leaves an image that shares its paragraph as markdown", () => {
         const body = "See ![A map](images/m.webp) there.\n";
+        expect(renderImageFigures(body)).toBe(body);
+    });
+
+    it("leaves an inline image's directive as literal text, size and all", () => {
+        // The failure 943 names: the directive neither applies nor disappears,
+        // so the page shows exactly what was authored and the separate
+        // `checkImages` lint is what tells the author why.
+        const body = "Text ![A](images/m.webp){size=medium} more.\n";
         expect(renderImageFigures(body)).toBe(body);
     });
 });

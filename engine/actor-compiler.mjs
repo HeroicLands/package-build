@@ -56,6 +56,7 @@ import { emitDiagnostic } from "./diagnostics.mjs";
 // The `{#appearance}` / `{#dossier}` convention is the note format's, so the
 // extraction is shared; which field a section lands in stays the system's.
 export { extractAnchorSection, renderSection } from "./anchored-sections.mjs";
+import { misplacedAnchorSection } from "./anchored-sections.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { beingDefaultArt } from "./art-fields.mjs";
 import { contentPackage } from "./content-package.mjs";
@@ -470,6 +471,28 @@ export class SystemActorCompiler extends BasePackCompiler {
         // that writes `""` ships blank on purpose.
         const img = this.artPath(fm, "icon") ?? base;
         return { img, token: this.artPath(fm, "tokenIcon") ?? img };
+    }
+
+    /**
+     * Report an `{#appearance}` or `{#dossier}` anchor on a heading
+     * {@link extractAnchorSection} cannot read, rather than letting the field
+     * it feeds compile blank with nothing to say why.
+     *
+     * @param {string} body - The note body.
+     * @param {string} anchorId - `"appearance"` or `"dossier"`.
+     * @param {string} ctx - The actor's label, for the message.
+     * @returns {void}
+     */
+    checkAnchoredSection(body, anchorId, ctx) {
+        const misplaced = misplacedAnchorSection(body, anchorId, this.currentNote?.bodyLine);
+        if (!misplaced) return;
+        this.noteError(
+            `${ctx}: {#${anchorId}} sits on a heading below the top level, and only ` +
+                `an H1 feeds the ${anchorId} field — move the heading to the top level ` +
+                "or drop the anchor",
+            { line: misplaced.line },
+        );
+        this.errorCount++;
     }
 
     /**
