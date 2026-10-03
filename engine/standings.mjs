@@ -40,6 +40,12 @@
  * what lets each be checked — a rung the body does not confer and an office it
  * does not hold are both findings naming the file, line and column.
  *
+ * **An entry states a rung.** Belonging to a body is holding some standing in
+ * it, so `1` is the ordinary member and `0` is the rung for someone cast out;
+ * `office` is the optional half. An entry naming an office and no rung is
+ * refused, because an office distinguishes a person within a standing rather
+ * than standing in for one.
+ *
  * @module
  */
 
@@ -121,6 +127,10 @@ export function readStandings(value) {
  * A rung states its own `level`, so the ladder is read by that number rather
  * than by its position in the list: a body may write its rungs in any order,
  * and several start at zero.
+ *
+ * One title per level, which is what the rung check holds a ladder to: two
+ * rungs claiming one level is a finding on the second, so a ladder that reaches
+ * here carries at most one title for any number a member's `rank` can hold.
  *
  * @param {unknown} ranks - An affiliation's `data.governance.ranks`.
  * @returns {Map<number, string>} Level → the title that level is called.
@@ -234,12 +244,14 @@ export function standingPhrase(standing, body, digest) {
 /**
  * Validate a being's memberships and the standing it holds in each.
  *
- * Four questions, and the last two are what keying the entry by its body buys:
+ * Five questions, and the last three are what keying the entry by its body
+ * buys:
  *
  * 1. the value is a map keyed by Address (or the list this window still takes);
  * 2. every key names an affiliation that resolves, once;
- * 3. a `rank` is a level the named body's `governance.ranks` declares;
- * 4. an `office` is a key of that body's `governance.offices`.
+ * 3. the entry states a `rank`;
+ * 4. a `rank` is a level the named body's `governance.ranks` declares;
+ * 5. an `office` is a key of that body's `governance.offices`.
  *
  * Both of the last two are read from the named body's own frontmatter as the
  * lint runs, so a renamed rung or a renamed post fails on every being pointing
@@ -287,9 +299,18 @@ export function checkStandings(note, { index } = {}) {
             seen.set(resolved.address, sourceKey);
         }
         if (!isKey) continue;
-        if (standing === undefined || standing === null) continue;
-        if (Array.isArray(standing) && standing.length === 0) continue;
         const named = resolved.address ?? String(body);
+        // An entry with nothing after its key, and an emptied map arriving from
+        // the property editor as `[]`, say exactly what an authored `{}` says:
+        // this being belongs to this body, and no standing in it is stated.
+        if (
+            standing === undefined ||
+            standing === null ||
+            (Array.isArray(standing) && standing.length === 0)
+        ) {
+            findings.push(...absentRankFindings(note, {}, named, path));
+            continue;
+        }
         if (!mapping(standing)) {
             findings.push({
                 ...position(note, path),
@@ -309,6 +330,7 @@ export function checkStandings(note, { index } = {}) {
                     `standing holds ${STANDING_KEYS.map((name) => `\`${name}\``).join(" and ")}`,
             });
         }
+        findings.push(...absentRankFindings(note, standing, named, path));
         findings.push(...rankFindings(note, standing, named, path, resolved));
         findings.push(...officeFindings(note, standing, named, path, resolved));
     }
@@ -380,6 +402,56 @@ function bodyFindings(note, body, path, isKey, found) {
             },
         ];
     return [];
+}
+
+/**
+ * What an entry states no `rank` earns.
+ *
+ * Every member of a body holds some standing in it, and the ladders say so at
+ * both ends: `1` is the ordinary member, and `0` is a real rung rather than a
+ * default — `0 Níding`, `0 Outlaw`, `0 Vrystrith`, `0 Struck from the Roll` all
+ * name someone cast out, who still has a standing. So an entry naming a body
+ * and no rung is incomplete, and the message says which number to write rather
+ * than only that one is missing.
+ *
+ * **An office with no rung is an error, and a bare entry is a warning**, which
+ * is the difference between incomplete and wrong. An office is what
+ * distinguishes a person *within* a standing, so an entry holding one and no
+ * rung puts a person in a post in nothing — there is no reading of it that is
+ * right. A bare entry is merely terse: it compiles to a membership with no
+ * level, which is a correct document as far as it goes, and failing a build
+ * over one would red a tree whose remaining work is content.
+ *
+ * @param {object} note - The note.
+ * @param {object} standing - The authored entry.
+ * @param {string} body - How the body is named in a message.
+ * @param {Array<string|number>} path - The entry's frontmatter path.
+ * @returns {object[]} The finding, or nothing.
+ */
+function absentRankFindings(note, standing, body, path) {
+    if (standing.rank !== undefined && standing.rank !== null) return [];
+    const rungs = "an ordinary member is `1`, and `0` is the rung for someone cast out";
+    const office = typeof standing.office === "string" ? standing.office.trim() : "";
+    if (office)
+        return [
+            {
+                ...position(note, [...path, "office"]),
+                message:
+                    `\`data.affiliations\` entry for ${body} holds the office ` +
+                    `${JSON.stringify(office)} and states no \`rank\` — an office ` +
+                    `distinguishes a person within a standing rather than standing in ` +
+                    `for one, so the entry states the rung as well: ${rungs}`,
+            },
+        ];
+    return [
+        {
+            ...position(note, path, true),
+            severity: "warning",
+            message:
+                `\`data.affiliations\` entry for ${body} states no \`rank\` — a being ` +
+                `that belongs to a body holds some standing in it: ${rungs}`,
+        },
+    ];
 }
 
 /** Whether a `rank` is a rung the named body confers. */

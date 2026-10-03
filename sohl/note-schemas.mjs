@@ -99,21 +99,22 @@ const MACRO_FIELDS = Object.freeze([
 const VEHICLE_FIELDS = Object.freeze([]);
 
 /**
- * A `being` note — an actor, with its body, movement and embedded items.
+ * A `being` note — an actor, with its embedded items and its combat grouping.
+ *
+ * **A being's own document fields are authored under `sohl.system`**, which the
+ * passthrough writes at the DataModel's own paths: a body and the movement that
+ * goes with it are `sohl.system.body`, `sohl.system.currentMoveMedium` and
+ * `sohl.system.movementProfiles`, written together. The retired entries below
+ * carry the in-block spellings, so a note reaching for one is told where the
+ * value belongs rather than that the key is unrecognised.
+ *
+ * **Attributes and skills are embedded items**, each named by the catalogue
+ * entry it copies — so both are `sohl.items` entries, with the score or the
+ * mastery level as that entry's own `system` overlay.
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
 const BEING_FIELDS = Object.freeze([
-    {
-        name: "body",
-        ...MAP,
-        describe: "The being's body structure, by part shortcode.",
-    },
-    {
-        name: "attributes",
-        ...MAP,
-        describe: "Attribute scores, by attribute shortcode.",
-    },
     {
         name: "items",
         ...LIST,
@@ -121,19 +122,34 @@ const BEING_FIELDS = Object.freeze([
             "Items embedded on the being, each addressed by (type, shortcode) or carrying enough fields to stand alone.",
     },
     {
-        name: "currentMoveMedium",
-        ...STRING,
-        describe: "Which medium the being is currently moving through.",
-    },
-    {
-        name: "movementProfiles",
-        ...LIST,
-        describe: "Movement rates, one profile per medium.",
-    },
-    {
         name: "defaultCombatGroup",
         ...AS_AUTHORED,
         describe: "The combat group the being joins by default.",
+    },
+    {
+        retiredKey: "body",
+        retired: "`sohl.system.body`, which is the DataModel's own path for it",
+    },
+    {
+        retiredKey: "currentMoveMedium",
+        retired: "`sohl.system.currentMoveMedium`, beside the body it belongs with",
+    },
+    {
+        retiredKey: "movementProfiles",
+        retired: "`sohl.system.movementProfiles`, beside the body it belongs with",
+    },
+    {
+        retiredKey: "attributes",
+        retired:
+            "one `sohl.items` entry per attribute, each naming the catalogue " +
+            "entry it copies: `{model: attribute-str, system: {scoreBase: 13}}`",
+    },
+    {
+        retiredKey: "skills",
+        retired:
+            "one `sohl.items` entry per skill, each naming the catalogue entry " +
+            "it copies: `{model: skill-clmb, system: {masteryLevelBase: 36}}` — " +
+            "a skill the note opens at no stated level opens at its Skill Base",
     },
 ]);
 

@@ -91,8 +91,17 @@ data:
 
 An entry carries `rank` — a number, the level on that body's own
 `governance.ranks` ladder — and `office`, a string matched against the keys of
-its `governance.offices` map. Both are optional, and an entry with neither is
-valid: it says the being belongs to the body and nothing more.
+its `governance.offices` map.
+
+**Every entry states a `rank`.** Belonging to a body is holding some standing in
+it: where nothing more is known the rung is `1`, the ordinary member, and `0` is
+the rung for someone cast out — a real answer rather than a default, which is why
+ladders carry `0 Níding`, `0 Outlaw` and `0 Struck from the Roll`. An entry that
+states none is reported as an advisory, so a tree still converting is not failed
+over content work it has yet to do. `office` stays optional, and an entry naming
+an **office with no `rank`** is an error: an office distinguishes a person within
+a standing rather than standing in for one, so that entry puts a person in a post
+in nothing.
 
 **Convert a list by making each entry a key with an empty map**: `[x, y]`
 becomes `{x: {}, y: {}}`, and `[]` becomes `{}`. No rank or office has to be
@@ -110,3 +119,54 @@ For SoHL, a being embeds one affiliation item per entry, with `rank` as that
 item's `system.level` and `office` as its `system.office`. Remove any
 affiliation entry authored by hand in a being's `sohl.items`: a standing stated
 in both places is a sheet and a page free to disagree.
+
+## A canonical date with a day is quoted
+
+A `<year>.<day>` date is written in quotes:
+
+```yaml
+data:
+  born: "667.130"
+  died: "694.12"
+```
+
+Unquoted, YAML reads the value as a number and the day's trailing zero is gone
+before any date reader sees it — `667.130` and `667.13` arrive as one value, so
+nothing can tell day 130 from day 13. A note that writes one unquoted is an error
+wherever the lost zero would still name a day inside the world's year, naming the
+file, the line and both readings; a value no such expansion could have produced,
+such as `675.281` in a 365-day year, is read as written. A bare year needs no
+quotes, and `data.epoch` on a calendar note is the same `<year>.<day>` form and
+the same rule.
+
+**Quote every `born`, `died` and `epoch` that states a day**, and check the day
+each one means while doing it: a value whose authored zero is already gone is
+reporting the wrong date today.
+
+## A being's body, attributes and skills are authored in one place each
+
+A being's own document fields are written under `sohl.system`, which lands them
+at the data model's own paths:
+
+```yaml
+sohl:
+  system:
+    body: { structure: { zones: [], parts: [] } }
+    currentMoveMedium: terrestrial
+    movementProfiles: [{ medium: terrestrial, feetPerRound: 20 }]
+```
+
+Its attributes and skills are embedded items, each naming the catalogue entry it
+copies and carrying its own score or mastery level:
+
+```yaml
+sohl:
+  items:
+    - { model: attribute-str, system: { scoreBase: 14 } }
+    - { model: skill-clmb, system: { masteryLevelBase: 36 } }
+```
+
+`sohl.body`, `sohl.currentMoveMedium`, `sohl.movementProfiles`, `sohl.attributes`
+and `sohl.skills` are retired keys, each an error naming the position above. **No
+note in any content tree writes one**, so a tree whose beings already author
+`sohl.system.body` and `sohl.items` needs no change.

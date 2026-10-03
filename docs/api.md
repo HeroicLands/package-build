@@ -278,24 +278,26 @@ Which content package a note belongs to: the repository's configured `contentPac
 
 Frontmatter fields a note may no longer declare — `draft:`, a top-level `aliases:`, `section:`, a top-level `traits:` block, and any field with a renamed spelling or in-block position — each refused by presence alone, naming the file and line and saying what to write instead.
 
-| Export                        | Signature                                        | Returns                  | Use it when                                                                                        |
-| ----------------------------- | ------------------------------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------- |
-| `draftRetiredMessage`         | `draftRetiredMessage(file)`                      | `string`                 | building the one message shared by the compile-time refusal and the frontmatter lint for `draft:`  |
-| `assertNoDraftField`          | `assertNoDraftField(fm, ...)`                    | throws                   | refusing a note that declares `draft:` at all                                                      |
-| `aliasesRetiredMessage`       | `aliasesRetiredMessage(file)`                    | `string`                 | building the shared message for a top-level `aliases:`                                             |
-| `assertNoAliasesField`        | `assertNoAliasesField(fm, ...)`                  | throws                   | refusing a note that declares a top-level `aliases:`                                               |
-| `declaresRetiredAliasesField` | `declaresRetiredAliasesField(fm)`                | `boolean`                | checking whether a note declares the retired top-level `aliases:`, distinct from `name.aliases`    |
-| `sectionRetiredMessage`       | `sectionRetiredMessage(file)`                    | `string`                 | building the shared message for `section:`                                                         |
-| `assertNoSectionField`        | `assertNoSectionField(fm, ...)`                  | throws                   | refusing a note that declares `section:` at all                                                    |
-| `traitsRetiredMessage`        | `traitsRetiredMessage(file)`                     | `string`                 | building the shared message for a top-level `traits:` block, stating where each key moved          |
-| `assertNoTraitsField`         | `assertNoTraitsField(fm, ...)`                   | throws                   | refusing a note that declares a top-level `traits:` block at all                                   |
-| `locateFrontmatterKey`        | `locateFrontmatterKey(absPath, key, value, ...)` | `{line?, column?}`       | finding a frontmatter key's position in a note's file, by reading it                               |
-| `RETIRED_FIELD_ALIASES`       | `const RETIRED_FIELD_ALIASES`                    | —                        | looking up the current field name a retired spelling was renamed to                                |
-| `retiredAliasMessage`         | `retiredAliasMessage(retired, current, file)`    | `string`                 | building the shared message for a note writing a renamed field                                     |
-| `legacyKeyMessage`            | `legacyKeyMessage(block, field, file)`           | `string`                 | building the message for a field written at its legacy in-block position                           |
-| `retiredTopLevelMessage`      | `retiredTopLevelMessage(field, file)`            | `string`                 | building the message for a field written at the top-level key `data:` gathered it off              |
-| `declaresRetiredAlias`        | `declaresRetiredAlias(fm, current)`              | `boolean`                | checking whether a note writes the retired spelling of a field, in either region `sohlField` reads |
-| `readAliasedField`            | `readAliasedField(fm, current)`                  | the value or `undefined` | reading a field that has a retired spelling, the current name winning                              |
+| Export                        | Signature                                        | Returns                  | Use it when                                                                                           |
+| ----------------------------- | ------------------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `draftRetiredMessage`         | `draftRetiredMessage(file)`                      | `string`                 | building the one message shared by the compile-time refusal and the frontmatter lint for `draft:`     |
+| `assertNoDraftField`          | `assertNoDraftField(fm, ...)`                    | throws                   | refusing a note that declares `draft:` at all                                                         |
+| `aliasesRetiredMessage`       | `aliasesRetiredMessage(file)`                    | `string`                 | building the shared message for a top-level `aliases:`                                                |
+| `assertNoAliasesField`        | `assertNoAliasesField(fm, ...)`                  | throws                   | refusing a note that declares a top-level `aliases:`                                                  |
+| `declaresRetiredAliasesField` | `declaresRetiredAliasesField(fm)`                | `boolean`                | checking whether a note declares the retired top-level `aliases:`, distinct from `name.aliases`       |
+| `sectionRetiredMessage`       | `sectionRetiredMessage(file)`                    | `string`                 | building the shared message for `section:`                                                            |
+| `assertNoSectionField`        | `assertNoSectionField(fm, ...)`                  | throws                   | refusing a note that declares `section:` at all                                                       |
+| `traitsRetiredMessage`        | `traitsRetiredMessage(file)`                     | `string`                 | building the shared message for a top-level `traits:` block, stating where each key moved             |
+| `assertNoTraitsField`         | `assertNoTraitsField(fm, ...)`                   | throws                   | refusing a note that declares a top-level `traits:` block at all                                      |
+| `locateFrontmatterKey`        | `locateFrontmatterKey(absPath, key, value, ...)` | `{line?, column?}`       | finding a frontmatter key's position in a note's file, by reading it                                  |
+| `RETIRED_FIELD_ALIASES`       | `const RETIRED_FIELD_ALIASES`                    | —                        | looking up the current field name a retired spelling was renamed to                                   |
+| `retiredAliasMessage`         | `retiredAliasMessage(retired, current, file)`    | `string`                 | building the shared message for a note writing a renamed field                                        |
+| `legacyKeyMessage`            | `legacyKeyMessage(block, field, file)`           | `string`                 | building the message for a field written at its legacy in-block position                              |
+| `retiredTopLevelMessage`      | `retiredTopLevelMessage(field, file)`            | `string`                 | building the message for a field written at the top-level key `data:` gathered it off                 |
+| `declaresRetiredAlias`        | `declaresRetiredAlias(fm, current)`              | `boolean`                | checking whether a note writes the retired spelling of a field, in either region `sohlField` reads    |
+| `readAliasedField`            | `readAliasedField(fm, current)`                  | the value or `undefined` | reading a field that has a retired spelling, the current name winning                                 |
+| `retiredKeyMessage`           | `retiredKeyMessage(block, field, file)`          | `string`                 | building the shared message for a note writing a retired in-block key, naming where the value belongs |
+| `authoredRetiredKeys`         | `authoredRetiredKeys(fm, fields, ...)`           | `FieldSpec[]`            | finding which of a type's retired in-block keys a note writes                                         |
 
 ### `engine.runtimeOnlyFields`
 

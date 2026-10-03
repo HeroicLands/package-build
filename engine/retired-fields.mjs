@@ -114,12 +114,25 @@
  * {@link readAliasedField} therefore take `inData`, and search that one region
  * rather than the block and the top level a system field is written in.
  *
+ * **A retired key inside a system block names its replacement**, and that is
+ * the whole reason it is recorded at all. A key struck from a type's
+ * declaration is already reported — the block is closed, so an unrecognised key
+ * in it is an error naming the note and the line. What that finding cannot say
+ * is where the value belongs now, and "`body` is not a property of a being"
+ * reads as nonsense to an author whose being does have a body, written one
+ * level in at `sohl.system.body`. So the declaration keeps an entry carrying
+ * the key and the position to write instead, and {@link retiredKeyMessage} says
+ * both. The entry carries no `name`, so no author-facing surface lists it:
+ * the reference reads as though the key were not in the vocabulary, which is
+ * what it is.
+ *
  * @module
  */
 
 import fs from "node:fs";
 
 import { positionInFrontmatter } from "./diagnostics.mjs";
+import { retiredKeyFields } from "./field-spec.mjs";
 import { getFrontmatter, sohlField } from "./frontmatter.mjs";
 import { retiredTopLevelKey } from "./system-block.mjs";
 
@@ -633,4 +646,66 @@ export function readAliasedField(fm, current, { inData = false } = {}) {
     if (value !== undefined && value !== null && value !== "") return value;
     const retired = RETIRED_FIELD_ALIASES[current];
     return retired ? read(retired) : undefined;
+}
+
+/* -------------------------------------------------------------------- */
+/*  Retired *in-block keys*                                              */
+/* -------------------------------------------------------------------- */
+
+/**
+ * What a note writing a retired in-block key is told, in one place.
+ *
+ * The message is one sentence of fact and one of instruction: the key is read
+ * by nothing, and the value belongs at the position the declaration names.
+ * There is no value to correct, which is what separates this from a key whose
+ * contents are wrong.
+ *
+ * The replacement comes from the declaration rather than from here, for the
+ * reason {@link module:engine/runtime-only-fields.runtimeOnlyMessage}'s reason
+ * does: this module knows no field names, and a message written per key would
+ * be a second statement of what the declaration already carries.
+ *
+ * @param {string} block - The system block the key sits in.
+ * @param {import("./field-spec.mjs").FieldSpec} field - The declaration, which
+ *   carries the key and the replacement.
+ * @param {string} [file] - The note's path, named in the message. Omit it where
+ *   the caller emits through a diagnostic, whose locator already starts the
+ *   line — repeating it prints the path twice.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function retiredKeyMessage(block, field, file) {
+    return (
+        `\`${block}.${field.retiredKey}:\` is a retired frontmatter key — ` +
+        `write ${field.retired}` +
+        (file ? ` — ${file}` : "") +
+        `. Nothing reads the retired key, so a note stating it compiles to a ` +
+        `document the value never reaches`
+    );
+}
+
+/**
+ * The retired in-block keys a note actually writes, in declaration order.
+ *
+ * **Presence is the whole test**, as it is for every retired field: a key
+ * written with an empty value still says the note is authoring there.
+ *
+ * Only the block's **top level** is searched, which is where the key was read:
+ * `<block>.system.<key>` is the system's own vocabulary, passed through
+ * verbatim, and is in several cases exactly the position the message sends an
+ * author to.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {readonly import("./field-spec.mjs").FieldSpec[]} [fields] - The
+ *   type's field declaration.
+ * @param {object} options - Options.
+ * @param {string} options.block - The system block to look in.
+ * @returns {import("./field-spec.mjs").FieldSpec[]} The offending declarations.
+ */
+export function authoredRetiredKeys(fm, fields, { block } = {}) {
+    if (!fm || typeof fm !== "object" || !block) return [];
+    const declared = fm[block];
+    if (!declared || typeof declared !== "object" || Array.isArray(declared)) return [];
+    return retiredKeyFields(fields).filter((field) =>
+        Object.hasOwn(declared, /** @type {string} */ (field.retiredKey)),
+    );
 }

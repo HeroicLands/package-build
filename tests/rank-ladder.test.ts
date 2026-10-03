@@ -242,6 +242,80 @@ describe("where a finding points", () => {
     });
 });
 
+describe("one level, one rung", () => {
+    it("reports the second rung at one level, naming the first", () => {
+        const findings = checkRankLadder(
+            note(
+                ladder(
+                    "            - { level: 4, title: Knight, description: Holds land by service. }",
+                    "            - { level: 4, title: Dame, description: Holds land by service. }",
+                ),
+            ),
+        );
+
+        expect(findings.map((f) => f.message)).toEqual([
+            'rank 4 is declared twice, as "Knight" and "Dame"; a level is a rung\'s ' +
+                "identity and a member's rank indexes into it, so each rung states its own",
+        ]);
+    });
+
+    it("opens the finding on the second rung, not the first", () => {
+        const fence = ladder(
+            "            - { level: 4, title: Knight, description: Holds land by service. }",
+            "            - { level: 4, title: Dame, description: Holds land by service. }",
+        );
+        const [finding] = checkRankLadder(note(fence));
+        const lines = `---\n${fence}\n---\n\nProse.\n`.split("\n");
+
+        expect(lines[(finding.line as number) - 1]).toContain("Dame");
+    });
+
+    it("names a titleless rung by its position, since it has no title to quote", () => {
+        const messages = checkRankLadder(
+            note(
+                ladder(
+                    "            - { level: 4, title: Knight, description: Holds land by service. }",
+                    "            - { level: 4, description: Holds land by service. }",
+                ),
+            ),
+        ).map((f) => f.message);
+
+        expect(messages).toContain(
+            'rank 4 is declared twice, as "Knight" and rank 4; a level is a rung\'s ' +
+                "identity and a member's rank indexes into it, so each rung states its own",
+        );
+    });
+
+    it("says nothing about a ladder whose levels are distinct", () => {
+        expect(
+            checkRankLadder(
+                note(
+                    ladder(
+                        "            - { level: 0, title: Vrystrith, description: Kinless. }",
+                        "            - { level: 4, title: Fródrád, description: Respected. }",
+                        "            - { level: 5, title: Hárár, description: First among them. }",
+                    ),
+                ),
+            ),
+        ).toEqual([]);
+    });
+
+    it("counts a quoted level as the number it states", () => {
+        // YAML hands a quoted scalar back as a string, and the ladder reads it
+        // as a number either way — so `"4"` and `4` are one level.
+        const messages = checkRankLadder(
+            note(
+                ladder(
+                    '            - { level: "4", title: Knight, description: Holds land. }',
+                    "            - { level: 4, title: Dame, description: Holds land. }",
+                ),
+            ),
+        ).map((f) => f.message);
+
+        expect(messages.some((m) => m.includes("declared twice"))).toBe(true);
+    });
+});
+
 describe("the vocabulary", () => {
     // The check reaches a note because the field declares it. Wiring it is the
     // half that a passing unit test cannot observe, so it is read out of the
