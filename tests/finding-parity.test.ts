@@ -33,6 +33,20 @@ const TWO_CAPTION_PROBLEMS = [
     ":::",
 ].join("\n");
 
+/**
+ * One note body carrying a malformed block **and** an unresolved footnote
+ * reference — two unrelated faults, from two different checks, so each
+ * surface's count has to be exactly two: one mistake apiece, never a fault
+ * counted twice and never one swallowed by the other.
+ */
+const BLOCK_AND_FOOTNOTE_PROBLEMS = [
+    ":::info {size}",
+    "Some info.",
+    ":::",
+    "",
+    "A reference with nothing behind it.[^z]",
+].join("\n");
+
 /** A minimal pack pass, only so the shared compile loop has one to run. */
 class Probe extends BasePackCompiler {
     static override id = "probes";
@@ -122,6 +136,63 @@ describe("the pack compiler, the site build and the book agree on one note's fin
             expect(
                 asSet(findings.filter((f) => f.message.includes("caption needs {#anchor}"))),
             ).toEqual(new Set(["caption needs {#anchor} attributes"]));
+        } finally {
+            fs.rmSync(tmp, { recursive: true, force: true });
+        }
+    });
+
+    it("reports a block fault and a footnote fault once each, on every surface", async () => {
+        const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-finding-parity-"));
+        try {
+            const content = path.join(tmp, "content");
+            fs.mkdirSync(content, { recursive: true });
+            fs.writeFileSync(path.join(content, "Probe.md"), noteFile(BLOCK_AND_FOOTNOTE_PROBLEMS));
+            const out = path.join(tmp, "out");
+            fs.mkdirSync(out, { recursive: true });
+            spy = vi.spyOn(console, "error").mockImplementation(() => {});
+            const pack = new Probe({ skipDirectories: [], contentBase: content, dest: out });
+            await pack.compile();
+
+            const page = {
+                kind: "content" as const,
+                fm: { type: "doc", shortcode: "parity", name: { full: "Probe" } },
+                file: path.join(content, "Probe.md"),
+                pkg: "sohl",
+                body: BLOCK_AND_FOOTNOTE_PROBLEMS,
+                bodyLine: 8,
+                name: "Probe",
+                slug: "doc-parity",
+                base: "Probe.md",
+                relPath: "Probe.md",
+            };
+            const built = buildSiteIndex([page], { package: "sohl" });
+            const site = renderSitePage(page, {
+                index: built.index,
+                foreign: { index: new Map() },
+                universe: new Map(),
+                config: {},
+            });
+
+            const findings: { severity: string; message: string }[] = [];
+            markdownToTypst(BLOCK_AND_FOOTNOTE_PROBLEMS, { findings, file: "Probe.md" });
+
+            // One mistake, one finding: the pack compiler's single `errorCount`
+            // is the sum of both checks' own arrays on the site build, and the
+            // book's two findings match them as a set — never a fault doubled,
+            // never one swallowed by the other.
+            expect(pack.errorCount).toBe(2);
+            expect(site.secretErrors).toHaveLength(1);
+            expect(site.footnoteErrors).toHaveLength(1);
+            expect(findings).toHaveLength(2);
+
+            const asSet = (list: { message: string }[]) => new Set(list.map((f) => f.message));
+            const expected = new Set([
+                "size is not a key=value attribute",
+                "footnote [^z] has no definition, so it is set as text — write `[^z]: …` " +
+                    "at the top level of the note",
+            ]);
+            expect(asSet([...site.secretErrors, ...site.footnoteErrors])).toEqual(expected);
+            expect(asSet(findings)).toEqual(expected);
         } finally {
             fs.rmSync(tmp, { recursive: true, force: true });
         }
