@@ -8,7 +8,7 @@ import deflistPlugin from "markdown-it-deflist";
 
 import { slugify } from "./content-slug.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
-import { parseHeadingLine } from "./page-headings.mjs";
+import { HEADING_LINE, parseHeadingLine, splitHeadingAttributes } from "./heading-attributes.mjs";
 import { imagesIn } from "./content-images.mjs";
 
 const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
@@ -63,8 +63,9 @@ export function scanCaptions(source) {
             codeFence = fence[1];
             continue;
         }
-        const heading = /^\s*#{1,6}\s+.+?\{#([^}]+)\}\s*$/.exec(line);
-        if (heading) headingIds.push({ id: slugify(heading[1].trim()), line: i + 1 });
+        const heading = HEADING_LINE.exec(line);
+        const headingId = heading ? splitHeadingAttributes(heading[2]).id : "";
+        if (headingId) headingIds.push({ id: slugify(headingId), line: i + 1 });
         if (!CAPTION_LINE.test(line)) continue;
         const open = OPEN.exec(line);
         if (!open) {

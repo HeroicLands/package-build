@@ -47,8 +47,12 @@
 
 import crypto from "node:crypto";
 import MarkdownIt from "markdown-it";
-import { parseExtensionAttributes } from "./extension-attributes.mjs";
-import { parseHeadingLine } from "./page-headings.mjs";
+import footnotePlugin from "markdown-it-footnote";
+import deflistPlugin from "markdown-it-deflist";
+import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
+import { WITHHELD_CLASS, parseHeadingLine, withheldSections } from "./heading-attributes.mjs";
+
+const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
 
 /**
  * Titles carry emphasis and nothing else. `html: false` escapes any tag an
@@ -93,12 +97,6 @@ const FOREIGN = Object.freeze(["caption"]);
 
 /** `title` is the heading. Everything else an author writes becomes an attribute. */
 const TITLE = "title";
-
-/**
- * Attributes the element's own markup owns, so an author sets them through
- * `#id` and `.class` rather than through a key.
- */
-const OWNED = Object.freeze(["id", "class"]);
 
 const names = () => Object.keys(BLOCK_NAMES).join(", ");
 
@@ -249,33 +247,15 @@ export function scanBlocks(source) {
             }
             id = parsed.id;
             classes = parsed.classes;
-            let rejected = false;
-            for (const [key, value] of Object.entries(parsed.values)) {
-                if (key === TITLE) {
-                    title = value;
-                    continue;
-                }
-                if (OWNED.includes(key.toLowerCase())) {
-                    errors.push({
-                        ...at,
-                        message: `set ${key} with ${key === "id" ? "#id" : ".class"} rather than ${key}=`,
-                    });
-                    rejected = true;
-                    continue;
-                }
-                if (/^on/i.test(key)) {
-                    errors.push({
-                        ...at,
-                        message: `${key} is an event handler and is not written`,
-                    });
-                    rejected = true;
-                    continue;
-                }
-                attributes[key] = value;
-            }
-            if (rejected) {
+            const refused = refusedAttributes(parsed.values);
+            for (const message of refused) errors.push({ ...at, message });
+            if (refused.length) {
                 opening = { start: i, rejected: true };
                 continue;
+            }
+            for (const [key, value] of Object.entries(parsed.values)) {
+                if (key === TITLE) title = value;
+                else attributes[key] = value;
             }
         }
         opening = { start: i, name, title, id, classes, attributes };
@@ -383,4 +363,48 @@ export function renderBlocks(source, target) {
     }
     output.push(...lines.slice(cursor));
     return { markdown: output.join("\n"), errors };
+}
+
+/**
+ * Wrap each withheld section in the disclosure a `secret` block renders as.
+ *
+ * The section's own Markdown is left as Markdown, with a blank line either side
+ * of it, so the page's renderer still reads it: the heading keeps its id, the
+ * prose keeps its links, and only the disclosure around them is written as HTML.
+ *
+ * **A spoiler, not access control.** The section is in the published page, so a
+ * reader who opens the element or reads the source reads it. Foundry is the one
+ * surface that withholds anything.
+ *
+ * @param {string} source - A page's Markdown, headings intact.
+ * @returns {string} The same Markdown, each withheld section inside a
+ *   `<details>`.
+ */
+export function renderWithheldSections(source) {
+    const text = String(source ?? "");
+    const { sections } = withheldSections(text);
+    if (!sections.length) return text;
+    const lines = text.split("\n");
+    const output = [];
+    let cursor = 0;
+    for (const section of sections) {
+        output.push(...lines.slice(cursor, section.start));
+        const classes = [
+            WITHHELD_CLASS,
+            ...section.heading.classes.filter((name) => name !== WITHHELD_CLASS),
+        ];
+        output.push(
+            "",
+            `<details class="${escapeAttribute(classes.join(" "))}">`,
+            `<summary class="${escapeAttribute(WITHHELD_CLASS)}">${BLOCK_NAMES[WITHHELD_CLASS]}</summary>`,
+            "",
+            ...lines.slice(section.start, section.end),
+            "",
+            "</details>",
+            "",
+        );
+        cursor = section.end;
+    }
+    output.push(...lines.slice(cursor));
+    return output.join("\n");
 }
