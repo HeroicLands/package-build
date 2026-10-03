@@ -131,7 +131,47 @@ export function assetAddressIndex(records = [], { config, foreign, types = [] } 
                 .filter(([key]) => key),
         ),
         foreign: foreign?.index ?? new Map(),
+        // Foreign first, local last: a renderer sizing a picture looks it up
+        // by the pathname the record resolved to, never by address, and a
+        // local record is entered after a foreign one so it wins the lookup on
+        // the collision neither should ever cause.
+        byPath: assetImageInfoByPathname([
+            ...(foreign?.index?.values() ?? []),
+            ...records.filter(isAssetRecord),
+        ]),
     };
+}
+
+/**
+ * What a renderer needs to size one picture, keyed by the pathname its
+ * address resolves to.
+ *
+ * An image reaches a renderer as the resolved pathname an embed or an authored
+ * body image already carries — see {@link readAssetAddress} — never as the
+ * address that produced it, so the lookup a renderer wants is by pathname, not
+ * by {@link assetAddressIndex}'s own `assets` map.
+ *
+ * @param {readonly object[]} records - Asset records, local or foreign.
+ * @returns {Map<string, {type: string, role?: string, width: number|"", height: number|""}>}
+ *   One entry per addressable file, carrying only what a renderer sizes a
+ *   picture from. `role` is omitted when the record states none; `width` and
+ *   `height` are always present, blank (`""`) for a vector — the record's own
+ *   convention, carried through rather than collapsed into an absence a
+ *   renderer could not tell apart from "no asset resolved at all".
+ */
+export function assetImageInfoByPathname(records = []) {
+    const map = new Map();
+    for (const record of records) {
+        if (!record?.asset?.path || !record.package) continue;
+        const key = `${record.package}/${ASSETS_SEGMENT}/${record.asset.path}`;
+        map.set(key, {
+            type: record.type,
+            role: record.asset.role || undefined,
+            width: typeof record.asset.width === "number" ? record.asset.width : "",
+            height: typeof record.asset.height === "number" ? record.asset.height : "",
+        });
+    }
+    return map;
 }
 
 /**

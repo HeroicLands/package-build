@@ -43,7 +43,14 @@ import deflistPlugin from "markdown-it-deflist";
 import { iconPlugin } from "./content-icons.mjs";
 import { imagePlugin, imagesIn } from "./content-images.mjs";
 import { embedRole, resolveEmbeds } from "./content-embeds.mjs";
-import { foundryAddressProblem, pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import { collectAssetRecords } from "./asset-index.mjs";
+import { assetImageInfoByPathname } from "./art-fields.mjs";
+import {
+    assetPathnameKey,
+    foundryAddressProblem,
+    pathnameProblem,
+    resolvePathname,
+} from "./pathnames.mjs";
 import log from "loglevel";
 
 import { loadPackConfig } from "./pack-config.mjs";
@@ -84,6 +91,9 @@ export {
     parseValueDesc,
 } from "./frontmatter.mjs";
 
+/** @type {Map<string, object>|undefined} */
+let localAssetImageInfoCache;
+
 /**
  * The markdown renderer every surface shares.
  *
@@ -117,24 +127,64 @@ export const md = markdownit({ html: true })
     // serves a file from inside the install, so a body image's address is
     // translated by the same rule `img:` follows.
     .use(
-        imagePlugin((src) => {
-            // **Reported upstream, never here.** A renderer has no channel to
-            // report through, and this one runs inside the very passes whose
-            // job is to collect findings — a throw would take the whole lint
-            // down and lose every other finding in the tree. So nothing reaches
-            // this point unreported: {@link convertNoteWikilinks} refuses a body
-            // image with no address inside the install before a compiler renders
-            // one, and the address passes report the same pathname with a line
-            // and a column. What is left here is a fallback for a caller with no
-            // configuration to resolve against, where the authored pathname is
-            // the most honest thing to emit.
-            try {
-                return resolveImg(src, loadPackConfig()) ?? src;
-            } catch {
-                return src;
-            }
-        }),
+        imagePlugin(
+            (src) => {
+                // **Reported upstream, never here.** A renderer has no channel to
+                // report through, and this one runs inside the very passes whose
+                // job is to collect findings — a throw would take the whole lint
+                // down and lose every other finding in the tree. So nothing reaches
+                // this point unreported: {@link convertNoteWikilinks} refuses a body
+                // image with no address inside the install before a compiler renders
+                // one, and the address passes report the same pathname with a line
+                // and a column. What is left here is a fallback for a caller with no
+                // configuration to resolve against, where the authored pathname is
+                // the most honest thing to emit.
+                try {
+                    return resolveImg(src, loadPackConfig()) ?? src;
+                } catch {
+                    return src;
+                }
+            },
+            (src) => {
+                // A body image is free to write the bare, own-package form,
+                // so the address is normalized to the pathname the cache
+                // below keys by before it is looked up.
+                try {
+                    const key = assetPathnameKey(src, loadPackConfig());
+                    return key ? localAssetImageInfo().get(key) : undefined;
+                } catch {
+                    return undefined;
+                }
+            },
+        ),
     );
+
+/**
+ * The pictures this package's own tree ships, by the pathname their address
+ * resolves to — read lazily and cached for the process, exactly as
+ * {@link loadPackConfig} is, since one compile reads one tree once.
+ *
+ * **Local only.** A picture embedded from a dependency carries no role or
+ * pixel size here: fetching a foreign package's own asset index to size one
+ * inline Foundry image is a cost this lazy cache does not pay, and the
+ * picture simply draws at the medium's ordinary size, as it always has.
+ *
+ * @returns {Map<string, {type: string, role?: string, width: number|"", height: number|""}>}
+ */
+function localAssetImageInfo() {
+    if (localAssetImageInfoCache) return localAssetImageInfoCache;
+    try {
+        const config = loadPackConfig();
+        const records = collectAssetRecords(config.paths.assets, {
+            contentPackage: config.contentPackage,
+            problems: [],
+        });
+        localAssetImageInfoCache = assetImageInfoByPathname(records);
+    } catch {
+        localAssetImageInfoCache = new Map();
+    }
+    return localAssetImageInfoCache;
+}
 
 md.renderer.rules.footnote_block_open = () =>
     '<section class="footnotes"><h2>Footnotes</h2><ol class="footnotes-list">\n';

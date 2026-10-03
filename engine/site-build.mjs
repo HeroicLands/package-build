@@ -68,7 +68,7 @@ import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { checkImages, renderImageFigures } from "./content-images.mjs";
-import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import { assetPathnameKey, pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import {
     buildSiteIndex,
     figureIndexKeys,
@@ -772,10 +772,18 @@ export function renderSitePage(
         if (role) roleByWebSrc.set(result, role);
         return result;
     };
+    // The picture's role and pixel size, by the address it resolved to — read
+    // before `webSrc` translates it to the page's own host. A body image is
+    // free to write the bare, own-package form, so the address is normalized
+    // to the pathname the asset index keys by first.
+    const lookupAsset = (src) => {
+        const key = assetPathnameKey(src, config);
+        return key ? artIndex?.byPath?.get(key) : undefined;
+    };
     const resolve = (text) => {
         let transformed = pass.beforeLinks ? pass.beforeLinks(text, page) : text;
         transformed = resolveWebWikilinks(transformed, ctx);
-        return renderImageFigures(transformed, webSrcWithRole);
+        return renderImageFigures(transformed, webSrcWithRole, lookupAsset);
     };
 
     const { markdown, errors, lineMap } = expandContentTables(page.body, {

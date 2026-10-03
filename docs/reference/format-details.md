@@ -1783,6 +1783,56 @@ A fence whose picture draws an address with that role counts as `Map` rather
 than `Figure`, on every surface that numbers it, because the role is the one
 fact the fence's own markup cannot state.
 
+##### What a role draws at
+
+A role names what a picture is for; it says nothing about how large one
+draws. Deciding that is a medium's own job — the book owns a table mapping
+each role to a maximum, and a website's or a Foundry system's stylesheet owns
+the equivalent table for its own surface, keyed off the role class and the
+`width`/`height` attributes the emitted markup carries (blank for a vector).
+Changing a role's slot is one line in that table, not an edit to every note
+drawing one.
+
+**Every size is a maximum, never a target.** The drawn width is the smaller of
+the role's slot and what the file's own pixels support at the medium's print
+floor:
+
+> drawn width = min(the role's slot, natural pixels ÷ the print floor)
+
+A picture is never drawn larger than it was made: a 512px portrait stretched
+across the slot a `plate` fills is a soft rectangle that reads as broken. A
+vector carries no pixel count, so nothing narrows its role's slot; it always
+draws at the slot. An `icon` address takes the medium's nominal icon size
+whatever role it might otherwise have had — `role` never reaches one, since
+the asset record refuses it there.
+
+The book's table, and the print floor it reads from the same constant its page
+geometry is set against (300 dpi):
+
+| Role                        | The book's slot                   |
+| --------------------------- | --------------------------------- |
+| `portrait`, `emblem`        | half the page's text measure      |
+| `banner`, `plate`, `map`    | the full page's text measure      |
+| an `icon` address, any role | one inch, whatever the file holds |
+
+On this book's US Letter page the text measure is about 7.00in, so a
+`portrait` or an `emblem` draws at up to about 3.50in and a `banner`, a
+`plate` or a `map` draws at up to about 7.00in — still the smaller of that
+and what the file's pixels support.
+
+**A worked example.** A `portrait`-role file measuring 900×1350px, drawn with
+no named `size=`: at 300 dpi its pixels support 900 ÷ 300 = 3.00in, which is
+narrower than the role's 3.50in slot, so the book draws it at 3.00in. The same
+picture at 1200×1800px supports 4.00in, wider than the slot, so the book draws
+it at its 3.50in slot instead — the slot bounds it, exactly as a maximum
+should. Either way the emitted markup for the website and for a Foundry
+journal carries `note-image-role-portrait` as a class and `900`/`1350` (or
+`1200`/`1800`) as its `width`/`height` attributes, which is what a stylesheet
+on either surface sizes a `portrait` from.
+
+A named `size=` written beside the embed overrides a role's slot outright, the
+same as it always has — a role decides the size nothing else states.
+
 ##### Where provenance comes from
 
 A `provenance.yaml` states the provenance fields in the table above, and nothing

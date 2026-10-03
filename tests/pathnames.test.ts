@@ -20,6 +20,7 @@ import { describe, it, expect } from "vitest";
 import {
     ASSETS_SEGMENT,
     PATHNAME_SURFACES,
+    assetPathnameKey,
     packageAddresses,
     pathnameProblem,
     resolvePathname,
@@ -147,6 +148,31 @@ describe("one authored pathname, four derived forms", () => {
 
     it("spells the shipped directory once", () => {
         expect(ASSETS_SEGMENT).toBe("assets");
+    });
+});
+
+describe("an asset's role and pixel size are keyed by one pathname", () => {
+    it("keys the bare, own-package form the same as the package-qualified one", () => {
+        expect(assetPathnameKey("images/map.webp", thalorna)).toBe(
+            assetPathnameKey("thalorna/assets/images/map.webp", thalorna),
+        );
+        expect(assetPathnameKey("images/map.webp", thalorna)).toBe(
+            "thalorna/assets/images/map.webp",
+        );
+    });
+
+    it("keys a dependency's own picture by its own package", () => {
+        expect(assetPathnameKey("sohl/assets/icons/noun/shield.svg", thalorna)).toBe(
+            "sohl/assets/icons/noun/shield.svg",
+        );
+    });
+
+    it("answers null for a blank, an external, or a Foundry-spelled address", () => {
+        expect(assetPathnameKey("", thalorna)).toBeNull();
+        expect(assetPathnameKey(null, thalorna)).toBeNull();
+        expect(assetPathnameKey("https://example.org/a.png", thalorna)).toBeNull();
+        // `resolvePathname` throws for this shape; a lookup never does.
+        expect(assetPathnameKey("systems/sohl/assets/icons/x.svg", thalorna)).toBeNull();
     });
 });
 

@@ -11,9 +11,13 @@ import os from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import {
+    BOOK_ICON_WIDTH_IN,
+    BOOK_ROLE_SLOTS,
     PDF_IMAGE_INCHES,
     PDF_PAGE,
+    bookImageWidthIn,
     pdfColumnWidth,
+    pdfTextWidth,
     resamplePdfImages,
 } from "../engine/pdf-images.mjs";
 import { BOOK_IMAGE_WIDTHS, bookTypstPreamble } from "../engine/pdf-render.mjs";
@@ -99,5 +103,44 @@ describe("PDF raster staging", () => {
         } finally {
             await fs.rm(root, { recursive: true, force: true });
         }
+    });
+});
+
+describe("a picture's role sets the book's maximum, never its target", () => {
+    it("draws a role-bearing picture whose pixels fill its slot at the slot", () => {
+        for (const [role, fraction] of Object.entries(BOOK_ROLE_SLOTS)) {
+            const slot = fraction * pdfTextWidth;
+            const pixels = Math.ceil(slot * PDF_PAGE.dpi) + 400;
+            expect(bookImageWidthIn({ type: "image", role, width: pixels })).toBeCloseTo(slot);
+        }
+    });
+
+    it("draws a role-bearing picture whose pixels fall short at what its pixels support", () => {
+        const fraction = BOOK_ROLE_SLOTS.portrait;
+        const slot = fraction * pdfTextWidth;
+        const shortPixels = Math.round(slot * PDF_PAGE.dpi * 0.5);
+        expect(
+            bookImageWidthIn({ type: "image", role: "portrait", width: shortPixels }),
+        ).toBeCloseTo(shortPixels / PDF_PAGE.dpi);
+    });
+
+    it("draws a vector at its role's slot, having no pixel count to limit it", () => {
+        for (const [role, fraction] of Object.entries(BOOK_ROLE_SLOTS)) {
+            expect(bookImageWidthIn({ type: "image", role, width: "" })).toBeCloseTo(
+                fraction * pdfTextWidth,
+            );
+        }
+    });
+
+    it("draws an icon-type picture at the medium's nominal icon width, not a role's slot", () => {
+        expect(bookImageWidthIn({ type: "icon", role: "portrait", width: 4000 })).toBe(
+            BOOK_ICON_WIDTH_IN,
+        );
+        expect(bookImageWidthIn({ type: "icon", width: "" })).toBe(BOOK_ICON_WIDTH_IN);
+    });
+
+    it("leaves a picture declaring no role to the medium's ordinary size", () => {
+        expect(bookImageWidthIn({ type: "image", width: 4000 })).toBeUndefined();
+        expect(bookImageWidthIn()).toBeUndefined();
     });
 });

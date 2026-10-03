@@ -37,6 +37,7 @@ import {
     renderImageFigures,
 } from "../engine/content-images.mjs";
 import { BOOK_IMAGE_WIDTHS, bookTypstPreamble, markdownToTypst } from "../engine/pdf-render.mjs";
+import { BOOK_ROLE_SLOTS, PDF_PAGE, pdfTextWidth } from "../engine/pdf-images.mjs";
 
 const render = (markdown: string) =>
     new MarkdownIt({ html: true }).use(imagePlugin()).render(markdown);
@@ -441,5 +442,112 @@ describe("named sizes reach every renderer", () => {
         expect(markdownToTypst(withSize, { images })).toContain("requested: 3.2cm");
         expect(markdownToTypst(withSize, { images })).toContain("#book-figure[");
         expect(markdownToTypst(baseline, { images })).toContain("requested: auto");
+    });
+});
+
+/** Mirrors {@link module:engine/pdf-render.typstInches}'s rounding, unexported. */
+const typstIn = (inches: number) => `${Math.round(inches * 1000) / 1000}in`;
+
+describe("a role sizes an unmarked picture in the book", () => {
+    const markdown = "![A portrait](images/m.webp)\n";
+    const images = new Map([["images/m.webp", "assets/images/m.webp"]]);
+
+    it("draws each role at its slot when the file's pixels do not narrow it", () => {
+        for (const [role, fraction] of Object.entries(BOOK_ROLE_SLOTS)) {
+            const slot = fraction * pdfTextWidth;
+            const assets = new Map([["images/m.webp", { type: "image", role, width: "" }]]);
+            const out = markdownToTypst(markdown, { images, assets });
+            expect(out, role).toContain(`requested: ${typstIn(slot)}`);
+        }
+    });
+
+    it("draws a picture whose pixels fall short of its role's slot at what its pixels support", () => {
+        const fraction = BOOK_ROLE_SLOTS.portrait;
+        const shortPixels = Math.round(fraction * pdfTextWidth * PDF_PAGE.dpi * 0.5);
+        const assets = new Map([
+            ["images/m.webp", { type: "image", role: "portrait", width: shortPixels }],
+        ]);
+        const out = markdownToTypst(markdown, { images, assets });
+        expect(out).toContain(`requested: ${typstIn(shortPixels / PDF_PAGE.dpi)}`);
+    });
+
+    it("draws an icon-type picture at the medium's nominal icon size, not a role's slot", () => {
+        const assets = new Map([["images/m.webp", { type: "icon", width: "" }]]);
+        const out = markdownToTypst(markdown, { images, assets });
+        expect(out).toContain("requested: 1in");
+    });
+
+    it("lets an author's own named size override a role's slot", () => {
+        const withSize = "![A portrait](images/m.webp){size=small}\n";
+        const assets = new Map([["images/m.webp", { type: "image", role: "banner", width: "" }]]);
+        const out = markdownToTypst(withSize, { images, assets });
+        expect(out).toContain(`requested: ${BOOK_IMAGE_WIDTHS.small}`);
+    });
+
+    it("leaves a picture declaring no role at the natural-pixel auto Typst resolves", () => {
+        const assets = new Map([["images/m.webp", { type: "image", width: 4000 }]]);
+        expect(markdownToTypst(markdown, { images, assets })).toContain("requested: auto");
+        expect(markdownToTypst(markdown, { images })).toContain("requested: auto");
+    });
+});
+
+describe("the emitted markup carries a picture's role and pixel size", () => {
+    it("carries no class and no dimensions for an address resolving to no asset", () => {
+        expect(imageFigureHtml({ src: "images/m.webp", alt: "A map" })).toBe(
+            '<figure class="note-image">\n<img src="images/m.webp" alt="A map">\n</figure>',
+        );
+    });
+
+    it("carries the role as a class and the pixels as attributes", () => {
+        const html = imageFigureHtml({
+            src: "images/m.webp",
+            alt: "A portrait",
+            role: "portrait",
+            width: 1024,
+            height: 1536,
+        });
+        expect(html).toContain("note-image note-image-role-portrait");
+        expect(html).toContain('width="1024" height="1536"');
+    });
+
+    it("carries blank dimension attributes for a vector that resolved to an asset", () => {
+        const html = imageFigureHtml({
+            src: "images/m.webp",
+            alt: "An emblem",
+            role: "emblem",
+            width: "",
+            height: "",
+        });
+        expect(html).toContain("note-image-role-emblem");
+        expect(html).toContain('width="" height=""');
+    });
+
+    it("carries dimensions with no role class for a picture declaring none", () => {
+        const html = imageFigureHtml({
+            src: "images/m.webp",
+            alt: "A map",
+            width: 800,
+            height: 600,
+        });
+        expect(html).not.toContain("note-image-role-");
+        expect(html).toContain('width="800" height="600"');
+    });
+
+    it("drops a role outside the closed set rather than emitting an unknown class", () => {
+        expect(imageFigureHtml({ src: "images/m.webp", role: "banner-ish" })).not.toContain(
+            "note-image-role-",
+        );
+    });
+
+    it("hands the website and Foundry the identical markup for the same asset", () => {
+        const markdown = "![A portrait](images/m.webp)\n";
+        const lookupAsset = () => ({ type: "image", role: "portrait", width: 1024, height: 1536 });
+        const website = renderImageFigures(markdown, (src) => src, lookupAsset);
+        const foundry = new MarkdownIt({ html: true })
+            .use(imagePlugin((src) => src, lookupAsset))
+            .render(markdown);
+        expect(website.trim()).toBe(foundry.trim());
+        expect(website).toContain("note-image-role-portrait");
+        expect(website).toContain('width="1024" height="1536"');
     });
 });

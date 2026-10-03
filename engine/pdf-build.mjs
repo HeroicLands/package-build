@@ -112,6 +112,7 @@ import { collectAnchors } from "./anchors.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imagesIn, parseImageDirective } from "./content-images.mjs";
 import {
+    bookImageWidthIn,
     PDF_IMAGE_INCHES,
     PDF_PAGE,
     pdfColumnWidth,
@@ -119,7 +120,12 @@ import {
     pdfTextWidth,
     resamplePdfImages,
 } from "./pdf-images.mjs";
-import { ASSETS_SEGMENT, pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import {
+    ASSETS_SEGMENT,
+    assetPathnameKey,
+    pathnameProblem,
+    resolvePathname,
+} from "./pathnames.mjs";
 import { ASSET_SYSTEM, assetTypeOfRoot, isAssetShortcode } from "./asset-types.mjs";
 import { canonicalKey } from "./address.mjs";
 import { isComplete as isForeignCacheComplete, newestVersionDir } from "./metadata-index.mjs";
@@ -624,6 +630,13 @@ export async function buildPdf({
 
     /** @type {Map<string, string>} Authored address → the staged file's path. */
     const images = new Map();
+    /** @type {Map<string, {type: string, role?: string, width: number|"", height: number|""}>}
+     *  Authored address, exactly as the note wrote it → its asset's role and
+     *  pixel size. Keyed the same way {@link images} is rather than by the
+     *  asset index's own canonical pathname, because a body image is free to
+     *  write the bare, own-package form — see
+     *  {@link module:engine/pathnames.assetPathnameKey}. */
+    const imageAssets = new Map();
     /** @type {Map<string, {from: string, to: string, relative: string, file: string, uses: Array<{width: number, height: number}>}>} */
     const imageCandidates = new Map();
     /** @type {Set<string>} Addresses already looked for, staged or not. */
@@ -648,8 +661,18 @@ export async function buildPdf({
             const wide =
                 directive.size === "full-width" || directive.classes.includes("full-width");
             const availableWidth = wide ? pdfTextWidth : pdfColumnWidth(columns);
+            const assetKey = assetPathnameKey(src, resolved);
+            const asset = assetKey ? assets.byPath.get(assetKey) : undefined;
+            if (asset) imageAssets.set(src, asset);
+            // `auto` is the one size a role or an icon's nominal width can
+            // narrow — a named `size=` is the author's own statement, honoured
+            // as it always was.
+            const roleWidth = directive.size === "auto" ? bookImageWidthIn(asset) : undefined;
             const use = {
-                width: Math.min(PDF_IMAGE_INCHES[directive.size] ?? availableWidth, availableWidth),
+                width: Math.min(
+                    roleWidth ?? PDF_IMAGE_INCHES[directive.size] ?? availableWidth,
+                    availableWidth,
+                ),
                 height: pdfTextHeight * 0.8,
             };
             if (seenImages.has(src)) {
@@ -946,6 +969,7 @@ export async function buildPdf({
             links: plan.links,
             glyphs,
             images,
+            assets: imageAssets,
             headingOffset,
             anchorPrefix,
             captions: numberedFigures,
@@ -1015,6 +1039,7 @@ export async function buildPdf({
                     links: plan.links,
                     glyphs,
                     images,
+                    assets: imageAssets,
                     headingOffset: entry.depth,
                     anchorPrefix: entry.anchor,
                     captions: prepared.get(entry.anchor).numberedFigures,
@@ -1044,6 +1069,7 @@ export async function buildPdf({
                 links: plan.links,
                 glyphs,
                 images,
+                assets: imageAssets,
                 footnotePrefix: `footnote-front-${index + 1}`,
                 captions: frontFigures.get(file),
                 url: site,
