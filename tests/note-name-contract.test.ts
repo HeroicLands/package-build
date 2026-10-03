@@ -9,12 +9,14 @@ import { describe, expect, it } from "vitest";
 import YAML from "yaml";
 
 import { lintNote } from "../engine/frontmatter-lint.mjs";
+import { completeFrontmatter } from "./complete-note.js";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 function nameFindings(frontmatter: string) {
-    const raw = `---\n${frontmatter}\n---\n`;
-    const fm = YAML.parse(frontmatter);
+    const complete = completeFrontmatter(frontmatter);
+    const raw = `---\n${complete}\n---\n`;
+    const fm = YAML.parse(complete);
     return lintNote(
         { file: "Names/Example.md", raw, fm, type: fm.type },
         { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
@@ -37,31 +39,37 @@ describe("the name contract", () => {
 
     it("rejects all undeclared keys at their authored position", () => {
         const block = nameFindings(
-            "type: being\nsubType: character\nname:\n  full: Ada\n  home: vale\n  title: Captain",
+            "type: being\nsubType: character\nname:\n  full: Ada\n  home: vale\n  title: Captain\n  aliases: []",
         );
         expect(block.map((finding) => [finding.line, finding.column])).toEqual([
             [6, 3],
             [7, 3],
         ]);
         const flow = nameFindings(
-            "type: being\nsubType: npc\nname: {full: Guard, home: vale, given: Ada, clan: Vale}",
+            "type: being\nsubType: npc\nname: {full: Guard, home: vale, given: Ada, clan: Vale, aliases: []}",
         );
         expect(flow.map((finding) => finding.column)).toEqual([21, 33, 45]);
-        expect(nameFindings("type: lore\nname: {full: A Legend, given: Ada}")).toHaveLength(1);
         expect(
-            nameFindings("type: being\nsubType: creature\nname: {full: Wolf, clan: Pack}"),
+            nameFindings("type: lore\nname: {full: A Legend, given: Ada, aliases: []}"),
+        ).toHaveLength(1);
+        expect(
+            nameFindings(
+                "type: being\nsubType: creature\nname: {full: Wolf, clan: Pack, aliases: []}",
+            ),
         ).toHaveLength(1);
     });
 
     it("requires a nonempty full name and validates optional values", () => {
         expect(nameFindings("type: lore\nname: {aliases: []}")).toHaveLength(1);
-        expect(nameFindings("type: lore\nname: {full: ''}")).toHaveLength(1);
+        expect(nameFindings("type: lore\nname: {full: '', aliases: []}")).toHaveLength(1);
         expect(nameFindings("type: lore\nname: Legend")).toHaveLength(1);
         expect(nameFindings("type: lore\nname: {full: Legend, aliases: [Alias, '']}")).toHaveLength(
             1,
         );
         expect(
-            nameFindings("type: being\nsubType: character\nname: {full: Ada, given: ''}"),
+            nameFindings(
+                "type: being\nsubType: character\nname: {full: Ada, given: '', aliases: []}",
+            ),
         ).toHaveLength(1);
     });
 });

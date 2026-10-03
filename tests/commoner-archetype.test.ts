@@ -5,13 +5,16 @@ import YAML from "yaml";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { BEING_ARCHETYPES, NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
+import { completeFrontmatter, completeNote } from "./complete-note.js";
 
 function findings(archetypes: string[]) {
     return lintNote(
         {
             file: "Being.md",
-            raw: `---\ntype: being\ndata:\n  archetypes: [${archetypes.join(", ")}]\n---\n`,
-            fm: { type: "being", data: { archetypes } },
+            raw: `---\n${completeFrontmatter(
+                `type: being\ndata:\n  archetypes: [${archetypes.join(", ")}]`,
+            )}\n---\n`,
+            fm: completeNote({ type: "being", data: { archetypes } }),
         },
         { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
     );
@@ -42,7 +45,7 @@ describe("being archetype requirements", () => {
                         state === "absent" ? "data: {}"
                         : style === "flow" ? `data: { archetypes: ${value} }`
                         : `data:\n  archetypes: ${value}`;
-                    const yaml = `type: being\nsubType: ${subType}\n${data}`;
+                    const yaml = completeFrontmatter(`type: being\nsubType: ${subType}\n${data}`);
                     const result = lintNote(
                         { file: "Being.md", raw: `---\n${yaml}\n---\n`, fm: YAML.parse(yaml) },
                         { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
@@ -61,7 +64,7 @@ describe("being archetype requirements", () => {
                     style === "flow" ?
                         `data: { archetypes: [warrior, ${value}] }`
                     :   `data:\n  archetypes:\n    - warrior\n    - ${value}`;
-                const yaml = `type: being\nsubType: npc\n${data}`;
+                const yaml = completeFrontmatter(`type: being\nsubType: npc\n${data}`);
                 const raw = `---\n${yaml}\n---\n`;
                 const result = lintNote(
                     { file: "Being.md", raw, fm: YAML.parse(yaml) },
@@ -90,8 +93,10 @@ it("uses parsed frontmatter for the rule", () => {
     const result = lintNote(
         {
             file: "Being.md",
-            raw: "---\ntype: being\nsubType: creature\ndata: { archetypes: [warrior] }\n---\n",
-            fm: { type: "being", subType: "npc", data: { archetypes: [] } },
+            raw: `---\n${completeFrontmatter(
+                "type: being\nsubType: creature\ndata: { archetypes: [warrior] }",
+            )}\n---\n`,
+            fm: completeNote({ type: "being", subType: "npc", data: { archetypes: [] } }),
         },
         { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
     );

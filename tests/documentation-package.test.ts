@@ -290,13 +290,14 @@ function documentationRepo(): string {
     fs.mkdirSync(path.join(content, "Guides"), { recursive: true });
     fs.writeFileSync(
         path.join(content, "homepage.md"),
-        "---\ntype: homepage\nshortcode: root\nname:\n  full: The Toolkit\n---\n\nFront.\n",
+        "---\ntype: homepage\nshortcode: root\nname:\n  full: The Toolkit\n  aliases: []\ndescription: What the toolkit is.\ntags: []\n---\n\nFront.\n",
     );
     const doc = (file: string, shortcode: string, title: string, body: string) =>
         fs.writeFileSync(
             path.join(content, "Guides", file),
             `---\ntype: doc\nsubType: reference\nshortcode: ${shortcode}\n` +
-                `name:\n  full: ${title}\n---\n\n${body}\n`,
+                `name:\n  full: ${title}\n  aliases: []\n` +
+                `description: ${title}, in brief.\ntags: []\n---\n\n${body}\n`,
         );
     doc("commands.md", "commands", "Commands", "Every command, and what it reads.");
     doc("configure.md", "configure", "Configuration", "See [[doc-commands|the commands]].");

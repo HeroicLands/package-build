@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 
 import { lintNote, lintFrontmatter } from "../engine/frontmatter-lint.mjs";
+import { completeNote } from "./complete-note.js";
 import { NOTE_VOCABULARY, dataFields, subTypes } from "../engine/note-vocabulary.mjs";
 import { MARKET_CLASSES } from "../engine/market-class.mjs";
 import { positionOfFrontmatterPath } from "../engine/diagnostics.mjs";
@@ -20,7 +21,7 @@ import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
  * finding can be located in it.
  */
 const note = (type: string, fm: Record<string, unknown> = {}) => {
-    const body = { type, ...fm };
+    const body = completeNote({ type, ...fm });
     const lines: string[] = [];
     const emit = (obj: Record<string, unknown>, indent: string) => {
         for (const [key, value] of Object.entries(obj)) {

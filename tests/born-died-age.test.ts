@@ -28,6 +28,7 @@
 import { describe, it, expect } from "vitest";
 
 import { lintNote } from "../engine/frontmatter-lint.mjs";
+import { completeNote } from "./complete-note.js";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { NOTE_FIELD_PRESENTATION, noteInfobox, overlayFor } from "../engine/infobox.mjs";
 import { RETIRED_FIELD_ALIASES } from "../engine/retired-fields.mjs";
@@ -37,7 +38,14 @@ import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 /** A note as the link index hands one over, with a real frontmatter fence. */
 const note = (type: string, fm: Record<string, unknown> = {}) => {
-    const body = { type, ...fm };
+    // `creature`, where the type is a being: a character or npc owes
+    // archetypes as well, and these fixtures are about dates. Appended, so a
+    // fixture's own keys keep the lines a position assertion names.
+    const body = completeNote({
+        type,
+        ...fm,
+        ...(type === "being" && fm.subType === undefined ? { subType: "creature" } : {}),
+    });
     const lines: string[] = [];
     const emit = (obj: Record<string, unknown>, indent: string) => {
         for (const [key, value] of Object.entries(obj)) {

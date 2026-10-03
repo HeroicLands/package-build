@@ -34,6 +34,7 @@
 import { describe, it, expect } from "vitest";
 
 import { legacyKeyOf, resolveFieldValue } from "../engine/system-block.mjs";
+import { completeNote } from "./complete-note.js";
 import { buildFromFields, readField, readsLegacyKey, STRING } from "../engine/field-spec.mjs";
 import { legacyKeyMessage } from "../engine/retired-fields.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
@@ -198,7 +199,12 @@ describe("the frontmatter lint, for a field that declares both positions", () =>
 
     const lint = (fm: object) =>
         lintNote(
-            { file: "/tree/being.md", type: "being", raw: "---\ntype: being\n---\n", fm },
+            {
+                file: "/tree/being.md",
+                type: "being",
+                raw: "---\ntype: being\n---\n",
+                fm: completeNote({ subType: "creature", ...fm }),
+            },
             { schemas: schemas as any, index: undefined as any, vocabulary: undefined as any },
         ).map((f: any) => `${f.severity}: ${f.message}`);
 
@@ -234,7 +240,11 @@ describe("the frontmatter lint, for a field that declares both positions", () =>
                 file: "/tree/being.md",
                 type: "being",
                 raw: "---\ntype: being\n---\n",
-                fm: { type: "being", sohl: { species: "human" } },
+                fm: completeNote({
+                    type: "being",
+                    subType: "creature",
+                    sohl: { species: "human" },
+                }),
             },
             { ...plain, index: undefined, vocabulary: undefined } as any,
         );

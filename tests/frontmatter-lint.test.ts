@@ -14,6 +14,7 @@ import {
     matchesKind,
 } from "../engine/frontmatter-lint.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
+import { completeNote } from "./complete-note.js";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { authoredFields, STRING } from "../engine/field-spec.mjs";
@@ -24,7 +25,7 @@ const note = (type: string, sohl: object = {}, extra: object = {}) => ({
     file: `/tree/${type}.md`,
     type,
     raw: `---\ntype: ${type}\n---\n`,
-    fm: { type, ...extra, sohl },
+    fm: completeNote({ type, ...extra, sohl }),
 });
 
 /** An index whose references resolve to exactly the pairs it is given. */
@@ -93,7 +94,18 @@ describe("the five failure classes", () => {
     });
 
     it("reports a missing required property", () => {
-        const findings = lintNote(note("skill", {}), { schemas });
+        // Deliberately partial: a complete note states `subType`, which is a
+        // declared shared source for `sohl.subType`, so the block finding
+        // under test would never fire.
+        const findings = lintNote(
+            {
+                file: "/tree/skill.md",
+                type: "skill",
+                raw: "---\ntype: skill\n---\n",
+                fm: { type: "skill", sohl: {} },
+            },
+            { schemas },
+        );
         expect(messages(findings)).toContain("must declare `sohl.subType`");
     });
 
@@ -423,7 +435,7 @@ describe("a being's closed subtype vocabulary", () => {
         file: "/tree/being.md",
         type: "being",
         raw: `---\ntype: being\n${subType ? `subType: ${subType}\n` : ""}tags:\n${tags.map((x) => `  - ${x}`).join("\n")}\n---\n`,
-        fm: { type: "being", ...(subType ? { subType } : {}), tags },
+        fm: completeNote({ type: "being", subType: subType ?? null, tags }),
     });
     const findings = (subType: string | undefined, tags: string[] = [], type = "being") =>
         lintFrontmatter(
@@ -432,12 +444,12 @@ describe("a being's closed subtype vocabulary", () => {
                     {
                         ...being(subType, tags),
                         type,
-                        fm: {
+                        fm: completeNote({
                             type,
-                            ...(subType ? { subType } : {}),
+                            subType: subType ?? null,
                             tags,
                             ...(type === "being" ? { data: { archetypes: ["warrior"] } } : {}),
-                        },
+                        }),
                     },
                 ],
                 shortcodeHit: () => ({}),

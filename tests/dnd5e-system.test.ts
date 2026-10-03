@@ -12,6 +12,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseAddress, renderAddress, readCanonicalKey } from "../engine/address.mjs";
+import { completeNote } from "./complete-note.js";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -39,15 +40,15 @@ function fixture() {
     );
     fs.writeFileSync(
         path.join(root, "assets", "content", "Reference.md"),
-        `---\nshortcode: rules\nname: { full: Rules }\ntype: doc\nsubType: reference\ndnd5e: {}\n---\n\nRules text.\n`,
+        `---\nshortcode: rules\nname: { full: Rules, aliases: [] }\ntype: doc\nsubType: reference\ndescription: The rules.\ntags: []\ndnd5e: {}\n---\n\nRules text.\n`,
     );
     fs.writeFileSync(
         path.join(root, "assets", "content", "Homepage.md"),
-        `---\nshortcode: root\nname: { full: Guide }\ntype: homepage\n---\n\n# Guide\n\nThis homepage introduces the package content and helps readers find its reference notes.\n`,
+        `---\nshortcode: root\nname: { full: Guide, aliases: [] }\ntype: homepage\ndescription: The package guide.\ntags: []\n---\n\n# Guide\n\nThis homepage introduces the package content and helps readers find its reference notes.\n`,
     );
     fs.writeFileSync(
         path.join(root, "assets", "content", "Links.md"),
-        `---\nshortcode: links\nname: { full: Links }\ntype: doc\nsubType: reference\n---\n\nSee [[dnd5e-doc-rules|Rules]].\n`,
+        `---\nshortcode: links\nname: { full: Links, aliases: [] }\ntype: doc\nsubType: reference\ndescription: Where to go next.\ntags: []\n---\n\nSee [[dnd5e-doc-rules|Rules]].\n`,
     );
     fs.writeFileSync(
         path.join(root, "package-build.config.yaml"),
@@ -103,13 +104,13 @@ describe("the dnd5e system vocabulary", () => {
     });
 
     it("lints a note carrying an empty dnd5e block", () => {
-        const fm = {
+        const fm = completeNote({
             shortcode: "rules",
-            name: { full: "Rules" },
+            name: { full: "Rules", aliases: [] },
             type: "doc",
             subType: "reference",
             dnd5e: {},
-        };
+        });
         const findings = lintNote(
             {
                 file: "/tree/Reference.md",

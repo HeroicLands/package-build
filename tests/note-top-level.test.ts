@@ -341,6 +341,10 @@ describe("the keys every note must write", () => {
                 field.required === undefined ? "No" : expect.stringMatching(/^(Yes|Where)/),
             );
         }
+    });
+});
+
+/* -------------------------------------------------------------------- */
 /*  Nothing reads a key the region refuses                               */
 /* -------------------------------------------------------------------- */
 

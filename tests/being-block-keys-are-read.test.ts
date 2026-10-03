@@ -23,6 +23,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { authoredFields } from "../engine/field-spec.mjs";
+import { completeNote } from "./complete-note.js";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 // eslint-disable-next-line
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -52,7 +53,7 @@ describe("the accepted keys and the keys the pass reads", () => {
 
 describe("a being's block, as the frontmatter check holds it", () => {
     const note = (sohl: Record<string, unknown>, raw = "") => ({
-        fm: { type: "being", subType: "creature", shortcode: "someone", sohl },
+        fm: completeNote({ type: "being", subType: "creature", shortcode: "someone", sohl }),
         file: "Characters/Someone.md",
         raw,
     });

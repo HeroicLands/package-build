@@ -19,6 +19,7 @@ import { defineConfig } from "../index.mjs";
 import type { ContentBuildConfigInput } from "../content-config.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import * as homepageModule from "../engine/homepage.mjs";
+import { completeNote } from "./complete-note.js";
 import {
     HOMEPAGE_DESTINATION,
     HOMEPAGE_SHORTCODE,
@@ -129,7 +130,11 @@ describe("`type: homepage` is note format, so it lives in the engine", () => {
     it("lints clean against the engine schemas alone, with no item registry", () => {
         const findings = lintNote(
             {
-                fm: { type: HOMEPAGE_TYPE, shortcode: HOMEPAGE_SHORTCODE, title: "Kethira Basic" },
+                fm: completeNote({
+                    type: HOMEPAGE_TYPE,
+                    shortcode: HOMEPAGE_SHORTCODE,
+                    name: { full: "Kethira Basic", aliases: [] },
+                }),
                 file: "assets/content/homepage.md",
                 raw: `---\ntype: homepage\nshortcode: ${HOMEPAGE_SHORTCODE}\n---\n`,
             },

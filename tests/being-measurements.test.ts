@@ -2,6 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { parseBeingHeight, parseBeingWeight } from "../engine/being-measurements.mjs";
+import { completeNote } from "./complete-note.js";
 import { noteInfobox } from "../engine/infobox.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
@@ -12,7 +13,7 @@ function findings(data: object) {
         {
             file: "Being.md",
             raw: "---\ntype: being\ndata:\n  height: bad\n  weight: bad\n---\n",
-            fm: { type: "being", data },
+            fm: completeNote({ type: "being", subType: "creature", data }),
         },
         { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
     );

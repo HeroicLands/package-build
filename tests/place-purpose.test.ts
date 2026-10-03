@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
+import { completeNote } from "./complete-note.js";
 import { DECLARED_TAGS, NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { buildIndexRecord } from "../engine/content-index.mjs";
 import { openNotesDatabase } from "../engine/sql-tables.mjs";
@@ -31,14 +32,14 @@ const note = (purpose: string, tags?: string[], subType?: string) => ({
     file: "Quarrytown.md",
     type: "place",
     raw: source(purpose, tags, subType),
-    fm: {
+    fm: completeNote({
         shortcode: "quarrytown",
-        name: { full: "Quarrytown" },
+        name: { full: "Quarrytown", aliases: [] },
         type: "place",
         subType: subType ?? "settlement",
         tags: tags ?? ["mining", "coastal"],
         data: { purpose },
-    },
+    }),
 });
 
 describe("a place's purpose selects one of its character tags", () => {

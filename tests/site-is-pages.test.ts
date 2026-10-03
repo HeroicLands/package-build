@@ -170,7 +170,7 @@ describe("a homepage is a page with a body, so `landing:` is refused", () => {
                 ].join("\n"),
             } as any,
             { schemas: ENGINE_NOTE_SCHEMAS },
-        ) as any[];
+        ).filter((finding: any) => /`landing`/.test(finding.message)) as any[];
         expect(findings).toHaveLength(1);
         expect(findings[0]).toMatchObject({ line: 4, column: 1, severity: "error" });
         expect(findings[0].message).toMatch(/`landing`.*body/s);

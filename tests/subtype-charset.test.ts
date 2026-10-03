@@ -8,6 +8,7 @@
 import { describe, it, expect } from "vitest";
 
 import { lintNote } from "../engine/frontmatter-lint.mjs";
+import { completeNote } from "./complete-note.js";
 import {
     NOTE_VOCABULARY,
     assertVocabularyCharset,
@@ -27,7 +28,7 @@ import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
  * uses — the two ask about the same lint from the same shape of input.
  */
 const note = (type: string, fm: Record<string, unknown> = {}) => {
-    const body = { type, ...fm };
+    const body = completeNote({ type, ...fm });
     const lines: string[] = [];
     for (const [key, value] of Object.entries(body)) {
         lines.push(`${key}: ${JSON.stringify(value)}`);

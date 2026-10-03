@@ -43,6 +43,7 @@ import matter from "gray-matter";
 
 import { defineConfig } from "../index.mjs";
 import * as contentAddressModule from "../engine/content-address.mjs";
+import { completeFrontmatter, completeNote } from "./complete-note.js";
 import { packageAddress } from "../engine/content-address.mjs";
 import { buildSite, collectContentPages, pageDestination } from "../engine/site-build.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
@@ -59,7 +60,10 @@ function write(rel: string, text: string) {
 }
 
 function note(rel: string, frontmatter: string, body = "Prose.\n") {
-    return write(path.join("assets/content", rel), `---\n${frontmatter.trim()}\n---\n\n${body}`);
+    // Each fixture states the keys its case is about; the rest of what a note
+    // owes is appended, so the tree lints clean for the reason under test.
+    const complete = completeFrontmatter(frontmatter.trim());
+    return write(path.join("assets/content", rel), `---\n${complete}\n---\n\n${body}`);
 }
 
 beforeAll(() => {
@@ -199,14 +203,19 @@ describe("a `doc`'s `subType` is a genre again", () => {
     const opts = { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY } as never;
 
     /** A note as the link index hands one over, with a locatable fence. */
-    const asNote = (file: string, fm: Record<string, unknown>) => ({
-        file,
-        type: String(fm.type ?? ""),
-        raw: `---\n${Object.entries(fm)
-            .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
-            .join("\n")}\n---\n`,
-        fm,
-    });
+    const asNote = (file: string, authored: Record<string, unknown>) => {
+        // The case states its `subType`; the rest of what a note owes is
+        // appended, so a finding count is about the genre and nothing else.
+        const fm = completeNote(authored);
+        return {
+            file,
+            type: String(fm.type ?? ""),
+            raw: `---\n${Object.entries(fm)
+                .map(([k, v]) => `${k}: ${JSON.stringify(v)}`)
+                .join("\n")}\n---\n`,
+            fm,
+        };
+    };
 
     it("accepts the genres the type declares", () => {
         for (const subType of ["rules", "userguide", "reference"]) {

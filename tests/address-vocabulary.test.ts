@@ -2,6 +2,7 @@
 import { describe, it, expect } from "vitest";
 import { stringify } from "yaml";
 import { parseAddress } from "../engine/address.mjs";
+import { completeNote } from "./complete-note.js";
 import { lintNote, lintFrontmatter, matchesKind } from "../engine/frontmatter-lint.mjs";
 import { valueKindOf } from "../engine/infobox.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
@@ -164,7 +165,7 @@ describe("typed data entries", () => {
 });
 
 it("validates runtime Shortcode grammar without a target index", () => {
-    const fm = { type: "skill", sohl: { parentSkillCode: "skill-sword" } };
+    const fm = completeNote({ type: "skill", sohl: { parentSkillCode: "skill-sword" } });
     const subject = { type: "skill", file: "skill.md", fm, raw: `---\n${stringify(fm)}---\n` };
     const index = { notes: [subject], contentPackage: "world" };
     const result = lintFrontmatter(index, {

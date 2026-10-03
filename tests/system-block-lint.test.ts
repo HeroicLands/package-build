@@ -26,6 +26,7 @@ import {
     systemBlocksFor,
 } from "../engine/frontmatter-lint.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
+import { completeNote } from "./complete-note.js";
 
 const SCHEMAS = {
     skill: [
@@ -35,8 +36,25 @@ const SCHEMAS = {
 };
 
 function note(fm: Record<string, unknown>) {
+    return { fm: completeNote({ type: "skill", ...fm }), file: "Skill.md", raw: "" };
+}
+
+/**
+ * A fixture exactly as written, with none of the keys a note owes.
+ *
+ * For the cases below where the *shared* top-level position is what would
+ * satisfy a block field: a complete note states `subType`, and that is a
+ * declared shared source for `sohl.subType`, so the block finding under test
+ * would never fire. The note owing its other keys is beside the point here, so
+ * the assertions name the finding they are about.
+ */
+function partial(fm: Record<string, unknown>) {
     return { fm: { type: "skill", ...fm }, file: "Skill.md", raw: "" };
 }
+
+/** The findings about one subject, where the fixture is deliberately partial. */
+const about = (findings: { message: string }[], pattern: RegExp) =>
+    findings.map((f) => f.message).filter((message) => pattern.test(message));
 
 const messages = (findings: { message: string }[]) => findings.map((f) => f.message);
 
@@ -85,9 +103,8 @@ describe("a field resolved through the block", () => {
     });
 
     it("still reports a required field nothing authors, anywhere", () => {
-        const findings = lintNote(note({ sohl: {} }), { schemas: SCHEMAS });
-        expect(messages(findings)).toHaveLength(1);
-        expect(findings[0].message).toMatch(/must declare `sohl\.subType`/);
+        const findings = lintNote(partial({ sohl: {} }), { schemas: SCHEMAS });
+        expect(about(findings, /must declare `sohl\.subType`/)).toHaveLength(1);
     });
 
     it("still reports a value of the wrong shape", () => {
@@ -264,7 +281,11 @@ describe("a second system's own vocabulary", () => {
         // nothing about what such a note may carry. Holding the block to an
         // empty vocabulary would report every key in it.
         const findings = lintNote(
-            { fm: { type: "mysticalability", hm3: { anything: 1 } }, file: "A.md", raw: "" },
+            {
+                fm: completeNote({ type: "mysticalability", hm3: { anything: 1 } }),
+                file: "A.md",
+                raw: "",
+            },
             { schemas: { mysticalability: [] }, systems: { hm3: { fields: HM3_FIELDS } } },
         );
         expect(messages(findings)).toEqual([]);
@@ -279,7 +300,13 @@ describe("a second system's own vocabulary", () => {
         const BEING = { being: [{ name: "attributes", to: "attributes" }] };
         const findings = lintNote(
             {
-                fm: { type: "being", sohl: { attributes: {}, attrbutes: {} } },
+                // `creature`, because a character or npc owes archetypes as well and
+                // this fixture is about the block.
+                fm: completeNote({
+                    type: "being",
+                    subType: "creature",
+                    sohl: { attributes: {}, attrbutes: {} },
+                }),
                 file: "B.md",
                 raw: "",
             },
