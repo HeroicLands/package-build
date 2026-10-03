@@ -71,6 +71,7 @@ import { journalHasContent } from "./note-state.mjs";
 import { draftNoticeFor } from "./draft-notice.mjs";
 import { scanCaptions } from "./content-captions.mjs";
 import { separateFootnotes } from "./content-footnotes.mjs";
+import { parseHeadingLine } from "./page-headings.mjs";
 
 /**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
@@ -127,12 +128,11 @@ export function splitPages(body, leadName = "Introduction") {
 
         // An H1 starts a page, as does any heading carrying an `{#slug}`
         // anchor: a Foundry UUID can only address a page, so a linkable
-        // section has to be one.
-        const headingMatch =
-            !inCodeBlock && !inSecret ? line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/) : null;
-        const rawHeading = headingMatch?.[2]?.trim();
-        const anchorMatch = rawHeading?.match(/^(.*?)\s*\{#([^}]+)\}\s*$/);
-        const startsPage = headingMatch && (headingMatch[1].length === 1 || anchorMatch);
+        // section has to be one. {@link module:engine/page-headings.parseHeadingLine}
+        // is the one reading of that rule — `scanBlocks` and `scanCaptions`
+        // refuse such a heading written where it cannot become a page, from
+        // the same function, so the two cannot disagree about what starts one.
+        const heading = !inCodeBlock && !inSecret ? parseHeadingLine(line) : null;
         const caption = !inCodeBlock && !inSecret ? captionStarts.get(lineIndex) : null;
         if (caption) {
             closeCurrent();
@@ -144,12 +144,12 @@ export function splitPages(body, leadName = "Introduction") {
             };
             continue;
         }
-        if (startsPage && !captionedHeadings.has(lineIndex)) {
+        if (heading?.startsPage && !captionedHeadings.has(lineIndex)) {
             closeCurrent();
             current = {
-                name: (anchorMatch ? anchorMatch[1] : rawHeading).trim(),
-                anchorSlug: anchorMatch?.[2]?.trim() || null,
-                level: headingMatch[1].length,
+                name: heading.text,
+                anchorSlug: heading.anchorSlug,
+                level: heading.level,
                 lines: [],
             };
             continue;

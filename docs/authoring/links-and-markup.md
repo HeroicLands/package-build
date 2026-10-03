@@ -128,6 +128,13 @@ describes each medium's handling.
 not parse is reported at its own line and left as written; every well-formed
 block in the same note still renders.
 
+**A heading that would start its own journal page cannot be written inside a
+block, or inside a caption.** An H1, or a heading of any level carrying an
+`{#anchor}`, is reported at its own line there — starting a page would tear
+the block in two, and a reader could open the second half with none of the
+box around it. A lower heading with no anchor is unaffected and is the
+ordinary way to structure a long box.
+
 ## Footnotes and definition lists
 
 Write a footnote reference as `[^id]` and its definition as `[^id]: text`.
@@ -144,14 +151,18 @@ The road is passable in summer.[^season] The bridge has a toll.[^2]
 [^2]: The toll is collected at the eastern gate.
 ```
 
-Definitions can appear anywhere at the top level of the note. Indent a
-following paragraph or code block by four spaces to include it in the same
-footnote. Keep definitions outside lists, block quotes, and tables. On the web,
-linked footnotes appear in a Footnotes section at the bottom of the HTML page.
-In Foundry, each JournalEntryPage places its referenced footnotes in a Footnotes
-section at the bottom of that page; definitions remain available across pages
-of the same note. In a book, footnotes appear in smaller type at the bottom of
-the page that contains their reference.
+A reference may be written anywhere prose can be written — a word in a
+quotation, a bullet, a table cell, a heading, a named block, a caption. A
+definition belongs at the top level of the note: indent a following paragraph
+or code block by four spaces to include it in the same footnote, but never
+inside a list, a block quote, or a table. A definition written there, or a
+reference with none at the top level to resolve against, is reported at its
+own line rather than rendered. On the web, linked footnotes appear in a
+Footnotes section at the bottom of the HTML page. In Foundry, each
+JournalEntryPage places its referenced footnotes in a Footnotes section at the
+bottom of that page; definitions remain available across pages of the same
+note. In a book, footnotes appear in smaller type at the bottom of the page
+that contains their reference.
 
 A definition list gives a term one or more definitions:
 

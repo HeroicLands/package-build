@@ -64,6 +64,7 @@ import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderBlocks, scanBlocks } from "./content-blocks.mjs";
 import { renderCaptionBlocks, scanCaptions } from "./content-captions.mjs";
+import { footnoteFindings } from "./content-footnotes.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
@@ -704,6 +705,7 @@ export function renderSitePage(
     const expressionErrors = [];
     const secretErrors = [];
     const captionErrors = [];
+    const footnoteErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
     const resolved = [];
@@ -787,6 +789,13 @@ export function renderSitePage(
             column: error.column,
             message: error.message,
         });
+    for (const error of footnoteFindings(page.body))
+        footnoteErrors.push({
+            file: page.file,
+            line: (page.bodyLine ?? 1) + error.line - 1,
+            column: error.column,
+            message: error.message,
+        });
     return {
         page,
         body: captioned.markdown,
@@ -796,6 +805,7 @@ export function renderSitePage(
         expressionErrors,
         secretErrors,
         captionErrors,
+        footnoteErrors,
         wikiErrors,
         imageErrors,
     };
@@ -873,6 +883,7 @@ export function renderPages(pages, options) {
     const expressionErrors = [];
     const secretErrors = [];
     const captionErrors = [];
+    const footnoteErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
     const byKind = {};
@@ -916,6 +927,7 @@ export function renderPages(pages, options) {
         expressionErrors.push(...result.expressionErrors);
         secretErrors.push(...result.secretErrors);
         captionErrors.push(...result.captionErrors);
+        footnoteErrors.push(...result.footnoteErrors);
         wikiErrors.push(...result.wikiErrors);
         imageErrors.push(...result.imageErrors);
         rendered.push({ page, body: result.body, data: result.data });
@@ -959,6 +971,7 @@ export function renderPages(pages, options) {
         expressionErrors,
         secretErrors,
         captionErrors,
+        footnoteErrors,
         wikiErrors,
         imageErrors,
         related,
@@ -1127,6 +1140,7 @@ export function buildSite({ config, sqlTables } = {}) {
             expressionErrors: [],
             secretErrors: [],
             captionErrors: [],
+            footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1149,6 +1163,7 @@ export function buildSite({ config, sqlTables } = {}) {
             expressionErrors: [],
             secretErrors: [],
             captionErrors: [],
+            footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1197,6 +1212,7 @@ export function buildSite({ config, sqlTables } = {}) {
             expressionErrors: [],
             secretErrors: [],
             captionErrors: [],
+            footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1255,6 +1271,7 @@ export function buildSite({ config, sqlTables } = {}) {
         expressionErrors: rendered.expressionErrors,
         secretErrors: rendered.secretErrors,
         captionErrors: rendered.captionErrors,
+        footnoteErrors: rendered.footnoteErrors,
         wikiErrors: rendered.wikiErrors,
         imageErrors: rendered.imageErrors,
         mapFindings: drawn.findings,

@@ -115,6 +115,42 @@ describe("named body blocks", () => {
         expect(renderBlocks(source, "web").markdown).toBe(source);
     });
 
+    it("refuses an H1 inside a block, which would tear its own page", () => {
+        for (const name of ["secret", "info", "warn"]) {
+            const errors = scanBlocks(`:::${name}\n# A heading\nText.\n:::\n`).errors;
+            expect(errors).toHaveLength(1);
+            expect(errors[0]).toMatchObject({ line: 2, column: 1 });
+            expect(errors[0].message).toContain("starts a page");
+            expect(errors[0].message).toContain(name);
+        }
+    });
+
+    it("refuses an anchored heading of any level inside a block, the same as an H1", () => {
+        const errors = scanBlocks(":::info\n### A heading {#x}\nText.\n:::\n").errors;
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatchObject({ line: 2 });
+    });
+
+    it("refuses a heading inside a block attribute block carries, the same as a bare one", () => {
+        // The opening line's own attribute block does not change where the
+        // body starts, so the refusal must reach a heading here too.
+        const errors = scanBlocks(':::secret {#gm title="For the GM"}\n# A heading\n:::\n').errors;
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatchObject({ line: 2 });
+    });
+
+    it("refuses a page-starting heading nested inside a box inside a secret", () => {
+        const source = ":::secret\nBefore.\n\n:::warn\n# A heading\n:::\nAfter.\n:::\n";
+        const errors = scanBlocks(source).errors;
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatchObject({ line: 5 });
+    });
+
+    it("leaves an ordinary lower heading with no anchor legal inside a block", () => {
+        const source = ":::info\n## A plain heading\n### Another one\nText.\n:::\n";
+        expect(scanBlocks(source).errors).toEqual([]);
+    });
+
     it("prints every block as a coloured Typst block titled by its heading", () => {
         const typst = markdownToTypst(
             ':::info\nOne.\n:::\n\n:::warn\nTwo.\n:::\n\n:::secret {title="GM Only"}\nThree.\n:::\n',

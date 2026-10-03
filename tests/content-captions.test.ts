@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { collectAnchors } from "../engine/anchors.mjs";
 import { numberCaptions, renderCaptionBlocks, scanCaptions } from "../engine/content-captions.mjs";
-import { renderFoundryMarkdown } from "../engine/helpers.mjs";
+import { md, renderFoundryMarkdown } from "../engine/helpers.mjs";
 import { renderImageFigures } from "../engine/content-images.mjs";
 import { splitPages } from "../engine/journals.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
@@ -38,9 +38,12 @@ describe("caption directives", () => {
         const { markdown, errors } = renderCaptionBlocks(source);
         expect(errors).toEqual([]);
         expect(markdown).toContain('id="trade"');
-        expect(markdown).toContain("<table>");
         expect(markdown).toContain("Table 1: <strong>Regional</strong> trade");
         expect(markdown).not.toContain(":::caption");
+        // The table itself is left as Markdown, blank-line wrapped, for the
+        // page's own render to turn into `<table>` — see the module docs.
+        expect(markdown).toContain("| A | B |");
+        expect(md.render(markdown)).toContain("<table>");
     });
 
     it("uses one visible caption for an image while preserving its alt text", () => {
@@ -117,5 +120,20 @@ describe("caption directives", () => {
             scanCaptions("# Heading {#same}\n\n" + directive("same", "Caption", "Text.")).errors[0]
                 .message,
         ).toContain("same anchor");
+    });
+
+    it("refuses a page-starting heading written as a caption's own text", () => {
+        const h1 = scanCaptions(directive("x", "# A heading", "Some prose.")).errors;
+        expect(h1).toHaveLength(1);
+        expect(h1[0]).toMatchObject({ line: 2 });
+        expect(h1[0].message).toContain("starts a page");
+
+        const anchored = scanCaptions(directive("x", "## A heading {#y}", "Some prose.")).errors;
+        expect(anchored).toHaveLength(1);
+        expect(anchored[0]).toMatchObject({ line: 2 });
+    });
+
+    it("leaves a caption's ordinary label text legal", () => {
+        expect(scanCaptions(directive("x", "A plain label", "Some prose.")).errors).toEqual([]);
     });
 });
