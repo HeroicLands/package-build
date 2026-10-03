@@ -178,6 +178,22 @@ export function officeAnchor(office) {
 }
 
 /**
+ * The anchor a rung's row is addressed by.
+ *
+ * The ladder's parallel to {@link officeAnchor}, prefixed apart from it so a
+ * body naming an office the same word as one of its ranks still gets two
+ * destinations rather than one row answering for both.
+ *
+ * @param {string} title - The rung's title, as the body wrote it.
+ * @returns {string} The anchor, or `""` where the title carries nothing
+ *   URL-safe.
+ */
+export function rankAnchor(title) {
+    const slug = slugify(title);
+    return slug ? `rank-${slug}` : "";
+}
+
+/**
  * What an affiliation lends to a reference to it.
  *
  * A reference's value answers what was found as well as where it is — the same

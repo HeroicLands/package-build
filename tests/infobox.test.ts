@@ -63,6 +63,7 @@ import { createPackRouter } from "../engine/pack-router.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
 import { authoredKey } from "../engine/system-block.mjs";
+import { parseAddress } from "../engine/address.mjs";
 
 /**
  * The suffixes a declaration's own key carries into a label.
@@ -75,6 +76,22 @@ import { authoredKey } from "../engine/system-block.mjs";
  */
 const COMPILER_WORDS = /\b(base|code|flag|mult|desc)$/i;
 
+/**
+ * An Address tuple a field's declaration will accept, branded exactly as the
+ * content index normalises one — a plain `{package, system, type, shortcode}`
+ * object looks the same to the eye but is not what `isAddressTuple` reports
+ * true for, and a sample built from one would miss whatever only fires on
+ * the branded shape.
+ */
+function addressSample(field: { ref?: string; accepts?: readonly string[] }): unknown {
+    const type = field.accepts?.[0] ?? field.ref ?? "lore";
+    return parseAddress(
+        "someref",
+        { package: "test", system: "note", type, types: new Set([type]) },
+        { declared: true },
+    );
+}
+
 /** A value the vocabulary's declared shape will accept, so every field is filled. */
 function sampleFor(field: {
     shape?: string;
@@ -82,15 +99,19 @@ function sampleFor(field: {
     entryKind?: string;
     standings?: boolean;
     roster?: boolean;
+    ranks?: boolean;
+    ref?: string;
+    accepts?: readonly string[];
 }): unknown {
     if (field.shape?.startsWith("list of `{ to,"))
         return [{ to: "someref", bearing: "NE", mode: "land", days: 2 }];
     if (field.standings) return { "affiliation-someref": { rank: 3, office: "Steward" } };
     if (field.roster) return { Steward: "Keeps the body's accounts." };
+    if (field.ranks) return [{ level: 0, title: "Thrall", description: "Bound to serve." }];
     if (field.shape?.startsWith("a map keyed by Address"))
         return { "affiliation-someref": "friend" };
-    if (field.kind === "address") return "someref";
-    if (field.kind === "list" && field.entryKind === "address") return ["someref"];
+    if (field.kind === "address") return addressSample(field);
+    if (field.kind === "list" && field.entryKind === "address") return [addressSample(field)];
     if (field.kind === "number") return 7;
     if (field.kind === "list") return ["one", "two"];
     return "something";
@@ -234,12 +255,66 @@ describe("the note box's fields are the type's own vocabulary", () => {
                 const wanted =
                     overlay.group ? "Appearance"
                     : field.roster ? "Steward"
+                    : field.ranks ? "Thrall"
                     : field.shape?.startsWith("a map keyed by Address") ? "Friend"
                     : (overlay.label ?? humanizeFieldName(field.name));
                 if (!labels.has(wanted)) (missing[type] ??= []).push(field.name);
             }
         }
         expect(missing).toEqual({});
+    });
+
+    it("renders a rank ladder beside its offices, in level order, and a plain address list beside them", () => {
+        const address = (type: string, shortcode: string) =>
+            parseAddress(
+                shortcode,
+                { package: "test", system: "note", type, types: new Set([type]) },
+                { declared: true },
+            );
+        const resolve = (ref: unknown) => {
+            const shortcode = (ref as { shortcode?: string })?.shortcode ?? String(ref);
+            return { name: `Named ${shortcode}`, url: `/x/${shortcode}/` };
+        };
+        const box = noteInfobox(
+            {
+                type: "affiliation",
+                name: { full: "Kingdom of Nordheim" },
+                data: {
+                    governance: {
+                        ranks: [
+                            { level: 1, title: "Thrall", description: "Bound to serve." },
+                            { level: 0, title: "Níðing", description: "Cast out and nameless." },
+                        ],
+                        offices: { Jarl: "Rules a district in the King's name." },
+                    },
+                    lore: [address("lore", "humanflk")],
+                    domains: [address("place", "vrystwald")],
+                    economy: [address("lore", "bartercnmy")],
+                },
+            },
+            { resolve },
+        );
+        const rows = box.sections[0].rows;
+        const labels = rows.map((row: { label: string }) => row.label);
+
+        // The ladder reaches the page, ordered by level, ahead of the offices
+        // it names alongside — issue 916.
+        expect(rows.find((row: { label: string }) => row.label === "Níðing")?.value).toBe(
+            "Cast out and nameless.",
+        );
+        expect(labels.indexOf("Níðing")).toBeLessThan(labels.indexOf("Thrall"));
+        expect(labels.indexOf("Thrall")).toBeLessThan(labels.indexOf("Jarl"));
+        expect(rows.find((row: { label: string }) => row.label === "Jarl")?.value).toBe(
+            "Rules a district in the King's name.",
+        );
+
+        // A plain list of addresses reaches its row rather than being
+        // silently dropped — issue 928.
+        for (const label of ["Lore", "Domains", "Economy"]) {
+            const row = rows.find((r: { label: string }) => r.label === label);
+            expect(row?.kind).toBe("links");
+            expect(row?.value.length).toBeGreaterThan(0);
+        }
     });
 
     it("keeps the vocabulary's order", () => {
