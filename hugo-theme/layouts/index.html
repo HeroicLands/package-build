@@ -1,0 +1,75 @@
+{{- /*
+  Home layout. Two shapes share it, chosen by what the home page carries.
+
+  **A package homepage** — the entry point to one published package, at its
+  own prefix (/sohl/, /thalorna/, /kethira/, …), mounted as the package's
+  `_index.md` and selected when it declares `type: homepage`. It renders
+  through the same structure `_default/single.html` gives a note — the hero
+  from its `banner`, then its body — through the shared `page-body.html`
+  partial, so a homepage and a page look like one family. A package supplies
+  only its own title, description, banner and body; the theme owns the
+  arrangement.
+
+  **The featured grid** — a site whose home page is a set of entry points into
+  everything it publishes. This is the older shape and stays the default, so a
+  consumer that has not adopted the homepage note keeps rendering exactly as
+  before.
+
+  The theme owns the arrangement; the consuming site owns every address and
+  every word. The grid reads them from `params.home`:
+
+    heroimage    Banner behind the hero band. Resolved through cdn-url.html,
+                 so it may be absolute or relative to `params.cdnBaseURL`.
+    herotitle    Hero heading.
+    herotagline  Hero standfirst.
+    headings     Column headings across the top row of the featured grid.
+                 Each: `title`, and an optional `class`, appended as
+                 `home-section-title--<class>` for grid placement.
+    cards        The entry-point cards. Each: `title`, `url`, `text`, and
+                 optional `image`, `alt` (image alt text, defaulting to
+                 `title`) and `key` (appended as `home-card--<key>` for
+                 grid placement).
+
+  Headings and cards render flat, as direct children of `.home-featured`,
+  because they are the grid's items — the CSS places each one by its
+  modifier class.
+*/ -}}
+{{ define "main" }}
+{{- if eq (.Params.type | default "") "homepage" -}}
+{{- partial "hero-banner.html" . -}}
+{{- partial "page-body.html" . -}}
+{{- else -}}
+{{- with .Site.Params.home }}
+<section class="hero hero-with-image"{{ with .heroimage }} style="background-image: url('{{ partial "cdn-url.html" (dict "site" $.Site "path" .) }}');"{{ end }}>
+  <div class="hero-inner" data-pagefind-ignore>
+    <h1>{{ .herotitle }}</h1>
+    {{- with .herotagline }}
+    <p class="hero-tagline">{{ . }}</p>
+    {{- end }}
+  </div>
+</section>
+
+<section class="home-sections">
+  <div class="home-featured">
+    {{- range .headings }}
+    <h2 class="home-section-title{{ with .class }} home-section-title--{{ . }}{{ end }}">{{ .title }}</h2>
+    {{- end }}
+    {{- range .cards }}
+
+    <div class="home-card{{ with .key }} home-card--{{ . }}{{ end }}">
+      {{- $url := .url }}{{ $title := .title }}{{ $alt := .alt | default .title }}
+      {{- with .image }}
+      <a href="{{ $url }}">
+        <img src="{{ partial "cdn-url.html" (dict "site" $.Site "path" .) }}" alt="{{ $alt }}" class="card-image">
+      </a>
+      {{- end }}
+      <h2><a href="{{ $url }}">{{ $title }}</a></h2>
+      <p>{{ .text }}</p>
+      <a href="{{ $url }}" class="card-button">More Info →</a>
+    </div>
+    {{- end }}
+  </div>
+</section>
+{{- end }}
+{{- end }}
+{{ end }}

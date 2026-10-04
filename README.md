@@ -33,6 +33,7 @@ The documentation lives in the Markdown files in this repository. Start with [th
 | Detailed format rules and examples                | [Format details](docs/reference/format-details.md)           |
 | Compendium routing and document builds            | [Packs](docs/guides/packs.md)                                |
 | Website build and publication                     | [Site](docs/guides/site.md)                                  |
+| What the theme draws on a page                    | [Theme pages](docs/reference/theme-pages.md)                 |
 | PDF book build                                    | [Book](docs/guides/book.md)                                  |
 | Icon generation and use                           | [Icons](docs/guides/icons.md)                                |
 | Reference pages and content indexes               | [Reference pages](docs/guides/reference-pages.md)            |

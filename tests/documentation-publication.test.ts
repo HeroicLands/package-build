@@ -22,7 +22,10 @@ function markdownFiles(directory: string): string[] {
 describe("package documentation", () => {
     it("keeps this repository's documentation in Markdown", () => {
         const pkg = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
-        expect(pkg.devDependencies).not.toHaveProperty("@heroiclands/hugo-theme");
+        // The theme ships inside this package, so `hugo-theme/` is shipped
+        // rather than installed. `tests/theme-render.test.ts` renders a page
+        // through it and crosses the contract the two halves hold.
+        expect(pkg.files).toContain("hugo-theme");
         expect(
             Object.keys(pkg.scripts).filter((name) => /^(?:build|serve):site/.test(name)),
         ).toEqual([]);

@@ -7,3 +7,8 @@ package-lock.json
 # runs no CI (it is opened by GITHUB_TOKEN), so a formatted-by-hand changelog
 # would turn `main` red the moment that pull request merged.
 CHANGELOG.md
+
+# The Hugo theme's own tree. Its layouts are Go templates in `.html` files, and
+# Prettier reads them as HTML and reflows the template actions into prose. Hugo
+# is what parses them, so the shape they are written in is the shape that ships.
+hugo-theme

@@ -35,7 +35,6 @@ import {
     NAVIGATION_FILE,
     NAVIGATION_URL,
     THEME,
-    THEME_PACKAGE,
     fetchNavigation,
     generateHugoConfig,
     hugoConfig,
@@ -50,7 +49,7 @@ import {
 let root: string;
 
 /** The path from `build/hugo/` up to a scope installed in the fixture root. */
-const THEMES_DIR = ["..", "..", "node_modules", "@heroiclands"].join("/");
+const THEMES_DIR = ["..", "..", "node_modules", "@heroiclands", "package-build"].join("/");
 
 /** The navigation heroiclands-site publishes, in the shape `nav.json` states. */
 const NAVIGATION = [
@@ -100,8 +99,6 @@ beforeAll(() => {
             author: "Ann Author <ann@example.org>",
         }),
     );
-    // The theme, installed where `npm ci` puts it. Only its presence is read.
-    write(`node_modules/${THEME_PACKAGE}/theme.toml`, 'name = "Heroic Lands"\n');
     write(
         "assets/content/homepage.md",
         "---\ntype: homepage\nshortcode: root\n---\n\nThe module, in its own words.\n",
@@ -496,29 +493,40 @@ describe("the menu is whatever the cached navigation says", () => {
     });
 });
 
-describe("the theme is resolved from where it is installed", () => {
-    it("writes the path from `build/hugo/` to the installed scope", () => {
-        expect(resolveThemesDir(root)).toBe(THEMES_DIR);
+describe("the theme ships with this package", () => {
+    it("points `build/hugo/` at the directory holding the theme", () => {
+        const themesDir = resolveThemesDir(root);
+        const manifest = path.resolve(root, HUGO_SOURCE, themesDir, THEME, "theme.toml");
+        expect(fs.existsSync(manifest)).toBe(true);
     });
 
-    it("resolves the way Node does, walking up from the consumer root", () => {
-        // A worktree without its own `node_modules` resolves the parent's;
-        // the generated file says so, because the path is written rather than
-        // assumed.
-        const nested = path.join(root, "nested", "worktree");
-        fs.mkdirSync(nested, { recursive: true });
-        expect(resolveThemesDir(nested)).toBe(["..", ".."].join("/") + "/" + THEMES_DIR);
+    it("names a directory Hugo can open as a theme", () => {
+        const themesDir = resolveThemesDir(root);
+        const layouts = path.resolve(root, HUGO_SOURCE, themesDir, THEME, "layouts");
+        expect(fs.existsSync(path.join(layouts, "_default", "baseof.html"))).toBe(true);
     });
 
-    it("fails naming the package when it is not installed", () => {
+    it("resolves with nothing installed in the consumer", () => {
+        // The whole point of shipping the theme here: a root with no
+        // `node_modules` of its own still names a real theme, because the
+        // path is this package's own location rather than a search.
         const bare = fs.mkdtempSync(path.join(os.tmpdir(), "cb-notheme-"));
         try {
-            expect(() => resolveThemesDir(bare)).toThrow(
-                new RegExp(`${THEME_PACKAGE.replace("/", "\\/")} is not installed`),
+            const manifest = path.resolve(
+                bare,
+                HUGO_SOURCE,
+                resolveThemesDir(bare),
+                THEME,
+                "theme.toml",
             );
+            expect(fs.existsSync(manifest)).toBe(true);
         } finally {
             fs.rmSync(bare, { recursive: true, force: true });
         }
+    });
+
+    it("writes a POSIX path whatever the platform separates with", () => {
+        expect(resolveThemesDir(root)).not.toContain("\\");
     });
 });
 
@@ -546,7 +554,12 @@ describe("the Hugo source tree lands under build/", () => {
         expect(parsed.baseURL).toBe("https://www.heroiclands.org/demo/");
         expect(parsed.params.description).toBe("A demonstration module.");
         expect(parsed.params.author).toBe("Ann Author");
-        expect(parsed.themesDir).toBe(THEMES_DIR);
+        // Resolved rather than passed in, so the written value is the one Hugo
+        // follows from `build/hugo/` to the theme this package ships.
+        expect(parsed.themesDir).toBe(resolveThemesDir(root));
+        expect(
+            fs.existsSync(path.resolve(root, HUGO_SOURCE, parsed.themesDir, THEME, "theme.toml")),
+        ).toBe(true);
         expect(parsed.menu.main.map((e: any) => e.name)).toEqual([
             "Home",
             "Song of Heroic Lands",

@@ -1,0 +1,21 @@
+{{- /*
+  One entry of a holdings list — `{title, url, type, subType}`, as
+  `@heroiclands/package-build` derives from `contains`, `held_by` and
+  `holdings` (see the "holdings card" section of the README).
+
+  `url` is absent for a stub: a note with an empty body, which carries its
+  facts into every list that names it but publishes no page of its own. The
+  build omits the key outright rather than writing `url: null` — confirmed by
+  stringifying a stub entry through the same `gray-matter`/`js-yaml` path the
+  build writes frontmatter with — but `with` guards both the same way, since
+  a missing map key and an empty string both read false. This is the same
+  guard `infobox/entry.html` already applies to its own `{text, url}` shape.
+
+  Takes `entry` and the `class` its medium gives it.
+*/ -}}
+{{- $entry := .entry -}}
+{{- with $entry.url -}}
+<a class="{{ $.class }}" href="{{ . }}">{{ $entry.title }}</a>
+{{- else -}}
+<span class="{{ $.class }}">{{ $entry.title }}</span>
+{{- end -}}

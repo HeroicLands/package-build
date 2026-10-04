@@ -38,6 +38,21 @@ role: portrait
 
 **A hero image is 1792×768.** `data.banner` fills one fixed strip wherever it is drawn, so every banner is cut to that size and a picture of any other size is a finding naming both sizes — resize the picture to match. That is the one size any art field requires. A map's `bgImage` sets its own scene's dimensions, so that asks nothing of a picture's dimensions either.
 
+`data.banner` reads in one of three states:
+
+| A note writes      | The page draws                                     |
+| ------------------ | -------------------------------------------------- |
+| an asset Address   | that picture                                       |
+| a blank            | no picture, on purpose, and no default replaces it |
+| nothing, or `null` | a default picture chosen by the note's `type`      |
+
+Omitting the key does not mean "no hero image" — it means artwork chosen for
+the author, which inverts the ordinary reading of an absent key. **A note
+declines with a blank, not with `none`.** `none` parses as an ordinary asset
+Address — a shortcode, not a keyword — and since nothing in the corpus
+answers to it, the build drops the key outright and the page falls through to
+its type's default: the opposite of a decline.
+
 `role` is one of `portrait`, `emblem`, `banner`, `plate` or `map`, and belongs to the `image` type only — declaring it in a `provenance.yaml` under `assets/icons` is a finding, since an icon carries one nominal size per medium whatever the file holds. Leave the key out for an ordinary picture; there is no default role name, only its absence.
 
 **A role decides how large a picture written in prose draws, when nothing else states a size.** Each medium maps a role to a maximum, and the drawn size is the smaller of that slot and what the file's own pixels support — see [what a role draws at](../reference/format-details.md#what-a-role-draws-at). A named `size=` beside the embed still overrides it outright; an icon draws at the medium's nominal icon size whatever role it might otherwise have had, because `role` never reaches an icon address at all.

@@ -1,0 +1,35 @@
+<header class="site-header" data-pagefind-ignore>
+  <div class="header-inner">
+    <a href="{{ .Site.Home.RelPermalink }}" class="site-title">
+      {{- with .Site.Params.brand }}{{ with .logo }}
+      <img src="{{ partial "cdn-url.html" (dict "site" $.Site "path" .) }}" alt="Heroic Lands" class="site-logo">
+      {{- end }}{{ end }}
+      <span class="title-main">Heroic Lands</span>
+    </a>
+    <div class="header-actions">
+      <nav class="site-nav">
+        {{ range .Site.Menus.main }}
+          {{ if .HasChildren }}
+            <div class="nav-dropdown">
+              <a href="{{ .URL }}" class="nav-link{{ if $.IsMenuCurrent "main" . }} active{{ end }}">
+                {{ .Name }}
+                <svg class="dropdown-arrow" width="10" height="6" viewBox="0 0 10 6" fill="currentColor"><path d="M1 1l4 4 4-4"/></svg>
+              </a>
+              <div class="dropdown-menu">
+                {{ range .Children }}
+                  <a href="{{ .URL }}" class="dropdown-item">{{ .Name }}</a>
+                {{ end }}
+              </div>
+            </div>
+          {{ else }}
+            <a href="{{ .URL }}" class="nav-link{{ if $.IsMenuCurrent "main" . }} active{{ end }}">{{ .Name }}</a>
+          {{ end }}
+        {{ end }}
+      </nav>
+      {{ partial "search.html" . }}
+      <button class="nav-toggle" aria-label="Toggle navigation">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>

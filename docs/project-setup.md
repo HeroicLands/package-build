@@ -309,10 +309,10 @@ the rendered pages for search into `build/site/<contentPackage>/pagefind/`;
 and `serve:site` does the first and then `hugo server` for a live preview.
 The repository carries no Hugo configuration of its own: `hugo.toml` is
 generated on every run from `package.json`, `package-build.config.yaml`, the
-installed `@heroiclands/hugo-theme` and the navigation `deps fetch` cached,
-and the only file to add is `@heroiclands/hugo-theme` under
-`devDependencies`. Hugo itself is a separate install — the extended edition,
-on the developer's `PATH` and the runner's.
+shared theme that ships with `@heroiclands/package-build`, and the navigation
+`deps fetch` cached — a site declares this one package and needs nothing
+further added for its theme. Hugo itself is a separate install — the
+extended edition, on the developer's `PATH` and the runner's.
 
 The site build reads the cached navigation, so `build:site` in a package with
 no other dependency still runs `deps fetch` first:

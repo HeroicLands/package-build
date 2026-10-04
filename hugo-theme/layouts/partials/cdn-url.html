@@ -1,0 +1,36 @@
+{{- /*
+  Resolve an asset path against the consuming site's asset host.
+
+  The theme carries layout, not addresses: it never names the host its
+  imagery is served from. A consumer sets `params.cdnBaseURL` to the root of
+  wherever it publishes shared artwork, and every image reference in the
+  theme resolves through here.
+
+  Resolution:
+    1. An already-absolute path (http://, https://, //) is returned as-is,
+       so page frontmatter can point anywhere.
+    2. Otherwise the path is joined onto `params.cdnBaseURL`.
+    3. With no `params.cdnBaseURL` set, the path resolves against the site
+       itself via relURL — correct under a bare root *and* under a baseURL
+       carrying a path prefix.
+
+  Usage:
+    {{ partial "cdn-url.html" (dict "site" .Site "path" "images/x.webp") }}
+
+  Params:
+    site — the site context (.Site), for reading params.
+    path — the asset path, absolute or relative to the asset root.
+*/ -}}
+{{- $path := .path -}}
+{{- $url := "" -}}
+{{- if or (hasPrefix $path "http://") (hasPrefix $path "https://") (hasPrefix $path "//") -}}
+  {{- $url = $path -}}
+{{- else -}}
+  {{- $rel := strings.TrimPrefix "/" $path -}}
+  {{- with .site.Params.cdnBaseURL -}}
+    {{- $url = printf "%s/%s" (strings.TrimSuffix "/" .) $rel -}}
+  {{- else -}}
+    {{- $url = $rel | relURL -}}
+  {{- end -}}
+{{- end -}}
+{{- return $url -}}

@@ -123,6 +123,21 @@ jobs:
                       fi
                   fi
                   dot -V
+            # The render tests drive a real Hugo over `hugo-theme/`, which ships
+            # inside this package, and assert that every key a site build emits
+            # reaches the rendered page. The runner image ships no Hugo, and the
+            # cases stand down without one, so the step installs it rather than
+            # letting the contract go unchecked. Extended, because that is what a
+            # site built on this theme requires; pinned to the version a
+            # developer's machine runs, so CI and a desk do not disagree about
+            # which Hugo rendered a page.
+            - name: Hugo, for the theme render tests
+              run: |
+                  set -euo pipefail
+                  ver=0.167.0
+                  url="https://github.com/gohugoio/hugo/releases/download/v$ver/hugo_extended_${ver}_linux-amd64.tar.gz"
+                  curl -fsSL "$url" | tar -xz -C /usr/local/bin hugo
+                  hugo version
             - name: Tests
               run: npm test
             # Declaration emit is what `prepack` runs at publish time, so a

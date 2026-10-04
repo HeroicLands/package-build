@@ -1,0 +1,139 @@
+{{- /*
+  Default list layout: hero, the authored body when there is one,
+  and an auto-list of the section's members.
+
+  Minimal by design: a package-build consumer disables Hugo's `section`,
+  `taxonomy` and `term` kinds, so this layout never runs for one — the home
+  page and its pages are all it renders through `index.html` and
+  `_default/single.html`. A site that keeps those kinds enabled — one that
+  is not a package-build consumer, publishing a hand-curated section of its
+  own — still needs a landing for them, which is what this file is for.
+
+  Content rows render "Name + description", inline rather than through a
+  shared partial: this is the only caller left, and a description is emitted
+  only when present, so a page carrying none renders a plain title row.
+*/ -}}
+{{ define "main" }}
+{{ partial "hero-banner.html" . }}
+<article class="single">
+  <div class="single-content">
+    {{ if .Content }}
+    <div class="single-body" data-pagefind-body>
+      {{ .Content }}
+    </div>
+    {{ end }}
+
+    {{- /*
+      A curated landing is the best navigation — a rules section groups its
+      pages under editorial headings like "Key Concepts", which no hierarchy
+      can infer. But gating the auto-list on "has no body" meant authoring an
+      intro silently replaced the section's ONLY navigation, and hand-curated
+      lists drift: one guide reached 41 pages linking 1, and another had
+      quietly orphaned a page.
+
+      So the auto-list is a GAP-FILLER: a section with a body lists only the
+      pages that are not reachable from that body by following links. A landing
+      whose hierarchy covers everything shows nothing extra, and a page can
+      never become unreachable — a newly added page appears under "Orphaned
+      Pages" until someone files it into the curated index.
+
+      Taxonomy and term pages keep their own listing shapes below.
+    */ -}}
+    {{- $showAutoList :=
+      or (eq .Kind "taxonomy")
+         (eq .Kind "term")
+         (eq .Kind "section")
+    -}}
+    {{- $members := .Pages -}}
+    {{- /*
+      Pages reachable from the authored body, matched on RelPermalink so the
+      comparison survives aliases and wikilink resolution.
+
+      The needle deliberately stops after the URL rather than closing the quote,
+      so a link that carries a fragment counts. A rules landing reaches its
+      Characters chapter as `…/characters-introduction/#body-structure`, and
+      demanding the closing quote made that chapter read as unlinked. A trailing
+      slash ends every RelPermalink, so the open-ended match cannot bleed into a
+      sibling (`/rules/fate/` never prefixes `/rules/fate-points/`).
+
+      Reachability is TRANSITIVE, because a curated corpus is a hierarchy rather
+      than a flat index: a rules landing links ten chapter introductions, and
+      each of those links its own pages — up to four hops deep (root → Trauma →
+      Body → Injury → Bleeding). Testing only what the landing links DIRECTLY
+      counted every page below the first hop as a leftover. So a page counts as
+      listed when the body links it, or when any page already counted as listed
+      links it.
+
+      The walk runs to a fixed point: each pass appends the newly reached pages'
+      content to the haystack, and the first pass that reaches nothing new stops
+      it. Twelve passes is far past the depth of any corpus here (the rules need
+      four), and the `$growing` guard makes the surplus passes free.
+    */ -}}
+    {{- $unlisted := $members -}}
+    {{- if and (eq .Kind "section") .Content -}}
+      {{- $haystack := .Content -}}
+      {{- $reached := slice -}}
+      {{- $growing := true -}}
+      {{- range seq 12 -}}
+        {{- if $growing -}}
+          {{- $growing = false -}}
+          {{- range $members -}}
+            {{- if not (in $reached .RelPermalink) -}}
+              {{- if in $haystack (printf "href=\"%s" .RelPermalink) -}}
+                {{- $reached = $reached | append .RelPermalink -}}
+                {{- $haystack = print $haystack .Content -}}
+                {{- $growing = true -}}
+              {{- end -}}
+            {{- end -}}
+          {{- end -}}
+        {{- end -}}
+      {{- end -}}
+      {{- $unlisted = where $members "RelPermalink" "not in" $reached -}}
+    {{- end -}}
+    {{- /*
+      Label the leftovers only when a curated body precedes them. With
+      reachability transitive, anything still here is genuinely unreachable
+      by reading — an orphan — so the heading says so rather than claiming to be
+      the section's full contents.
+    */ -}}
+    {{- $labelList := and (eq .Kind "section") .Content -}}
+    {{- if $showAutoList -}}
+      {{- with $unlisted -}}
+        {{- if eq $.Kind "taxonomy" -}}
+        <ul class="page-list">
+          {{- range . }}
+          <li class="page-list-item">
+            <a class="page-list-title" href="{{ .RelPermalink }}">{{ .Title }}</a>
+            <span class="page-list-count">{{ len .Pages }}</span>
+          </li>
+          {{- end }}
+        </ul>
+        {{- else -}}
+          {{- if $labelList }}
+          <h2 class="page-list-heading">Orphaned Pages</h2>
+          {{- end }}
+          <ul class="page-list">
+            {{- range . }}
+            <li class="page-list-item">
+              <a class="page-list-title" href="{{ .RelPermalink }}">{{ .Title }}</a>
+              {{- with .Description }}
+              <span class="page-list-desc">{{ . }}</span>
+              {{- end }}
+            </li>
+            {{- end }}
+          </ul>
+        {{- end -}}
+      {{- else -}}
+      {{- /*
+        "Nothing here yet" is the right answer for an empty auto-listed section,
+        and the wrong one for a curated landing — there a leftover list of zero
+        means the hierarchy covers everything, so nothing should be said at all.
+      */ -}}
+        {{- if not $labelList -}}
+        <p class="page-list-empty">Nothing here yet.</p>
+        {{- end -}}
+      {{- end -}}
+    {{- end }}
+  </div>
+</article>
+{{ end }}
