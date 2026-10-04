@@ -1,5 +1,19 @@
 # @heroiclands/package-build
 
+## 22.24.0
+
+### Minor Changes
+
+**Hero banners** — A page whose note names its own hero image shows that image, in place of the stock banner for its kind; a note naming none gets a band with no image.
+
+**Figures** — A numbered figure, table, listing or map reads as one block, its number and caption set beneath it rather than running on as body text, and a passage set apart as an aside draws as a box.
+
+**Pictures** — A portrait or an emblem draws at half the content column and a banner, plate or map at its full width, never wider than the size the picture was made at; a stated width still overrides the role's measure.
+
+**Installing** — The shared Hugo theme arrives with this package, so a site declares this package alone and needs no separate theme dependency.
+
+**Hero images** — The authoring guide states the three states of a note's hero image: a picture, a deliberate blank that declines one, and an absent key that takes the default for the note's type.
+
 ## 22.23.0
 
 ### Minor Changes
