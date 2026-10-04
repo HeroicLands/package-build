@@ -169,6 +169,10 @@ reaches a reader carrying a broken image source. The two empties are distinct
 and both survive: `null` is a note naming no art, where a default may apply,
 and `""` is a note refusing art, where no default may replace it.
 
+The build writes these keys; [what the theme draws](../reference/theme-pages.md)
+describes the panel each one feeds — the infobox, the hero band, the holdings
+and related cards, the place map, and search.
+
 ## Build and serve
 
 ```bash

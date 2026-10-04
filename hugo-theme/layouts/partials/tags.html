@@ -1,0 +1,30 @@
+{{- /*
+  A page's own subject-tag chips, rendered from .Params.tags.
+
+  `draft` is suppressed here: it is a presentation fact about the writing,
+  not a fact about the subject (package-build/engine/note-vocabulary.mjs,
+  `DRAFT_TAG`) — a draft compiles, validates, publishes and resolves like any
+  other note. It does not belong beside subject tags in a reader-facing tag
+  list; `draft-notice.html` is where the state is stated,
+  and `draft-state.html` is the one place either partial spells the tag.
+
+  The taxonomy itself is untouched: a draft page still carries the tag, still
+  lists on its term page, and the term still appears in a site-wide taxonomy
+  listing. This partial decides only what a page's own chip row shows.
+
+  Silent-disappear: a page whose only tag is `draft` emits nothing here, the
+  same as a page with no tags at all.
+
+  Context: the page.
+*/ -}}
+{{- $tags := slice -}}
+{{- range .Params.tags -}}
+  {{- if ne (lower .) "draft" -}}
+    {{- $tags = $tags | append . -}}
+  {{- end -}}
+{{- end -}}
+{{- with $tags }}
+<div class="single-tags">
+  {{ range . }}<a href="{{ printf "tags/%s/" (. | urlize) | relURL }}" class="tag">{{ . }}</a>{{ end }}
+</div>
+{{ end -}}

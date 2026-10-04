@@ -1,0 +1,84 @@
+{{- /*
+  The header search box, rendered only when a consumer sets `params.search`
+  (silent-disappear otherwise — see the README's "Search" section).
+
+  `@heroiclands/package-build`'s `package-build site-root` step writes a
+  Pagefind index beside the rendered pages, at `pagefind/` under the site's
+  own base URL, when a consumer leaves `site.search` at its default of `true`
+  (see that package's `docs/configuration.md`, `site.search`). Pagefind's own
+  UI — `pagefind-ui.js` and `pagefind-ui.css` — ships inside that generated
+  directory, so nothing here is bundled or pinned to a Pagefind version; the
+  index and the UI that reads it travel together.
+
+  Both files are referenced the same way every other theme-bundled asset is
+  — `relURL`, exactly as `"css/style.css" | relURL` resolves in
+  `baseof.html` — so a package served under a prefix (`/thalorna/`) finds
+  its own index rather than another package's.
+
+  A `/search/` results page would need a consumer content file at that
+  address, and a site is its homepage and its pages with nothing generated
+  between them (package-build's `docs/configuration.md`, "A site is its
+  homepage and its pages") — so a dedicated results page is not this
+  theme's to invent. Pagefind's own panel UI needs no page of its own, so
+  the header box opens that instead.
+
+  Context: the page (only .Site is read, so this partial can also be called
+  with just `.Site` in a dict).
+*/ -}}
+{{- if .Site.Params.search }}
+<div class="site-search" data-pagefind-ignore>
+  <button
+    type="button"
+    class="search-toggle"
+    aria-label="Search"
+    aria-expanded="false"
+    aria-controls="site-search-panel"
+  ><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+  <div id="site-search-panel" class="search-panel" hidden>
+    <div class="search-panel-inner" id="search"></div>
+  </div>
+</div>
+<link rel="stylesheet" href="{{ "pagefind/pagefind-ui.css" | relURL }}">
+<script src="{{ "pagefind/pagefind-ui.js" | relURL }}" defer></script>
+<script>
+(function () {
+  var toggle = document.querySelector(".search-toggle");
+  var panel = document.getElementById("site-search-panel");
+  if (!toggle || !panel) return;
+  var ui = null;
+
+  function open() {
+    panel.hidden = false;
+    toggle.setAttribute("aria-expanded", "true");
+    if (!ui && typeof PagefindUI !== "undefined") {
+      ui = new PagefindUI({
+        element: "#search",
+        showSubResults: true,
+        showImages: false
+      });
+    }
+    var input = panel.querySelector("input");
+    if (input) input.focus();
+  }
+
+  function close() {
+    panel.hidden = true;
+    toggle.setAttribute("aria-expanded", "false");
+  }
+
+  toggle.addEventListener("click", function () {
+    if (panel.hidden) { open(); } else { close(); }
+  });
+
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !panel.hidden) close();
+  });
+
+  document.addEventListener("click", function (e) {
+    if (panel.hidden) return;
+    if (panel.contains(e.target) || toggle.contains(e.target)) return;
+    close();
+  });
+})();
+</script>
+{{- end }}

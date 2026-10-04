@@ -1,0 +1,2953 @@
+/* ============================================
+   Heroic Lands — Style
+   Dark fantasy / manuscript aesthetic
+   ============================================ */
+
+:root {
+  --bg:            #0f1923;
+  --bg-deeper:     #0a1219;
+  --bg-card:       #15202d;
+  --bg-card-hover: #1a2836;
+  --surface:       #1c2b3a;
+  --border:        #2a3d52;
+  --border-light:  #354d66;
+
+  --text:          #c8d6e0;
+  --text-muted:    #7e96aa;
+  --text-dim:      #4a6478;
+
+  --accent:        #3b8eea;
+  --accent-hover:  #5aa3f0;
+  --accent-dim:    #2a6bb8;
+  --gold:          #c9a84c;
+  --gold-dim:      #a08338;
+
+  /* A link whose target no package publishes. Contrast-checked against the
+     three surfaces it can sit on: 7.8:1 on --bg, 7.2:1 on --bg-card, 6.3:1 on
+     --surface. A consuming site may override it, but must re-check: the light
+     red the Foundry system uses reaches only ~2.5:1 here. */
+  --unresolved-link: #ff8a80;
+
+  /* A link whose target exists but is not written yet. Contrast-checked
+     against the same three surfaces: 10.0:1 on --bg, 9.3:1 on --bg-card,
+     8.1:1 on --surface. Deliberately a different hue and a different
+     underline from --unresolved-link: the two say different things, and a
+     reader has to be able to tell them apart. */
+  --draft-link: #f2b950;
+
+  /* A note's `info`, `warn` and `secret` named blocks. Each exposes its own
+     property so a consuming site can retint one kind without restating the
+     block's layout. Contrast-checked against the three surfaces a block's
+     heading can sit on: info 7.95:1 on --bg, 7.37:1 on --bg-card, 6.46:1 on
+     --surface; warn 7.81:1 / 7.24:1 / 6.35:1; secret 8.48:1 / 7.86:1 / 6.89:1.
+     Three distinct hues — blue, amber, violet — so the kinds read apart by
+     hue alone as well as by position. */
+  --block-info:   #6fb3f2;
+  --block-warn:   #e0a030;
+  --block-secret: #c3a6f0;
+
+  /* A footnote's marker and its back-reference. The brighter accent rather
+     than --accent, because a marker is small type: --accent reaches only
+     4.29:1 on --surface, while this holds 6.70:1 on --bg, 6.21:1 on --bg-card
+     and 5.45:1 on --surface. All three are surfaces a marker can sit on, since
+     a footnote may be called from inside a blockquote or a named block. */
+  --footnote-marker: var(--accent-hover);
+
+  --font-display:  'Cinzel', 'Georgia', serif;
+  --font-body:     'Lora', 'Georgia', serif;
+  --font-mono:     'JetBrains Mono', monospace;
+
+  --content-width: 100%;
+  --content-narrow: 100%;
+}
+
+/* ---- Reset ---- */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 17px;
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: 400;
+  line-height: 1.7;
+  color: var(--text);
+  background: var(--bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 0.2s ease, border-color 0.2s ease;
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+/* Inline body links get a subtle underline on hover so they feel
+   tactile without competing with headings or navigation. Links
+   inside utility contexts (cards, nav, TOC) opt out via more
+   specific rules elsewhere. */
+.single-body a {
+  border-bottom: 1px solid transparent;
+}
+
+.single-body a:hover {
+  border-bottom-color: var(--accent-dim);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ---- Header ---- */
+
+.site-header {
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-deeper);
+}
+
+.header-inner {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 1.25rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.site-title {
+  display: flex;
+  align-items: center;
+  text-decoration: none;
+  gap: 0.75rem;
+}
+
+.site-logo {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.title-main {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+
+.title-sub {
+  font-family: var(--font-body);
+  font-size: 0.85rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.site-nav {
+  display: flex;
+  gap: 2rem;
+}
+
+.nav-link {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.02em;
+  padding: 0.25rem 0;
+  border-bottom: 2px solid transparent;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.nav-link:hover,
+.nav-link.active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+/* Dropdown navigation */
+.nav-dropdown {
+  position: relative;
+}
+
+.dropdown-arrow {
+  margin-left: 0.3rem;
+  transition: transform 0.2s;
+}
+
+.nav-dropdown:hover .dropdown-arrow {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 220px;
+  background: var(--bg-deeper);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.5rem 0;
+  margin-top: 0.5rem;
+  z-index: 100;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.nav-dropdown:hover .dropdown-menu {
+  display: block;
+}
+
+/* Bridge the margin-top gap between the trigger and the menu so the pointer
+   stays within .nav-dropdown while travelling to it (otherwise :hover drops in
+   the gap and the menu closes before an item can be clicked). */
+.dropdown-menu::before {
+  content: "";
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  height: 0.5rem;
+}
+
+.dropdown-item {
+  display: block;
+  padding: 0.5rem 1.25rem;
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  color: var(--text-muted);
+  transition: color 0.2s, background 0.2s;
+}
+
+.dropdown-item:hover {
+  color: var(--text);
+  background: var(--surface);
+}
+
+/* Mobile nav toggle */
+.nav-toggle {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nav-toggle span {
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--text-muted);
+  transition: transform 0.3s, opacity 0.3s;
+}
+
+.nav-toggle.open span:nth-child(1) {
+  transform: translateY(7px) rotate(45deg);
+}
+.nav-toggle.open span:nth-child(2) {
+  opacity: 0;
+}
+.nav-toggle.open span:nth-child(3) {
+  transform: translateY(-7px) rotate(-45deg);
+}
+
+/* ---- Search ---- */
+
+.site-search {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.5rem;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: color 0.2s;
+}
+
+.search-toggle:hover,
+.search-toggle[aria-expanded="true"] {
+  color: var(--text);
+}
+
+.search-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 0.75rem;
+  width: min(28rem, 90vw);
+  max-height: 70vh;
+  overflow-y: auto;
+  background: var(--bg-deeper);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1rem;
+  z-index: 200;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+/* Pagefind's own UI renders inside .search-panel-inner. These custom
+   properties are Pagefind's own theming hooks (pagefind_ui/default), carried
+   onto this theme's palette so results read like the rest of the chrome
+   rather than Pagefind's light default. */
+.search-panel-inner {
+  --pagefind-ui-primary: var(--accent);
+  --pagefind-ui-text: var(--text);
+  --pagefind-ui-background: var(--bg-card);
+  --pagefind-ui-border: var(--border);
+  --pagefind-ui-tag: var(--surface);
+  --pagefind-ui-border-radius: 4px;
+  --pagefind-ui-image-border-radius: 4px;
+  --pagefind-ui-font: var(--font-body);
+}
+
+.search-panel-inner mark {
+  color: var(--gold);
+  background: none;
+}
+
+/* ---- Hero ---- */
+
+.hero {
+  background:
+    linear-gradient(to bottom, rgba(15, 25, 35, 0.4), var(--bg)),
+    var(--bg-deeper);
+  border-bottom: 1px solid var(--border);
+  padding: 5rem 2rem 4rem;
+  text-align: center;
+}
+
+.hero-inner {
+  max-width: var(--content-narrow);
+  margin: 0 auto;
+}
+
+.hero h1 {
+  font-family: var(--font-display);
+  font-size: 3.2rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  margin-bottom: 1rem;
+  line-height: 1.15;
+}
+
+.hero-tagline {
+  font-family: var(--font-body);
+  font-size: 1.2rem;
+  font-style: italic;
+  color: var(--text-muted);
+  line-height: 1.6;
+  max-width: 36rem;
+  margin: 0 auto;
+}
+
+/* If you add a hero background image, use this class on .hero */
+.hero-with-image {
+  background-size: cover;
+  background-position: center;
+  position: relative;
+}
+
+.hero-with-image::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(15, 25, 35, 0.6),
+    var(--bg)
+  );
+}
+
+.hero-with-image .hero-inner {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---- Home Cards ---- */
+
+.home-sections {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 3rem 2rem 4rem;
+}
+
+.home-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+}
+
+/* Featured home layout: SoHL heading spans its two cards, with the
+   Thalorna card sitting to the right (spanning both rows). */
+.home-featured {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: auto auto;
+  column-gap: 2rem;
+  row-gap: 0;
+  align-items: start;
+}
+
+.home-section-title {
+  grid-column: 1 / 3;
+  grid-row: 1;
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: center;
+  margin: 0 0 0.5rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Settings header sits in the top row above the Thalorna card. */
+.home-section-title--settings {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+.home-card--kb  { grid-column: 1; grid-row: 2; }
+.home-card--api { grid-column: 2; grid-row: 2; }
+
+.home-card--thalorna { grid-column: 3; grid-row: 2; }
+
+/* Below ~900px the three fixed columns cramp the card images; stack them. */
+@media (max-width: 900px) {
+  .home-featured {
+    grid-template-columns: 1fr;
+  }
+
+  .home-featured .home-section-title,
+  .home-card--kb,
+  .home-card--api,
+  .home-card--thalorna {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+.home-card {
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.home-card:hover {
+  /* Subtle hover — no background since cards are transparent */
+}
+
+.home-card h2 {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 0.75rem;
+}
+
+.home-card h2 a {
+  color: var(--text);
+}
+
+.home-card h2 a:hover {
+  color: var(--accent);
+}
+
+.home-card > p {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  margin-bottom: 1.25rem;
+  line-height: 1.65;
+}
+
+.home-card .card-image {
+  width: 240px;
+  height: 240px;
+  /* cover (not contain) so wide banner images crop to a square instead of
+     letterboxing; the square Thalorna image renders identically either way. */
+  object-fit: cover;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+  border: none;
+}
+
+.card-link {
+  display: block;
+  font-size: 0.9rem;
+  padding: 0.3rem 0;
+  color: var(--accent);
+  border-top: 1px solid var(--border);
+}
+
+.card-link:first-of-type {
+  margin-top: auto;
+  padding-top: 0.75rem;
+}
+
+.card-link:hover {
+  color: var(--accent-hover);
+}
+
+.card-button {
+  display: inline-block;
+  margin-top: auto;
+  padding: 0.65rem 2rem;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 50px;
+  font-family: var(--font-body);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  transition: background 0.2s;
+  text-align: center;
+}
+
+.card-button:hover {
+  background: var(--accent-hover);
+  color: #fff;
+}
+
+/* ---- Package landing ----
+
+   The home layout's landing shape (layouts/partials/landing.html): a lead,
+   an install block, a grid of cards, standing notices and a closing line.
+
+   These classes were a per-page <style> block in one package repository,
+   which meant the other five could only get the same look by copying it
+   (issue #33). Here they are shared, and every colour, face and measure is a
+   token, so a consumer that redefines the palette on :root — or a light
+   scheme added to this file later — re-colours the landing along with the
+   rest of the site. No literal colour appears below.
+   ---- */
+
+/* Lead and closing paragraphs, and the page body when a package writes one.
+   Held to a measure a reader can track across, and centred in the band. */
+.lead,
+.landing-body {
+  max-width: 780px;
+  margin: 0 auto 2rem;
+  line-height: 1.75;
+}
+
+.lead-centred {
+  text-align: center;
+  margin-top: 2rem;
+}
+
+.section-heading {
+  text-align: center;
+}
+
+/* Install block: the manifest URL is the payload, so it is set to be read and
+   copied rather than decorated. */
+.install {
+  max-width: 780px;
+  margin: 0 auto;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-card);
+  padding: 1.5rem 1.75rem;
+}
+
+.install h2 {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.install p {
+  line-height: 1.7;
+}
+
+.install-url {
+  display: block;
+  padding: 0.75rem 1rem;
+  background: var(--bg-deeper);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  color: var(--text);
+  word-break: break-all;
+  margin: 0.75rem 0;
+}
+
+.install-note {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  margin: 0;
+}
+
+/* The cards: each a heading, a line of orientation, and the few links that
+   actually answer it. A fixed card width rather than a fitted grid, so a
+   package with three cards and one with twenty both read as the same object
+   at the same size. */
+.doors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  justify-content: center;
+  margin-top: 1.5rem;
+}
+
+.door {
+  width: 340px;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-card);
+  padding: 1.5rem;
+}
+
+/* A card inside a group carries an h4 rather than an h3, so that the group's
+   own heading sits above it in the outline. It is the same card title either
+   way, so it is the same rule. */
+.door h3,
+.door h4 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+}
+
+.door h3 a,
+.door h4 a {
+  color: var(--gold);
+}
+
+.door h3 a:hover,
+.door h4 a:hover {
+  color: var(--accent-hover);
+}
+
+.door > p {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.6;
+  margin-bottom: 0.9rem;
+}
+
+.door ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.door li {
+  margin-bottom: 0.5rem;
+  line-height: 1.5;
+}
+
+.door li a {
+  font-weight: 600;
+}
+
+/* A card image — the section's own hero banner, at the banner aspect so a
+   grid of them lines up whatever each drawing's intrinsic size is. The card's
+   padding moves to an inner body so the image sits edge to edge; a text card
+   is untouched. */
+.door-with-image {
+  padding: 0;
+  overflow: hidden;
+}
+
+.door-image {
+  display: block;
+}
+
+.door-image img,
+img.door-image {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1792 / 768;
+  object-fit: cover;
+  background: var(--bg-deeper);
+}
+
+.door-body {
+  padding: 1.5rem;
+}
+
+/* Derived cards gathered under an editorial heading — "Actors", "Gear". The
+   group is a box around its own grid so the fence is visible at a glance,
+   which is the whole point of saying these cards belong together. Groups sit
+   beside each other and wrap, so a group of one and a group of five read as
+   two boxes rather than two full-width bands. */
+.doors-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.75rem;
+  justify-content: center;
+  margin: 1.5rem auto 0;
+}
+
+.doors-group {
+  margin: 0;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  background: var(--bg-card);
+  padding: 0.25rem 1.5rem 1.5rem;
+}
+
+.doors-group-heading {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 0.02em;
+  text-align: center;
+  margin-top: 1.25rem;
+}
+
+/* A card already carries its own frame, so inside a group it drops back to the
+   surface tone and lets the group's box be the boundary. */
+.doors-group .door {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+/* A standing notice — a licence carve-out, an attribution. Full width of the
+   measure rather than a card, because it is addressed to every reader rather
+   than being one route among several. */
+.landing-notice {
+  max-width: 780px;
+  margin: 0 auto 1.5rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--gold-dim);
+  border-radius: 4px;
+  background: var(--bg-card);
+  padding: 1.25rem 1.5rem;
+}
+
+.landing-notice h2 {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--gold);
+  margin-bottom: 0.5rem;
+}
+
+.landing-notice p {
+  color: var(--text-muted);
+  font-size: 0.94rem;
+  line-height: 1.65;
+  margin: 0;
+}
+
+/* One card per row once two no longer fit beside each other; the fixed width
+   would otherwise overflow a narrow viewport. */
+@media (max-width: 400px) {
+  .door {
+    width: 100%;
+  }
+}
+
+/* ---- Section List Pages ---- */
+
+.section-header {
+  max-width: var(--content-narrow);
+  margin: 0 auto;
+  padding: 3rem 2rem 1.5rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-header h1 {
+  font-family: var(--font-display);
+  font-size: 2.4rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.section-description {
+  color: var(--text-muted);
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+}
+
+.content-list {
+  max-width: var(--content-narrow);
+  margin: 0 auto;
+  padding: 1rem 2rem 4rem;
+}
+
+.list-item {
+  padding: 1.25rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.list-item h2 {
+  font-family: var(--font-display);
+  font-size: 1.35rem;
+  font-weight: 600;
+}
+
+.list-item h2 a {
+  color: var(--text);
+}
+
+.list-item h2 a:hover {
+  color: var(--accent);
+}
+
+.item-description {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin-top: 0.35rem;
+}
+
+.item-tags {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.tag {
+  display: inline-block;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.6rem;
+  background: var(--surface);
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}
+
+a.tag:hover {
+  border-color: var(--accent-dim);
+  color: var(--accent);
+}
+
+/* ---- Single Page ---- */
+
+.single {
+  max-width: var(--content-narrow);
+  margin: 0 auto;
+  padding: 0 2rem;
+}
+
+.single-header {
+  padding: 3rem 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+
+.single-header h1 {
+  font-family: var(--font-display);
+  font-size: 2.6rem;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+}
+
+.single-description {
+  font-family: var(--font-body);
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
+}
+
+.single-date {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-top: 0.75rem;
+}
+
+.single-tags {
+  margin-top: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+/* ---- Blog meta ---- */
+
+.blog-meta {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.blog-series {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  padding: 0.25rem 0.6rem;
+  border: 1px solid var(--accent-dim);
+  border-radius: 2px;
+  background: var(--bg-card);
+}
+
+.blog-series-label {
+  font-family: var(--font-display);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.blog-series-name {
+  font-family: var(--font-body);
+  font-style: italic;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.blog-meta .single-date {
+  margin-top: 0.5rem;
+}
+
+/* ---- Blog list (section index) ----
+
+   Selectors use `.single-content .blog-list` (two classes) so they
+   outrank the generic `.single-content ul` rule further down, which
+   would otherwise re-impose default bullets and a 1.5rem left margin. */
+
+.single-content .blog-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+}
+
+.single-content .blog-list-item {
+  padding: 1.5rem 0;
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.single-content .blog-list-item:first-child {
+  padding-top: 0.5rem;
+}
+
+.single-content .blog-list-item:last-child {
+  border-bottom: none;
+}
+
+.single-content .blog-list-date {
+  display: block;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-bottom: 0.25rem;
+}
+
+.single-content .blog-list-title {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  display: inline-block;
+  border-bottom: 1px solid transparent;
+}
+
+.single-content .blog-list-title:hover {
+  color: var(--accent);
+  border-bottom-color: var(--accent-dim);
+}
+
+.single-content .blog-list-desc {
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 0.5rem 0 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+/* ---- Article Content ---- */
+
+.single-content {
+  padding-bottom: 3rem;
+}
+
+.single-content h1 {
+  font-family: var(--font-display);
+  font-size: 2.2rem;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+  margin: 2.5rem 0 1rem;
+  color: var(--accent);
+}
+
+.single-content h2 {
+  font-family: var(--font-display);
+  font-size: 1.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin: 2.5rem 0 0.75rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--accent-dim);
+  color: var(--text);
+}
+
+.single-content h3 {
+  font-family: var(--font-display);
+  font-size: 1.3rem;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin: 2rem 0 0.6rem;
+  color: var(--accent);
+}
+
+.single-content h4 {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin: 1.5rem 0 0.5rem;
+  color: var(--text-muted);
+}
+
+.single-content p {
+  margin-bottom: 1.25rem;
+}
+
+.single-content ul,
+.single-content ol {
+  margin: 0 0 1.25rem 1.5rem;
+}
+
+.single-content li {
+  margin-bottom: 0.35rem;
+}
+
+.single-content blockquote {
+  border-left: 3px solid var(--gold-dim);
+  margin: 1.5rem 0;
+  padding: 0.75rem 1.25rem;
+  background: var(--bg-card);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* ---- Named blocks (info, warn, secret) ----
+
+   A note's `:::info`, `:::warn` and `:::secret` blocks reach the page as a
+   <details> carrying the kind as its first class, with the <summary>
+   repeating it alone. An author may add further classes and attributes
+   beside the kind, so every selector here matches on the kind class rather
+   than assuming the attribute is one word.
+
+   Each kind sets --block-accent from its own custom property, so the shared
+   rule below carries the layout once and a consuming site can retint one
+   kind by redeclaring --block-info / --block-warn / --block-secret alone.
+
+   Single-mode dark, deliberately, as the markers above: this theme sets no
+   color-scheme, so a light-dark() value would resolve to its light half and
+   the toolchain's old fixed light fills are exactly what this replaces. */
+
+.single-content details.info,
+.single-content details.warn,
+.single-content details.secret {
+  margin: 1.5rem 0;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--block-accent);
+  border-radius: 4px;
+  background: var(--bg-card);
+}
+
+.single-content details.info {
+  --block-accent: var(--block-info);
+}
+
+.single-content details.warn {
+  --block-accent: var(--block-warn);
+}
+
+.single-content details.secret {
+  --block-accent: var(--block-secret);
+}
+
+.single-content details.info > summary.info,
+.single-content details.warn > summary.warn,
+.single-content details.secret > summary.secret {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--block-accent);
+}
+
+.single-content details.info > summary.info::-webkit-details-marker,
+.single-content details.warn > summary.warn::-webkit-details-marker,
+.single-content details.secret > summary.secret::-webkit-details-marker {
+  display: none;
+}
+
+/* The chevron replaces the browser's own marker, matching the disclosure
+   affordance .info-sidebar-title uses, so a reader meets one convention for
+   "this opens" across the theme rather than two. */
+.single-content details.info > summary.info::after,
+.single-content details.warn > summary.warn::after,
+.single-content details.secret > summary.secret::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  margin-left: auto;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+  transform: translateY(-0.15em) rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.single-content details.info[open] > summary.info::after,
+.single-content details.warn[open] > summary.warn::after,
+.single-content details.secret[open] > summary.secret::after {
+  transform: translateY(0.1em) rotate(-135deg);
+}
+
+.single-content details.info[open] > summary.info,
+.single-content details.warn[open] > summary.warn,
+.single-content details.secret[open] > summary.secret {
+  margin-bottom: 0.75rem;
+}
+
+.single-content details.info > :last-child,
+.single-content details.warn > :last-child,
+.single-content details.secret > :last-child {
+  margin-bottom: 0;
+}
+
+.single-content code {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--surface);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+}
+
+.single-content pre {
+  background: var(--bg-deeper);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1.25rem;
+  overflow-x: auto;
+  margin: 1.5rem 0;
+}
+
+.single-content pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.single-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.5rem 0;
+  font-size: 0.9rem;
+}
+
+.single-content th,
+.single-content td {
+  text-align: left;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.single-content th {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 2px solid var(--border-light);
+}
+
+.single-content img {
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  margin: 1.5rem 0;
+}
+
+/* An authored image uses its file width unless a named size sets a measure
+   or its role states a slot. */
+.single-content figure.note-image {
+  display: table;
+  width: max-content;
+  max-width: min(100%, var(--note-image-slot, 100%));
+  margin: 1.5rem 0;
+}
+
+.single-content figure.note-image img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  height: auto;
+  margin: 0;
+}
+
+/* What a role draws at on this surface. Each slot is a maximum, never a
+   target: the drawn width is the smaller of the slot and the picture's own
+   pixels, which the emitted `width`/`height` attributes supply as the figure's
+   intrinsic measure. A named `size=` or a stated width overrides a slot
+   outright, which is what clearing the property below it does. */
+.single-content figure.note-image-role-portrait,
+.single-content figure.note-image-role-emblem {
+  --note-image-slot: 50%;
+}
+
+.single-content figure.note-image-role-banner,
+.single-content figure.note-image-role-plate,
+.single-content figure.note-image-role-map {
+  --note-image-slot: 100%;
+}
+
+/* A vector carries no pixel count, so nothing narrows its role's slot and it
+   draws at the slot rather than at an intrinsic measure it does not hold. A
+   blank `width` attribute is what tells one from a raster. */
+.single-content figure[class*="note-image-role-"]:has(img[width=""]) {
+  width: min(100%, var(--note-image-width, var(--note-image-slot, 100%)));
+}
+
+.single-content figure[class*="note-image-role-"] img[width=""] {
+  width: 100%;
+}
+
+.single-content figure.note-image-size-small { --note-image-width: 64px; }
+.single-content figure.note-image-size-medium { --note-image-width: 128px; }
+.single-content figure.note-image-size-large { --note-image-width: 256px; }
+.single-content figure.note-image-size-xlarge { --note-image-width: 512px; }
+
+.single-content figure.note-image-size-small,
+.single-content figure.note-image-size-medium,
+.single-content figure.note-image-size-large,
+.single-content figure.note-image-size-xlarge {
+  --note-image-slot: 100%;
+  width: min(100%, var(--note-image-width));
+}
+
+.single-content figure.note-image-size-small img,
+.single-content figure.note-image-size-medium img,
+.single-content figure.note-image-size-large img,
+.single-content figure.note-image-size-xlarge img {
+  width: 100%;
+}
+
+.single-content figure.note-image-full-width,
+.single-content figure.note-image-size-full-width {
+  --note-image-slot: 100%;
+  display: block;
+  width: 100%;
+}
+
+.single-content figure.note-image-full-width img,
+.single-content figure.note-image-size-full-width img {
+  width: var(--note-image-width, 100%);
+}
+
+.single-content figure.note-image-float-top-left,
+.single-content figure.note-image-float-bottom-left {
+  float: left;
+  max-width: min(50%, var(--note-image-slot, 100%));
+  margin: 0.25rem 1.25rem 0.75rem 0;
+}
+
+.single-content figure.note-image-float-top-right,
+.single-content figure.note-image-float-bottom-right {
+  float: right;
+  max-width: min(50%, var(--note-image-slot, 100%));
+  margin: 0.25rem 0 0.75rem 1.25rem;
+}
+
+.single-content figure.note-image-full-width,
+.single-content figure.note-image-size-full-width {
+  max-width: 100%;
+}
+
+.single-content figure.note-image-float-center {
+  float: none;
+  margin: 1.5rem auto;
+}
+
+@media (max-width: 720px) {
+  /* Half a phone's column is a thumbnail, so a role's slot opens to the whole
+     of it. The picture's own pixels still cap what it draws at. */
+  .single-content figure.note-image {
+    --note-image-slot: 100%;
+  }
+
+  .single-content figure.note-image-float-top-left,
+  .single-content figure.note-image-float-bottom-left,
+  .single-content figure.note-image-float-top-right,
+  .single-content figure.note-image-float-bottom-right {
+    float: none;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin: 1.5rem auto;
+  }
+
+  .single-content figure.note-image-float-top-left img,
+  .single-content figure.note-image-float-bottom-left img,
+  .single-content figure.note-image-float-top-right img,
+  .single-content figure.note-image-float-bottom-right img {
+    width: var(--note-image-width, auto);
+  }
+}
+
+/* A `:::figure` fence: a numbered, referable block carrying its label beneath
+   whatever it holds — a picture, a table, a listing, a map, or prose. The
+   contents decide the counter and the label's word, and every kind draws
+   alike, so a kind added to the vocabulary arrives styled. A fence is a
+   cross-reference target, and takes the scroll offset a heading does. */
+.single-content .content-figure {
+  margin: 1.5rem 0;
+  scroll-margin-top: 2rem;
+}
+
+/* The fence owns the space around what it wraps, so its contents add none of
+   their own at the edges. */
+.single-content .content-figure > :first-child {
+  margin-top: 0;
+}
+
+.single-content .content-figure > figure.note-image {
+  margin: 0;
+}
+
+/* The label carries the number a cross-reference points at, so it reads as a
+   caption rather than as another paragraph of the body. */
+.single-content .content-figure-label {
+  margin: 0.5rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+/* `.border` is the one class an author may write on a fence, and it draws the
+   block as a boxed aside. */
+.single-content .content-figure.border {
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-card);
+}
+
+/* Ornamental horizontal rule: thin line flanking a centered gold
+   diamond. Uses gradients on ::before/::after to keep the markup
+   clean (authors just write `---` in markdown). */
+.single-content hr,
+.single-body hr {
+  position: relative;
+  border: none;
+  height: 1px;
+  margin: 3rem 0;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    var(--border) 20%,
+    var(--border-light) 50%,
+    var(--border) 80%,
+    transparent 100%
+  );
+  overflow: visible;
+}
+
+.single-content hr::after,
+.single-body hr::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  background: var(--gold-dim);
+  transform: translate(-50%, -50%) rotate(45deg);
+  box-shadow: 0 0 0 3px var(--bg);
+}
+
+
+/* ---- Footnotes ----
+
+   Goldmark renders a footnote marker as a <sup> wrapping an `a.footnote-ref`,
+   and the notes themselves as a `div.footnotes` holding an <hr>, an <ol> of
+   notes, and an `a.footnote-backref` glyph closing each one. Those classes
+   arrive inside the rendered body, so they are scoped under the article
+   wrapper like the rest of its typography.
+
+   The marker takes its size in rem rather than em: <sup> already shrinks its
+   contents, so an em value compounds and the marker lands at whatever the
+   surrounding type happens to be. It stays an inline box as well — vertical
+   padding on an inline element enlarges the hit area without touching the line
+   box, so a marker is comfortable to hit and the leading of the paragraph
+   carrying it matches every other paragraph.
+
+   The notes section carries no heading of its own, and one cannot be added to
+   the rendered body, so the label is a ::before on the container. Goldmark's
+   <hr> goes with it: the theme gives `---` an ornamental rule meaning "a break
+   in the article", and opening the notes with that same mark says the article
+   continues. A rule above the section separates it instead, and the label says
+   what it is — which is what the Foundry surface shows and what the authoring
+   document describes.
+
+   Following a marker or a back-reference has to land somewhere visible, so
+   both ends of the jump highlight: the note under `li:target`, and the marker
+   under the <sup> that carries the id. Each keeps its padding at rest, so the
+   highlight appears without shifting the text around it.
+
+   Single-mode dark, deliberately, as the markers and named blocks above. */
+
+.single-content .footnote-ref {
+  font-size: 0.78rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--footnote-marker);
+  margin: 0 0.15em;
+  padding: 0.4em 0.25em;
+  border-radius: 3px;
+  border-bottom: none;
+}
+
+.single-content .footnote-ref:hover {
+  color: var(--footnote-marker);
+  background: var(--surface);
+}
+
+/* The id sits on the <sup>, so a jump to #fnref:N targets the wrapper and the
+   link inside it is styled through that. Only a footnote marker carries an id
+   on a <sup> in rendered output. */
+.single-content sup:target {
+  scroll-margin-top: 2rem;
+}
+
+.single-content sup:target .footnote-ref {
+  background: var(--surface);
+  box-shadow: 0 0 0 2px var(--footnote-marker);
+}
+
+.single-content .footnotes {
+  margin-top: 3rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.single-content .footnotes::before {
+  content: "Footnotes";
+  display: block;
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text);
+  margin-bottom: 0.75rem;
+}
+
+.single-content .footnotes hr {
+  display: none;
+}
+
+.single-content .footnotes ol {
+  margin: 0 0 0 1.5rem;
+}
+
+.single-content .footnotes li {
+  margin-bottom: 0.5rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 3px;
+  scroll-margin-top: 2rem;
+}
+
+.single-content .footnotes ol > li::marker {
+  color: var(--footnote-marker);
+  font-weight: 700;
+}
+
+.single-content .footnotes li:target {
+  background: var(--surface);
+  outline: 1px solid var(--border-light);
+}
+
+.single-content .footnotes li p {
+  margin-bottom: 0.4rem;
+}
+
+.single-content .footnotes li > :last-child {
+  margin-bottom: 0;
+}
+
+.single-content .footnote-backref {
+  color: var(--footnote-marker);
+  padding: 0.25em 0.35em;
+  border-radius: 3px;
+  border-bottom: none;
+}
+
+.single-content .footnote-backref:hover {
+  color: var(--footnote-marker);
+  background: var(--surface);
+}
+
+/* The theme styles no other focus ring, so these carry their own: both links
+   are small, and the ring is the only thing marking where the keyboard is. */
+.single-content .footnote-ref:focus-visible,
+.single-content .footnote-backref:focus-visible {
+  outline: 2px solid var(--footnote-marker);
+  outline-offset: 2px;
+  background: var(--surface);
+}
+
+
+/* ---- External URL shortcode ---- */
+
+.exturl {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.exturl-text {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--surface);
+  padding: 0.15em 0.5em;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  word-break: break-all;
+}
+
+.exturl-copy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0.3em;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: color 0.2s, border-color 0.2s;
+  flex-shrink: 0;
+}
+
+.exturl-copy:hover {
+  color: var(--accent);
+  border-color: var(--accent-dim);
+}
+
+.exturl-copy .exturl-check {
+  display: none;
+}
+
+.exturl-copy.copied .exturl-icon {
+  display: none;
+}
+
+.exturl-copy.copied .exturl-check {
+  display: block;
+  color: #4caf50;
+}
+
+/* ---- Unresolved link ----
+
+   A wikilink whose target no package publishes. The content builds keep the
+   author's text — dropping it would rewrite the sentence — and wrap it in this
+   class so a reader can tell something was meant to be a link and an author can
+   find it. Without a rule here the span arrives styled as body text, so the
+   marking exists in the HTML and communicates nothing.
+
+   Not signalled by hue alone: the dotted underline carries it for a reader who
+   cannot separate the colour from surrounding text, and `cursor: help` hints at
+   the title, which names the address that failed to resolve.
+
+   Single-mode dark, deliberately. The Foundry system's copy of this rule uses
+   light-dark(), which is right there because Foundry drives its themes through
+   color-scheme; this theme sets none, so light-dark() would resolve to the light
+   value and render the marker at about 2.5:1 — a marker nobody can see. */
+
+.sohl-unresolved-link {
+  font-weight: 700;
+  color: var(--unresolved-link);
+  text-decoration: underline dotted currentcolor;
+  text-underline-offset: 0.15em;
+  cursor: help;
+}
+
+/* ---- Draft link ----
+
+   A wikilink whose target exists but is not written yet. The content builds
+   wrap the resolved link in this class and leave the link itself alone, so it
+   still goes where it says; without a rule here it arrives styled as body text
+   and the marking communicates nothing.
+
+   Deliberately not the unresolved marking. An unresolved link's target does
+   not exist; a draft link's does and is simply unwritten, so the two must be
+   tellable apart. This keeps the link's normal weight — it is a real link —
+   and marks it in amber with a dashed underline, against the unresolved
+   marker's bold red and dotted one. Not signalled by hue alone, for the same
+   reason, and `cursor: help` hints at the title.
+
+   Single-mode dark, deliberately, as above: this theme sets no color-scheme,
+   so a light-dark() value would resolve to its light half. */
+
+.sohl-draft-link {
+  color: var(--draft-link);
+  text-decoration: underline dashed currentcolor;
+  text-underline-offset: 0.15em;
+  cursor: help;
+}
+
+/* ---- The draft notice ----
+
+   A page's statement that its own content is not settled, at the head of the
+   article. It is a statement about the document rather than a fact about the
+   subject, which is why it sits above the infobox instead of inside it, and
+   why it reads as apparatus rather than as prose.
+
+   Amber rather than grey. This theme is a single dark scheme — it sets no
+   `color-scheme`, so a `light-dark()` value would resolve to its light half —
+   and the grey tokens reach about 2.6:1 on `--bg-card`, which is not a mark
+   anyone sees. `--draft-link` is already what draft means here, on links into
+   a draft note, and the palette records it at 9.3:1 on this ground. The
+   sentence itself sets in `--text`, so it reads as a statement rather than as
+   decoration, and the whole thing is calm enough to carry on a page in every
+   few without becoming wallpaper.
+
+   The mark is a notice, not a hazard, and it is the one part that can be
+   absent: Font Awesome is a third-party stylesheet, and the sentence is
+   written to stand without it. */
+
+.draft-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 2rem;
+  padding: 0.85rem 1.1rem;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--draft-link);
+  border-radius: 4px;
+  background: var(--bg-card);
+}
+
+.draft-notice-icon {
+  color: var(--draft-link);
+  font-size: 1.4rem;
+  flex: none;
+}
+
+.draft-notice-text {
+  color: var(--text);
+  font-size: 0.94rem;
+  line-height: 1.6;
+  margin: 0;
+}
+
+.draft-notice-label {
+  color: var(--draft-link);
+  font-family: var(--font-display);
+  letter-spacing: 0.02em;
+}
+
+/* The notice spans both columns of a two-column article, because it is about
+   the whole page rather than about either column. A page carrying one moves
+   its content and its rail to the second row; a page without one keeps the
+   single row it has, so no page pays an empty track for a notice it does not
+   carry. */
+.single.single-with-sidebar > .draft-notice,
+.single.single-with-toc > .draft-notice {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.single.single-with-notice.single-with-sidebar > .single-content,
+.single.single-with-notice.single-with-sidebar > .info-rail {
+  grid-row: 2;
+}
+
+@media (max-width: 960px) {
+  /* One column, so document order governs here as it does for the rail, and
+     the notice is written first. */
+  .single.single-with-sidebar > .draft-notice,
+  .single.single-with-toc > .draft-notice,
+  .single.single-with-notice.single-with-sidebar > .single-content,
+  .single.single-with-notice.single-with-sidebar > .info-rail {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* ---- Banners ---- */
+
+.banner {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-align: center;
+  padding: 1rem 2rem;
+  border-radius: 4px;
+  margin-bottom: 2rem;
+}
+
+.banner-coming-soon {
+  background: linear-gradient(135deg, #1a2a3a, #2a3d52);
+  border: 2px solid var(--gold-dim);
+  color: var(--gold);
+}
+
+/* ---- Prev/Next Navigation ---- */
+
+.single-nav {
+  display: flex;
+  justify-content: space-between;
+  padding: 1.5rem 0 3rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.9rem;
+}
+
+.nav-prev,
+.nav-next {
+  color: var(--text-muted);
+}
+
+.nav-prev:hover,
+.nav-next:hover {
+  color: var(--accent);
+}
+
+/* ---- Footer ---- */
+
+.site-footer {
+  margin-top: auto;
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-deeper);
+}
+
+.footer-inner {
+  max-width: var(--content-width);
+  margin: 0 auto;
+  padding: 2rem 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+}
+
+.footer-text {
+  color: var(--text-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.footer-text a {
+  color: var(--text);
+}
+
+.footer-text a:hover {
+  color: var(--accent);
+}
+
+.footer-links {
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.footer-links a {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.footer-links a:hover {
+  color: var(--accent);
+}
+
+.cc-badge {
+  height: 1.75rem;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* ---- Responsive ---- */
+
+@media (max-width: 768px) {
+  html {
+    font-size: 16px;
+  }
+
+  .nav-toggle {
+    display: flex;
+  }
+
+  .site-nav {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-deeper);
+    border-bottom: 1px solid var(--border);
+    flex-direction: column;
+    padding: 1rem 2rem;
+    gap: 0.5rem;
+  }
+
+  .site-nav.open {
+    display: flex;
+  }
+
+  .dropdown-menu {
+    position: static;
+    border: none;
+    box-shadow: none;
+    padding-left: 1rem;
+    margin-top: 0;
+  }
+
+  .nav-dropdown:hover .dropdown-menu {
+    display: none;
+  }
+
+  .site-nav.open .nav-dropdown .dropdown-menu {
+    display: block;
+  }
+
+  .header-inner {
+    position: relative;
+  }
+
+  .hero h1 {
+    font-size: 2.2rem;
+  }
+
+  .hero {
+    padding: 3rem 1.5rem 2.5rem;
+  }
+
+  .home-sections {
+    padding: 2rem 1.5rem 3rem;
+  }
+
+  .home-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .home-featured {
+    grid-template-columns: 1fr;
+  }
+
+  .home-section-title {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .home-card--kb,
+  .home-card--api,
+  .home-card--thalorna {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .single-header h1 {
+    font-size: 1.8rem;
+  }
+
+  .footer-inner {
+    flex-direction: column;
+    text-align: center;
+  }
+}
+
+/* ---- Single Meta (date + tags) ---- */
+
+.single-meta {
+  padding: 1rem 0 1.5rem;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 2rem;
+}
+
+.single-meta .single-date {
+  margin-top: 0;
+}
+
+.single-subtype {
+  display: inline-block;
+  margin-right: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.single-meta .single-tags {
+  margin-top: 0.5rem;
+}
+
+/* ---- Single Page with Sidebar (two-column layout) ---- */
+
+.single.single-with-sidebar {
+  display: grid;
+  /* Sidebar capped at 1/3 of the viewport so prose stays readable on wide
+     screens, but never narrower than 330px or wider than 470px. */
+  grid-template-columns: minmax(0, 1fr) clamp(330px, 33vw, 470px);
+  gap: 3rem;
+  align-items: start;
+  padding-top: 2rem;
+}
+
+.single.single-with-sidebar .single-content {
+  min-width: 0;
+}
+
+/* The rail is written first in the markup, because the infobox is content
+   prepended before the prose. Placing both children explicitly puts it on the
+   right of a wide screen without moving it in the document. */
+.single.single-with-sidebar > .single-content {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.single.single-with-sidebar > .info-rail {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+@media (max-width: 960px) {
+  .single.single-with-sidebar {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  /* One column, so document order governs and the boxes sit above the prose
+     they summarise. */
+  .single.single-with-sidebar > .single-content,
+  .single.single-with-sidebar > .info-rail {
+    grid-column: 1;
+    grid-row: auto;
+  }
+}
+
+/* ---- The infobox rail ----
+
+   Holds a page's boxes, and its contents list beneath them where it has one.
+   The rail is what sticks; the panels inside it stack and scroll with it,
+   which is what lets several boxes share one column without each of them
+   fighting for the same sticky offset. */
+
+.info-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+  align-self: start;
+  position: sticky;
+  top: 2rem;
+}
+
+/* A panel in the rail fills the column and leaves the sticking to the rail.
+   `align-self` is the rail's cross axis here, so a box that keeps the
+   grid-item value collapses to the width of its own title when closed. */
+.info-rail > .info-sidebar,
+.info-rail > .toc {
+  position: static;
+  top: auto;
+  align-self: stretch;
+}
+
+@media (max-width: 960px) {
+  .info-rail {
+    position: static;
+  }
+}
+
+/* ---- Info Sidebar ---- */
+
+.info-sidebar {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 1.5rem 1.5rem 1.75rem;
+  align-self: start;
+  position: sticky;
+  top: 2rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
+}
+
+/* The box's header band, and the control that opens and closes it. A box is a
+   native `<details>` disclosure, so the affordance costs no JavaScript; the
+   chevron replaces the browser's own marker, which a centred title cannot
+   accommodate. */
+.info-sidebar-title {
+  margin: 0 0 1rem;
+  padding: 0.5rem 0;
+  text-align: center;
+  border-bottom: 1px solid var(--border);
+}
+
+summary.info-sidebar-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+summary.info-sidebar-title::-webkit-details-marker {
+  display: none;
+}
+
+summary.info-sidebar-title::after {
+  content: "";
+  width: 0.45rem;
+  height: 0.45rem;
+  border-right: 2px solid var(--text-muted);
+  border-bottom: 2px solid var(--text-muted);
+  transform: translateY(-0.15em) rotate(45deg);
+  transition: transform 0.15s ease;
+}
+
+.info-sidebar[open] > summary.info-sidebar-title::after {
+  transform: translateY(0.1em) rotate(-135deg);
+}
+
+/* Closed, a box is one line: no rule under the title and nothing below it, so
+   a note box and one box per system stack as three headings. */
+.info-sidebar:not([open]) > summary.info-sidebar-title {
+  margin-bottom: 0;
+  border-bottom: 0;
+}
+
+.info-sidebar-title h2 {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+  letter-spacing: 0.04em;
+}
+
+/* What a box says in place of its sections when it has nothing to show. It is
+   a statement about the note, not a missing field, so it is drawn rather than
+   dropped. */
+.info-statement {
+  margin: 0;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Compact label/value list at the top of the profile */
+.info-profile-grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.35rem 0.75rem;
+  margin: 0 0 1rem;
+  align-items: baseline;
+}
+
+.info-profile-grid dt {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding-top: 0.1rem;
+}
+
+.info-profile-grid dd {
+  color: var(--text);
+  margin: 0;
+  line-height: 1.35;
+  min-width: 0;
+}
+
+/* The grid carries its own trailing space when it stands alone; inside a
+   section the spacing between sections owns it. */
+.info-section > .info-profile-grid:last-child {
+  margin-bottom: 0;
+}
+
+.info-profile-grid .info-sub {
+  color: var(--text-muted);
+  font-size: 0.85em;
+  font-style: italic;
+}
+
+/* Composed appearance sentence */
+.info-appearance {
+  margin: 0 0 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  line-height: 1.45;
+  font-size: 0.88rem;
+}
+
+.info-label {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 0.3rem;
+}
+
+/* ---- Sections (Attributes, Skills) ---- */
+
+.info-section + .info-section {
+  margin-top: 1.25rem;
+}
+
+.info-section-title {
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 0.65rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.3rem;
+}
+
+/* Attributes — auto-fit grid of inline label/value pairs */
+.info-attrs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(76px, 1fr));
+  gap: 0.35rem 0.85rem;
+}
+
+.info-attr {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.35rem;
+}
+
+.attr-label {
+  font-weight: 700;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  color: var(--text);
+}
+
+.attr-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.info-missing {
+  color: var(--text-muted);
+}
+
+/* Skills — one paragraph per category, small-caps inline list */
+.info-skill-line {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.info-skill-line:last-child {
+  margin-bottom: 0;
+}
+
+.skill-cat {
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 0.25rem;
+}
+
+.skill-entries {
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.skill-entry em {
+  font-style: normal;
+  font-weight: 600;
+  font-variant: normal;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+
+/* Spells / Arcane Talents — stacked list, one ability per line */
+.info-mystical-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.info-mystical-item {
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--text);
+  margin: 0 0 0.3rem;
+}
+
+.info-mystical-item:last-child {
+  margin-bottom: 0;
+}
+
+.mystical-domain {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.mystical-sep {
+  color: var(--text-muted);
+}
+
+.mystical-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.info-mystical-item a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--text-muted);
+}
+
+.info-mystical-item a:hover {
+  color: var(--accent, var(--text));
+  border-bottom-style: solid;
+}
+
+/* Equipment — one paragraph per subgroup (Weapons, Armor, …), mirrors Skills */
+.info-gear-line {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.info-gear-line:last-child {
+  margin-bottom: 0;
+}
+
+.gear-cat {
+  font-weight: 700;
+  color: var(--text);
+  margin-right: 0.25rem;
+}
+
+.gear-entries {
+  color: var(--text-muted);
+}
+
+.gear-entry {
+  color: var(--text);
+}
+
+.info-gear-line a.gear-entry {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted var(--text-muted);
+}
+
+.info-gear-line a.gear-entry:hover {
+  color: var(--accent, var(--text));
+  border-bottom-style: solid;
+}
+
+/* ---- Gear sidebar: armor protection B/E/P/F tiles, locations, traits,
+       weapon strike-mode blocks ---- */
+
+.info-protection-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(3.5rem, 1fr));
+  gap: 0.4rem;
+}
+
+.info-prot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.25rem;
+  border: 1px solid var(--border, rgba(0, 0, 0, 0.1));
+  border-radius: 0.25rem;
+  background: var(--bg-subtle, rgba(0, 0, 0, 0.02));
+}
+
+.prot-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.prot-value {
+  font-size: 1.05rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  line-height: 1.2;
+  margin-top: 0.15rem;
+}
+
+.info-loc-list,
+.info-trait-list,
+.info-impact {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.info-trait-list {
+  font-variant: small-caps;
+  letter-spacing: 0.02em;
+  color: var(--text-muted);
+}
+
+.info-impact {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.strike-mode-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  margin-top: 0.25rem;
+}
+
+.strike-mode-table th,
+.strike-mode-table td {
+  padding: 0.4rem 0.6rem;
+  text-align: left;
+  vertical-align: baseline;
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.08));
+  white-space: nowrap;
+}
+
+.strike-mode-table th:first-child,
+.strike-mode-table td:first-child {
+  padding-left: 0;
+}
+
+.strike-mode-table th:last-child,
+.strike-mode-table td:last-child {
+  padding-right: 0;
+}
+
+.strike-mode-table th {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border, rgba(0, 0, 0, 0.2));
+}
+
+.strike-mode-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.strike-mode-table td:first-child {
+  font-weight: 600;
+}
+
+@media (max-width: 960px) {
+  .info-sidebar {
+    position: static;
+  }
+}
+
+/* ---- Auto-listing (taxonomy, term, and auto-section index pages) ---- */
+
+.page-list {
+  list-style: none;
+  margin: 1.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.page-list-item {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.page-list-item:hover {
+  border-color: var(--accent);
+  background: var(--bg-card-hover, var(--bg-card));
+}
+
+.page-list-title {
+  font-family: var(--font-display);
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+
+.page-list-title:hover {
+  color: var(--accent-hover);
+}
+
+.page-list-desc {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-style: italic;
+  flex: 1 1 auto;
+}
+
+.page-list-count {
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  padding: 0.05rem 0.5rem;
+  border-radius: 999px;
+}
+
+.page-list-empty {
+  color: var(--text-muted);
+  font-style: italic;
+  margin: 1.5rem 0 0;
+}
+
+/* ---- Table of contents (right rail) ---- */
+
+/* Applied by single.html when a page has more than 3 H2s and no infobox
+   rail — a page with both puts its contents list at the foot of that rail.
+   Mirrors `.single-with-sidebar` with a narrower column. */
+.single.single-with-toc {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(200px, 22vw, 260px);
+  gap: 3rem;
+  align-items: start;
+  padding-top: 2rem;
+}
+
+.single.single-with-toc .single-content {
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .single.single-with-toc {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+}
+
+.toc {
+  align-self: start;
+  position: sticky;
+  top: 2rem;
+  font-family: var(--font-body);
+  font-size: 0.88rem;
+  /* Cap height to the viewport so long TOCs scroll independently. */
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+
+.toc-inner {
+  border-left: 1px solid var(--border);
+  padding: 0.25rem 0 0.25rem 1rem;
+}
+
+.toc-label {
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin: 0 0 0.6rem;
+}
+
+.toc ul,
+.toc ol {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.toc li {
+  margin: 0.25rem 0;
+  line-height: 1.35;
+}
+
+.toc a {
+  color: var(--text-muted);
+  border-bottom: none;
+  display: block;
+  padding: 0.1rem 0;
+}
+
+.toc a:hover {
+  color: var(--accent);
+}
+
+/* Nested items (h3 under h2) indent and shrink. */
+.toc ul ul,
+.toc ol ol {
+  margin-left: 0.75rem;
+  margin-top: 0.15rem;
+  border-left: 1px solid var(--border);
+  padding-left: 0.6rem;
+}
+
+.toc ul ul a,
+.toc ol ol a {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+}
+
+@media (max-width: 960px) {
+  .toc {
+    position: static;
+    max-height: none;
+    margin-top: 2rem;
+  }
+
+  .toc-inner {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 1rem 0 0;
+  }
+}
+
+/* ---- Floated infoboxes (in-flow) ----
+
+   A box carrying .geo-infobox is floated to the left of the content column
+   instead of sitting in the rail: prose wraps around it and it scrolls away
+   with the page. It inherits the visual style of .info-sidebar so the card
+   matches every other box, then undoes the rail's sticky positioning and
+   size. The per-type hook classes (.polity-infobox and the rest) carry no
+   rules of their own and are here for a consumer to hang one on. */
+
+.geo-infobox,
+.polity-infobox,
+.region-infobox,
+.continent-infobox,
+.settlement-infobox {
+  float: left;
+  width: 19rem;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0 1.75rem 1rem 0;
+  /* Undo the sticky/grid behavior inherited from .info-sidebar. */
+  position: static;
+  top: auto;
+  align-self: auto;
+  font-size: 0.95rem;
+}
+
+/* Tighten the profile grid a touch inside the floated card — the
+   right-rail version has more room to breathe than a 19rem float. */
+.geo-infobox .info-profile-grid {
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 0.6rem;
+  margin-bottom: 0;
+}
+
+.geo-infobox .info-profile-grid dd {
+  word-break: normal;
+  overflow-wrap: anywhere;
+}
+
+.geo-infobox .info-sub {
+  display: block;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+  line-height: 1.35;
+}
+
+/* Stack the infobox above the prose on narrow viewports. */
+@media (max-width: 720px) {
+  .geo-infobox,
+  .polity-infobox,
+  .region-infobox,
+  .continent-infobox {
+    float: none;
+    width: 100%;
+    margin: 0 0 1.25rem 0;
+  }
+}
+
+/* ---- Cartouches ----
+
+   Named-entity SVGs rendered as ornamental accents on culture-flavored
+   pages (Ta'Kheperu, Kemetian gods, the Per-Aá). The default mode is a
+   centered block figure. Modifiers:
+     .cartouche-left / .cartouche-right — float so prose wraps around.
+     .cartouche-inline                  — shrink and flow with text,
+                                          useful when the cartouche IS
+                                          the name being referenced. */
+
+/* Jsesh-exported cartouches in vertical orientation are tall ovals
+   (~1:2 wide:tall). Size them by HEIGHT — width derives from the
+   SVG's aspect ratio. Per-call override comes from the shortcode's
+   `height` parameter, which sets an inline style on the <img>. */
+
+.cartouche {
+  --cartouche-h: 10rem;
+  display: block;
+  margin: 1.5rem auto;
+  text-align: center;
+  line-height: 0;          /* avoid extra strut under the <img> */
+  /* Limestone-panel treatment: a warm radial gradient backdrop with
+     an inset shadow suggests a plastered stone surface; the subtle
+     outer shadow lifts the panel off the page like a framed relief.
+     This is the single biggest visual shift from "SVG on white" to
+     "cartouche carved into a wall." */
+  background:
+    radial-gradient(ellipse at 28% 22%, #f2e4c2 0%, #d9c29a 55%, #bda77c 100%);
+  padding: 0.5em 1em;
+  border-radius: 0.25rem;
+  box-shadow:
+    inset 0 0 0.35rem rgba(101, 64, 27, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.cartouche img {
+  display: inline-block;
+  height: var(--cartouche-h);
+  width: auto;
+  max-width: 100%;         /* stay inside a narrow column */
+  /* Override the .single-content img frame — cartouches are already a
+     self-contained shape and don't need an additional border or the
+     1.5rem vertical margin that body photos get. */
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  /* Shift the Jsesh pure-black ink toward a warm aged-charcoal brown
+     so it reads as oxidized paint rather than printer toner, and
+     apply a tiny blur + contrast bump to soften sharp rectangular
+     edges (plural strokes) without visibly degrading the more
+     complex glyphs (the L1 scarab hides behind its own detail). */
+  filter:
+    sepia(0.7) hue-rotate(-12deg) saturate(1.25) brightness(0.55)
+    blur(0.3px) contrast(1.15);
+}
+
+.cartouche figcaption {
+  margin-top: 0.4rem;
+  font-family: var(--font-display);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.cartouche-left {
+  --cartouche-h: 7rem;
+  float: left;
+  margin: 0.25rem 1.5rem 0.5rem 0;
+}
+
+.cartouche-right {
+  --cartouche-h: 7rem;
+  float: right;
+  margin: 0.25rem 0 0.5rem 1.5rem;
+}
+
+/* Inline variant: scales to line-height so the cartouche sits on the
+   baseline next to adjacent text. Height is driven by em units so it
+   tracks the font size of the surrounding prose. */
+.cartouche-inline {
+  display: inline-block;
+  vertical-align: -0.55em;
+  margin: 0 0.18em;
+  line-height: 1;
+}
+
+.cartouche-inline img {
+  display: inline-block;
+  width: auto;
+  height: 2.6em;
+  vertical-align: -1em;
+}
+
+@media (max-width: 720px) {
+  .cartouche {
+    --cartouche-h: 8rem;
+  }
+  .cartouche-left,
+  .cartouche-right {
+    --cartouche-h: 6rem;
+    float: none;
+    margin: 1rem auto;
+  }
+}
+
+/* ---- Glyphs ----
+
+   Small hieroglyphic clusters (Kemetían deity names, etc.) fetched
+   from icons/<slug>.svg on the site's asset host via the glyph
+   shortcode. Smaller and lighter than cartouches — these represent
+   words, not royal seals, so they live inline with text or inside a
+   compact stone tablet for catalog use. The .glyph family shares
+   the warm-ink filter with cartouches so both read as members of
+   the same writing system. */
+
+.glyph {
+  display: inline-block;
+  vertical-align: -0.35em;
+  line-height: 0;
+}
+
+.glyph img {
+  display: inline-block;
+  height: 1.8em;           /* scales with surrounding text by default */
+  width: auto;
+  max-width: 100%;
+  /* Override the .single-content img body-photo frame — glyphs are
+     graphic marks, not photos, and don't need the border/margin. */
+  border: none;
+  border-radius: 0;
+  margin: 0;
+  /* Warm-aged-charcoal ink tone + bolder strokes. The four stacked
+     0.5px drop-shadows in cardinal directions effectively thicken
+     every dark pixel in the glyph by ~1px, simulating a heavier
+     chisel cut without touching the source SVGs. Brightness and
+     contrast are pushed harder than on cartouches since glyphs
+     display small and need to stay legible. */
+  filter:
+    sepia(0.8) hue-rotate(-12deg) saturate(1.3)
+    brightness(0.35) contrast(1.5)
+    drop-shadow(0.5px 0 0 #3d2818)
+    drop-shadow(-0.5px 0 0 #3d2818)
+    drop-shadow(0 0.5px 0 #3d2818)
+    drop-shadow(0 -0.5px 0 #3d2818);
+}
+
+/* Size variants */
+.glyph-inline img { height: 1.4em; }
+
+.glyph-block {
+  display: block;
+  text-align: center;
+  margin: 1rem auto;
+  vertical-align: baseline;
+}
+.glyph-block img { height: 3rem; }
+
+/* Stone-tablet frame — for catalog layouts (pantheon table, lists of
+   deities) where visual parallelism across a column matters more than
+   showing each glyph at its intrinsic width. Tablet dimensions
+   accommodate up to ~7 signs horizontally; longer glyphs scale down,
+   shorter ones scale up to the tablet's interior bounds via
+   object-fit: contain. */
+.glyph-tablet {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 10rem;
+  height: 4rem;
+  padding: 3px 5px;        /* tight but keeps glyph off the rounded
+                              corners — 3px top/bottom, 5px left/right */
+  vertical-align: middle;
+  background:
+    radial-gradient(ellipse at 28% 22%, #f2e4c2 0%, #d9c29a 55%, #bda77c 100%);
+  border-radius: 0.2rem;
+  box-shadow:
+    inset 0 0 0.25rem rgba(101, 64, 27, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.15);
+  line-height: 0;
+  box-sizing: border-box;
+}
+
+/* object-fit: contain scales the glyph up to the largest size that
+   preserves aspect ratio within the tablet's interior — the key
+   difference from max-width/max-height, which cap but don't grow. */
+.glyph-tablet img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 720px) {
+  .glyph-tablet {
+    width: 8rem;
+    height: 3.25rem;
+  }
+}
+
+/* ---- Related and Holdings cards (bottom of article) ----
+
+   Both are bordered, tinted cards holding one or more labelled groups, each
+   group's entries laid out as a CSS grid that reflows its own column count
+   from the available width — two or three columns on a desktop, one on a
+   phone — with no breakpoint needed. Related groups by the connected page's
+   `type`; Holdings groups `contains` and `holdings` by place `subType`
+   (`.holdings-kind-group`, one level deeper, for the region/settlement/site
+   hierarchy) and leaves `held_by` a flat grid with the kind printed beside
+   each name. */
+
+.related,
+.holdings,
+.place-map {
+  margin: 3rem 0 1rem;
+  padding: 1.5rem 1.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+}
+
+.related-heading,
+.place-map-heading {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 0.02em;
+  margin: 0 0 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.related-group + .related-group,
+.holdings-table + .holdings-table {
+  margin-top: 1.25rem;
+}
+
+.related-group-label,
+.holdings-table-label {
+  font-family: var(--font-display);
+  font-size: 0.94rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.03em;
+  margin: 0 0 0.5rem;
+}
+
+.related-group-grid,
+.holdings-table-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(14em, 1fr));
+  gap: 0.4rem 1rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.related-group-grid li,
+.holdings-table-grid li {
+  color: var(--text);
+  font-size: 0.94rem;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+}
+
+.related-group-grid a,
+.holdings-table-grid a {
+  color: var(--accent);
+  border-bottom: 1px solid transparent;
+}
+
+.related-group-grid a:hover,
+.holdings-table-grid a:hover {
+  color: var(--accent-hover);
+  border-bottom-color: var(--accent-dim);
+}
+
+.holdings-kind-group + .holdings-kind-group {
+  margin-top: 0.75rem;
+}
+
+.holdings-kind-label {
+  font-weight: 700;
+  font-size: 0.76rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 0.35rem;
+}
+
+.holdings-entry-kind {
+  color: var(--text-muted);
+}
+
+.place-map-drawing {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.place-map-drawing svg {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+}
+
+@media (max-width: 640px) {
+  .place-map-drawing svg {
+    min-width: 32rem;
+  }
+
+  .related,
+  .holdings,
+  .place-map {
+    padding: 1.25rem 1.25rem;
+  }
+}

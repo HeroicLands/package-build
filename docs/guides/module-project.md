@@ -863,8 +863,8 @@ None of them is needed to build a package.
 **A website.** Every package publishes one — at the least, the homepage note
 from step 5 — at `https://www.heroiclands.org/<contentPackage>/`. Add that
 address to `package.json` as `homepage`, with a `description` and an `author`
-beside it; add `@heroiclands/hugo-theme` under `devDependencies`; and add a
-`packageBuild.manifest.title`. Then `package-build deps fetch` caches the
+beside it, and add a `packageBuild.manifest.title`. The theme the site renders
+through ships with this package, so nothing else is installed. Then `package-build deps fetch` caches the
 organisation's navigation, and `package-build site` writes the whole Hugo
 source tree under `build/hugo/` — the configuration generated from those
 values, and the content mount — for `hugo --source build/hugo` to render

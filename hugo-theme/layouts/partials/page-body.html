@@ -1,0 +1,154 @@
+{{- /*
+  A note's body — the infobox rail, the content, and prev/next through its
+  catalog. Shared by `_default/single.html`, for a page, and `index.html`,
+  for the homepage note rendered as a page: the two are the same family, and
+  this is the shape they share. The caller renders the hero; this partial
+  starts at the article.
+
+  Context: the page.
+*/ -}}
+{{- /* The boxes a page declares, drawn by one generic renderer. What each box
+       holds is decided by the build and carried in `infoboxes:` front matter;
+       this file decides only where the rail goes. A page declaring none gets
+       back an empty string and no rail. */ -}}
+{{- $infobox := partial "infobox.html" . -}}
+{{- $hasSidebar := ne (trim $infobox " \r\n\t") "" -}}
+
+{{- /* The TOC partial only emits markup when the page has more than
+       3 H2 headings. To avoid laying the page out as a two-column
+       grid for nothing, detect the same condition here so we can
+       apply the `.single-with-toc` class conditionally. A page that
+       already has a rail gets its contents list at the foot of that
+       rail rather than a second column. */ -}}
+{{- $h2Count := len (findRE `(?m)^##\s+\S` (.RawContent | default "")) -}}
+{{- $hasToc := gt $h2Count 3 -}}
+
+{{- /* A draft page states it, which also decides the article's first grid
+       row — see the notice partial and `.single-with-notice`. */ -}}
+{{- $isDraft := partial "draft-state.html" . -}}
+
+<article class="single{{ if $hasSidebar }} single-with-sidebar{{ else if $hasToc }} single-with-toc{{ end }}{{ if $isDraft }} single-with-notice{{ end }}">
+  {{- /* A statement about the page rather than about its subject, so it leads
+         the article: above the rail and above the prose, at every width. It
+         spans the grid for that reason — inside `.single-content` it would sit
+         beside the boxes on a wide screen and below them on a narrow one,
+         where the rail comes first. */ -}}
+  {{ partial "draft-notice.html" . }}
+  {{- /* Filter values a search can narrow on, invisible and excluded from
+         indexing themselves — `data-pagefind-filter` is read wherever it
+         sits, `data-pagefind-body`/`data-pagefind-ignore` scoping included
+         (see the README's "Search" section). */ -}}
+  {{- with .Params.type }}<span data-pagefind-filter="type" hidden>{{ . }}</span>{{ end -}}
+  {{- with .Params.package }}<span data-pagefind-filter="package" hidden>{{ . }}</span>{{ end -}}
+  {{- if $hasSidebar }}
+  {{- /* The rail comes first in document order, because the infobox is
+         generated content prepended before the prose: on a narrow screen the
+         grid collapses and the boxes land where they were written, above the
+         text they summarise. */ -}}
+  <aside class="info-rail">
+    {{ $infobox }}
+    {{ if $hasToc }}{{ partial "toc.html" . }}{{ end }}
+  </aside>
+  {{- end }}
+  <div class="single-content">
+    {{- $tagChips := partial "tags.html" . -}}
+    {{- $beingSubtype := "" -}}
+    {{- if and (eq .Params.type "being") .Params.subType -}}
+      {{- $beingSubtype = cond (eq .Params.subType "npc") "NPC" (humanize .Params.subType) -}}
+    {{- end -}}
+    {{ if or .Params.date (ne (trim $tagChips " \r\n\t") "") $beingSubtype }}
+    <div class="single-meta">
+      {{ if .Params.date }}
+      <time class="single-date" datetime="{{ .Date.Format "2006-01-02" }}">{{ .Date.Format "January 2, 2006" }}</time>
+      {{ end }}
+      {{- with $beingSubtype }}<span class="single-subtype">{{ . }}</span>{{ end }}
+      {{ $tagChips }}
+    </div>
+    {{ end }}
+
+    <div class="single-body" data-pagefind-body>
+      {{ .Content }}
+    </div>
+
+    {{ partial "holdings.html" . }}
+    {{ partial "place-map.html" . }}
+    {{ partial "related.html" . }}
+
+    {{- /*
+      Prev/next walk the page's own catalog, not its Hugo section (issue #48).
+      `.PrevInSection` / `.NextInSection` mean "the neighbouring page in this
+      directory", which was the same thing only while a page lived in a
+      directory named for its catalog. `@heroiclands/package-build`
+      (package-build#204) emits every content page flat under the content
+      mount, so a consumer's whole catalog is one section and these two links
+      would walk every page of every type — reading through the afflictions
+      silently left them.
+
+      So where a section holds more than one catalog, the sibling set is
+      narrowed to the pages sharing this page's catalog key. A section holding
+      a single catalog is left alone, because `.PrevInSection` already walks
+      exactly that catalog there — which is what makes this a no-op for a site
+      whose pages still sit in catalog-named directories. A page declaring no
+      catalog keeps the section-scoped result. The home page declares no
+      catalog and has no section siblings either way.
+
+      The catalog key: `type` for structured content, whose type *is* its
+      catalog (`affliction`, `skill`, `weapongear`, …); for `type: doc`, which
+      is prose rather than a catalog of its own, `subType` (what package-build
+      compiles from a note's classification) or, failing that, `category`
+      (what a documentation tree mounted from a repository directory
+      carries); "" for a page with no `type`, which has no catalog.
+
+      Ordering follows Hugo's: in a page collection `.PrevInSection` is the
+      *following* entry and `.NextInSection` the preceding one, so the
+      neighbours are taken at index+1 and index-1 respectively.
+    */ -}}
+    {{- $prev := .PrevInSection -}}
+    {{- $next := .NextInSection -}}
+    {{- $type := .Params.type | default "" -}}
+    {{- $key := $type -}}
+    {{- if eq $type "doc" -}}
+      {{- $key = .Params.subType | default (.Params.category | default "") -}}
+    {{- end -}}
+    {{- $siblings := slice -}}
+    {{- with .CurrentSection -}}
+      {{- if $key -}}
+        {{- $mixed := false -}}
+        {{- $matching := slice -}}
+        {{- range .RegularPages -}}
+          {{- $pageType := .Params.type | default "" -}}
+          {{- $pageKey := $pageType -}}
+          {{- if eq $pageType "doc" -}}
+            {{- $pageKey = .Params.subType | default (.Params.category | default "") -}}
+          {{- end -}}
+          {{- if eq $pageKey $key -}}
+            {{- $matching = $matching | append . -}}
+          {{- else if ne $pageKey "" -}}
+            {{- $mixed = true -}}
+          {{- end -}}
+        {{- end -}}
+        {{- if $mixed -}}{{- $siblings = $matching -}}{{- end -}}
+      {{- end -}}
+    {{- end -}}
+    {{- if $siblings -}}
+      {{- $index := -1 -}}
+      {{- range $i, $p := $siblings -}}
+        {{- if eq $p.Path $.Path -}}{{- $index = $i -}}{{- end -}}
+      {{- end -}}
+      {{- if ge $index 0 -}}
+        {{- $prev = "" -}}
+        {{- $next = "" -}}
+        {{- if lt (add $index 1) (len $siblings) -}}{{- $prev = index $siblings (add $index 1) -}}{{- end -}}
+        {{- if gt $index 0 -}}{{- $next = index $siblings (sub $index 1) -}}{{- end -}}
+      {{- end -}}
+    {{- end -}}
+    <nav class="single-nav">
+      {{ with $prev }}<a href="{{ .Permalink }}" class="nav-prev">&larr; {{ .Title }}</a>{{ end }}
+      {{ with $next }}<a href="{{ .Permalink }}" class="nav-next">{{ .Title }} &rarr;</a>{{ end }}
+    </nav>
+  </div>
+
+  {{ if and (not $hasSidebar) $hasToc }}
+    {{ partial "toc.html" . }}
+  {{ end }}
+</article>

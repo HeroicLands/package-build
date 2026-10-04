@@ -1,0 +1,56 @@
+{{- /*
+  One infobox section, arranged the way its `layout` says.
+
+  Four layouts, a closed set, and the key a section carries its content under
+  is what names it:
+
+    rows   — label/value pairs, one per line          `rows`
+    grid   — short label/value cells packed together  `cells`
+    runin  — groups of comma-joined entries           `groups`
+    list   — one entry per line                       `entries`
+
+  Takes the section.
+
+  **A value of `0` is a value.** Armour that stops nothing edged is a fact
+  about the armour, so a cell is printed as it comes rather than guarded with
+  `with`, which would drop a zero along with an absence.
+*/ -}}
+{{- $section := . -}}
+{{- $layout := $section.layout | default "" -}}
+{{- if eq $layout "rows" -}}
+<dl class="info-profile-grid">
+  {{- range $section.rows }}
+  <dt>{{ .label }}</dt>
+  <dd>{{ partial "infobox/value.html" . }}</dd>
+  {{- end }}
+</dl>
+{{- else if eq $layout "grid" -}}
+<div class="info-attrs-grid">
+  {{- range $section.cells }}
+  <div class="info-attr">
+    <span class="attr-label">{{ .label }}</span>
+    <span class="attr-value">{{ .value }}</span>
+  </div>
+  {{- end }}
+</div>
+{{- else if eq $layout "runin" -}}
+  {{- range $section.groups }}
+  <p class="info-skill-line">
+    {{- with .label }}<span class="skill-cat">{{ . }}:</span>{{ end }}
+    <span class="skill-entries">
+      {{- range $i, $entry := .entries -}}
+        {{- if $i }}, {{ end -}}
+        {{- partial "infobox/entry.html" (dict "entry" $entry "class" "skill-entry") -}}
+      {{- end -}}
+    </span>
+  </p>
+  {{- end }}
+{{- else if eq $layout "list" -}}
+<ul class="info-mystical-list">
+  {{- range $section.entries }}
+  <li class="info-mystical-item">
+    {{- partial "infobox/entry.html" (dict "entry" . "class" "mystical-name") -}}
+  </li>
+  {{- end }}
+</ul>
+{{- end -}}

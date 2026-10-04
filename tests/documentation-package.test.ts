@@ -34,7 +34,6 @@ import {
     HUGO_CONTENT,
     HUGO_SOURCE,
     NAVIGATION_FILE,
-    THEME_PACKAGE,
     navigationCacheDir,
 } from "../engine/site-config.mjs";
 import type { ContentBuildConfigInput } from "../content-config.mjs";
@@ -275,9 +274,6 @@ function documentationRepo(): string {
             homepage: "https://www.heroiclands.org/toolkit/",
         }),
     );
-    const theme = path.join(dir, "node_modules", THEME_PACKAGE);
-    fs.mkdirSync(theme, { recursive: true });
-    fs.writeFileSync(path.join(theme, "theme.toml"), 'name = "Heroic Lands"\n');
     const config = defineConfig(minimal(dir));
     const cache = navigationCacheDir(config);
     fs.mkdirSync(cache, { recursive: true });

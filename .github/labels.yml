@@ -31,6 +31,14 @@
   color: "44e6ce"
   description: The vitest suite, its fixtures, and the e2e harness this package ships to consumers.
 
+- name: layout
+  color: "1d76db"
+  description: Templates, partials, shortcodes — the structure a page renders into.
+
+- name: styling
+  color: "c2a3ff"
+  description: CSS, fonts, images, icons, palette — how a rendered page looks.
+
 - name: security
   color: "b60205"
   description: "Attack surface: evaluating untrusted note content, path traversal, or subprocess handling."

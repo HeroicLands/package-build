@@ -1,0 +1,63 @@
+{{- /*
+  pagelist — the pages carrying a tag, as a plain list.
+
+  Curated landings are the right front door, but hand-enumerated link lists
+  drift: a page gets added and nobody updates the index. This expresses a group
+  by INTENT instead. Tag a page and it files itself; untag it and it leaves.
+
+  Usage:
+
+    { {< pagelist tag="key-concept" >} }                  every tagged page
+    { {< pagelist tag="key-concept" section="rules" >} }  restricted to a section
+    { {< pagelist tag="key-concept" sort="weight" >} }    title (default) | weight | date
+    { {< pagelist tag="key-concept" desc="true" >} }      include page descriptions
+
+  Parameters:
+    tag      - (required) taxonomy term. Matched case-insensitively.
+    section  - (optional) restrict to one top-level section, e.g. "rules".
+    sort     - (optional) "title" (default), "weight", or "date" (newest first).
+    desc     - (optional) "true" to show each page's description beneath it.
+
+  An unknown or empty tag warns at build time rather than rendering nothing
+  silently — a typo in a tag is exactly the drift this is meant to prevent.
+*/ -}}
+{{- $tag := .Get "tag" -}}
+{{- if not $tag }}{{ $tag = .Get 0 }}{{ end -}}
+{{- if not $tag -}}
+  {{- errorf "pagelist shortcode at %s needs a tag (tag=\"…\" or positional arg 0)" .Position -}}
+{{- end -}}
+
+{{- $term := $tag | urlize -}}
+{{- $pages := slice -}}
+{{- with index .Site.Taxonomies.tags $term -}}
+  {{- $pages = .Pages -}}
+{{- end -}}
+
+{{- with $.Get "section" -}}
+  {{- $sec := . -}}
+  {{- $pages = where $pages "Section" $sec -}}
+{{- end -}}
+
+{{- $sort := $.Get "sort" | default "title" -}}
+{{- if eq $sort "weight" -}}
+  {{- $pages = sort $pages "Weight" -}}
+{{- else if eq $sort "date" -}}
+  {{- $pages = sort $pages "Date" "desc" -}}
+{{- else -}}
+  {{- $pages = sort $pages "Title" -}}
+{{- end -}}
+
+{{- if not $pages -}}
+  {{- warnf "pagelist at %s: no pages carry the tag %q — check the spelling, or tag some pages." $.Position $tag -}}
+{{- else -}}
+<ul class="page-list pagelist">
+  {{- range $pages }}
+  <li class="page-list-item">
+    <a class="page-list-title" href="{{ .RelPermalink }}">{{ .Title }}</a>
+    {{- if and (eq ($.Get "desc") "true") .Description }}
+    <span class="page-list-desc">{{ .Description }}</span>
+    {{- end }}
+  </li>
+  {{- end }}
+</ul>
+{{- end -}}

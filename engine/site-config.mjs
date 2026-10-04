@@ -42,6 +42,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { stringify as stringifyToml } from "smol-toml";
 
 import { checkHomepage, fail } from "../config.mjs";
@@ -61,10 +62,15 @@ export const HUGO_CONTENT = `${HUGO_SOURCE}/content`;
  */
 export const DEPLOY_ROOT = "build/site";
 
-/** The npm package the shared theme arrives as. */
-export const THEME_PACKAGE = "@heroiclands/hugo-theme";
+/**
+ * This package's own root, which is the directory Hugo reads themes from.
+ *
+ * The theme ships inside this package, so the directory holding it is found
+ * from this module's own location rather than searched for.
+ */
+const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-/** The theme's name under `themesDir`, which is the package's unscoped name. */
+/** The theme's directory name under `themesDir`. */
 export const THEME = "hugo-theme";
 
 /** The locale every site renders in. */
@@ -308,33 +314,22 @@ export async function fetchNavigation(
 
 /**
  * The `themesDir` for a repository, as the path from `build/hugo/` to the
- * directory holding the installed theme.
+ * directory holding the theme.
  *
- * Resolved the way Node resolves a package — `node_modules/` in the
- * repository root, then in each parent — and written as a path rather than
- * assumed, so a worktree that resolves its parent's install says so in the
- * generated file.
+ * The theme ships inside this package at `hugo-theme/`, so the directory Hugo
+ * reads themes from is {@link PACKAGE_ROOT}. `theme` stays {@link THEME}, so
+ * Hugo opens `<themesDir>/hugo-theme/layouts`.
+ *
+ * Written as a path rather than assumed: `build/hugo/` and the installed
+ * package sit at whatever distance the install put them, and a worktree
+ * resolving its parent's install says so in the generated file.
  *
  * @param {string} rootDir - The repository root.
  * @returns {string} The relative path, POSIX-separated.
- * @throws {Error} When the theme is installed nowhere above the root.
  */
 export function resolveThemesDir(rootDir) {
-    let dir = path.resolve(rootDir);
-    for (;;) {
-        const scope = path.join(dir, "node_modules", path.dirname(THEME_PACKAGE));
-        if (fs.existsSync(path.join(scope, path.basename(THEME_PACKAGE), "theme.toml"))) {
-            const rel = path.relative(path.resolve(rootDir, HUGO_SOURCE), scope);
-            return rel.split(path.sep).join("/");
-        }
-        const parent = path.dirname(dir);
-        if (parent === dir) break;
-        dir = parent;
-    }
-    throw new Error(
-        `${THEME_PACKAGE} is not installed anywhere above ${rootDir} — add it to ` +
-            "`devDependencies` and run `npm ci`",
-    );
+    const from = path.resolve(rootDir, HUGO_SOURCE);
+    return path.relative(from, PACKAGE_ROOT).split(path.sep).join("/");
 }
 
 /**

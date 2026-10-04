@@ -1,0 +1,121 @@
+{{- /*
+  Related partial.
+
+  Renders a compact "Related" block at the bottom of a single page from the
+  page's `related` front matter, if it carries any.
+
+  Structure in front matter:
+    related:
+      backlinks: [{ title, url, type }, ...]   # pages that link here
+      mentions:  [{ title, url, type }, ...]   # pages this page links to
+
+  Rendering strategy:
+    - Merge both directions into a single deduped pool (direction
+      doesn't matter to a reader — a connection is a connection).
+    - Group by the referenced page's `type`.
+    - Emit one labelled group per type, its entries laid out as a
+      CSS grid (`repeat(auto-fill, minmax(14em, 1fr))`) so a wide
+      screen shows two or three columns and a narrow one falls back
+      to a single column with no media query.
+    - The whole block is wrapped in a bordered, tinted card so it
+      visually sets off the end of the article.
+
+  Silent disappear: a page with no `related`, or whose two lists are both
+  empty, emits nothing at all rather than an empty heading. The rows are
+  computed first and the <section> is rendered only when there is something
+  to put in it.
+
+  `return` cannot be used to bail out early here. It sets the partial's
+  return value; it does not discard template text the partial has already
+  emitted, so a guard written that way still prints the empty shell. Hence
+  the emptiness test wraps the markup instead of preceding it.
+*/ -}}
+
+{{- /* `default dict` keeps the lookups below safe on a page with no
+       `related` at all, so the whole computation stays flat. */ -}}
+{{- $rel := .Params.related | default dict -}}
+{{- $backlinks := or $rel.backlinks slice -}}
+{{- $mentions  := or $rel.mentions  slice -}}
+
+{{- /* Merge both directions, deduped by URL. `union` can't hash
+       slices of maps, so we walk the two lists in order and dedupe
+       by URL manually. Mentions come first so explicit author
+       choices win when a page appears in both directions. */ -}}
+{{- $seen := slice -}}
+{{- $merged := slice -}}
+{{- range $mentions -}}
+  {{- if not (in $seen .url) -}}
+    {{- $seen = $seen | append .url -}}
+    {{- $merged = $merged | append . -}}
+  {{- end -}}
+{{- end -}}
+{{- range $backlinks -}}
+  {{- if not (in $seen .url) -}}
+    {{- $seen = $seen | append .url -}}
+    {{- $merged = $merged | append . -}}
+  {{- end -}}
+{{- end -}}
+
+{{- /* Plural, human-readable label for each type. Falls back to
+       `humanize` for any type not listed here. */ -}}
+{{- $labels := dict
+  "affiliation"  "Affiliations"
+  "being"        "Beings"
+  "blog-post"    "Posts"
+  "character"    "People"
+  "continent"    "Continents"
+  "creature"     "Creatures"
+  "faith"        "Faiths"
+  "language"     "Languages"
+  "lore"         "Lore"
+  "organization" "Organizations"
+  "page"         "Pages"
+  "pantheon"     "Pantheons"
+  "people"       "Peoples"
+  "polity"       "Polities"
+  "project-page" "Projects"
+  "region"       "Regions"
+  "religion"     "Religions"
+  "settlement"   "Settlements"
+  "site"         "Places"
+  "world"        "Worlds"
+-}}
+
+{{- /* Group refs by type, preserving alphabetical order within a
+       group (the input lists arrive already sorted). */ -}}
+{{- $groups := dict -}}
+{{- range $merged -}}
+  {{- $t := .type | default "page" -}}
+  {{- $existing := index $groups $t | default slice -}}
+  {{- $groups = merge $groups (dict $t ($existing | append .)) -}}
+{{- end -}}
+
+{{- /* Sort the group keys alphabetically by their rendered label
+       so the list reads A → Z regardless of insertion order. */ -}}
+{{- $rows := slice -}}
+{{- range $type, $refs := $groups -}}
+  {{- $label := index $labels $type | default (humanize $type) -}}
+  {{- $rows = $rows | append (dict "label" $label "type" $type "refs" $refs) -}}
+{{- end -}}
+{{- if $rows -}}
+  {{- $rows = sort $rows "label" "asc" -}}
+{{- end -}}
+
+{{- /* Deliberately not indented under the `if`: keeping the markup at
+       column 0 leaves the emitted HTML byte-identical to what pages with
+       `related` rendered before the guard was added. */ -}}
+{{- if $rows -}}
+<section class="related" aria-labelledby="related-heading" data-pagefind-ignore>
+  <h2 id="related-heading" class="related-heading">Related</h2>
+  {{- range $rows }}
+  <div class="related-group">
+    <h3 class="related-group-label">{{ .label }}</h3>
+    <ul class="related-group-grid">
+      {{- range .refs }}
+      <li><a href="{{ .url }}">{{ .title }}</a></li>
+      {{- end }}
+    </ul>
+  </div>
+  {{- end }}
+</section>
+{{ end -}}

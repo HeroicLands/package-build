@@ -117,6 +117,7 @@
         "engine",
         "githooks",
         "hm3",
+        "hugo-theme",
         "index.mjs",
         "lang.mjs",
         "labels.mjs",

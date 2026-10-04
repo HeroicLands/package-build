@@ -885,8 +885,8 @@ Install it with `npm ci`, which resolves from the lockfile this just moved.
 ```
 
 ```
-$ package-build bump @heroiclands/hugo-theme --check
-@heroiclands/hugo-theme  0.5.0 → 0.6.0
+$ package-build bump @heroiclands/package-build --check
+@heroiclands/package-build  22.6.0 → 22.7.0
 
 Run without --check to take it.
 ```
@@ -2310,9 +2310,9 @@ Three things are written, and nothing outside `build/`:
 - `build/hugo/hugo.toml`, generated on every run from `package.json`
   (`homepage`, `description`, `author`), `package-build.config.yaml`
   (`packageBuild.manifest.title`, `site.assets`, `site.notfound`,
-  `site.hugo`), the organisation's constants, the installed
-  `@heroiclands/hugo-theme`'s location, and the navigation `deps fetch`
-  cached. Every value's source is listed under
+  `site.hugo`), the organisation's constants, the shared theme's own
+  location, and the navigation `deps fetch` cached. Every value's source is
+  listed under
   [the generated Hugo configuration](configuration.md#the-generated-hugo-configuration).
 - `build/hugo/content/`, the content mount — the homepage as its `_index.md`,
   and the content tree's pages flat below `publish.address.prefix`. Wiped on
@@ -2321,13 +2321,13 @@ Three things are written, and nothing outside `build/`:
   deployment root `package-build site-root` writes beside. Nothing Hugo
   reads lands in what is published.
 
-The configuration's sources are read before the output tree is touched, so
-a missing `homepage`, a cold navigation cache or an uninstalled theme fails
-with the previous site intact. Every gate is then checked and reported, and
-the run stops at the first that fires, ordered so the report names the cause
-rather than its symptoms — an unusable dependency manifest, reported after
-the links that failed because of it, would otherwise read as a pile of
-broken notes. Reads the content tree named by `paths.content`.
+The configuration's sources are read before the output tree is touched, so a
+missing `homepage` or a cold navigation cache fails with the previous site
+intact. Every gate is then checked and reported, and the run stops at the
+first that fires, ordered so the report names the cause rather than its
+symptoms — an unusable dependency manifest, reported after the links that
+failed because of it, would otherwise read as a pile of broken notes. Reads
+the content tree named by `paths.content`.
 
 **OPTIONS**
 
@@ -2336,13 +2336,12 @@ None.
 **EXIT STATUS**
 
 1 if `package.json` declares no `homepage`, or one that does not end
-`/<contentPackage>/`; if `packageBuild.manifest.title` is undeclared; if the
-navigation has not been fetched (`package-build deps fetch` fills the cache
-and is named in the message); or if `@heroiclands/hugo-theme` is not
-installed. 1 if any gate fires — no homepage or two competing for it, a
-frontmatter wikilink, an address that cannot be derived, a stale or
-unaddressable dependency manifest, an address published twice, a table that
-failed to expand, or a dead wikilink. Otherwise 0.
+`/<contentPackage>/`; if `packageBuild.manifest.title` is undeclared; or if
+the navigation has not been fetched (`package-build deps fetch` fills the
+cache and is named in the message). 1 if any gate fires — no homepage or two
+competing for it, a frontmatter wikilink, an address that cannot be derived,
+a stale or unaddressable dependency manifest, an address published twice, a
+table that failed to expand, or a dead wikilink. Otherwise 0.
 
 **EXAMPLES**
 

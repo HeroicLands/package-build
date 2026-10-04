@@ -87,6 +87,8 @@ both that file and this table — `package-build labels check` (run as
 | `documentation`   | The README, docs/, JSDoc, process.                                                       |
 | `devops`          | Build, tooling, CI, release, repo config.                                                |
 | `tests`           | The vitest suite, its fixtures, and the e2e harness this package ships to consumers.     |
+| `layout`          | Templates, partials, shortcodes — the structure a page renders into.                     |
+| `styling`         | CSS, fonts, images, icons, palette — how a rendered page looks.                          |
 | `security`        | Evaluating untrusted note content, path traversal, subprocess handling.                  |
 | `tech-debt`       | Restructuring or cleanup of working code; refactors.                                     |
 | `regression`      | Something that previously worked and stopped. Pairs with type **bug**.                   |

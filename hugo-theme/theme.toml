@@ -1,0 +1,11 @@
+name = "Heroic Lands"
+license = "GPL-3.0-or-later"
+licenselink = "https://github.com/HeroicLands/package-build/blob/main/LICENSE.md"
+description = "Shared Hugo theme for the Heroic Lands projects — brand chrome (header/footer, Cinzel/Lora, dark palette) and the SoHL info-block partials, so every site built on it reads as one coherent whole. Carries layout, not addresses: each consuming repository supplies its own URLs."
+homepage = "https://github.com/HeroicLands/package-build"
+min_version = "0.156.0"
+tags = ["heroic-lands", "sohl", "brand"]
+
+[author]
+  name = "Tom Rodriguez"
+  homepage = "https://github.com/HeroicLands"

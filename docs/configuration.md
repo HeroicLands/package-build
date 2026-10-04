@@ -1031,8 +1031,8 @@ in it has one source, and that source is where it is edited:
 | `locale`                          | the organisation's locale, `en-us`, in `engine/site-config.mjs`                                                                                         |
 | `publishDir`                      | `contentPackage`, under the deployment root `build/site` — written relative to `build/hugo/`, so `../site/<contentPackage>`                             |
 | `contentDir`                      | the fixed content mount, `build/hugo/content` — written as `content`                                                                                    |
-| `themesDir`                       | where `@heroiclands/hugo-theme` is installed, resolved the way Node resolves a package and written relative to `build/hugo/`                            |
-| `theme`                           | the installed `@heroiclands/hugo-theme`, so `hugo-theme`                                                                                                |
+| `themesDir`                       | this package's own root, which holds the theme it ships, written relative to `build/hugo/`                                                              |
+| `theme`                           | the theme's directory inside this package, `hugo-theme`                                                                                                 |
 | `disableKinds`                    | the toolchain, which renders a site as its homepage and its pages: `["section", "taxonomy", "term", "RSS"]` on every site, whatever its notes carry     |
 | `taxonomies`                      | the toolchain — never written, because `taxonomy` and `term` are disabled kinds                                                                         |
 | `outputs`                         | the toolchain — never written, because every listing kind is disabled                                                                                   |
@@ -1048,10 +1048,6 @@ The site build reads the navigation from the cache only. A cold cache is an
 error naming the command that fills it:
 
 > `the site navigation has not been fetched. Run `package-build deps fetch` first.`
-
-A missing theme names the package to install:
-
-> `@heroiclands/hugo-theme is not installed anywhere above <rootDir> — add it to `devDependencies`and run`npm ci``
 
 The site needs a title from `site.title` or the package manifest:
 

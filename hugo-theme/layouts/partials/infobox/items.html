@@ -1,0 +1,26 @@
+{{- /*
+  What one infobox section holds, whatever its layout.
+
+  A section carries its content under the key its layout names — `rows`,
+  `cells`, `groups` or `entries` — so one lookup answers "is there anything to
+  draw?" for every layout there is. Returns a slice, empty when there is
+  nothing.
+
+  Takes the section. Returns the items.
+
+  An unrecognised layout returns nothing and says so once: the four layouts
+  are a closed set, so a fifth means this theme is older than the content it
+  is drawing, and a silently dropped section is the expensive way to find out.
+*/ -}}
+{{- $section := . -}}
+{{- $layout := $section.layout | default "" -}}
+{{- $key := index (dict "rows" "rows" "grid" "cells" "runin" "groups" "list" "entries") $layout -}}
+{{- $items := slice -}}
+{{- with $key -}}
+  {{- with index $section . -}}
+    {{- $items = . -}}
+  {{- end -}}
+{{- else -}}
+  {{- warnidf "infobox-unknown-layout" "infobox: section layout %q is not one of rows, grid, runin or list, so the section is not drawn. Upgrade @heroiclands/hugo-theme to a version that draws it." $layout -}}
+{{- end -}}
+{{- return $items -}}
