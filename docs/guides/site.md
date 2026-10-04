@@ -132,6 +132,43 @@ fenced example remains literal. `site.passOptions` supplies that named pass's
 options. This is a package-specific extension point; keep the general note
 format and link behavior in the [content format](../content-format.md).
 
+## What an emitted page carries
+
+A theme reads the front matter `package-build site` writes: the note's own
+front matter, plus the values the build derives. Which is which matters,
+because an authored value under a derived key is discarded.
+
+The build always writes `title`, `slug`, `url`, `kbfolder`, `package` and
+`infoboxes`. `title` is the note's name, `url` is the page's address, and
+`slug` is that address's last segment. `package` names the package shipping the
+note. `infoboxes` is assembled from the note's own fields, so no note authors
+it and nothing in the note format accepts it.
+
+The build writes `resolvedDates`, `related`, `contains`, `held_by`, `holdings`
+and `map` only when it has something to write. A page with no links either way
+carries no `related`, and a place with no drawing carries no `map`.
+
+An authored `aliases`, `related`, `contains`, `held_by`, `holdings` or `map` is
+dropped. Each states a fact about the whole tree rather than about one note, so
+the build replaces whatever a note wrote.
+
+Artwork addresses are rewritten in place under `data`. A page's `data.icon`,
+`data.bgImage` and `data.banner` carry the URLs the site serves rather than the
+addresses the note authored, and there are four cases to tell apart:
+
+| The note writes              | The page carries |
+| ---------------------------- | ---------------- |
+| an address something answers | the resolved URL |
+| an address nothing answers   | no key at all    |
+| `null`                       | `null`           |
+| `""`                         | `""`             |
+
+An address nothing answers is deleted rather than written through, so an absent
+key is the ordinary case for a theme to render nothing against, and no page
+reaches a reader carrying a broken image source. The two empties are distinct
+and both survive: `null` is a note naming no art, where a default may apply,
+and `""` is a note refusing art, where no default may replace it.
+
 ## Build and serve
 
 ```bash

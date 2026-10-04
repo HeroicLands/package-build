@@ -62,7 +62,6 @@ import os from "node:os";
 import path from "node:path";
 
 import { unzipSync } from "fflate";
-import { extractPack } from "@foundryvtt/foundryvtt-cli";
 
 import log from "loglevel";
 
@@ -326,6 +325,8 @@ async function extractItemPacks(id, version, manifest, root, dir) {
                 `cannot supply an item catalogue`,
         );
     }
+    // Loaded here so importing the content index does not load the extractor.
+    const { extractPack } = await import("@foundryvtt/foundryvtt-cli");
     for (const pack of itemPacks) {
         const src = resolvePackPath(root, pack.path);
         if (!src) {

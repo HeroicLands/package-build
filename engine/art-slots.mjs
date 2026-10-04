@@ -43,7 +43,8 @@ const ART_TYPES = Object.freeze(["icon", "image"]);
  * The four art slots, in the order the specification tabulates them.
  *
  * `banner` is the one that reaches no compiled document: it is the page's hero
- * image, read by the site and by the book's section plates and by nothing else.
+ * image, read by the site and by nothing else. The book's section plates read a
+ * banner of their own, from the book plan's `presentation.page.banner`.
  * That is what `document: false` states, and it is why the inert-art check
  * skips it — a key that is *meant* to reach no document is not an inert key.
  *
