@@ -59,6 +59,17 @@ jobs:
             # Guard the release path with the same checks `main` gets, so a red
             # commit cannot reach the registry. These run before the publish
             # step, not after it — a package that fails here is never published.
+            # The render tests drive a real Hugo over `hugo-theme/`, and the
+            # suite refuses to run them against no Hugo rather than standing
+            # down, so the binary is a precondition of the suite here exactly
+            # as it is on `main`. Pinned to the version `build.yml` pins.
+            - name: Hugo, for the theme render tests
+              run: |
+                  set -euo pipefail
+                  ver=0.167.0
+                  url="https://github.com/gohugoio/hugo/releases/download/v$ver/hugo_extended_${ver}_linux-amd64.tar.gz"
+                  curl -fsSL "$url" | tar -xz -C /usr/local/bin hugo
+                  hugo version
             - run: npm test
             - run: npm run build:types
 
