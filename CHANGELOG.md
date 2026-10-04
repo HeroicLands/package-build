@@ -7,27 +7,26 @@
 **Figures**
 
 - A picture and the words about it are written as one block: the caption is optional, several pictures can share one, and a border is available.
-- Prose refers to a figure by name and reads back its number, or its number and its caption together.
+- Prose refers to a figure by name, in its own note or in another, and reads back its number, its number and caption, or the caption alone.
+- A figure drawn from a map counts as a Map, numbered the same way on every surface.
+- A figure holding one picture opens as an illustrated page in Foundry, with that viewer's own pop-out and zoom.
+
+**Pictures**
+
 - A picture carrying no caption draws no line beneath it, on a page, in a journal or in print.
-- A picture that fills a block of its own opens as an illustrated page in Foundry, with that viewer's own pop-out and zoom.
+- A picture states what it is for, and is drawn at the size that choice gives it — never larger than it was made.
+- A page's hero image is 1792×768, and one of any other size is refused, naming the size to cut it to.
 
 **Art provenance**
 
-- A picture states what it is for, and a record saying a file is not machine-generated is published saying so.
-- A page's hero image is 1792×768, and one of any other size is refused, naming the size to cut it to.
+- A record saying a file is not machine-generated is published saying so.
 - A package may refuse generated art in its own tree.
+- A package may declare that a dependency's art answers its own addresses, and the book draws the replacement.
 
-**Figures and pictures**
-
-- Prose refers to a figure in another note, and a reference resolves in a Foundry journal as well as in print.
-- A figure drawn from a map counts as a Map, numbered the same way on every surface.
-- A picture is drawn at the size its role chooses, and never larger than it was made.
-- A figure written inside a GM box, an info box or a caution stays inside it.
-
-**Notes and packages**
+**Notes**
 
 - A lore note states the occasions it records, each with a date and an optional recurrence, and publishes the next one due.
-- A package may declare that a dependency's art answers its own addresses, and the book draws the replacement.
+- A note may write a shared field at the position it is being retired from, and the build accepts it with a warning rather than refusing the note.
 
 ### Patch Changes
 
