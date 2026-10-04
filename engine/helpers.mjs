@@ -617,9 +617,11 @@ export function makeFilename(name, id) {
  * apply to.
  *
  * **`banner:` does not follow it either, deliberately.** It is not a file
- * inside a Foundry install: it reaches no compiled document and no book, its
- * only consumer is the Hugo theme, and the theme resolves it against the site's
- * own asset root. See `docs/content-format.md`.
+ * inside a Foundry install: it reaches no compiled document, and the site build
+ * resolves it through the website's own resolver before a page is written, so
+ * the theme receives a URL rather than an address. The book's section plates
+ * read a banner of their own, from the book plan's `presentation.page.banner`
+ * rather than from a note. See `docs/guides/site.md`.
  *
  * For items, the default is the art paired with the type's builder, reached
  * through `itemArt()`, which runs the pathname back through this function so a
