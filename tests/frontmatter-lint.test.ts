@@ -702,3 +702,23 @@ describe("two embedded items denoting one entity", () => {
         ).toHaveLength(0);
     });
 });
+
+describe("retired affiliation domains during migration", () => {
+    it("accepts ignored legacy input without publishing it in the vocabulary", () => {
+        const legacy = note(
+            "affiliation",
+            {},
+            { subType: "polity", data: { domains: ["unresolved-old-place"] } },
+        );
+        const findings = lintNote(legacy, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });
+        expect(messages(findings)).not.toContain("domains");
+        expect(dataFields("affiliation")?.some((field) => field.name === "domains")).toBe(false);
+    });
+    it("does not admit domains on a place", () => {
+        const findings = lintNote(note("place", {}, { data: { domains: [] } }), {
+            schemas: NOTE_SCHEMAS,
+            vocabulary: NOTE_VOCABULARY,
+        });
+        expect(messages(findings)).toContain('"domains" is not');
+    });
+});

@@ -449,22 +449,6 @@ export const ITEM_FIELDS = Object.freeze({
             default: null,
             describe: "Where the affiliation's authority sits, by place address.",
         },
-        {
-            // The geographic relation, kept apart from the organisational one
-            // above: `parents` is *subordinate to*, this is *holds sway over*.
-            //
-            // Authored plural and emitted singular, as the content format's
-            // mapping row states (`data.domains` → `system.domain`). The two
-            // spellings are deliberate rather than a slip, so the declaration
-            // carries both rather than either side guessing.
-            name: "data.domains",
-            legacyKey: "domains",
-            to: "domain",
-            ...ADDRESS_LIST,
-            address: PLACE_ITEMS,
-            default: [],
-            describe: "Places this affiliation holds sway over, by address.",
-        },
     ]),
 
     affliction: Object.freeze([

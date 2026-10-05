@@ -176,11 +176,11 @@ describe("an affiliation's four shared sources reach the document", () => {
     const fieldNamed = (name: string) =>
         ITEM_FIELDS.affiliation.find((field: any) => field.name === name);
 
-    it("resolves `seat`, `parents` and `domains` out of the container", () => {
+    it("resolves `seat` and `parents` out of the container", () => {
         const fm = {
             data: { seat: "tashal", parents: ["affiliation-a"], domains: ["place-b"] },
         };
-        for (const name of ["data.seat", "data.parents", "data.domains"]) {
+        for (const name of ["data.seat", "data.parents"]) {
             const field = fieldNamed(name);
             expect(field, name).toBeDefined();
             expect(resolveFieldValue(field, fm, { block: "sohl" }).from, name).toBe("shared");

@@ -71,8 +71,8 @@ const CONTRACT = [
     "contains",
     "data",
     "description",
-    "held_by",
-    "holdings",
+    "governed_by",
+    "governed_places",
     "infoboxes",
     "map",
     "package",
@@ -166,6 +166,7 @@ beforeAll(() => {
             "    full: Little Ham",
             "data:",
             "    parents: [place-rgn]",
+            "    government: house",
             "    borders:",
             "        - { to: rgn, bearing: N }",
         ]),
@@ -180,7 +181,7 @@ beforeAll(() => {
             "    full: House Stone",
             "data:",
             "    parents: []",
-            "    domains: [place-ham]",
+            "    domains: [place-rgn]",
         ]),
     );
 
@@ -221,6 +222,7 @@ beforeAll(() => {
         const data = matter(fs.readFileSync(file, "utf8")).data;
         for (const key of Object.keys(data)) emitted.add(key);
         if (file.includes("place-rgn")) regionPage = data;
+        if (file.includes("affiliation-house")) expect(data.data).not.toHaveProperty("domains");
     }
 
     // `writeHugoConfig` reads the navigation a `deps fetch` caches. The
@@ -334,5 +336,19 @@ describe("the theme renders a page the build emitted", () => {
         const page = [...html.keys()].find((k) => k.includes("place-rgn"))!;
         const body = html.get(page)!;
         expect(body).toContain("Little Ham");
+    });
+    it.runIf(HAS_HUGO)("renders the governing body and its reverse place list", () => {
+        const place = [...html.keys()].find((key) => key.includes("place-ham"))!;
+        const affiliation = [...html.keys()].find((key) => key.includes("affiliation-house"))!;
+        expect(html.get(place)).toContain("Governed by");
+        expect(html.get(place)).toContain("House Stone");
+        expect(html.get(affiliation)).toContain("Governed places");
+        expect(html.get(affiliation)).toContain("Little Ham");
+        expect(html.get(affiliation)).not.toContain("Held by");
+        const card = html
+            .get(affiliation)!
+            .match(/<section class="holdings"[\s\S]*?<\/section>/)?.[0];
+        expect(card).toContain("Little Ham");
+        expect(card).not.toContain("The Region");
     });
 });

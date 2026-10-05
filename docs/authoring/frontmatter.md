@@ -41,7 +41,7 @@ One body describes the subject for both systems. A being's `{#appearance}` and `
 
 ## Place governments
 
-A place may state its governing affiliation in `data.government`. Use an affiliation Address, either a local shortcode or a fully qualified Address from this package or a fetched dependency:
+A place may state its governing affiliation in `data.government`. The field type is `Address`, with `affiliation` as the default target type when the type is omitted. Use either a local shortcode or a fully qualified affiliation Address from this package or a fetched dependency:
 
 ```yaml
 data:
@@ -58,7 +58,7 @@ Write `government: null` for **complete anarchy**. Omitting the key leaves gover
 | Any                   | Explicit `null`     | None; complete anarchy           |
 | Any                   | Affiliation Address | None; the reference must resolve |
 
-These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `domains`, `parents`, containment and capitals do not supply a government. Holdings remain tenure facts; the former unconditional “unheld land” warning is retired.
+These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `domains`, `parents`, containment and capitals do not supply a government. The generated `governed_by` and `governed_places` lists use only explicit government references. Legacy affiliation `data.domains` is accepted temporarily but ignored; record any distinct ownership or influence in prose. See [government migration](../guides/government-migration.md).
 
 ## Publication and summaries
 

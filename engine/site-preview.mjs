@@ -284,12 +284,28 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                 });
                 const related = relatedPages(edges, entries).get(page.url);
                 if (related) result.data.related = related;
-                const holdings = holdingsPages([
-                    ...allPages.map((item) =>
-                        holdingsNode(item.fm, { title: item.name, url: item.url }),
-                    ),
-                    ...foreignHoldingsNodes(snapshot.gates.foreign.index),
-                ]);
+                const holdings = holdingsPages(
+                    [
+                        ...allPages.map((item) =>
+                            holdingsNode(item.fm, {
+                                title: item.name,
+                                url: item.url,
+                                package: item.pkg ?? config.contentPackage,
+                            }),
+                        ),
+                        ...foreignHoldingsNodes(snapshot.gates.foreign.index),
+                    ],
+                    {
+                        governmentNodes: records
+                            .filter((record) => !isGmNote(record))
+                            .map((record) =>
+                                holdingsNode(record, {
+                                    title: record.name?.full ?? record.shortcode,
+                                    package: config.contentPackage,
+                                }),
+                            ),
+                    },
+                );
                 Object.assign(result.data, holdings.get(page.url));
                 return {
                     ok: true,

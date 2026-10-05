@@ -565,7 +565,7 @@ export function tableUniverse(pages) {
  * about every other page, known only once the whole tree has resolved — see
  * {@link module:engine/related-pages} — so an authored value is dropped the
  * way `aliases` is, and {@link renderPages} writes the derived block once it
- * holds the graph. `contains`, `held_by` and `holdings` are dropped for the
+ * holds the graph. Derived geographical and government lists are dropped for the
  * same reason — see {@link module:engine/holdings}. **So is `map`**: the
  * file a place page names is the one the build drew beside it — see
  * {@link module:engine/site-maps} — and a page with no drawing names none.
@@ -603,6 +603,7 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
         kbfolder: page.folder,
     };
     if (decorate) decorate(data, page);
+    if (data.type === "affiliation" && data.data) delete data.data.domains;
     delete data.aliases;
     delete data.related;
     for (const key of HOLDINGS_KEYS) delete data[key];
@@ -1067,13 +1068,26 @@ export function renderPages(pages, options) {
     }
 
     const related = relatedPages(edges, entries);
-    // What lies within a place, who holds it, and what an affiliation holds
-    // — read off `parents` and `domains` across this package and every
-    // fetched index, local notes first so they shadow a dependency's.
-    const holdings = holdingsPages([
-        ...pages.map((page) => holdingsNode(page.fm, { title: pageTitle(page), url: page.url })),
-        ...foreignHoldingsNodes(foreign?.index),
-    ]);
+    // Geography follows parents; governing-body lists follow explicit government
+    // references across this package and every fetched index.
+    const holdings = holdingsPages(
+        [
+            ...pages.map((page) =>
+                holdingsNode(page.fm, { title: pageTitle(page), url: page.url, package: page.pkg }),
+            ),
+            ...foreignHoldingsNodes(foreign?.index),
+        ],
+        {
+            governmentNodes: records
+                .filter((record) => !isGmNote(record))
+                .map((record) =>
+                    holdingsNode(record, {
+                        title: record.name?.full ?? record.shortcode,
+                        package: config?.contentPackage ?? pages[0]?.pkg,
+                    }),
+                ),
+        },
+    );
 
     let withMap = 0;
     const outputs = capture === true ? new Map() : null;

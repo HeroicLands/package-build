@@ -5,7 +5,7 @@ import { Journals } from "../engine/journals.mjs";
 import { checkGovernment, checkHeld } from "../engine/holdings.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
-import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { decodeNoteAddresses, encodeAddresses } from "../engine/note-addresses.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
 import { infoboxesToHtml, infoboxesToTypst } from "../engine/infobox-render.mjs";
@@ -19,6 +19,17 @@ function note(data: Record<string, unknown>, subType = "settlement") {
 }
 
 describe("explicit place government", () => {
+    it("declares an Address whose default target type is affiliation", () => {
+        const field = dataFields("place")?.find((entry) => entry.name === "government");
+        expect(field).toMatchObject({
+            kind: "address",
+            shape: "an Address or null",
+            ref: "affiliation",
+        });
+        const fm = note({ government: "temple" }).fm;
+        decodeNoteAddresses(fm, { package: "demo" });
+        expect(fm.data.government).toMatchObject({ type: "affiliation", shortcode: "temple" });
+    });
     it.each(["settlement", "site", "structure", "feature", "region", "world"])(
         "uses population for %s",
         (subType) => {

@@ -567,9 +567,9 @@ an author writes — and each type that has any names them under its table.
 
 **An `Address` becomes a `Shortcode` where the target field expects one.** SoHL
 resolves a stored cross-reference among the items one actor holds, and packages do
-not exist there, so the field holds a `Shortcode`. Four `affiliation` fields are
+not exist there, so the field holds a `Shortcode`. Three `affiliation` fields are
 authored as Addresses and stored that way: `data.seat` becomes `system.seat`,
-`data.parents` becomes `system.parents`, `data.domains` becomes `system.domain`,
+`data.parents` becomes `system.parents`,
 and each authored key of `data.relations` becomes a key of `system.relations`. The
 reduction happens at build time, and two things are errors naming the note: an
 Address whose type the field does not accept, and two Addresses that reduce to one
@@ -1352,7 +1352,7 @@ Wikilinks contain complete Addresses. For example, `data.parents: [north]` in
 
 SQL queries compare Address-valued fields to complete Addresses. A note's
 `shortcode` is a distinct identity component, so it is not equal to an Address
-stored in `data.parents`, `data.domains` or a governance rank's `lore`. Use the
+stored in `data.parents`, `data.government` or a governance rank's `lore`. Use the
 target's complete identity for that comparison. A stub has no published page
 address; its note identity still contains the package, system, type and shortcode.
 
@@ -2105,8 +2105,8 @@ so adding a type means answering the question rather than inheriting a default.
 `borders.to` and `routes.to` name a place by `Address`, and those are **index
 relations rather than page links**: a border with a stub on the far side is a
 valid statement about the world and resolves. So does `parents` for the
-containment tree and `domains` for tenure — a stub appears in its region's
-`contains` and on its holder's `holdings`, rendered as plain text. What a stub
+containment tree and `government` for governance — a stub appears in its region's
+`contains` and its governing body's `governed_places`, rendered as plain text. What a stub
 cannot be is the target of a wikilink, because a wikilink points at a page.
 
 ### What a note produces
@@ -3325,7 +3325,6 @@ rank names the standing, and the standing says.
 | `governance.ranks`   | `Rank[]`                                           | The ranks available to members of the affiliation                                              |
 | `governance.offices` | `Map<name, description \| {description, holders}>` | Official offices and their dated holders                                                       |
 | `seat`               | `Address`                                          | Where the affiliation's authority sits                                                         |
-| `domains`            | `Address[]`                                        | Places over which this affiliation holds sway                                                  |
 | `population`         | `number`                                           | Number of people in the affiliation (precision 2 significant digits).                          |
 | `economy`            | `Address[]`                                        | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default         |
 | `lore`               | `Address[]`                                        | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
@@ -3385,37 +3384,7 @@ data:
           - { being: being-mara, start: "datefrom vrcal 2 Lusenar 725 VR" }
 ```
 
-**`domains` is territorial, and only territorial.** Seventy-seven divine
-affiliations currently spell `domain:` the other way, holding a deity's sphere of
-influence as prose — _Love, Beauty, and Prosperity_; _Fertility, Agriculture,
-Peace, and Healing_. That sense **folds into `description`**, which those notes
-leave empty in all but one case, and it does not become a field of its own.
-
-A sphere is a characterisation, not a reference. Nothing compiles against it, no
-other note points at it, and rendering it as a list would imply a vocabulary that
-does not exist — whereas `description` is exactly the field for a one-line
-statement of what a thing is. The fuller treatment already has a home: `lore` of
-subType `deity` covers a god's nature, domains, epithets and aspects in prose.
-
-That frees the name for the territorial sense, which earns it: every affiliation
-subType holds sway somewhere, while the divine sense applies to one.
-
-**`domains` names what the affiliation holds directly**, and nothing beneath
-it. A polity whose `domains` names a region holds the region; the settlements
-within it are the region's, reached through its `contains`, and are not
-repeated here. A house holds its manors and names each; the crown holds the
-realm and names the realm. What lies below a holder is answered by the two
-hierarchies together — `place.parents` for where a place sits, and
-`affiliation.parents` for whom a holder answers to — so a subinfeudated manor
-sits in one region by the first and under a lord of another polity by the
-second, and both pages say so.
-
-The website reads `domains` across the package and every fetched index and
-writes the affiliation's page a `holdings` list — every place its `domains`
-names, each entry `{ title, url, type, subType }`, sorted by `subType` then
-`title`, and absent when `domains` names nothing. Every place it names carries
-the affiliation back in `held_by`. Both are derived; a note that writes one has
-it replaced.
+**Governed places are derived from place notes.** Each place names one governing affiliation in `data.government`. The website writes the body's `governed_places` list by resolving those explicit references across local notes and fetched indexes. Each entry is `{ title, url, type, subType }`, sorted by `subType` then `title`; an empty list is omitted. No affiliation-side list supplies government, and neither geographic containment nor organizational parents expands it.
 
 If `sohl` is present, this becomes an `affiliation` item.
 
@@ -3423,7 +3392,6 @@ If `sohl` is present, this becomes an `affiliation` item.
 | ---------------- | ------------------ | ----- |
 | `subType`        | `system.subType`   | NA    |
 | `data.seat`      | `system.seat`      | NA    |
-| `data.domains`   | `system.domain`    | NA    |
 | `data.parents`   | `system.parents`   | NA    |
 | `data.relations` | `system.relations` | NA    |
 
@@ -4205,7 +4173,7 @@ map's prose.
 | `lore`                            | `Address[]`                                         | Lore concerning this place — its peoples, its law, its calendar, its history                              |
 | `parents`                         | `Address[]`                                         | Enclosing places within which this place is located                                                       |
 | `population`                      | `number`                                            | Approximate population (precision 2 significant digits)                                                   |
-| `government`                      | affiliation Address or `null`                       | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
+| `government`                      | `Address` or `null` (default type: `affiliation`)   | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
 | `market`                          | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                                                   |
 | `borders`                         | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here                                    |
 | `routes`                          | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                                                        |
@@ -4426,27 +4394,13 @@ than the package that wrote it.
 | `river`         | boat               |
 | `lake`          | boat               |
 
-#### What lies within a place, and who holds it
+#### What lies within a place
 
-`parents` states what a place is within; an affiliation's `domains` states
-what it holds. The website reads both across the package and every fetched
-index and writes each place's page two lists, each entry
-`{ title, url, type, subType }` and each absent when empty:
-
-- `contains` — every place whose `parents` names this one, sorted by
-  `subType` then `title`. A region lists its settlements, sites, structures
-  and features; a settlement lists the structures within it.
-- `held_by` — every affiliation whose `domains` names this one, sorted by
-  `title`.
-
-Both are derived; a note that writes one has it replaced. **`domains` is
-never expanded**: a region held by a polity lists the polity in `held_by`, and
-a settlement within that region lists only the house or order whose `domains`
-names it — its lord's lord is reached through `affiliation.parents`.
+`parents` states what a place is within. The website reads this across the package and every fetched index and writes `contains`: every place whose `parents` names this one, sorted by `subType` then `title`. Each entry is `{ title, url, type, subType }`; the list is omitted when empty. A region lists its settlements, sites, structures and features; a settlement lists its structures. Government never changes this geographical containment.
 
 #### Who governs a place
 
-A place may state its governing affiliation in `data.government`. Use an affiliation Address, either a local shortcode or a fully qualified Address from this package or a fetched dependency:
+A place may state its governing affiliation in `data.government`. The field type is `Address`, with `affiliation` as the default target type when the type is omitted. Use either a local shortcode or a fully qualified affiliation Address from this package or a fetched dependency:
 
 ```yaml
 data:
@@ -4463,20 +4417,15 @@ Write `government: null` for **complete anarchy**. Omitting the key leaves gover
 | Any                   | Explicit `null`     | None; complete anarchy           |
 | Any                   | Affiliation Address | None; the reference must resolve |
 
-These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `domains`, `parents`, containment and capitals do not supply a government. Holdings remain tenure facts; the former unconditional “unheld land” warning is retired.
+These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `domains`, `parents`, containment and capitals do not supply a government. Legacy affiliation `data.domains` is accepted temporarily but ignored. Preserve ownership and influence facts in prose; see [government migration](../guides/government-migration.md).
 
 #### Population figures
 
 `population` is an approximate count, written to two significant digits. A
 place states one, and so does an affiliation — how many people it counts,
 wherever they are. `package-build lint` reads those figures against each other
-and reports four warnings, each named by the phrase its message begins with.
+and reports three warnings, each named by the phrase its message begins with.
 
-- **`over-held land`** — the polities whose `domains` name a place count more
-  people than the place states. A polity subordinate to another polity holding
-  the same place is already inside that polity's figure and is not counted
-  twice. A **settlement is exempt**: the polity of a city-state holds the city
-  and counts the hinterland around it, so its figure is properly the larger.
 - **`over-full region`** — the regions whose `parents` name a place count more
   people than the place states. A region naming both its parent and its
   grandparent counts under the nearer of the two, so a place written into two
@@ -4488,7 +4437,7 @@ and reports four warnings, each named by the phrase its message begins with.
   located at the number the page wrote, and a figure written twice is located
   twice.
 
-The first three are reported on the note's own `data.population`; the fourth
+The first two are reported on the note's own `data.population`; the third
 on the citation.
 
 **A figure is read as a population only where it carries `~`.** That marker is
@@ -4503,7 +4452,7 @@ cent below what it contains is not a finding.
 **An unstated figure is silent.** A place or affiliation with no `population`
 contributes nothing to a sum and is never the subject of a finding, so a
 half-written region is quiet rather than noisy. A fetched index carries
-`population` alongside `parents` and `domains` when its author stated a
+`population` alongside `parents` and `government` when its author stated a
 figure. An older fetched index with no figure remains silent.
 
 **There is deliberately no urban-share rule.** The share of a region's people
@@ -4512,8 +4461,8 @@ settlement layer names the notable places and is complete nowhere, so the ratio
 reports how much of a region has been written rather than how much of it is
 urban.
 
-**A place declares what is true of its ground.** Its governing affiliations
-carry their own `domains`; maps name the place they depict through `data.place`.
+**A place declares what is true of its ground.** It names its governing affiliation
+in `data.government`; maps name the place they depict through `data.place`.
 The place's `lore` links cover its peoples, calendar, law and history. Political
 languages belong to a polity's `sohl.system.commonSkills`, while the note's
 `description` provides its page summary.

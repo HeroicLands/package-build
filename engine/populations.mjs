@@ -14,17 +14,14 @@
 /**
  * Whether a world's population figures agree from the region down.
  *
- * A place states `data.population` and an affiliation states how many people
- * it counts. Read across the whole corpus those figures make claims about each
- * other, and four of those claims can be checked: the bodies holding a region
- * fit inside it, the regions inside it fit inside it, a settlement fits inside
- * every place that contains it, and a page citing a figure states the figure
- * that note states.
+ * A place states `data.population` and an affiliation states its membership
+ * population. Three claims can be checked: the regions inside a place fit
+ * inside it, a settlement fits inside every place that contains it, and a page
+ * citing a figure states the figure that note states.
  *
- * This is {@link module:engine/holdings}'s sibling and reads the same two
- * keys — a place's `data.parents` for geography, an affiliation's
- * `data.domains` for tenure. Where that module asks whether anybody holds a
- * place, this one asks whether the numbers add up.
+ * Geography comes from a place's `data.parents`. Government is independent:
+ * an affiliation's membership population does not state the population of the
+ * territory it governs, so these checks do not compare the two.
  *
  * **Every finding is a warning.** A figure out of step with its neighbours is
  * a thing an author wants to see while the note is open, and the same gap can
@@ -39,10 +36,9 @@
  * **A stated figure is compared; an absent one is not.** A place or an
  * affiliation with no `population` contributes nothing to a sum and is never
  * the subject of a finding, so a half-written corpus is quiet rather than
- * noisy. A dependency's places and affiliations take part in the *structure* —
- * a fetched entry carries the `parents` and `domains` its record stated — and
- * a fetched index carries no figure, so a dependency's people are counted
- * nowhere.
+ * noisy. A dependency's places and affiliations take part when their fetched
+ * entry supplies a population figure; an older index without one contributes
+ * no population.
  *
  * **There is deliberately no urban-share rule.** A share computed from the
  * named settlements against a region's total measures nothing: the settlement
@@ -81,14 +77,6 @@ export const POPULATION_TOLERANCE = 1.05;
  * @type {ReadonlyArray<{name: string, describe: string}>}
  */
 export const POPULATION_RULES = Object.freeze([
-    Object.freeze({
-        name: "over-held land",
-        describe:
-            "The polities whose `domains` name a place count more people than the place " +
-            "states. A polity subordinate to another holding the same place is already " +
-            "counted in that polity's figure, and a settlement is exempt, its holder's " +
-            "figure counting a hinterland the settlement does not.",
-    }),
     Object.freeze({
         name: "over-full region",
         describe:
@@ -133,19 +121,16 @@ const CORPUS = new WeakMap();
  * @property {number} [population] The stated figure, absent where unstated.
  * @property {string[]} parents   A place's enclosing places, an affiliation's
  *                                superiors.
- * @property {string[]} domains   What an affiliation holds.
  */
 
 /**
- * The whole tree, indexed the three ways the rules read it.
+ * The whole tree, indexed by place, affiliation and geographical parent.
  *
  * @typedef {object} Corpus
  * @property {Map<string, PopulationNode>} places       By shortcode.
  * @property {Map<string, PopulationNode>} affiliations By shortcode.
  * @property {Map<string, string[]>} childrenOf   Place shortcode → the places
  *                                                whose `parents` name it.
- * @property {Map<string, string[]>} holdersOf    Place shortcode → the polities
- *                                                whose `domains` name it.
  * @property {Map<string, PopulationNode>} byAddress `type/shortcode` → the
  *                                                node, for the citation rule.
  *                                                Package-blind by design: a
@@ -210,7 +195,6 @@ function localNode(note) {
         title: String(fm.name?.full ?? shortcode),
         population: figureOf(data.population),
         parents: shortcodesOf(data.parents),
-        domains: type === "affiliation" ? shortcodesOf(data.domains) : [],
     };
 }
 
@@ -236,14 +220,13 @@ export function foreignNode(canonical, entry) {
         title: String(entry.name ?? shortcode),
         population: figureOf(entry.population),
         parents: shortcodesOf(entry.parents),
-        domains: type === "affiliation" ? shortcodesOf(entry.domains) : [],
     };
 }
 
 /**
  * The corpus a link index describes.
  *
- * Population containment and tenure use the same package-blind Shortcode
+ * Population containment uses the same package-blind Shortcode
  * identity as holdings and maps. Each type has one node per shortcode, with
  * local notes taking precedence over fetched entries. A fetched place can
  * attach to local geography, while its authored `parents` remains an Address.
@@ -289,18 +272,7 @@ function corpusOf(index) {
         }
     }
 
-    /** @type {Map<string, string[]>} */
-    const holdersOf = new Map();
-    for (const node of affiliations.values()) {
-        if (node.subType !== "polity") continue;
-        for (const domain of node.domains) {
-            const list = holdersOf.get(domain);
-            if (list) list.push(node.shortcode);
-            else holdersOf.set(domain, [node.shortcode]);
-        }
-    }
-
-    found = { places, affiliations, childrenOf, holdersOf, byAddress };
+    found = { places, affiliations, childrenOf, byAddress };
     CORPUS.set(index, found);
     return found;
 }
@@ -346,27 +318,6 @@ function ancestors(corpus, shortcode) {
         queue.push(...node.parents);
     }
     return out;
-}
-
-/**
- * The polities holding a place, each counted once.
- *
- * A polity subordinate to another polity that holds the same place is already
- * inside that polity's figure, so only the topmost of a chain counts.
- *
- * @param {Corpus} corpus - The corpus.
- * @param {string} shortcode - The place.
- * @returns {PopulationNode[]} The holders.
- */
-function topHolders(corpus, shortcode) {
-    const holders = corpus.holdersOf.get(shortcode) ?? [];
-    const held = new Set(holders);
-    return holders
-        .map((name) => corpus.affiliations.get(name))
-        .filter(
-            /** @returns {node is PopulationNode} */
-            (node) => Boolean(node) && !(node?.parents ?? []).some((p) => held.has(p)),
-        );
 }
 
 /**
@@ -416,7 +367,7 @@ function atFigure(note, rule, message) {
  * runs it with the index every reference check resolves through. Without an
  * index the questions cannot be asked and nothing is reported.
  *
- * Three rules, each reported on the note being linted: `over-held land` and
+ * Two geographical rules, each reported on the note being linted:
  * `over-full region` on the place whose figure is exceeded, and
  * `oversized settlement` on the settlement that exceeds one.
  *
@@ -440,23 +391,6 @@ export function checkPopulation(note, { index } = {}) {
     const subType = self?.subType ?? String(fm.subType ?? "");
     const allowed = stated * POPULATION_TOLERANCE;
     const findings = [];
-
-    // A settlement is exempt: the polity holding a city-state counts the
-    // hinterland the city does not, so its figure is properly the larger.
-    if (subType !== "settlement") {
-        const holders = topHolders(corpus, shortcode);
-        const sum = holders.reduce((total, node) => total + (node.population ?? 0), 0);
-        if (sum > allowed) {
-            findings.push(
-                atFigure(
-                    note,
-                    "over-held land",
-                    `the polities holding ${title} count ${counted(sum)} people against its ` +
-                        `stated ${counted(stated)}`,
-                ),
-            );
-        }
-    }
 
     const regions = nearestRegions(corpus, shortcode);
     const inside = regions.reduce((total, node) => total + (node.population ?? 0), 0);
@@ -520,8 +454,8 @@ const CITED =
  * restated figures drift. Each is located at the figure it wrote, counting
  * repeats so two rows carrying one number land on their own lines.
  *
- * A citation naming a note this package does not hold is skipped: a fetched
- * index carries no figure, so there is nothing to disagree with.
+ * A citation naming a note with no published population figure is skipped:
+ * there is nothing to disagree with.
  *
  * Declared as the `doc` vocabulary's type-level check.
  *

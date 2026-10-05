@@ -283,7 +283,7 @@ describe("the shipped specification", () => {
     });
 
     it("makes every mapping claim its tables state", () => {
-        expect(format.claims).toHaveLength(77);
+        expect(format.claims).toHaveLength(76);
         expect([...new Set(format.claims.map((c) => c.system))].sort()).toEqual(["hm3", "sohl"]);
     });
 
@@ -385,7 +385,7 @@ describe("the specification against the committed fixture schema", () => {
         const artifact = JSON.parse(fs.readFileSync(FIXTURE_SCHEMA, "utf8"));
         const { findings, checked } = checkSchemaTargets({ format, schemas: { sohl: artifact } });
         expect(messages(findings)).toBe("");
-        expect(checked).toBe(60);
+        expect(checked).toBe(59);
     });
 });
 
@@ -668,5 +668,25 @@ describe("custom lore", () => {
         expect(packageAddress({ type: "lore", subType: "custom", shortcode: "greeting" })).toBe(
             "lore-greeting/",
         );
+    });
+});
+
+describe("retired affiliation domains during migration", () => {
+    it("accepts ignored legacy input but removes its canonical field and mapping", () => {
+        const format = loadContentFormat();
+        const findings = measureNote(
+            { fm: { type: "affiliation", data: { domains: ["temple"] } } },
+            format,
+        );
+        expect(findings).toEqual([]);
+        expect(format.types.get("affiliation")?.dataKeys.has("domains")).toBe(false);
+        expect(format.claims.some((row: any) => row.source === "data.domains")).toBe(false);
+    });
+    it("continues to reject domains on other note types", () => {
+        const findings = measureNote(
+            { fm: { type: "place", data: { domains: [] } } },
+            loadContentFormat(),
+        );
+        expect(findings.some((finding: any) => finding.class === "unknown-data-key")).toBe(true);
     });
 });

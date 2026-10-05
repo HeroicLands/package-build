@@ -52,7 +52,6 @@ types:
             - governance.ranks
             - governance.offices
             - seat
-            - domains
             - population
             - economy
             - lore
@@ -396,10 +395,6 @@ claims:
       system: sohl
       source: data.seat
       target: system.seat
-    - noteType: affiliation
-      system: sohl
-      source: data.domains
-      target: system.domain
     - noteType: affiliation
       system: sohl
       source: data.parents

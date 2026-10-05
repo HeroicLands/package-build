@@ -424,16 +424,15 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // the record naming a path at all.
                 asset: record.asset ?? undefined,
                 // What a place is next to, reachable from and within, and
-                // what an affiliation holds, carried so a consumer's lint
+                // which affiliation governs it, carried so a consumer's lint
                 // checks a border across the package boundary from both ends,
                 // a consumer's map draws the dependency's places beside its
                 // own, and a consumer's pages list what a dependency's
-                // affiliation holds and what lies within its regions. A
+                // affiliation governs and what lies within its regions. A
                 // population lets the same checks include dependency figures.
                 borders: record.data?.borders ?? undefined,
                 routes: record.data?.routes ?? undefined,
                 parents: record.data?.parents ?? undefined,
-                domains: record.data?.domains ?? undefined,
                 population: record.data?.population ?? undefined,
                 ...(Object.hasOwn(record.data ?? {}, "government") ?
                     { government: record.data.government }

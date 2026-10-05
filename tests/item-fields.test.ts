@@ -377,7 +377,7 @@ describe("affiliation references", () => {
     it("ships the empty defaults that mean 'refers to nothing', not 'unset'", () => {
         const system = build("affiliation", { subType: "guild" });
         expect(system.parents).toEqual([]);
-        expect(system.domain).toEqual([]);
+        expect(system).not.toHaveProperty("domain");
         expect(system.seat).toBeNull();
     });
 
@@ -389,12 +389,12 @@ describe("affiliation references", () => {
         expect(system.parents).toEqual(["ordoarcanis", "vylarianempire"]);
     });
 
-    it("authors `domains` and emits `domain`, as the format's mapping row states", () => {
+    it("ignores retired domains without emitting an affiliation domain", () => {
         const system = build("affiliation", {
             subType: "polity",
             domains: ["kaldorregion", "tashal"],
         });
-        expect(system.domain).toEqual(["kaldorregion", "tashal"]);
+        expect(system).not.toHaveProperty("domain");
         expect(system).not.toHaveProperty("domains");
     });
 
@@ -405,16 +405,16 @@ describe("affiliation references", () => {
             domains: [],
         });
         expect(system.parents).toEqual(["ordoarcanis"]);
-        expect(system.domain).toEqual([]);
+        expect(system).not.toHaveProperty("domain");
     });
 
-    it("keeps a seat that lies outside its domain — a body in exile is a real case", () => {
+    it("keeps its declared seat while ignoring obsolete domains", () => {
         const system = build("affiliation", {
             subType: "polity",
             seat: "golotha",
             domains: ["kaldorregion"],
         });
         expect(system.seat).toBe("golotha");
-        expect(system.domain).not.toContain(system.seat);
+        expect(system).not.toHaveProperty("domain");
     });
 });
