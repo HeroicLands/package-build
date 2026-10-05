@@ -353,8 +353,6 @@ function reportUnrenderable(source, definitions, opts, original) {
     }
     for (const error of scanSpans(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
-    for (const error of scanPoetry(source).errors)
-        report(linePosition(error.line, error.column, opts), "error", error.message);
     for (const error of scanFigures(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
     // An image sharing its paragraph with other text, or an address or title
