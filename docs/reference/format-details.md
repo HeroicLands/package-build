@@ -2648,7 +2648,7 @@ displays **Table 1** as a link.
 optionally followed by a braced attribute block in the grammar a heading and
 a named block take too. A line of `:::` alone closes it. Between the
 two, the first `///` written alone on a line, read at the top level — outside
-any nested code fence — divides what the fence holds from its caption; a `///`
+any nested code or poetry fence — divides what the fence holds from its caption; a `///`
 written inside a nested fence is content, not a divider. A second top-level
 `///` is an error, naming the line: a figure holds one caption, so it carries
 one `///` line.
@@ -2681,11 +2681,11 @@ note and is `a figure needs a closing :::`, also at the opening line, and
 nothing after it is scanned as a second fence.
 
 **The counter is derived, never authored.** The fence's contents decide which
-of four counters it draws from — `Code`, `Table`, `Figure`, `Prose` — read from
+of six counters it draws from — `Code`, `Table`, `Figure`, `Map`, `Poem`, `Prose` — read from
 the first top-level block inside the fence: a table is `Table`; a fenced `sql`
 block is `Table`, because its rendered output is one; any other fenced or
 indented code block is `Code`; one or more pictures and nothing else is
-`Figure`; everything else is `Prose`. A table or a picture written outside any
+`Figure`; a `:::poetry` fence as the first nonblank content is `Poem`; everything else is `Prose`. A poem, table or picture written outside any
 `:::figure` fence draws no label and is counted nowhere. The website and a
 Foundry journal number each counter within the note; the book numbers each
 counter across the book in reading order.

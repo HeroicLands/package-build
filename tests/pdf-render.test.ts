@@ -467,7 +467,7 @@ describe("what the book cannot set", () => {
         expect(render(":::aside\nBody.\n:::").findings[0]).toMatchObject({
             line: 1,
             severity: "error",
-            message: "there is no aside block; the blocks are info, secret, warn",
+            message: "there is no aside block; the blocks are info, secret, warn, poetry",
         });
         expect(render(":::secret\nhidden").findings[0]).toMatchObject({
             line: 1,

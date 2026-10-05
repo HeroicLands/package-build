@@ -744,7 +744,7 @@ export async function buildPdf({
      * @param {number} columns - The entry's page columns.
      * @returns {string} Typst markup.
      */
-    const figureCounts = { code: 0, table: 0, figure: 0, map: 0, prose: 0 };
+    const figureCounts = { code: 0, table: 0, figure: 0, map: 0, poem: 0, prose: 0 };
     // The role lookup a `:::figure` fence's `map` counter reaches through —
     // see `engine/content-figures.mjs`'s `resolveRole`. Addressed form, for a
     // page's own scan below, which runs before its embeds are rewritten into
