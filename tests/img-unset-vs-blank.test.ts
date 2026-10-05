@@ -123,10 +123,10 @@ describe("an item note's `img`", () => {
 
     // The registry's art is a pathname like any other, so the compiled value
     // is its resolved form rather than the map's own string.
-    const SKILL_ART = "systems/sohl/assets/icons/other/head-gear.svg";
+    const SKILL_ART = "systems/sohl/assets/icons/other/headgear.svg";
 
     it("falls back to the type's default art when the key is absent", () => {
-        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/assets/icons/other/head-gear.svg");
+        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/assets/icons/other/headgear.svg");
         expect(compiler().buildEntry(SKILL_FM, "").img).toBe(SKILL_ART);
     });
 

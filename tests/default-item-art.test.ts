@@ -51,7 +51,7 @@ describe("default-item-art (single source of truth)", () => {
 
     it("returns the per-type default for a known type", () => {
         expect(defaultItemArt("weapongear")).toBe("sohl/assets/icons/other/sword.svg");
-        expect(defaultItemArt("miscgear")).toBe("sohl/assets/icons/other/question-mark.svg");
+        expect(defaultItemArt("miscgear")).toBe("sohl/assets/icons/other/questionmark.svg");
     });
 
     it("is keyed by the document subtype, not the renamed note type", () => {
