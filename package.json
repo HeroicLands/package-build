@@ -182,6 +182,7 @@
     "scripts": {
         "test": "vitest run",
         "test:watch": "vitest",
+        "build": "node bin/package-build.mjs ci",
         "prepack": "run-s build:types build:asset-index",
         "build:types": "tsc -p tsconfig.dts.json",
         "build:asset-index": "node ci/emit-asset-index.mjs",
