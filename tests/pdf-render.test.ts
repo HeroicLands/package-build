@@ -355,6 +355,16 @@ describe("new block syntax in the printed book", () => {
         expect(out).toContain('#link("https://example.org")[link]');
     });
 
+    it("shares note footnotes with captioned poetry and emits the definition once", () => {
+        const out = markdownToTypst(
+            "Before[^shore].\n\n:@ A song.\n\n```poetry\nA *quiet* shore[^shore].\n```\n\n[^shore]: Beside the harbor.",
+        );
+        expect(out).toContain("#emph[quiet]");
+        expect(out).toContain("#footnote(<footnote-body-shore>)");
+        expect(out.match(/Beside the harbor\./g)).toHaveLength(1);
+        expect(out).not.toContain("[^shore]");
+    });
+
     it("uses Poem labels and leaves unnumbered poems outside the count", () => {
         const out = markdownToTypst(
             ": Unnumbered.\n\n```poetry\nOne.\n```\n\n:@ Numbered.\n\n```poetry\nTwo.\n```",
@@ -521,7 +531,7 @@ describe("what the book cannot set", () => {
         ).toMatchObject({ line: 4, message: "title needs a value" });
         // And only where that reading was sound: a body read from a misread
         // outer block says the same mistake over again in other words.
-        expect(render(":::secret\nouter\n:::secret\ninner\n:::\n:::").findings).toHaveLength(2);
+        expect(render(":::secret\nouter\n:::secret\ninner\n:::\n:::").findings).toHaveLength(1);
     });
 
     it("reports raw HTML in the words the HTML check uses", () => {

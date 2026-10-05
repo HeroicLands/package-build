@@ -199,6 +199,22 @@ export function createParser(registry) {
     const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
     md.use(footnotePlugin);
     md.use(spanMarkdownPlugin);
+    // Verse is held inside a literal fence. Parse its inline content before
+    // footnote_tail collects definitions, using the surrounding note's env.
+    md.core.ruler.after("inline", "poetry_inline", (state) => {
+        for (const token of state.tokens) {
+            if (token.type !== "fence" || !/^poetry(?:\s|$)/.test(token.info?.trim() || ""))
+                continue;
+            token.meta ??= {};
+            token.meta.poetryStanzas = poetryStanzas(token.content).map((stanza) =>
+                stanza.map(({ text, level }) => {
+                    const children = [];
+                    state.md.inline.parse(inlineVerse(text), state.md, state.env, children);
+                    return { children, level };
+                }),
+            );
+        }
+    });
     md.use(deflistPlugin);
     md.use(iconPlugin(registry));
     // The same plugin the HTML surfaces use, so one directive is read once and
@@ -726,11 +742,11 @@ function renderBlock(tokens, i, out, ctx) {
         case "fence":
         case "code_block": {
             if (token.type === "fence" && /^poetry(?:\s|$)/.test(token.info?.trim() || "")) {
-                const content = poetryStanzas(token.content)
+                const content = token.meta.poetryStanzas
                     .map((stanza) =>
                         stanza
-                            .map(({ text, level }) => {
-                                const verse = inlineMarkup(inlineVerse(text), ctx);
+                            .map(({ children, level }) => {
+                                const verse = renderInline({ children }, ctx);
                                 return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
                             })
                             .join(" \\\n"),
