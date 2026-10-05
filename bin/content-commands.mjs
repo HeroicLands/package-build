@@ -226,7 +226,12 @@ const SHIPPED_ITEM_FIELDS = { sohl: ITEM_FIELDS, hm3: HM3_ITEM_FIELDS };
 /** Register the content operations on the package command line. */
 export function registerContentCommands(cli) {
     return cli
-        .command(withIndexPreflight(packageCommand(), (_config, argv) => argv.action === "compile"))
+        .command(
+            withIndexPreflight(
+                withBodyPreflight(packageCommand(), (_config, argv) => argv.action === "compile"),
+                (_config, argv) => argv.action === "compile",
+            ),
+        )
         .command(depsCommand())
         .command(docsCommand())
         .command(withIndexPreflight(lintCommand()))
@@ -235,11 +240,17 @@ export function registerContentCommands(cli) {
         .command(withIndexPreflight(linksCommand()))
         .command(formatCommand())
         .command(markdownCommand())
-        .command(contentIndexCommand())
-        .command(withIndexPreflight(siteCommand(), publishesContentPages))
+        .command(
+            withBodyPreflight(
+                contentIndexCommand(),
+                () => true,
+                (config, argv) => argv.root ?? config.paths.content,
+            ),
+        )
+        .command(withIndexPreflight(withBodyPreflight(siteCommand()), publishesContentPages))
         .command(
             withIndexPreflight(
-                pdfCommand(),
+                withBodyPreflight(pdfCommand(), (config) => Boolean(config.pdf)),
                 (config) => config.pdf && publishesContentPages(config),
             ),
         )
@@ -376,6 +387,43 @@ function proseCommand() {
                 reportFailure(err);
                 process.exitCode = 1;
             }
+        },
+    };
+}
+
+/** Refuse invalid note bodies before emitting metadata, packs, pages or a book. */
+function withBodyPreflight(
+    command,
+    shouldCheck = () => true,
+    contentRoot = (config) => config.paths.content,
+) {
+    const handler = command.handler;
+    return {
+        ...command,
+        handler: async (argv) => {
+            try {
+                const config = loadPackConfig();
+                if (shouldCheck(config, argv)) {
+                    const contentBase = contentRoot(config, argv);
+                    if (!fs.existsSync(contentBase)) return handler(argv);
+                    const records = indexRecordsFor({ config, contentBase });
+                    const { findings } = lintNoteStates(contentBase, {
+                        records,
+                        contentPackage: config.contentPackage,
+                    });
+                    const errors = findings.filter((finding) => finding.severity === "error");
+                    if (errors.length) {
+                        for (const finding of errors) emitDiagnostic(finding);
+                        process.exitCode = 1;
+                        return;
+                    }
+                }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+                return;
+            }
+            return handler(argv);
         },
     };
 }
@@ -1167,7 +1215,7 @@ function lintCommand() {
                     skipDirectories: config.skipDirectories,
                 });
 
-                // Whether every empty body is a stub on purpose, and how
+                // Whether every note has a body, and how
                 // finished the tree is. The counts and the oldest drafts are
                 // prose rather than findings: a note nobody has finished is not
                 // wrong, and 464 warnings a reader cannot clear is how a report

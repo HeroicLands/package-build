@@ -197,8 +197,8 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *
  * Two types answer **false**, and both are structural: a `folder` note's page
  * is a generated section index and a `homepage`'s is the site's front door, so
- * each is complete with no body at all. An empty body on one of them keeps its
- * address and resolves as `full`.
+ * an empty body on one of them keeps its address and resolves as `full`.
+ * This is classification only: author validation requires a body for every type.
  *
  * @typedef {object} TypeVocabulary
  * @property {readonly DataFieldSpec[]} data - The `data:` keys, closed.
@@ -1413,8 +1413,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     // document, so its address carries the `none` system segment and
     // everything it says is a `data` property.
     //
-    // It carries **no prose**: a folder
-    // is structure, not content, so it wants no documentation journal and takes
+    // Its required body produces no documentation journal and takes
     // no part in `docEntryTypes`.
     folder: Object.freeze({
         stubbable: false,

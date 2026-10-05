@@ -45,4 +45,4 @@ The full Address is `<package>-note-lore-harbor`; `<package>` comes from `conten
 
 Add `description` for a short page summary, `tags: [draft]` to mark unfinished prose, or `data` for fields the note's type permits. A system block such as `sohl:` or `hm3:` adds mechanics and can produce a Foundry Actor or Item. It does not replace the shared prose or make another JournalEntry. [Frontmatter](frontmatter.md) explains the allowed keys, and the [note-type reference](../reference/note-types.md) lists every type-specific field.
 
-A note with an empty body is a stub. It remains addressable as data, while a document that would have no content is omitted. See [note states](../reference/format-details.md#three-states-of-a-note) for the precise emission rules.
+Every typed note must have a nonempty body after its frontmatter. An empty or whitespace-only body is an error, even with `tags: [draft]` or a description. This includes folder and homepage notes. A nonempty body with fewer than 25 prose words produces a warning unless the note has a `draft` tag. See [note states](../reference/format-details.md#three-states-of-a-note).
