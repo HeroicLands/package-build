@@ -121,10 +121,10 @@ describe("one reading of what starts a page", () => {
     it.each([
         ":::secret",
         ":::secret {#cellar}",
-        ":::info",
-        ":::info {#note .wide}",
-        ":::warn",
-        ':::warn {title="Careful"}',
+        "::: {#info}",
+        "::: {#note .wide}",
+        "::: {#warning}",
+        '::: {title="Careful"}',
     ])("refuses a page-opening heading inside %s", (opener) => {
         for (const heading of [
             "# An H1",

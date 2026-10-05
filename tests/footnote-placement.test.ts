@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
+import { renderAlerts } from "../engine/content-alerts.mjs";
 import { renderBlocks } from "../engine/content-blocks.mjs";
 import { renderFigureBlocks } from "../engine/content-figures.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
@@ -31,7 +32,7 @@ function foundry(source: string) {
 
 /** The body as the site build renders it, in the order `site-build` runs. */
 function web(source: string) {
-    const blocks = renderBlocks(source, "web");
+    const blocks = renderBlocks(renderAlerts(source).markdown, "web");
     return renderFigureBlocks(blocks.markdown).markdown;
 }
 
@@ -71,8 +72,8 @@ describe("a footnote reference may be written anywhere prose can be written", ()
 
 describe("a footnote reference inside a named block or a figure", () => {
     const CASES: Record<string, string> = {
-        info: ":::info\nA fact.[^x]\n:::",
-        warn: ":::warn\nA caution.[^x]\n:::",
+        note: "> [!NOTE]\n> A fact.[^x]",
+        warning: "> [!WARNING]\n> A caution.[^x]",
         secret: ":::secret\nA clue.[^x]\n:::",
         "figure prose": ":@ A note {#note}\n\nSome prose.[^x]",
     };

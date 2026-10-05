@@ -152,9 +152,8 @@
 }
 
 /*
- * Named body blocks. `:::info` and `:::warn` emit a `<section>` carrying the
- * block's name as its class, so the appearance belongs here rather than in an
- * inline `style` a consumer cannot override.
+ * Historical info/warn section classes remain available for styled prose.
+ * New alerts use the separate alert classes below.
  *
  * `secret` is deliberately absent: Foundry styles `section.secret` itself and
  * owns the reveal control on it, and a rule here would fight both.
@@ -204,4 +203,52 @@
     :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) section.warn {
         --pb-block-edge: #7a5100;
     }
+}
+
+/* Alerts share ordinary body colors, with an accent on their edge and title. */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert {
+    border-inline-start: 0.25rem solid var(--pb-alert-color);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    color: inherit;
+    background: transparent;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    margin: 0 0 0.5rem;
+    font-weight: 600;
+    color: var(--pb-alert-color);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-icon {
+    width: 1em;
+    height: 1em;
+    flex-shrink: 0;
+    fill: currentColor;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .alert
+    > :last-child {
+    margin-bottom: 0;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-note {
+    --pb-alert-color: #0969da;
+    --pb-alert-color: light-dark(#0969da, #4493f8);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-tip {
+    --pb-alert-color: #1a7f37;
+    --pb-alert-color: light-dark(#1a7f37, #3fb950);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-important {
+    --pb-alert-color: #8250df;
+    --pb-alert-color: light-dark(#8250df, #ab7df8);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-warning {
+    --pb-alert-color: #9a6700;
+    --pb-alert-color: light-dark(#9a6700, #d29922);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-caution {
+    --pb-alert-color: #cf222e;
+    --pb-alert-color: light-dark(#cf222e, #f85149);
 }

@@ -55,11 +55,11 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
         expect(pages[0].markdown).toContain("# GM heading");
     });
 
-    it.each(["info", "warn"])(
-        "keeps a figure inside a :::%s block on its containing page",
-        (name) => {
+    it.each(["NOTE", "WARNING"])(
+        "keeps caption-looking text inside a %s alert on its containing page",
+        (type) => {
             const pages = splitPages(
-                `# Public\n\n:::${name}\n\n:@ Caption. {#a}\n\nAlpha.\n:::\n\n# Next`,
+                `# Public\n\n> [!${type}]\n>\n> :@ Caption. {#a}\n>\n> Alpha.\n\n# Next`,
             );
             expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
             expect(pages[0].markdown).toContain(":@ Caption. {#a}");
@@ -210,7 +210,7 @@ describe("a page-opening heading inside a named block", () => {
         // than reading them itself, so every name in the registry, an opener
         // carrying an attribute block, and a nested construct's own closing
         // line are all answered by the one reading `scanBlocks` performs.
-        for (const opener of [":::secret", ":::info", ":::warn", ":::secret {#hoard}"]) {
+        for (const opener of [":::secret", "::: {#info}", "::: {#warning}", ":::secret {#hoard}"]) {
             const body = [
                 "# Public",
                 "Before.",
