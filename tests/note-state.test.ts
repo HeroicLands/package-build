@@ -618,6 +618,30 @@ describe("the stub lint", () => {
         expect(findings[0].message).toContain("3 word(s)");
     });
 
+    const folderCases = [
+        "Pack folder.",
+        "TBD",
+        "## Overview\n\n_To be written._",
+        "<!-- the regional folders -->",
+    ].flatMap((body) => [false, true].map((draft) => ({ body, draft })));
+
+    it.each(folderCases)(
+        "accepts any nonempty folder body: $body with draft=$draft",
+        ({ body, draft }) => {
+            const text = [
+                "---",
+                "type: folder",
+                "shortcode: regions",
+                ...(draft ? ["tags: [draft]"] : []),
+                "---",
+                "",
+                body,
+                "",
+            ].join("\n");
+            expect(lint({ "Regions.md": text }).findings).toEqual([]);
+        },
+    );
+
     it("counts a wikilink as the one word it renders", () => {
         const { findings } = lint({
             "A.md": note(["shortcode: a"], "See [[affiliation-meivor|Mëivōr]]."),
