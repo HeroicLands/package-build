@@ -50,6 +50,23 @@ describe("markup primitives", () => {
             "![label]{.art} [label][missing]{.link} [[wiki]]{.wiki}",
         );
     });
+    it("finds and renders verse spans with original file locations", () => {
+        const source =
+            'Before.\n\n```poetry\n  A [bright]{#Light} lantern\n  [bad]{onclick="bad"}\n```\n\n```text\n[literal]{#No}\n```';
+        const result = scanSpans(source);
+        expect(result.spans.map((span) => [span.id, span.line, span.column])).toEqual([
+            ["light", 4, 5],
+            ["", 5, 3],
+        ]);
+        expect(result.errors[0]).toMatchObject({ line: 5, column: 3 });
+        expect(renderSpans(source).markdown).toContain('A <span id="light">bright</span> lantern');
+        expect(renderSpans(source).markdown).toContain("[literal]{#No}");
+    });
+    it("renders canonical anchor IDs for every primitive", () => {
+        expect(renderBlocks("::: {#SomeId}\nText\n:::", "web").markdown).toContain('id="someid"');
+        expect(renderPoetry("```poetry {#SomeId}\nText\n```").markdown).toContain('id="someid"');
+        expect(renderSpans("[Text]{#SomeId}").markdown).toContain('id="someid"');
+    });
     it("renders nested Markdown spans and preserves link precedence", () => {
         const md = new MarkdownIt().use(spanMarkdownPlugin);
         const html = md.render(

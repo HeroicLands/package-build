@@ -1,5 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import MarkdownIt from "markdown-it";
+import { slugify } from "./content-slug.mjs";
+import { scanPoetry } from "./content-poetry.mjs";
 import footnotePlugin from "markdown-it-footnote";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 
@@ -57,7 +59,7 @@ export function spanMarkdownPlugin(md) {
             text: state.src.slice(start + 1, end),
             problems,
         };
-        if (parsed.id) token.attrSet("id", parsed.id);
+        if (parsed.id) token.attrSet("id", slugify(parsed.id));
         if (parsed.classes.length) token.attrSet("class", parsed.classes.join(" "));
         for (const [key, value] of Object.entries(parsed.values))
             if (!refusedAttributes({ [key]: value }).length) token.attrSet(key, value);
@@ -81,21 +83,24 @@ const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(spanMarkdo
  */
 export function scanSpans(source) {
     const text = String(source ?? ""),
-        tokens = parser.parse(text, {}),
+        env = {},
+        tokens = parser.parse(text, env),
         spans = [],
         errors = [];
-    let cursor = 0;
-    for (const token of tokens) {
-        if (token.type !== "inline") continue;
-        const at = text.indexOf(token.content, cursor);
-        if (at < 0) continue;
-        cursor = at + token.content.length;
-        for (const child of token.children ?? []) {
+    const lines = text.split("\n"),
+        starts = [];
+    let offset = 0;
+    for (const line of lines) {
+        starts.push(offset);
+        offset += line.length + 1;
+    }
+    const collect = (children, position) => {
+        for (const child of children ?? []) {
             if (!child.meta?.span) continue;
-            const start = at + child.meta.start,
-                end = at + child.meta.end;
-            const prefix = text.slice(0, start);
-            const line = prefix.split("\n").length,
+            const start = position(child.meta.start),
+                end = position(child.meta.end);
+            const prefix = text.slice(0, start),
+                line = prefix.split("\n").length,
                 column = start - prefix.lastIndexOf("\n");
             spans.push({
                 id: child.attrGet("id") ?? "",
@@ -108,7 +113,34 @@ export function scanSpans(source) {
             });
             for (const message of child.meta.problems) errors.push({ line, column, message });
         }
+    };
+    for (const token of tokens) {
+        if (token.type !== "inline" || !token.map) continue;
+        const contentLines = token.content.split("\n"),
+            positions = [];
+        let local = 0;
+        for (let n = 0; n < contentLines.length; n++) {
+            const sourceLine = token.map[0] + n;
+            const column = lines[sourceLine]?.indexOf(contentLines[n]) ?? -1;
+            positions.push({ local, absolute: starts[sourceLine] + Math.max(0, column) });
+            local += contentLines[n].length + 1;
+        }
+        collect(token.children, (pos) => {
+            const mapping = positions.findLast((mapping) => mapping.local <= pos) ?? positions[0];
+            return mapping.absolute + pos - mapping.local;
+        });
     }
+    // Verse fences preserve inline Markdown even though the block parser
+    // normally treats every code fence as literal text.
+    for (const poem of scanPoetry(text).blocks) {
+        for (let line = poem.start + 1; line < poem.end; line++) {
+            const children = [];
+            parser.inline.parse(lines[line], parser, env, children);
+            collect(children, (pos) => starts[line] + pos);
+        }
+    }
+    spans.sort((a, b) => a.start - b.start);
+    errors.sort((a, b) => a.line - b.line || a.column - b.column);
     return { spans, errors };
 }
 

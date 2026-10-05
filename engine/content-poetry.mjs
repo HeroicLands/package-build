@@ -60,6 +60,7 @@ export function poetryMarkdown(body) {
         .join("\n\n");
 }
 
+import { slugify } from "./content-slug.mjs";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 
 /** Read poetry code fences; start/end are inclusive zero-based source lines.
@@ -173,7 +174,7 @@ export function renderPoetry(source) {
     for (const block of blocks) {
         output.push(...lines.slice(cursor, block.start));
         const attrs = [`class="${escape(["poetry", ...block.classes].join(" "))}"`];
-        if (block.id) attrs.push(`id="${escape(block.id)}"`);
+        if (block.id) attrs.push(`id="${escape(slugify(block.id))}"`);
         for (const [key, value] of Object.entries(block.attributes))
             if (!refusedAttributes({ [key]: value }).length)
                 attrs.push(`${key === "lang" ? key : `data-${key}`}="${escape(value)}"`);

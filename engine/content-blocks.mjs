@@ -42,6 +42,7 @@
  */
 
 import crypto from "node:crypto";
+import { slugify } from "./content-slug.mjs";
 import MarkdownIt from "markdown-it";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { scanPoetry, renderPoetry } from "./content-poetry.mjs";
@@ -227,7 +228,7 @@ export function scanBlocks(source) {
  * remembered.
  */
 function elementId(block, target) {
-    if (block.id) return block.id;
+    if (block.id) return slugify(block.id);
     if (target !== "foundry" || block.name !== "secret") return "";
     const digest = crypto
         .createHash("sha256")
