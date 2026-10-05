@@ -19,7 +19,7 @@
 # used as given and never looked for here.
 #
 # Keeping it in step is not left to hope: `npm run lint:banners`
-# (`utils/check-banners.mjs`, part of `npm run lint`) fetches every name below
+# (`ci/check-banners.mjs`, part of `npm run lint`) fetches every name below
 # from a real asset host and fails on any non-200. Add a name here only after
 # the file is published, or the check will say so.
 #

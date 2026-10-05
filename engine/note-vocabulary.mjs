@@ -105,7 +105,7 @@ import { checkSocialTies } from "./social-ties.mjs";
 import { checkStandings } from "./standings.mjs";
 import { STANDING_BODY_TYPES } from "./standing-terms.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
-import { checkRankLadder } from "./rank-ladder.mjs";
+import { checkAffiliationRankFloor, checkRankLadder } from "./rank-ladder.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
 import { checkLoreEvents } from "./lore-events.mjs";
 import { checkCultureChoice } from "./culture-choice.mjs";
@@ -1014,6 +1014,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     affiliation: Object.freeze({
         stubbable: true,
+        check: checkAffiliationRankFloor,
         subTypes: Object.freeze([
             "guild",
             "order",

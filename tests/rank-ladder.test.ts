@@ -12,7 +12,7 @@
 import { describe, expect, it } from "vitest";
 import YAML from "yaml";
 
-import { checkRankLadder } from "../engine/rank-ladder.mjs";
+import { checkAffiliationRankFloor, checkRankLadder } from "../engine/rank-ladder.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 
 /**
@@ -331,5 +331,46 @@ describe("the vocabulary", () => {
 
         expect(field).toBeDefined();
         expect(field?.check).toBe(checkRankLadder);
+    });
+});
+
+describe("an affiliation's minimum standing", () => {
+    const base = "type: affiliation\ndata:\n    governance:";
+
+    it("reports a missing ranks key at governance", () => {
+        const source = note(`${base}\n        model: A council.`);
+        const [finding] = checkAffiliationRankFloor(source);
+        expect(finding).toMatchObject({
+            file: source.file,
+            line: 4,
+            column: 5,
+            severity: "error",
+        });
+        expect(finding.message).toContain("needs data.governance.ranks with a level 1");
+    });
+
+    it("reports an empty ranks list at ranks", () => {
+        const [finding] = checkAffiliationRankFloor(note(`${base}\n        ranks: []`));
+        expect(finding).toMatchObject({ line: 5, column: 9, severity: "error" });
+    });
+
+    it("reports a ladder without level 1", () => {
+        const [finding] = checkAffiliationRankFloor(
+            note(ladder("            - { level: 2, title: Elder, description: Leads. }")),
+        );
+        expect(finding).toMatchObject({ line: 6, column: 9, severity: "error" });
+        expect(finding.message).toContain("needs a level 1 standing");
+    });
+
+    it("accepts a single level 1 rung", () => {
+        expect(
+            checkAffiliationRankFloor(
+                note(ladder("            - { level: 1, title: Member, description: Belongs. }")),
+            ),
+        ).toEqual([]);
+    });
+
+    it("is wired to affiliation notes", () => {
+        expect(NOTE_VOCABULARY.affiliation.check).toBe(checkAffiliationRankFloor);
     });
 });

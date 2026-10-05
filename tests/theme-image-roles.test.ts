@@ -39,7 +39,7 @@ import {
     roleClass,
 } from "../engine/content-images.mjs";
 
-import { declares, rules } from "./helpers/theme-css.ts";
+import { declares, hasClass, rules } from "./helpers/theme-css.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "..");
@@ -68,8 +68,7 @@ describe("the theme's image-role table", () => {
     it(`some .${IMAGE_FIGURE_CLASS} rule reads var(${SLOT})`, () => {
         const readsSlot = styles.some(
             (rule) =>
-                rule.selector.includes(`.${IMAGE_FIGURE_CLASS}`) &&
-                rule.body.includes(`var(${SLOT}`),
+                hasClass(rule.selector, IMAGE_FIGURE_CLASS) && rule.body.includes(`var(${SLOT}`),
         );
         expect(readsSlot).toBe(true);
     });
