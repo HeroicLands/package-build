@@ -248,7 +248,3 @@
     --pb-alert-color: #9a6700;
     --pb-alert-color: light-dark(#9a6700, #d29922);
 }
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-caution {
-    --pb-alert-color: #cf222e;
-    --pb-alert-color: light-dark(#cf222e, #f85149);
-}

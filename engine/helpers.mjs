@@ -25,6 +25,7 @@
  * journals.mjs, actors.mjs).
  */
 
+import { renderAlerts } from "./content-alerts.mjs";
 import { buildReferenceTargets } from "./reference-targets.mjs";
 import { standingsDigest } from "./standings.mjs";
 
@@ -222,11 +223,11 @@ md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
  * @returns {string} The rendered HTML.
  */
 export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, resolveRole) {
-    const blocks = renderBlocks(body, "foundry");
-    const figured = renderFigureBlocks(blocks.markdown, (block) => md.render(block), figures, {
+    const figured = renderFigureBlocks(body, (block) => md.render(block), figures, {
         resolveRole,
     });
-    return md.render(figured.markdown, { footnoteNumbers, docId });
+    const blocks = renderBlocks(figured.markdown, "foundry");
+    return md.render(renderAlerts(blocks.markdown, "foundry").markdown, { footnoteNumbers, docId });
 }
 
 /**

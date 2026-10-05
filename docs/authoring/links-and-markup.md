@@ -130,73 +130,59 @@ The watch wears [a _blue_ sash]{#watch-sash .uniform lang=en}.
 
 Inline Markdown remains active inside the span. Bracket spans have lower priority than URL links, image links, reference links, footnotes and wikilinks. A bracketed form immediately preceded by `!`, followed by `(` or another `[`, or beginning with `[[` is not a span, even when the link is unresolved. Ordinary links retain their existing syntax. Escape a bracket when it should be literal, or put examples inside a code span or fence. A span identifier addresses that point in the note; it does not start a journal page.
 
-### Named blocks
+### Alerts
 
-Three named blocks set a passage apart from the prose around it. `:::secret`
-marks GM material, `:::info` a neutral note, and `:::warn` a caution:
+Alerts replace the former `:::info` and `:::warn` fences. Start with a special blockquote marker, optionally followed by an attribute block, then write the alert body as a standard blockquote:
 
 ```markdown
-:::warn
-The bridge closes during the spring flood.
-:::
+> [!NOTE]
+> Useful information that users should know, even when skimming content.
+
+> [!TIP]
+> Helpful advice for doing things better or more easily.
+
+> [!IMPORTANT]
+> Key information users need to know to achieve their goal.
+
+> [!WARNING]
+> Urgent info that needs immediate user attention to avoid problems.
 ```
 
-Each heads itself with its own name — **Secret**, **Info**, **Warn** — and takes
-a closing `:::`. Poetry uses a code-style fence below; other names are reported.
+| Marker         | Label     | Appearance                                        |
+| -------------- | --------- | ------------------------------------------------- |
+| `[!NOTE]`      | Note      | Blue rule and `fa-regular fa-message`             |
+| `[!TIP]`       | Tip       | Green rule and `fa-regular fa-lightbulb`          |
+| `[!IMPORTANT]` | Important | Purple rule and `fa-solid fa-circle-info`         |
+| `[!WARNING]`   | Warning   | Amber rule and `fa-solid fa-triangle-exclamation` |
 
-**A GM-only section holds a box.** A `:::secret` is a container for whatever the
-GM reads, boxes included, and a box written inside one stays inside it. A box
-holds no named block of its own, so a second box inside a box is reported. A captioned item or generic fenced div may appear inside these sections.
+The label and icon sit above the body. Alerts are visible callouts, not expandable sections. Inline Markdown, links, multiple paragraphs, lists and code examples remain available inside the quote. Prefix blank lines within the body with `>` to keep paragraphs in the same alert.
 
-**An attribute block follows the name.** It is the same braced grammar the other
-body extensions use, so it carries an id, classes, and any attribute the element
-should have. `title` is reserved and supplies the heading in place of the default:
+Attributes follow the marker and apply to the alert:
 
 ```markdown
-:::secret {#harbor title="For the GM" .wide data-stage="two"}
+> [!WARNING] {#flood-warning .seasonal lang=en title="Seasonal closure"}
+> The eastern road closes during spring floods.
+>
+> Use the ridge path instead.
+```
+
+Use `#id`, `.class` and named attributes in the shared braced grammar. The marker determines the default label, icon and color. An authored `title` replaces the default **Note**, **Tip**, **Important** or **Warning** heading while preserving the alert type’s icon and color. Event-handler attributes, malformed attributes, unknown alert types and empty alert bodies are errors. Ordinary blockquotes and alert examples inside literal code remain unchanged. A leading caption can describe an alert as a quote block, normally with the `prose` type or an explicit `example` type.
+
+Migrate former info blocks to `[!NOTE]` alerts and warn blocks to `[!WARNING]` alerts. The old named fences are errors. `:::secret` remains supported.
+
+### Secret blocks
+
+`:::secret` sets GM material apart. Its optional attributes accept an identifier, classes and named attributes. `title` supplies its heading; without a title the heading is **Secret**:
+
+```markdown
+:::secret {#harbor-secret title="For the GM"}
 The harbor master is working for the smugglers.
 :::
 ```
 
-That block carries the classes `secret wide`, the id `harbor`, and
-`data-stage="two"`, and it heads **For the GM**. A title carries emphasis of its
-own — `title="The *Genzet* only"` — and nothing else: a tag written there is
-shown rather than obeyed. Set the id with `#id` and classes with `.class` rather
-than through an `id=` or `class=` key, and note that an event handler such as
-`onclick=` is refused rather than written.
+A secret block can contain alerts and general divs. It cannot contain another secret block. A heading that starts its own journal page cannot split a secret block or general div; use a lower heading without an anchor within the section.
 
-**The name is the first class on the element, and the appearance belongs to a
-stylesheet.** No block is emitted with an inline `style`, so a package restyles
-one from its own sheet. `info` and `warn` are styled by the base stylesheet;
-`secret` is left to Foundry, which styles `section.secret` itself and owns the
-reveal control on it.
-
-Each surface renders the same block its own way:
-
-| Surface | Output                                                                             |
-| ------- | ---------------------------------------------------------------------------------- |
-| Foundry | `<section class="secret" id="harbor">` with the title as its first line            |
-| Web     | `<details class="secret" id="harbor">` the reader opens, titled in its `<summary>` |
-| Book    | a coloured print box headed by the title                                           |
-
-A `secret` with no id of its own is given one derived from its body on the
-Foundry surface, because Foundry remembers a revealed section by its id.
-
-**A secret is a presentation distinction, not access control.** Players who
-deliberately inspect source or generated output may see it. The
-[detailed reference](../reference/format-details.md#what-a-note-produces)
-describes each medium's handling.
-
-**One malformed block does not silence the others.** A block whose attributes do
-not parse is reported at its own line and left as written; every well-formed
-block in the same note still renders.
-
-**A heading that would start its own journal page cannot be written inside a
-block or generic fenced div.** An H1, or a heading of any level
-carrying an `{#anchor}`, is reported at its own line there — starting a page
-would tear the fenced section in two, and a reader could open the second
-half with none of the box around it. A lower heading with no anchor is
-unaffected and is the ordinary way to structure a long box.
+Foundry renders a secret section; the website renders an expandable spoiler, and the book renders a labeled box. An untitled secret takes its normal default title, and a Foundry secret without an id receives an id derived from its body. The presentation does not make published HTML private: deliberately inspecting generated source can reveal its content. Use YAML comments for information that must never be published.
 
 ### Poetry
 

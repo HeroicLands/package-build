@@ -371,7 +371,6 @@ describe("alerts in the printed book", () => {
         ["TIP", "Tip", "#1a7f37"],
         ["IMPORTANT", "Important", "#8250df"],
         ["WARNING", "Warning", "#9a6700"],
-        ["CAUTION", "Caution", "#d1242f"],
     ])("prints a %s label with its color and an SVG icon", (type, title, color) => {
         const out = markdownToTypst(`> [!${type}] {#advice .custom}\n> A *helpful* message.`, {
             anchorPrefix: "note",

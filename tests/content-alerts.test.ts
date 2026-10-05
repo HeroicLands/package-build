@@ -11,7 +11,7 @@ import {
 import { scanBlocks } from "../engine/content-blocks.mjs";
 import { scanSpans } from "../engine/content-spans.mjs";
 describe("blockquote alerts", () => {
-    it.each(["note", "tip", "important", "warning", "caution"])(
+    it.each(["note", "tip", "important", "warning"])(
         "renders %s with its icon and safe attributes",
         (type) => {
             const source = `> [!${type.toUpperCase()}] {#SomeId .wide lang=en}\n> Body with *emphasis*.`;
@@ -26,7 +26,7 @@ describe("blockquote alerts", () => {
             });
             const rendered = renderAlerts(source, "web").markdown;
             expect(rendered).toContain(`class="alert alert-${type} wide" id="someid" lang="en"`);
-            expect(rendered).toContain('class="alert-icon"');
+            expect(rendered).toContain(ALERT_TYPES[type].icon);
             expect(rendered).toContain(ALERT_TYPES[type].title);
             expect(new MarkdownIt({ html: true }).render(rendered)).toContain("<em>emphasis</em>");
             expect(scanSpans(source).spans).toEqual([]);
@@ -93,4 +93,19 @@ describe("blockquote alerts", () => {
         expect(scanBlocks(":::warn\nBody\n:::").errors[0].message).toContain("no warn block");
         expect(scanBlocks(":::secret\nBody\n:::").errors).toEqual([]);
     });
+});
+
+it("rejects the retired CAUTION marker", () => {
+    expect(scanAlerts("> [!CAUTION]\n> Body").errors).toHaveLength(1);
+});
+
+it.each([
+    ["NOTE", "fa-regular fa-message"],
+    ["TIP", "fa-regular fa-lightbulb"],
+    ["IMPORTANT", "fa-solid fa-circle-info"],
+    ["WARNING", "fa-solid fa-triangle-exclamation"],
+])("uses the specified free icon for %s", (type, classes) => {
+    expect(renderAlerts(`> [!${type}] {title=Custom}\n> Body`).markdown).toContain(
+        `class="alert-icon ${classes}"`,
+    );
 });

@@ -61,6 +61,7 @@
  * @module
  */
 
+import { scanAlerts } from "./content-alerts.mjs";
 import { authoredFrontmatter } from "./index-records.mjs";
 import { markupAnchorFindings } from "./anchors.mjs";
 import { scanSpans } from "./content-spans.mjs";
@@ -686,6 +687,7 @@ export class BasePackCompiler {
         const findings = [];
         for (const secretError of [
             ...scanBlocks(body).errors,
+            ...scanAlerts(body).errors,
             ...scanSpans(body).errors,
             ...markupAnchorFindings(body),
         ]) {

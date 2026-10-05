@@ -51,6 +51,7 @@
  * @module
  */
 
+import { renderAlerts, scanAlerts } from "./content-alerts.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
 import { decodeNoteAddresses, noteAddressContext, encodeAddresses } from "./note-addresses.mjs";
 import fs from "node:fs";
@@ -838,10 +839,14 @@ export function renderSitePage(
     });
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
-    const blocks = renderBlocks(protectCode(expressions.markdown, resolve), "web");
-    const figured = renderFigureBlocks(blocks.markdown, undefined, undefined, {
-        resolveRole: (address) => roleByWebSrc.get(address),
-    });
+    const figured = renderFigureBlocks(
+        protectCode(expressions.markdown, resolve),
+        undefined,
+        undefined,
+        {
+            resolveRole: (address) => roleByWebSrc.get(address),
+        },
+    );
     for (const error of figureScan.errors)
         captionErrors.push({
             file: page.file,
@@ -851,6 +856,7 @@ export function renderSitePage(
         });
     for (const error of [
         ...scanBlocks(page.body).errors,
+        ...scanAlerts(page.body).errors,
         ...scanSpans(page.body).errors,
         ...markupAnchorFindings(page.body),
     ])
@@ -882,7 +888,10 @@ export function renderSitePage(
         // The disclosure is written last, over the Markdown the page ships: the
         // passes before this one carry line positions into their findings, and a
         // line inserted ahead of them would move every one of them.
-        body: renderWithheldSections(renderSpans(figured.markdown).markdown),
+        body: renderWithheldSections(
+            renderSpans(renderAlerts(renderBlocks(figured.markdown, "web").markdown).markdown)
+                .markdown,
+        ),
         data,
         resolved,
         tableErrors,

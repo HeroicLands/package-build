@@ -245,14 +245,14 @@ describe("the generated manifest", () => {
 describe("alert presentation on both surfaces", () => {
     const styles = [baseStylesheetSource(), path.join(ROOT, "hugo-theme/static/css/style.css")];
     for (const file of styles) {
-        it(`styles all five alert types with distinct accents in ${path.relative(ROOT, file)}`, () => {
+        it(`styles all four alert types with distinct accents in ${path.relative(ROOT, file)}`, () => {
             const css = readFileSync(file, "utf8");
             const colors = Object.keys(ALERT_TYPES).map((type) => {
                 const block = new RegExp(`\\.alert-${type}\\s*\\{([^}]+)\\}`).exec(css)?.[1];
                 expect(block).toBeTruthy();
                 return /--pb-alert-color:\s*(#[a-f0-9]+)/i.exec(block ?? "")?.[1];
             });
-            expect(new Set(colors).size).toBe(5);
+            expect(new Set(colors).size).toBe(4);
             expect(colors).not.toContain(undefined);
             expect(css).toMatch(
                 /\.alert\s*\{[^}]*border-inline-start:[^}]*var\(--pb-alert-color\)/s,

@@ -344,7 +344,7 @@ function reportUnrenderable(source, definitions, opts, original) {
     };
 
     const blocks = scanBlocks(source);
-    for (const error of blocks.errors)
+    for (const error of [...blocks.errors, ...scanAlerts(source).errors])
         report(linePosition(error.line, error.column, opts), "error", error.message);
     // A container's body, read for faults of its own — an empty box, an
     // attribute that does not parse — which the scan above passes over, because
@@ -774,10 +774,9 @@ function renderBlock(tokens, i, out, ctx) {
                     tip: "#1a7f37",
                     important: "#8250df",
                     warning: "#9a6700",
-                    caution: "#d1242f",
                 };
                 const spec = ALERT_TYPES[alert.type];
-                const icon = `#image(bytes("${escapeTypstString(spec.icon.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ').replaceAll("currentColor", colors[alert.type]))}"), format: "svg", width: 0.9em, height: 0.9em)`;
+                const icon = `#image(bytes("${escapeTypstString(spec.svg.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ').replaceAll("currentColor", colors[alert.type]))}"), format: "svg", width: 0.9em, height: 0.9em)`;
                 const anchor = alert.id ? ` <${sectionLabel(ctx.anchorPrefix, alert.id)}>` : "";
                 const box = `\n#block(width: 100%, stroke: (left: 2pt + rgb("${colors[alert.type]}")), inset: 8pt, above: 0.7em, below: 0.7em)[#text(fill: rgb("${colors[alert.type]}"), weight: "bold")[${icon} ${inlineMarkup(alert.title ?? alert.attributes?.title ?? spec.title, ctx)}]\n\n${inner}]${anchor}\n\n`;
                 out.push(alert.classes?.includes("border") ? figureBorder(box) : box);

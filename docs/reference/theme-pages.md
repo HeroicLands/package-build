@@ -494,3 +494,7 @@ Each section below has its own landing page.
 ```
 
 A row is a linked title and, when the page carries one, its description.
+
+## Alerts
+
+The content renderer emits an `aside` with `alert` and `alert-note`, `alert-tip`, `alert-important`, `alert-warning` classes. The `alert-title` header contains a Font Awesome icon and the type's label. Shared styles supply a colored left rule, colored header and ordinary readable body; alerts do not use `details` and never start collapsed. Authored identifiers, additional classes and named attributes belong to the entire aside. Secret blocks retain their separate expandable presentation on the website.

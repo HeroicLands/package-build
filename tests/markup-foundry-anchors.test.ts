@@ -14,6 +14,11 @@ const body = [
     "",
     "::: {#box}",
     "A div.",
+    "> [!WARNING] {#closure title=Closure}",
+    "> Watch out.",
+    ">",
+    "> > [!TIP] {#inner-tip title=Advice}",
+    "> > Take care.",
     ":::",
     "",
     "```poetry {#verse}",
@@ -35,7 +40,8 @@ describe("Foundry containing-page anchors", () => {
         const anchors = anchorsOf(uuid, id, body, "Example");
         expect(pages).toHaveLength(3);
         const first = pageUuid(uuid, journalPageId(id, pages[0]));
-        for (const slug of ["first", "word", "box", "verse"]) expect(anchors[slug]).toBe(first);
+        for (const slug of ["first", "word", "box", "verse", "closure", "inner-tip"])
+            expect(anchors[slug]).toBe(first);
         expect(anchors.caption).toBe(pageUuid(uuid, journalPageId(id, pages[1])));
         expect(anchors.other).toBe(anchors.second);
         const emitted = new Set(pages.map((p) => pageUuid(uuid, journalPageId(id, p))));
@@ -53,7 +59,7 @@ describe("Foundry containing-page anchors", () => {
             anchors: new Set(collectAnchors(body).map((a) => a.slug)),
         };
         const index = buildWikilinkIndex([doc], "demo");
-        for (const slug of ["word", "box", "verse", "caption", "other"]) {
+        for (const slug of ["word", "box", "verse", "closure", "inner-tip", "caption", "other"]) {
             for (const address of [`doc-example#${slug}`, `#${slug}`]) {
                 const result = convertWikilinks(`[[${address}|Read]]`, { type: "doc", id, index });
                 expect(result.unresolved).toEqual([]);

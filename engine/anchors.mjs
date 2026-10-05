@@ -29,6 +29,7 @@
  * @module
  */
 
+import { scanAlerts } from "./content-alerts.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanPoetry } from "./content-poetry.mjs";
 import { scanSpans } from "./content-spans.mjs";
@@ -56,7 +57,7 @@ import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
  */
 export function collectAnchors(body, bodyLine = 1, resolveRole) {
     const anchors = [];
-    const literal = codeRegions(body, { spans: false });
+    const literal = codeRegions(body, { spans: false, poetryAsProse: false });
     let offset = 0;
     const lines = String(body ?? "").split("\n");
 
@@ -103,6 +104,15 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
         }
     };
     blockAnchors(String(body ?? ""), bodyLine);
+    for (const alert of scanAlerts(body).blocks) {
+        if (alert.id)
+            anchors.push({
+                slug: slugify(alert.id),
+                name: alert.title,
+                level: 0,
+                line: bodyLine + alert.start,
+            });
+    }
     for (const poem of scanPoetry(body).blocks) {
         if (poem.id)
             anchors.push({

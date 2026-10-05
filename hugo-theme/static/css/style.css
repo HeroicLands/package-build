@@ -3018,6 +3018,3 @@ summary.info-sidebar-title::after {
 .single-content .alert-warning {
   --pb-alert-color: #d29922;
 }
-.single-content .alert-caution {
-  --pb-alert-color: #f85149;
-}

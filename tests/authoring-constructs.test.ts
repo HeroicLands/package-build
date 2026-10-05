@@ -87,7 +87,6 @@ const CASES: Record<string, string> = {
     warning: body("> [!WARNING]", "> The shoals are uncovered at low water."),
     tip: body("> [!TIP]", "> Take the northern channel."),
     important: body("> [!IMPORTANT]", "> The channel changes after storms."),
-    caution: body("> [!CAUTION]", "> Never cross the shoals at low water."),
     "custom alert title": body('> [!WARNING] {title="Shoals ahead"}', "> Reduce sail."),
     poetry: body("```poetry", "One line,", "Another line.", "", "A second stanza.", "```"),
     "captioned poem": body(

@@ -9,32 +9,30 @@ const icon = (body) =>
 export const ALERT_TYPES = Object.freeze({
     note: {
         title: "Note",
-        icon: icon(
-            '<path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z"/><circle cx="8" cy="5" r="1"/><path d="M7.25 7h1.5v5h-1.5z"/>',
+        icon: '<i class="alert-icon fa-regular fa-message" aria-hidden="true"></i>',
+        svg: icon(
+            '<path d="M2 1h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6l-4 3V2a1 1 0 0 1 0-1Zm1.5 1.5V12l2-1.5h8V2.5Z"/>',
         ),
     },
     tip: {
         title: "Tip",
-        icon: icon(
+        icon: '<i class="alert-icon fa-regular fa-lightbulb" aria-hidden="true"></i>',
+        svg: icon(
             '<path d="M8 0a5 5 0 0 0-3 9v2h6V9a5 5 0 0 0-3-9Zm0 1.5A3.5 3.5 0 0 1 10 8l-.5.4v1.1h-3V8.4L6 8a3.5 3.5 0 0 1 2-6.5ZM5 12h6v1.5H5zm1 2.5h4V16H6z"/>',
         ),
     },
     important: {
         title: "Important",
-        icon: icon(
-            '<path d="M2 1h12a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6l-4 3V2a1 1 0 0 1 0-1Zm1.5 1.5V12l2-1.5h8V2.5Z"/><path d="M7.25 4h1.5v3.5h-1.5z"/><circle cx="8" cy="9" r="1"/>',
+        icon: '<i class="alert-icon fa-solid fa-circle-info" aria-hidden="true"></i>',
+        svg: icon(
+            '<path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1Zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11Z"/><circle cx="8" cy="5" r="1"/><path d="M7.25 7h1.5v5h-1.5z"/>',
         ),
     },
     warning: {
         title: "Warning",
-        icon: icon(
+        icon: '<i class="alert-icon fa-solid fa-triangle-exclamation" aria-hidden="true"></i>',
+        svg: icon(
             '<path d="M8 0 0 15h16L8 0Zm0 3 5.5 10.5h-11L8 3Z"/><path d="M7.25 6h1.5v4h-1.5z"/><circle cx="8" cy="12" r="1"/>',
-        ),
-    },
-    caution: {
-        title: "Caution",
-        icon: icon(
-            '<path d="m5 0-5 5v6l5 5h6l5-5V5l-5-5H5Zm.6 1.5h4.8l4.1 4.1v4.8l-4.1 4.1H5.6l-4.1-4.1V5.6Z"/><path d="M7.25 4h1.5v5h-1.5z"/><circle cx="8" cy="11.5" r="1"/>',
         ),
     },
 });
@@ -75,7 +73,7 @@ export function scanAlerts(source) {
         if (match[1] !== match[1].toUpperCase() || !Object.hasOwn(ALERT_TYPES, type)) {
             errors.push({
                 ...at,
-                message: `unknown alert type ${match[1]}; use NOTE, TIP, IMPORTANT, WARNING or CAUTION`,
+                message: `unknown alert type ${match[1]}; use NOTE, TIP, IMPORTANT or WARNING`,
             });
             continue;
         }
@@ -142,7 +140,7 @@ export function renderAlerts(source, target = "web") {
     )) {
         output.push(...lines.slice(cursor, block.start));
         const attrs = [
-            `class="${escape(["alert", `alert-${block.type}`, ...block.classes].join(" "))}"`,
+            `class="${escape(["alert", "alert-" + block.type, ...block.classes].join(" "))}"`,
         ];
         if (block.id) attrs.push(`id="${escape(slugify(block.id))}"`);
         for (const [key, value] of Object.entries(block.attributes))
