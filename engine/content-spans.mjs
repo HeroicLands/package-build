@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import MarkdownIt from "markdown-it";
+import { alertMarkdownPlugin } from "./content-alerts.mjs";
 import { slugify } from "./content-slug.mjs";
 import { scanPoetry } from "./content-poetry.mjs";
 import footnotePlugin from "markdown-it-footnote";
@@ -16,6 +17,7 @@ export function spanMarkdownPlugin(md) {
             /@[A-Za-z]+$/.test(state.src.slice(0, start)) ||
             state.src[start + 1] === "[" ||
             state.src[start + 1] === "^" ||
+            state.src[start + 1] === "!" ||
             ["!", "[", "]"].includes(state.src[start - 1])
         )
             return false;
@@ -78,7 +80,10 @@ export function spanMarkdownPlugin(md) {
     });
 }
 
-const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(spanMarkdownPlugin);
+const parser = new MarkdownIt({ html: true })
+    .use(footnotePlugin)
+    .use(alertMarkdownPlugin)
+    .use(spanMarkdownPlugin);
 /** Read span anchors and located attribute diagnostics outside literal code.
  * @param {string} source - Authored Markdown.
  */

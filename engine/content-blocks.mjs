@@ -1,21 +1,18 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 /**
- * General divs and named body blocks — `:::`, `:::secret`, `:::info` and `:::warn`.
+ * General divs and the `:::secret` disclosure fence.
  *
  * ```
- * :::info {#route title="The road north" .wide}
+ * :::secret {#route title="For the GM" .wide}
  * The ford floods in Azlet.
  * :::
  * ```
  *
- * The block's name becomes its first class, the author's classes follow it, and
- * every other attribute is written onto the element. `title` is reserved: it
- * supplies the heading, and a block that states none takes the capitalised name
- * — `Secret`, `Info`, `Warn`.
- *
- * The three names differ in the class they carry and in nothing else, so a
- * stylesheet owns their appearance. None is emitted with an inline `style`.
+ * The secret fence carries the `secret` class and a heading, defaulting to
+ * `Secret`. General divs carry only authored classes and ordinary attributes.
+ * The author supplies secret headings through the reserved `title` attribute.
+ * Neither construct adds inline styles.
  *
  * Each block stands on its own: a malformed one is a finding at its own line
  * and the blocks around it still render.
@@ -57,21 +54,14 @@ const titleParser = new MarkdownIt({ html: false });
 
 /** The blocks an author may open, with the heading each takes by default. */
 export const BLOCK_NAMES = Object.freeze({
-    info: "Info",
     secret: "Secret",
-    warn: "Warn",
 });
 
 /**
- * Blocks that may hold another named block.
+ * Container fences whose bodies are scanned and rendered recursively.
  *
- * A box inside a GM-only section is a real thing to write — the section is a
- * container for whatever the GM reads, boxes included — so a `secret` holds one
- * and the box stays inside it. A box inside a box is noise, so `info` and `warn`
- * hold no named block and a second opener inside one is a finding.
- *
- * Exported because a renderer has to know it: the body of a container is read
- * for blocks of its own, and the body of a box is not.
+ * A secret may hold general divs; a general div may hold another div or a
+ * secret. A secret nested directly within another secret is refused.
  *
  * @type {readonly string[]}
  */
