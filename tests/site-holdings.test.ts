@@ -393,6 +393,55 @@ describe("holdingsPages", () => {
         ]);
         expect(pages.has("")).toBe(false);
     });
+    it("includes supplemental local stub governments without changing containment", () => {
+        const pages = holdingsPages(
+            [
+                node("region", "place"),
+                node("crown", "affiliation"),
+                node("published", "place", {
+                    title: "Published",
+                    government: "crown",
+                    parents: ["region"],
+                }),
+                node("understub", "place", { government: "stubhouse" }),
+            ],
+            {
+                governmentNodes: [
+                    node("stub", "place", {
+                        title: "Stub place",
+                        government: "crown",
+                        parents: ["region"],
+                        url: undefined,
+                    }),
+                    node("stubhouse", "affiliation", { title: "Stub house", url: undefined }),
+                    node("published", "place", {
+                        title: "Duplicate record",
+                        government: "stubhouse",
+                        url: undefined,
+                    }),
+                ],
+            },
+        );
+        expect(pages.get("/demo/affiliation-crown/")?.governed_places).toEqual([
+            {
+                title: "Published",
+                type: "place",
+                subType: "settlement",
+                url: "/demo/place-published/",
+            },
+            { title: "Stub place", type: "place", subType: "settlement" },
+        ]);
+        expect(pages.get("/demo/place-understub/")?.governed_by).toEqual([
+            { title: "Stub house", type: "affiliation", subType: "polity" },
+        ]);
+        expect(pages.get("/demo/place-region/")?.contains?.map((e) => e.title)).toEqual([
+            "Published",
+        ]);
+        expect(pages.get("/demo/place-published/")?.governed_by?.map((e) => e.title)).toEqual([
+            "crown",
+        ]);
+        expect(pages.has(undefined as never)).toBe(false);
+    });
     it("keeps the first full Address declaration and omits absent subtypes", () => {
         const pages = holdingsPages([
             node("crown", "affiliation"),

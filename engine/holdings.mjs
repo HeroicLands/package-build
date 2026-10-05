@@ -202,9 +202,12 @@ export function foreignHoldingsNodes(foreignIndex) {
  * absent page receives no lists. First declaration of a page Address wins;
  * different document systems for one page normalize to its `note` identity.
  * @param {Iterable<HoldingsNode|null>} nodes
+ * @param {object} [options]
+ * @param {Iterable<HoldingsNode|null>} [options.governmentNodes] Additional public
+ *   records without pages, participating only in government relationships.
  * @returns {Map<string,Holdings>}
  */
-export function holdingsPages(nodes) {
+export function holdingsPages(nodes, { governmentNodes = [] } = {}) {
     const places = new Map();
     const affiliations = new Map();
     const geographicPlaces = new Map();
@@ -217,6 +220,14 @@ export function holdingsPages(nodes) {
             // Shortcode identity: geography keeps its historical first-declaration rule.
             geographicPlaces.set(node.shortcode.toLowerCase(), node);
         }
+    }
+    // Local records with no published page still state government. They must
+    // not add geographic edges: containment keeps its existing page graph.
+    for (const node of governmentNodes) {
+        if (!node || !node.shortcode) continue;
+        const by = node.type === "place" ? places : affiliations;
+        const key = ownKey(node);
+        if (!by.has(key)) by.set(key, node);
     }
     const lists = new Map();
     const add = (node, key, entry) => {
