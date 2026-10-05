@@ -106,6 +106,20 @@
     }
 }
 
+/* Each verse line breaks in the markup; each paragraph is a stanza. */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .poetry {
+    margin: 1.5rem 0;
+    line-height: 1.7;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .poetry p {
+    margin: 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .poetry p + p {
+    margin-top: 1em;
+}
+
 /*
  * Named body blocks. `:::info` and `:::warn` emit a `<section>` carrying the
  * block's name as its class, so the appearance belongs here rather than in an

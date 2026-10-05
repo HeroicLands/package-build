@@ -50,6 +50,7 @@ import MarkdownIt from "markdown-it";
 import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
+import { poetryMarkdown, verseLines } from "./content-poetry.mjs";
 import { WITHHELD_CLASS, parseHeadingLine, withheldSections } from "./heading-attributes.mjs";
 
 const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
@@ -98,7 +99,7 @@ const FOREIGN = Object.freeze(["figure"]);
 /** `title` is the heading. Everything else an author writes becomes an attribute. */
 const TITLE = "title";
 
-const names = () => Object.keys(BLOCK_NAMES).join(", ");
+const names = () => [...Object.keys(BLOCK_NAMES), "poetry"].join(", ");
 
 /** Text safe inside a double-quoted attribute. */
 function escapeAttribute(value) {
@@ -132,7 +133,7 @@ export function scanBlocks(source) {
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+        const fence = opening?.name === "poetry" ? null : /^ {0,3}(`{3,}|~{3,})/.exec(line);
         if (codeFence) {
             if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length) {
                 codeFence = null;
@@ -176,12 +177,23 @@ export function scanBlocks(source) {
                 opening = null;
                 continue;
             }
+            if (opening.name === "poetry" && opening.attributes.syllables) {
+                const expected = opening.attributes.syllables.split(",").length;
+                const actual = verseLines(body).length;
+                if (expected !== actual)
+                    errors.push({
+                        line: opening.start + 1,
+                        column: 1,
+                        message: `poetry syllables= gives ${expected} counts for ${actual} verse lines`,
+                    });
+            }
             // An H1, or an anchored heading at any level, starts a Foundry
             // journal page — splitting the block's own page in two and
             // publishing the rest with no wrapper around it, a GM-only
             // section included. Refused rather than split: a lower heading
             // with no anchor is still the ordinary way to structure a box.
-            for (let at = opening.start + 1; at < i; at++) {
+            // Poetry treats those same characters as verse text.
+            for (let at = opening.start + 1; opening.name !== "poetry" && at < i; at++) {
                 if (!parseHeadingLine(lines[at])?.startsPage) continue;
                 const article = /^[aeiou]/i.test(opening.name) ? "an" : "a";
                 errors.push({
@@ -207,7 +219,7 @@ export function scanBlocks(source) {
             else foreignOutside += 1;
             continue;
         }
-        if (!Object.hasOwn(BLOCK_NAMES, name)) {
+        if (!Object.hasOwn(BLOCK_NAMES, name) && name !== "poetry") {
             errors.push({ ...at, message: `there is no ${name} block; the blocks are ${names()}` });
             opening = { start: i, rejected: true };
             continue;
@@ -254,6 +266,17 @@ export function scanBlocks(source) {
                 continue;
             }
             for (const [key, value] of Object.entries(parsed.values)) {
+                if (name === "poetry") {
+                    if (!["form", "meter", "rhyme", "syllables", "lang"].includes(key))
+                        errors.push({ ...at, message: `${key}= is not a poetry attribute` });
+                    else if (key === "syllables" && !/^[1-9]\d*(?:,[1-9]\d*)*$/.test(value))
+                        errors.push({
+                            ...at,
+                            message: "poetry syllables= needs positive comma-separated counts",
+                        });
+                    else if (key === "lang" && !/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(value))
+                        errors.push({ ...at, message: "poetry lang= needs a language tag" });
+                }
                 if (key === TITLE) title = value;
                 else attributes[key] = value;
             }
@@ -295,7 +318,8 @@ function attributeText(block, target, classes) {
     const parts = [`class="${escapeAttribute(classes.join(" "))}"`];
     if (id) parts.push(`id="${escapeAttribute(id)}"`);
     for (const [key, value] of Object.entries(block.attributes)) {
-        parts.push(`${key}="${escapeAttribute(value)}"`);
+        const attribute = block.name === "poetry" && key !== "lang" ? `data-${key}` : key;
+        parts.push(`${attribute}="${escapeAttribute(value)}"`);
     }
     return parts.join(" ");
 }
@@ -327,7 +351,6 @@ export function renderBlocks(source, target) {
         output.push(...lines.slice(cursor, block.start));
         const classes = [block.name, ...block.classes];
         const attributes = attributeText(block, target, classes);
-        const title = titleParser.renderInline(block.title);
         // A container's body may hold a block of its own, rendered first so
         // its own wrapper is already written when the outer one wraps it in
         // turn — nesting composes because each level is markdown-with-raw-HTML
@@ -336,6 +359,12 @@ export function renderBlocks(source, target) {
             BLOCK_CONTAINERS.includes(block.name) ?
                 renderBlocks(block.body, target).markdown
             :   block.body;
+        if (block.name === "poetry") {
+            output.push("", `<div ${attributes}>`, "", poetryMarkdown(held), "", "</div>", "");
+            cursor = block.end + 1;
+            continue;
+        }
+        const title = titleParser.renderInline(block.title);
         if (target === "foundry") {
             output.push(
                 "",

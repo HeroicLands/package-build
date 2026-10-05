@@ -1373,6 +1373,20 @@ a.tag:hover {
   background: var(--bg-card);
 }
 
+/* Verse lines are hard breaks in the markup; paragraphs mark stanzas. */
+.single-content .poetry {
+  margin: 1.5rem 0;
+  line-height: 1.7;
+}
+
+.single-content .poetry p {
+  margin: 0;
+}
+
+.single-content .poetry p + p {
+  margin-top: 1em;
+}
+
 /* Ornamental horizontal rule: thin line flanking a centered gold
    diamond. Uses gradients on ::before/::after to keep the markup
    clean (authors just write `---` in markdown). */

@@ -93,7 +93,7 @@ The fence displays **Table 1: Regional trade routes**, and `{{ref "#trade"}}` di
 
 **`.border` draws the figure and its label inside a border.** It is the only class the construct accepts — any other class, such as `.wide`, is an error naming the class. `key="value"` is refused outright: a figure takes an id and classes, nothing else.
 
-**The counter is derived from the fence's contents, never authored.** A table is a table; an `sql` fence is a table, because its rendered output is one; any other fence or code block is code; pictures alone, one or several, are a figure; everything else is prose. A fence around prose with `.border` is a numbered, referable boxed aside — the `Prose` counter's whole purpose. The counters are `Code`, `Table`, `Figure`, `Map`, and `Prose`. The website and a Foundry journal number each counter within the note; a book numbers each counter across the book in reading order.
+**The counter is derived from the fence's contents, never authored.** A table is a table; an `sql` fence is a table, because its rendered output is one; any other fence or code block is code; pictures alone, one or several, are a figure; a `:::poetry` fence written first makes it a poem; everything else is prose. A fence around prose with `.border` is a numbered, referable boxed aside — the `Prose` counter's whole purpose. The counters are `Code`, `Table`, `Figure`, `Map`, `Poem`, and `Prose`. The website and a Foundry journal number each counter within the note; a book numbers each counter across the book in reading order.
 
 **A picture counts as `Map` instead of `Figure` when the asset it draws declares `role: map`** in its provenance — see [the asset provenance reference](../reference/format-details.md). The fence's own markup cannot say so; a picture of a map looks like any other picture, so the fact rides entirely on the asset's own record. A fence grouping several pictures counts as `Map` only when every one of them declares the role; one picture without it keeps the whole fence a `Figure`.
 
@@ -172,7 +172,7 @@ The bridge closes during the spring flood.
 ```
 
 Each heads itself with its own name — **Secret**, **Info**, **Warn** — and takes
-a closing `:::`. A name that is not one of the three is reported.
+a closing `:::`. Poetry has its own fence below; other names are reported.
 
 **A GM-only section holds a box.** A `:::secret` is a container for whatever the
 GM reads, boxes included, and a box written inside one stays inside it. A box
@@ -231,6 +231,49 @@ carrying an `{#anchor}`, is reported at its own line there — starting a page
 would tear the block or the figure in two, and a reader could open the second
 half with none of the box around it. A lower heading with no anchor is
 unaffected and is the ordinary way to structure a long box.
+
+### Poetry
+
+Use `:::poetry` to preserve verse lines and stanzas. Every nonblank source line
+is one verse line; blank lines separate stanzas. Inline emphasis, links and
+footnotes work as they do in prose. The fence itself adds no title, caption or
+number.
+
+```markdown
+:::poetry {form=ballad meter="common meter" rhyme=ABCB syllables="8,6,8,6" lang=en}
+The lantern burns beside the gate,
+The harbor sleeps below.
+
+The keeper guards the road till dawn,
+And keeps a light aglow.
+:::
+```
+
+The optional `form`, `meter` and `rhyme` attributes record the author's intent;
+the build does not infer stress, rhyme or pronunciation. `syllables` gives a
+positive count for each verse line in order, separated by commas, with blank
+stanza lines omitted. The build checks the number of counts, not the syllables
+spoken. `lang` is a language tag for the rendered HTML. An optional `#id`
+addresses the poem itself. There are no `title` or `lines` attributes, and no
+special punctuation for stress, pauses or refrains.
+
+To number and caption a poem, put it first inside a `:::figure`:
+
+```markdown
+:::figure {#watch-song}
+:::poetry {form=ballad}
+The watch has gone to sea,
+The lantern marks the shore.
+:::
+///
+A song sung by the harbor watch.
+:::
+```
+
+The inner `:::` closes the poem; the outer one closes the figure. That figure
+uses the **Poem** counter, so `{{ref "#watch-song"}}` reads **Poem 1**. The
+caption after `///` belongs to the figure. A poem outside a figure is
+unnumbered. Prose written before the poem makes the figure a **Prose** figure.
 
 ## Footnotes and definition lists
 

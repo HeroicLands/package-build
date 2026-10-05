@@ -88,6 +88,7 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
 import { slugify } from "./content-slug.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
+import { poetryMarkdown } from "./content-poetry.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { HTML_TAG, htmlMessage } from "./content-html.mjs";
 import { EXPRESSION } from "./markdown-expressions.mjs";
@@ -526,7 +527,16 @@ export function markdownToTypst(markdown, opts = {}) {
         }
     }
     if (!opts.insideAdmonition) {
-        const { blocks } = scanBlocks(source);
+        const figuresHoldingPoetry = scanFigures(source).figures;
+        const blocks = scanBlocks(source).blocks.filter(
+            (block) =>
+                !figuresHoldingPoetry.some(
+                    (figure) =>
+                        block.name === "poetry" &&
+                        block.start >= figure.bodyStart &&
+                        block.end < figure.bodyEnd,
+                ),
+        );
         if (blocks.length) {
             const lines = source.split("\n");
             const output = [];
@@ -538,6 +548,15 @@ export function markdownToTypst(markdown, opts = {}) {
                         insideAdmonition: true,
                     }),
                 );
+                if (block.name === "poetry") {
+                    const content = markdownToTypst(poetryMarkdown(block.body), {
+                        ...sharedOptions,
+                        insideAdmonition: true,
+                    });
+                    output.push(`\n#block(width: 100%)[${content}]\n`);
+                    cursor = block.end + 1;
+                    continue;
+                }
                 const { color, background, symbol } = BLOCK_PRINT[block.name];
                 // The title is inline markdown, rendered the way every other
                 // phrase in the book is. Set as it was written it would be read
@@ -601,7 +620,9 @@ export function markdownToTypst(markdown, opts = {}) {
                 { ...caption, imagesRemaining: { n: countImages(block) } }
             :   caption;
         const segments = [
-            renderMarkdownSegment(block, md, { ...ctx, caption: captioned }, definitions),
+            caption.kind === "poem" ?
+                markdownToTypst(block, { ...sharedOptions, captions: undefined })
+            :   renderMarkdownSegment(block, md, { ...ctx, caption: captioned }, definitions),
         ];
         if (caption.kind !== "table" && caption.kind !== "figure" && caption.kind !== "map") {
             segments.push(

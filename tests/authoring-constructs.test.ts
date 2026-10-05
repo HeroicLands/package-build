@@ -83,6 +83,17 @@ const CASES: Record<string, string> = {
     secret: body(":::secret", "The vault is behind the arras.", ":::"),
     info: body(":::info", "Ships pay the harbour due on arrival.", ":::"),
     warn: body(":::warn", "The shoals are uncovered at low water.", ":::"),
+    poetry: body(":::poetry", "One line,", "Another line.", "", "A second stanza.", ":::"),
+    "captioned poem": body(
+        ":::figure {#song}",
+        ":::poetry",
+        "One line,",
+        "Another line.",
+        ":::",
+        "///",
+        "A harbor song.",
+        ":::",
+    ),
     "warn with an id": body(":::warn {#risk}", "The shoals are uncovered.", ":::"),
     figure: body(
         ":::figure {#trade}",

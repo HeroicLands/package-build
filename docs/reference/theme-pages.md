@@ -301,8 +301,8 @@ its label beneath whatever it holds:
 </div>
 ```
 
-The kind is `code`, `table`, `figure`, `map` or `prose`, labelled **Code**,
-**Table**, **Figure**, **Map** and **Prose**. Every kind is drawn alike — the
+The kind is `code`, `table`, `figure`, `map`, `poem` or `prose`, labelled **Code**,
+**Table**, **Figure**, **Map**, **Poem** and **Prose**. Every kind is drawn alike — the
 block carries the spacing, its contents add none of their own at the edges,
 and the label reads as a caption rather than as another paragraph of the body
 — so a kind added to the vocabulary arrives styled. A fence carrying an `id`
