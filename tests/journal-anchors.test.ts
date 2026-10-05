@@ -55,14 +55,14 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
         expect(pages[0].markdown).toContain("# GM heading");
     });
 
-    it.each(["info", "warn"])(
-        "keeps a figure inside a :::%s block on its containing page",
-        (name) => {
+    it.each(["NOTE", "WARNING"])(
+        "keeps caption-looking text inside a %s alert on its containing page",
+        (type) => {
             const pages = splitPages(
-                `# Public\n\n:::${name}\n:::figure {#a}\nAlpha.\n:::\n:::\n\n# Next`,
+                `# Public\n\n> [!${type}]\n>\n> :@ Caption. {#a}\n>\n> Alpha.\n\n# Next`,
             );
             expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
-            expect(pages[0].markdown).toContain(":::figure {#a}");
+            expect(pages[0].markdown).toContain(":@ Caption. {#a}");
         },
     );
 
@@ -70,10 +70,10 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
         "keeps a figure inside %s on its containing page",
         (opener) => {
             const pages = splitPages(
-                `# Public\n\n${opener}\n:::figure {#a}\nAlpha.\n:::\n:::\n\n# Next`,
+                `# Public\n\n${opener}\n\n:@ Caption. {#a}\n\nAlpha.\n:::\n\n# Next`,
             );
             expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
-            expect(pages[0].markdown).toContain(":::figure {#a}");
+            expect(pages[0].markdown).toContain(":@ Caption. {#a}");
         },
     );
 
@@ -82,15 +82,16 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
             "# Public",
             "",
             ":::secret",
-            ":::figure {#a}",
+            "",
+            ":@ Alpha. {#a}",
+            "",
             "Alpha.",
-            ":::",
             "",
             "GM prose between figures.",
             "",
-            ":::figure {#b}",
+            ":@ Beta. {#b}",
+            "",
             "Beta.",
-            ":::",
             ":::",
             "",
             "# Next",
@@ -98,11 +99,11 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
         const pages = splitPages(body);
         expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
         expect(pages[0].markdown).toContain("GM prose between figures.");
-        expect(pages[0].markdown).toContain(":::figure {#b}");
+        expect(pages[0].markdown).toContain(":@ Beta. {#b}");
     });
 
     it("still starts its own page for a figure at the top level", () => {
-        const pages = splitPages("# Public\n\n:::figure {#a}\nAlpha.\n:::\n\n# Next");
+        const pages = splitPages("# Public\n\n:@ Caption. {#a}\n\nAlpha.\n\n# Next");
         expect(pages.map((page) => page.name)).toEqual(["Public", "Prose 1", "Next"]);
     });
 
@@ -209,7 +210,7 @@ describe("a page-opening heading inside a named block", () => {
         // than reading them itself, so every name in the registry, an opener
         // carrying an attribute block, and a nested construct's own closing
         // line are all answered by the one reading `scanBlocks` performs.
-        for (const opener of [":::secret", ":::info", ":::warn", ":::secret {#hoard}"]) {
+        for (const opener of [":::secret", "::: {#info}", "::: {#warning}", ":::secret {#hoard}"]) {
             const body = [
                 "# Public",
                 "Before.",

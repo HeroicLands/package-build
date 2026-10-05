@@ -12,7 +12,11 @@ function figureMap(source: string) {
             .figures.filter((figure) => figure.id)
             .map((figure) => [
                 figure.id,
-                { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+                {
+                    label: figure.label,
+                    caption: source === NO_CAPTION ? "" : figure.caption,
+                    hasCaption: source !== NO_CAPTION,
+                },
             ]),
     );
 }
@@ -45,15 +49,9 @@ function corpusFigures(own: string, others: Record<string, string>) {
     };
 }
 
-const WITH_CAPTION = [
-    ":::figure {#thorn}",
-    "![[being-foobar|The Great Beast]]",
-    "///",
-    "The great beast, as drawn by [[person-havard|Havard]], in *ink*.",
-    ":::",
-].join("\n");
-
-const NO_CAPTION = [":::figure {#plain}", "![[being-foobar|The Great Beast]]", ":::"].join("\n");
+const WITH_CAPTION =
+    ":@ The great beast, as drawn by [[person-havard|Havard]], in *ink*. {#thorn}\n\n![[being-foobar|The Great Beast]]";
+const NO_CAPTION = ":@ Placeholder {#plain}\n\n![[being-foobar|The Great Beast]]";
 
 describe("the ref expression helper", () => {
     it("renders the default number form as a link", () => {

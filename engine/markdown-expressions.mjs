@@ -154,7 +154,7 @@ const HELPERS = Object.freeze([
         name: "ref",
         params: 'address [form="number"|"full"|"title"]',
         summary:
-            'A link to a `:::figure` fence, by its anchor — `"#thorn"` on this note, ' +
+            'A link to a captioned item, by its anchor — `"#thorn"` on this note, ' +
             '`"note-address#thorn"` on another. `form` is `number` (the default, and ' +
             'admitted explicitly), rendering "Figure 13"; `full`, the number and the ' +
             "caption; or `title`, the caption alone. Always renders as a link to the " +
@@ -173,6 +173,10 @@ const HELPERS = Object.freeze([
                 const { parsed, figure, crossNote, noteFound, url } = refFigure(address, figures);
                 if (!figure)
                     throw new RangeError(refNotFoundFault(address, parsed, crossNote, noteFound));
+                if (form === "number" && !figure.label)
+                    throw new RangeError(
+                        'a reference to an unnumbered caption requires form="title" or form="full"',
+                    );
                 if (form !== "number" && !figure.hasCaption)
                     throw new RangeError(refNoCaptionFault(form, parsed));
                 return renderRef(figure, parsed, form, { url, link: figures?.link });
@@ -271,7 +275,7 @@ function flattenCaptionLinks(caption) {
 function refLabel(figure, form) {
     if (form === "number") return figure.label;
     const title = flattenCaptionLinks(figure.caption);
-    return form === "title" ? title : `${figure.label}: ${title}`;
+    return form === "title" || !figure.label ? title : `${figure.label}: ${title}`;
 }
 
 /**
@@ -394,6 +398,8 @@ function refCallFault(node, figures) {
     if (typeof address !== "string" || !address.trim()) return null;
     const { parsed, figure, crossNote, noteFound } = refFigure(address, figures);
     if (!figure) return refNotFoundFault(address, parsed, crossNote, noteFound);
+    if (form === "number" && !figure.label)
+        return 'a reference to an unnumbered caption requires form="title" or form="full"';
     if (form !== "number" && !figure.hasCaption) return refNoCaptionFault(form, parsed);
     return null;
 }
@@ -448,7 +454,7 @@ function positionAt(body, offset, bodyLine) {
  *   {url: string|null, figures: Map<string, object>}|undefined,
  *   link?: Function}, file?: string, bodyLine?: number}} [options] -
  *   `figures` is the `ref` helper's own view of the corpus: `get` reads this
- *   note's `:::figure` fences by id, and `note` resolves another note's the
+ *   note's captioned items by id, and `note` resolves another note's the
  *   way a wikilink would — omitted, a cross-note address is refused rather
  *   than looked up. `link` overrides how a resolved reference renders; the
  *   default is a Markdown link to the target's own anchor.

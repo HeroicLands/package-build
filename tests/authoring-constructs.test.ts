@@ -23,6 +23,7 @@
  * that nothing complained. A construct added to the document is added here.
  */
 
+import { renderAlerts, scanAlerts } from "../engine/content-alerts.mjs";
 import { describe, it, expect } from "vitest";
 
 import { renderBlocks, scanBlocks } from "../engine/content-blocks.mjs";
@@ -48,6 +49,7 @@ const body = (...lines: string[]) => lines.join("\n");
  */
 function findings(source: string) {
     return [
+        ...scanAlerts(source).errors.map((e) => `alert ${e.line}: ${e.message}`),
         ...scanBlocks(source).errors.map((e) => `block ${e.line}: ${e.message}`),
         ...scanFigures(source).errors.map((e) => `figure ${e.line}: ${e.message}`),
     ];
@@ -60,7 +62,7 @@ function foundry(source: string) {
 
 /** The body as the site build renders it, in the order `site-build` runs. */
 function web(source: string) {
-    const blocks = renderBlocks(source, "web");
+    const blocks = renderBlocks(renderAlerts(source).markdown, "web");
     return renderFigureBlocks(blocks.markdown).markdown;
 }
 
@@ -81,52 +83,41 @@ function book(source: string) {
  */
 const CASES: Record<string, string> = {
     secret: body(":::secret", "The vault is behind the arras.", ":::"),
-    info: body(":::info", "Ships pay the harbour due on arrival.", ":::"),
-    warn: body(":::warn", "The shoals are uncovered at low water.", ":::"),
-    poetry: body(":::poetry", "One line,", "Another line.", "", "A second stanza.", ":::"),
+    note: body("> [!NOTE]", "> Ships pay the harbour due on arrival."),
+    warning: body("> [!WARNING]", "> The shoals are uncovered at low water."),
+    tip: body("> [!TIP]", "> Take the northern channel."),
+    important: body("> [!IMPORTANT]", "> The channel changes after storms."),
+    "custom alert title": body('> [!WARNING] {title="Shoals ahead"}', "> Reduce sail."),
+    poetry: body("```poetry", "One line,", "Another line.", "", "A second stanza.", "```"),
     "captioned poem": body(
-        ":::figure {#song}",
-        ":::poetry",
+        ":@ A harbor song. {#song}",
+        "",
+        "```poetry",
         "One line,",
         "Another line.",
-        ":::",
-        "///",
-        "A harbor song.",
-        ":::",
+        "```",
     ),
-    "warn with an id": body(":::warn {#risk}", "The shoals are uncovered.", ":::"),
+    "warning with an id": body("> [!WARNING] {#risk}", "> The shoals are uncovered."),
     figure: body(
-        ":::figure {#trade}",
+        ":@ Trade routes out of the harbour {#trade}",
+        "",
         "| Route | Days |",
         "| ----- | ---- |",
         "| North | 4    |",
-        "///",
-        "Trade routes out of the harbour",
-        ":::",
     ),
-    "figure with no caption": body(
-        ":::figure {#shoals}",
-        "| Shoal | Depth |",
-        "| ----- | ----- |",
-        "| Bar   | 2     |",
-        ":::",
-    ),
+    "figure with no caption": body("| Shoal | Depth |", "| ----- | ----- |", "| Bar | 2 |"),
     "bordered prose figure": body(
-        ":::figure {#aside .border}",
+        ":@ The tide table {#aside .border}",
+        "",
         "The harbourmaster keeps the tide table himself.",
-        "///",
-        "The tide table",
-        ":::",
     ),
     "figure inside a secret": body(
         ":::secret",
         "Before.",
         "",
-        ":::figure {#takings}",
+        ":@ What the harbourmaster takes {#takings}",
+        "",
         "The cut is a tenth.",
-        "///",
-        "What the harbourmaster takes",
-        ":::",
         "",
         "After.",
         ":::",
@@ -134,25 +125,21 @@ const CASES: Record<string, string> = {
     footnotes: body("Spring brings the floods.[^flood]", "", "[^flood]: Snowmelt off the ridge."),
     "definition list": body("Harbour due", ": A toll on every hull that ties up."),
     "every construct in one note": body(
-        ":::info",
-        "Ships pay the harbour due on arrival.",
-        ":::",
+        "> [!NOTE]",
+        "> Ships pay the harbour due on arrival.",
         "",
-        ":::warn {#risk}",
-        "The shoals are uncovered at low water.",
-        ":::",
+        "> [!WARNING] {#risk}",
+        "> The shoals are uncovered at low water.",
         "",
         ":::secret",
         "The harbourmaster takes a cut.",
         ":::",
         "",
-        ":::figure {#trade}",
+        ":@ Trade routes out of the harbour {#trade}",
+        "",
         "| Route | Days |",
-        "| ----- | ---- |",
-        "| North | 4    |",
-        "///",
-        "Trade routes out of the harbour",
-        ":::",
+        "| ----- | ----- |",
+        "| North | 4 |",
         "",
         "Spring brings the floods.[^flood]",
         "",
@@ -189,14 +176,14 @@ describe("every surface renders every construct", () => {
         expect(book(source)).toContain("Secret");
     });
 
-    it("renders info and warning blocks headed by their kind", () => {
-        expect(web(CASES.info)).toContain('<details class="info"');
-        expect(foundry(CASES.warn)).toContain('<section class="warn"');
-        expect(book(CASES.warn)).toContain("Warn");
+    it("renders note and warning alerts headed by their kind", () => {
+        expect(web(CASES.note)).toContain('<aside class="alert alert-note"');
+        expect(foundry(CASES.warning)).toContain('<aside class="alert alert-warning"');
+        expect(book(CASES.warning)).toContain("Warning");
     });
 
     it("carries a warning block's id through as an anchor", () => {
-        expect(web(CASES["warn with an id"])).toContain('id="risk"');
+        expect(web(CASES["warning with an id"])).toContain('id="risk"');
     });
 
     it("labels and numbers a figure", () => {
@@ -206,10 +193,8 @@ describe("every surface renders every construct", () => {
         expect(book(CASES.figure)).toContain("Trade routes out of the harbour");
     });
 
-    it("draws an uncaptioned figure's label alone", () => {
-        expect(web(CASES["figure with no caption"])).toContain(
-            '<p class="content-figure-label">Table 1</p>',
-        );
+    it("leaves an item with no caption unnumbered", () => {
+        expect(web(CASES["figure with no caption"])).not.toContain("content-figure-label");
     });
 
     it("carries a figure's authored class through to the web", () => {
@@ -270,7 +255,7 @@ describe("the documented failure modes still report", () => {
     };
 
     it("a ::: that closes nothing at all", () => {
-        reports(body("Prose.", ":::", "More prose."), "closes no block");
+        reports(body("Prose.", ":::", "More prose."), "closing");
     });
 
     it("an unclosed secret block", () => {
@@ -281,70 +266,43 @@ describe("the documented failure modes still report", () => {
         reports(body(":::secret", "a", ":::secret", "b", ":::", ":::"), "nested secret");
     });
 
-    it("an unclosed warning block", () => {
-        reports(body(":::warn", "Shoals."), "warn block needs a closing");
+    it("rejects the removed warning fence", () => {
+        reports(body(":::warn", "Shoals.", ":::"), "warn");
     });
 
-    it("a nested admonition", () => {
-        reports(body(":::info", "Outer.", ":::warn", "Inner.", ":::", ":::"), "nested warn blocks");
+    it("rejects the removed info fence", () => {
+        reports(body(":::info", "Outer.", ":::"), "info");
     });
 
-    it("a figure whose attributes are not braced", () => {
-        reports(body(":::figure #trade", "Trade routes", ":::"), "{#id");
+    it("rejects the removed figure fence", () => {
+        reports(body(":::figure {#trade}", "Trade routes", ":::"), "figure");
     });
 
-    it("a figure carrying a class the construct does not declare", () => {
-        reports(body(":::figure {#t .wide}", "Trade routes", ":::"), ".wide");
+    it("rejects unsupported caption types", () => {
+        reports(body(":@ Trade {type=unknown}", "", "Trade routes"), "type");
     });
 
-    it("a figure carrying a key=value attribute", () => {
-        reports(body(':::figure {#t kind="table"}', "Trade routes", ":::"), "kind=");
+    it("requires caption text", () => {
+        reports(body(":@", "", "Trade routes"), "caption");
     });
 
-    it("a figure with no closing :::", () => {
-        reports(body(":::figure {#t}", "Trade routes"), "closing");
-    });
-
-    it("a figure with no contents", () => {
-        reports(body(":::figure {#t}", "///", "Trade routes", ":::"), "no contents");
-    });
-
-    it("a figure whose /// section is blank", () => {
-        reports(body(":::figure {#t}", "Trade routes", "///", "", ":::"), "write no ///");
-    });
-
-    it("a figure carrying a second top-level ///", () => {
-        reports(body(":::figure {#t}", "Routes", "///", "One", "///", "Two", ":::"), "one caption");
+    it("requires a following supported item", () => {
+        reports(body(":@ Trade", ""), "caption");
     });
 
     it("an H1 inside a secret block, which would tear its own page", () => {
         reports(body(":::secret", "# A heading", "Text.", ":::"), "starts a page");
     });
 
-    it("an anchored heading inside an info block, the same as an H1", () => {
-        reports(body(":::info", "## A heading {#x}", "Text.", ":::"), "starts a page");
+    it("an anchored heading inside a div, the same as an H1", () => {
+        reports(body("::: {#box}", "## A heading {#x}", "Text.", ":::"), "starts a page");
     });
 
-    it("a page-starting heading written inside a figure", () => {
-        reports(body(":::figure {#t}", "# A heading", "///", "A caption.", ":::"), "starts a page");
+    it("rejects a heading after a caption", () => {
+        reports(body(":@ A caption. {#t}", "", "# A heading"), "caption");
     });
 
-    it("two figures sharing an id", () => {
-        reports(
-            body(
-                ":::figure {#t}",
-                "One.",
-                "///",
-                "First",
-                ":::",
-                "",
-                ":::figure {#t}",
-                "Two.",
-                "///",
-                "Second",
-                ":::",
-            ),
-            "duplicate figure id",
-        );
+    it("rejects two captions sharing an id", () => {
+        reports(body(":@ First {#t}", "", "One.", "", ":@ Second {#t}", "", "Two."), "duplicate");
     });
 });

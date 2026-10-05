@@ -59,7 +59,7 @@
  * floated run of text inside a paragraph would mean.
  *
  * **Alt text renders as a caption on no surface.** A caption is drawn only for
- * an image inside a `:::figure` fence that carries an authored caption, and the
+ * an image inside a captioned item that carries an authored caption, and the
  * text drawn is always that caption. An image with no fence, or a fence with no
  * caption, draws no line under the picture anywhere. The HTML surfaces still
  * carry the alt text as the `img` element's `alt` attribute, for the reader a
@@ -333,7 +333,7 @@ export function escapeHtml(text) {
  * function, so the two cannot drift into styling the same directive through
  * different class names.
  *
- * **No `<figcaption>` is emitted here.** A `:::figure` fence draws its own
+ * **No `<figcaption>` is emitted here.** A captioned item draws its own
  * label and authored caption around whatever this returns; the alt text stays
  * on the `img` element alone.
  *
@@ -538,7 +538,7 @@ export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, lineMap,
             report(
                 image.index,
                 `\`"${image.title}"\` is a title on an image, and no surface here draws ` +
-                    "one — a caption is written in a `:::figure` fence's /// section",
+                    "one — write a leading caption before the image",
             );
         }
         if (!image.block) {

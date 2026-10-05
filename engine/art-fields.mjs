@@ -247,7 +247,7 @@ export function resolveArtRecord(index, value, defaultType, accepts) {
  * carries once an embed's address has been rewritten into the ordinary image
  * every surface renders ({@link module:engine/content-embeds.resolveEmbeds}).
  *
- * This is the lookup a `:::figure` fence's `map` counter reaches through —
+ * This is the lookup a captioned item's `map` counter reaches through —
  * see {@link module:engine/content-figures.scanFigures}'s `resolveRole` —
  * for a caller that reads a body after that rewrite: a Foundry journal, an
  * item or actor's documentation, and the book.

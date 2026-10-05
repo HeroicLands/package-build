@@ -2,83 +2,22 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/**
- * `:::figure` — the fence that declares what is numbered and captioned.
- *
- * ```
- * :::figure {#thorn .border}
- * ![[being-foobar|The Great Beast]]
- * ///
- * The great beast, as drawn by [[person-havard]].
- * :::
- * ```
- *
- * The fence states the unit, so nothing is inferred about scope and a group —
- * two portraits as one plate, a table with its key beneath it — is one figure
- * with one number.
- *
- * **The caption is optional and the fence is what numbers a thing.** A fence
- * with no `///` draws its label alone. So the rule is "no fence, no number":
- * a bare embed takes no number and nothing is drawn beneath it.
- *
- * **`{#id}` is optional too.** A fence that declares none is numbered and drawn
- * and carries no anchor, so nothing can reference it.
- *
- * ## The split is lexical
- *
- * The first `///` at the top level of the body divides the contents from the
- * caption, and it is found **on the raw lines, before any markdown parsing**.
- * The alternative delimiters are claimed by the grammar: `---` or `===` on the
- * line after a paragraph is a setext heading, so an image tight against one
- * becomes an `<h2>` with nothing said. `///` has no CommonMark meaning, which
- * leaves a genuine thematic break available inside a grouped figure.
- *
- * A delimiter inside a nested code fence is content: a captioned listing
- * carries `///` as a doc comment, so the scan for both the delimiter and the
- * closing `:::` tracks nested fences and reads neither inside one.
- *
- * ## The kind is derived, never authored
- *
- * A table is self-evidently a table and a lone picture a figure, so the counter
- * comes from the fence's contents: a table is `table`, an `sql` fence is
- * `table`, any other fence or code block is `code`, pictures alone are
- * `figure`, and everything else is `prose`. A fence around prose, with
- * `.border`, is a numbered, referable boxed aside, which is what `Prose` names.
- *
- * **A picture counts as `map` instead of `figure` when every picture the fence
- * holds is one.** The fence's own markup cannot say so — a picture of a map
- * looks like any other picture — so the fact travels through a `resolveRole`
- * function the caller supplies, from the address each picture draws (an
- * embed's address, an image's path, or an `<img>` tag's `src`) to the role its
- * asset declares. This pass resolves no address of its own; `resolveRole` is
- * the one seam a caller reaches through with whatever lookup it already holds.
- * A caller that supplies none, or whose lookup answers nothing for a picture,
- * gets `figure` — the same reading as a picture with a role other than `map`.
- *
- * ## The class vocabulary is closed
- *
- * {@link FIGURE_CLASSES} holds what an author may write, and a class outside it
- * is a finding naming the class — so `.border` does not become the first of
- * twenty presentational classes. `key=value` is refused: the construct takes an
- * id and classes.
- *
- * @module
- */
+/** Leading captions apply to the next supported Markdown block. @module */
 
+import { spanMarkdownPlugin } from "./content-spans.mjs";
 import MarkdownIt from "markdown-it";
 import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
 
 import { slugify } from "./content-slug.mjs";
-import { parseExtensionAttributes } from "./extension-attributes.mjs";
-import { HEADING_LINE, parseHeadingLine, splitHeadingAttributes } from "./heading-attributes.mjs";
+import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
+import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
 import { IMAGE_PATTERN } from "./content-images.mjs";
 
-const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
-const OPEN = /^:::figure(?:[ \t]+(\{[^}\n]*\}))?[ \t]*$/;
-const FIGURE_LINE = /^:::figure\b/;
-const CLOSE = /^:::\s*$/;
-const SPLIT = /^\/\/\/\s*$/;
+const parser = new MarkdownIt({ html: true })
+    .use(footnotePlugin)
+    .use(deflistPlugin)
+    .use(spanMarkdownPlugin);
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
 /**
@@ -104,6 +43,7 @@ const HTML_IMG_SRC = /<img\b[^>]*\bsrc="([^"]*)"/g;
 /** A figure's automatically determined kind, and the word that labels it. */
 export const FIGURE_NAMES = Object.freeze({
     code: "Code",
+    example: "Example",
     table: "Table",
     figure: "Figure",
     map: "Map",
@@ -112,12 +52,8 @@ export const FIGURE_NAMES = Object.freeze({
 });
 
 /**
- * The classes a figure takes.
- *
- * `.border` states that the captioned thing is drawn inside a border, and each
- * medium owns what that means. The vocabulary is closed: a class absent from it
- * is a finding naming the class.
- *
+ * Historical built-in presentation classes, retained for theme consumers.
+ * Captions now accept arbitrary classes through the shared attribute grammar.
  * @type {readonly string[]}
  */
 export const FIGURE_CLASSES = Object.freeze(["border"]);
@@ -125,6 +61,7 @@ export const FIGURE_CLASSES = Object.freeze(["border"]);
 /** Number a sequence of figures with counters shared across documents. */
 export function numberFigures(figures, counts) {
     return figures.map((figure) => {
+        if (figure.numbered === false) return { ...figure, number: 0, label: "" };
         const number = (counts[figure.kind] ?? 0) + 1;
         counts[figure.kind] = number;
         return { ...figure, number, label: `${FIGURE_NAMES[figure.kind]} ${number}` };
@@ -208,7 +145,7 @@ function picturesAreMap(contents, resolveRole) {
  * @returns {"code"|"table"|"figure"|"map"|"poem"|"prose"} The kind.
  */
 function figureKind(first, contents, resolveRole) {
-    if (/^(?: *:::poetry(?:\s|$)|<div\b[^>]*\bclass="poetry(?:\s|"))/.test(contents)) return "poem";
+    if (/^(?:<div\b[^>]*\bclass="poetry(?:\s|"))/.test(contents)) return "poem";
     if (first?.type === "table_open") return "table";
     if (first?.type === "fence" && /^\s*sql\b/i.test(first.info ?? "")) return "table";
     if (first?.type === "fence" || first?.type === "code_block") return "code";
@@ -221,35 +158,27 @@ function figureKind(first, contents, resolveRole) {
 }
 
 /**
- * Read every `:::figure` fence in a body.
- *
- * SQL fences are expanded before this pass, so their output is a table.
- *
- * @param {string} source - A note body with expanded tables.
+ * Read leading captions and their following blocks outside literal fences.
+ * Historical figure API names remain for caption references and consumers.
+ * @param {string} source - The authored or expanded note body.
  * @param {object} [options] - Options.
- * @param {(address: string) => string|undefined} [options.resolveRole] - From
- *   a picture's address to the role its asset declares, so a picture whose
- *   asset declares `role: map` counts as `map` rather than `figure`. Omitted,
- *   every picture counts as `figure` — the same reading a role other than
- *   `map` gets.
+ * @param {(address: string) => string|undefined} [options.resolveRole] - Asset role lookup.
  * @returns {{figures: Array<{id: string, slug: string, caption: string,
- *   hasCaption: boolean, classes: string[], kind: string, number: number,
- *   label: string, line: number, bodyStart: number, bodyEnd: number,
- *   captionStart: number, captionEnd: number, close: number}>,
+ *   hasCaption: boolean, classes: string[], attributes: Record<string,string>,
+ *   kind: string, numbered: boolean, number: number, label: string, line: number,
+ *   bodyStart: number, bodyEnd: number, captionStart: number, captionEnd: number, close: number}>,
  *   errors: Array<{line: number, column: number, message: string}>}}
  */
 export function scanFigures(source, { resolveRole = () => undefined } = {}) {
     const lines = String(source ?? "").split("\n");
-    const figures = [];
-    const errors = [];
-    const counts = { code: 0, table: 0, figure: 0, map: 0, poem: 0, prose: 0 };
-    const ids = new Set();
-    const headingIds = [];
+    const figures = [],
+        errors = [],
+        ids = new Set();
+    const counts = {};
     let codeFence = null;
-
+    const fault = (line, message) => errors.push({ line: line + 1, column: 1, message });
     for (let i = 0; i < lines.length; i++) {
-        const line = lines[i];
-        const fence = FENCE.exec(line);
+        const fence = FENCE.exec(lines[i]);
         if (codeFence) {
             if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length)
                 codeFence = null;
@@ -259,166 +188,167 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
             codeFence = fence[1];
             continue;
         }
-        const heading = HEADING_LINE.exec(line);
-        const headingId = heading ? splitHeadingAttributes(heading[2]).id : "";
-        if (headingId) headingIds.push({ id: slugify(headingId), line: i + 1 });
-        if (!FIGURE_LINE.test(line)) continue;
-        const open = OPEN.exec(line);
-        if (!open) {
-            errors.push({
-                line: i + 1,
-                column: 1,
-                message: "a figure's attributes are written as {#id .border}",
-            });
+        const match = /^ {0,3}:(@)?[ \t]+(.+?)\s*$/.exec(lines[i]);
+        if (!match) {
+            if (/^ {0,3}:@?[ \t]*$/.test(lines[i])) fault(i, "a caption needs text");
             continue;
         }
-        const start = i;
-        const attributes = parseExtensionAttributes((open[1] ?? "{}").slice(1, -1));
-        const faults = [...attributes.problems];
-        for (const name of attributes.classes) {
-            if (FIGURE_CLASSES.includes(name)) continue;
-            faults.push(
-                `a figure takes no .${name} class — the classes a figure takes are ` +
-                    FIGURE_CLASSES.map((known) => `.${known}`).join(", "),
-            );
+        // A definition-list description has a nonblank term immediately before it.
+        if (!match[1] && i > 0 && lines[i - 1].trim()) continue;
+        if ((i > 0 && lines[i - 1].trim()) || lines[i + 1]?.trim()) {
+            fault(i, "a caption needs a blank line before and after it");
+            continue;
         }
-        for (const key of Object.keys(attributes.values)) {
-            faults.push(
-                `${key}= is not an attribute a figure takes — a figure takes an id and classes`,
-            );
+        let caption = match[2],
+            attributes = parseExtensionAttributes("");
+        const attr = /\s+(\{.*\})$/.exec(caption);
+        if (attr) {
+            attributes = parseExtensionAttributes(attr[1].slice(1, -1));
+            caption = caption.slice(0, attr.index).trim();
+        } else if (/\s+\{/.test(caption)) fault(i, "a caption has malformed attributes");
+        for (const message of [...attributes.problems, ...refusedAttributes(attributes.values)])
+            fault(i, message);
+        const explicit = attributes.values.type;
+        if (
+            explicit &&
+            !["figure", "table", "poetry", "code", "prose", "example"].includes(explicit)
+        )
+            fault(i, `unsupported caption type "${explicit}"`);
+        if (!caption) fault(i, "a caption needs text");
+        let bodyStart = i + 1;
+        while (bodyStart < lines.length && !lines[bodyStart].trim()) bodyStart++;
+        if (bodyStart === lines.length || /^ {0,3}:@?[ \t]+/.test(lines[bodyStart])) {
+            fault(i, "a caption needs a following item");
+            continue;
         }
-        for (const message of faults) errors.push({ line: start + 1, column: 1, message });
-
-        // The body, read line by line: the first top-level `///` splits it, the
-        // closing `:::` ends it, and a nested fence holds neither.
-        let close = start + 1;
-        let split = -1;
-        let nested = null;
-        let namedDepth = 0;
-        const fenced = new Set();
-        while (close < lines.length) {
-            const body = lines[close];
-            const bodyFence = FENCE.exec(body);
-            if (namedDepth) {
-                fenced.add(close);
-                if (/^ *:::[ \t]*$/.test(body)) namedDepth--;
-                close++;
-                continue;
-            }
-            if (nested) {
-                fenced.add(close);
+        let bodyEnd;
+        const firstLine = lines[bodyStart];
+        let kind;
+        if (/^ {0,3}:::(?:[ \t]+\{.*\})?[ \t]*$/.test(firstLine)) {
+            let depth = 1,
+                literal = null;
+            bodyEnd = bodyStart + 1;
+            for (; bodyEnd < lines.length; bodyEnd++) {
+                const code = FENCE.exec(lines[bodyEnd]);
+                if (literal) {
+                    if (code && code[1][0] === literal[0] && code[1].length >= literal.length)
+                        literal = null;
+                    continue;
+                }
+                if (code) {
+                    literal = code[1];
+                    continue;
+                }
                 if (
-                    bodyFence &&
-                    bodyFence[1][0] === nested[0] &&
-                    bodyFence[1].length >= nested.length
-                )
-                    nested = null;
-                close++;
+                    /^ *:::(?:[ \t]+\{.*\}|(?:secret|info|warn)\b.*)?[ \t]*$/.test(lines[bodyEnd])
+                ) {
+                    if (/^ *:::[ \t]*$/.test(lines[bodyEnd])) depth--;
+                    else depth++;
+                    if (!depth) {
+                        bodyEnd++;
+                        break;
+                    }
+                }
+            }
+            if (depth) fault(bodyStart, "a captioned div needs a closing :::");
+            kind = "prose";
+        } else {
+            if (/^ *:::/.test(firstLine)) {
+                fault(bodyStart, "this fence cannot be captioned");
                 continue;
             }
-            if (bodyFence) {
-                nested = bodyFence[1];
-                fenced.add(close);
-                close++;
+            const tokens = parser.parse(lines.slice(bodyStart).join("\n"), {});
+            const first = tokens.find((token) => token.level === 0 && token.map);
+            if (
+                !first ||
+                ![
+                    "table_open",
+                    "fence",
+                    "code_block",
+                    "paragraph_open",
+                    "blockquote_open",
+                    "html_block",
+                ].includes(first.type)
+            ) {
+                fault(
+                    bodyStart,
+                    "a caption must be followed by an image, table, poetry or code fence, paragraph, quote, or fenced div",
+                );
                 continue;
             }
-            if (/^ *:::poetry(?:\s|$)/.test(body)) {
-                namedDepth++;
-                fenced.add(close);
-                close++;
+            bodyEnd = bodyStart + first.map[1];
+            if (first.type === "html_block" && /^<div\b/.test(firstLine.trim())) {
+                let depth = 0;
+                for (let at = bodyStart; at < lines.length; at++) {
+                    depth += (lines[at].match(/<div\b/g) ?? []).length;
+                    depth -= (lines[at].match(/<\/div>/g) ?? []).length;
+                    if (!depth) {
+                        bodyEnd = at + 1;
+                        break;
+                    }
+                }
+            }
+            const contents = lines.slice(bodyStart, bodyEnd).join("\n");
+            if (
+                first.type === "html_block" &&
+                !/^(?:<figure\b|<img\b|<div\b)/.test(contents.trim())
+            ) {
+                fault(bodyStart, "this block cannot be captioned");
                 continue;
             }
-            if (CLOSE.test(body)) break;
-            if (SPLIT.test(body)) {
-                if (split < 0) split = close;
-                else
-                    errors.push({
-                        line: close + 1,
-                        column: 1,
-                        message: "a figure holds one caption, so it carries one /// line",
-                    });
-            }
-            close++;
+            kind =
+                first.type === "fence" && /^poetry(?:\s|$)/.test(first.info) ?
+                    "poem"
+                :   figureKind(first, contents.trim(), resolveRole);
         }
-        if (close === lines.length) {
-            errors.push({ line: start + 1, column: 1, message: "a figure needs a closing :::" });
-            continue;
-        }
-
-        const bodyStart = start + 1;
-        const bodyEnd = split < 0 ? close : split;
-        const captionStart = split < 0 ? -1 : split + 1;
-        const captionEnd = split < 0 ? -1 : close;
-        const contents = lines.slice(bodyStart, bodyEnd).join("\n");
-        const caption = split < 0 ? "" : lines.slice(captionStart, captionEnd).join("\n").trim();
-        if (!contents.trim())
-            errors.push({ line: start + 1, column: 1, message: "a figure has no contents" });
-        if (split >= 0 && !caption)
-            errors.push({
-                line: split + 1,
-                column: 1,
-                message:
-                    "a figure's /// section carries no caption — write no /// to leave the " +
-                    "figure uncaptioned",
-            });
-        // An H1, or an anchored heading at any level, starts a Foundry
-        // journal page — see `engine/content-blocks.mjs`'s identical refusal
-        // for a named block.
-        for (let at = bodyStart; at < close; at++) {
-            if (fenced.has(at)) continue;
-            if (!parseHeadingLine(lines[at])?.startsPage) continue;
-            errors.push({
-                line: at + 1,
-                column: 1,
-                message:
-                    "a heading that starts a page cannot be written inside a figure — " +
-                    "keep an H1 or an anchored heading at the top level, or drop the " +
-                    "anchor and the level to stay inside it",
-            });
-        }
+        if (explicit) kind = explicit === "poetry" ? "poem" : explicit;
         const id = attributes.id;
-        if (id) {
-            if (ids.has(slugify(id)))
-                errors.push({ line: start + 1, column: 1, message: `duplicate figure id "${id}"` });
-            ids.add(slugify(id));
-        }
-
-        const trimmed = contents.trim();
-        const tokens = parser.parse(contents, {});
-        const first = tokens.find((token) => token.level === 0 && token.map);
-        const kind = figureKind(first, trimmed, resolveRole);
-        const number = ++counts[kind];
+        if (id && ids.has(slugify(id))) fault(i, `duplicate figure id "${id}"`);
+        if (id) ids.add(slugify(id));
+        const numbered = Boolean(match[1]);
+        const number = numbered ? (counts[kind] = (counts[kind] ?? 0) + 1) : 0;
         figures.push({
             id,
             slug: id ? slugify(id) : "",
             caption,
-            hasCaption: Boolean(caption),
+            hasCaption: true,
             classes: attributes.classes,
+            attributes: attributes.values,
             kind,
+            numbered,
             number,
-            label: `${FIGURE_NAMES[kind]} ${number}`,
-            line: start + 1,
+            label: numbered ? `${FIGURE_NAMES[kind]} ${number}` : "",
+            line: i + 1,
             bodyStart,
             bodyEnd,
-            captionStart,
-            captionEnd,
-            close,
+            captionStart: i,
+            captionEnd: i + 1,
+            close: bodyEnd - 1,
         });
-        i = close;
+        i = bodyEnd - 1;
     }
-    for (const heading of headingIds) {
-        if (ids.has(heading.id))
-            errors.push({
-                line: heading.line,
-                column: 1,
-                message: `heading and figure declare the same anchor "${heading.id}"`,
-            });
+    let literal = null;
+    for (let at = 0; at < lines.length; at++) {
+        const fence = FENCE.exec(lines[at]);
+        if (literal) {
+            if (fence && fence[1][0] === literal[0] && fence[1].length >= literal.length)
+                literal = null;
+            continue;
+        }
+        if (fence) {
+            literal = fence[1];
+            continue;
+        }
+        const heading = HEADING_LINE.exec(lines[at]);
+        const id = heading ? splitHeadingAttributes(heading[2]).id : "";
+        if (id && ids.has(slugify(id)))
+            fault(at, `heading and figure declare the same anchor "${slugify(id)}"`);
     }
     return { figures, errors };
 }
 
 /**
- * Render figure fences as HTML, leaving other Markdown untouched.
+ * Render leading captions and their next blocks as HTML, leaving other Markdown untouched.
  *
  * A code, table or prose figure's contents are left as Markdown inside the
  * wrapper, blank-line separated from its tags exactly as
@@ -463,7 +393,11 @@ export function renderFigureBlocks(
         const contents = lines.slice(figure.bodyStart, figure.bodyEnd).join("\n");
         const classes = ["content-figure", `content-figure-${numbered.kind}`, ...figure.classes];
         const id = figure.slug ? ` id="${escapeHtml(figure.slug)}"` : "";
-        output.push(`<div${id} class="${escapeHtml(classes.join(" "))}">`);
+        const attrs = Object.entries(figure.attributes ?? {})
+            .filter(([key]) => key !== "type")
+            .map(([key, value]) => ` ${key}="${escapeHtml(value)}"`)
+            .join("");
+        output.push(`<div${id} class="${escapeHtml(classes.join(" "))}"${attrs}>`);
         if (figure.kind === "figure" || figure.kind === "map") {
             output.push(renderMarkdown(contents).trim());
         } else {
@@ -472,7 +406,9 @@ export function renderFigureBlocks(
         const label = escapeHtml(numbered.label);
         output.push(
             `<p class="content-figure-label">${
-                figure.hasCaption ? `${label}: ${parser.renderInline(figure.caption)}` : label
+                figure.hasCaption ?
+                    `${label ? `${label}: ` : ""}${parser.renderInline(figure.caption)}`
+                :   label
             }</p>`,
             "</div>",
         );

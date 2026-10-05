@@ -183,52 +183,38 @@ describe("markdownToTypst", () => {
         expect(out).toContain(":icon nonesuch:");
     });
 
-    it("sets a named block's title as markdown rather than handing it to Typst", () => {
-        // A title is authored prose: `*word*` is emphasis where Typst reads it
-        // as bold, a `#` opens a function call, and one unbalanced `]` closes
-        // the box and takes the rest of the document with it.
-        expect(markdownToTypst(':::info {title="The *Genzet* only"}\nBody.\n:::')).toContain(
-            "[i The #emph[Genzet] only]",
+    it("sets a secret block's title as safe inline markdown", () => {
+        expect(markdownToTypst(':::secret {title="The *Genzet* only"}\nBody.\n:::')).toContain(
+            "[! The #emph[Genzet] only]",
         );
-        expect(markdownToTypst(':::info {title="Cost #3"}\nBody.\n:::')).toContain("[i Cost \\#3]");
-        expect(markdownToTypst(':::warn {title="Cost ]"}\nBody.\n:::')).toContain("[! Cost \\]]");
-        expect(markdownToTypst(':::warn {title="@dawn $5"}\nBody.\n:::')).toContain(
-            "[! \\@dawn \\$5]",
-        );
+        expect(markdownToTypst(':::secret {title="Cost ]"}\nBody.\n:::')).toContain("[! Cost \\]]");
     });
 
-    it("prints a box inside a GM-only section as a box", () => {
+    it("prints an alert inside a GM-only section as a colored box", () => {
         const out = markdownToTypst(
-            [":::secret", "For the GM.", "", ":::info", "The ford floods.", ":::", "", ":::"].join(
-                "\n",
-            ),
+            ":::secret\nFor the GM.\n\n> [!NOTE]\n> The ford floods.\n\n:::",
         );
-        // Two coloured blocks, the inner one inside the outer: the section is a
-        // container for whatever the GM reads, boxes included.
         expect(out).toContain('fill: rgb("#f2eefb")');
-        expect(out).toContain('fill: rgb("#eef6fb")');
-        expect(out).not.toContain(":::info");
+        expect(out).toContain('left: 2pt + rgb("#0969da")');
+        expect(out).toContain("Note");
+        expect(out).not.toContain("[!NOTE]");
     });
 
     it("prints each of two figures sharing an id once, and reports the id", () => {
         const findings: { line?: number; severity: string; message: string }[] = [];
         const out = markdownToTypst(
             [
-                ":::figure {#a}",
+                ":@ First {#a}",
+                "",
                 "| a |",
                 "| - |",
                 "| 1 |",
-                "///",
-                "First",
-                ":::",
                 "",
-                ":::figure {#a}",
+                ":@ Second {#a}",
+                "",
                 "| c |",
                 "| - |",
                 "| 3 |",
-                "///",
-                "Second",
-                ":::",
             ].join("\n"),
             { findings },
         );
@@ -238,23 +224,20 @@ describe("markdownToTypst", () => {
         expect(out).not.toContain(":::figure");
         expect(out).not.toContain("///");
         expect(findings).toEqual([
-            { line: 9, column: 1, severity: "error", message: 'duplicate figure id "a"' },
+            { line: 7, column: 1, severity: "error", message: 'duplicate figure id "a"' },
         ]);
     });
 
     it("labels a grouped figure once, with one Typst anchor, not once per image", () => {
-        // Two images sharing one `///` caption: the label describes the plate,
+        // Two images sharing one leading caption: the label describes the plate,
         // not either picture, so it is drawn once. Drawing it per image would
         // also emit the same Typst label twice, which is a compile error.
         const out = markdownToTypst(
             [
-                ":::figure {#plate}",
-                "![One](one.webp)",
+                ":@ Two portraits as one plate. {#plate}",
                 "",
+                "![One](one.webp)",
                 "![Two](two.webp)",
-                "///",
-                "Two portraits as one plate.",
-                ":::",
             ].join("\n"),
             { anchorPrefix: "chapter" },
         );
@@ -262,29 +245,19 @@ describe("markdownToTypst", () => {
         expect(out.match(/<chapter--plate>/g)).toHaveLength(1);
     });
 
-    it("draws a captionless figure's number alone, with no colon", () => {
-        const out = markdownToTypst([":::figure {#plain}", "![One](one.webp)", ":::"].join("\n"), {
+    it("draws an unnumbered caption without a label", () => {
+        const out = markdownToTypst([": Caption. {#plain}", "", "![One](one.webp)"].join("\n"), {
             anchorPrefix: "chapter",
         });
-        expect(out).toContain("Figure 1");
-        expect(out).not.toContain("Figure 1:");
+        expect(out).toContain("Caption.");
+        expect(out).not.toContain("Figure 1");
     });
 
     it("gives an idless figure no Typst anchor, and two of them do not collide", () => {
         const out = markdownToTypst(
-            [
-                ":::figure",
-                "![One](one.webp)",
-                "///",
-                "First.",
-                ":::",
-                "",
-                ":::figure",
-                "![Two](two.webp)",
-                "///",
-                "Second.",
-                ":::",
-            ].join("\n"),
+            [":@ First.", "", "![One](one.webp)", "", ":@ Second.", "", "![Two](two.webp)"].join(
+                "\n",
+            ),
             { anchorPrefix: "chapter" },
         );
         expect(out).toContain("Figure 1: First.");
@@ -293,12 +266,8 @@ describe("markdownToTypst", () => {
     });
 
     it("draws a `.border` figure inside a hairline box", () => {
-        const plain = markdownToTypst(
-            [":::figure {#a}", "Prose.", "///", "Caption.", ":::"].join("\n"),
-        );
-        const bordered = markdownToTypst(
-            [":::figure {#a .border}", "Prose.", "///", "Caption.", ":::"].join("\n"),
-        );
+        const plain = markdownToTypst([":@ Caption. {#a}", "", "Prose."].join("\n"));
+        const bordered = markdownToTypst([":@ Caption. {#a .border}", "", "Prose."].join("\n"));
         expect(bordered).not.toBe(plain);
         expect(bordered).toContain("stroke:");
         expect(bordered).toContain("Prose.");
@@ -308,29 +277,29 @@ describe("markdownToTypst", () => {
     it("numbers each of the four kinds independently within one document", () => {
         const out = markdownToTypst(
             [
-                ":::figure {#a}",
-                "A boxed aside.",
-                ":::",
+                ":@ Caption. {#a}",
                 "",
-                ":::figure {#b}",
+                "A boxed aside.",
+                "",
+                ":@ Caption. {#b}",
+                "",
                 "```js",
                 "1",
                 "```",
-                ":::",
                 "",
-                ":::figure {#c}",
+                ":@ Caption. {#c}",
+                "",
                 "| x |",
                 "| - |",
                 "| 1 |",
-                ":::",
                 "",
-                ":::figure {#d}",
+                ":@ Caption. {#d}",
+                "",
                 "![One](one.webp)",
-                ":::",
                 "",
-                ":::figure {#e}",
+                ":@ Caption. {#e}",
+                "",
                 "Another boxed aside.",
-                ":::",
             ].join("\n"),
         );
         expect(out).toContain("Prose 1");
@@ -338,6 +307,116 @@ describe("markdownToTypst", () => {
         expect(out).toContain("Code 1");
         expect(out).toContain("Table 1");
         expect(out).toContain("Figure 1");
+    });
+});
+
+describe("new block syntax in the printed book", () => {
+    it("preserves poetry stanzas and relative indentation without forcing italics", () => {
+        const out = markdownToTypst(
+            '```poetry {meter="common meter"}\n  First *verse*.\n    Next verse.\n\n  Last verse.\n```',
+        );
+        expect(out).toContain("First #emph[verse].");
+        expect(out).toContain("#h(1.25em)Next verse.");
+        expect(out).toContain("Last verse.");
+        expect(out).not.toContain("#raw(");
+        expect(out).not.toContain("#emph[First");
+    });
+
+    it("renders nested divs and their namespaced identifiers", () => {
+        const out = markdownToTypst(
+            "::: {#outer .custom}\nOuter.\n\n::: {#inner}\nInner.\n:::\n:::",
+            { anchorPrefix: "note" },
+        );
+        expect(out).toContain("Outer.");
+        expect(out).toContain("Inner.");
+        expect(out).toContain("<note--outer>");
+        expect(out).toContain("<note--inner>");
+        expect(out).not.toContain(":::");
+    });
+
+    it("registers poetry and nested inline span identifiers without losing links", () => {
+        const out = markdownToTypst(
+            "```poetry {#verse}\n[First [word]{#inner}]{#outer} and [link](https://example.org).\n```",
+            { anchorPrefix: "note" },
+        );
+        expect(out).toContain("<note--verse>");
+        expect(out).toContain("<note--inner>");
+        expect(out).toContain("<note--outer>");
+        expect(out).toContain('#link("https://example.org")[link]');
+    });
+
+    it("shares note footnotes with captioned poetry and emits the definition once", () => {
+        const out = markdownToTypst(
+            "Before[^shore].\n\n:@ A song.\n\n```poetry\nA *quiet* shore[^shore].\n```\n\n[^shore]: Beside the harbor.",
+        );
+        expect(out).toContain("#emph[quiet]");
+        expect(out).toContain("#footnote(<footnote-body-shore>)");
+        expect(out.match(/Beside the harbor\./g)).toHaveLength(1);
+        expect(out).not.toContain("[^shore]");
+    });
+
+    it("uses Poem labels and leaves unnumbered poems outside the count", () => {
+        const out = markdownToTypst(
+            ": Unnumbered.\n\n```poetry\nOne.\n```\n\n:@ Numbered.\n\n```poetry\nTwo.\n```",
+        );
+        expect(out).toContain("Unnumbered.");
+        expect(out).toContain("Poem 1: Numbered.");
+        expect(out).not.toContain("Poem 2");
+    });
+});
+
+describe("alerts in the printed book", () => {
+    it.each([
+        ["NOTE", "Note", "#0969da"],
+        ["TIP", "Tip", "#1a7f37"],
+        ["IMPORTANT", "Important", "#8250df"],
+        ["WARNING", "Warning", "#9a6700"],
+    ])("prints a %s label with its color and an SVG icon", (type, title, color) => {
+        const out = markdownToTypst(`> [!${type}] {#advice .custom}\n> A *helpful* message.`, {
+            anchorPrefix: "note",
+        });
+        expect(out).toContain(title);
+        expect(out).toContain(`left: 2pt + rgb("${color}")`);
+        expect(out).toContain("#image(bytes(");
+        expect(out).toContain("#emph[helpful]");
+        expect(out).toContain("<note--advice>");
+        expect(out).not.toContain(`[!${type}]`);
+    });
+
+    it("replaces the standard alert heading with the authored title", () => {
+        const out = markdownToTypst('> [!WARNING] {title="Cost *after* dawn ] $5"}\n> Body.');
+        expect(out).toContain("Cost #emph[after] dawn \\] \\$5");
+        expect(out).not.toContain("Warning");
+        expect(out).toContain('left: 2pt + rgb("#9a6700")');
+    });
+
+    it("preserves alert paragraphs, lists, code and note-level footnotes", () => {
+        const out = markdownToTypst(
+            "Before[^tip].\n\n> [!TIP]\n> Body[^tip].\n>\n> - One\n> - Two\n>\n> ```js\n> const value = 1;\n> ```\n\n[^tip]: A note.",
+        );
+        expect(out).toContain("#list(");
+        expect(out).toContain("const value = 1;");
+        expect(out.match(/A note\./g)).toHaveLength(1);
+        expect(out).toContain("#footnote(<footnote-body-tip>)");
+        expect(out).not.toContain("[^tip]");
+    });
+
+    it("supports a captioned alert and nested alerts", () => {
+        const out = markdownToTypst(
+            ":@ Advice. {type=example #example}\n\n> [!NOTE]\n> Outer.\n>\n> > [!WARNING]\n> > Inner.",
+            { anchorPrefix: "note" },
+        );
+        expect(out).toContain("Example 1: Advice.");
+        expect(out).toContain("Note");
+        expect(out).toContain("Warning");
+        expect(out).toContain("Inner.");
+        expect(out).toContain("<note--example>");
+    });
+
+    it("keeps alert markers literal inside code fences", () => {
+        const out = markdownToTypst("```md\n> [!NOTE]\n> An example.\n```");
+        expect(out).toContain("[!NOTE]");
+        expect(out).not.toContain("#image(bytes(");
     });
 });
 
@@ -428,7 +507,7 @@ describe("what the book cannot set", () => {
                 line: 5,
                 column: 1,
                 severity: "error",
-                message: "a ::: line closes no block",
+                message: "div block needs a closing ::: line",
             },
         ]);
     });
@@ -454,10 +533,8 @@ describe("what the book cannot set", () => {
         ]);
     });
 
-    it("still typesets a picture that stands alone inside a `:::figure` fence", () => {
-        const { findings } = render(
-            [":::figure", "![A ranger](ranger.webp)", "///", "A ranger.", ":::"].join("\n"),
-        );
+    it("still typesets a picture that stands alone after a leading caption", () => {
+        const { findings } = render([":@ A ranger.", "", "![A ranger](ranger.webp)"].join("\n"));
         expect(findings).toEqual([]);
     });
 
@@ -467,39 +544,29 @@ describe("what the book cannot set", () => {
         expect(render(":::aside\nBody.\n:::").findings[0]).toMatchObject({
             line: 1,
             severity: "error",
-            message: "there is no aside block; the blocks are info, secret, warn, poetry",
+            message: "there is no aside block; the blocks are secret, div",
         });
         expect(render(":::secret\nhidden").findings[0]).toMatchObject({
             line: 1,
             severity: "error",
             message: "secret block needs a closing ::: line",
         });
-        expect(render("Prose.\n\n:::figure {#a}\n///\nOnly\n:::").findings[0]).toMatchObject({
+        expect(render("Prose.\n\n:@ Only {#a}\n\n").findings[0]).toMatchObject({
             line: 3,
             severity: "error",
-            message: "a figure has no contents",
+            message: "a caption needs a following item",
         });
     });
 
-    it("reads a GM-only section's body for faults the outer scan passes over", () => {
-        // There an inner opener is a counted line rather than a block, so an
-        // empty box and an attribute that does not parse are only found by
-        // reading the body.
-        expect(render(":::secret\nouter\n\n:::info\n:::\n\n:::").findings).toEqual([
-            {
-                file: "note.md",
+    it("reports retired boxes inside a secret section", () => {
+        expect(render(":::secret\nouter\n\n:::info\nBody.\n:::\n\n:::").findings).toEqual([
+            expect.objectContaining({
                 line: 4,
-                column: 1,
                 severity: "error",
-                message: "info block is empty",
-            },
+                message: expect.stringContaining("info"),
+            }),
         ]);
-        expect(
-            render(":::secret\nouter\n\n:::info {title=}\nBody.\n:::\n\n:::").findings[0],
-        ).toMatchObject({ line: 4, message: "title needs a value" });
-        // And only where that reading was sound: a body read from a misread
-        // outer block says the same mistake over again in other words.
-        expect(render(":::secret\nouter\n:::secret\ninner\n:::\n:::").findings).toHaveLength(2);
+        expect(render(":::secret\nouter\n:::secret\ninner\n:::\n:::").findings).toHaveLength(1);
     });
 
     it("reports raw HTML in the words the HTML check uses", () => {
@@ -558,7 +625,7 @@ describe("what the book cannot set", () => {
             file: "note.md",
             line: 13,
             severity: "error",
-            message: "a ::: line closes no block",
+            message: "div block needs a closing ::: line",
         });
     });
 

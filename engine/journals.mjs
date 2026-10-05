@@ -196,7 +196,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole) {
         if (figure) {
             closeCurrent();
             current = {
-                name: figure.label,
+                name: figure.label || figure.caption,
                 anchorSlug: figure.id || null,
                 level: 1,
                 classes: [],
@@ -404,7 +404,7 @@ function figureIsWholePage(figure, page) {
 }
 
 /**
- * The fields particular to the Foundry page a `:::figure` fence begins.
+ * The fields particular to the Foundry page a captioned item begins.
  *
  * A fence holding exactly one picture, captioned with no inline markup, and
  * standing alone on its page becomes a page of type `image`: `src` the
@@ -442,14 +442,16 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
             // image's own render takes when no configuration resolves it.
         }
         return {
-            name: figure.label,
+            name: figure.label || figure.caption,
             type: "image",
             src,
             image: figure.hasCaption ? { caption: figure.caption } : {},
         };
     }
     const label =
-        figure.hasCaption ? `${figure.label}: ${md.renderInline(figure.caption)}` : figure.label;
+        figure.hasCaption ?
+            `${figure.label ? `${figure.label}: ` : ""}${md.renderInline(figure.caption)}`
+        :   figure.label;
     const content = renderFoundryMarkdown(
         page.markdown,
         undefined,
@@ -458,7 +460,7 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
         resolveRole,
     );
     return {
-        name: figure.label,
+        name: figure.label || figure.caption,
         type: "text",
         text: {
             format: 1,
@@ -763,7 +765,7 @@ export class Journals extends BasePackCompiler {
 
         // The markdown this pass reads has already had its embeds rewritten
         // into ordinary images, each `src` the pathname `pathnameRoles` keys
-        // its roles by — so a `:::figure` of a map names itself `Map 1` here
+        // its roles by — so a captioned map names itself `Map 1` here
         // exactly as the website and the book name the same picture.
         const roles = pathnameRoles(this.linkIndex);
 

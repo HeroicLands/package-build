@@ -291,9 +291,8 @@ for how an author writes `size`, `float` and a role.
 
 ## A numbered figure
 
-A `:::figure` fence wraps a picture, a table, a listing, a map or a passage of
-prose in a numbered, referable block. The content build decides which from
-the fence's contents, counts each kind separately, and emits the block with
+A leading caption wraps the next supported item in a referable block; `:@` also numbers it. The content build decides which from
+the next item, counts each kind separately, and emits the block with
 its label beneath whatever it holds:
 
 ```html
@@ -303,15 +302,14 @@ its label beneath whatever it holds:
 </div>
 ```
 
-The kind is `code`, `table`, `figure`, `map`, `poem` or `prose`, labelled **Code**,
-**Table**, **Figure**, **Map**, **Poem** and **Prose**. Every kind is drawn alike — the
+The kind is `code`, `table`, `figure`, `map`, `poem`, `prose` or `example`, labelled **Code**,
+**Table**, **Figure**, **Map**, **Poem**, **Prose** and **Example**. Every kind is drawn alike — the
 block carries the spacing, its contents add none of their own at the edges,
 and the label reads as a caption rather than as another paragraph of the body
-— so a kind added to the vocabulary arrives styled. A fence carrying an `id`
+— so a kind added to the vocabulary arrives styled. A caption carrying an `id`
 is a cross-reference target and takes the same scroll offset a heading does.
 
-`border` is the one class an author may write on a fence, and it draws the
-block as a boxed aside.
+Caption classes are unrestricted. The built-in `border` class draws the block as a boxed aside. Unnumbered captions use the same wrapper and show caption text without a numbered label.
 
 | class                    | drawn as                                   |
 | ------------------------ | ------------------------------------------ |
@@ -496,3 +494,7 @@ Each section below has its own landing page.
 ```
 
 A row is a linked title and, when the page carries one, its description.
+
+## Alerts
+
+The content renderer emits an `aside` with `alert` and `alert-note`, `alert-tip`, `alert-important`, `alert-warning` classes. The `alert-title` header contains a Font Awesome icon and the type's label. Shared styles supply a colored left rule, colored header and ordinary readable body; alerts do not use `details` and never start collapsed. Authored identifiers, additional classes and named attributes belong to the entire aside. Secret blocks retain their separate expandable presentation on the website.

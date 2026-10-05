@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
+import { renderAlerts } from "../engine/content-alerts.mjs";
 import { renderBlocks } from "../engine/content-blocks.mjs";
 import { renderFigureBlocks } from "../engine/content-figures.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
@@ -31,7 +32,7 @@ function foundry(source: string) {
 
 /** The body as the site build renders it, in the order `site-build` runs. */
 function web(source: string) {
-    const blocks = renderBlocks(source, "web");
+    const blocks = renderBlocks(renderAlerts(source).markdown, "web");
     return renderFigureBlocks(blocks.markdown).markdown;
 }
 
@@ -71,10 +72,10 @@ describe("a footnote reference may be written anywhere prose can be written", ()
 
 describe("a footnote reference inside a named block or a figure", () => {
     const CASES: Record<string, string> = {
-        info: ":::info\nA fact.[^x]\n:::",
-        warn: ":::warn\nA caution.[^x]\n:::",
+        note: "> [!NOTE]\n> A fact.[^x]",
+        warning: "> [!WARNING]\n> A caution.[^x]",
         secret: ":::secret\nA clue.[^x]\n:::",
-        "figure prose": ":::figure {#note}\nSome prose.[^x]\n///\nA note\n:::",
+        "figure prose": ":@ A note {#note}\n\nSome prose.[^x]",
     };
 
     for (const [name, body] of Object.entries(CASES)) {
@@ -198,11 +199,9 @@ describe("a footnote definition no reference uses is a finding", () => {
 describe("a footnote inside a figure's contents resolves", () => {
     it("when a reference trails the image on the same line", () => {
         const source = [
-            ":::figure {#note}",
+            ":@ A figure {#note}",
+            "",
             "![A ranger](ranger.webp)[^x]",
-            "///",
-            "A figure",
-            ":::",
             "",
             "[^x]: A footnote about the ranger.",
         ].join("\n");
@@ -221,13 +220,7 @@ describe("a footnote inside a figure's contents resolves", () => {
     });
 
     it("draws no figcaption for a genuine standalone figure, only its own label", () => {
-        const source = [
-            ":::figure {#note}",
-            "![A ranger](ranger.webp)",
-            "///",
-            "A figure",
-            ":::",
-        ].join("\n");
+        const source = [":@ A figure {#note}", "", "![A ranger](ranger.webp)"].join("\n");
         const html = foundry(source);
         expect(html.match(/<figcaption\b/g)).toBeNull();
         expect(html).toContain("Figure 1: A figure");

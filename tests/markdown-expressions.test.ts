@@ -222,3 +222,16 @@ describe("Markdown expressions", () => {
         ]);
     });
 });
+
+// Unnumbered captions have a title but cannot supply a numbered reference.
+it("references unnumbered captions by title or full text", () => {
+    const figures = { get: () => ({ label: "", caption: "A caption", hasCaption: true }) };
+    for (const form of ["title", "full"]) {
+        const result = renderMarkdownExpressions(`{{ref "#a" form="${form}"}}`, { figures });
+        expect(result.findings).toEqual([]);
+        expect(result.markdown).toBe("[A caption](#a)");
+    }
+    expect(renderMarkdownExpressions('{{ref "#a"}}', { figures }).findings[0].message).toContain(
+        "unnumbered",
+    );
+});

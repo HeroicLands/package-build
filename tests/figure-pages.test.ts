@@ -27,9 +27,7 @@ function entryFor(markdown: string) {
 
 describe("a single-asset fence with a plain caption", () => {
     it("emits an image page for an image embed, named for its number", () => {
-        const [page] = entryFor(
-            `:::figure {#thorn}\n![Thorn](${THORN})\n///\nThe great beast.\n:::`,
-        ).pages;
+        const [page] = entryFor(`:@ The great beast. {#thorn}\n\n![Thorn](${THORN})`).pages;
         expect(page.type).toBe("image");
         expect(page.name).toBe("Figure 1");
         expect(page.src).toBe("systems/sohl/assets/images/other/thorn.webp");
@@ -37,28 +35,26 @@ describe("a single-asset fence with a plain caption", () => {
     });
 
     it("emits an image page for an SVG icon embed", () => {
-        const [page] = entryFor(
-            `:::figure {#anvil}\n![An anvil](${ANVIL_ICON})\n///\nA worn anvil.\n:::`,
-        ).pages;
+        const [page] = entryFor(`:@ A worn anvil. {#anvil}\n\n![An anvil](${ANVIL_ICON})`).pages;
         expect(page.type).toBe("image");
         expect(page.src).toBe("systems/sohl/assets/icons/other/anvil.svg");
         expect(page.image.caption).toBe("A worn anvil.");
     });
 });
 
-describe("a fence with no caption", () => {
-    it("names its page by its number alone, and carries no caption", () => {
-        const [page] = entryFor(`:::figure\n![Thorn](${THORN})\n:::`).pages;
+describe("a caption without attributes", () => {
+    it("names its page by its number and carries the caption", () => {
+        const [page] = entryFor(`:@ Caption.\n\n![Thorn](${THORN})`).pages;
         expect(page.type).toBe("image");
         expect(page.name).toBe("Figure 1");
-        expect(page.image.caption).toBeUndefined();
+        expect(page.image.caption).toBe("Caption.");
     });
 });
 
 describe("a grouped fence", () => {
     it("emits a text page, an image page holding one src", () => {
         const [page] = entryFor(
-            `:::figure {#plate}\n![A](${THORN})\n\n![B](${SECOND_IMAGE})\n///\nTwo together.\n:::`,
+            `:@ Two together. {#plate}\n\n![A](${THORN})\n\n![B](${SECOND_IMAGE})`,
         ).pages;
         expect(page.type).toBe("text");
         expect(page.src).toBeUndefined();
@@ -68,9 +64,7 @@ describe("a grouped fence", () => {
 
 describe("an audio embed", () => {
     it("emits a text page, there being no audio page type", () => {
-        const [page] = entryFor(
-            `:::figure {#howl}\n![A wolf's call](${HOWL})\n///\nHeard at dusk.\n:::`,
-        ).pages;
+        const [page] = entryFor(`:@ Heard at dusk. {#howl}\n\n![A wolf's call](${HOWL})`).pages;
         expect(page.type).toBe("text");
         expect(page.text.content).toContain("Heard at dusk.");
     });
@@ -79,8 +73,7 @@ describe("an audio embed", () => {
 describe("a single-asset fence whose caption carries inline markup", () => {
     it("stays a text page, keeping the markup intact", () => {
         const [page] = entryFor(
-            `:::figure {#marked}\n![Thorn](${THORN})\n///\n` +
-                `The beast, as drawn by [Hávard](sohl.person-havard).\n:::`,
+            `:@ The beast, as drawn by [Hávard](sohl.person-havard). {#marked}\n\n![Thorn](${THORN})`,
         ).pages;
         expect(page.type).toBe("text");
         expect(page.text.content).toContain('<a href="sohl.person-havard">Hávard</a>');
@@ -90,8 +83,8 @@ describe("a single-asset fence whose caption carries inline markup", () => {
 describe("a figure with no id", () => {
     it("takes its per-note number on its page, not a per-page recount", () => {
         const markdown =
-            `:::figure {#thorn}\n![Thorn](${THORN})\n///\nThe great beast.\n:::\n\n` +
-            `:::figure\n![A](${THORN})\n\n![B](${SECOND_IMAGE})\n///\nTwo together.\n:::`;
+            `:@ The great beast. {#thorn}\n\n![Thorn](${THORN})\n\n` +
+            `:@ Two together.\n\n![A](${THORN})\n\n![B](${SECOND_IMAGE})`;
         const [first, second] = entryFor(markdown).pages;
         expect(first.name).toBe("Figure 1");
         expect(second.name).toBe("Figure 2");
@@ -107,7 +100,7 @@ describe("a figure with no id", () => {
 
 describe("a figure followed by trailing prose on the same split", () => {
     it("stays a text page — an image page has nowhere to carry the prose", () => {
-        const markdown = `:::figure {#thorn}\n![Thorn](${THORN})\n:::\n\nMore about Thorn.`;
+        const markdown = `:@ Caption. {#thorn}\n\n![Thorn](${THORN})\n\nMore about Thorn.`;
         const [page] = entryFor(markdown).pages;
         expect(page.type).toBe("text");
         expect(page.text.content).toContain("More about Thorn.");

@@ -100,7 +100,8 @@ export function anchorPageId(noteId, anchorSlug) {
  *
  * @param {Array<{type: string, id: string, shortcode?: string|null,
  *   name?: string, pack?: string, docPack?: string, none?: boolean,
- *   draft?: boolean}>} docs -
+ *   draft?: boolean, anchors?: Set<string>, anchorUuids?: Record<string,string>,
+ *   docAnchorUuids?: Record<string,string>}>} docs -
  *   One entry per content note. `pack` / `docPack` name the packs the note's
  *   document and its documentation entry landed in; omitted, the conventional
  *   one-pack-per-type names stand in. `none` says the note declares
@@ -153,9 +154,11 @@ export function buildWikilinkIndex(
     // that stored value. Nothing downstream assembles a UUID from parts, so a
     // link and its target cannot disagree about where the document lives.
     const uuidByDoc = new Map();
+    const byId = new Map();
 
     for (const d of docs) {
         if (!d.id || !d.type) continue;
+        byId.set(`${d.type}/${d.id}`, d);
         types.add(norm(d.type));
 
         uuidByDoc.set(
@@ -172,6 +175,8 @@ export function buildWikilinkIndex(
                     // type and a UUID carries the pack name, so the address
                     // cannot be derived from the type alone.
                     uuid: compendiumUuid(packageId, d.type, d.id, d.pack),
+                    anchors: d.anchorUuids,
+                    docAnchors: d.docAnchorUuids,
                     // The readable note has a separate JournalEntry whose id
                     // is derived from the item's id.
                     docUuid: compendiumUuid(packageId, "doc", itemDocEntryId(d.id), d.docPack),
@@ -216,6 +221,7 @@ export function buildWikilinkIndex(
         foreignReferences,
         types,
         uuidByDoc,
+        byId,
         packageId,
         /** The content package this build publishes, which an art address defaults to. */
         contentPackage: contentPackage ?? packageId,
@@ -433,7 +439,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
         // Kept for the foreign fallback below, which needs the parsed address.
         let qualifiedRead = null;
         if (target === "" && slug) {
-            doc = { type, id, pack, docPack };
+            doc = index.byId?.get(`${type}/${id}`) ?? { type, id, pack, docPack };
         } else {
             const qualified = parsed.problem ?? parsed.target;
             qualifiedRead = qualified;
@@ -546,7 +552,13 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
         // reader. A foreign anchor has always been checked this way —
         // the manifest carries the map — and a local one now is too, from the
         // anchor set the index carries.
-        if (slug && isJournal && doc.anchors && !doc.anchors.has(slug)) {
+        const anchorUuids = itemDoc ? addresses.docAnchors : addresses.anchors;
+        if (
+            slug &&
+            isJournal &&
+            ((doc.anchors && !doc.anchors.has(slug)) ||
+                (anchorUuids && !Object.hasOwn(anchorUuids, slug)))
+        ) {
             unresolved.push({
                 link: all,
                 target,
@@ -558,7 +570,9 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
             return unresolvedLink(text || doc.name || target, target);
         }
         const uuid =
-            slug && isJournal ? pageUuid(entryUuid, anchorPageId(entryId, slug)) : entryUuid;
+            slug && isJournal ?
+                (anchorUuids?.[slug] ?? pageUuid(entryUuid, anchorPageId(entryId, slug)))
+            :   entryUuid;
         const link = `@UUID[${uuid}]{${text}}`;
         // A link into a note that exists but is not written renders marked.
         // Presentation only — the UUID above is unchanged, and a

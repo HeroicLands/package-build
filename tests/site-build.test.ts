@@ -426,15 +426,7 @@ describe("buildSite end to end", () => {
         const targetFile = note(
             "Rules/Target.md",
             "type: doc\nsubType: rules\nshortcode: target\nname:\n    full: Target",
-            [
-                ":::figure {#thorn}",
-                "```text",
-                "alpha",
-                "```",
-                "///",
-                "The great beast.",
-                ":::",
-            ].join("\n") + "\n",
+            [":@ The great beast. {#thorn}", "", "```text", "alpha", "```"].join("\n") + "\n",
         );
         const citingFile = note(
             "Rules/Citing.md",
@@ -527,11 +519,11 @@ describe("buildSite end to end", () => {
         }
     });
 
-    it("still publishes a picture that stands alone inside a `:::figure` fence", () => {
+    it("still publishes a picture that stands alone after a leading caption", () => {
         const file = note(
             "Rules/FencedImage.md",
             "type: doc\nsubType: rules\nshortcode: fencedimage\nname:\n    full: Fenced Image",
-            [":::figure", "![A ranger](ranger.webp)", "///", "A ranger.", ":::", ""].join("\n"),
+            [":@ A ranger.", "", "![A ranger](ranger.webp)", ""].join("\n"),
         );
         try {
             const result = buildSite({ config: configFor() });

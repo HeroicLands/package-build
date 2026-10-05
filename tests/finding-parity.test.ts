@@ -24,13 +24,13 @@ import { markdownToTypst } from "../engine/pdf-render.mjs";
 const TWO_FIGURE_PROBLEMS = [
     "Some prose.",
     "",
-    ":::figure {.wide}",
-    "First paragraph.",
-    ":::",
+    ":@ Caption. {type=bogus}",
     "",
-    ":::figure {.wide}",
+    "First paragraph.",
+    "",
+    ":@ Caption. {type=bogus}",
+    "",
     "Second paragraph.",
-    ":::",
 ].join("\n");
 
 /**
@@ -40,17 +40,16 @@ const TWO_FIGURE_PROBLEMS = [
  * counted twice and never one swallowed by the other.
  */
 const BLOCK_AND_FOOTNOTE_PROBLEMS = [
-    ":::info {size}",
-    "Some info.",
-    ":::",
+    "> [!NOTE] {size}",
+    "> Some info.",
     "",
     "A reference with nothing behind it.[^z]",
 ].join("\n");
 
 /**
- * One body carrying **two** heading faults and **one** block fault: braces
+ * One body carrying **two** heading faults and **one** alert fault: braces
  * holding no attribute block, a `.secret` on a heading that opens no page, and
- * an unclosed `:::info`. Three mistakes, so a surface that reports a mistake
+ * an alert carrying malformed attributes. Three mistakes, so a surface that reports a mistake
  * twice is as visible as one that reports it never.
  */
 const HEADING_AND_BLOCK_PROBLEMS = [
@@ -62,8 +61,8 @@ const HEADING_AND_BLOCK_PROBLEMS = [
     "",
     "More prose.",
     "",
-    ":::info",
-    "An unclosed box.",
+    "> [!NOTE] {size}",
+    "> A malformed alert.",
 ].join("\n");
 
 /** A minimal pack pass, only so the shared compile loop has one to run. */
@@ -139,7 +138,7 @@ describe("the pack compiler, the site build and the book agree on one note's fin
             markdownToTypst(TWO_FIGURE_PROBLEMS, { findings, file: "Probe.md" });
 
             const figureFindingCount = (list: { message: string }[]) =>
-                list.filter((f) => f.message.includes("takes no .wide class")).length;
+                list.filter((f) => f.message.includes("unsupported caption type")).length;
 
             expect(pack.errorCount).toBe(2);
             expect(site.captionErrors).toHaveLength(2);
@@ -149,11 +148,10 @@ describe("the pack compiler, the site build and the book agree on one note's fin
             // surface that worded one of them differently would still pass a
             // bare length check and fail this.
             const asSet = (list: { message: string }[]) => new Set(list.map((f) => f.message));
-            const refusal =
-                "a figure takes no .wide class — the classes a figure takes are .border";
+            const refusal = 'unsupported caption type "bogus"';
             expect(asSet(site.captionErrors)).toEqual(new Set([refusal]));
             expect(
-                asSet(findings.filter((f) => f.message.includes("takes no .wide class"))),
+                asSet(findings.filter((f) => f.message.includes("unsupported caption type"))),
             ).toEqual(new Set([refusal]));
         } finally {
             fs.rmSync(tmp, { recursive: true, force: true });
@@ -269,7 +267,7 @@ describe("the pack compiler, the site build and the book agree on one note's fin
 
             // The block fault reaches all three too, so the heading channel has
             // not displaced the one beside it.
-            const block = "info block needs a closing ::: line";
+            const block = "size is not a key=value attribute";
             expect(asSet(site.secretErrors)).toEqual(new Set([block]));
             expect(findings.filter((f) => f.message === block)).toHaveLength(1);
         } finally {

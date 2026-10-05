@@ -25,6 +25,7 @@
  * journals.mjs, actors.mjs).
  */
 
+import { renderAlerts } from "./content-alerts.mjs";
 import { buildReferenceTargets } from "./reference-targets.mjs";
 import { standingsDigest } from "./standings.mjs";
 
@@ -72,6 +73,7 @@ import { linkFindingMessage } from "./wikilink-syntax.mjs";
 import { isDraftNote } from "./note-vocabulary.mjs";
 import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
+import { spanMarkdownPlugin } from "./content-spans.mjs";
 import { renderBlocks } from "./content-blocks.mjs";
 import { headingAttributesPlugin } from "./heading-attributes.mjs";
 import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
@@ -105,6 +107,7 @@ let localAssetImageInfoCache;
 export const md = markdownit({ html: true })
     .use(footnotePlugin)
     .use(deflistPlugin)
+    .use(spanMarkdownPlugin)
     // A heading's attribute block, written onto the heading element rather than
     // typeset into it — the reading the website's renderer does for itself.
     .use(headingAttributesPlugin)
@@ -220,11 +223,11 @@ md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
  * @returns {string} The rendered HTML.
  */
 export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, resolveRole) {
-    const blocks = renderBlocks(body, "foundry");
-    const figured = renderFigureBlocks(blocks.markdown, (block) => md.render(block), figures, {
+    const figured = renderFigureBlocks(body, (block) => md.render(block), figures, {
         resolveRole,
     });
-    return md.render(figured.markdown, { footnoteNumbers, docId });
+    const blocks = renderBlocks(figured.markdown, "foundry");
+    return md.render(renderAlerts(blocks.markdown, "foundry").markdown, { footnoteNumbers, docId });
 }
 
 /**
@@ -918,6 +921,8 @@ export function buildContentLinkIndex(
             // Read from the record rather than from a second reading of the
             // note's headings — the one-anchor-reader rule.
             anchors: new Set((record.anchors ?? []).map((anchor) => anchor.slug)),
+            anchorUuids: record.foundry?.note?.anchors,
+            docAnchorUuids: documentation?.foundry?.note?.anchors,
         });
     }
     // Packages this build links *into* but does not publish. Each publishes

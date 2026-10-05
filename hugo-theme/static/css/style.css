@@ -2980,3 +2980,41 @@ summary.info-sidebar-title::after {
     padding: 1.25rem 1.25rem;
   }
 }
+
+/* GitHub-style author alerts remain open and inherit the prose foreground. */
+.single-content .alert {
+  border-inline-start: 0.25rem solid var(--pb-alert-color);
+  padding: 0.5rem 1rem;
+  margin: 1rem 0;
+  color: inherit;
+  background: transparent;
+}
+.single-content .alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+  color: var(--pb-alert-color);
+}
+.single-content .alert-icon {
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+  fill: currentColor;
+}
+.single-content .alert > :last-child {
+  margin-bottom: 0;
+}
+.single-content .alert-note {
+  --pb-alert-color: #4493f8;
+}
+.single-content .alert-tip {
+  --pb-alert-color: #3fb950;
+}
+.single-content .alert-important {
+  --pb-alert-color: #ab7df8;
+}
+.single-content .alert-warning {
+  --pb-alert-color: #d29922;
+}

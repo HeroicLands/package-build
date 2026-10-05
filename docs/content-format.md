@@ -25,9 +25,9 @@ Start with [your first note](authoring/first-note.md). It explains the smallest 
 
 A nonempty note body creates one system-agnostic Foundry JournalEntry. Content before the first H1 becomes an introduction page; every H1 starts another JournalEntryPage. A lower-level heading with an explicit `{#anchor}` starts a page too, so a link can address it. The same prose becomes a web page and can be selected for a book. The content index records the note and its frontmatter for queries and navigation.
 
-A `:::figure {#anchor}` fence numbers whatever it holds — prose, code, a table, or an image. Its anchor makes the fence a target `{{ref "#anchor"}}` can point to, displaying the generated kind and number, such as **Figure 12**. Foundry gives the fence its own JournalEntryPage. See [figures and numbered references](authoring/links-and-markup.md#figures-and-numbered-references) for the syntax.
+Leading `:` captions describe the next supported block; `:@` captions also number it. The optional type accepts `figure`, `table`, `poetry`, `code`, `prose`, and `example`. Captions support identifiers, classes and named attributes; unsupported following blocks are errors. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references).
 
-A `:::poetry` fence keeps each authored line as a verse line and blank lines as stanza breaks. Inside a `:::figure`, a poem written first gives that figure the **Poem** counter and an optional caption. See [poetry](authoring/links-and-markup.md#poetry) for attributes and examples.
+A code fence with language `poetry` keeps verse lines, stanza breaks and relative indentation. Its numbered caption uses the **Poem** label. Generic `:::` divs and `[inline spans]{.class}` accept attributes. The former `:::figure` and `:::poetry` forms are removed. See [poetry](authoring/links-and-markup.md#poetry), [fenced divs](authoring/links-and-markup.md#fenced-divs) and [inline spans](authoring/links-and-markup.md#inline-spans).
 
 Body extensions use braces with space-separated `key=value` attributes:
 `![[icon-harbor|Harbor]]{float=top-left size=medium}` and an SQL fence with
@@ -87,3 +87,5 @@ The note's readable Address is `<package>-note-lore-harbor`. In prose, link to i
 The [first-note guide](authoring/first-note.md) shows the build commands and how to add a system document. Use the [command reference](commands.md) for exact flags and the [diagnostics guide](diagnostics.md) for located errors.
 
 Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](authoring/frontmatter.md#place-governments).
+
+Blockquote alerts use `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, or `[!]`, with optional attributes after the marker. They replace the former info and warn div fences; secret blocks remain supported. See [alerts](authoring/links-and-markup.md#alerts).

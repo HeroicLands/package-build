@@ -51,6 +51,7 @@
  * @module
  */
 
+import { renderAlerts, scanAlerts } from "./content-alerts.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
 import { decodeNoteAddresses, noteAddressContext, encodeAddresses } from "./note-addresses.mjs";
 import fs from "node:fs";
@@ -62,11 +63,12 @@ import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
+import { renderSpans, scanSpans } from "./content-spans.mjs";
 import { renderBlocks, renderWithheldSections, scanBlocks } from "./content-blocks.mjs";
 import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
 import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
-import { collectAnchors } from "./anchors.mjs";
+import { collectAnchors, markupAnchorFindings } from "./anchors.mjs";
 import { checkImages, renderImageFigures } from "./content-images.mjs";
 import { assetPathnameKey, pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import {
@@ -754,7 +756,7 @@ export function renderSitePage(
         return src;
     };
     const artSrc = (value, type, accepts) => artPathname(artIndex, value, type, accepts).pathname;
-    // The role lookup a `:::figure` fence's `map` counter reaches through —
+    // The role lookup a captioned item's `map` counter reaches through —
     // see `engine/content-figures.mjs`'s `resolveRole`. Addressed form, for
     // the page's own scan below, which runs before an embed is rewritten into
     // an ordinary image; `roleByWebSrc` is the same lookup keyed by the web
@@ -837,10 +839,14 @@ export function renderSitePage(
     });
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
-    const blocks = renderBlocks(protectCode(expressions.markdown, resolve), "web");
-    const figured = renderFigureBlocks(blocks.markdown, undefined, undefined, {
-        resolveRole: (address) => roleByWebSrc.get(address),
-    });
+    const figured = renderFigureBlocks(
+        protectCode(expressions.markdown, resolve),
+        undefined,
+        undefined,
+        {
+            resolveRole: (address) => roleByWebSrc.get(address),
+        },
+    );
     for (const error of figureScan.errors)
         captionErrors.push({
             file: page.file,
@@ -848,7 +854,12 @@ export function renderSitePage(
             column: error.column,
             message: error.message,
         });
-    for (const error of scanBlocks(page.body).errors)
+    for (const error of [
+        ...scanBlocks(page.body).errors,
+        ...scanAlerts(page.body).errors,
+        ...scanSpans(page.body).errors,
+        ...markupAnchorFindings(page.body),
+    ])
         secretErrors.push({
             file: page.file,
             line: (page.bodyLine ?? 1) + error.line - 1,
@@ -877,7 +888,10 @@ export function renderSitePage(
         // The disclosure is written last, over the Markdown the page ships: the
         // passes before this one carry line positions into their findings, and a
         // line inserted ahead of them would move every one of them.
-        body: renderWithheldSections(figured.markdown),
+        body: renderWithheldSections(
+            renderSpans(renderAlerts(renderBlocks(figured.markdown, "web").markdown).markdown)
+                .markdown,
+        ),
         data,
         resolved,
         tableErrors,
