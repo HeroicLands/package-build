@@ -87,6 +87,7 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
 });
 import { markupAnchorFindings } from "./anchors.mjs";
 import { slugify } from "./content-slug.mjs";
+import { alertMarkdownPlugin, scanAlerts, ALERT_TYPES } from "./content-alerts.mjs";
 import { spanMarkdownPlugin, scanSpans } from "./content-spans.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
@@ -110,9 +111,7 @@ import {
  * a class and let CSS decide.
  */
 const BLOCK_PRINT = Object.freeze({
-    info: Object.freeze({ color: "#2f6f9f", background: "#eef6fb", symbol: "i" }),
     secret: Object.freeze({ color: "#5c4b8a", background: "#f2eefb", symbol: "!" }),
-    warn: Object.freeze({ color: "#9a6700", background: "#fff5db", symbol: "!" }),
 });
 
 import {
@@ -199,6 +198,7 @@ export function labelFor(anchor) {
 export function createParser(registry) {
     const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
     md.use(footnotePlugin);
+    md.use(alertMarkdownPlugin);
     md.use(spanMarkdownPlugin);
     // Verse is held inside a literal fence. Parse its inline content before
     // footnote_tail collects definitions, using the surrounding note's env.
@@ -767,7 +767,21 @@ function renderBlock(tokens, i, out, ctx) {
         case "blockquote_open": {
             const end = matching(tokens, i, "blockquote_open", "blockquote_close");
             const inner = renderTokens(tokens.slice(i + 1, end), { ...ctx });
-            out.push(`\n#quote(block: true)[${inner}]\n\n`);
+            if (token.meta?.alert) {
+                const alert = token.meta.alert;
+                const colors = {
+                    note: "#0969da",
+                    tip: "#1a7f37",
+                    important: "#8250df",
+                    warning: "#9a6700",
+                    caution: "#d1242f",
+                };
+                const spec = ALERT_TYPES[alert.type];
+                const icon = `#image(bytes("${escapeTypstString(spec.icon.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ').replaceAll("currentColor", colors[alert.type]))}"), format: "svg", width: 0.9em, height: 0.9em)`;
+                const anchor = alert.id ? ` <${sectionLabel(ctx.anchorPrefix, alert.id)}>` : "";
+                const box = `\n#block(width: 100%, stroke: (left: 2pt + rgb("${colors[alert.type]}")), inset: 8pt, above: 0.7em, below: 0.7em)[#text(fill: rgb("${colors[alert.type]}"), weight: "bold")[${icon} ${inlineMarkup(alert.title ?? alert.attributes?.title ?? spec.title, ctx)}]\n\n${inner}]${anchor}\n\n`;
+                out.push(alert.classes?.includes("border") ? figureBorder(box) : box);
+            } else out.push(`\n#quote(block: true)[${inner}]\n\n`);
             return end - i + 1;
         }
         case "bullet_list_open":

@@ -183,31 +183,21 @@ describe("markdownToTypst", () => {
         expect(out).toContain(":icon nonesuch:");
     });
 
-    it("sets a named block's title as markdown rather than handing it to Typst", () => {
-        // A title is authored prose: `*word*` is emphasis where Typst reads it
-        // as bold, a `#` opens a function call, and one unbalanced `]` closes
-        // the box and takes the rest of the document with it.
-        expect(markdownToTypst(':::info {title="The *Genzet* only"}\nBody.\n:::')).toContain(
-            "[i The #emph[Genzet] only]",
+    it("sets a secret block's title as safe inline markdown", () => {
+        expect(markdownToTypst(':::secret {title="The *Genzet* only"}\nBody.\n:::')).toContain(
+            "[! The #emph[Genzet] only]",
         );
-        expect(markdownToTypst(':::info {title="Cost #3"}\nBody.\n:::')).toContain("[i Cost \\#3]");
-        expect(markdownToTypst(':::warn {title="Cost ]"}\nBody.\n:::')).toContain("[! Cost \\]]");
-        expect(markdownToTypst(':::warn {title="@dawn $5"}\nBody.\n:::')).toContain(
-            "[! \\@dawn \\$5]",
-        );
+        expect(markdownToTypst(':::secret {title="Cost ]"}\nBody.\n:::')).toContain("[! Cost \\]]");
     });
 
-    it("prints a box inside a GM-only section as a box", () => {
+    it("prints an alert inside a GM-only section as a colored box", () => {
         const out = markdownToTypst(
-            [":::secret", "For the GM.", "", ":::info", "The ford floods.", ":::", "", ":::"].join(
-                "\n",
-            ),
+            ":::secret\nFor the GM.\n\n> [!NOTE]\n> The ford floods.\n\n:::",
         );
-        // Two coloured blocks, the inner one inside the outer: the section is a
-        // container for whatever the GM reads, boxes included.
         expect(out).toContain('fill: rgb("#f2eefb")');
-        expect(out).toContain('fill: rgb("#eef6fb")');
-        expect(out).not.toContain(":::info");
+        expect(out).toContain('left: 2pt + rgb("#0969da")');
+        expect(out).toContain("Note");
+        expect(out).not.toContain("[!NOTE]");
     });
 
     it("prints each of two figures sharing an id once, and reports the id", () => {
@@ -375,6 +365,62 @@ describe("new block syntax in the printed book", () => {
     });
 });
 
+describe("alerts in the printed book", () => {
+    it.each([
+        ["NOTE", "Note", "#0969da"],
+        ["TIP", "Tip", "#1a7f37"],
+        ["IMPORTANT", "Important", "#8250df"],
+        ["WARNING", "Warning", "#9a6700"],
+        ["CAUTION", "Caution", "#d1242f"],
+    ])("prints a %s label with its color and an SVG icon", (type, title, color) => {
+        const out = markdownToTypst(`> [!${type}] {#advice .custom}\n> A *helpful* message.`, {
+            anchorPrefix: "note",
+        });
+        expect(out).toContain(title);
+        expect(out).toContain(`left: 2pt + rgb("${color}")`);
+        expect(out).toContain("#image(bytes(");
+        expect(out).toContain("#emph[helpful]");
+        expect(out).toContain("<note--advice>");
+        expect(out).not.toContain(`[!${type}]`);
+    });
+
+    it("replaces the standard alert heading with the authored title", () => {
+        const out = markdownToTypst('> [!WARNING] {title="Cost *after* dawn ] $5"}\n> Body.');
+        expect(out).toContain("Cost #emph[after] dawn \\] \\$5");
+        expect(out).not.toContain("Warning");
+        expect(out).toContain('left: 2pt + rgb("#9a6700")');
+    });
+
+    it("preserves alert paragraphs, lists, code and note-level footnotes", () => {
+        const out = markdownToTypst(
+            "Before[^tip].\n\n> [!TIP]\n> Body[^tip].\n>\n> - One\n> - Two\n>\n> ```js\n> const value = 1;\n> ```\n\n[^tip]: A note.",
+        );
+        expect(out).toContain("#list(");
+        expect(out).toContain("const value = 1;");
+        expect(out.match(/A note\./g)).toHaveLength(1);
+        expect(out).toContain("#footnote(<footnote-body-tip>)");
+        expect(out).not.toContain("[^tip]");
+    });
+
+    it("supports a captioned alert and nested alerts", () => {
+        const out = markdownToTypst(
+            ":@ Advice. {type=example #example}\n\n> [!NOTE]\n> Outer.\n>\n> > [!WARNING]\n> > Inner.",
+            { anchorPrefix: "note" },
+        );
+        expect(out).toContain("Example 1: Advice.");
+        expect(out).toContain("Note");
+        expect(out).toContain("Warning");
+        expect(out).toContain("Inner.");
+        expect(out).toContain("<note--example>");
+    });
+
+    it("keeps alert markers literal inside code fences", () => {
+        const out = markdownToTypst("```md\n> [!NOTE]\n> An example.\n```");
+        expect(out).toContain("[!NOTE]");
+        expect(out).not.toContain("#image(bytes(");
+    });
+});
+
 describe("a page link a reader of the book can follow", () => {
     // A page's address is written from the root of the site that serves it,
     // which is right everywhere on the web and nowhere in a PDF: a viewer handed
@@ -499,7 +545,7 @@ describe("what the book cannot set", () => {
         expect(render(":::aside\nBody.\n:::").findings[0]).toMatchObject({
             line: 1,
             severity: "error",
-            message: "there is no aside block; the blocks are info, secret, warn, div",
+            message: "there is no aside block; the blocks are secret, div",
         });
         expect(render(":::secret\nhidden").findings[0]).toMatchObject({
             line: 1,
@@ -513,24 +559,14 @@ describe("what the book cannot set", () => {
         });
     });
 
-    it("reads a GM-only section's body for faults the outer scan passes over", () => {
-        // There an inner opener is a counted line rather than a block, so an
-        // empty box and an attribute that does not parse are only found by
-        // reading the body.
-        expect(render(":::secret\nouter\n\n:::info\n:::\n\n:::").findings).toEqual([
-            {
-                file: "note.md",
+    it("reports retired boxes inside a secret section", () => {
+        expect(render(":::secret\nouter\n\n:::info\nBody.\n:::\n\n:::").findings).toEqual([
+            expect.objectContaining({
                 line: 4,
-                column: 1,
                 severity: "error",
-                message: "info block is empty",
-            },
+                message: expect.stringContaining("info"),
+            }),
         ]);
-        expect(
-            render(":::secret\nouter\n\n:::info {title=}\nBody.\n:::\n\n:::").findings[0],
-        ).toMatchObject({ line: 4, message: "title needs a value" });
-        // And only where that reading was sound: a body read from a misread
-        // outer block says the same mistake over again in other words.
         expect(render(":::secret\nouter\n:::secret\ninner\n:::\n:::").findings).toHaveLength(1);
     });
 
