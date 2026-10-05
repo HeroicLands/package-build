@@ -529,7 +529,7 @@ describe("links across the boundary", () => {
 });
 
 /* ---------------------------------------------------------------------- */
-/*  The lint: an empty body must be deliberate                             */
+/*  The lint: every typed note needs a body                             */
 /* ---------------------------------------------------------------------- */
 
 describe("the stub lint", () => {
@@ -550,26 +550,45 @@ describe("the stub lint", () => {
     const note = (fm: string[], body = "") =>
         ["---", "type: place", "subType: settlement", ...fm, "---", "", body, ""].join("\n");
 
-    it("refuses a stub that says nothing about itself", () => {
-        const { findings } = lint({ "A.md": note(["shortcode: a"]) });
-        expect(findings).toHaveLength(1);
-        expect(findings[0].severity).toBe("error");
-        expect(findings[0].message).toContain("`description`");
-        expect(findings[0].line).toBeGreaterThan(0);
+    const emptyCases = ["place", "mysticalability", "folder", "homepage"].flatMap((type) =>
+        [false, true].flatMap((draft) =>
+            [false, true].flatMap((description) =>
+                ["", " \n\t  \n"].map((body) => ({ type, draft, description, body })),
+            ),
+        ),
+    );
+
+    it.each(emptyCases)(
+        "errors for an empty $type body with draft=$draft and description=$description",
+        ({ type, draft, description, body }) => {
+            const text = [
+                "---",
+                `type: ${type}`,
+                "shortcode: empty",
+                ...(draft ? ["tags: [draft]"] : []),
+                ...(description ? ["description: A complete description."] : []),
+                "---",
+                "",
+                body,
+                "",
+            ].join("\n");
+            const { findings } = lint({ "Empty.md": text });
+            expect(findings).toHaveLength(1);
+            expect(findings[0]).toMatchObject({ severity: "error", line: 2, column: 7 });
+            expect(findings[0].message).toContain("no body");
+            expect(findings[0].message).not.toContain("remove the tag");
+            expect(findings[0].message).not.toContain("description");
+        },
+    );
+
+    it("leaves untyped vault scaffolding outside the body requirement", () => {
+        expect(lint({ "Scratch.md": "---\ntags: [draft]\n---\n\n" }).findings).toEqual([]);
     });
 
-    it("passes a stub that carries one", () => {
+    it("suppresses the short nonempty warning on a draft", () => {
         expect(
-            lint({ "A.md": note(["shortcode: a", "description: A manor village."]) }).findings,
+            lint({ "A.md": note(["shortcode: a", "tags: [draft]"], "A manor village.") }).findings,
         ).toEqual([]);
-    });
-
-    it("refuses a stub tagged `draft`", () => {
-        const { findings } = lint({
-            "A.md": note(["shortcode: a", "description: A manor village.", "tags: [draft]"]),
-        });
-        expect(findings.map((f: any) => f.severity)).toEqual(["error"]);
-        expect(findings[0].message).toContain("not started is not a thing in progress");
     });
 
     it("refuses a body that reduces to a placeholder, and names the phrase", () => {
@@ -579,6 +598,7 @@ describe("the stub lint", () => {
         expect(findings).toHaveLength(1);
         expect(findings[0].severity).toBe("error");
         expect(findings[0].message).toContain('"_To be written._"');
+        expect(findings[0].message).not.toContain("empty the body");
     });
 
     it("leaves a body with real prose beside an unwritten section alone", () => {
