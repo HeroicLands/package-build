@@ -86,9 +86,10 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
     "full-width": '"full-width"',
 });
 import { slugify } from "./content-slug.mjs";
+import { spanMarkdownPlugin, scanSpans } from "./content-spans.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
-import { inlineVerse, poetryStanzas } from "./content-poetry.mjs";
+import { inlineVerse, poetryStanzas, scanPoetry } from "./content-poetry.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { HTML_TAG, htmlMessage } from "./content-html.mjs";
 import { EXPRESSION } from "./markdown-expressions.mjs";
@@ -197,6 +198,7 @@ export function labelFor(anchor) {
 export function createParser(registry) {
     const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
     md.use(footnotePlugin);
+    md.use(spanMarkdownPlugin);
     md.use(deflistPlugin);
     md.use(iconPlugin(registry));
     // The same plugin the HTML surfaces use, so one directive is read once and
@@ -298,7 +300,7 @@ function offsetPosition(source, offset, opts = {}) {
  *   those passes did not run — `opts.prepared` — because each of them leaves the
  *   markup as written when it fails and has already said so in its own words.
  *
- * A `:::` block and a `:::figure` are the pair this pass does handle, and their
+ * A fenced div and a leading caption are the structures this pass handles, and their
  * own scanners decide what is well formed; their findings are reported here so
  * that a front-matter file, a prose file and a note body all get them.
  *
@@ -349,6 +351,10 @@ function reportUnrenderable(source, definitions, opts, original) {
                 );
         }
     }
+    for (const error of scanSpans(source).errors)
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of scanPoetry(source).errors)
+        report(linePosition(error.line, error.column, opts), "error", error.message);
     for (const error of scanFigures(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
     // An image sharing its paragraph with other text, or an address or title
@@ -527,14 +533,11 @@ export function markdownToTypst(markdown, opts = {}) {
         }
     }
     if (!opts.insideAdmonition) {
-        const figuresHoldingPoetry = scanFigures(source).figures;
+        const captionTargets = scanFigures(source).figures;
         const blocks = scanBlocks(source).blocks.filter(
             (block) =>
-                !figuresHoldingPoetry.some(
-                    (figure) =>
-                        block.name === "poetry" &&
-                        block.start >= figure.bodyStart &&
-                        block.end < figure.bodyEnd,
+                !captionTargets.some(
+                    (figure) => block.start >= figure.bodyStart && block.end < figure.bodyEnd,
                 ),
         );
         if (blocks.length) {
@@ -548,21 +551,13 @@ export function markdownToTypst(markdown, opts = {}) {
                         insideAdmonition: true,
                     }),
                 );
-                if (block.name === "poetry") {
-                    const content = poetryStanzas(block.body)
-                        .map((stanza) =>
-                            stanza
-                                .map(({ text, level }) => {
-                                    const verse = markdownToTypst(inlineVerse(text), {
-                                        ...sharedOptions,
-                                        insideAdmonition: true,
-                                    });
-                                    return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
-                                })
-                                .join(" \\\n"),
-                        )
-                        .join("\n\n");
-                    output.push(`\n#block(width: 100%)[${content}]\n`);
+                if (block.name === "div") {
+                    const content = markdownToTypst(block.body, {
+                        ...sharedOptions,
+                        insideAdmonition: false,
+                    });
+                    const anchor = block.id ? ` <${sectionLabel(anchorPrefix, block.id)}>` : "";
+                    output.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
                     cursor = block.end + 1;
                     continue;
                 }
@@ -629,7 +624,7 @@ export function markdownToTypst(markdown, opts = {}) {
                 { ...caption, imagesRemaining: { n: countImages(block) } }
             :   caption;
         const segments = [
-            caption.kind === "poem" ?
+            caption.kind !== "table" && caption.kind !== "figure" && caption.kind !== "map" ?
                 markdownToTypst(block, { ...sharedOptions, captions: undefined })
             :   renderMarkdownSegment(block, md, { ...ctx, caption: captioned }, definitions),
         ];
@@ -732,7 +727,23 @@ function renderBlock(tokens, i, out, ctx) {
         }
         case "fence":
         case "code_block": {
-            out.push(rawBlock(token.content, token.info?.trim() || ""));
+            if (token.type === "fence" && /^poetry(?:\s|$)/.test(token.info?.trim() || "")) {
+                const content = poetryStanzas(token.content)
+                    .map((stanza) =>
+                        stanza
+                            .map(({ text, level }) => {
+                                const verse = inlineMarkup(inlineVerse(text), ctx);
+                                return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
+                            })
+                            .join(" \\\n"),
+                    )
+                    .join("\n\n");
+                const poem = scanPoetry(
+                    `${token.markup}${token.info}\n${token.content}${token.markup}`,
+                ).blocks[0];
+                const anchor = poem?.id ? ` <${sectionLabel(ctx.anchorPrefix, poem.id)}>` : "";
+                out.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
+            } else out.push(rawBlock(token.content, token.info?.trim() || ""));
             return 1;
         }
         case "hr":
@@ -964,13 +975,15 @@ function inlineMarkup(text, ctx) {
  */
 function captionMarkup(caption, ctx) {
     const label = escapeTypst(caption.label);
-    return caption.hasCaption ? `${label}: ${inlineMarkup(caption.caption, ctx)}` : label;
+    return caption.hasCaption ?
+            `${label ? `${label}: ` : ""}${inlineMarkup(caption.caption, ctx)}`
+        :   label;
 }
 
 /**
  * How many markdown images a figure's contents carry.
  *
- * A grouped figure's `///` caption describes the whole plate, not any one
+ * A grouped figure's leading caption describes the whole plate, not any one
  * picture in it, so {@link renderImage} needs to know which image is the
  * last — the one that carries the group's single label and anchor — and this
  * is the count it counts down from.
@@ -1157,6 +1170,24 @@ function renderInline(token, ctx) {
             case "code_inline":
                 out.push(inlineRaw(child.content));
                 break;
+            case "span_open": {
+                out.push("#box[");
+                break;
+            }
+            case "span_close": {
+                let depth = 1;
+                let opening;
+                for (let j = i - 1; j >= 0; j -= 1) {
+                    if (children[j].type === "span_close") depth += 1;
+                    if (children[j].type === "span_open" && --depth === 0) {
+                        opening = children[j];
+                        break;
+                    }
+                }
+                const id = opening?.attrGet?.("id");
+                out.push(`]${id ? ` <${sectionLabel(ctx.anchorPrefix, id)}>` : ""}`);
+                break;
+            }
             case "strong_open":
                 out.push("#strong[");
                 break;

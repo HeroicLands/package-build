@@ -17,8 +17,8 @@ afterAll(() => {
 });
 
 /**
- * A repository with two notes in one section, each carrying a `:::figure`
- * fence, so the book's cross-note numbering and `{{ref}}` resolution can be
+ * A repository with two notes in one section, each carrying a leading numbered caption
+ * line, so the book's cross-note numbering and `{{ref}}` resolution can be
  * exercised through the real build rather than through a unit-level stub.
  */
 function makeRepo(): string {
@@ -49,13 +49,11 @@ function makeRepo(): string {
             "",
             'The beta note carries {{ref "weapongear-beta#c2"}} of its own.',
             "",
-            ":::figure {#c1}",
+            ":@ The alpha listing. {#c1}",
+            "",
             "```js",
             "1",
             "```",
-            "///",
-            "The alpha listing.",
-            ":::",
         ].join("\n") + "\n",
     );
     fs.writeFileSync(
@@ -68,13 +66,11 @@ function makeRepo(): string {
             "  full: Beta Figure",
             "---",
             "",
-            ":::figure {#c2}",
+            ":@ The beta listing. {#c2}",
+            "",
             "```js",
             "2",
             "```",
-            "///",
-            "The beta listing.",
-            ":::",
         ].join("\n") + "\n",
     );
     fs.writeFileSync(
