@@ -1777,7 +1777,7 @@ a warning, flags an asset whose pixel width falls short of what its role's
 largest print slot needs. Both exempt a vector asset, which carries no pixel
 dimensions and no aspect that survives being drawn at a nominal size.
 
-`role: map` also selects a `:::figure` fence's counter — see
+`role: map` also selects a captioned image's counter — see
 [figures and numbered references](../authoring/links-and-markup.md#figures-and-numbered-references).
 A fence whose picture draws an address with that role counts as `Map` rather
 than `Figure`, on every surface that numbers it, because the role is the one
@@ -2242,7 +2242,7 @@ See the [authoring examples](../authoring/links-and-markup.md#footnotes-and-defi
 ```
 
 Any header can end with a braced attribute block, in the same grammar a
-`:::figure` fence and a named block take. Inside the braces:
+caption, fenced div, span and named block take. Inside the braces:
 
 - `#id` names the anchor a link resolves to (only one allowed)
 - `.class1` names a CSS class (any number of classes allowed)
@@ -2327,8 +2327,7 @@ applied to a word in the middle of a sentence.
 **Alt text renders as a caption on no surface.** On the website and in a
 Foundry journal it stays on the `img` element's `alt` attribute alone, and the
 book prints nothing beneath a picture that carries none. A visible label and
-caption are drawn only for a picture wrapped in [a `:::figure`
-fence](#the-figure-fence), and the text drawn is always the fence's own
+caption are drawn only for a picture preceded by [a caption](#captions-and-numbered-references), and the text drawn is always the fence's own
 caption. A title — `![alt](src "title")` — is refused rather than dropped in
 silence: there is one place for those words, the alt text, and a title is not
 it.
@@ -2621,110 +2620,68 @@ the tag and, where the directive restricts one, the type. An empty list under
 an authored heading is how a misspelled tag survives a build, so the
 directive's silence is what is refused rather than its output.
 
-##### The figure fence
+##### Captions and numbered references
 
-`:::figure {#anchor .border}` declares what it numbers and, optionally,
-captions: the fence is the unit the counter counts, not the caption text it
-may or may not carry.
+Write a caption on its own line **before** the item it describes, with a blank line before and after the caption. `:` produces an unnumbered caption; `:@` produces a numbered caption. One or more spaces separate the marker from its text. An optional attribute block at the end accepts an identifier, classes and named attributes:
 
-````markdown
-:::figure {#trade}
+```markdown
+:@ Regional trade routes {#trade .border type=table}
 
-```sql
-SELECT name.full AS "Market" FROM notes WHERE type = 'place'
-```
-
-///
-Regional trade routes
-:::
+| Route | Days |
+| ----- | ---- |
+| North | 4    |
 
 Refer to {{ref "#trade"}} for the market routes.
-````
+```
 
-The fence displays **Table 1: Regional trade routes** and `{{ref "#trade"}}`
-displays **Table 1** as a link.
+This displays **Table 1: Regional trade routes**; the reference links to **Table 1**. An unnumbered `: Regional trade routes {#trade}` displays only its text, has an anchor, and does not consume a number. An item with no caption remains unnumbered.
 
-**The grammar.** `:::figure` opens the fence, on a line of its own and
-optionally followed by a braced attribute block in the grammar a heading and
-a named block take too. A line of `:::` alone closes it. Between the
-two, the first `///` written alone on a line, read at the top level — outside
-any nested code or poetry fence — divides what the fence holds from its caption; a `///`
-written inside a nested fence is content, not a divider. A second top-level
-`///` is an error, naming the line: a figure holds one caption, so it carries
-one `///` line.
+The caption attaches to exactly the next supported block:
 
-An opening line that is not `:::figure`, optionally followed by one braced
-attribute block and nothing else, is reported at its own line as
-`a figure's attributes are written as {#id .border}`.
+| Next item                            | Inferred type | Numbered label |
+| ------------------------------------ | ------------- | -------------- |
+| Markdown table                       | `table`       | Table          |
+| Image, Markdown or wikilink          | `figure`      | Figure         |
+| SQL fence, including backtick SQL    | `table`       | Table          |
+| Poetry fence                         | `poetry`      | Poem           |
+| Any other code fence                 | `code`        | Code           |
+| Paragraph, quote block or fenced div | `prose`       | Prose          |
 
-**Every part but the fence itself is optional.**
+The optional `type` attribute overrides inference and accepts `figure`, `table`, `poetry`, `code`, `prose`, and `example`. `type=example` uses **Example 1**, **Example 2**, and so on. It does not allow an unsupported target. A heading, list, thematic break, another caption or end of document after a caption is an error. Caption markers without separating spaces or caption text are errors too.
 
-- **No `{#id}`.** The fence is still numbered and drawn; it carries no anchor,
-  so nothing can address it. An id, when written, must be a name unique within
-  the note — a repeat is `duplicate figure id "<id>"` at the fence's opening
-  line, and an id that collides with a heading anchor in the same note is
-  `heading and figure declare the same anchor "<id>"` at the heading's line.
-- **No `///`.** The fence draws its label alone, with no caption beneath it. A
-  `///` with nothing after it before the closing `:::` is an error at the
-  `///` line: a figure's `///` section carries no caption — write no `///` to
-  leave the figure uncaptioned.
-- **No `.border`.** The fence draws without one. `.border` is the only class
-  the construct declares; any other class is reported at the opening line,
-  naming it: a figure takes no such class, and the classes a figure takes
-  are `.border`. A `key="value"` attribute is reported the same way, naming
-  the key: a figure takes an id and classes, nothing else.
+Identifiers are optional and must be unique within the note. Classes are unrestricted; `.border` uses the shared border style, while other classes can be styled by the medium. Named attributes use `key=value`, with quoted values for text containing spaces. Use `#id` and `.class` rather than `id=` and `class=`; event-handler attributes are refused.
 
-**What is never optional.** A fence with nothing between its opening line and
-its `///` or its closing `:::` is `a figure has no contents`, at the opening
-line. An opening `:::figure` with no matching `:::` runs to the end of the
-note and is `a figure needs a closing :::`, also at the opening line, and
-nothing after it is scanned as a second fence.
+Each numbered type has its own counter. Websites and Foundry number within a note; books number across their reading order. Unnumbered captions neither display nor consume a number. A map image can retain its asset-derived **Map** classification when no type is specified.
 
-**The counter is derived, never authored.** The fence's contents decide which
-of six counters it draws from — `Code`, `Table`, `Figure`, `Map`, `Poem`, `Prose` — read from
-the first top-level block inside the fence: a table is `Table`; a fenced `sql`
-block is `Table`, because its rendered output is one; any other fenced or
-indented code block is `Code`; one or more pictures and nothing else is
-`Figure`; a `:::poetry` fence as the first nonblank content is `Poem`; everything else is `Prose`. A poem, table or picture written outside any
-`:::figure` fence draws no label and is counted nowhere. The website and a
-Foundry journal number each counter within the note; the book numbers each
-counter across the book in reading order.
+`{{ref "#trade"}}` displays the numbered label as a link. `form="full"` includes caption text and `form="title"` displays the caption alone. Use title form for an unnumbered caption. Cross-note references can name the note address before the anchor, such as `{{ref "place-harbor#trade"}}`; the displayed number belongs to the target on the surface rendering it. Links inside caption text contribute their visible text to references, so the reference does not contain a nested link.
 
-**A heading that would start its own journal page cannot be written inside a
-fence.** An H1, or a heading at any level carrying an `{#anchor}`, is reported
-at its own line inside one: `a heading that starts a page cannot be written
-inside a figure — keep an H1 or an anchored heading at the top level, or drop
-the anchor and the level to stay inside it`.
+Foundry gives a captioned item its own JournalEntryPage. A solitary image with a plain caption can use an image page; captions with inline markup and other items use text pages. On the website and in the book the item stays in the flow of the surrounding page.
 
-**The `ref` expression renders a link to a figure's anchor.**
-`{{ref "#thorn"}}` renders "Figure 13"; `{{ref "#thorn" form="full"}}` renders
-the number and the caption; `{{ref "#thorn" form="title"}}` renders the
-caption alone. `form="number"` is the default and may be written explicitly;
-a `form` outside this closed set is reported naming the three. A link written
-inside the figure's own caption contributes only its label text to a `full`
-or `title` reference, because the reference is itself a link, and emphasis
-inside the caption is kept. `form="full"` or `form="title"` aimed at a figure
-with no caption is reported naming the anchor: that form needs a caption, and
-the figure has none. An address naming no figure in the note is reported
-naming the anchor; an address naming another note's figure —
-`{{ref "other-note#anchor"}}` — is reported as addressing a figure this build
-does not resolve outside the note carrying the reference. Only a same-note
-anchor resolves, on the website and in the book.
+**Migration:** `:::figure` is no longer supported. Move the former `///` caption before the item as `:@ Caption {#id}` and remove the figure wrapper. To caption a group or passage, put it inside a generic fenced div and caption that div with an explicit type if needed. `///` is no longer a caption delimiter.
 
-Foundry gives a `:::figure` fence its own JournalEntryPage. A fence holding
-exactly one picture, captioned in plain text with nothing else — or carrying
-no caption at all — becomes a page of type `image`: the picture is its `src`,
-a caption, when there is one, is `image.caption`, and the page is named for
-the figure's own number. Every other fence becomes a page of type `text`
-instead: a fence grouping more than one picture; an embedded sound, there
-being no audio page type; a fence whose caption carries inline markup —
-emphasis, a link, an embedded icon or image — because `image.caption` is a
-`StringField` with nowhere to render it; and a fence that shares its split
-with prose that follows it, because an `image` page has nowhere to carry that
-prose either. On a `text` page the render is the fence's own content, scanned
-and labelled as the first of its kind on that page alone and then corrected to
-the number the note-wide scan already assigned, so a second figure with no id
-is still named for its true, note-wide number rather than recounted from one.
+##### Fenced divs
+
+A bare `:::` opens a div section. An optional attribute block applies to the whole fenced area. A bare `:::` closes the section:
+
+```markdown
+::: {#harbor-note .border lang=en}
+The harbor remains open through winter.
+
+A second paragraph belongs to the same div.
+:::
+```
+
+An attribute-bearing opener allows a nested div to be distinguished from the bare closer. Divs carry no automatic title or number; style their classes for the medium. Use a leading caption to caption the entire div. The same attribute grammar is available on named blocks; identifiers, classes and named attributes belong to the entire section. Headings that would start a Foundry journal page cannot split a fenced section.
+
+##### Inline spans
+
+`[inline content]` represents a span. Follow it immediately with an optional attribute block to apply an identifier, classes and named attributes:
+
+```markdown
+The watch wears [a _blue_ sash]{#watch-sash .uniform lang=en}.
+```
+
+Inline Markdown remains active inside the span. Bracket spans have lower priority than URL links, image links, reference links, footnotes and wikilinks. A bracketed form immediately preceded by `!`, followed by `(` or another `[`, or beginning with `[[` is not a span, even when the link is unresolved. Ordinary links retain their existing syntax. Escape a bracket when it should be literal, or put examples inside a code span or fence. A span identifier addresses that point in the note; it does not start a journal page.
 
 ##### Named blocks
 

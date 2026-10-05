@@ -404,7 +404,7 @@ function figureIsWholePage(figure, page) {
 }
 
 /**
- * The fields particular to the Foundry page a `:::figure` fence begins.
+ * The fields particular to the Foundry page a captioned item begins.
  *
  * A fence holding exactly one picture, captioned with no inline markup, and
  * standing alone on its page becomes a page of type `image`: `src` the
@@ -765,7 +765,7 @@ export class Journals extends BasePackCompiler {
 
         // The markdown this pass reads has already had its embeds rewritten
         // into ordinary images, each `src` the pathname `pathnameRoles` keys
-        // its roles by — so a `:::figure` of a map names itself `Map 1` here
+        // its roles by — so a captioned map names itself `Map 1` here
         // exactly as the website and the book name the same picture.
         const roles = pathnameRoles(this.linkIndex);
 

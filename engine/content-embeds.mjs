@@ -177,7 +177,7 @@ export function resolveEmbed(index, embed) {
  * The role an address's asset declares, read through the same resolution an
  * embed's address takes.
  *
- * This is the lookup a `:::figure` fence's `map` counter reaches through —
+ * This is the lookup a captioned item's `map` counter reaches through —
  * see {@link module:engine/content-figures.scanFigures}'s `resolveRole` — for
  * an address still in its authored form, before {@link resolveEmbeds} has
  * rewritten it into the ordinary image every surface renders.

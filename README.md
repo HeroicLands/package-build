@@ -48,4 +48,6 @@ The documentation lives in the Markdown files in this repository. Start with [th
 
 Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](docs/authoring/frontmatter.md#place-governments).
 
+Leading captions, generic fenced divs, inline spans, and poetry code fences are described in [links and markup](docs/authoring/links-and-markup.md).
+
 The package is GPL-3.0-or-later for code and CC-BY-SA-4.0 for original content. See [LICENSE.md](LICENSE.md).

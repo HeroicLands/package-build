@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import MarkdownIt from "markdown-it";
+import { scanBlocks } from "../engine/content-blocks.mjs";
 import { scanFigures, renderFigureBlocks, numberFigures } from "../engine/content-figures.mjs";
 const caption = (body: string, attrs = "", numbered = true) =>
     `:${numbered ? "@" : ""} A caption${attrs ? ` ${attrs}` : ""}\n\n${body}`;
@@ -53,8 +54,8 @@ describe("leading captions", () => {
     it("requires blank lines and rejects retired syntax outside literal fences", () => {
         expect(scanFigures("Before\n:@ Caption\n\nBody.").errors).toHaveLength(1);
         expect(scanFigures(":@ Caption\nBody.").errors).toHaveLength(1);
-        expect(scanFigures(":::figure\nBody.\n:::").errors[0].message).toContain(
-            "no longer supported",
+        expect(scanBlocks(":::figure\nBody.\n:::").errors[0].message).toContain(
+            "there is no figure block",
         );
         expect(scanFigures("````md\n:::figure\n:@ Caption\n\nBody\n````").errors).toEqual([]);
     });

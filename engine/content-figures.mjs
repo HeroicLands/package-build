@@ -4,6 +4,7 @@
 
 /** Leading captions apply to the next supported Markdown block. @module */
 
+import { spanMarkdownPlugin } from "./content-spans.mjs";
 import MarkdownIt from "markdown-it";
 import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
@@ -13,7 +14,10 @@ import { parseExtensionAttributes, refusedAttributes } from "./extension-attribu
 import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
 import { IMAGE_PATTERN } from "./content-images.mjs";
 
-const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
+const parser = new MarkdownIt({ html: true })
+    .use(footnotePlugin)
+    .use(deflistPlugin)
+    .use(spanMarkdownPlugin);
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 
 /**
@@ -184,15 +188,13 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
             codeFence = fence[1];
             continue;
         }
-        if (/^ *:::figure\b/.test(lines[i])) {
-            fault(i, ":::figure is no longer supported; write a leading : or :@ caption");
-            continue;
-        }
         const match = /^ {0,3}:(@)?[ \t]+(.+?)\s*$/.exec(lines[i]);
         if (!match) {
             if (/^ {0,3}:@?[ \t]*$/.test(lines[i])) fault(i, "a caption needs text");
             continue;
         }
+        // A definition-list description has a nonblank term immediately before it.
+        if (!match[1] && i > 0 && lines[i - 1].trim()) continue;
         if ((i > 0 && lines[i - 1].trim()) || lines[i + 1]?.trim()) {
             fault(i, "a caption needs a blank line before and after it");
             continue;

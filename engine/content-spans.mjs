@@ -13,6 +13,7 @@ export function spanMarkdownPlugin(md) {
         const start = state.pos;
         if (
             state.src[start] !== "[" ||
+            /@[A-Za-z]+$/.test(state.src.slice(0, start)) ||
             state.src[start + 1] === "[" ||
             state.src[start + 1] === "^" ||
             ["!", "[", "]"].includes(state.src[start - 1])

@@ -35,7 +35,7 @@ describe("poetry blocks", () => {
         const scanned = scanFigures(figure);
         expect(scanned.errors).toEqual([]);
         expect(scanned.figures[0]).toMatchObject({
-            kind: "poetry",
+            kind: "poem",
             label: "Poem 1",
             caption: "A harbor song.",
         });

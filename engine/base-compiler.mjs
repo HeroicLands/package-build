@@ -62,6 +62,8 @@
  */
 
 import { authoredFrontmatter } from "./index-records.mjs";
+import { markupAnchorFindings } from "./anchors.mjs";
+import { scanSpans } from "./content-spans.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
 import { scanFigures } from "./content-figures.mjs";
@@ -682,7 +684,11 @@ export class BasePackCompiler {
         // it made — `errors` or `findings`, never just the first — so nothing
         // here re-scans; it only stops taking `[0]`.
         const findings = [];
-        for (const secretError of scanBlocks(body).errors) {
+        for (const secretError of [
+            ...scanBlocks(body).errors,
+            ...scanSpans(body).errors,
+            ...markupAnchorFindings(body),
+        ]) {
             findings.push({
                 message: secretError.message,
                 line: (this.currentNote?.bodyLine ?? 1) + secretError.line - 1,

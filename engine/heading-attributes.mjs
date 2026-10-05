@@ -12,7 +12,7 @@
  * an id a surface publishes as an anchor, classes a surface may honour, and
  * attributes an HTML surface writes onto the element. This is where that
  * reading lives, so there is one grammar — the same one a `:::` block and a
- * `:::figure` are written in.
+ * captions and divs are written in.
  *
  * **A leaf, deliberately.** `anchors.mjs` is shared by the compilers, the index
  * and the link checker and cannot import any of them; the figure pass is

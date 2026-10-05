@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
 /**
- * Named body blocks — `:::secret`, `:::info` and `:::warn` — as one construct.
+ * General divs and named body blocks — `:::`, `:::secret`, `:::info` and `:::warn`.
  *
  * ```
  * :::info {#route title="The road north" .wide}
@@ -149,7 +149,7 @@ export function scanBlocks(source) {
             stack.push({ start: i, rejected: true });
             continue;
         }
-        if (stack.length && !["secret", "div"].includes(stack.at(-1).name)) {
+        if (stack.length && name !== "div" && !["secret", "div"].includes(stack.at(-1).name)) {
             errors.push({ ...at, message: `nested ${name} blocks are not supported` });
             stack.push({ start: i, rejected: true });
             continue;

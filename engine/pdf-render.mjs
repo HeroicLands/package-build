@@ -85,6 +85,7 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
     xlarge: "8cm",
     "full-width": '"full-width"',
 });
+import { markupAnchorFindings } from "./anchors.mjs";
 import { slugify } from "./content-slug.mjs";
 import { spanMarkdownPlugin, scanSpans } from "./content-spans.mjs";
 import { scanFigures } from "./content-figures.mjs";
@@ -367,7 +368,7 @@ function reportUnrenderable(source, definitions, opts, original) {
                 );
         }
     }
-    for (const error of scanSpans(source).errors)
+    for (const error of [...scanSpans(source).errors, ...markupAnchorFindings(source)])
         report(linePosition(error.line, error.column, opts), "error", error.message);
     for (const error of scanFigures(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);

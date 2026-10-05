@@ -83,50 +83,36 @@ const CASES: Record<string, string> = {
     secret: body(":::secret", "The vault is behind the arras.", ":::"),
     info: body(":::info", "Ships pay the harbour due on arrival.", ":::"),
     warn: body(":::warn", "The shoals are uncovered at low water.", ":::"),
-    poetry: body(":::poetry", "One line,", "Another line.", "", "A second stanza.", ":::"),
+    poetry: body("```poetry", "One line,", "Another line.", "", "A second stanza.", "```"),
     "captioned poem": body(
-        ":::figure {#song}",
-        ":::poetry",
+        ":@ A harbor song. {#song}",
+        "",
+        "```poetry",
         "One line,",
         "Another line.",
-        ":::",
-        "///",
-        "A harbor song.",
-        ":::",
+        "```",
     ),
     "warn with an id": body(":::warn {#risk}", "The shoals are uncovered.", ":::"),
     figure: body(
-        ":::figure {#trade}",
+        ":@ Trade routes out of the harbour {#trade}",
+        "",
         "| Route | Days |",
         "| ----- | ---- |",
         "| North | 4    |",
-        "///",
-        "Trade routes out of the harbour",
-        ":::",
     ),
-    "figure with no caption": body(
-        ":::figure {#shoals}",
-        "| Shoal | Depth |",
-        "| ----- | ----- |",
-        "| Bar   | 2     |",
-        ":::",
-    ),
+    "figure with no caption": body("| Shoal | Depth |", "| ----- | ----- |", "| Bar | 2 |"),
     "bordered prose figure": body(
-        ":::figure {#aside .border}",
+        ":@ The tide table {#aside .border}",
+        "",
         "The harbourmaster keeps the tide table himself.",
-        "///",
-        "The tide table",
-        ":::",
     ),
     "figure inside a secret": body(
         ":::secret",
         "Before.",
         "",
-        ":::figure {#takings}",
+        ":@ What the harbourmaster takes {#takings}",
+        "",
         "The cut is a tenth.",
-        "///",
-        "What the harbourmaster takes",
-        ":::",
         "",
         "After.",
         ":::",
@@ -146,13 +132,11 @@ const CASES: Record<string, string> = {
         "The harbourmaster takes a cut.",
         ":::",
         "",
-        ":::figure {#trade}",
+        ":@ Trade routes out of the harbour {#trade}",
+        "",
         "| Route | Days |",
-        "| ----- | ---- |",
-        "| North | 4    |",
-        "///",
-        "Trade routes out of the harbour",
-        ":::",
+        "| ----- | ----- |",
+        "| North | 4 |",
         "",
         "Spring brings the floods.[^flood]",
         "",
@@ -206,10 +190,8 @@ describe("every surface renders every construct", () => {
         expect(book(CASES.figure)).toContain("Trade routes out of the harbour");
     });
 
-    it("draws an uncaptioned figure's label alone", () => {
-        expect(web(CASES["figure with no caption"])).toContain(
-            '<p class="content-figure-label">Table 1</p>',
-        );
+    it("leaves an item with no caption unnumbered", () => {
+        expect(web(CASES["figure with no caption"])).not.toContain("content-figure-label");
     });
 
     it("carries a figure's authored class through to the web", () => {
@@ -270,7 +252,7 @@ describe("the documented failure modes still report", () => {
     };
 
     it("a ::: that closes nothing at all", () => {
-        reports(body("Prose.", ":::", "More prose."), "closes no block");
+        reports(body("Prose.", ":::", "More prose."), "closing");
     });
 
     it("an unclosed secret block", () => {
@@ -289,32 +271,20 @@ describe("the documented failure modes still report", () => {
         reports(body(":::info", "Outer.", ":::warn", "Inner.", ":::", ":::"), "nested warn blocks");
     });
 
-    it("a figure whose attributes are not braced", () => {
-        reports(body(":::figure #trade", "Trade routes", ":::"), "{#id");
+    it("rejects the removed figure fence", () => {
+        reports(body(":::figure {#trade}", "Trade routes", ":::"), "figure");
     });
 
-    it("a figure carrying a class the construct does not declare", () => {
-        reports(body(":::figure {#t .wide}", "Trade routes", ":::"), ".wide");
+    it("rejects unsupported caption types", () => {
+        reports(body(":@ Trade {type=unknown}", "", "Trade routes"), "type");
     });
 
-    it("a figure carrying a key=value attribute", () => {
-        reports(body(':::figure {#t kind="table"}', "Trade routes", ":::"), "kind=");
+    it("requires caption text", () => {
+        reports(body(":@", "", "Trade routes"), "caption");
     });
 
-    it("a figure with no closing :::", () => {
-        reports(body(":::figure {#t}", "Trade routes"), "closing");
-    });
-
-    it("a figure with no contents", () => {
-        reports(body(":::figure {#t}", "///", "Trade routes", ":::"), "no contents");
-    });
-
-    it("a figure whose /// section is blank", () => {
-        reports(body(":::figure {#t}", "Trade routes", "///", "", ":::"), "write no ///");
-    });
-
-    it("a figure carrying a second top-level ///", () => {
-        reports(body(":::figure {#t}", "Routes", "///", "One", "///", "Two", ":::"), "one caption");
+    it("requires a following supported item", () => {
+        reports(body(":@ Trade", ""), "caption");
     });
 
     it("an H1 inside a secret block, which would tear its own page", () => {
@@ -325,26 +295,11 @@ describe("the documented failure modes still report", () => {
         reports(body(":::info", "## A heading {#x}", "Text.", ":::"), "starts a page");
     });
 
-    it("a page-starting heading written inside a figure", () => {
-        reports(body(":::figure {#t}", "# A heading", "///", "A caption.", ":::"), "starts a page");
+    it("rejects a heading after a caption", () => {
+        reports(body(":@ A caption. {#t}", "", "# A heading"), "caption");
     });
 
-    it("two figures sharing an id", () => {
-        reports(
-            body(
-                ":::figure {#t}",
-                "One.",
-                "///",
-                "First",
-                ":::",
-                "",
-                ":::figure {#t}",
-                "Two.",
-                "///",
-                "Second",
-                ":::",
-            ),
-            "duplicate figure id",
-        );
+    it("rejects two captions sharing an id", () => {
+        reports(body(":@ First {#t}", "", "One.", "", ":@ Second {#t}", "", "Two."), "duplicate");
     });
 });

@@ -81,3 +81,9 @@ describe("markup primitives", () => {
         expect(scanSpans('[text]{onclick="bad"}').errors[0]).toMatchObject({ line: 1 });
     });
 });
+
+it("keeps Foundry native content links ahead of spans", () => {
+    const source = "@UUID[Compendium.demo.journals.JournalEntry.123]{A link}";
+    expect(renderSpans(source).markdown).toBe(source);
+    expect(new MarkdownIt().use(spanMarkdownPlugin).renderInline(source)).toBe(source);
+});

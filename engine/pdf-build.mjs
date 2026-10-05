@@ -745,7 +745,7 @@ export async function buildPdf({
      * @returns {string} Typst markup.
      */
     const figureCounts = { code: 0, table: 0, figure: 0, map: 0, poem: 0, prose: 0 };
-    // The role lookup a `:::figure` fence's `map` counter reaches through —
+    // The role lookup a captioned item's `map` counter reaches through —
     // see `engine/content-figures.mjs`'s `resolveRole`. Addressed form, for a
     // page's own scan below, which runs before its embeds are rewritten into
     // ordinary images; `pathRoles` is the same lookup keyed by the pathname
