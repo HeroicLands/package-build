@@ -145,11 +145,9 @@ describe("one reading of what starts a page", () => {
             "## Anchored {#x}",
             "## Anchored and classed {#x .wide}",
         ]) {
-            const errors = scanFigures(
-                [":::figure {#cap}", heading, "///", "A caption.", ":::"].join("\n"),
-            ).errors;
+            const errors = scanFigures([":@ A caption. {#cap}", "", heading].join("\n")).errors;
             expect(errors.map((e) => e.message).join(" ")).toContain(
-                "cannot be written inside a figure",
+                "a caption must be followed by",
             );
         }
     });
@@ -188,8 +186,7 @@ describe("every reader agrees about one heading", () => {
     });
 
     it("sees a heading and a figure claim one anchor through the shared reading", () => {
-        const body =
-            "## Trade {#trade .wide}\n\n:::figure {#trade}\nRoutes\n///\nTrade\n:::\n\nA paragraph.\n";
+        const body = "## Trade {#trade .wide}\n\n:@ Trade {#trade}\n\nRoutes\n\nA paragraph.\n";
         expect(scanFigures(body).errors.map((e) => e.message)).toContain(
             'heading and figure declare the same anchor "trade"',
         );

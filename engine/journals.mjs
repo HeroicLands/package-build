@@ -196,7 +196,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole) {
         if (figure) {
             closeCurrent();
             current = {
-                name: figure.label,
+                name: figure.label || figure.caption,
                 anchorSlug: figure.id || null,
                 level: 1,
                 classes: [],
@@ -442,14 +442,16 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
             // image's own render takes when no configuration resolves it.
         }
         return {
-            name: figure.label,
+            name: figure.label || figure.caption,
             type: "image",
             src,
             image: figure.hasCaption ? { caption: figure.caption } : {},
         };
     }
     const label =
-        figure.hasCaption ? `${figure.label}: ${md.renderInline(figure.caption)}` : figure.label;
+        figure.hasCaption ?
+            `${figure.label ? `${figure.label}: ` : ""}${md.renderInline(figure.caption)}`
+        :   figure.label;
     const content = renderFoundryMarkdown(
         page.markdown,
         undefined,
@@ -458,7 +460,7 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
         resolveRole,
     );
     return {
-        name: figure.label,
+        name: figure.label || figure.caption,
         type: "text",
         text: {
             format: 1,

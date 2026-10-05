@@ -24,13 +24,13 @@ import { markdownToTypst } from "../engine/pdf-render.mjs";
 const TWO_FIGURE_PROBLEMS = [
     "Some prose.",
     "",
-    ":::figure {.wide}",
-    "First paragraph.",
-    ":::",
+    ":@ Caption. {type=bogus}",
     "",
-    ":::figure {.wide}",
+    "First paragraph.",
+    "",
+    ":@ Caption. {type=bogus}",
+    "",
     "Second paragraph.",
-    ":::",
 ].join("\n");
 
 /**
@@ -139,7 +139,7 @@ describe("the pack compiler, the site build and the book agree on one note's fin
             markdownToTypst(TWO_FIGURE_PROBLEMS, { findings, file: "Probe.md" });
 
             const figureFindingCount = (list: { message: string }[]) =>
-                list.filter((f) => f.message.includes("takes no .wide class")).length;
+                list.filter((f) => f.message.includes("unsupported caption type")).length;
 
             expect(pack.errorCount).toBe(2);
             expect(site.captionErrors).toHaveLength(2);
@@ -149,11 +149,10 @@ describe("the pack compiler, the site build and the book agree on one note's fin
             // surface that worded one of them differently would still pass a
             // bare length check and fail this.
             const asSet = (list: { message: string }[]) => new Set(list.map((f) => f.message));
-            const refusal =
-                "a figure takes no .wide class — the classes a figure takes are .border";
+            const refusal = 'unsupported caption type "bogus"';
             expect(asSet(site.captionErrors)).toEqual(new Set([refusal]));
             expect(
-                asSet(findings.filter((f) => f.message.includes("takes no .wide class"))),
+                asSet(findings.filter((f) => f.message.includes("unsupported caption type"))),
             ).toEqual(new Set([refusal]));
         } finally {
             fs.rmSync(tmp, { recursive: true, force: true });

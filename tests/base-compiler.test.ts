@@ -275,13 +275,13 @@ describe("BasePackCompiler's convertBody reports every finding in one run", () =
             path.join(TWO_FIGURE_PROBLEMS, "TwoProblems.md"),
             note(
                 [
-                    ":::figure {.wide}",
-                    "A paragraph.",
-                    ":::",
+                    ":@ Caption. {type=bogus}",
                     "",
-                    ":::figure {.wide}",
+                    "A paragraph.",
+                    "",
+                    ":@ Caption. {type=bogus}",
+                    "",
                     "Another paragraph.",
-                    ":::",
                 ].join("\n"),
                 {
                     name: { full: "Probe Two Problems" },
@@ -311,7 +311,7 @@ describe("BasePackCompiler's convertBody reports every finding in one run", () =
             expect(pack.errorCount).toBe(2);
             expect(read(out)["Probe Two Problems"]).toBeUndefined();
             const messages = spy.mock.calls.map((call) => String(call[0]));
-            expect(messages.filter((m) => m.includes("takes no .wide class"))).toHaveLength(2);
+            expect(messages.filter((m) => m.includes("unsupported caption type"))).toHaveLength(2);
             // Each finding is reported once, at its own line — not wrapped in
             // a generic "failed to compile" line on top of it.
             expect(messages.some((m) => m.includes("failed to compile"))).toBe(false);
@@ -337,19 +337,15 @@ describe("a {{ref}} resolves in a compiled journal entry", () => {
                     'See {{ref "#thorn"}} for the image, and the plate in full: ' +
                         '{{ref "#plate" form="full"}}.',
                     "",
-                    ":::figure {#thorn}",
-                    `![Thorn](${THORN})`,
-                    "///",
-                    "The great beast.",
-                    ":::",
+                    " :@ The great beast. {#thorn}".trim(),
                     "",
-                    ":::figure {#plate}",
+                    `![Thorn](${THORN})`,
+                    "",
+                    ":@ Two together. {#plate}",
+                    "",
                     `![A](${THORN})`,
                     "",
                     `![B](${SECOND_IMAGE})`,
-                    "///",
-                    "Two together.",
-                    ":::",
                 ].join("\n"),
                 {
                     name: { full: "Ref Journal" },
@@ -458,7 +454,7 @@ describe("BasePackCompiler's convertBody agrees with the lint about an image", (
         fs.mkdirSync(FENCED_IMAGE, { recursive: true });
         fs.writeFileSync(
             path.join(FENCED_IMAGE, "Fenced.md"),
-            note([":::figure", "![A ranger](ranger.webp)", "///", "A ranger.", ":::"].join("\n"), {
+            note([":@ A ranger.", "", "![A ranger](ranger.webp)"].join("\n"), {
                 name: { full: "Probe Fenced Image" },
                 id: "PROBEPROBE000008",
                 shortcode: "fencedimage",
