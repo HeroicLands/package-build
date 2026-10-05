@@ -50,6 +50,7 @@ import MarkdownIt from "markdown-it";
 import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
+import { poetryMarkdown, verseLines } from "./content-poetry.mjs";
 import { WITHHELD_CLASS, parseHeadingLine, withheldSections } from "./heading-attributes.mjs";
 
 const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
@@ -63,6 +64,8 @@ const titleParser = new MarkdownIt({ html: false });
 
 const OPEN = /^:::([A-Za-z][A-Za-z0-9-]*)(?:[ \t]+(.*?))?[ \t]*$/;
 const CLOSE = /^:::[ \t]*$/;
+const INDENTED_POETRY_OPEN = /^ +:::poetry(?:[ \t]+(.*?))?[ \t]*$/;
+const INDENTED_CLOSE = /^ *:::[ \t]*$/;
 
 /** The blocks an author may open, with the heading each takes by default. */
 export const BLOCK_NAMES = Object.freeze({
@@ -98,7 +101,7 @@ const FOREIGN = Object.freeze(["figure"]);
 /** `title` is the heading. Everything else an author writes becomes an attribute. */
 const TITLE = "title";
 
-const names = () => Object.keys(BLOCK_NAMES).join(", ");
+const names = () => [...Object.keys(BLOCK_NAMES), "poetry"].join(", ");
 
 /** Text safe inside a double-quoted attribute. */
 function escapeAttribute(value) {
@@ -132,7 +135,7 @@ export function scanBlocks(source) {
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+        const fence = opening?.name === "poetry" ? null : /^ {0,3}(`{3,}|~{3,})/.exec(line);
         if (codeFence) {
             if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length) {
                 codeFence = null;
@@ -144,7 +147,7 @@ export function scanBlocks(source) {
             continue;
         }
 
-        if (CLOSE.test(line)) {
+        if (CLOSE.test(line) || (opening?.name === "poetry" && INDENTED_CLOSE.test(line))) {
             // A closer belongs to the innermost block still open, whichever
             // pass owns it.
             if (opening && innerOpen > 0) {
@@ -163,11 +166,21 @@ export function scanBlocks(source) {
                 opening = null;
                 continue;
             }
-            const body = lines
-                .slice(opening.start + 1, i)
-                .join("\n")
-                .trim();
-            if (!body) {
+            const bodyLines = lines.slice(opening.start + 1, i);
+            const rawBody = bodyLines.join("\n");
+            const body = opening.name === "poetry" ? rawBody : rawBody.trim();
+            if (opening.name === "poetry") {
+                for (let offset = 0; offset < bodyLines.length; offset++) {
+                    const column = bodyLines[offset].indexOf("\t");
+                    if (column >= 0)
+                        errors.push({
+                            line: opening.start + offset + 2,
+                            column: column + 1,
+                            message: "tabs are not allowed in poetry",
+                        });
+                }
+            }
+            if (!body.trim()) {
                 errors.push({
                     line: opening.start + 1,
                     column: 1,
@@ -176,12 +189,23 @@ export function scanBlocks(source) {
                 opening = null;
                 continue;
             }
+            if (opening.name === "poetry" && opening.attributes.syllables) {
+                const expected = opening.attributes.syllables.split(",").length;
+                const actual = verseLines(body).length;
+                if (expected !== actual)
+                    errors.push({
+                        line: opening.start + 1,
+                        column: 1,
+                        message: `poetry syllables= gives ${expected} counts for ${actual} verse lines`,
+                    });
+            }
             // An H1, or an anchored heading at any level, starts a Foundry
             // journal page — splitting the block's own page in two and
             // publishing the rest with no wrapper around it, a GM-only
             // section included. Refused rather than split: a lower heading
             // with no anchor is still the ordinary way to structure a box.
-            for (let at = opening.start + 1; at < i; at++) {
+            // Poetry treats those same characters as verse text.
+            for (let at = opening.start + 1; opening.name !== "poetry" && at < i; at++) {
                 if (!parseHeadingLine(lines[at])?.startsPage) continue;
                 const article = /^[aeiou]/i.test(opening.name) ? "an" : "a";
                 errors.push({
@@ -198,7 +222,8 @@ export function scanBlocks(source) {
             continue;
         }
 
-        const open = OPEN.exec(line);
+        const indentedPoetry = INDENTED_POETRY_OPEN.exec(line);
+        const open = OPEN.exec(line) ?? (indentedPoetry && [line, "poetry", indentedPoetry[1]]);
         if (!open) continue;
         const [, name, raw = ""] = open;
         const at = { line: i + 1, column: 1 };
@@ -207,7 +232,7 @@ export function scanBlocks(source) {
             else foreignOutside += 1;
             continue;
         }
-        if (!Object.hasOwn(BLOCK_NAMES, name)) {
+        if (!Object.hasOwn(BLOCK_NAMES, name) && name !== "poetry") {
             errors.push({ ...at, message: `there is no ${name} block; the blocks are ${names()}` });
             opening = { start: i, rejected: true };
             continue;
@@ -254,11 +279,30 @@ export function scanBlocks(source) {
                 continue;
             }
             for (const [key, value] of Object.entries(parsed.values)) {
+                if (name === "poetry") {
+                    if (!["form", "meter", "rhyme", "syllables", "lang"].includes(key))
+                        errors.push({ ...at, message: `${key}= is not a poetry attribute` });
+                    else if (key === "syllables" && !/^[1-9]\d*(?:,[1-9]\d*)*$/.test(value))
+                        errors.push({
+                            ...at,
+                            message: "poetry syllables= needs positive comma-separated counts",
+                        });
+                    else if (key === "lang" && !/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(value))
+                        errors.push({ ...at, message: "poetry lang= needs a language tag" });
+                }
                 if (key === TITLE) title = value;
                 else attributes[key] = value;
             }
         }
-        opening = { start: i, name, title, id, classes, attributes };
+        opening = {
+            start: i,
+            name,
+            title,
+            id,
+            classes,
+            attributes,
+            indent: name === "poetry" ? /^ */.exec(line)[0] : "",
+        };
     }
 
     if (opening && !opening.rejected) {
@@ -295,9 +339,24 @@ function attributeText(block, target, classes) {
     const parts = [`class="${escapeAttribute(classes.join(" "))}"`];
     if (id) parts.push(`id="${escapeAttribute(id)}"`);
     for (const [key, value] of Object.entries(block.attributes)) {
-        parts.push(`${key}="${escapeAttribute(value)}"`);
+        const attribute = block.name === "poetry" && key !== "lang" ? `data-${key}` : key;
+        parts.push(`${attribute}="${escapeAttribute(value)}"`);
     }
     return parts.join(" ");
+}
+
+/** Keep a poem in its list, without turning standalone readable indentation into code. */
+function poetryWrapperIndent(lines, block) {
+    const indent = block.indent;
+    if (indent.length < 4) return indent;
+    for (let at = block.start - 1; at >= 0; at--) {
+        const line = lines[at];
+        if (!line.trim()) continue;
+        const leading = /^ */.exec(line)[0].length;
+        if (/^ *(?:[-+*]|\d+[.)]) +/.test(line) && leading < indent.length) return indent;
+        if (leading < indent.length) break;
+    }
+    return "";
 }
 
 /**
@@ -327,7 +386,6 @@ export function renderBlocks(source, target) {
         output.push(...lines.slice(cursor, block.start));
         const classes = [block.name, ...block.classes];
         const attributes = attributeText(block, target, classes);
-        const title = titleParser.renderInline(block.title);
         // A container's body may hold a block of its own, rendered first so
         // its own wrapper is already written when the outer one wraps it in
         // turn — nesting composes because each level is markdown-with-raw-HTML
@@ -336,6 +394,17 @@ export function renderBlocks(source, target) {
             BLOCK_CONTAINERS.includes(block.name) ?
                 renderBlocks(block.body, target).markdown
             :   block.body;
+        if (block.name === "poetry") {
+            const indent = poetryWrapperIndent(lines, block);
+            const verses = poetryMarkdown(held)
+                .split("\n")
+                .map((line) => (line ? `${indent}${line}` : line))
+                .join("\n");
+            output.push("", `${indent}<div ${attributes}>`, "", verses, "", `${indent}</div>`, "");
+            cursor = block.end + 1;
+            continue;
+        }
+        const title = titleParser.renderInline(block.title);
         if (target === "foundry") {
             output.push(
                 "",
