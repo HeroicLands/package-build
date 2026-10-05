@@ -4255,32 +4255,33 @@ map's prose.
 - feature: A place significant by its terrain — forests, rivers, falls, passes, fords.
 - celestial: A body observed from a world rather than located on one — a sun, a planet, a comet.
 
-| `data` property                   | Values                                              | Description                                                                  |
-| --------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `calendar`                        | `Address`                                           | Calendar note used to print this place's dates                               |
-| `demonym`                         | `string`                                            | What a person from this place is called — a Vylarian                         |
-| `purpose`                         | `placeCharacter` tag                                | The reason a settlement, site, or structure exists                           |
-| `lore`                            | `Address[]`                                         | Lore concerning this place — its peoples, its law, its calendar, its history |
-| `parents`                         | `Address[]`                                         | Enclosing places within which this place is located                          |
-| `population`                      | `number`                                            | Approximate population (precision 2 significant digits)                      |
-| `market`                          | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                      |
-| `borders`                         | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here       |
-| `routes`                          | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                           |
-| `world.equatorialCircumferenceKm` | `number`                                            | The distance round the body at its equator, in kilometres                    |
-| `world.surfaceGravityG`           | `number`                                            | Surface gravity, as a multiple of Earth's                                    |
-| `world.axialTiltDegrees`          | `number`                                            | The tilt of the axis, in degrees                                             |
-| `year.days`                       | `number`                                            | How many days the body's year holds                                          |
-| `year.hoursPerDay`                | `number`                                            | How many hours the day divides into                                          |
-| `year.minutesPerHour`             | `number`                                            | How many minutes the hour divides into                                       |
-| `year.secondsPerMinute`           | `number`                                            | How many seconds the minute divides into                                     |
-| `present`                         | `date`                                              | The day the setting stops and play begins                                    |
-| `body.diameterKm`                 | `number`                                            | The body's diameter, in kilometres                                           |
-| `body.orbitalRadiusKm`            | `number`                                            | How far it orbits from the body it circles, in kilometres                    |
-| `body.orbit`                      | `string`                                            | The orbit's shape — `circular` means the cycle never varies                  |
-| `body.inclined`                   | `boolean`                                           | Whether the orbit is inclined to the plane the world orbits in               |
-| `moon.cycle`                      | `number`                                            | How many days it takes to return to the same phase                           |
-| `moon.newOn`                      | day-precision `date`                                | A day it was new, written in the reference calendar                          |
-| `moon.eclipses`                   | `string`                                            | `never`, `rare`, `occasional` or `frequent`                                  |
+| `data` property                   | Values                                              | Description                                                                                               |
+| --------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `calendar`                        | `Address`                                           | Calendar note used to print this place's dates                                                            |
+| `demonym`                         | `string`                                            | What a person from this place is called — a Vylarian                                                      |
+| `purpose`                         | `placeCharacter` tag                                | The reason a settlement, site, or structure exists                                                        |
+| `lore`                            | `Address[]`                                         | Lore concerning this place — its peoples, its law, its calendar, its history                              |
+| `parents`                         | `Address[]`                                         | Enclosing places within which this place is located                                                       |
+| `population`                      | `number`                                            | Approximate population (precision 2 significant digits)                                                   |
+| `government`                      | affiliation Address or `null`                       | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
+| `market`                          | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                                                   |
+| `borders`                         | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here                                    |
+| `routes`                          | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                                                        |
+| `world.equatorialCircumferenceKm` | `number`                                            | The distance round the body at its equator, in kilometres                                                 |
+| `world.surfaceGravityG`           | `number`                                            | Surface gravity, as a multiple of Earth's                                                                 |
+| `world.axialTiltDegrees`          | `number`                                            | The tilt of the axis, in degrees                                                                          |
+| `year.days`                       | `number`                                            | How many days the body's year holds                                                                       |
+| `year.hoursPerDay`                | `number`                                            | How many hours the day divides into                                                                       |
+| `year.minutesPerHour`             | `number`                                            | How many minutes the hour divides into                                                                    |
+| `year.secondsPerMinute`           | `number`                                            | How many seconds the minute divides into                                                                  |
+| `present`                         | `date`                                              | The day the setting stops and play begins                                                                 |
+| `body.diameterKm`                 | `number`                                            | The body's diameter, in kilometres                                                                        |
+| `body.orbitalRadiusKm`            | `number`                                            | How far it orbits from the body it circles, in kilometres                                                 |
+| `body.orbit`                      | `string`                                            | The orbit's shape — `circular` means the cycle never varies                                               |
+| `body.inclined`                   | `boolean`                                           | Whether the orbit is inclined to the plane the world orbits in                                            |
+| `moon.cycle`                      | `number`                                            | How many days it takes to return to the same phase                                                        |
+| `moon.newOn`                      | day-precision `date`                                | A day it was new, written in the reference calendar                                                       |
+| `moon.eclipses`                   | `string`                                            | `never`, `rare`, `occasional` or `frequent`                                                               |
 
 #### Why a place exists
 
@@ -4501,12 +4502,26 @@ never expanded**: a region held by a polity lists the polity in `held_by`, and
 a settlement within that region lists only the house or order whose `domains`
 names it — its lord's lord is reached through `affiliation.parents`.
 
-**A settlement, a site or a structure is held by someone.** One of those that
-no affiliation's `domains` names — in this package or in a fetched index — is
-a warning from `package-build lint`, `unheld land`, located at the note's
-`type:` line, so a gap in tenure shows while a note is written. A `world`, a
-`region` and a `feature` are exempt: a region is held through its polity's
-`domains`, and a river by nobody.
+#### Who governs a place
+
+A place may state its governing affiliation in `data.government`. Use an affiliation Address, either a local shortcode or a fully qualified Address from this package or a fetched dependency:
+
+```yaml
+data:
+  population: 1200
+  government: crown
+```
+
+Write `government: null` for **complete anarchy**. Omitting the key leaves government unspecified. Null is retained in published metadata and displayed as “Complete anarchy” in website, Foundry and book infoboxes; an omitted key has no Government row. A reference displays a link to the governing affiliation.
+
+| Population            | Government          | Governance advisory              |
+| --------------------- | ------------------- | -------------------------------- |
+| Positive              | Omitted             | Warning at `data.population`     |
+| Missing, zero or null | Omitted             | None                             |
+| Any                   | Explicit `null`     | None; complete anarchy           |
+| Any                   | Affiliation Address | None; the reference must resolve |
+
+These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `domains`, `parents`, containment and capitals do not supply a government. Holdings remain tenure facts; the former unconditional “unheld land” warning is retired.
 
 #### Population figures
 

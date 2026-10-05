@@ -292,6 +292,7 @@ types:
             - lore
             - parents
             - population
+            - government
             - market
             - borders
             - routes

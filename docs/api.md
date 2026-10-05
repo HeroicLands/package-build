@@ -348,6 +348,8 @@ The note types the engine itself declares — vocabulary that is a fact about th
 
 ### `engine.noteVocabulary`
 
+`DataFieldSpec.nullText` declares the infobox text for an explicitly authored null. The place `government` field uses “Complete anarchy”; omitted fields remain absent. Its Address targets must be affiliations.
+
 An addressed content note accepts exactly these top-level keys, in this order: `shortcode`, `name`, `type`, `subType`, `description`, `tags`, `data`, `dnd5e`, `hm3`, `sohl`. A key outside this list is an error at its own line. The system blocks are one per system the address vocabulary recognizes, sorted by name after the fixed keys, so a further system is a change to `SYSTEM_IDS` alone. No dnd5e-specific document types are declared. Within that shape, the closed vocabularies are the `data:` container and each type's `subType`.
 
 | Export                    | Signature                                    | Returns                                  | Use it when                                                                                  |
@@ -495,17 +497,18 @@ What a place is next to (`data.borders`) and reachable from (`data.routes`): the
 
 ### `engine.holdings`
 
-What lies within a place, who holds it, and what an affiliation holds — read off `data.parents` and `data.domains` across this package and every fetched index, inverted into the `contains`, `held_by` and `holdings` lists the site build writes — and the tenure check `package-build lint` runs on a place.
+What lies within a place, who holds it, and what an affiliation holds — read off `data.parents` and `data.domains` across this package and every fetched index, inverted into the `contains`, `held_by` and `holdings` lists the site build writes — and the population-based government advisory `package-build lint` runs on a place.
 
-| Export                 | Signature                            | Returns                 | Use it when                                                                                                                  |
-| ---------------------- | ------------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `HOLDINGS_KEYS`        | `const HOLDINGS_KEYS`                | `readonly string[]`     | the three derived keys — `contains`, `held_by`, `holdings` — which a note cannot author                                      |
-| `HELD_SUBTYPES`        | `const HELD_SUBTYPES`                | `readonly string[]`     | the place subTypes tenure is checked on — `settlement`, `site`, `structure`                                                  |
-| `holdingsNode`         | `holdingsNode(fm, { title, url })`   | `HoldingsNode\|null`    | reading a local note as a node of the derivation, or `null` for one that is neither a place nor an affiliation               |
-| `foreignHoldingsNodes` | `foreignHoldingsNodes(foreignIndex)` | `HoldingsNode[]`        | reading a fetched index's places and affiliations as nodes                                                                   |
-| `holdingsPages`        | `holdingsPages(nodes)`               | `Map<string, Holdings>` | inverting `parents` and `domains` into each page's sorted lists, keyed by URL, for every page with at least one entry        |
-| `shortcodesOf`         | `shortcodesOf(value)`                | `string[]`              | the shortcodes a `parents` or `domains` value names — bare, addressed or wikilinked — empties dropped and repeats collapsed  |
-| `checkHeld`            | `checkHeld(note, { index })`         | `object[]`              | linting a place's tenure — a settlement, site or structure no affiliation's `domains` names is a warning at its `type:` line |
+| Export                 | Signature                            | Returns                 | Use it when                                                                                                                 |
+| ---------------------- | ------------------------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| `HOLDINGS_KEYS`        | `const HOLDINGS_KEYS`                | `readonly string[]`     | the three derived keys — `contains`, `held_by`, `holdings` — which a note cannot author                                     |
+| `HELD_SUBTYPES`        | `const HELD_SUBTYPES`                | `readonly string[]`     | deprecated historical tenure subtypes; government checks apply to every place subtype                                       |
+| `holdingsNode`         | `holdingsNode(fm, { title, url })`   | `HoldingsNode\|null`    | reading a local note as a node of the derivation, or `null` for one that is neither a place nor an affiliation              |
+| `foreignHoldingsNodes` | `foreignHoldingsNodes(foreignIndex)` | `HoldingsNode[]`        | reading a fetched index's places and affiliations as nodes                                                                  |
+| `holdingsPages`        | `holdingsPages(nodes)`               | `Map<string, Holdings>` | inverting `parents` and `domains` into each page's sorted lists, keyed by URL, for every page with at least one entry       |
+| `shortcodesOf`         | `shortcodesOf(value)`                | `string[]`              | the shortcodes a `parents` or `domains` value names — bare, addressed or wikilinked — empties dropped and repeats collapsed |
+| `checkGovernment`      | `checkGovernment(note)`              | `object[]`              | warning at `data.population` for positive population with no own `data.government` key; explicit null means anarchy         |
+| `checkHeld`            | `checkHeld(note, { index })`         | `object[]`              | deprecated compatibility wrapper for `checkGovernment`; holdings do not determine government                                |
 
 ### `engine.populations`
 

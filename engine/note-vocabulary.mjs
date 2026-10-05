@@ -112,7 +112,7 @@ import { checkCultureChoice } from "./culture-choice.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
-import { checkHeld } from "./holdings.mjs";
+import { checkGovernment } from "./holdings.mjs";
 import {
     checkBeingMeasurement,
     parseBeingHeight,
@@ -153,6 +153,7 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *   so each takes a row labelled and anchored by the post's own name.
  * @property {"subType"} [keySelector] - An alternative `subType:<skill-subtype>` key.
  * @property {readonly string[]} [accepts] - Allowed Address types, separate from `ref`.
+ * @property {string} [nullText] - Infobox text for an explicitly authored null with a declared meaning.
  * @property {string} [shape] - Human-readable shape, for a finding and for
  *   documentation.
  * @property {string} [entryShape] - For a `scalar-or-map` field, what one
@@ -512,8 +513,8 @@ const CHARGES = Object.freeze([
 /**
  * Everything `place` asks of a whole note.
  *
- * Two questions about one subject, and they are independent: who holds this
- * land, and — where the note is a body rather than somewhere within one — what
+ * Two questions about one subject, and they are independent: who governs this
+ * inhabited place, and — where the note is a body rather than somewhere within one — what
  * the body states about itself. A type declares one whole-note check, so the
  * two are composed here rather than either being folded into the other.
  *
@@ -522,7 +523,7 @@ const CHARGES = Object.freeze([
  * @returns {object[]} Findings from both.
  */
 function checkPlace(note, opts) {
-    return [...checkHeld(note, opts), ...checkWorldFacts(note, opts)];
+    return [...checkGovernment(note), ...checkWorldFacts(note, opts)];
 }
 
 /** Validate a being's authored date using the shared note-date grammar. */
@@ -1562,6 +1563,17 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...NUM,
                 check: checkPopulation,
                 describe: "Approximate population, to two significant digits.",
+            },
+            {
+                name: "government",
+                ...LINK,
+                shape: "an affiliation Address or null",
+                ref: "affiliation",
+                accepts: ["affiliation"],
+                nullText: "Complete anarchy",
+                describe:
+                    "The governing affiliation; explicit null means complete anarchy. " +
+                    "A positive population with no government key produces an advisory.",
             },
             {
                 name: "market",

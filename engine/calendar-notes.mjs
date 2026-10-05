@@ -511,7 +511,7 @@ function checkCalendarDayNames(note, daysPerYear) {
 /**
  * Check a `place` note's world facts.
  *
- * Declared on `place` beside its tenure check, so the lint runs both with the
+ * Declared on `place` beside its government advisory, so the lint runs both with the
  * same index. Four rules, and each is a fact about the setting rather than
  * about the file:
  *

@@ -427,6 +427,7 @@ export function isUnsetSentinel(value) {
 /**
  * Whether a value is worth a row.
  *
+ * A field declaring `nullText` handles explicit null before this general test.
  * Rule 4: an absent field is absent. `null`, `""` and `[]` are how the corpus
  * writes "nobody filled this in" — a note that declares every key of its type
  * and leaves most of them empty is the ordinary shape, not the exception — and
@@ -941,6 +942,15 @@ function noteBox(
         if (structured) {
             rows.push(...structured);
             if (structured.length) shown.add(field.name);
+            continue;
+        }
+        if (raw === null && field.nullText) {
+            rows.push({
+                label: overlay.label ?? humanizeFieldName(field.name),
+                kind: "text",
+                value: field.nullText,
+            });
+            shown.add(field.name);
             continue;
         }
         if (!hasValue(raw)) continue;

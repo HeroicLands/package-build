@@ -25,6 +25,8 @@ describes the keys the build writes from it.
 
 ## The infobox
 
+A place’s Government row links to its authored governing affiliation. Explicit `data.government: null` produces a text row saying “Complete anarchy”; an omitted government produces no row. The same distinction is retained in the page’s `data` metadata.
+
 The toolchain settles what each box holds and in what order — see
 [the infobox](format-details.md#the-infobox) for the field semantics, the
 three states a system box can say, and the four section layouts a box is

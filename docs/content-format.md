@@ -85,3 +85,5 @@ A sheltered place where ships load and unload.
 The note's readable Address is `<package>-note-lore-harbor`. In prose, link to it with `[[lore-harbor|Harbor]]`. The package segment comes from `package-build.config.yaml`; a regular wikilink defaults to the readable `note` system. An image embed such as `![[icon-harbor|Harbor]]` defaults to `none` instead.
 
 The [first-note guide](authoring/first-note.md) shows the build commands and how to add a system document. Use the [command reference](commands.md) for exact flags and the [diagnostics guide](diagnostics.md) for located errors.
+
+Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](authoring/frontmatter.md#place-governments).
