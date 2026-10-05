@@ -57,7 +57,14 @@ function run(root: string, args: string[]) {
 }
 
 describe("empty bodies fail author commands", () => {
-    it.each([["lint"], ["content-index"], ["package", "compile"], ["site"], ["pdf"]])(
+    it.each([
+        ["lint"],
+        ["content-index"],
+        ["content-index", ""],
+        ["package", "compile"],
+        ["site"],
+        ["pdf"],
+    ])(
         "%s refuses an empty described note before publication",
         (...args) => {
             const root = fixture();

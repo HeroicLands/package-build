@@ -244,7 +244,7 @@ export function registerContentCommands(cli) {
             withBodyPreflight(
                 contentIndexCommand(),
                 () => true,
-                (config, argv) => argv.root ?? config.paths.content,
+                (config, argv) => argv.root || config.paths.content,
             ),
         )
         .command(withIndexPreflight(withBodyPreflight(siteCommand()), publishesContentPages))
