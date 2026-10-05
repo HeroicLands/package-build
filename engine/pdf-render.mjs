@@ -88,7 +88,7 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
 import { slugify } from "./content-slug.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
-import { poetryMarkdown } from "./content-poetry.mjs";
+import { inlineVerse, poetryStanzas } from "./content-poetry.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { HTML_TAG, htmlMessage } from "./content-html.mjs";
 import { EXPRESSION } from "./markdown-expressions.mjs";
@@ -549,10 +549,19 @@ export function markdownToTypst(markdown, opts = {}) {
                     }),
                 );
                 if (block.name === "poetry") {
-                    const content = markdownToTypst(poetryMarkdown(block.body), {
-                        ...sharedOptions,
-                        insideAdmonition: true,
-                    });
+                    const content = poetryStanzas(block.body)
+                        .map((stanza) =>
+                            stanza
+                                .map(({ text, level }) => {
+                                    const verse = markdownToTypst(inlineVerse(text), {
+                                        ...sharedOptions,
+                                        insideAdmonition: true,
+                                    });
+                                    return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
+                                })
+                                .join(" \\\n"),
+                        )
+                        .join("\n\n");
                     output.push(`\n#block(width: 100%)[${content}]\n`);
                     cursor = block.end + 1;
                     continue;

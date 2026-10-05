@@ -64,6 +64,8 @@ const titleParser = new MarkdownIt({ html: false });
 
 const OPEN = /^:::([A-Za-z][A-Za-z0-9-]*)(?:[ \t]+(.*?))?[ \t]*$/;
 const CLOSE = /^:::[ \t]*$/;
+const INDENTED_POETRY_OPEN = /^ +:::poetry(?:[ \t]+(.*?))?[ \t]*$/;
+const INDENTED_CLOSE = /^ *:::[ \t]*$/;
 
 /** The blocks an author may open, with the heading each takes by default. */
 export const BLOCK_NAMES = Object.freeze({
@@ -145,7 +147,7 @@ export function scanBlocks(source) {
             continue;
         }
 
-        if (CLOSE.test(line)) {
+        if (CLOSE.test(line) || (opening?.name === "poetry" && INDENTED_CLOSE.test(line))) {
             // A closer belongs to the innermost block still open, whichever
             // pass owns it.
             if (opening && innerOpen > 0) {
@@ -164,11 +166,21 @@ export function scanBlocks(source) {
                 opening = null;
                 continue;
             }
-            const body = lines
-                .slice(opening.start + 1, i)
-                .join("\n")
-                .trim();
-            if (!body) {
+            const bodyLines = lines.slice(opening.start + 1, i);
+            const rawBody = bodyLines.join("\n");
+            const body = opening.name === "poetry" ? rawBody : rawBody.trim();
+            if (opening.name === "poetry") {
+                for (let offset = 0; offset < bodyLines.length; offset++) {
+                    const column = bodyLines[offset].indexOf("\t");
+                    if (column >= 0)
+                        errors.push({
+                            line: opening.start + offset + 2,
+                            column: column + 1,
+                            message: "tabs are not allowed in poetry",
+                        });
+                }
+            }
+            if (!body.trim()) {
                 errors.push({
                     line: opening.start + 1,
                     column: 1,
@@ -210,7 +222,8 @@ export function scanBlocks(source) {
             continue;
         }
 
-        const open = OPEN.exec(line);
+        const indentedPoetry = INDENTED_POETRY_OPEN.exec(line);
+        const open = OPEN.exec(line) ?? (indentedPoetry && [line, "poetry", indentedPoetry[1]]);
         if (!open) continue;
         const [, name, raw = ""] = open;
         const at = { line: i + 1, column: 1 };
@@ -281,7 +294,15 @@ export function scanBlocks(source) {
                 else attributes[key] = value;
             }
         }
-        opening = { start: i, name, title, id, classes, attributes };
+        opening = {
+            start: i,
+            name,
+            title,
+            id,
+            classes,
+            attributes,
+            indent: name === "poetry" ? /^ */.exec(line)[0] : "",
+        };
     }
 
     if (opening && !opening.rejected) {
@@ -324,6 +345,20 @@ function attributeText(block, target, classes) {
     return parts.join(" ");
 }
 
+/** Keep a poem in its list, without turning standalone readable indentation into code. */
+function poetryWrapperIndent(lines, block) {
+    const indent = block.indent;
+    if (indent.length < 4) return indent;
+    for (let at = block.start - 1; at >= 0; at--) {
+        const line = lines[at];
+        if (!line.trim()) continue;
+        const leading = /^ */.exec(line)[0].length;
+        if (/^ *(?:[-+*]|\d+[.)]) +/.test(line) && leading < indent.length) return indent;
+        if (leading < indent.length) break;
+    }
+    return "";
+}
+
 /**
  * Render named blocks for one publishing surface.
  *
@@ -360,7 +395,12 @@ export function renderBlocks(source, target) {
                 renderBlocks(block.body, target).markdown
             :   block.body;
         if (block.name === "poetry") {
-            output.push("", `<div ${attributes}>`, "", poetryMarkdown(held), "", "</div>", "");
+            const indent = poetryWrapperIndent(lines, block);
+            const verses = poetryMarkdown(held)
+                .split("\n")
+                .map((line) => (line ? `${indent}${line}` : line))
+                .join("\n");
+            output.push("", `${indent}<div ${attributes}>`, "", verses, "", `${indent}</div>`, "");
             cursor = block.end + 1;
             continue;
         }

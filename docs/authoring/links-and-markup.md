@@ -239,6 +239,30 @@ is one verse line; blank lines separate stanzas. Inline emphasis, links and
 footnotes work as they do in prose. The fence itself adds no title, caption or
 number.
 
+Leading spaces indent individual verse lines. The least-indented nonblank line
+sets level zero for the whole poem, so a common indentation on every line has no
+visual effect. Each additional two spaces adds one level, up to `i8`; an odd
+extra space rounds down. Each medium sets the actual width of a level, with
+every higher level wider than the preceding one. Tabs anywhere in the poem are
+an error. Interior spaces are preserved on a best-effort basis.
+
+| Extra leading spaces | Indent class |
+| -------------------- | ------------ |
+| 0–1                  | none         |
+| 2–3                  | `i1`         |
+| 4–5                  | `i2`         |
+| 6–7                  | `i3`         |
+| 8–9                  | `i4`         |
+| 10–11                | `i5`         |
+| 12–13                | `i6`         |
+| 14–15                | `i7`         |
+| 16 or more           | `i8`         |
+
+For example, a line with four leading spaces and a line with six leading spaces
+render at levels zero and `i1` respectively. This also works when the entire
+fence is indented inside a list item. Poetry is upright by default; use normal
+Markdown emphasis when italics are part of the poem.
+
 ```markdown
 :::poetry {form=ballad meter="common meter" rhyme=ABCB syllables="8,6,8,6" lang=en}
 The lantern burns beside the gate,

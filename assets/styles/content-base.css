@@ -120,6 +120,37 @@
     margin-top: 1em;
 }
 
+.poetry .poetry-line {
+    display: inline-block;
+    margin-inline-start: var(--poetry-indent, 0em);
+    white-space: pre-wrap;
+}
+
+.poetry .poetry-line.i1 {
+    --poetry-indent: 1.25em;
+}
+.poetry .poetry-line.i2 {
+    --poetry-indent: 2.5em;
+}
+.poetry .poetry-line.i3 {
+    --poetry-indent: 3.75em;
+}
+.poetry .poetry-line.i4 {
+    --poetry-indent: 5em;
+}
+.poetry .poetry-line.i5 {
+    --poetry-indent: 6.25em;
+}
+.poetry .poetry-line.i6 {
+    --poetry-indent: 7.5em;
+}
+.poetry .poetry-line.i7 {
+    --poetry-indent: 8.75em;
+}
+.poetry .poetry-line.i8 {
+    --poetry-indent: 10em;
+}
+
 /*
  * Named body blocks. `:::info` and `:::warn` emit a `<section>` carrying the
  * block's name as its class, so the appearance belongs here rather than in an

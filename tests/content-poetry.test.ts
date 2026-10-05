@@ -23,8 +23,8 @@ describe("poetry blocks", () => {
         expect(scanBlocks(poem).errors).toEqual([]);
         const html = renderFoundryMarkdown(poem);
         expect(html).toContain('class="poetry"');
-        expect(html).toMatch(/gate,<br\s*\/?>(?:\n)?The harbor/);
-        expect(html).toMatch(/<\/p>\s*<p>The keeper/);
+        expect(html).toMatch(/gate,<\/span><br\s*\/?>(?:\n)?<span class="poetry-line">The harbor/);
+        expect(html).toMatch(/<\/p>\s*<p><span class="poetry-line">The keeper/);
         const typst = markdownToTypst(poem);
         expect(typst).toContain("gate, \\\nThe harbor");
         expect(typst).toContain("#block(width: 100%)");
@@ -73,9 +73,9 @@ describe("poetry blocks", () => {
         const source = [":::poetry", "# A summons", "- A road", "```", ":::"].join("\n");
         expect(scanBlocks(source).errors).toEqual([]);
         const html = renderFoundryMarkdown(source);
-        expect(html).toContain("# A summons<br>");
-        expect(html).toContain("- A road<br>");
-        expect(html).toContain("```</p>");
+        expect(html).toContain("# A summons</span><br>");
+        expect(html).toContain("- A road</span><br>");
+        expect(html).toContain("```</span></p>");
     });
 
     it("reports invalid attributes and a syllable pattern of the wrong length", () => {
@@ -92,5 +92,75 @@ describe("poetry blocks", () => {
         expect(scanBlocks(":::poetry\nA line.").errors[0].message).toContain(
             "poetry block needs a closing :::",
         );
+    });
+
+    it("uses indentation relative to the least-indented verse, rounding odd spaces down", () => {
+        const source = [
+            ":::poetry",
+            "    Base  line",
+            "     One extra space",
+            "      Two extra spaces",
+            "       Three extra spaces",
+            "        Four extra spaces",
+            "",
+            "    Next stanza",
+            ":::",
+        ].join("\n");
+        expect(scanBlocks(source).errors).toEqual([]);
+        const html = renderFoundryMarkdown(source);
+        expect(html).toContain('<span class="poetry-line">Base  line</span>');
+        expect(html).toContain('<span class="poetry-line">One extra space</span>');
+        expect(html).toContain('<span class="poetry-line i1">Two extra spaces</span>');
+        expect(html).toContain('<span class="poetry-line i1">Three extra spaces</span>');
+        expect(html).toContain('<span class="poetry-line i2">Four extra spaces</span>');
+        expect(html).toMatch(/<\/p>\s*<p><span class="poetry-line">Next stanza/);
+        const typst = markdownToTypst(source);
+        expect(typst).toContain("#h(1.25em)Two extra spaces");
+        expect(typst).toContain("#h(2.5em)Four extra spaces");
+    });
+
+    it("caps indentation at i8 and accepts an indented fence", () => {
+        const source = ["  :::poetry", "    Base", "                     Far line", "  :::"].join(
+            "\n",
+        );
+        expect(scanBlocks(source).errors).toEqual([]);
+        expect(renderFoundryMarkdown(source)).toContain('class="poetry-line i8"');
+    });
+
+    it("keeps an indented poem inside its list item", () => {
+        const source = [
+            "- Song:",
+            "",
+            "  :::poetry",
+            "    First",
+            "      Second",
+            "  :::",
+            "",
+            "- Next",
+        ].join("\n");
+        const html = renderFoundryMarkdown(source);
+        expect(html).toMatch(/<li>\s*<p>Song:<\/p>\s*<div class="poetry">/);
+        expect(html).toMatch(/<\/div>\s*<\/li>\s*<li>/);
+        expect(html).toContain('class="poetry-line i1"');
+    });
+
+    it("renders a standalone fence indented four spaces as poetry", () => {
+        const source = ["    :::poetry", "      First", "        Second", "    :::"].join("\n");
+        const html = renderFoundryMarkdown(source);
+        expect(html).toContain('<div class="poetry">');
+        expect(html).toContain('class="poetry-line i1"');
+    });
+
+    it("labels a figure with an indented poetry fence as a poem", () => {
+        const source = [":::figure", "  :::poetry", "    One line", "  :::", ":::"].join("\n");
+        expect(scanFigures(source).figures[0].label).toBe("Poem 1");
+    });
+
+    it("reports tabs anywhere in a poetry body with their source location", () => {
+        const source = ":::poetry\n  A\tline\n\tSecond line\n:::";
+        expect(scanBlocks(source).errors).toEqual([
+            { line: 2, column: 4, message: "tabs are not allowed in poetry" },
+            { line: 3, column: 1, message: "tabs are not allowed in poetry" },
+        ]);
     });
 });

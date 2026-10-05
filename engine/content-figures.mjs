@@ -208,7 +208,7 @@ function picturesAreMap(contents, resolveRole) {
  * @returns {"code"|"table"|"figure"|"map"|"poem"|"prose"} The kind.
  */
 function figureKind(first, contents, resolveRole) {
-    if (/^(?::::poetry(?:\s|$)|<div\b[^>]*\bclass="poetry(?:\s|"))/.test(contents)) return "poem";
+    if (/^(?: *:::poetry(?:\s|$)|<div\b[^>]*\bclass="poetry(?:\s|"))/.test(contents)) return "poem";
     if (first?.type === "table_open") return "table";
     if (first?.type === "fence" && /^\s*sql\b/i.test(first.info ?? "")) return "table";
     if (first?.type === "fence" || first?.type === "code_block") return "code";
@@ -301,7 +301,7 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
             const bodyFence = FENCE.exec(body);
             if (namedDepth) {
                 fenced.add(close);
-                if (CLOSE.test(body)) namedDepth--;
+                if (/^ *:::[ \t]*$/.test(body)) namedDepth--;
                 close++;
                 continue;
             }
@@ -322,7 +322,7 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
                 close++;
                 continue;
             }
-            if (/^:::poetry(?:\s|$)/.test(body)) {
+            if (/^ *:::poetry(?:\s|$)/.test(body)) {
                 namedDepth++;
                 fenced.add(close);
                 close++;
