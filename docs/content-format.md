@@ -9,6 +9,8 @@ subType: userguide
 
 A content package begins with Markdown notes under `assets/content/`. Each note has YAML frontmatter describing its identity and data, followed by prose. Folder names beneath `assets/content/` are for authors; `type`, `subType`, and Addresses determine what the build creates.
 
+Every typed note requires a nonempty body, including drafts, folders and homepages. An empty or whitespace-only body is an error. A nonempty body with fewer than 25 prose words warns unless tagged `draft`; the tag never exempts an empty body.
+
 Start with [your first note](authoring/first-note.md). It explains the smallest valid note and shows the JournalEntry, web page, book entry, and content-index record made from it. Then use the chapters below in the order your note needs them.
 
 | Need                                                      | Read                                                        |

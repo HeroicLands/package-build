@@ -441,16 +441,16 @@ Drawing a declared infobox: HTML for separate Foundry pages appended after autho
 
 The three states of a note — **stub**, **draft**, **full** — and the one observable fact they rest on. A note whose body is empty is a stub: it carries its facts into the index and is queryable there, and it has no page, no address and no link target. Nothing is stored: the ladder is derived once in the SQL `entries` view and no note can assert its own state.
 
-| Export                | Signature                                   | Returns                                 | Use it when                                                                                                                |
-| --------------------- | ------------------------------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `NOTE_STATES`         | `const NOTE_STATES`                         | `ReadonlyArray<string>`                 | naming the three states in ladder order                                                                                    |
-| `isEmptyBody`         | `isEmptyBody(body)`                         | `boolean`                               | asking the exact question: is everything after the closing frontmatter fence whitespace?                                   |
-| `isStubbableType`     | `isStubbableType(type, vocabulary)`         | `boolean`                               | asking whether an empty body suppresses this type's page; `folder` and `homepage` are structural and exempt                |
-| `isStubNote`          | `isStubNote(frontmatter, body, vocabulary)` | `boolean`                               | deciding whether one note is a stub, which is what the index and the site build both ask                                   |
-| `journalHasContent`   | `journalHasContent(body)`                   | `boolean`                               | asking whether the JournalEntry a body compiles into would hold anything, which is what decides whether one is made at all |
-| `PLACEHOLDER_PHRASES` | `const PLACEHOLDER_PHRASES`                 | `ReadonlyArray<string>`                 | reading the phrases that stand in for prose nobody has written                                                             |
-| `placeholderBody`     | `placeholderBody(body)`                     | `Array<{phrase: string, line: number}>` | finding a body that reduces to nothing but placeholders, which is an abandoned draft rather than a stub                    |
-| `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting rendered prose, with wikilinks as one word and closed dashes, slashes, and ellipses separating adjacent words     |
+| Export                | Signature                                   | Returns                                 | Use it when                                                                                                                                               |
+| --------------------- | ------------------------------------------- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NOTE_STATES`         | `const NOTE_STATES`                         | `ReadonlyArray<string>`                 | naming the three states in ladder order                                                                                                                   |
+| `isEmptyBody`         | `isEmptyBody(body)`                         | `boolean`                               | asking the exact question: is everything after the closing frontmatter fence whitespace?                                                                  |
+| `isStubbableType`     | `isStubbableType(type, vocabulary)`         | `boolean`                               | asking whether an empty body suppresses this type's page; `folder` and `homepage` retain their addresses in this classification, but still require bodies |
+| `isStubNote`          | `isStubNote(frontmatter, body, vocabulary)` | `boolean`                               | deciding whether one note is a stub, which is what the index and the site build both ask                                                                  |
+| `journalHasContent`   | `journalHasContent(body)`                   | `boolean`                               | asking whether the JournalEntry a body compiles into would hold anything, which is what decides whether one is made at all                                |
+| `PLACEHOLDER_PHRASES` | `const PLACEHOLDER_PHRASES`                 | `ReadonlyArray<string>`                 | reading the phrases that stand in for prose nobody has written                                                                                            |
+| `placeholderBody`     | `placeholderBody(body)`                     | `Array<{phrase: string, line: number}>` | finding a body that reduces to nothing but placeholders, which is an abandoned draft rather than a stub                                                   |
+| `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting rendered prose, with wikilinks as one word and closed dashes, slashes, and ellipses separating adjacent words                                    |
 
 ### `engine.draftNotice`
 
@@ -471,7 +471,7 @@ What a draft note says about itself, in one sentence, on every surface it reache
 
 ### `engine.stubLint`
 
-An empty body must be deliberate. Four rules hold the state honest — a stub states what it is, a stub is not tagged `draft`, a body that renders to nothing is an abandoned draft, and a short unmarked body is asked whether it forgot its marker — and two reports say what the rules cannot decide.
+Every typed note must have a nonempty body. Empty and whitespace-only bodies are errors regardless of description or `draft` tag, including structural types such as `folder` and `homepage`. Placeholder-only bodies also produce errors. Nonempty bodies with fewer than 25 prose words produce warnings unless tagged `draft`. Untyped vault scaffolding is excluded. The lint, content-index, package compile, site and PDF commands enforce body errors before publishing. The state classification helpers still describe incomplete records for inspection; their classifications do not exempt notes from validation.
 
 | Export             | Signature                                                  | Returns                                             | Use it when                                                                                   |
 | ------------------ | ---------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------- |

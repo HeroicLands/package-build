@@ -93,7 +93,7 @@ export * as noteState from "./note-state.mjs";
 /** What a draft note says about itself, in one sentence, on every surface. */
 export * as draftNotice from "./draft-notice.mjs";
 
-/** Whether every empty body is a stub on purpose, and how finished a tree is. */
+/** Require written bodies on typed notes and report how finished a tree is. */
 export * as stubLint from "./stub-lint.mjs";
 
 /** What a place is next to and reachable from: the closed sets, and the checks. */

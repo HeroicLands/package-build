@@ -2006,8 +2006,18 @@ convention rather than declared in a field — see
 
 ### Three states of a note
 
-A note has three states, and two of them are nothing but conventions the format
-already carried.
+Every typed note requires a nonempty body after its closing frontmatter fence.
+An empty or whitespace-only body is an error, regardless of description or
+`tags: [draft]`. This includes `folder` and `homepage` notes. Untyped vault
+scaffolding is excluded. A nonempty body with fewer than 25 prose words warns
+unless tagged `draft`; the tag never exempts an empty body.
+
+The `lint`, `content-index`, `package compile`, `site` and `pdf` commands enforce
+body errors. Write a short beginning and tag it `draft` when work is unfinished.
+
+The internal classification below describes records, including incomplete notes
+that inspection APIs can still read. A **stub** is invalid authored content and
+must receive a body before these commands can publish it.
 
 | State     | Body    | Marker          | Page         | Document                          | Link target |
 | --------- | ------- | --------------- | ------------ | --------------------------------- | ----------- |
@@ -2039,13 +2049,13 @@ same.
 
 | After the fence         | Empty? | What happens                                                    |
 | ----------------------- | ------ | --------------------------------------------------------------- |
-| Nothing, or blank lines | yes    | A stub                                                          |
+| Nothing, or blank lines | yes    | An error, with or without `draft`                               |
 | An HTML comment         | no     | A note with a body that renders to nothing. The lint reports it |
 | A horizontal rule       | no     | The same                                                        |
 | A lone heading          | no     | The same                                                        |
 | `_To be written._`      | no     | The same                                                        |
 
-An HTML comment is deliberately not empty. An invisible marker does not make a valid stub; use an empty body when the note has no prose.
+An HTML comment is deliberately not empty, but an invisible marker does not supply prose. Replace placeholder-only content with written text.
 
 #### What a stub emits
 
@@ -2090,12 +2100,12 @@ What is suppressed with the page is the web address and the link target: a
 wikilink into a stub is refused, and a table cell listing one prints its name as
 plain text rather than as a link.
 
-#### Two types are structural and exempt
+#### Structural classification does not exempt validation
 
-`folder` and `homepage` have no body by design — a folder note's page is a
-generated section index, and the homepage's is the site's front door. An empty
-body on either keeps its address and resolves as **full**, because such a note is
-complete.
+A `folder` note's page is a generated section index, and the homepage is the
+site's front door. The classification helpers retain their addresses and report
+**full** even when their bodies are empty. Validation still rejects an empty
+body for both types.
 
 Every type in the vocabulary declares whether an empty body suppresses its page,
 so adding a type means answering the question rather than inheriting a default.
@@ -4735,8 +4745,8 @@ the map for the pack it is writing and falls back to `default` when there is no
 such key, so a mistyped `journal:` files the folder wherever the default puts it
 — exactly the hierarchy the key was written to override, and silently.
 
-**A folder note carries no prose.** It is structure, not content, so it produces
-no documentation journal and takes no part in `docEntryTypes`.
+**A folder note requires a body**, like every typed note. Its body does not
+produce a documentation journal or take part in `docEntryTypes`.
 In a compiled Foundry journal, a wikilink to a folder prints its label as text:
 the folder can materialise in several packs and has no single compendium UUID.
 
