@@ -7,16 +7,16 @@ import { renderFoundryMarkdown, md } from "../engine/helpers.mjs";
 import { markdownToTypst } from "../engine/pdf-render.mjs";
 
 const poem = [
-    ':::poetry {form=ballad meter="common meter" rhyme=ABCB syllables="8,6,8,6" lang=en}',
+    '```poetry {form=ballad meter="common meter" rhyme=ABCB syllables="8,6,8,6" lang=en}',
     "The lantern burns beside the gate,",
     "The harbor sleeps below.",
     "",
     "The keeper guards the road till dawn,",
     "And keeps a light aglow.",
-    ":::",
+    "```",
 ].join("\n");
 
-const figure = [":::figure {#mypoem}", poem, "///", "A harbor song.", ":::"].join("\n");
+const figure = [":@ A harbor song. {#mypoem}", "", poem].join("\n");
 
 describe("poetry blocks", () => {
     it("preserves verse lines and stanza breaks in HTML and print", () => {
@@ -35,18 +35,16 @@ describe("poetry blocks", () => {
         const scanned = scanFigures(figure);
         expect(scanned.errors).toEqual([]);
         expect(scanned.figures[0]).toMatchObject({
-            kind: "poem",
+            kind: "poetry",
             label: "Poem 1",
             caption: "A harbor song.",
         });
         const foundry = renderFoundryMarkdown(figure, scanned.figures);
         expect(foundry).toContain("Poem 1: A harbor song.");
-        const web = renderFigureBlocks(
-            renderBlocks(figure, "web").markdown,
-            md.render.bind(md),
-            scanned.figures,
+        const web = renderFigureBlocks(figure, md.render.bind(md), scanned.figures);
+        expect(md.render(renderBlocks(web.markdown, "web").markdown)).toContain(
+            "Poem 1: A harbor song.",
         );
-        expect(md.render(web.markdown)).toContain("Poem 1: A harbor song.");
         expect(markdownToTypst(figure)).toContain("Poem 1: A harbor song.");
     });
 
@@ -62,7 +60,7 @@ describe("poetry blocks", () => {
         expect(typst).toContain("#footnote[");
     });
 
-    it("keeps figure delimiters outside poetry and gives preceding prose its usual kind", () => {
+    it("keeps delimiter-like verse inside poetry and gives preceding prose its usual kind", () => {
         const withDelimiter = figure.replace("The harbor sleeps below.", "///");
         expect(scanFigures(withDelimiter).figures[0].caption).toBe("A harbor song.");
         const preceded = figure.replace(poem, `Before the song.\n\n${poem}`);
@@ -70,7 +68,7 @@ describe("poetry blocks", () => {
     });
 
     it("treats Markdown block markers at the start of a verse as text", () => {
-        const source = [":::poetry", "# A summons", "- A road", "```", ":::"].join("\n");
+        const source = ["~~~~poetry", "# A summons", "- A road", "```", "~~~~"].join("\n");
         expect(scanBlocks(source).errors).toEqual([]);
         const html = renderFoundryMarkdown(source);
         expect(html).toContain("# A summons</span><br>");
@@ -88,15 +86,15 @@ describe("poetry blocks", () => {
         expect(scanBlocks(poem.replace(" lang=en", " lines=4")).errors[0].message).toContain(
             "lines= is not a poetry attribute",
         );
-        expect(scanBlocks(":::poetry\n\n:::").errors[0].message).toContain("poetry block is empty");
-        expect(scanBlocks(":::poetry\nA line.").errors[0].message).toContain(
-            "poetry block needs a closing :::",
+        expect(scanBlocks("```poetry\n\n```").errors[0].message).toContain("poetry block is empty");
+        expect(scanBlocks("```poetry\nA line.").errors[0].message).toContain(
+            "poetry block needs a closing code fence",
         );
     });
 
     it("uses indentation relative to the least-indented verse, rounding odd spaces down", () => {
         const source = [
-            ":::poetry",
+            "```poetry",
             "    Base  line",
             "     One extra space",
             "      Two extra spaces",
@@ -104,7 +102,7 @@ describe("poetry blocks", () => {
             "        Four extra spaces",
             "",
             "    Next stanza",
-            ":::",
+            "```",
         ].join("\n");
         expect(scanBlocks(source).errors).toEqual([]);
         const html = renderFoundryMarkdown(source);
@@ -120,7 +118,7 @@ describe("poetry blocks", () => {
     });
 
     it("caps indentation at i8 and accepts an indented fence", () => {
-        const source = ["  :::poetry", "    Base", "                     Far line", "  :::"].join(
+        const source = ["  ```poetry", "    Base", "                     Far line", "  ```"].join(
             "\n",
         );
         expect(scanBlocks(source).errors).toEqual([]);
@@ -131,10 +129,10 @@ describe("poetry blocks", () => {
         const source = [
             "- Song:",
             "",
-            "  :::poetry",
+            "  ```poetry",
             "    First",
             "      Second",
-            "  :::",
+            "  ```",
             "",
             "- Next",
         ].join("\n");
@@ -145,19 +143,19 @@ describe("poetry blocks", () => {
     });
 
     it("renders a standalone fence indented four spaces as poetry", () => {
-        const source = ["    :::poetry", "      First", "        Second", "    :::"].join("\n");
+        const source = ["    ```poetry", "      First", "        Second", "    ```"].join("\n");
         const html = renderFoundryMarkdown(source);
         expect(html).toContain('<div class="poetry">');
         expect(html).toContain('class="poetry-line i1"');
     });
 
     it("labels a figure with an indented poetry fence as a poem", () => {
-        const source = [":::figure", "  :::poetry", "    One line", "  :::", ":::"].join("\n");
+        const source = [":@ A song.", "", "  ```poetry", "    One line", "  ```"].join("\n");
         expect(scanFigures(source).figures[0].label).toBe("Poem 1");
     });
 
     it("reports tabs anywhere in a poetry body with their source location", () => {
-        const source = ":::poetry\n  A\tline\n\tSecond line\n:::";
+        const source = "```poetry\n  A\tline\n\tSecond line\n```";
         expect(scanBlocks(source).errors).toEqual([
             { line: 2, column: 4, message: "tabs are not allowed in poetry" },
             { line: 3, column: 1, message: "tabs are not allowed in poetry" },

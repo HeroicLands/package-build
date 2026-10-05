@@ -72,7 +72,7 @@ describe("named body blocks", () => {
         expect(blocks).toEqual([]);
         expect(errors[0]).toMatchObject({ line: 1, column: 1 });
         expect(errors[0].message).toContain("no caution block");
-        expect(errors[0].message).toContain("info, secret, warn, poetry");
+        expect(errors[0].message).toContain("info, secret, warn, div");
     });
 
     it("keeps a malformed block from silencing the blocks around it", () => {
@@ -106,7 +106,7 @@ describe("named body blocks", () => {
             line: 3,
         });
         expect(scanBlocks(":::warn\nBody.\n").errors[0]).toMatchObject({ line: 1, column: 1 });
-        expect(scanBlocks(":::\n").errors[0].message).toContain("closes no block");
+        expect(scanBlocks(":::\n").errors[0].message).toContain("needs a closing");
     });
 
     it("leaves examples inside code fences untouched", () => {
@@ -162,29 +162,12 @@ describe("named body blocks", () => {
         expect(typst).toContain("Three.");
     });
 
-    it("counts another construct's block rather than claiming it", () => {
-        // `:::figure` belongs to the figure pass. Claiming it would report a
-        // block that does not exist and take the figure out of the note; not
-        // counting it would leave its closer looking like a stray `:::`.
+    it("rejects the retired figure syntax", () => {
         const source =
             ":::figure {#trade}\nRoutes\n///\nTrade routes\n:::\n\n:::info\nBody.\n:::\n";
         const { blocks, errors } = scanBlocks(source);
-        expect(errors).toEqual([]);
-        expect(blocks).toHaveLength(1);
+        expect(errors[0].message).toContain("no figure block");
         expect(blocks[0].name).toBe("info");
-        // the figure is left exactly as the author wrote it
-        expect(renderBlocks(source, "web").markdown).toContain(":::figure {#trade}");
-    });
-
-    it("keeps another construct's block inside the block it was written in", () => {
-        const source =
-            ":::secret\nBefore.\n\n:::figure {#trade}\nRoutes\n///\nTrade routes\n:::\n\nAfter.\n:::\n";
-        const { blocks, errors } = scanBlocks(source);
-        expect(errors).toEqual([]);
-        expect(blocks).toHaveLength(1);
-        expect(blocks[0].name).toBe("secret");
-        expect(blocks[0].body).toContain(":::figure {#trade}");
-        expect(blocks[0].body).toContain("After.");
     });
 
     it("holds a box inside a GM-only section", () => {

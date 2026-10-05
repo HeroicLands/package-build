@@ -25,11 +25,7 @@
  * page in two and publish the rest with no wrapper around it at all.
  *
 
- * **One pass reads all three names.** Reading them in two passes made the first
- * one meet the second's closers with nothing open, and report a block the author
- * had not written. A construct this pass does not own — `:::figure` — is
- * counted rather than claimed, so its closer is attributed to it and the pass
- * that owns it still finds it in the markdown this one passes through.
+ * **One pass reads named blocks and general divs.**
  *
  * **A block's body is left as Markdown, not pre-rendered.** The wrapper is
  * written with a blank line after the opening tag and before the closing one,
@@ -47,13 +43,9 @@
 
 import crypto from "node:crypto";
 import MarkdownIt from "markdown-it";
-import footnotePlugin from "markdown-it-footnote";
-import deflistPlugin from "markdown-it-deflist";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
-import { poetryMarkdown, verseLines } from "./content-poetry.mjs";
+import { scanPoetry, renderPoetry } from "./content-poetry.mjs";
 import { WITHHELD_CLASS, parseHeadingLine, withheldSections } from "./heading-attributes.mjs";
-
-const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlugin);
 
 /**
  * Titles carry emphasis and nothing else. `html: false` escapes any tag an
@@ -61,11 +53,6 @@ const parser = new MarkdownIt({ html: true }).use(footnotePlugin).use(deflistPlu
  * and a stray `<section>` would close the block early.
  */
 const titleParser = new MarkdownIt({ html: false });
-
-const OPEN = /^:::([A-Za-z][A-Za-z0-9-]*)(?:[ \t]+(.*?))?[ \t]*$/;
-const CLOSE = /^:::[ \t]*$/;
-const INDENTED_POETRY_OPEN = /^ +:::poetry(?:[ \t]+(.*?))?[ \t]*$/;
-const INDENTED_CLOSE = /^ *:::[ \t]*$/;
 
 /** The blocks an author may open, with the heading each takes by default. */
 export const BLOCK_NAMES = Object.freeze({
@@ -87,21 +74,9 @@ export const BLOCK_NAMES = Object.freeze({
  *
  * @type {readonly string[]}
  */
-export const BLOCK_CONTAINERS = Object.freeze(["secret"]);
+export const BLOCK_CONTAINERS = Object.freeze(["secret", "div"]);
 
-/**
- * Constructs another pass owns. A `:::figure` is read by the figure pass, so
- * this one **counts it and does not claim it**: the opener and its closer pass
- * through untouched, and the count is what lets a closer be attributed to the
- * innermost block actually open. Claiming one would report a block that does not
- * exist and take the figure out of the note.
- */
-const FOREIGN = Object.freeze(["figure"]);
-
-/** `title` is the heading. Everything else an author writes becomes an attribute. */
-const TITLE = "title";
-
-const names = () => [...Object.keys(BLOCK_NAMES), "poetry"].join(", ");
+const names = () => [...Object.keys(BLOCK_NAMES), "div"].join(", ");
 
 /** Text safe inside a double-quoted attribute. */
 function escapeAttribute(value) {
@@ -122,197 +97,126 @@ function escapeAttribute(value) {
  * @returns {{blocks: Array<{name: string, title: string, id: string, classes: string[], attributes: Record<string, string>, start: number, end: number, body: string}>, errors: Array<{line: number, column: number, message: string}>}}
  */
 export function scanBlocks(source) {
-    const lines = String(source ?? "").split("\n");
-    const blocks = [];
-    const errors = [];
-    let opening = null;
-    let codeFence = null;
-    // Blocks open inside this pass's own block, and blocks of another
-    // construct open outside it, counted so a `:::` closes the innermost thing
-    // rather than whatever this pass happens to have open.
-    let innerOpen = 0;
-    let foreignOutside = 0;
-
+    const lines = String(source ?? "").split("\n"),
+        blocks = [],
+        errors = [];
+    const stack = [];
+    let fence = null;
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        const fence = opening?.name === "poetry" ? null : /^ {0,3}(`{3,}|~{3,})/.exec(line);
-        if (codeFence) {
-            if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length) {
-                codeFence = null;
-            }
-            continue;
-        }
+        const code = /^ *(`{3,}|~{3,})(.*)$/.exec(line);
         if (fence) {
-            codeFence = fence[1];
+            if (
+                code &&
+                code[1][0] === fence[0] &&
+                code[1].length >= fence.length &&
+                !code[2].trim()
+            )
+                fence = null;
             continue;
         }
-
-        if (CLOSE.test(line) || (opening?.name === "poetry" && INDENTED_CLOSE.test(line))) {
-            // A closer belongs to the innermost block still open, whichever
-            // pass owns it.
-            if (opening && innerOpen > 0) {
-                innerOpen -= 1;
-                continue;
-            }
-            if (!opening) {
-                if (foreignOutside > 0) {
-                    foreignOutside -= 1;
-                    continue;
-                }
-                errors.push({ line: i + 1, column: 1, message: "a ::: line closes no block" });
-                continue;
-            }
-            if (opening.rejected) {
-                opening = null;
-                continue;
-            }
-            const bodyLines = lines.slice(opening.start + 1, i);
-            const rawBody = bodyLines.join("\n");
-            const body = opening.name === "poetry" ? rawBody : rawBody.trim();
-            if (opening.name === "poetry") {
-                for (let offset = 0; offset < bodyLines.length; offset++) {
-                    const column = bodyLines[offset].indexOf("\t");
-                    if (column >= 0)
-                        errors.push({
-                            line: opening.start + offset + 2,
-                            column: column + 1,
-                            message: "tabs are not allowed in poetry",
-                        });
-                }
-            }
-            if (!body.trim()) {
-                errors.push({
-                    line: opening.start + 1,
-                    column: 1,
-                    message: `${opening.name} block is empty`,
-                });
-                opening = null;
-                continue;
-            }
-            if (opening.name === "poetry" && opening.attributes.syllables) {
-                const expected = opening.attributes.syllables.split(",").length;
-                const actual = verseLines(body).length;
-                if (expected !== actual)
-                    errors.push({
-                        line: opening.start + 1,
-                        column: 1,
-                        message: `poetry syllables= gives ${expected} counts for ${actual} verse lines`,
-                    });
-            }
-            // An H1, or an anchored heading at any level, starts a Foundry
-            // journal page — splitting the block's own page in two and
-            // publishing the rest with no wrapper around it, a GM-only
-            // section included. Refused rather than split: a lower heading
-            // with no anchor is still the ordinary way to structure a box.
-            // Poetry treats those same characters as verse text.
-            for (let at = opening.start + 1; opening.name !== "poetry" && at < i; at++) {
-                if (!parseHeadingLine(lines[at])?.startsPage) continue;
-                const article = /^[aeiou]/i.test(opening.name) ? "an" : "a";
-                errors.push({
-                    line: at + 1,
-                    column: 1,
-                    message:
-                        `a heading that starts a page cannot be written inside ${article} ` +
-                        `${opening.name} block — keep an H1 or an anchored heading ` +
-                        "at the top level, or drop the anchor and the level to stay inside it",
-                });
-            }
-            blocks.push({ ...opening, end: i, body });
-            opening = null;
+        if (code) {
+            fence = code[1];
             continue;
         }
-
-        const indentedPoetry = INDENTED_POETRY_OPEN.exec(line);
-        const open = OPEN.exec(line) ?? (indentedPoetry && [line, "poetry", indentedPoetry[1]]);
-        if (!open) continue;
-        const [, name, raw = ""] = open;
+        const close = /^ *:::\s*$/.test(line);
+        const named = /^ *:::([A-Za-z][A-Za-z0-9-]*)(?:\s+(.*))?$/.exec(line);
+        const div = /^ *:::\s+(\{.*)$/.exec(line);
+        if (close && stack.length) {
+            const block = stack.pop();
+            if (block.rejected) continue;
+            block.end = i;
+            block.body = lines
+                .slice(block.start + 1, i)
+                .join("\n")
+                .trim();
+            if (!block.body)
+                errors.push({
+                    line: block.start + 1,
+                    column: 1,
+                    message: `${block.name} block is empty`,
+                });
+            if (!stack.length) blocks.push(block);
+            continue;
+        }
+        if (!close && !named && !div) continue;
+        const name = named?.[1] ?? "div",
+            raw = named?.[2] ?? div?.[1] ?? "";
         const at = { line: i + 1, column: 1 };
-        if (FOREIGN.includes(name)) {
-            if (opening) innerOpen += 1;
-            else foreignOutside += 1;
-            continue;
-        }
-        if (!Object.hasOwn(BLOCK_NAMES, name) && name !== "poetry") {
+        if (name !== "div" && !Object.hasOwn(BLOCK_NAMES, name)) {
             errors.push({ ...at, message: `there is no ${name} block; the blocks are ${names()}` });
-            opening = { start: i, rejected: true };
+            stack.push({ start: i, rejected: true });
             continue;
         }
-        if (opening) {
-            if (BLOCK_CONTAINERS.includes(opening.name) && !BLOCK_CONTAINERS.includes(name)) {
-                // Held by the block it is written in, and counted so the
-                // closers are attributed in the order they were opened. The
-                // body is rendered for its own blocks before it is rendered as
-                // markdown, so the inner block comes out as a block.
-                innerOpen += 1;
-                continue;
-            }
-            // Not counted, unlike a block the outer one holds: the nesting is
-            // already reported, and counting it would leave the outer block
-            // looking unclosed as well — two findings for one mistake.
+        if (stack.length && !["secret", "div"].includes(stack.at(-1).name)) {
             errors.push({ ...at, message: `nested ${name} blocks are not supported` });
+            stack.push({ start: i, rejected: true });
             continue;
         }
-
-        let id = "";
-        let classes = [];
-        const attributes = {};
-        let title = BLOCK_NAMES[name];
-        const text = raw.trim();
-        if (text) {
-            if (!/^\{[^}\n]*\}$/.test(text)) {
-                errors.push({ ...at, message: "block attributes need {…} braces" });
-                opening = { start: i, rejected: true };
-                continue;
-            }
-            const parsed = parseExtensionAttributes(text.slice(1, -1));
-            if (parsed.problems.length) {
-                for (const message of parsed.problems) errors.push({ ...at, message });
-                opening = { start: i, rejected: true };
-                continue;
-            }
-            id = parsed.id;
-            classes = parsed.classes;
-            const refused = refusedAttributes(parsed.values);
-            for (const message of refused) errors.push({ ...at, message });
-            if (refused.length) {
-                opening = { start: i, rejected: true };
-                continue;
-            }
-            for (const [key, value] of Object.entries(parsed.values)) {
-                if (name === "poetry") {
-                    if (!["form", "meter", "rhyme", "syllables", "lang"].includes(key))
-                        errors.push({ ...at, message: `${key}= is not a poetry attribute` });
-                    else if (key === "syllables" && !/^[1-9]\d*(?:,[1-9]\d*)*$/.test(value))
-                        errors.push({
-                            ...at,
-                            message: "poetry syllables= needs positive comma-separated counts",
-                        });
-                    else if (key === "lang" && !/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(value))
-                        errors.push({ ...at, message: "poetry lang= needs a language tag" });
-                }
-                if (key === TITLE) title = value;
-                else attributes[key] = value;
-            }
+        if (stack.length && name === "secret" && stack.at(-1).name === "secret") {
+            errors.push({ ...at, message: "nested secret blocks are not supported" });
+            stack.push({ start: i, rejected: true });
+            continue;
         }
-        opening = {
+        let parsed = { id: "", classes: [], values: {}, problems: [] };
+        if (raw.trim()) {
+            if (!/^\{[^}\n]*\}$/.test(raw.trim()))
+                parsed.problems.push("block attributes need {…} braces");
+            else parsed = parseExtensionAttributes(raw.trim().slice(1, -1));
+        }
+        for (const message of [...parsed.problems, ...refusedAttributes(parsed.values)])
+            errors.push({ ...at, message });
+        const attributes = { ...parsed.values };
+        let title = BLOCK_NAMES[name] ?? "";
+        if (name !== "div" && Object.hasOwn(attributes, "title")) {
+            title = attributes.title;
+            delete attributes.title;
+        }
+        stack.push({
             start: i,
             name,
             title,
-            id,
-            classes,
+            id: parsed.id,
+            classes: parsed.classes,
             attributes,
-            indent: name === "poetry" ? /^ */.exec(line)[0] : "",
-        };
-    }
-
-    if (opening && !opening.rejected) {
-        errors.push({
-            line: opening.start + 1,
-            column: 1,
-            message: `${opening.name} block needs a closing ::: line`,
+            rejected: parsed.problems.length > 0 || refusedAttributes(parsed.values).length > 0,
+            indent: /^ */.exec(line)[0],
         });
     }
-    return { blocks, errors };
+    for (const block of stack)
+        if (!block.rejected)
+            errors.push({
+                line: block.start + 1,
+                column: 1,
+                message: `${block.name} block needs a closing ::: line`,
+            });
+    for (const block of blocks) {
+        let literal = null;
+        for (let i = block.start + 1; i < block.end; i++) {
+            const marker = /^ *(`{3,}|~{3,})(.*)$/.exec(lines[i]);
+            if (literal) {
+                if (
+                    marker &&
+                    marker[1][0] === literal[0] &&
+                    marker[1].length >= literal.length &&
+                    !marker[2].trim()
+                )
+                    literal = null;
+                continue;
+            }
+            if (marker) {
+                literal = marker[1];
+                continue;
+            }
+            if (parseHeadingLine(lines[i])?.startsPage)
+                errors.push({
+                    line: i + 1,
+                    column: 1,
+                    message: `a heading that starts a page cannot be written inside a ${block.name} block — keep an H1 or an anchored heading at the top level, or drop the anchor and the level to stay inside it`,
+                });
+        }
+    }
+    return { blocks, errors: [...errors, ...scanPoetry(source).errors] };
 }
 
 /**
@@ -339,24 +243,10 @@ function attributeText(block, target, classes) {
     const parts = [`class="${escapeAttribute(classes.join(" "))}"`];
     if (id) parts.push(`id="${escapeAttribute(id)}"`);
     for (const [key, value] of Object.entries(block.attributes)) {
-        const attribute = block.name === "poetry" && key !== "lang" ? `data-${key}` : key;
+        const attribute = key;
         parts.push(`${attribute}="${escapeAttribute(value)}"`);
     }
     return parts.join(" ");
-}
-
-/** Keep a poem in its list, without turning standalone readable indentation into code. */
-function poetryWrapperIndent(lines, block) {
-    const indent = block.indent;
-    if (indent.length < 4) return indent;
-    for (let at = block.start - 1; at >= 0; at--) {
-        const line = lines[at];
-        if (!line.trim()) continue;
-        const leading = /^ */.exec(line)[0].length;
-        if (/^ *(?:[-+*]|\d+[.)]) +/.test(line) && leading < indent.length) return indent;
-        if (leading < indent.length) break;
-    }
-    return "";
 }
 
 /**
@@ -377,14 +267,16 @@ function poetryWrapperIndent(lines, block) {
  * @returns {{markdown: string, errors: Array<{line: number, column: number, message: string}>}}
  */
 export function renderBlocks(source, target) {
-    const { blocks, errors } = scanBlocks(source);
-    if (!blocks.length) return { markdown: String(source ?? ""), errors };
+    const { errors } = scanBlocks(source);
+    source = renderPoetry(source).markdown;
+    const renderedBlocks = scanBlocks(source).blocks;
+    if (!renderedBlocks.length) return { markdown: String(source ?? ""), errors };
     const lines = String(source ?? "").split("\n");
     const output = [];
     let cursor = 0;
-    for (const block of blocks) {
+    for (const block of renderedBlocks) {
         output.push(...lines.slice(cursor, block.start));
-        const classes = [block.name, ...block.classes];
+        const classes = [...(block.name === "div" ? [] : [block.name]), ...block.classes];
         const attributes = attributeText(block, target, classes);
         // A container's body may hold a block of its own, rendered first so
         // its own wrapper is already written when the outer one wraps it in
@@ -394,13 +286,8 @@ export function renderBlocks(source, target) {
             BLOCK_CONTAINERS.includes(block.name) ?
                 renderBlocks(block.body, target).markdown
             :   block.body;
-        if (block.name === "poetry") {
-            const indent = poetryWrapperIndent(lines, block);
-            const verses = poetryMarkdown(held)
-                .split("\n")
-                .map((line) => (line ? `${indent}${line}` : line))
-                .join("\n");
-            output.push("", `${indent}<div ${attributes}>`, "", verses, "", `${indent}</div>`, "");
+        if (block.name === "div") {
+            output.push("", `<div ${attributes}>`, "", held, "", "</div>", "");
             cursor = block.end + 1;
             continue;
         }
