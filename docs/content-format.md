@@ -49,6 +49,13 @@ explains routing for documents and their prose journals.
 
 A note can also produce a system document: an Actor, Item, Scene, or Macro according to its type and system blocks. The `sohl:` and `hm3:` blocks supply game-specific mechanics and overrides; they do not create separate prose. The JournalEntry is shared between systems.
 
+An `affiliation` note declares `data.governance.ranks` with at least one rung at
+`level: 1`. Each rung states `level`, `title`, and `description`. A being's
+`data.affiliations` entry names a rank on that body's ladder; level 1 is the
+ordinary standing when no higher rank applies. A single level-1 rung is enough
+when the body expresses its hierarchy through `governance.offices` instead.
+Missing ranks, an empty list, or a ladder without level 1 are build errors.
+
 | Authored section | SoHL Actor          | HM3 Actor            |
 | ---------------- | ------------------- | -------------------- |
 | `{#appearance}`  | `system.appearance` | `system.description` |

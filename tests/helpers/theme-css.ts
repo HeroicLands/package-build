@@ -45,8 +45,14 @@ export function rules(css: string): CssRule[] {
 
 /** The line a class is first named on, so a failure can point at the rule. */
 export function lineOf(source: string, className: string): number {
-    const index = source.split("\n").findIndex((l) => l.includes(`.${className}`));
+    const index = source.split("\n").findIndex((line) => hasClass(line, className));
     return index === -1 ? 0 : index + 1;
+}
+
+/** A CSS class token, ending where another identifier character cannot continue it. */
+export function hasClass(selector: string, className: string): boolean {
+    const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`\\.${escaped}(?![\\w-])`).test(selector);
 }
 
 /** Whether any rule naming every class in `classNames` declares `property`. */
@@ -58,7 +64,7 @@ export function declares(
     const names = [classNames].flat();
     return styles.some(
         (rule) =>
-            names.every((name) => rule.selector.includes(`.${name}`)) &&
+            names.every((name) => hasClass(rule.selector, name)) &&
             new RegExp(`(^|[\\s;{])${property}\\s*:`).test(rule.body),
     );
 }
@@ -66,5 +72,5 @@ export function declares(
 /** Whether any rule names every class in `classNames`. */
 export function styled(styles: CssRule[], classNames: string | string[]): boolean {
     const names = [classNames].flat();
-    return styles.some((rule) => names.every((name) => rule.selector.includes(`.${name}`)));
+    return styles.some((rule) => names.every((name) => hasClass(rule.selector, name)));
 }

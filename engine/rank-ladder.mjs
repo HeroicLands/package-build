@@ -50,6 +50,38 @@ const RUNG_KEYS = Object.freeze(["level", "title", "description", "lore"]);
 /** The keys a rung must carry a value for. */
 const REQUIRED_TEXT = Object.freeze(["title", "description"]);
 
+/** Every affiliation has an ordinary standing that a being can name as rank 1. */
+export function checkAffiliationRankFloor(note) {
+    if (note.fm?.type !== "affiliation") return [];
+    const governance = note.fm?.data?.governance;
+    const ranks = governance?.ranks;
+    // A non-list already has a shape finding. Do not repeat it here.
+    if (ranks !== undefined && ranks !== null && !Array.isArray(ranks)) return [];
+    if (
+        Array.isArray(ranks) &&
+        ranks.some((rung) => integer(rung?.level) && Number(rung.level) === 1)
+    )
+        return [];
+
+    const path = Array.isArray(ranks) ? ["data", "governance", "ranks"] : ["data", "governance"];
+    const atRankOrGovernance = positionOfFrontmatterPath(note.raw ?? "", path, { key: true });
+    const position =
+        atRankOrGovernance.line !== undefined ?
+            atRankOrGovernance
+        :   positionOfFrontmatterPath(note.raw ?? "", ["data"], { key: true });
+    return [
+        {
+            file: note.file,
+            ...position,
+            severity: "error",
+            message:
+                !Array.isArray(ranks) || ranks.length === 0 ?
+                    "affiliation needs data.governance.ranks with a level 1 standing"
+                :   "affiliation data.governance.ranks needs a level 1 standing",
+        },
+    ];
+}
+
 /**
  * Whether a value is a YAML mapping rather than a list or a scalar.
  *
