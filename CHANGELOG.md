@@ -1,5 +1,13 @@
 # @heroiclands/package-build
 
+## 22.25.0
+
+### Minor Changes
+
+Write poems in a `:::poetry` fence to preserve verse lines, relative indentation, and stanza breaks across journals, websites, and books. A poem placed first in a `:::figure` uses the Poem counter and may carry a caption and reference.
+
+The bundled Hugo theme's image-role and banner guards now run as part of package-build lint. Affiliation notes must declare a `data.governance.ranks` rung at level 1; a missing ordinary standing now produces a located error.
+
 ## 22.24.0
 
 ### Minor Changes
