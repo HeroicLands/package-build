@@ -2010,7 +2010,9 @@ Every typed note requires a nonempty body after its closing frontmatter fence.
 An empty or whitespace-only body is an error, regardless of description or
 `tags: [draft]`. This includes `folder` and `homepage` notes. Untyped vault
 scaffolding is excluded. A nonempty body with fewer than 25 prose words warns
-unless tagged `draft`; the tag never exempts an empty body.
+unless tagged `draft`; the tag never exempts an empty body. A `folder` note is
+held only to the nonempty rule: any body, a placeholder or a single line
+included, passes with or without `draft`.
 
 The `lint`, `content-index`, `package compile`, `site` and `pdf` commands enforce
 body errors. Write a short beginning and tag it `draft` when work is unfinished.
@@ -2055,7 +2057,7 @@ same.
 | A lone heading          | no     | The same                                                        |
 | `_To be written._`      | no     | The same                                                        |
 
-An HTML comment is deliberately not empty, but an invisible marker does not supply prose. Replace placeholder-only content with written text.
+An HTML comment is deliberately not empty, but an invisible marker does not supply prose. Replace placeholder-only content with written text. A `folder` note is the exception: any of these bodies satisfies it, and the lint reports nothing.
 
 #### What a stub emits
 

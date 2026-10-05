@@ -18,6 +18,8 @@
  * a `draft` tag or a frontmatter description. Placeholder-only bodies remain
  * errors. A nonempty body below twenty-five words receives a warning when it
  * is not tagged `draft`; the author decides whether that short note is done.
+ * A `folder` note is held only to the first rule: any nonempty body passes,
+ * with or without `draft`.
  *
  * Counts and the oldest drafts remain reports. Classification and indexing
  * still derive full, draft and stub states from the existing note records;
@@ -69,6 +71,10 @@ function checkNote({ fm, body, file, raw }) {
         });
         return findings;
     }
+
+    // A folder's body describes a pack folder rather than prose a reader is
+    // asked to finish, so any nonempty body is complete.
+    if (fm.type === "folder") return findings;
 
     const placeholders = placeholderBody(body);
     if (placeholders.length) {

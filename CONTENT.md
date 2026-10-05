@@ -6,6 +6,7 @@ format and publishing behavior.
 Every typed note must have a nonempty body after its frontmatter, including
 drafts, folders and homepages. Empty or whitespace-only bodies are errors.
 Nonempty bodies with fewer than 25 prose words warn unless tagged `draft`.
+A folder note needs only a nonempty body: any content passes, tagged or not.
 Lint and publishing commands enforce the error; a description is not a body.
 
 An `affiliation` note must declare `data.governance.ranks` with a rung at
