@@ -107,6 +107,7 @@ export const FIGURE_NAMES = Object.freeze({
     table: "Table",
     figure: "Figure",
     map: "Map",
+    poem: "Poem",
     prose: "Prose",
 });
 
@@ -204,9 +205,10 @@ function picturesAreMap(contents, resolveRole) {
  * @param {string} contents - The contents, trimmed.
  * @param {(address: string) => string|undefined} resolveRole - The caller's
  *   lookup from a picture's address to the role its asset declares.
- * @returns {"code"|"table"|"figure"|"map"|"prose"} The kind.
+ * @returns {"code"|"table"|"figure"|"map"|"poem"|"prose"} The kind.
  */
 function figureKind(first, contents, resolveRole) {
+    if (/^(?: *:::poetry(?:\s|$)|<div\b[^>]*\bclass="poetry(?:\s|"))/.test(contents)) return "poem";
     if (first?.type === "table_open") return "table";
     if (first?.type === "fence" && /^\s*sql\b/i.test(first.info ?? "")) return "table";
     if (first?.type === "fence" || first?.type === "code_block") return "code";
@@ -240,7 +242,7 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
     const lines = String(source ?? "").split("\n");
     const figures = [];
     const errors = [];
-    const counts = { code: 0, table: 0, figure: 0, map: 0, prose: 0 };
+    const counts = { code: 0, table: 0, figure: 0, map: 0, poem: 0, prose: 0 };
     const ids = new Set();
     const headingIds = [];
     let codeFence = null;
@@ -292,10 +294,17 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
         let close = start + 1;
         let split = -1;
         let nested = null;
+        let namedDepth = 0;
         const fenced = new Set();
         while (close < lines.length) {
             const body = lines[close];
             const bodyFence = FENCE.exec(body);
+            if (namedDepth) {
+                fenced.add(close);
+                if (/^ *:::[ \t]*$/.test(body)) namedDepth--;
+                close++;
+                continue;
+            }
             if (nested) {
                 fenced.add(close);
                 if (
@@ -309,6 +318,12 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
             }
             if (bodyFence) {
                 nested = bodyFence[1];
+                fenced.add(close);
+                close++;
+                continue;
+            }
+            if (/^ *:::poetry(?:\s|$)/.test(body)) {
+                namedDepth++;
                 fenced.add(close);
                 close++;
                 continue;
@@ -446,7 +461,7 @@ export function renderFigureBlocks(
         output.push(...lines.slice(cursor, figure.line - 1));
         const numbered = (figure.id ? byId.get(figure.id) : null) ?? figure;
         const contents = lines.slice(figure.bodyStart, figure.bodyEnd).join("\n");
-        const classes = ["content-figure", `content-figure-${figure.kind}`, ...figure.classes];
+        const classes = ["content-figure", `content-figure-${numbered.kind}`, ...figure.classes];
         const id = figure.slug ? ` id="${escapeHtml(figure.slug)}"` : "";
         output.push(`<div${id} class="${escapeHtml(classes.join(" "))}">`);
         if (figure.kind === "figure" || figure.kind === "map") {

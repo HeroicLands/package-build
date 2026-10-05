@@ -1373,6 +1373,35 @@ a.tag:hover {
   background: var(--bg-card);
 }
 
+/* Verse lines are hard breaks in the markup; paragraphs mark stanzas. */
+.single-content .poetry {
+  margin: 1.5rem 0;
+  line-height: 1.7;
+}
+
+.single-content .poetry p {
+  margin: 0;
+}
+
+.single-content .poetry p + p {
+  margin-top: 1em;
+}
+
+.single-content .poetry .poetry-line {
+  display: inline-block;
+  margin-inline-start: var(--poetry-indent, 0em);
+  white-space: pre-wrap;
+}
+
+.single-content .poetry .poetry-line.i1 { --poetry-indent: 1.25em; }
+.single-content .poetry .poetry-line.i2 { --poetry-indent: 2.5em; }
+.single-content .poetry .poetry-line.i3 { --poetry-indent: 3.75em; }
+.single-content .poetry .poetry-line.i4 { --poetry-indent: 5em; }
+.single-content .poetry .poetry-line.i5 { --poetry-indent: 6.25em; }
+.single-content .poetry .poetry-line.i6 { --poetry-indent: 7.5em; }
+.single-content .poetry .poetry-line.i7 { --poetry-indent: 8.75em; }
+.single-content .poetry .poetry-line.i8 { --poetry-indent: 10em; }
+
 /* Ornamental horizontal rule: thin line flanking a centered gold
    diamond. Uses gradients on ::before/::after to keep the markup
    clean (authors just write `---` in markdown). */

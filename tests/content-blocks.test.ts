@@ -72,7 +72,7 @@ describe("named body blocks", () => {
         expect(blocks).toEqual([]);
         expect(errors[0]).toMatchObject({ line: 1, column: 1 });
         expect(errors[0].message).toContain("no caution block");
-        expect(errors[0].message).toContain("info, secret, warn");
+        expect(errors[0].message).toContain("info, secret, warn, poetry");
     });
 
     it("keeps a malformed block from silencing the blocks around it", () => {

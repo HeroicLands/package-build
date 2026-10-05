@@ -27,6 +27,8 @@ A nonempty note body creates one system-agnostic Foundry JournalEntry. Content b
 
 A `:::figure {#anchor}` fence numbers whatever it holds — prose, code, a table, or an image. Its anchor makes the fence a target `{{ref "#anchor"}}` can point to, displaying the generated kind and number, such as **Figure 12**. Foundry gives the fence its own JournalEntryPage. See [figures and numbered references](authoring/links-and-markup.md#figures-and-numbered-references) for the syntax.
 
+A `:::poetry` fence keeps each authored line as a verse line and blank lines as stanza breaks. Inside a `:::figure`, a poem written first gives that figure the **Poem** counter and an optional caption. See [poetry](authoring/links-and-markup.md#poetry) for attributes and examples.
+
 Body extensions use braces with space-separated `key=value` attributes:
 `![[icon-harbor|Harbor]]{float=top-left size=medium}` and an SQL fence with
 `{allow-empty=true}` are examples. Inline font glyphs use the package's icon
