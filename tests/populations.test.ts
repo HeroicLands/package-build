@@ -8,7 +8,7 @@
 /**
  * A world's population figures agree from the region down.
  *
- * Four rules, and the cases are **derived from the rule list itself**: the
+ * Three rules, and the cases are **derived from the rule list itself**: the
  * module declares `POPULATION_RULES`, this file declares a fixture per rule
  * name, and the two sets are compared. A rule added without a case fails here
  * before it can ship unproven, and every declared rule is run against a tree
@@ -66,7 +66,11 @@ function place(
     shortcode: string,
     name: string,
     subType: string,
-    { parents = [], population }: { parents?: string[]; population?: number } = {},
+    {
+        parents = [],
+        population,
+        government,
+    }: { parents?: string[]; population?: number; government?: string | null } = {},
 ): string {
     return [
         "---",
@@ -78,6 +82,7 @@ function place(
         "data:",
         `    parents: [${parents.join(", ")}]`,
         ...(population === undefined ? [] : [`    population: ${population}`]),
+        ...(government === undefined ? [] : [`    government: ${government}`]),
         "---",
         "",
         "Prose.",
@@ -85,16 +90,12 @@ function place(
     ].join("\n");
 }
 
-/** An affiliation note, holding what its `domains` name. */
+/** An affiliation note, stating its membership population. */
 function affiliation(
     shortcode: string,
     name: string,
     subType: string,
-    {
-        domains = [],
-        parents = [],
-        population,
-    }: { domains?: string[]; parents?: string[]; population?: number } = {},
+    { parents = [], population }: { parents?: string[]; population?: number } = {},
 ): string {
     return [
         "---",
@@ -105,7 +106,6 @@ function affiliation(
         `    full: ${name}`,
         "data:",
         `    parents: [${parents.join(", ")}]`,
-        `    domains: [${domains.join(", ")}]`,
         ...(population === undefined ? [] : [`    population: ${population}`]),
         "---",
         "",
@@ -176,24 +176,6 @@ type Case = {
 };
 
 const CASES: Record<string, Case> = {
-    "over-held land": {
-        broken: {
-            "Rgn.md": place("rgn", "The Region", "region", { population: 1000 }),
-            "Crown.md": affiliation("crown", "The Crown", "polity", {
-                domains: ["rgn"],
-                population: 1500,
-            }),
-        },
-        on: "Rgn.md",
-        says: "1,500",
-        sound: {
-            "Rgn.md": place("rgn", "The Region", "region", { population: 1000 }),
-            "Crown.md": affiliation("crown", "The Crown", "polity", {
-                domains: ["rgn"],
-                population: 900,
-            }),
-        },
-    },
     "over-full region": {
         broken: {
             "Rgn.md": place("rgn", "The Region", "region", { population: 1000 }),
@@ -308,21 +290,63 @@ describe("every population rule is proven", () => {
 /* ---------------------------------------------------------------------- */
 
 describe("the rules read the corpus the way the notes are authored", () => {
-    it("counts a polity subordinate to another holding the same place only once", () => {
+    it("does not constrain an affiliation membership count to the place it governs", () => {
         const { findings, root } = lintPopulation({
-            "Rgn.md": place("rgn", "The Region", "region", { population: 1000 }),
-            "Crown.md": affiliation("crown", "The Crown", "polity", {
-                domains: ["rgn"],
-                population: 900,
+            "Rgn.md": place("rgn", "The Region", "region", {
+                population: 1000,
+                government: "affiliation-crown",
             }),
-            "Duchy.md": affiliation("duchy", "The Duchy", "polity", {
-                domains: ["rgn"],
-                parents: ["crown"],
-                population: 900,
-            }),
+            "Crown.md": affiliation("crown", "The Crown", "polity", { population: 1500 }),
         });
         try {
             expect(findings).toEqual([]);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+        }
+    });
+
+    it("does not consume retired domains from a fetched affiliation", () => {
+        const note = {
+            file: "region.md",
+            fm: {
+                type: "place",
+                subType: "region",
+                shortcode: "rgn",
+                data: { population: 1000, government: "affiliation-crown" },
+            },
+        };
+        const index = {
+            notes: [note],
+            foreign: {
+                index: new Map([
+                    [
+                        "foreign-note-affiliation-crown",
+                        {
+                            type: "affiliation",
+                            subType: "polity",
+                            population: 9000,
+                            domains: ["rgn"],
+                        },
+                    ],
+                ]),
+            },
+        };
+        expect(checkPopulation(note, { index })).toEqual([]);
+    });
+
+    it("keeps cited affiliation membership counts checked against their own note", () => {
+        const { findings, root } = lintPopulation({
+            "Crown.md": affiliation("crown", "The Crown", "polity", { population: 1500 }),
+            "Census.md": doc(
+                "census",
+                "The Census",
+                "[[affiliation-crown|The Crown]] counts ~2,000 members.",
+            ),
+        });
+        try {
+            expect(findings).toHaveLength(1);
+            expect(findings[0].message).toContain("disputed figure:");
+            expect(findings[0].message).toContain("1,500");
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }
@@ -421,25 +445,6 @@ describe("the rules read the corpus the way the notes are authored", () => {
         }
     });
 
-    it("exempts a settlement from the polities holding it, which count its hinterland", () => {
-        const { findings, root } = lintPopulation({
-            "Rgn.md": place("rgn", "The Region", "region", { population: 9000 }),
-            "City.md": place("city", "The City", "settlement", {
-                parents: ["rgn"],
-                population: 1000,
-            }),
-            "State.md": affiliation("state", "The City-State", "polity", {
-                domains: ["city"],
-                population: 8000,
-            }),
-        });
-        try {
-            expect(findings).toEqual([]);
-        } finally {
-            fs.rmSync(root, { recursive: true, force: true });
-        }
-    });
-
     it("reads a figure cited inline, and locates each repeat on its own line", () => {
         const { findings, root } = lintPopulation(
             {
@@ -484,7 +489,6 @@ describe("the rules read the corpus the way the notes are authored", () => {
         const { findings, root } = lintPopulation({
             "Rgn.md": place("rgn", "The Region", "region"),
             "Crown.md": affiliation("crown", "The Crown", "polity", {
-                domains: ["rgn"],
                 population: 1500,
             }),
         });
@@ -514,18 +518,18 @@ describe("foreignNode", () => {
             subType: "",
             title: "Vylar",
             parents: ["north"],
-            domains: [],
         });
     });
 
-    it("reads an affiliation's domains, and lower-cases a mixed-case shortcode", () => {
-        expect(
-            foreignNode("kethira-sohl-affiliation-Empire", {
-                type: "affiliation",
-                subType: "polity",
-                domains: ["north", "south"],
-            }),
-        ).toMatchObject({ shortcode: "empire", type: "affiliation", domains: ["north", "south"] });
+    it("reads an affiliation membership count and ignores retired domains", () => {
+        const node = foreignNode("kethira-sohl-affiliation-Empire", {
+            type: "affiliation",
+            subType: "polity",
+            population: 8000,
+            domains: ["north", "south"],
+        });
+        expect(node).toMatchObject({ shortcode: "empire", type: "affiliation", population: 8000 });
+        expect(node).not.toHaveProperty("domains");
     });
 
     it("takes no part where the entry names neither a place nor an affiliation", () => {
