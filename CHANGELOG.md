@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 22.28.0
+
+### Minor Changes
+
+Notes now require a nonempty body, including drafts, folders and homepages. Short written notes still warn unless tagged as drafts.
+
 ## 22.27.0
 
 ### Minor Changes
