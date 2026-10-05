@@ -85,6 +85,7 @@ import {
     assertNoSectionField,
     assertNoTraitsField,
 } from "./retired-fields.mjs";
+import { collectAnchors } from "./anchors.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -121,6 +122,7 @@ export function anchorsOf(entryUuid, entryId, body, name) {
         const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
         if (index === 0) anchors[LEAD_ANCHOR] = uuid;
         if (page.anchorSlug) anchors[page.anchorSlug] = uuid;
+        for (const anchor of collectAnchors(page.markdown)) anchors[anchor.slug] = uuid;
     });
     return anchors;
 }
