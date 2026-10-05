@@ -7,7 +7,7 @@ subType: howto
 
 # Migrating place governments
 
-A place's `data.government` is the sole declaration of government. Name one governing affiliation, or write explicit `null` for complete anarchy. Omission means unknown. The website derives `governed_by` on a place and `governed_places` on its governing affiliation from resolved references across local and fetched indexes. Neither containment nor organizational parents supplies a government.
+A place's `data.government` is the sole declaration of government. Its type is `Address`, with default target type `affiliation`. Name one governing affiliation, or write explicit `null` for complete anarchy. Omission means unknown. The website derives `governed_by` on a place and `governed_places` on its governing affiliation from resolved references across local and fetched indexes. Neither containment nor organizational parents supplies a government.
 
 ```yaml
 type: place

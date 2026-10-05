@@ -4173,7 +4173,7 @@ map's prose.
 | `lore`                            | `Address[]`                                         | Lore concerning this place — its peoples, its law, its calendar, its history                              |
 | `parents`                         | `Address[]`                                         | Enclosing places within which this place is located                                                       |
 | `population`                      | `number`                                            | Approximate population (precision 2 significant digits)                                                   |
-| `government`                      | affiliation Address or `null`                       | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
+| `government`                      | `Address` or `null` (default type: `affiliation`)   | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
 | `market`                          | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                                                   |
 | `borders`                         | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here                                    |
 | `routes`                          | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                                                        |
@@ -4400,7 +4400,7 @@ than the package that wrote it.
 
 #### Who governs a place
 
-A place may state its governing affiliation in `data.government`. Use an affiliation Address, either a local shortcode or a fully qualified Address from this package or a fetched dependency:
+A place may state its governing affiliation in `data.government`. The field type is `Address`, with `affiliation` as the default target type when the type is omitted. Use either a local shortcode or a fully qualified affiliation Address from this package or a fetched dependency:
 
 ```yaml
 data:

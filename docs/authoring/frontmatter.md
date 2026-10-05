@@ -41,7 +41,7 @@ One body describes the subject for both systems. A being's `{#appearance}` and `
 
 ## Place governments
 
-A place may state its governing affiliation in `data.government`. Use an affiliation Address, either a local shortcode or a fully qualified Address from this package or a fetched dependency:
+A place may state its governing affiliation in `data.government`. The field type is `Address`, with `affiliation` as the default target type when the type is omitted. Use either a local shortcode or a fully qualified affiliation Address from this package or a fetched dependency:
 
 ```yaml
 data:

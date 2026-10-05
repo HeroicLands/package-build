@@ -1559,12 +1559,13 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "government",
                 ...LINK,
-                shape: "an affiliation Address or null",
+                shape: "an Address or null",
                 ref: "affiliation",
                 accepts: ["affiliation"],
                 nullText: "Complete anarchy",
                 describe:
-                    "The governing affiliation; explicit null means complete anarchy. " +
+                    "The governing affiliation Address; the default target type is affiliation. " +
+                    "Explicit null means complete anarchy. " +
                     "A positive population with no government key produces an advisory.",
             },
             {
