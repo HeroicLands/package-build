@@ -435,6 +435,9 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 parents: record.data?.parents ?? undefined,
                 domains: record.data?.domains ?? undefined,
                 population: record.data?.population ?? undefined,
+                ...(Object.hasOwn(record.data ?? {}, "government") ?
+                    { government: record.data.government }
+                :   {}),
                 package: pkg,
             });
             const entry = index.get(key);

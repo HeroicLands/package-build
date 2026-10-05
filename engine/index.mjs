@@ -99,7 +99,7 @@ export * as stubLint from "./stub-lint.mjs";
 /** What a place is next to and reachable from: the closed sets, and the checks. */
 export * as placeRelations from "./place-relations.mjs";
 
-/** What lies within a place, who holds it, and what an affiliation holds — the page lists, and the tenure check. */
+/** What lies within a place, who holds it, and what an affiliation holds — the page lists, and the government advisory. */
 export * as holdings from "./holdings.mjs";
 export * as populations from "./populations.mjs";
 

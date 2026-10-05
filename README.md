@@ -46,4 +46,6 @@ The documentation lives in the Markdown files in this repository. Start with [th
 | Error locations and severities                    | [Diagnostics](docs/diagnostics.md)                           |
 | Architectural rationale                           | [Design](docs/design.md)                                     |
 
+Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](docs/authoring/frontmatter.md#place-governments).
+
 The package is GPL-3.0-or-later for code and CC-BY-SA-4.0 for original content. See [LICENSE.md](LICENSE.md).

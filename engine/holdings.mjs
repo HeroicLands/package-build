@@ -35,16 +35,15 @@
  * package publishes is listed within a local region, and a house another
  * package publishes is named on the local manor it holds.
  *
- * **A place's tenure is checked.** A settlement, a site or a structure that no
- * affiliation's `domains` names is land nobody holds — a gap in tenure the
- * lint reports as a warning at the note's `type:` line. A region is held
- * through its polity's `domains` and a feature by nobody, so both are exempt.
+ * **Government is stated separately from tenure.** A place with positive
+ * `data.population` and no authored `data.government` receives an advisory.
+ * Explicit null means complete anarchy. Holdings never supply a government.
  *
  * @module
  */
 
 import { isAddressTuple } from "./address.mjs";
-import { positionInFrontmatter } from "./diagnostics.mjs";
+import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseAddress } from "./address.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
 
@@ -66,9 +65,9 @@ const PLACE_TYPES = Object.freeze(new Set(["place"]));
 export const HOLDINGS_KEYS = Object.freeze(["contains", "held_by", "holdings"]);
 
 /**
- * The place subTypes tenure is checked on. A region is held through its
- * polity's `domains`, a world by nobody, a feature by nobody — a river has no
- * lord — so the rest are the kinds of place a body holds directly.
+ * Legacy subtypes of the retired tenure advisory. Government advisories
+ * apply to every place subtype when its authored population is positive.
+ * @deprecated This list no longer gates any advisory.
  *
  * @type {readonly string[]}
  */
@@ -373,71 +372,44 @@ export function holdingsPages(nodes) {
 /* --------------------------------------------------------------------- */
 
 /**
- * Every shortcode some affiliation's `domains` names, computed once per link
- * index. The lint asks the question once per place note, and the answer is a
- * fact about the whole corpus — local notes and every fetched entry — so it
- * is read off the index the first time and kept beside it.
+ * Advise when a place with an authored positive population omits government.
+ * Missing, null or zero population establishes no inhabited population.
+ * Property presence distinguishes omitted government from explicit null,
+ * which means complete anarchy. Non-null values are validated by the declared
+ * affiliation reference field. Neither geographic containment nor tenure
+ * supplies this fact, and the rule is independent of place subtype.
  *
- * @type {WeakMap<object, Set<string>>}
+ * @param {object} note - The note with parsed frontmatter and raw source.
+ * @returns {object[]} Located warning findings.
  */
-const HELD = new WeakMap();
-
-/**
- * The shortcodes every affiliation's `domains` names, across the link index.
- *
- * @param {object} index - The link index.
- * @returns {Set<string>} The held shortcodes, lower case.
- */
-function heldShortcodes(index) {
-    let held = HELD.get(index);
-    if (held) return held;
-    held = new Set();
-    for (const note of index.notes ?? []) {
-        if (String(note.type ?? note.fm?.type ?? "") !== "affiliation") continue;
-        const data = note.fm?.data;
-        const domains = data && typeof data === "object" ? data.domains : undefined;
-        for (const shortcode of shortcodesOf(domains)) held.add(shortcode);
-    }
-    for (const entry of index.foreign?.index?.values?.() ?? []) {
-        if (String(entry?.type ?? "") !== "affiliation") continue;
-        for (const shortcode of shortcodesOf(entry.domains)) held.add(shortcode);
-    }
-    HELD.set(index, held);
-    return held;
-}
-
-/**
- * Check a place note's tenure: a settlement, a site or a structure that no
- * affiliation's `domains` names is unheld land, reported as a warning at the
- * note's `type:` line.
- *
- * Declared on the `place` vocabulary as its type-level check, so the lint
- * runs it beside the field checks with the same index. Without an index the
- * question cannot be asked and nothing is reported.
- *
- * @param {object} note - The note, as the link index hands it over.
- * @param {object} [opts]
- * @param {object} [opts.index] - The link index, holding every affiliation.
- * @returns {object[]} Findings.
- */
-export function checkHeld(note, { index } = {}) {
-    if (!index) return [];
+export function checkGovernment(note) {
     const fm = note.fm ?? {};
-    if (String(fm.type ?? "") !== "place") return [];
-    const subType = String(fm.subType ?? "");
-    if (!HELD_SUBTYPES.includes(subType)) return [];
-    const shortcode = String(fm.shortcode ?? "").toLowerCase();
-    if (!shortcode) return [];
-    if (heldShortcodes(index).has(shortcode)) return [];
+    if (fm.type !== "place") return [];
+    const data = fm.data;
+    if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+    const population = data.population;
+    if (typeof population !== "number" && typeof population !== "string") return [];
+    const count = Number(population);
+    if (!Number.isFinite(count) || count <= 0 || Object.hasOwn(data, "government")) return [];
     return [
         {
             file: note.file,
-            ...positionInFrontmatter(note.raw ?? "", "type", undefined, { topLevel: true }),
+            ...positionOfFrontmatterPath(note.raw ?? "", ["data", "population"], { key: true }),
             severity: "warning",
             message:
-                `unheld land: no affiliation's \`domains\` names "${shortcode}", so nothing ` +
-                `says who holds this ${subType}; name it in the \`domains\` of the house, ` +
-                `order or polity that does`,
+                `missing government: place "${fm.shortcode ?? ""}" has positive population ` +
+                "but no `data.government`; name an affiliation or write null for complete anarchy",
         },
     ];
+}
+
+/**
+ * The historical API name for the government advisory. Tenure is no longer checked.
+ * @deprecated Use checkGovernment.
+ * @param {object} note - The place note.
+ * @param {object} [_opts] - Historical options, no longer needed.
+ * @returns {object[]} Government advisory findings.
+ */
+export function checkHeld(note, _opts = {}) {
+    return checkGovernment(note);
 }

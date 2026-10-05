@@ -1007,3 +1007,34 @@ describe("a note may declare more than one system", () => {
         expect(macro.foundry.sohl).toBeUndefined();
     });
 });
+
+describe("published place government", () => {
+    it("retains omitted, explicit null and canonical affiliation addresses in JSONL", () => {
+        note(
+            "Omitted.md",
+            "type: place\nsubType: site\nshortcode: omitted\nname: {full: Omitted}\ndata: {}",
+        );
+        note(
+            "Anarchy.md",
+            "type: place\nsubType: site\nshortcode: anarchy\nname: {full: Anarchy}\ndata: {government: null}",
+        );
+        note(
+            "Governed.md",
+            "type: place\nsubType: site\nshortcode: governed\nname: {full: Governed}\ndata: {government: council}",
+        );
+        const records = collectContentIndex(tmp, { contentPackage: "demo", skipDirectories: [] });
+        const published = serializeContentIndex(records)
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(published.find((record) => record.shortcode === "omitted").data).not.toHaveProperty(
+            "government",
+        );
+        expect(
+            published.find((record) => record.shortcode === "anarchy").data.government,
+        ).toBeNull();
+        expect(published.find((record) => record.shortcode === "governed").data.government).toBe(
+            "demo-note-affiliation-council",
+        );
+    });
+});
