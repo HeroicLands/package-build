@@ -209,8 +209,7 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  * @property {(note: object, opts: {index?: object}) => object[]} [check] - A
  *   check of the whole note, run by the frontmatter lint beside the field
  *   checks with the same index. For a rule that is about the note rather than
- *   one of its fields — a place's tenure is a fact about every affiliation's
- *   `domains`, and is located at the note's `type:` line.
+ *   one of its fields, located at the note's `type:` line.
  */
 
 /* --------------------------------------------------------------------- */
@@ -1090,13 +1089,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                 accepts: ["place"],
                 describe: "Where the affiliation's authority sits.",
             },
-            {
-                name: "domains",
-                ...LINKS,
-                ref: "place",
-                accepts: ["place"],
-                describe: "Places over which it holds sway.",
-            },
             { name: "population", ...NUM, describe: "How many people it counts." },
             {
                 name: "economy",
@@ -1867,4 +1859,16 @@ export function subTypes(type, vocabulary = NOTE_VOCABULARY) {
     const entry = vocabulary?.[currentType(type)];
     if (!entry || !Object.hasOwn(entry, "subTypes")) return undefined;
     return entry.subTypes;
+}
+
+/**
+ * Accepted migration input with no canonical field or emitted value.
+ *
+ * Legacy affiliation domains are ignored. They never supply a government.
+ * @param {string} type - The note type.
+ * @param {string} key - An authored data key.
+ * @returns {boolean} Whether the obsolete key is accepted during migration.
+ */
+export function isLegacyDataField(type, key) {
+    return currentType(type) === "affiliation" && key === "domains";
 }

@@ -311,6 +311,7 @@ describe("the note box's fields are the type's own vocabulary", () => {
         );
         const rows = box.sections[0].rows;
         const labels = rows.map((row: { label: string }) => row.label);
+        expect(labels).not.toContain("Domains");
 
         // The ladder reaches the page, ordered by level, ahead of the offices
         // it names alongside — issue 916.
@@ -325,7 +326,7 @@ describe("the note box's fields are the type's own vocabulary", () => {
 
         // A plain list of addresses reaches its row rather than being
         // silently dropped — issue 928.
-        for (const label of ["Lore", "Domains", "Economy"]) {
+        for (const label of ["Lore", "Economy"]) {
             const row = rows.find((r: { label: string }) => r.label === label);
             expect(row?.kind).toBe("links");
             expect(row?.value.length).toBeGreaterThan(0);

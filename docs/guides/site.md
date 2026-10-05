@@ -116,8 +116,8 @@ notes is therefore a set of authored pages, each choosing its own contents.
 
 Wikilinks resolve through the address index. Each emitted page receives
 derived `related` entries for its outgoing links and backlinks. Place pages
-can receive `contains` and `held_by` entries from place parents and
-affiliation domains; affiliation pages can receive `holdings`. These values
+can receive `contains` from place parents and `governed_by` from their own explicit
+`data.government`; affiliation pages can receive `governed_places` from resolved government references. These values
 come from the content graph and should be read as generated page metadata.
 
 Place relationships can also produce a map alongside the page. The page
@@ -144,11 +144,11 @@ The build always writes `title`, `slug`, `url`, `kbfolder`, `package` and
 note. `infoboxes` is assembled from the note's own fields, so no note authors
 it and nothing in the note format accepts it.
 
-The build writes `resolvedDates`, `related`, `contains`, `held_by`, `holdings`
+The build writes `resolvedDates`, `related`, `contains`, `governed_by`, `governed_places`
 and `map` only when it has something to write. A page with no links either way
 carries no `related`, and a place with no drawing carries no `map`.
 
-An authored `aliases`, `related`, `contains`, `held_by`, `holdings` or `map` is
+An authored `aliases`, `related`, `contains`, `governed_by`, `governed_places` or `map` is
 dropped. Each states a fact about the whole tree rather than about one note, so
 the build replaces whatever a note wrote.
 
@@ -170,7 +170,7 @@ and both survive: `null` is a note naming no art, where a default may apply,
 and `""` is a note refusing art, where no default may replace it.
 
 The build writes these keys; [what the theme draws](../reference/theme-pages.md)
-describes the panel each one feeds — the infobox, the hero band, the holdings
+describes the panel each one feeds — the infobox, the hero band, the government
 and related cards, the place map, and search.
 
 ## Build and serve

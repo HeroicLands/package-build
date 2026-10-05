@@ -9,12 +9,12 @@ subType: reference
 
 `package-build site` writes a page's front matter; the shared Hugo theme reads
 it and draws the page around it. This reference describes that second half —
-the infobox rail, the hero band, the holdings and related cards, the place
+the infobox rail, the hero band, the government and related cards, the place
 map, search, and the markup an image or a figure renders as — and names the
 classes a consumer styles against.
 
 **None of the sections below is an authoring instruction.** `infoboxes`,
-`related`, `contains`, `held_by`, `holdings`, `map`, `package`, `slug`, `url`
+`related`, `contains`, `governed_by`, `governed_places`, `map`, `package`, `slug`, `url`
 and `title` cannot be written by a note at all: a note's top-level region is
 closed and does not admit them, so each arrives already resolved by the time
 the theme sees it. Read this page when a panel is missing or a class needs
@@ -166,7 +166,7 @@ artwork where the considered answer was "none". See
 declines one; the spelling differs from the hand-authored page's, and the two
 are not interchangeable.
 
-## The holdings card
+## The containment and government card
 
 `partials/holdings.html` renders a bordered card below the body and above the
 Related card, holding up to three small tables. The build derives this front
@@ -176,13 +176,13 @@ note and dropped if one carries them:
 ```yaml
 ---
 contains: [{ title: …, url: …, type: place, subType: … }] # places within this one
-held_by: [{ title: …, url: …, type: affiliation, subType: … }] # affiliations holding this place
-holdings: [{ title: …, url: …, type: place, subType: … }] # places this affiliation holds
+governed_by: [{ title: …, url: …, type: affiliation, subType: … }] # the governing affiliation of this place
+governed_places: [{ title: …, url: …, type: place, subType: … }] # places explicitly governed by this affiliation
 ---
 ```
 
-A place page carries `contains` and/or `held_by`; an affiliation page carries
-`holdings`. Each key is tested for independently — a page carrying none of the
+A place page carries `contains` and/or `governed_by`; an affiliation page carries
+`governed_places`. Each key is tested for independently — a page carrying none of the
 three renders no card, and a page carrying one renders one table.
 
 **`url` is absent for an entry with no page of its own** — a stub note with an
@@ -191,29 +191,29 @@ an entry's title renders as plain text; every other entry renders as a link.
 `partials/holdings/entry.html` carries the guard, the same one
 `partials/infobox/entry.html` already applies to its own `{text, url}` shape.
 
-**Within** (`contains`) and **Holdings** (`holdings`) list places, and each is
+**Within** (`contains`) and **Governed places** (`governed_places`) list places, and each is
 broken into groups by `subType`, in the closed order region, settlement, site,
 structure, feature — a `subType` outside that order, or missing entirely,
-groups last, alphabetically by its rendered label. **Held by** (`held_by`)
+groups last, alphabetically by its rendered label. **Governed by** (`governed_by`)
 lists affiliations, whose kinds have no fixed hierarchy to group by, so it
 stays one flat grid with the kind printed beside each name.
 
 Every grid is `repeat(auto-fill, minmax(14em, 1fr))`, the one the Related card
 uses, so a region with forty settlements stays scannable.
 
-| class                   | drawn as                                                             |
-| ----------------------- | -------------------------------------------------------------------- |
-| `.holdings`             | the card                                                             |
-| `.holdings-table`       | one of the three tables, label and body together                     |
-| `.holdings-table-label` | "Within" / "Held by" / "Holdings"                                    |
-| `.holdings-table-grid`  | the grid of entries (Held by; the innermost grid of Within/Holdings) |
-| `.holdings-kind-group`  | one kind's block within Within or Holdings                           |
-| `.holdings-kind-label`  | the kind label heading a group                                       |
-| `.holdings-entry-name`  | an entry's title, linked or plain                                    |
-| `.holdings-entry-kind`  | the kind printed beside a Held by entry                              |
+| class                   | drawn as                                                                        |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| `.holdings`             | the card                                                                        |
+| `.holdings-table`       | one of the three tables, label and body together                                |
+| `.holdings-table-label` | "Within" / "Governed by" / "Governed places"                                    |
+| `.holdings-table-grid`  | the grid of entries (Governed by; the innermost grid of Within/Governed places) |
+| `.holdings-kind-group`  | one kind's block within Within or Governed places                               |
+| `.holdings-kind-label`  | the kind label heading a group                                                  |
+| `.holdings-entry-name`  | an entry's title, linked or plain                                               |
+| `.holdings-entry-kind`  | the kind printed beside a Governed by entry                                     |
 
-A page whose front matter declares none of `contains`, `held_by` or
-`holdings` renders no card at all.
+A page whose front matter declares none of `contains`, `governed_by` or
+`governed_places` renders no card at all.
 
 ## The place map
 

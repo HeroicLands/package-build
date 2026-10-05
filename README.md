@@ -46,7 +46,7 @@ The documentation lives in the Markdown files in this repository. Start with [th
 | Error locations and severities                    | [Diagnostics](docs/diagnostics.md)                           |
 | Architectural rationale                           | [Design](docs/design.md)                                     |
 
-Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](docs/authoring/frontmatter.md#place-governments).
+Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](docs/authoring/frontmatter.md#place-governments) and [government migration](docs/guides/government-migration.md).
 
 Leading captions, generic fenced divs, inline spans, and poetry code fences are described in [links and markup](docs/authoring/links-and-markup.md).
 

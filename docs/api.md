@@ -372,6 +372,7 @@ An addressed content note accepts exactly these top-level keys, in this order: `
 | `subTypeCharsetMessage`   | `subTypeCharsetMessage(value)`               | `string`                                 | building the message for a `subType` outside the address charset                             |
 | `typeCharsetMessage`      | `typeCharsetMessage(type)`                   | `string`                                 | building the message for a `type` outside the address charset                                |
 | `assertVocabularyCharset` | `assertVocabularyCharset(vocabulary, where)` | throws                                   | refusing a vocabulary declaration whose type or subType breaks the address charset           |
+| `isLegacyDataField`       | `isLegacyDataField(type, key)`               | `boolean`                                | testing accepted but ignored transitional affiliation `data.domains` input                   |
 | `dataFields`              | `dataFields(type, vocabulary)`               | `readonly DataFieldSpec[] \| undefined`  | looking up the `data:` keys a note type may carry                                            |
 | `subTypes`                | `subTypes(type, vocabulary)`                 | `readonly string[] \| null \| undefined` | looking up the closed `subType` values a note type declares                                  |
 
@@ -497,22 +498,22 @@ What a place is next to (`data.borders`) and reachable from (`data.routes`): the
 
 ### `engine.holdings`
 
-What lies within a place, who holds it, and what an affiliation holds — read off `data.parents` and `data.domains` across this package and every fetched index, inverted into the `contains`, `held_by` and `holdings` lists the site build writes — and the population-based government advisory `package-build lint` runs on a place.
+What lies within a place and which affiliation explicitly governs it — read off `data.parents` and resolved explicit `data.government` across this package and every fetched index, inverted into the `contains`, `governed_by` and `governed_places` lists the site build writes — and the population-based government advisory `package-build lint` runs on a place.
 
-| Export                 | Signature                            | Returns                 | Use it when                                                                                                                 |
-| ---------------------- | ------------------------------------ | ----------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| `HOLDINGS_KEYS`        | `const HOLDINGS_KEYS`                | `readonly string[]`     | the three derived keys — `contains`, `held_by`, `holdings` — which a note cannot author                                     |
-| `HELD_SUBTYPES`        | `const HELD_SUBTYPES`                | `readonly string[]`     | deprecated historical tenure subtypes; government checks apply to every place subtype                                       |
-| `holdingsNode`         | `holdingsNode(fm, { title, url })`   | `HoldingsNode\|null`    | reading a local note as a node of the derivation, or `null` for one that is neither a place nor an affiliation              |
-| `foreignHoldingsNodes` | `foreignHoldingsNodes(foreignIndex)` | `HoldingsNode[]`        | reading a fetched index's places and affiliations as nodes                                                                  |
-| `holdingsPages`        | `holdingsPages(nodes)`               | `Map<string, Holdings>` | inverting `parents` and `domains` into each page's sorted lists, keyed by URL, for every page with at least one entry       |
-| `shortcodesOf`         | `shortcodesOf(value)`                | `string[]`              | the shortcodes a `parents` or `domains` value names — bare, addressed or wikilinked — empties dropped and repeats collapsed |
-| `checkGovernment`      | `checkGovernment(note)`              | `object[]`              | warning at `data.population` for positive population with no own `data.government` key; explicit null means anarchy         |
-| `checkHeld`            | `checkHeld(note, { index })`         | `object[]`              | deprecated compatibility wrapper for `checkGovernment`; holdings do not determine government                                |
+| Export                 | Signature                                           | Returns                 | Use it when                                                                                                                                |
+| ---------------------- | --------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `HOLDINGS_KEYS`        | `const HOLDINGS_KEYS`                               | `readonly string[]`     | derived `contains`, `governed_by`, `governed_places` and retired `held_by`/`holdings` keys removed from authored page metadata             |
+| `HELD_SUBTYPES`        | `const HELD_SUBTYPES`                               | `readonly string[]`     | deprecated historical tenure subtypes; government checks apply to every place subtype                                                      |
+| `holdingsNode`         | `holdingsNode(fm, { title, url, package, system })` | `HoldingsNode\|null`    | reading a local note as a node of the derivation, or `null` for one that is neither a place nor an affiliation                             |
+| `foreignHoldingsNodes` | `foreignHoldingsNodes(foreignIndex)`                | `HoldingsNode[]`        | reading a fetched index's places and affiliations as nodes                                                                                 |
+| `holdingsPages`        | `holdingsPages(nodes)`                              | `Map<string, Holdings>` | inverting `parents` and resolved explicit `government` into each page's sorted lists, keyed by URL, for every page with at least one entry |
+| `shortcodesOf`         | `shortcodesOf(value)`                               | `string[]`              | the shortcodes a `parents` value names — bare, addressed or wikilinked — empties dropped and repeats collapsed                             |
+| `checkGovernment`      | `checkGovernment(note)`                             | `object[]`              | warning at `data.population` for positive population with no own `data.government` key; explicit null means anarchy                        |
+| `checkHeld`            | `checkHeld(note, { index })`                        | `object[]`              | deprecated compatibility wrapper for `checkGovernment`; holdings do not determine government                                               |
 
 ### `engine.populations`
 
-Whether a world's population figures agree from the region down — the polities and regions inside a place against what it states, a settlement against every place containing it, and a `doc` note's cited figures against the notes that own them. `package-build lint` runs all four as warnings.
+Whether a world's population figures agree from the region down — the regions inside a place against what it states, a settlement against every place containing it, and a `doc` note's cited figures against the notes that own them. `package-build lint` runs all three as warnings.
 
 | Export                  | Signature                                | Returns                | Use it when                                                                                                  |
 | ----------------------- | ---------------------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------ |

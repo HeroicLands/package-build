@@ -115,7 +115,6 @@ These fields are accepted by every note type. A field's value can still be irrel
 | `data.governance.ranks`   | list                   | The ladder of ranks the body confers — level, title, description.                               |
 | `data.governance.offices` | as authored            | Named offices, each with a description and optional dated holders.                              |
 | `data.seat`               | an Address             | Where the affiliation's authority sits.                                                         |
-| `data.domains`            | list of Addresses      | Places over which it holds sway.                                                                |
 | `data.population`         | number                 | How many people it counts.                                                                      |
 | `data.economy`            | list of Addresses      | What its economic life runs on — currencies, banking bodies, goods.                             |
 | `data.lore`               | list of Addresses      | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar. |
@@ -128,7 +127,6 @@ These fields are accepted by every note type. A field's value can still be irrel
 | ---------------- | ------ | ------------------ |
 | `subType`        | sohl   | `system.subType`   |
 | `data.seat`      | sohl   | `system.seat`      |
-| `data.domains`   | sohl   | `system.domain`    |
 | `data.parents`   | sohl   | `system.parents`   |
 | `data.relations` | sohl   | `system.relations` |
 
