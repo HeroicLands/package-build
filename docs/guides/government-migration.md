@@ -19,7 +19,7 @@ A temple can be a government when it actually governs the place; so can a compan
 
 ## Legacy input and output changes
 
-Legacy affiliation `data.domains` is temporarily accepted without a finding so existing trees can migrate. It is ignored: it no longer creates affiliation Domains infobox rows, metadata-index `domains`, SoHL `system.domain`, or website `held_by` and `holdings`. New notes should omit it. There is no new authored holdings or tenure field. Preserve distinct ownership, subordinate tenure, property rights or influence in the note's prose, with links where useful, before deleting the old list.
+Legacy affiliation `data.domains` is temporarily accepted without a finding so existing trees can migrate. It is ignored: it no longer creates affiliation Domains infobox rows, metadata-index `domains`, SoHL `system.domain`, or website `held_by` and `holdings`. New notes should omit it. A fetched older system schema can still declare `system.domain`; the schema check then reports an advisory that the field receives its system default. No new government is inferred from that default. There is no new authored holdings or tenure field. Preserve distinct ownership, subordinate tenure, property rights or influence in the note's prose, with links where useful, before deleting the old list.
 
 The tenure-based `over-held land` population advisory is retired. Geographical `contains` and the remaining population checks continue to use place parents unchanged. Explicit null remains null in published metadata and displays Complete anarchy; omission stays absent. Neither appears in a governing body's reverse list.
 

@@ -1070,12 +1070,24 @@ export function renderPages(pages, options) {
     const related = relatedPages(edges, entries);
     // Geography follows parents; governing-body lists follow explicit government
     // references across this package and every fetched index.
-    const holdings = holdingsPages([
-        ...pages.map((page) =>
-            holdingsNode(page.fm, { title: pageTitle(page), url: page.url, package: page.pkg }),
-        ),
-        ...foreignHoldingsNodes(foreign?.index),
-    ]);
+    const holdings = holdingsPages(
+        [
+            ...pages.map((page) =>
+                holdingsNode(page.fm, { title: pageTitle(page), url: page.url, package: page.pkg }),
+            ),
+            ...foreignHoldingsNodes(foreign?.index),
+        ],
+        {
+            governmentNodes: records
+                .filter((record) => !isGmNote(record))
+                .map((record) =>
+                    holdingsNode(record, {
+                        title: record.name?.full ?? record.shortcode,
+                        package: config?.contentPackage ?? pages[0]?.pkg,
+                    }),
+                ),
+        },
+    );
 
     let withMap = 0;
     const outputs = capture === true ? new Map() : null;

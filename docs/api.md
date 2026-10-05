@@ -506,10 +506,12 @@ What lies within a place and which affiliation explicitly governs it — read of
 | `HELD_SUBTYPES`        | `const HELD_SUBTYPES`                               | `readonly string[]`     | deprecated historical tenure subtypes; government checks apply to every place subtype                                                      |
 | `holdingsNode`         | `holdingsNode(fm, { title, url, package, system })` | `HoldingsNode\|null`    | reading a local note as a node of the derivation, or `null` for one that is neither a place nor an affiliation                             |
 | `foreignHoldingsNodes` | `foreignHoldingsNodes(foreignIndex)`                | `HoldingsNode[]`        | reading a fetched index's places and affiliations as nodes                                                                                 |
-| `holdingsPages`        | `holdingsPages(nodes)`                              | `Map<string, Holdings>` | inverting `parents` and resolved explicit `government` into each page's sorted lists, keyed by URL, for every page with at least one entry |
-| `shortcodesOf`         | `shortcodesOf(value)`                               | `string[]`              | the shortcodes a `parents` value names — bare, addressed or wikilinked — empties dropped and repeats collapsed                             |
+| `holdingsPages`        | `holdingsPages(nodes, { governmentNodes })`         | `Map<string, Holdings>` | inverting `parents` and resolved explicit `government` into each page's sorted lists, keyed by URL, for every page with at least one entry |
+| `shortcodesOf`         | `shortcodesOf(value)`                               | `string[]`              | the shortcodes a `parents` value names — bare or qualified Addresses — empties dropped and repeats collapsed                               |
 | `checkGovernment`      | `checkGovernment(note)`                             | `object[]`              | warning at `data.population` for positive population with no own `data.government` key; explicit null means anarchy                        |
 | `checkHeld`            | `checkHeld(note, { index })`                        | `object[]`              | deprecated compatibility wrapper for `checkGovernment`; holdings do not determine government                                               |
+
+Government-only supplemental records passed in `holdingsPages` options include public local stubs in the reverse lists without adding them to the geographical graph. Published nodes retain precedence; stubs without URLs render as plain text.
 
 ### `engine.populations`
 
