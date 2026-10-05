@@ -2868,9 +2868,9 @@ summary.info-sidebar-title::after {
    group's entries laid out as a CSS grid that reflows its own column count
    from the available width — two or three columns on a desktop, one on a
    phone — with no breakpoint needed. Related groups by the connected page's
-   `type`; Holdings groups `contains` and `holdings` by place `subType`
+   `type`; Holdings groups `contains` and `governed_places` by place `subType`
    (`.holdings-kind-group`, one level deeper, for the region/settlement/site
-   hierarchy) and leaves `held_by` a flat grid with the kind printed beside
+   hierarchy) and leaves `governed_by` a flat grid with the kind printed beside
    each name. */
 
 .related,

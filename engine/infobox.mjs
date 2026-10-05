@@ -723,7 +723,7 @@ function structuredRows(field, raw, resolve, label, contentPackage) {
     // Address: an authored plain list of addresses normalises to a list of
     // Address tuples, which `isMapping` also reports true for, and treating
     // one as a relationship keyed off a `to` it never carries is what emptied
-    // `lore`, `parents`, `domains` and `economy` silently.
+    // `lore`, `parents` and `economy` silently.
     const relations =
         Array.isArray(raw) ? raw.filter((entry) => isMapping(entry) && !isAddressTuple(entry)) : [];
     if (relations.length) {

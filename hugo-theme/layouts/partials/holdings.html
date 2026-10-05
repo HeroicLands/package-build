@@ -1,22 +1,22 @@
 {{- /*
-  Holdings card.
+  Geography and government card.
 
   Three small tables, rendered after the body and before the Related card
   (see `page-body.html`), from front matter `@heroiclands/package-build`
   derives and a note never authors itself:
 
     contains:  [{ title, url, type, subType }]  places sitting within this one
-    held_by:   [{ title, url, type, subType }]  affiliations holding this place
-    holdings:  [{ title, url, type, subType }]  places this affiliation holds
+    governed_by:   [{ title, url, type, subType }]  affiliations governing this place
+    governed_places:  [{ title, url, type, subType }]  places this affiliation governs
 
-  A place page carries `contains` and/or `held_by`; an affiliation page
-  carries `holdings`. Neither is checked here — presence of the key is the
+  A place page carries `contains` and/or `governed_by`; an affiliation page
+  carries `governed_places`. Neither is checked here — presence of the key is the
   only test, the same silent-disappear convention the Related card follows:
   a page carrying none of the three renders no card at all.
 
-  `contains` and `holdings` list places, so each is broken into groups by
+  `contains` and `governed_places` list places, so each is broken into groups by
   kind (`holdings/kind-groups.html`) — the towns together, the hamlets
-  together. `held_by` lists affiliations, whose kinds have no fixed
+  together. `governed_by` lists affiliations, whose kinds have no fixed
   hierarchy to group by, so it stays one flat grid with the kind printed
   beside each name instead of as a group heading.
 
@@ -27,10 +27,10 @@
   was established.
 */ -}}
 {{- $within := .Params.contains -}}
-{{- $heldBy := .Params.held_by -}}
-{{- $holds := .Params.holdings -}}
+{{- $government := .Params.governed_by -}}
+{{- $governed := .Params.governed_places -}}
 
-{{- if or $within $heldBy $holds -}}
+{{- if or $within $government $governed -}}
 <section class="holdings" data-pagefind-ignore>
   {{- with $within }}
   <div class="holdings-table">
@@ -38,9 +38,9 @@
     {{ partial "holdings/kind-groups.html" . }}
   </div>
   {{- end }}
-  {{- with $heldBy }}
+  {{- with $government }}
   <div class="holdings-table">
-    <h3 class="holdings-table-label">Held by</h3>
+    <h3 class="holdings-table-label">Governed by</h3>
     <ul class="holdings-table-grid">
       {{- range . }}
       <li>
@@ -51,9 +51,9 @@
     </ul>
   </div>
   {{- end }}
-  {{- with $holds }}
+  {{- with $governed }}
   <div class="holdings-table">
-    <h3 class="holdings-table-label">Holdings</h3>
+    <h3 class="holdings-table-label">Governed places</h3>
     {{ partial "holdings/kind-groups.html" . }}
   </div>
   {{- end }}

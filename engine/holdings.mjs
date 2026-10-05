@@ -15,8 +15,8 @@
  * Derive containment and government lists from place facts. Geography comes
  * only from `data.parents`; government comes only from `data.government`.
  * Affiliation domains never supply government, and neither graph expands
- * through geographic or affiliation ancestors. Identity preserves the Address package, type, and shortcode. Its system
- * normalizes to `note` because Item and journal documents share one page.
+ * through geographic or affiliation ancestors. Government identity preserves the Address package, type and shortcode.
+ * Its system normalizes to `note` because Item and journal documents share one page.
  * Historical holdings API names remain for callers migrating their imports.
  * @module
  */
@@ -213,8 +213,10 @@ export function holdingsPages(nodes) {
         const by = node.type === "place" ? places : affiliations;
         const key = ownKey(node);
         if (!by.has(key)) by.set(key, node);
-        if (node.type === "place" && !geographicPlaces.has(node.shortcode.toLowerCase()))
+        if (node.type === "place" && !geographicPlaces.has(node.shortcode.toLowerCase())) {
+            // Shortcode identity: geography keeps its historical first-declaration rule.
             geographicPlaces.set(node.shortcode.toLowerCase(), node);
+        }
     }
     const lists = new Map();
     const add = (node, key, entry) => {

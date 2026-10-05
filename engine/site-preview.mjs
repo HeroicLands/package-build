@@ -286,7 +286,11 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                 if (related) result.data.related = related;
                 const holdings = holdingsPages([
                     ...allPages.map((item) =>
-                        holdingsNode(item.fm, { title: item.name, url: item.url }),
+                        holdingsNode(item.fm, {
+                            title: item.name,
+                            url: item.url,
+                            package: item.pkg ?? config.contentPackage,
+                        }),
                     ),
                     ...foreignHoldingsNodes(snapshot.gates.foreign.index),
                 ]);

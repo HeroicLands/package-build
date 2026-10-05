@@ -355,7 +355,9 @@ describe("map and holdings use a deliberate Shortcode identity", () => {
         const sites = shippedModules().flatMap((file) => {
             const source = fs.readFileSync(path.join(PKG_ROOT, file), "utf8");
             const keys = [
-                ...source.matchAll(/(?:by|places|world\.places)\.set\((?:node\.)?shortcode\b/g),
+                ...source.matchAll(
+                    /(?:by|places|world\.places|geographicPlaces)\.set\((?:node\.)?shortcode\b/g,
+                ),
             ];
             return keys.map((key) => ({
                 file,
