@@ -53,17 +53,17 @@
  * build translates once and no second copy of those three rows exists.
  */
 export const DEFAULT_ITEM_ART = {
-    affiliation: "sohl/assets/icons/noun/shield.svg",
+    affiliation: "sohl/assets/icons/noun/shieldnn.svg",
     affliction: "sohl/assets/icons/other/sick.svg",
     armorgear: "sohl/assets/icons/game-icons/lorc/breastplate.svg",
-    attribute: "sohl/assets/icons/other/charm.svg",
+    attribute: "sohl/assets/icons/game-icons/lorc/charm.svg",
     concoctiongear: "sohl/assets/icons/game-icons/badges/flask.svg",
     containergear: "sohl/assets/icons/other/sack.svg",
-    miscgear: "sohl/assets/icons/other/question-mark.svg",
-    mystery: "sohl/assets/icons/other/sparkles.svg",
-    mysticalability: "sohl/assets/icons/other/hand-sparkles.svg",
+    miscgear: "sohl/assets/icons/other/questionmark.svg",
+    mystery: "sohl/assets/icons/game-icons/delapouite/sparkles.svg",
+    mysticalability: "sohl/assets/icons/other/handsparkles.svg",
     projectilegear: "sohl/assets/icons/noun/arrow.svg",
-    skill: "sohl/assets/icons/other/head-gear.svg",
+    skill: "sohl/assets/icons/other/headgear.svg",
     trauma: "sohl/assets/icons/other/injury.svg",
     weapongear: "sohl/assets/icons/other/sword.svg",
 };
