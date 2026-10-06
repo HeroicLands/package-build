@@ -2796,6 +2796,15 @@ An Item can mark its readable description with `# ... {#description}`. That head
 
 Generates a living (or undead, or spirit) being.
 
+**subType**:
+
+- npc: A character meant to be encountered. It may describe a reusable template and need not be
+  a singular individual.
+- character: A detailed, playable, singular individual.
+- creature: Any being that is neither a character nor an NPC.
+
+See [a being's subtype describes the subject](#a-beings-subtype-describes-the-subject).
+
 | `data` property             | Values                                         | Description                                                                                                                                           |
 | --------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tokenIcon`                 | `Address`                                      | What a token on the canvas wears — an `icon` address; defaults to `icon`                                                                              |
@@ -3928,22 +3937,34 @@ the setting itself, rather than instructions or other apparatus for the GM.
   which covers the _reckoning_ — a festival's date is calendar and the festival is not, and a
   tournament is not a matter of time-reckoning at all — and from `culture`, which is a grouping
   of people rather than an occasion they attend.
+- literature: A work a people composes and keeps — an epic, saga, poem, legend, hymn or
+  chronicle, told, sung or written. Held apart from `history`, which states what happened: a
+  legend is literature whether or not its events took place, and a chronicle is literature as a
+  work even where its events are also history.
 
-| `data` property         | Values                                                                        | Description                                                                         |
-| ----------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| `epoch`                 | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                |
-| `months`                | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                  |
-| `weekdays`              | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                        |
-| `seasons`               | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                          |
-| `namedDays`             | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                            |
-| `eras`                  | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                               |
-| `formats`               | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                  |
-| `events`                | `{ when, until?, recurs? }[]`                                                 | This note's dated occurrences, each with its own relationships and chronicle fields |
-| `events[].when`         | a date, or `"0.<day>"`                                                        | The occurrence's anchor and first instance — required                               |
-| `events[].until`        | a date                                                                        | Where the occurrence ran to, or where a recurring series stopped                    |
-| `events[].recurs`       | `{ every }` or `{ on }`                                                       | How further occurrences are found, absent for a one-time occurrence                 |
-| `events[].recurs.every` | whole number of years, 1 or more                                              | A period counted on the canonical axis from `when`                                  |
-| `events[].recurs.on`    | list of dates, strictly increasing, each later than `when`                    | Recorded occurrences beyond the first, in place of a period                         |
+Calendar fields are written only on a `calendar` note, and `culture`, `form`, `subjects` and
+`language` only on a `literature` note; written on any other lore subType, each is an error at
+its own key.
+
+| `data` property         | Values                                                                        | Description                                                                                                       |
+| ----------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `epoch`                 | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                              |
+| `months`                | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                |
+| `weekdays`              | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                      |
+| `seasons`               | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                        |
+| `namedDays`             | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                          |
+| `eras`                  | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                             |
+| `formats`               | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                |
+| `culture`               | `Address`                                                                     | `literature` only: the people whose work it is, naming a lore note with `subType: culture`                        |
+| `form`                  | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text |
+| `subjects`              | `Address[]`                                                                   | `literature` only: the beings, places, gods, events and other notes the work concerns                             |
+| `language`              | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                     |
+| `events`                | `{ when, until?, recurs? }[]`                                                 | This note's dated occurrences, each with its own relationships and chronicle fields                               |
+| `events[].when`         | a date, or `"0.<day>"`                                                        | The occurrence's anchor and first instance — required                                                             |
+| `events[].until`        | a date                                                                        | Where the occurrence ran to, or where a recurring series stopped                                                  |
+| `events[].recurs`       | `{ every }` or `{ on }`                                                       | How further occurrences are found, absent for a one-time occurrence                                               |
+| `events[].recurs.every` | whole number of years, 1 or more                                              | A period counted on the canonical axis from `when`                                                                |
+| `events[].recurs.on`    | list of dates, strictly increasing, each later than `when`                    | Recorded occurrences beyond the first, in place of a period                                                       |
 
 `data.events` is available on every `lore` subType. Each entry's `kind`, `depth`, `summary`, `sources`, `standing`, `accounts`, `who`, `where`, `unresolved`, `follows` and `names` hold its chronicle detail; their shapes belong to whatever design governs chronicle records, and this format only asks that they sit inside an entry. The shared format checks `when`, `until` and `recurs`; a content package can check the rest. `events` itself does not appear as an infobox row, but a recurring entry's computed next occurrence does.
 

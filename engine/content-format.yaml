@@ -241,6 +241,10 @@ types:
             - namedDays
             - eras
             - formats
+            - culture
+            - form
+            - subjects
+            - language
             - events
         subTypes:
             - cosmology
@@ -258,6 +262,7 @@ types:
             - custom
             - bestiary
             - gathering
+            - literature
     map:
         data:
             - scene

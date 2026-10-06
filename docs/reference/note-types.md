@@ -417,7 +417,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 ### lore
 
-**Subtypes:** `cosmology`, `deity`, `theology`, `arcana`, `spirit`, `economy`, `law`, `calendar`, `history`, `material`, `folk`, `culture`, `custom`, `bestiary`, `gathering`.
+**Subtypes:** `cosmology`, `deity`, `theology`, `arcana`, `spirit`, `economy`, `law`, `calendar`, `history`, `material`, `folk`, `culture`, `custom`, `bestiary`, `gathering`, `literature`.
 
 Lore records in-world knowledge. A `culture` describes a people; a `custom` describes how they practice a rite, observance, or usage. A `material` describes a physical constituent and its qualities, which may vary by region. See the [lore subtype definitions](format-details.md#type-lore) for the complete vocabulary.
 
@@ -430,6 +430,10 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.namedDays` | list of `{ name, abbreviation?, day }`                                              | Names assigned to particular days of the year.                                                                                       |
 | `data.eras`      | list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, label? }` | The year-counts kept in this calendar. A marker names one era and uses these months.                                                 |
 | `data.formats`   | map of named Calendaria format strings                                              | Named patterns for reading and writing this calendar's dates.                                                                        |
+| `data.culture`   | an Address                                                                          | The people whose work this is, as a culture lore note.                                                                               |
+| `data.form`      | string                                                                              | The kind of work in its people's own terms — an epic, a saga, a praise-song, an elegy. Free text.                                    |
+| `data.subjects`  | list of Addresses                                                                   | The beings, places, gods, events and other notes the work concerns.                                                                  |
+| `data.language`  | an Address                                                                          | The tongue the work is composed in, as a language skill note.                                                                        |
 | `data.events`    | list of `{ when, until?, recurs? }`                                                 | This note's dated occurrences — a founding once, an anniversary that recurs, or a list of recorded happenings.                       |
 
 ### map

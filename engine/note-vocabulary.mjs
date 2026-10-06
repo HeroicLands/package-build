@@ -109,6 +109,7 @@ import { checkAffiliationRankFloor, checkRankLadder } from "./rank-ladder.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
 import { checkLoreEvents } from "./lore-events.mjs";
 import { checkCultureChoice } from "./culture-choice.mjs";
+import { LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
@@ -1479,15 +1480,21 @@ export const NOTE_VOCABULARY = Object.freeze({
             "custom", // How a people practices a rite, observance, or usage.
             "bestiary", // A kind of creature that is not a people.
             "gathering", // A recurring public assembly, such as a fair or tournament.
+            "literature", // A work a people tells, sings, or writes, such as an epic or legend.
         ]),
         // A lore note is prose, and what it *is* about is its subType — with
-        // one exception. A calendar is a division of the year, and a division
-        // is data; the check scopes the family to the subType that means it,
-        // because `DataFieldSpec` declares the keys a type accepts and not the
-        // subType that may write them.
-        check: checkCalendarNote,
+        // two exceptions. A calendar is a division of the year, and a division
+        // is data; a work of literature states whose it is, in what tongue and
+        // about what. The checks scope each family to the subType that means
+        // it, because `DataFieldSpec` declares the keys a type accepts and not
+        // the subType that may write them.
+        check: (note, context) => [
+            ...checkCalendarNote(note, context),
+            ...checkLiteratureNote(note),
+        ],
         data: Object.freeze([
             ...CALENDAR_FIELDS,
+            ...LITERATURE_FIELDS,
             {
                 name: "events",
                 kind: "list",
