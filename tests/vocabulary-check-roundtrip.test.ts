@@ -44,6 +44,7 @@ function kindAndCheckFields() {
 const HITS: Record<string, unknown> = {
     "thalorna-note-lore-cultureone": { subType: "culture" },
     "thalorna-note-lore-calendarone": { subType: "calendar" },
+    "thalorna-note-skill-languageone": { subType: "language" },
     "thalorna-note-being-ally": true,
     "thalorna-note-place-korrath": { type: "place", borders: [{ to: "vylar", bearing: "S" }] },
     "thalorna-note-place-tolvern": {
@@ -127,12 +128,14 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     lore: {
-        covers: ["events"],
+        covers: ["culture", "language", "events"],
         fm: () => ({
             type: "lore",
-            subType: "history",
-            shortcode: "founding",
+            subType: "literature",
+            shortcode: "foundingsaga",
             data: {
+                culture: "cultureone",
+                language: "languageone",
                 events: [{ when: "412.1", until: "612.1", recurs: { every: 1 } }],
             },
         }),

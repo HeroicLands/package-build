@@ -649,6 +649,13 @@ describe("lore declares a genre for a scheduled public occasion", () => {
         expect(NOTE_VOCABULARY.lore.subTypes).toContain("gathering");
     });
 
+    // A composed work a people keeps and performs. Every other lore subType
+    // names what a note is about; filing an epic under `history` asserts that it
+    // happened, and under `theology` that it is a belief about the divine.
+    it("declares `literature`", () => {
+        expect(NOTE_VOCABULARY.lore.subTypes).toContain("literature");
+    });
+
     it("does not spell it `festival` or `event`", () => {
         expect(NOTE_VOCABULARY.lore.subTypes).not.toContain("festival");
         expect(NOTE_VOCABULARY.lore.subTypes).not.toContain("event");

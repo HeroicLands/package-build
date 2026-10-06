@@ -2,14 +2,23 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { loadContentFormat } from "../engine/content-format.mjs";
+import { loadContentFormat, parseContentFormat } from "../engine/content-format.mjs";
 import { IMAGE_CLASSES, IMAGE_FLOATS, IMAGE_SIZES } from "../engine/content-images.mjs";
 import { DECLARED_TAGS, NOTE_VOCABULARY, SHARED_DATA_FIELDS } from "../engine/note-vocabulary.mjs";
 import { MARKET_CLASSES } from "../engine/market-class.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 const contract = loadContentFormat();
+
+/** The format reference, whose `**subType**:` lists are prose an author reads. */
+const REFERENCE = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../docs/reference/format-details.md",
+);
 
 describe("the structured format contract", () => {
     it("covers every declared type and its schema", () => {
@@ -64,6 +73,42 @@ describe("the structured format contract", () => {
             expect(claim.target).toMatch(/^system\./);
             expect(claim.line).toBeGreaterThan(0);
             expect(claim.column).toBeGreaterThan(0);
+        }
+    });
+});
+
+describe("the format reference", () => {
+    const reference = parseContentFormat(fs.readFileSync(REFERENCE, "utf8"), {
+        file: REFERENCE,
+    });
+
+    it("defines every declared subtype, in declaration order", () => {
+        for (const [type, declaration] of Object.entries(NOTE_VOCABULARY)) {
+            expect(reference.types.get(type)?.subTypes, `${type} subtypes`).toEqual(
+                declaration.subTypes ?? [],
+            );
+        }
+    });
+
+    // A declared name may itself be dotted (`appearance.eye_color`), and a
+    // table may document a field's parts below it (`events[].when`), so a
+    // documented path belongs to the declared name it equals or extends.
+    it("tabulates every declared field, and no other", () => {
+        const extendsName = (documented: string, name: string) =>
+            documented === name ||
+            documented.startsWith(`${name}.`) ||
+            documented.startsWith(`${name}[`);
+        for (const [type, declaration] of Object.entries(NOTE_VOCABULARY)) {
+            const names = (declaration.data ?? []).map((field: { name: string }) => field.name);
+            const documented = [...(reference.types.get(type)?.dataPaths ?? [])];
+            expect(
+                names.filter((name: string) => !documented.some((p) => extendsName(p, name))),
+                `${type} fields the reference leaves out`,
+            ).toEqual([]);
+            expect(
+                documented.filter((p) => !names.some((name: string) => extendsName(p, name))),
+                `${type} fields the reference names and the vocabulary does not declare`,
+            ).toEqual([]);
         }
     });
 });
