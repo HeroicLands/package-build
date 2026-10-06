@@ -37,7 +37,7 @@ The harbor faces west.
 Travelers present their papers here. See [[#harbor|the harbor]].
 ```
 
-A leading caption starts a captioned-item JournalEntryPage in Foundry. A solitary image with a plain caption can be an image page; other captioned items become text pages. Websites and books keep captioned items in the surrounding flow.
+A leading caption gives its item a JournalEntryPage of its own in Foundry, and the body after the item resumes on a continuation of the surrounding section. A solitary image with a plain caption can be an image page; other captioned items become text pages. Websites and books keep captioned items in the surrounding flow.
 
 The prose introducing a fence and the fence itself land on two different Foundry pages, so a reference such as `{{ref "#trade"}}` written just above a fence sends a Foundry reader to a different page than the one carrying the sentence. Give the introducing prose its own heading, or accept that following the reference leaves the page, before relying on a fence to sit inside a longer page's flow.
 
@@ -98,7 +98,7 @@ Each numbered type has its own counter. Websites and Foundry number within a not
 
 `{{ref "#trade"}}` displays the numbered label as a link. `form="full"` includes caption text and `form="title"` displays the caption alone. Use title form for an unnumbered caption. Cross-note references can name the note address before the anchor, such as `{{ref "place-harbor#trade"}}`; the displayed number belongs to the target on the surface rendering it. Links inside caption text contribute their visible text to references, so the reference does not contain a nested link.
 
-Foundry gives a captioned item its own JournalEntryPage. A solitary image with a plain caption can use an image page; captions with inline markup and other items use text pages. On the website and in the book the item stays in the flow of the surrounding page.
+Foundry gives a captioned item a JournalEntryPage holding the item alone, named for its number or, unnumbered, for the caption's visible text — links and emphasis reduced to the words a reader sees. A solitary image with a plain caption can use an image page; captions with inline markup and other items use text pages. The body after the item resumes on a continuation page carrying the interrupted section's name, level and classes, with its title hidden; nothing is emitted when the next page begins straight after the item. On the website and in the book the item stays in the flow of the surrounding page.
 
 **Migration:** `:::figure` is no longer supported. Move the former `///` caption before the item as `:@ Caption {#id}` and remove the figure wrapper. To caption a group or passage, put it inside a generic fenced div and caption that div with an explicit type if needed. `///` is no longer a caption delimiter.
 

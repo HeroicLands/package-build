@@ -124,9 +124,15 @@ function namedBlockLines(markdown) {
  * calling that page "Introduction" would label the description as a preamble to
  * nothing.
  *
- * A figure fence carries its own record along onto the page it starts, as
- * `figure` — `null` for a page a heading started. {@link buildPages} reads it
- * to build the `image` or `text` page a fence begins; nothing else sets it.
+ * A captioned item's page holds the item alone, and carries the item's record
+ * as `figure` — `null` for every other page. {@link buildPages} reads it to
+ * build the `image` or `text` page; nothing else sets it. The page is named
+ * for the item's number, or else its caption's visible text.
+ *
+ * Body that follows an item, up to the next page opening, resumes in a
+ * **continuation** of the section the item interrupted: the section's name,
+ * level and classes, with `continues` naming the item it follows. A
+ * continuation holding nothing is not emitted.
  *
  * @param {string} body - Markdown body to split.
  * @param {string} [leadName] - Name of the page before the first heading.
@@ -135,8 +141,8 @@ function namedBlockLines(markdown) {
  *   name reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
- *   classes: string[], figure: object|null, markdown: string}>} Pages in
- *   document order.
+ *   classes: string[], figure: object|null, continues?: string,
+ *   markdown: string}>} Pages in document order.
  */
 export function splitPages(body, leadName = "Introduction", resolveRole) {
     const { markdown, definitions } = separateFootnotes(body);
@@ -150,16 +156,26 @@ export function splitPages(body, leadName = "Introduction", resolveRole) {
     const beforeFirstH1 = [];
     let current = null;
     let codeFence = null;
+    /** The page a heading last opened, which a captioned item interrupts. */
+    let section = { name: leadName, level: 1, classes: [] };
 
     const closeCurrent = () => {
         if (!current) return;
+        const markdown = current.lines.join("\n").trim();
+        // A continuation exists only to carry what follows its item; one
+        // holding nothing is not a page.
+        if (current.continues && !markdown) {
+            current = null;
+            return;
+        }
         pages.push({
             name: current.name,
             anchorSlug: current.anchorSlug,
             level: current.level,
             classes: current.classes,
             figure: current.figure ?? null,
-            markdown: current.lines.join("\n").trim(),
+            ...(current.continues ? { continues: current.continues } : {}),
+            markdown,
         });
         current = null;
     };
@@ -190,13 +206,29 @@ export function splitPages(body, leadName = "Introduction", resolveRole) {
         // lines it claims here are collected by `pageOpenings`, which also
         // skips a fence and a named block. A figure fence opens a page of its
         // own, named for the figure's label.
+        // A captioned item's page holds the item alone. The body after it
+        // resumes in a continuation of the section it interrupted, keyed on
+        // the item so its id holds still when pages move around it.
+        if (current?.figure && lineIndex > current.figure.close) {
+            const item = current.figure;
+            closeCurrent();
+            current = {
+                name: section.name,
+                anchorSlug: null,
+                level: section.level,
+                classes: section.classes,
+                continues: item.slug || item.label || captionPageName(item.caption),
+                lines: [],
+            };
+        }
+
         const opening = openings.get(lineIndex);
         const figure =
             !inCodeBlock && !blockLines.has(lineIndex) ? figureStarts.get(lineIndex) : null;
         if (figure) {
             closeCurrent();
             current = {
-                name: figure.label || figure.caption,
+                name: figure.label || captionPageName(figure.caption),
                 anchorSlug: figure.id || null,
                 level: 1,
                 classes: [],
@@ -214,6 +246,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole) {
                 classes: opening.classes,
                 lines: [],
             };
+            section = current;
             continue;
         }
 
@@ -270,7 +303,18 @@ export function splitPages(body, leadName = "Introduction", resolveRole) {
 export function assertUniquePages(rawPages, noteName) {
     const anchors = new Set();
     const names = new Set();
+    const continuations = new Set();
     for (const page of rawPages) {
+        if (page.continues) {
+            const key = `${page.name}\u0000${page.continues}`;
+            if (continuations.has(key)) {
+                throw new Error(
+                    `note "${noteName}" has two captioned items both captioned "${page.continues}" in "${page.name}"; give one an {#anchor}`,
+                );
+            }
+            continuations.add(key);
+            continue;
+        }
         if (page.anchorSlug) {
             if (anchors.has(page.anchorSlug)) {
                 throw new Error(
@@ -321,14 +365,47 @@ export function assertUniqueAnchors(rawPages, noteName) {
  * a lint error. {@link assertUniquePages} states the same thing at compile
  * time, where the packer would otherwise report only an opaque duplicate key.
  *
+ * A continuation page shares its section's name, so it is keyed by that name
+ * and the captioned item it follows.
+ *
  * @param {string} entryId - The owning JournalEntry's `_id`.
- * @param {{anchorSlug: string|null, name: string}} page - From {@link splitPages}.
+ * @param {{anchorSlug: string|null, name: string, continues?: string}} page -
+ *   From {@link splitPages}.
  * @returns {string} A 16-character Foundry id.
  */
 export function journalPageId(entryId, page) {
-    return page.anchorSlug ?
-            anchorPageId(entryId, page.anchorSlug)
+    if (page.anchorSlug) return anchorPageId(entryId, page.anchorSlug);
+    return page.continues ?
+            makeId("journal-page", `${entryId}:${page.name}:after:${page.continues}`)
         :   makeId("journal-page", `${entryId}:${page.name}`);
+}
+
+/**
+ * The name of the page a caption begins: the caption's visible text.
+ *
+ * Foundry shows a page name as plain text, so a caption's markup — emphasis, a
+ * code span, a Markdown link, or the `@UUID[...]{label}` a resolved wikilink
+ * has already become, inside its wrapping `<span>` — reduces to the text a
+ * reader sees, the same text a reference to the caption displays. The markup
+ * itself stays in the page's content, where it renders.
+ *
+ * @param {string} caption - The figure's caption, as the journal pass sees it.
+ * @returns {string} Its visible text, whitespace collapsed.
+ */
+function captionPageName(caption) {
+    if (!caption) return "";
+    const [inline] = md.parseInline(caption, {});
+    const text = (inline?.children ?? [])
+        .map((token) =>
+            token.type === "text" || token.type === "code_inline" ? token.content
+            : token.type === "softbreak" || token.type === "hardbreak" ? " "
+            : "",
+        )
+        .join("");
+    return text
+        .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1")
+        .replace(/\s+/g, " ")
+        .trim();
 }
 
 /**
@@ -382,35 +459,12 @@ function soleFigurePicture(figure, page) {
 }
 
 /**
- * Whether a figure fence is the whole of the page {@link splitPages} gave it.
- *
- * A figure always starts a page of its own, but nothing closes one: trailing
- * prose before the next heading or figure stays on it, exactly as it would
- * behind an ordinary heading. An `image` page holds a `src` and a caption and
- * nowhere else to put that prose, so it is refused the type and kept a `text`
- * page, where the prose renders after the figure's own div as it always has.
- *
- * @param {object} figure - The figure record.
- * @param {object} page - From {@link splitPages}.
- * @returns {boolean} Whether nothing follows the fence's closing `:::`.
- */
-function figureIsWholePage(figure, page) {
-    const offset = figure.line - 1;
-    const after = page.markdown
-        .split("\n")
-        .slice(figure.close - offset + 1)
-        .join("\n");
-    return after.trim() === "";
-}
-
-/**
  * The fields particular to the Foundry page a captioned item begins.
  *
- * A fence holding exactly one picture, captioned with no inline markup, and
- * standing alone on its page becomes a page of type `image`: `src` the
- * picture, `image.caption` the caption text, the page named for the figure's
- * own number. Every other fence — grouped, an audio embed, a caption
- * `image.caption` cannot hold, or one trailing prose keeps company with —
+ * A captioned item holding exactly one picture, captioned with no inline
+ * markup, becomes a page of type `image`: `src` the picture, `image.caption`
+ * the caption text, the page named for the figure's own number. Every other
+ * item — grouped, an audio embed, or a caption `image.caption` cannot hold —
  * becomes a page of type `text`.
  *
  * The `text` page's content is rendered and then relabeled. The render sees
@@ -433,7 +487,7 @@ function figureIsWholePage(figure, page) {
  */
 function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRole) {
     const picture = soleFigurePicture(figure, page);
-    if (picture && figureIsWholePage(figure, page) && !captionCarriesMarkup(figure.caption)) {
+    if (picture && !captionCarriesMarkup(figure.caption)) {
         let src = picture;
         try {
             src = resolveImg(picture) ?? picture;
@@ -442,7 +496,7 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
             // image's own render takes when no configuration resolves it.
         }
         return {
-            name: figure.label || figure.caption,
+            name: figure.label || captionPageName(figure.caption),
             type: "image",
             src,
             image: figure.hasCaption ? { caption: figure.caption } : {},
@@ -460,7 +514,7 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
         resolveRole,
     );
     return {
-        name: figure.label || figure.caption,
+        name: figure.label || captionPageName(figure.caption),
         type: "text",
         text: {
             format: 1,
@@ -536,7 +590,9 @@ export function buildPages(rawPages, entryId, noteName, figures, resolveRole) {
         return {
             _id: pageId,
             ...fields,
-            title: { show: true, level: page.level ?? 1 },
+            // A continuation resumes its section, whose title its first
+            // page already shows.
+            title: { show: !page.continues, level: page.level ?? 1 },
             ...(withheld ? { ownership: { default: WITHHELD_OWNERSHIP } } : {}),
             _key: `!journal.pages!${entryId}.${pageId}`,
         };
