@@ -35,10 +35,10 @@ import { loadPackConfig } from "../engine/pack-config.mjs";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /** The default a `miscgear` takes, in the form a compiled document carries. */
-const MISCGEAR_ART = "systems/sohl/assets/icons/other/question-mark.svg";
+const MISCGEAR_ART = "systems/sohl/assets/icons/other/questionmark.svg";
 
 /** The default a `skill` takes, likewise resolved. */
-const SKILL_ART = "systems/sohl/assets/icons/other/head-gear.svg";
+const SKILL_ART = "systems/sohl/assets/icons/other/headgear.svg";
 
 /**
  * A compile index holding one icon, so an entry naming its address resolves.
@@ -168,7 +168,7 @@ describe("an entry that copies nothing", () => {
                 "",
             );
             expect(pass.errorCount).toBe(0);
-            expect(DEFAULT_ITEM_ART.miscgear).toBe("sohl/assets/icons/other/question-mark.svg");
+            expect(DEFAULT_ITEM_ART.miscgear).toBe("sohl/assets/icons/other/questionmark.svg");
             expect(doc.items[0].img).toBe(MISCGEAR_ART);
             expect(doc.items[1].img).toBe(SKILL_ART);
         });

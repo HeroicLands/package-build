@@ -837,7 +837,7 @@ and the whole of it is the suffix.
 
 ```markdown
 ![A map of the Vale](images/maps/valeofthorns.webp) <!-- this package's -->
-![A shield](sohl/assets/icons/noun/shield.svg) <!-- the sohl package's -->
+![A shield](sohl/assets/icons/noun/shieldnn.svg) <!-- the sohl package's -->
 ```
 
 The four forms, for a `harnensemble` note (the `harnensemble` content package
@@ -850,14 +850,14 @@ ships as the Foundry module `harn-ensemble`) writing `images/map.webp`:
 | **Web**     | `https://cdn.heroiclands.org/harnensemble/images/map.webp` |
 | **Book**    | `assets/images/map.webp`, staged beside the Typst source   |
 
-And for the same note writing `sohl/assets/icons/noun/shield.svg`, a file the
+And for the same note writing `sohl/assets/icons/noun/shieldnn.svg`, a file the
 system ships and this repository does not hold:
 
 | Surface     | Address                                                       |
 | ----------- | ------------------------------------------------------------- |
-| **Foundry** | `systems/sohl/assets/icons/noun/shield.svg`                   |
-| **Local**   | `assets/icons/noun/shield.svg`, in the `sohl` repository      |
-| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`      |
+| **Foundry** | `systems/sohl/assets/icons/noun/shieldnn.svg`                 |
+| **Local**   | `assets/icons/noun/shieldnn.svg`, in the `sohl` repository    |
+| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shieldnn.svg`    |
 | **Book**    | not carried, unless a declared replacement carries it instead |
 
 **The content package name and Foundry id are separate values.**

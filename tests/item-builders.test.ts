@@ -158,8 +158,8 @@ describe("the art a compiled sohl item actually gets", () => {
         // value is the system's install path.
         const entry = compiler().buildEntry(SKILL_FM, "");
 
-        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/assets/icons/other/head-gear.svg");
-        expect(entry.img).toBe("systems/sohl/assets/icons/other/head-gear.svg");
+        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/assets/icons/other/headgear.svg");
+        expect(entry.img).toBe("systems/sohl/assets/icons/other/headgear.svg");
     });
 
     it("still lets a note override it", () => {
