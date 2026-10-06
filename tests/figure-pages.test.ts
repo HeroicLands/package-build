@@ -54,7 +54,7 @@ describe("a caption without attributes", () => {
 describe("a grouped fence", () => {
     it("emits a text page, an image page holding one src", () => {
         const [page] = entryFor(
-            `:@ Two together. {#plate}\n\n![A](${THORN})\n\n![B](${SECOND_IMAGE})`,
+            `:@ Two together. {#plate type=figure}\n\n:::\n![A](${THORN})\n\n![B](${SECOND_IMAGE})\n:::`,
         ).pages;
         expect(page.type).toBe("text");
         expect(page.src).toBeUndefined();
@@ -84,7 +84,7 @@ describe("a figure with no id", () => {
     it("takes its per-note number on its page, not a per-page recount", () => {
         const markdown =
             `:@ The great beast. {#thorn}\n\n![Thorn](${THORN})\n\n` +
-            `:@ Two together.\n\n![A](${THORN})\n\n![B](${SECOND_IMAGE})`;
+            `:@ Two together. {type=figure}\n\n:::\n![A](${THORN})\n\n![B](${SECOND_IMAGE})\n:::`;
         const [first, second] = entryFor(markdown).pages;
         expect(first.name).toBe("Figure 1");
         expect(second.name).toBe("Figure 2");
@@ -98,11 +98,129 @@ describe("a figure with no id", () => {
     });
 });
 
-describe("a figure followed by trailing prose on the same split", () => {
-    it("stays a text page — an image page has nowhere to carry the prose", () => {
+describe("a figure followed by prose", () => {
+    it("keeps the figure's page to the figure, and resumes the prose after it", () => {
         const markdown = `:@ Caption. {#thorn}\n\n![Thorn](${THORN})\n\nMore about Thorn.`;
-        const [page] = entryFor(markdown).pages;
-        expect(page.type).toBe("text");
-        expect(page.text.content).toContain("More about Thorn.");
+        const [figure, after] = entryFor(markdown).pages;
+        expect(figure.type).toBe("image");
+        expect(figure.name).toBe("Figure 1");
+        expect(after.type).toBe("text");
+        expect(after.name).toBe("Introduction");
+        expect(after.title.show).toBe(false);
+        expect(after.text.content).toContain("More about Thorn.");
+    });
+});
+
+/** A poem captioned mid-section, as a content package writes an excerpt. */
+const POEM = ["```poetry {form=epic lang=en}", "Hear now, hearth keepers.", "```"].join("\n");
+
+describe("a captioned item in the middle of a section", () => {
+    const markdown = [
+        "# The Pantheon {#pantheon}",
+        "",
+        "The gods of the north.",
+        "",
+        ": The Last Muster {#muster}",
+        "",
+        POEM,
+        "",
+        "After the poem, the pantheon resumes.",
+        "",
+        "## The Lesser Gods",
+        "",
+        "Smaller altars.",
+        "",
+        "# Worship",
+        "",
+        "How they are honoured.",
+    ].join("\n");
+    const pages = entryFor(markdown).pages;
+    const byName = (name: string) => pages.filter((page: any) => page.name === name);
+
+    it("gives the item a page holding the item alone", () => {
+        const [muster] = byName("The Last Muster");
+        expect(muster.text.content).toContain("Hear now, hearth keepers.");
+        expect(muster.text.content).not.toContain("the pantheon resumes");
+        expect(muster.text.content).not.toContain("Smaller altars");
+    });
+
+    it("resumes the section in a continuation page under the section's own name", () => {
+        expect(pages.map((page: any) => page.name)).toEqual([
+            "The Pantheon",
+            "The Last Muster",
+            "The Pantheon",
+            "Worship",
+        ]);
+        const [section, continuation] = byName("The Pantheon");
+        expect(section.text.content).toContain("The gods of the north.");
+        expect(continuation.text.content).toContain("the pantheon resumes");
+        expect(continuation.text.content).toContain("Smaller altars");
+        expect(continuation.title).toEqual({ show: false, level: section.title.level });
+    });
+
+    it("keys the continuation on the item it follows, apart from every other page", () => {
+        const ids = pages.map((page: any) => page._id);
+        expect(new Set(ids).size).toBe(ids.length);
+        const shifted = entryFor(`# Prelude\n\nFirst.\n\n${markdown}`).pages;
+        const continuation = (list: any[]) =>
+            list.filter((page) => page.name === "The Pantheon")[1]._id;
+        expect(continuation(shifted)).toBe(continuation(pages));
+    });
+
+    it("opens no continuation when the next page starts straight after the item", () => {
+        const names = entryFor(
+            ["# A", "", "Text.", "", ": Verse {#verse}", "", POEM, "", "# B", "", "More."].join(
+                "\n",
+            ),
+        ).pages.map((page: any) => page.name);
+        expect(names).toEqual(["A", "Verse", "B"]);
+    });
+
+    it("withholds a continuation of a withheld section", () => {
+        const secret = entryFor(
+            [
+                "# Rites {.secret}",
+                "",
+                "Hidden.",
+                "",
+                ": Verse {#verse}",
+                "",
+                POEM,
+                "",
+                "Still hidden.",
+            ].join("\n"),
+        ).pages;
+        const continuation = secret[2];
+        expect(continuation.name).toBe("Rites");
+        expect(secret[0].ownership).toBeDefined();
+        expect(continuation.ownership).toEqual(secret[0].ownership);
+    });
+});
+
+describe("a caption carrying a link", () => {
+    const LINK =
+        '<span class="sohl-draft-link" title="Draft — not yet written">' +
+        "@UUID[Compendium.thalorna.journals.JournalEntry.a79088ee147cd796]{The Swearing Under the Baobab}</span>";
+
+    it("names its page with the caption's visible text, and keeps the link in the page", () => {
+        const [, page] = entryFor(`Lead.\n\n: From ${LINK} {#swearing-witness}\n\n${POEM}`).pages;
+        expect(page.name).toBe("From The Swearing Under the Baobab");
+        expect(page.text.content).toContain(
+            "@UUID[Compendium.thalorna.journals.JournalEntry.a79088ee147cd796]",
+        );
+    });
+
+    it("names its page with the text of emphasis and Markdown links", () => {
+        const [page] = entryFor(
+            `: The *beast*, drawn by [Hávard](sohl.person-havard)\n\n${POEM}`,
+        ).pages;
+        expect(page.name).toBe("The beast, drawn by Hávard");
+    });
+
+    it("keeps a numbered item's name to its number", () => {
+        const [page] = entryFor(
+            `:@ The beast, as drawn by [Hávard](sohl.person-havard). {#marked}\n\n![Thorn](${THORN})`,
+        ).pages;
+        expect(page.name).toBe("Figure 1");
     });
 });
