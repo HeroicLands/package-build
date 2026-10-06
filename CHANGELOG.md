@@ -1,5 +1,19 @@
 # @heroiclands/package-build
 
+## 23.0.0
+
+### Major Changes
+
+Every page a work of literature names in its subjects lists that work under **In song and story**, with its form beside the title, including works from a package this one depends on.
+
+### Patch Changes
+
+Affiliations, skills, attributes, mysteries, mystical abilities and miscellaneous gear without their own art show SoHL's default icons again instead of a broken image.
+
+Folder notes need only a nonempty body: a short line or placeholder no longer warns or fails, with or without `draft`. An empty folder body is still an error.
+
+Lore notes can be typed `literature` for epics, sagas, poems, legends and other works a people tells, sings or writes. A literature note may name its people, its form, its subjects and its language, and each appears in the note's infobox, with the people, subjects and language as links.
+
 ## 22.28.0
 
 ### Minor Changes
