@@ -52,7 +52,7 @@ import { Bundles } from "../engine/bundles.mjs";
 import { Journals } from "../engine/journals.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const SPEC = readFileSync(path.resolve(here, "../docs/content-format.md"), "utf8");
+const SPEC = readFileSync(path.resolve(here, "../docs/reference/format-details.md"), "utf8");
 
 /**
  * The default type and the accepted set *The four art slots* tabulates, keyed
@@ -371,10 +371,20 @@ describe("what an unresolved or unaccepted art address is reported as", () => {
     });
 });
 
-describe("a being's default art comes from the kind it is tagged", () => {
-    it("chooses by tag, which only a compiler can read", () => {
-        expect(beingDefaultArt({ tags: ["character"] })).toBe(BEING_DEFAULT_ART.character);
-        expect(beingDefaultArt({ tags: ["creature", "animal"] })).toBe(BEING_DEFAULT_ART.creature);
+describe("a being's default art follows its subtype", () => {
+    it("does not use classification tags", () => {
+        expect(beingDefaultArt({ tags: ["character"] })).toBeNull();
+        expect(beingDefaultArt({ tags: ["creature"] })).toBeNull();
+        expect(beingDefaultArt({ tags: "character" })).toBeNull();
+    });
+
+    it("chooses person art for NPCs and characters and creature art for creatures", () => {
+        expect(beingDefaultArt({ subType: "npc" })).toBe(BEING_DEFAULT_ART.character);
+        expect(beingDefaultArt({ subType: "character" })).toBe(BEING_DEFAULT_ART.character);
+        expect(beingDefaultArt({ subType: "creature" })).toBe(BEING_DEFAULT_ART.creature);
+        expect(beingDefaultArt({ subType: "creature", tags: ["character"] })).toBe(
+            BEING_DEFAULT_ART.creature,
+        );
     });
 
     it("answers nothing for a being carrying neither, so a lower default applies", () => {

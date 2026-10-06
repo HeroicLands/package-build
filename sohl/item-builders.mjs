@@ -49,31 +49,8 @@
 import { defaultItemArt } from "./default-item-art.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
-import { buildFromFields, readField } from "../engine/field-spec.mjs";
-import { COMBAT_TECHNIQUE_STRIKE_MODE, ITEM_FIELDS } from "./item-fields.mjs";
-
-/**
- * The conditionals a flat field list cannot state, keyed by item type.
- *
- * A finalizer runs after the declaration has produced the `system` block, and
- * exists only for a field whose *presence* depends on another field's value.
- * There is exactly one: a combat technique is authored as a `skill` of subtype
- * `combattechnique`, and carries a strike mode that no other skill has.
- *
- * Keeping this list short is the point. Anything expressible as a field
- * declaration is said there, where a generator and a linter can read it; a
- * finalizer is opaque again, so it earns its place one conditional at a time.
- *
- * @type {Readonly<Record<string, (fm: object, out: object) => object>>}
- */
-const FINALIZERS = Object.freeze({
-    skill(fm, out) {
-        if (out.subType === "combattechnique") {
-            out.strikeMode = readField(COMBAT_TECHNIQUE_STRIKE_MODE, fm);
-        }
-        return out;
-    },
-});
+import { buildFromFields } from "../engine/field-spec.mjs";
+import { ITEM_FIELDS } from "./item-fields.mjs";
 
 /**
  * Build one registry entry: the declared fields, the builder they generate, and
@@ -102,9 +79,8 @@ const FINALIZERS = Object.freeze({
 function entryFor(type) {
     const fields = ITEM_FIELDS[type];
     const build = buildFromFields(fields);
-    const finalize = FINALIZERS[type];
     return Object.freeze({
-        system: finalize ? (fm) => finalize(fm, build(fm)) : build,
+        system: build,
         img: defaultItemArt(documentSubtype(SOHL_DOCUMENT_SUBTYPES, type, {}) ?? type),
         fields,
     });

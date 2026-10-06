@@ -1,0 +1,57 @@
+{{- /*
+  The infobox rail — every box a page declares, drawn in the order declared.
+
+  **The content is not decided here.** A page's `infoboxes:` front matter
+  carries an ordered list of boxes, each holding ordered sections, each holding
+  ordered rows, cells, groups or entries, already labelled. This partial and
+  the three under `infobox/` switch on a section's `layout` and a value's
+  `kind` and on nothing else — never on a note type, never on a field name.
+  That is what lets a field added to a type appear here with no edit.
+
+  A box is a `<details>` disclosure, open by default: native, accessible, and
+  no JavaScript. It is what lets several boxes stack for nothing — a note box
+  and one box per system are three summary lines when closed, rather than
+  three panels burying the prose.
+
+  Two kinds of box, and they answer emptiness differently:
+
+  - A **note box** with no section holding anything is not drawn. A heading
+    over nothing asserts a fact that is not there.
+  - A **system box** carries a `statement` where it has nothing to show, and
+    the statement is drawn in place of the sections. Which silence this is —
+    the system compiled no document, or it compiled one holding nothing the
+    profile has not already said — is decided by the build, because a reader
+    meeting one page cannot tell the two apart and neither can a template. A
+    system that does not map the note's type at all sends no box, and nothing
+    is drawn.
+
+  Returns an empty string when the page declares no box, so a caller can test
+  what comes back rather than reaching into the data itself.
+*/ -}}
+{{- range .Params.infoboxes -}}
+  {{- $box := . -}}
+  {{- $sections := slice -}}
+  {{- range $box.sections -}}
+    {{- if gt (len (partial "infobox/items.html" .)) 0 -}}
+      {{- $sections = $sections | append . -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $system := eq ($box.kind | default "") "system" -}}
+  {{- if or $system (gt (len $sections) 0) }}
+<details class="info-sidebar info-box{{ with $box.id }} info-box-{{ . }}{{ end }}" open data-pagefind-ignore>
+  <summary class="info-sidebar-title"><h2>{{ $box.title }}</h2></summary>
+  {{- with $box.statement }}
+  <p class="info-statement">{{ . }}</p>
+  {{- else }}
+    {{- range $sections }}
+  <section class="info-section{{ with .id }} info-section-{{ . }}{{ end }}">
+    {{- with .label }}
+    <h3 class="info-section-title">{{ . }}</h3>
+    {{- end }}
+    {{ partial "infobox/section.html" . }}
+  </section>
+    {{- end }}
+  {{- end }}
+</details>
+  {{- end -}}
+{{- end -}}

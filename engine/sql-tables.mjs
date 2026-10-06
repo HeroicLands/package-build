@@ -27,13 +27,15 @@
  */
 
 import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
-import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
+import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses } from "./address-values.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
 import { FENCE_LINE, parseHeaderArgs } from "./code-fences.mjs";
+import { booleanAttribute } from "./extension-attributes.mjs";
+import { findPageListBlocks, preparePageLists } from "./page-lists.mjs";
 import { MARKET_CLASSES } from "./market-class.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
 import { sqlQueriesInMarkdown } from "./markdown-expressions.mjs";
@@ -51,6 +53,31 @@ const EMPTY_CELL = "—";
  * headed tables.
  */
 export const RENDER_ALIASES = Object.freeze({ ref: "_ref", section: "_section" });
+
+/**
+ * The attributes an SQL fence takes, with what each one is for.
+ *
+ * **This is the one list.** The fence is validated against it and the authoring
+ * document is checked against it, so an attribute added here is one the document
+ * must describe, and anything else an author writes is reported by name.
+ *
+ * @type {Readonly<Record<string, Readonly<{value: string, default: string, summary: string}>>>}
+ */
+export const SQL_FENCE_ATTRIBUTES = Object.freeze({
+    "allow-empty": Object.freeze({
+        value: "`true` or `false`",
+        default: "`false`",
+        summary:
+            "Whether a query selecting no rows is allowed. A zero-row result is a finding " +
+            "otherwise, because a table that silently prints nothing is the commonest way a " +
+            "query goes wrong unnoticed.",
+    }),
+    "section-level": Object.freeze({
+        value: "an integer from 1 through 6",
+        default: "`2`",
+        summary: "The heading level given to each group a `_section` column creates.",
+    }),
+});
 
 /** A table cell may not carry a raw `|` or a line break. */
 const escapeCell = (text) =>
@@ -80,7 +107,7 @@ export function findSqlBlocks(markdown) {
         const closer = new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`);
         let close = i + 1;
         while (close < lines.length && !closer.test(lines[close])) close += 1;
-        const { language, args } = parseHeaderArgs(info);
+        const { language, args, problems } = parseHeaderArgs(info);
         if (language !== "sql") {
             // Not ours, but still a fence: skip its body so a `sql` line inside
             // some other block is never read as a directive.
@@ -88,20 +115,30 @@ export function findSqlBlocks(markdown) {
             continue;
         }
         if (close >= lines.length) continue;
-        const level = Number(args["section-level"]);
+        const level = Number(args["section-level"] ?? 2);
+        const errors = [...problems];
+        for (const key of Object.keys(args)) {
+            if (!Object.hasOwn(SQL_FENCE_ATTRIBUTES, key))
+                errors.push(`${key} is not an SQL fence attribute`);
+        }
+        let allowEmpty = false;
+        if (Object.hasOwn(args, "allow-empty")) {
+            try {
+                allowEmpty = booleanAttribute(args["allow-empty"], "allow-empty");
+            } catch (error) {
+                errors.push(error.message);
+            }
+        }
+        if (!Number.isInteger(level) || level < 1 || level > 6)
+            errors.push("section-level needs an integer from 1 through 6");
         blocks.push({
             line: i,
             close,
             indent,
             query: lines.slice(i + 1, close).join("\n"),
-            // `:allow-empty` says a table selecting nothing is intended.
-            // Spelled on the fence rather than in the query because it is a
-            // statement about this directive and not part of SQL.
-            allowEmpty: args["allow-empty"] === true,
-            sectionLevel: Number.isInteger(level) && level >= 1 && level <= 6 ? level : 2,
-            // Every header argument, so a caller can read one this module makes
-            // no use of — the point of taking a real grammar rather than a
-            // regex per property.
+            allowEmpty,
+            sectionLevel: level,
+            problems: errors,
             args,
             block: lines.slice(i, close + 1).join("\n"),
         });
@@ -151,10 +188,16 @@ export function findSqlBlocks(markdown) {
  * @param {string} [opts.dir] - Directory for the temporary file.
  * @param {Array<{id: string, file: string}>} [opts.dependencies] - Each
  *   declared dependency's cached index, attached as a schema named `id`.
+ * @param {object} [opts.addressContext] - Address resolution context.
+ * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes from
+ *   local and dependency relations.
  * @returns {Promise<{query: (sql: string) => Promise<object[]>,
  *   close: () => Promise<void>}>} The open database.
  */
-export async function openNotesDatabase(records, { dir, dependencies = [], addressContext } = {}) {
+export async function openNotesDatabase(
+    records,
+    { dir, dependencies = [], addressContext, audience = "all" } = {},
+) {
     const { DuckDBInstance } = await import("@duckdb/node-api");
     const base = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
     fs.mkdirSync(base, { recursive: true });
@@ -167,7 +210,7 @@ export async function openNotesDatabase(records, { dir, dependencies = [], addre
     const instance = await DuckDBInstance.create(":memory:");
     const connection = await instance.connect();
     await connection.run("SET threads=1");
-    await createRelations(connection, jsonl);
+    await createRelations(connection, jsonl, "", audience);
 
     // One schema per declared dependency, so `FROM sohl.notes` reads the notes
     // that package published. Quoted, because a package id may carry a hyphen
@@ -177,7 +220,7 @@ export async function openNotesDatabase(records, { dir, dependencies = [], addre
         if (!dep?.id || !dep?.file || !fs.existsSync(dep.file)) continue;
         const schema = `"${String(dep.id).replace(/"/g, '""')}"`;
         await connection.run(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
-        await createRelations(connection, dep.file, `${schema}.`);
+        await createRelations(connection, dep.file, `${schema}.`, audience);
     }
 
     // The market scale as a relation, so a table prints `village` beside the
@@ -321,7 +364,7 @@ const WITH_STUBS_SCHEMA = "__with_stubs";
  * @param {string} [prefix] - A schema to qualify the view names with.
  * @returns {Promise<void>}
  */
-async function createRelations(connection, file, prefix = "") {
+async function createRelations(connection, file, prefix = "", audience = "all") {
     const read = readJsonAuto(file);
     const described = await connection.runAndReadAll(`DESCRIBE ${read}`);
     const columns = new Set(described.getRowObjects().map((row) => String(row.column_name)));
@@ -336,10 +379,15 @@ async function createRelations(connection, file, prefix = "") {
             "COALESCE(list_contains(TRY_CAST(tags AS VARCHAR[]), 'draft'), false) " +
             "OR COALESCE(TRY_CAST(tags AS VARCHAR) = 'draft', false)"
         :   "false";
+    const visible =
+        audience === "public" && columns.has("tags") ?
+            "NOT (COALESCE(list_contains(TRY_CAST(tags AS VARCHAR[]), 'gm'), false) " +
+            "OR COALESCE(TRY_CAST(tags AS VARCHAR) = 'gm', false))"
+        :   "true";
     await connection.run(
         `CREATE VIEW ${prefix}entries AS SELECT *, ` +
             `CASE WHEN ${stub} THEN 'stub' WHEN ${draft} THEN 'draft' ` +
-            `ELSE 'full' END AS state FROM (${read})`,
+            `ELSE 'full' END AS state FROM (${read}) WHERE ${visible}`,
     );
     await connection.run(
         `CREATE VIEW ${prefix}notes AS SELECT * FROM ${prefix}entries WHERE state <> 'stub'`,
@@ -468,6 +516,7 @@ function cellText(value, column) {
  * @param {(ref: string) => boolean} [opts.linkable] - Whether an address can be
  *   linked to; defaults to linking any non-empty `_ref`.
  * @param {number} [opts.sectionLevel=2] - Heading level for `_section`.
+ * @param {object} [opts.addressContext] - Address resolution context.
  * @returns {string} The markdown.
  */
 export function renderSqlTable(
@@ -546,6 +595,10 @@ export function renderSqlTable(
  * @param {object} [opts]
  * @param {(ref: string) => boolean} [opts.linkable] - Passed to
  *   {@link renderSqlTable}.
+ * @param {object[]} [opts.records] - Content-index records, narrowed to the
+ *   audience this surface publishes to. Given them, the result also carries
+ *   `pageLists`, so one prepared object answers every corpus-reading directive
+ *   a body can hold and a caller looks results up in one place.
  * **Keyed by note, then by the directive's ordinal within it** — not by its
  * line. The passes do not agree on what a body is: `walkMarkdownTree` trims it,
  * while the link checker strips the frontmatter fence and leaves the newlines
@@ -555,8 +608,9 @@ export function renderSqlTable(
  * @returns {Promise<Map<string, object[]>>} Note to results, in document order,
  *   each carrying either a rendered `markdown` and its `rows`, or a `reason`.
  */
-export async function prepareSqlTables(db, sources, { linkable } = {}) {
+export async function prepareSqlTables(db, sources, { linkable, records } = {}) {
     const prepared = new Map();
+    if (records) prepared.pageLists = preparePageLists(records, sources);
     for (const { source, markdown } of sources) {
         const blocks = findSqlBlocks(markdown);
         if (!blocks.length) continue;
@@ -564,6 +618,7 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
         prepared.set(source, forNote);
         for (const block of blocks) {
             try {
+                if (block.problems.length) throw new Error(block.problems.join("; "));
                 const result = await runSqlQuery(db, block.query);
                 forNote.push({
                     markdown: renderSqlTable(result, {
@@ -606,6 +661,8 @@ export async function prepareInlineSqlExpressions(db, sources) {
                     if (result.columnNames.length !== 1 || result.rows.length !== 1)
                         throw new RangeError("scalar SQL needs exactly one column and one row");
                     const value = result.rows[0][result.columnNames[0]];
+                    if (value === null || value === undefined || value === "")
+                        throw new RangeError("scalar SQL result is empty");
                     if (
                         value !== null &&
                         !["string", "number", "boolean", "bigint"].includes(typeof value)
@@ -632,10 +689,14 @@ export async function prepareInlineSqlExpressions(db, sources) {
  * shared index
  * describes, where N passes each derive the corpus their own way.
  *
- * **Nothing is opened for a tree with no `sql` directive.** The corpus is still
- * written entirely in the retiring language, so until a table is converted this
- * costs one walk and no database at all — which is what lets every pass call it
- * unconditionally.
+ * **Every corpus-reading directive is answered here**, which is why one call
+ * precedes every pass: the `sql` tables, the inline scalar queries, and the
+ * page lists, whose results ride on the same object as `pageLists`.
+ *
+ * **Nothing is opened for a tree that asks no query.** A tree with no `sql`
+ * directive costs one walk and no database at all, and so does one whose only
+ * directive is a page list — a page list is a filter over the records. That is
+ * what lets every pass call this unconditionally.
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
@@ -644,16 +705,23 @@ export async function prepareInlineSqlExpressions(db, sources) {
  * @param {object[]} [opts.records] - Index records the caller already derived.
  *   A command that also builds a link index holds them already, and deriving
  *   them twice is the duplicated-corpus failure this closes.
- * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
- *   nothing when the tree has no such directive.
+ * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes.
+ * @returns {Promise<Map<string, object[]>|undefined>} Results by note path,
+ *   carrying `inline` and `pageLists` beside them, or nothing when the tree
+ *   holds no such directive.
  */
-export async function prepareTreeSqlTables(contentBase, { config, skipDirectories, records } = {}) {
+export async function prepareTreeSqlTables(
+    contentBase,
+    { config, skipDirectories, records, audience = "all" } = {},
+) {
     // Imported here rather than at module scope: the index reaches the pack
     // compilers through `manifest-emit` → `journals`, so a static import from a
     // module they load would close a cycle and leave `BasePackCompiler`
     // uninitialised for whichever module the runtime happened to load first.
     const { indexRecordsFor } = await import("./content-index.mjs");
-    const indexRecords = records ?? indexRecordsFor({ contentBase, config, skipDirectories });
+    const indexRecords = (
+        records ?? indexRecordsFor({ contentBase, config, skipDirectories })
+    ).filter((record) => audience !== "public" || !isGmNote(record));
 
     // Which notes carry a directive, discovered over the same corpus every
     // other pass reads rather than over a walk of this one's own. The
@@ -669,10 +737,30 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
         if (!isNoteRecord(record)) continue;
         const absPath = noteFile(contentBase, record);
         const { body, frontmatter } = parseMarkdownFile(absPath);
-        if (body && (findSqlBlocks(body).length || sqlQueriesInMarkdown(body, frontmatter).length))
+        if (
+            body &&
+            (findSqlBlocks(body).length ||
+                findPageListBlocks(body).length ||
+                sqlQueriesInMarkdown(body, frontmatter).length)
+        )
             sources.push({ source: absPath, markdown: body, frontmatter });
     }
     if (!sources.length) return undefined;
+
+    // A page list is a filter over the records, so it needs no database. A tree
+    // whose only corpus-reading directive is one therefore opens none — which
+    // is the same bargain the early return above makes for a tree with no
+    // directive at all.
+    const needsDatabase = sources.some(
+        ({ markdown, frontmatter }) =>
+            findSqlBlocks(markdown).length || sqlQueriesInMarkdown(markdown, frontmatter).length,
+    );
+    if (!needsDatabase) {
+        const pageOnly = new Map();
+        pageOnly.inline = new Map();
+        pageOnly.pageLists = preparePageLists(indexRecords, sources);
+        return pageOnly;
+    }
     // A cell links only where the address it would emit resolves, so a table
     // never ships a link the wikilink pass will then report dead.
     //
@@ -700,10 +788,11 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     } catch {
         dependencies = [];
     }
-    const db = await openNotesDatabase(indexRecords, { dependencies });
+    const db = await openNotesDatabase(indexRecords, { dependencies, audience });
     try {
         const prepared = await prepareSqlTables(db, sources, {
             linkable: (ref) => addresses.has(renderAddress(ref)),
+            records: indexRecords,
         });
         prepared.inline = await prepareInlineSqlExpressions(db, sources);
         return prepared;

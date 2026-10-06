@@ -32,9 +32,8 @@
  * over 15 types, from 9 on a `macro` to 72 on a `being`, and adding a field to
  * one type is ordinary authoring. Any format that fixes a column set would turn
  * that authoring into a schema migration, so nothing here selects, flattens, or
- * renames — a reader addresses `sohl.body.weight.base` because that is what the
- * note says, which is also, not by accident, exactly what a `dataview` query
- * writes.
+ * renames — a reader addresses `sohl.system.body.weight.base` because that is
+ * what the note says, which a SQL query can address directly.
  *
  * **JSON Lines rather than a database.** The artifact has to survive its build
  * and be usable by anything — a person with `jq`, an editor, a CI check,
@@ -105,6 +104,8 @@ import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
 import { ownDocumentSystem } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
+import { assetAddressIndex } from "./art-fields.mjs";
+import { embedRole } from "./content-embeds.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
 // builds that emit a link. Re-exported because this is where callers
 // have always addressed it.
@@ -442,6 +443,12 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
  * @param {number} [options.bodyLine] - The 1-based file line the body starts on.
  * @param {object} [options.manifest] - The package manifest, which the Foundry
  *   entries are derived against.
+ * @param {object} [options.addressContext] - Address resolution context.
+ * @param {object} [options.dateContext] - Calendar conversion context.
+ * @param {(address: string) => string|undefined} [options.resolveRole] - From
+ *   a picture's address to the role its asset declares, so a figure anchor's
+ *   `name` reads `Map 1` rather than `Figure 1` where it is due — see
+ *   {@link module:engine/content-figures.scanFigures}.
  * @returns {Record<string, any>} The record, keys sorted at every depth. A
  *   **stub** — a note with an empty body, on a type an empty body suppresses —
  *   carries `address` and `anchors` as `null`: it publishes no page, so it
@@ -463,6 +470,7 @@ export function buildIndexRecord({
     manifest,
     addressContext,
     dateContext,
+    resolveRole,
 }) {
     assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage);
 
@@ -513,7 +521,7 @@ export function buildIndexRecord({
                 // there rather than search for the heading.
                 anchors:
                     stub ? null : (
-                        collectAnchors(body, bodyLine).map((a) => ({
+                        collectAnchors(body, bodyLine, resolveRole).map((a) => ({
                             ...a,
                             link: address ? `${address.slug}#${a.slug}` : null,
                         }))
@@ -614,6 +622,7 @@ export function indexRecordsForNote({
     manifest,
     addressContext,
     dateContext,
+    resolveRole,
 }) {
     resolveNoteId(frontmatter, { pkg: contentPackage });
     const record = buildIndexRecord({
@@ -626,6 +635,7 @@ export function indexRecordsForNote({
         manifest,
         addressContext,
         dateContext,
+        resolveRole,
     });
     const records = [decodeIndexAddresses(record, addressContext ?? { package: contentPackage })];
     const address = noteAddress(frontmatter, contentPackage);
@@ -669,6 +679,7 @@ export function indexRecordsForNote({
  *   anyway.
  * @param {object} [options.manifest] - The package manifest, which the Foundry
  *   entries are derived against.
+ * @param {object} [options.addressContext] - Address resolution context.
  * @param {object[]} [options.problems] - Supplied by a **reader**: a note that
  *   cannot be recorded is pushed here as a diagnostic and skipped. Omitted, the
  *   note throws — the contract the emitter needs, since an index missing a note
@@ -694,14 +705,56 @@ export function collectContentIndex(
     // `walkMarkdownTree` is a generator — a single-use one, exhausted the
     // moment anything else iterates it first.
     const notes = fs.existsSync(contentBase) ? [...walkMarkdownTree(contentBase, walkOpts)] : [];
+    const parsedNotes = [];
+    for (const note of notes) {
+        if (!note.parseError) {
+            parsedNotes.push(note);
+            continue;
+        }
+        const problem = {
+            file: note.absPath,
+            ...(note.parseError.line === undefined ? {} : { line: note.parseError.line }),
+            ...(note.parseError.column === undefined ? {} : { column: note.parseError.column }),
+            severity: "error",
+            message: note.parseError.message,
+        };
+        if (!problems) {
+            const error = new Error(problem.message);
+            error.file = problem.file;
+            error.position = {
+                ...(problem.line === undefined ? {} : { line: problem.line }),
+                ...(problem.column === undefined ? {} : { column: problem.column }),
+            };
+            error.keyPath = [];
+            throw error;
+        }
+        problems.push(problem);
+    }
 
     // The package's declared present, read once from whichever `place` note in
     // this same walk states one — the whole tree is already in memory, so no
     // second read is needed to answer a question about all of it.
-    const present = presentAmongFrontmatters(notes.map((n) => n.frontmatter));
-    const dates = reckoningContext({ notes: notes.map((n) => n.frontmatter) });
+    const present = presentAmongFrontmatters(parsedNotes.map((n) => n.frontmatter));
+    // Carried on the same context `resolvedDateFields` reads: a recurring
+    // event's `next` is computed against this present exactly as a being's
+    // `age` already is, above.
+    const dates = {
+        ...reckoningContext({ notes: parsedNotes.map((n) => n.frontmatter) }),
+        present,
+    };
 
-    for (const { frontmatter, body, bodyLine, absPath } of notes) {
+    // Walked ahead of the notes, rather than after them as the records
+    // themselves are emitted: a note's anchors are collected below, and a
+    // figure fence's `map` counter needs this package's own asset roles
+    // before the first note is read, the same precedent the book's own
+    // cross-file numbering sets. A package with no `assetsBase` resolves no
+    // role, which is the one it would have resolved anyway.
+    const assetRecords =
+        assetsBase ? collectAssetRecords(assetsBase, { contentPackage, problems }) : [];
+    const assetIndex = assetAddressIndex(assetRecords, { config: { contentPackage } });
+    const resolveRole = (address) => embedRole(assetIndex, address);
+
+    for (const { frontmatter, body, bodyLine, absPath } of parsedNotes) {
         const fm = frontmatter ?? {};
         applyComputedBeingAge(fm, present, dates);
         const relPath = path.relative(contentBase, absPath);
@@ -717,6 +770,7 @@ export function collectContentIndex(
                     manifest,
                     addressContext,
                     dateContext: dates,
+                    resolveRole,
                 }),
             );
         } catch (err) {
@@ -749,14 +803,13 @@ export function collectContentIndex(
         }
     }
 
-    if (assetsBase) {
-        // Sorted at every depth like a note's record, and for the same reason:
-        // the declaration order of the `asset` fields is a fact about the
-        // emitter, not about the content, and the artifact is meant to be
-        // byte-identical across two runs over an unchanged tree.
-        for (const record of collectAssetRecords(assetsBase, { contentPackage, problems })) {
-            records.push(/** @type {Record<string, any>} */ (sortKeysDeep(record)));
-        }
+    // Sorted at every depth like a note's record, and for the same reason: the
+    // declaration order of the `asset` fields is a fact about the emitter, not
+    // about the content, and the artifact is meant to be byte-identical across
+    // two runs over an unchanged tree. Collected above, ahead of the notes —
+    // see `resolveRole` — rather than walked a second time here.
+    for (const record of assetRecords) {
+        records.push(/** @type {Record<string, any>} */ (sortKeysDeep(record)));
     }
 
     // Source path, then the canonical address, then the note id. The walk

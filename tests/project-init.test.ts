@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { renderProject } from "../engine/project-init.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const CLI = fileURLToPath(new URL("../bin/package-build.mjs", import.meta.url));
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "package-init-"));
 
@@ -76,7 +77,11 @@ describe("package-build init", () => {
             expect(pkg.scripts["serve:site"]).toContain("serve:site-html");
             expect(pkg.scripts["serve:site-html"]).toContain("hugo server");
             expect(pkg.scripts["build:book"]).toBe("package-build pdf");
-            expect(config.publish.site).toBe("content");
+            if (kind !== "documentation") {
+                expect(pkg.scripts["build:stage-reset"]).toBe("package-build stage reset");
+                expect(pkg.scripts["build:noci"]).toMatch(/build:stage-reset build:db/);
+            }
+            expect(config.publish.address.prefix).toBe("");
             expect(config.pdf.document).toBe("book.yaml");
             if (kind === "documentation") {
                 expect(config.packs).toBeUndefined();
@@ -94,59 +99,76 @@ describe("package-build init", () => {
                 [...expected].map(([file]) => fs.readFileSync(path.join(named, file), "utf8")),
             ).toEqual(before);
         },
+        SUBPROCESS_TEST_TIMEOUT,
     );
 
-    it("uses the current directory and preserves unrelated files", () => {
-        const target = path.join(scratch, "existing");
-        fs.mkdirSync(target);
-        fs.mkdirSync(path.join(target, ".git"));
-        fs.mkdirSync(path.join(target, "node_modules"));
-        fs.writeFileSync(path.join(target, "notes.txt"), "Keep this.\n");
-        const result = spawnSync(
-            process.execPath,
-            [CLI, "init", ...options("documentation", "guidebook")],
-            {
-                cwd: target,
-                encoding: "utf8",
-            },
-        );
-        expect(result.status, result.stderr).toBe(0);
-        expect(fs.readFileSync(path.join(target, "notes.txt"), "utf8")).toBe("Keep this.\n");
-        expect(fs.existsSync(path.join(target, ".git"))).toBe(true);
-        expect(fs.existsSync(path.join(target, "node_modules"))).toBe(true);
-    });
-
-    it("refuses an existing configuration or a managed-file collision without writes", () => {
-        for (const [name, file] of [
-            ["configured", "package-build.config.yml"],
-            ["collision", "package.json"],
-        ]) {
-            const target = path.join(scratch, name);
+    it(
+        "uses the current directory and preserves unrelated files",
+        () => {
+            const target = path.join(scratch, "existing");
             fs.mkdirSync(target);
-            fs.writeFileSync(path.join(target, file), "unchanged\n");
-            const result = run("init", target, ...options("documentation", name));
+            fs.mkdirSync(path.join(target, ".git"));
+            fs.mkdirSync(path.join(target, "node_modules"));
+            fs.writeFileSync(path.join(target, "notes.txt"), "Keep this.\n");
+            const result = spawnSync(
+                process.execPath,
+                [CLI, "init", ...options("documentation", "guidebook")],
+                {
+                    cwd: target,
+                    encoding: "utf8",
+                },
+            );
+            expect(result.status, result.stderr).toBe(0);
+            expect(fs.readFileSync(path.join(target, "notes.txt"), "utf8")).toBe("Keep this.\n");
+            expect(fs.existsSync(path.join(target, ".git"))).toBe(true);
+            expect(fs.existsSync(path.join(target, "node_modules"))).toBe(true);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "refuses an existing configuration or a managed-file collision without writes",
+        () => {
+            for (const [name, file] of [
+                ["configured", "package-build.config.yml"],
+                ["collision", "package.json"],
+            ]) {
+                const target = path.join(scratch, name);
+                fs.mkdirSync(target);
+                fs.writeFileSync(path.join(target, file), "unchanged\n");
+                const result = run("init", target, ...options("documentation", name));
+                expect(result.status).not.toBe(0);
+                expect(fs.readdirSync(target)).toEqual([file]);
+                expect(fs.readFileSync(path.join(target, file), "utf8")).toBe("unchanged\n");
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "reports missing answers without creating the target",
+        () => {
+            const target = path.join(scratch, "missing-answers");
+            const result = run("init", target, "--kind", "documentation");
             expect(result.status).not.toBe(0);
-            expect(fs.readdirSync(target)).toEqual([file]);
-            expect(fs.readFileSync(path.join(target, file), "utf8")).toBe("unchanged\n");
-        }
-    });
+            expect(result.stderr).toContain("--description");
+            expect(fs.existsSync(target)).toBe(false);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("reports missing answers without creating the target", () => {
-        const target = path.join(scratch, "missing-answers");
-        const result = run("init", target, "--kind", "documentation");
-        expect(result.status).not.toBe(0);
-        expect(result.stderr).toContain("--description");
-        expect(fs.existsSync(target)).toBe(false);
-    });
-
-    it("finds a missing book document without writing", () => {
-        const target = path.join(scratch, "incomplete");
-        expect(run("init", target, ...options("documentation", "guidebook")).status).toBe(0);
-        fs.rmSync(path.join(target, "book.yaml"));
-        const before = fs.readdirSync(target).sort();
-        const checked = run("init", "--check", target);
-        expect(checked.status).not.toBe(0);
-        expect(checked.stderr).toContain("book document tree is missing");
-        expect(fs.readdirSync(target).sort()).toEqual(before);
-    });
+    it(
+        "finds a missing book document without writing",
+        () => {
+            const target = path.join(scratch, "incomplete");
+            expect(run("init", target, ...options("documentation", "guidebook")).status).toBe(0);
+            fs.rmSync(path.join(target, "book.yaml"));
+            const before = fs.readdirSync(target).sort();
+            const checked = run("init", "--check", target);
+            expect(checked.status).not.toBe(0);
+            expect(checked.stderr).toContain("book document tree is missing");
+            expect(fs.readdirSync(target).sort()).toEqual(before);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

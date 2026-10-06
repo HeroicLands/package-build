@@ -131,12 +131,15 @@ function moonNote(data: Record<string, unknown> = {}) {
 
 /** A calendar note, with whatever `data:` a case is about. */
 function calendarNote(data: Record<string, unknown> = {}, file = "Common_Calendar.md") {
-    const authored = { epoch: "720.1", months: COMMON_MONTHS, ...data };
-    if (Array.isArray(authored.eras))
-        authored.eras = authored.eras.map((era) => ({
-            ...era,
-            ...(typeof era.start === "number" ? { start: `${era.start}.1` } : {}),
-        }));
+    const authored = {
+        epoch: "1.1",
+        months: COMMON_MONTHS,
+        eras: [
+            { shortcode: "before", name: "Before Reckoning", abbreviation: "BR", start: null },
+            { shortcode: "vr", name: "Vylarian Reckoning", abbreviation: "VR", start: 1 },
+        ],
+        ...data,
+    };
     return note(
         {
             type: "lore",
@@ -236,7 +239,20 @@ describe("the family belongs to a calendar note and to no other lore note", () =
                 "note must state `data.months`",
             "a calendar divides the year and says where the count begins, so this " +
                 "note must state `data.epoch`",
+            "a calendar divides the year and says where the count begins, so this " +
+                "note must state `data.eras`",
         ]);
+    });
+
+    it("requires a day for the calendar epoch", () => {
+        const calendar = calendarNote({ epoch: 720 });
+        const findings = checkCalendarNote(calendar, { index: index(worldNote(), calendar) });
+        expect(findings.map((finding) => finding.message)).toContain(
+            "`data.epoch` needs a specific day; write `<year>.<day>` or a day in a named calendar",
+        );
+        expect(findings[0]).toMatchObject({ file: "Common_Calendar.md", severity: "error" });
+        expect(findings[0].line).toBeGreaterThan(0);
+        expect(findings[0].column).toBeGreaterThan(0);
     });
 
     it("refuses every family key on a lore note of another genre", () => {
@@ -270,6 +286,7 @@ describe("the family belongs to a calendar note and to no other lore note", () =
     it("refuses two eras of one calendar sharing a shortcode", () => {
         const twice = calendarNote({
             eras: [
+                { shortcode: "before", name: "Before", start: null },
                 { shortcode: "founding", name: "After the Founding", start: 1 },
                 { shortcode: "founding", name: "After the Refounding", start: 400 },
             ],
@@ -288,6 +305,7 @@ describe("the family belongs to a calendar note and to no other lore note", () =
     it("checks an era's optional printable label", () => {
         const valid = calendarNote({
             eras: [
+                { shortcode: "before", name: "Before", start: null },
                 {
                     shortcode: "founding",
                     start: 1,
@@ -297,7 +315,10 @@ describe("the family belongs to a calendar note and to no other lore note", () =
         });
         expect(checkCalendarNote(valid, { index: index(worldNote(), valid) })).toEqual([]);
         const invalid = calendarNote({
-            eras: [{ shortcode: "founding", start: 1, label: { after: "AF", other: "{date}" } }],
+            eras: [
+                { shortcode: "before", name: "Before", start: null },
+                { shortcode: "founding", start: 1, label: { after: "AF", other: "{date}" } },
+            ],
         });
         expect(
             checkCalendarNote(invalid, { index: index(worldNote(), invalid) }).map(
@@ -368,11 +389,26 @@ describe("a world fact is written on a body", () => {
         expect(checkWorldFacts(moonNote(), { index: index(worldNote(), moonNote()) })).toEqual([]);
     });
 
+    it("requires a day for the moon's phase reference", () => {
+        const moon = moonNote({ moon: { cycle: 30, newOn: 720 } });
+        const findings = checkWorldFacts(moon, { index: index(worldNote(), moon) });
+        expect(findings.map((finding) => finding.message)).toContain(
+            "`data.moon.newOn` needs a specific day; write `<year>.<day>` or a day in a named calendar",
+        );
+        expect(findings[0].line).toBeGreaterThan(0);
+        expect(findings[0].column).toBeGreaterThan(0);
+    });
+
     it("reads the present through the parser a note's dates go through", () => {
         const wrong = worldNote({ present: "midsummer" });
         const findings = checkWorldFacts(wrong, { index: index(wrong) });
         expect(findings.map((f) => f.severity)).toEqual(["error"]);
         expect(findings[0].message).toContain("is not a frontmatter date");
+    });
+
+    it("accepts a year-precision present date", () => {
+        const world = worldNote({ present: 720 });
+        expect(checkWorldFacts(world, { index: index(world) })).toEqual([]);
     });
 
     it("refuses `unknown` as a present, because a setting has one", () => {
@@ -419,6 +455,20 @@ describe("the definition core reads", () => {
         note: calendarNote(),
         invariants,
         contentPackage: "thalorna",
+    });
+
+    it("does not compile a year-only calendar epoch as day one", () => {
+        expect(() => compileCalendar({ note: calendarNote({ epoch: 720 }), invariants })).toThrow(
+            /data\.epoch.*specific day/,
+        );
+    });
+
+    it("does not compile a year-only moon phase reference as day one", () => {
+        const moon = moonNote({ moon: { cycle: 30, newOn: 720 } });
+        const withMoon = worldInvariants(index(worldNote(), moon));
+        expect(() => compileCalendar({ note: calendarNote(), invariants: withMoon })).toThrow(
+            /data\.moon\.newOn.*specific day/,
+        );
     });
 
     it("writes every compulsory core field", () => {
@@ -486,8 +536,8 @@ describe("the definition core reads", () => {
         ]);
     });
 
-    it("puts the epoch's year where a reader is shown the world's zero", () => {
-        expect(definition.years.yearZero).toBe(720);
+    it("anchors calendar year one at the canonical epoch", () => {
+        expect(definition.years.yearZero).toBe(1);
         expect(definition.epochDayOffset).toBe(0);
     });
 });
@@ -499,6 +549,7 @@ describe("what the definition adds for Calendaria, and core prunes", () => {
         const definition = compileCalendar({
             note: calendarNote({
                 eras: [
+                    { shortcode: "before", name: "Before the Founding", start: null },
                     {
                         shortcode: "founding",
                         name: "After the Founding",
@@ -511,7 +562,12 @@ describe("what the definition adds for Calendaria, and core prunes", () => {
             invariants,
         });
         expect(definition.eras).toEqual({
-            founding: { name: "After the Founding", abbreviation: "AF", start: "1" },
+            founding: {
+                name: "After the Founding",
+                abbreviation: "AF",
+                startYear: 1,
+                endYear: null,
+            },
         });
     });
 
@@ -544,31 +600,40 @@ describe("authored calendar display formats", () => {
         for (const slot of CALENDAR_DATE_FORMAT_KEYS) {
             const value = "D MMMM, YYYY";
             const definition = compileCalendar({
-                note: calendarNote({ dateFormats: { [slot]: value } }),
+                note: calendarNote({ formats: { std: value, [slot]: value } }),
                 invariants: worldInvariants(index(worldNote())),
             });
             expect(definition.dateFormats[slot]).toBe(value);
         }
     });
 
-    it("accepts tokens and bracketed words, and locates bare prose", () => {
+    it("accepts Calendaria tokens and literal words, and checks bracket syntax", () => {
         expect(CALENDAR_FORMAT_TOKENS.size).toBe(45);
         const good = calendarNote({
-            dateFormats: { full: "[Year] YYYY [of the] [Emperor of the] [Dynasty]" },
+            formats: {
+                std: "D MMMM [yearInEra] G",
+                full: "[Year] YYYY [of the] [Emperor of the] [Dynasty]",
+            },
         });
         expect(checkCalendarNote(good, { index: index(worldNote(), good) })).toEqual([]);
-        const bad = calendarNote({ dateFormats: { full: "Year YYYY of the Dynasty" } });
+        const bad = calendarNote({
+            formats: { std: "D MMMM [yearInEra] G", full: "[Year YYYY" },
+        });
         const findings = checkCalendarNote(bad, { index: index(worldNote(), bad) });
         expect(findings.length).toBeGreaterThan(0);
         expect(findings[0]).toMatchObject({ file: "Common_Calendar.md", severity: "error" });
         expect(findings[0].line).toBeGreaterThan(0);
-        expect(findings[0].message).toContain("unescaped letter run");
+        expect(findings[0].message).toContain("unclosed");
+        const literals = calendarNote({
+            formats: { std: "D MMMM [yearInEra] G", full: "Year YYYY of the Dynasty" },
+        });
+        expect(checkCalendarNote(literals, { index: index(worldNote(), literals) })).toEqual([]);
     });
 
-    it("refuses unrecognized slots and non-string values", () => {
-        const bad = calendarNote({ dateFormats: { time12: "h:mm a", short: 12 } });
+    it("accepts arbitrary names and refuses invalid names or non-string values", () => {
+        const bad = calendarNote({ formats: { "bad slot": "h:mm a", short: 12 } });
         const findings = checkCalendarNote(bad, { index: index(worldNote(), bad) });
-        expect(findings.map((finding) => finding.message).join(" ")).toContain("time12");
+        expect(findings.map((finding) => finding.message).join(" ")).toContain("bad slot");
         expect(findings.map((finding) => finding.message).join(" ")).toContain("must be a string");
     });
 });
@@ -632,12 +697,16 @@ describe("every key the vocabulary declares reaches the definition", () => {
     const invariants = worldInvariants(index(worldNote(), moonNote()));
     /** A note writing every key the family declares, so nothing is untested. */
     const full = {
-        epoch: "720.1",
+        epoch: "1.1",
         months: COMMON_MONTHS,
         weekdays: [{ name: "Oneday", abbreviation: "On" }],
-        seasons: [{ name: "Spring", monthStart: 1, monthEnd: 3 }],
-        eras: [{ shortcode: "founding", name: "After the Founding", abbreviation: "AF", start: 1 }],
-        dateFormats: { full: "D MMMM, YYYY" },
+        seasons: [{ name: "Spring", start: 1 }],
+        namedDays: [{ name: "New Year's Day", abbreviation: "NY", day: 1 }],
+        eras: [
+            { shortcode: "before", name: "Before the Founding", start: null },
+            { shortcode: "founding", name: "After the Founding", abbreviation: "AF", start: 1 },
+        ],
+        formats: { std: "D MMMM [yearInEra] G" },
     };
 
     it("writes the family out at runtime rather than from a second list", () => {
@@ -652,8 +721,14 @@ describe("every key the vocabulary declares reaches the definition", () => {
         it(`changes the definition when \`data.${field.name}\` is dropped`, () => {
             const withIt = compileCalendar({ note: calendarNote(full), invariants });
             const without = { ...full, [field.name]: undefined };
-            const withoutIt = compileCalendar({ note: calendarNote(without), invariants });
-            expect(JSON.stringify(withoutIt)).not.toBe(JSON.stringify(withIt));
+            if (field.name === "epoch" || field.name === "eras")
+                expect(() =>
+                    compileCalendar({ note: calendarNote(without), invariants }),
+                ).toThrow();
+            else {
+                const withoutIt = compileCalendar({ note: calendarNote(without), invariants });
+                expect(JSON.stringify(withoutIt)).not.toBe(JSON.stringify(withIt));
+            }
         });
     }
 });

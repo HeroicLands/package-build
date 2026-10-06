@@ -43,6 +43,7 @@ import { Actors } from "../sohl/actors.mjs";
 import { resolveSchemaArtifact } from "../engine/schema-check.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 /* ---------------------------------------------------------------------- */
 /*  The map                                                                */
 /* ---------------------------------------------------------------------- */
@@ -485,7 +486,13 @@ hm3:
   type: weapongear
 ---
 
+# History
+
 A soldier's blade.
+
+# Description {#description}
+
+The blade is broad and well balanced.
 `;
 
 const KNIGHT = `---
@@ -578,6 +585,11 @@ describe("one note carrying both blocks compiles a document in each system", () 
         expect(sohl.weight).toBeUndefined();
         // And the keys only one system's compiler writes stay on its side.
         expect(sohl.docHtml).toContain("@UUID[");
+        expect(hm3.description).toBe(sohl.docHtml);
+        const journal = packDocs(root, "journals").Broadsword;
+        const descriptionPage = journal.pages.find((page: any) => page.name === "Description");
+        expect(descriptionPage).toBeDefined();
+        expect(hm3.description).toContain(`JournalEntryPage.${descriptionPage._id}`);
         expect(hm3.docHtml).toBeUndefined();
         expect(hm3.strikeModes).toBeUndefined();
     });
@@ -655,6 +667,25 @@ describe("one note carrying both blocks compiles a document in each system", () 
     });
 });
 
+it(
+    "locates the second description anchor when an Item repeats it",
+    () => {
+        const note = `${SWORD}\n# Other description {#description}\n`;
+        const root = dualRepo({ "Broadsword.md": note });
+        roots.push(root);
+        const result = compile(root);
+        const line = note.slice(0, note.lastIndexOf("{#description}")).split("\n").length;
+        expect(result.errors).toBeGreaterThan(0);
+        expect(result.output).toContain(
+            `Broadsword.md:${line}:21: error: weapongear failed to compile: note "Broadsword" declares the anchor {#description}`,
+        );
+        expect(result.output).toContain(
+            `Broadsword.md:${line}:21: error: journal failed to compile: note "Broadsword" declares the anchor {#description}`,
+        );
+    },
+    SUBPROCESS_TEST_TIMEOUT,
+);
+
 /**
  * A `being` written the way the corpus writes it today: the shared facts inside
  * the `hm3:` block, where every one of the 2,512 `harn-ensemble` beings carries
@@ -697,9 +728,11 @@ describe("a field mid-sweep reads either position, and says which", () => {
 });
 
 describe("a note carrying only one block compiles only that system's document", () => {
-    it("is passed over by the other system's pass rather than failed", () => {
-        const root = dualRepo({
-            "Bag.md": `---
+    it(
+        "is passed over by the other system's pass rather than failed",
+        () => {
+            const root = dualRepo({
+                "Bag.md": `---
 name:
   full: Belt Pouch
 id: CCCCCCCCCCCCCCCC
@@ -713,29 +746,33 @@ hm3:
 
 A small pouch.
 `,
-            // Each pack must compile something, so the dual notes come along.
-            "Sword.md": SWORD,
-            "Aldric.md": KNIGHT,
-        });
-        roots.push(root);
-        const result = compile(root);
-        expect(result.output.replace(/ERRORS=\d+/, "")).not.toMatch(/error/i);
-        expect(result.errors).toBe(0);
-        expect(Object.keys(packDocs(root, "items-hm3")).sort()).toEqual([
-            "Belt Pouch",
-            "Broadsword",
-        ]);
-        expect(Object.keys(packDocs(root, "items-sohl"))).toEqual(["Broadsword"]);
-        expect(packDocs(root, "items-hm3")["Belt Pouch"].system.capacity.max).toBe(10);
-    });
+                // Each pack must compile something, so the dual notes come along.
+                "Sword.md": SWORD,
+                "Aldric.md": KNIGHT,
+            });
+            roots.push(root);
+            const result = compile(root);
+            expect(result.output.replace(/ERRORS=\d+/, "")).not.toMatch(/error/i);
+            expect(result.errors).toBe(0);
+            expect(Object.keys(packDocs(root, "items-hm3")).sort()).toEqual([
+                "Belt Pouch",
+                "Broadsword",
+            ]);
+            expect(Object.keys(packDocs(root, "items-sohl"))).toEqual(["Broadsword"]);
+            expect(packDocs(root, "items-hm3")["Belt Pouch"].system.capacity.max).toBe(10);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("a one-to-many note that says nothing fails, naming the note", () => {
-    it("reports `hm3.type` rather than guessing a subtype", () => {
-        const root = dualRepo({
-            "Sword.md": SWORD,
-            "Aldric.md": KNIGHT,
-            "Mystery.md": `---
+    it(
+        "reports `hm3.type` rather than guessing a subtype",
+        () => {
+            const root = dualRepo({
+                "Sword.md": SWORD,
+                "Aldric.md": KNIGHT,
+                "Mystery.md": `---
 name:
   full: Second Sight
 id: DDDDDDDDDDDDDDDD
@@ -751,18 +788,20 @@ hm3:
 
 Seeing what is not there.
 `,
-        });
-        roots.push(root);
-        const result = compile(root);
-        expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/hm3\.type/);
-        expect(result.output).toMatch(/psionic/);
-        // And the SoHL half of the same note still compiled.
-        expect(Object.keys(packDocs(root, "items-sohl")).sort()).toEqual([
-            "Broadsword",
-            "Second Sight",
-        ]);
-    });
+            });
+            roots.push(root);
+            const result = compile(root);
+            expect(result.errors).toBeGreaterThan(0);
+            expect(result.output).toMatch(/hm3\.type/);
+            expect(result.output).toMatch(/psionic/);
+            // And the SoHL half of the same note still compiled.
+            expect(Object.keys(packDocs(root, "items-sohl")).sort()).toEqual([
+                "Broadsword",
+                "Second Sight",
+            ]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("an embedded reference naming a mysticalability subtype carries default art", () => {
@@ -858,37 +897,52 @@ A small pouch.
 `;
     }
 
-    it("passes when each block authors its own system's paths", () => {
-        const root = dualRepo({ "Bag.md": pouch("", ""), "Aldric.md": KNIGHT }, { schemas: true });
-        roots.push(root);
-        const result = compile(root);
-        expect(result.output.replace(/ERRORS=\d+/, "")).not.toMatch(/error/i);
-        expect(result.errors).toBe(0);
-    });
+    it(
+        "passes when each block authors its own system's paths",
+        () => {
+            const root = dualRepo(
+                { "Bag.md": pouch("", ""), "Aldric.md": KNIGHT },
+                { schemas: true },
+            );
+            roots.push(root);
+            const result = compile(root);
+            expect(result.output.replace(/ERRORS=\d+/, "")).not.toMatch(/error/i);
+            expect(result.errors).toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("reports a SoHL path authored in the `hm3:` block", () => {
-        const root = dualRepo(
-            { "Bag.md": pouch("", "  system:\n    weightBase: 1"), "Aldric.md": KNIGHT },
-            { schemas: true },
-        );
-        roots.push(root);
-        const result = compile(root);
-        expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/hm3\.system\.weightBase/);
-        expect(result.output).toMatch(/1\.6\.3/);
-    });
+    it(
+        "reports a SoHL path authored in the `hm3:` block",
+        () => {
+            const root = dualRepo(
+                { "Bag.md": pouch("", "  system:\n    weightBase: 1"), "Aldric.md": KNIGHT },
+                { schemas: true },
+            );
+            roots.push(root);
+            const result = compile(root);
+            expect(result.errors).toBeGreaterThan(0);
+            expect(result.output).toMatch(/hm3\.system\.weightBase/);
+            expect(result.output).toMatch(/1\.6\.3/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("reports an HM3 path authored in the `sohl:` block", () => {
-        const root = dualRepo(
-            { "Bag.md": pouch("  system:\n    weight: 1", ""), "Aldric.md": KNIGHT },
-            { schemas: true },
-        );
-        roots.push(root);
-        const result = compile(root);
-        expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/sohl\.system\.weight/);
-        expect(result.output).toMatch(/0\.9\.0/);
-    });
+    it(
+        "reports an HM3 path authored in the `sohl:` block",
+        () => {
+            const root = dualRepo(
+                { "Bag.md": pouch("  system:\n    weight: 1", ""), "Aldric.md": KNIGHT },
+                { schemas: true },
+            );
+            roots.push(root);
+            const result = compile(root);
+            expect(result.errors).toBeGreaterThan(0);
+            expect(result.output).toMatch(/sohl\.system\.weight/);
+            expect(result.output).toMatch(/0\.9\.0/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 /* ---------------------------------------------------------------------- */
@@ -1019,16 +1073,21 @@ describe("native species is independent of shared species lore", () => {
             expect(result.errors).toBe(0);
             expect(packDocs(root, "actors-hm3")["Sir Aldric"].system.species).toBe("");
         },
+        SUBPROCESS_TEST_TIMEOUT,
     );
-    it("gives explicit native system text precedence over native shorthand", () => {
-        const note = KNIGHT.replace(
-            "  type: character\n",
-            "  type: character\n  species: Human\n",
-        ).replace("    sunsign: ulandus", "    species: Elf\n    sunsign: ulandus");
-        const root = dualRepo({ "Aldric.md": note, "Broadsword.md": SWORD });
-        roots.push(root);
-        const result = compile(root);
-        expect(result.errors).toBe(0);
-        expect(packDocs(root, "actors-hm3")["Sir Aldric"].system.species).toBe("Elf");
-    });
+    it(
+        "gives explicit native system text precedence over native shorthand",
+        () => {
+            const note = KNIGHT.replace(
+                "  type: character\n",
+                "  type: character\n  species: Human\n",
+            ).replace("    sunsign: ulandus", "    species: Elf\n    sunsign: ulandus");
+            const root = dualRepo({ "Aldric.md": note, "Broadsword.md": SWORD });
+            roots.push(root);
+            const result = compile(root);
+            expect(result.errors).toBe(0);
+            expect(packDocs(root, "actors-hm3")["Sir Aldric"].system.species).toBe("Elf");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

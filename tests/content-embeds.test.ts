@@ -21,8 +21,8 @@
  * and print as literal brackets.
  *
  * **Its directive is the image directive.** One construct, one parser: a second
- * narrower one would accept `{float: top-left}` and quietly drop
- * `{.full-width, float: top-left}`, which looks exactly like a directive that
+ * narrower one would accept `{float=top-left}` and quietly drop
+ * `{.full-width float=top-left}`, which looks exactly like a directive that
  * worked.
  */
 
@@ -137,22 +137,22 @@ describe("an embed reaches asset types only", () => {
 
 describe("the directive is the image directive, whole", () => {
     it("accepts a named size alongside a float", () => {
-        const source = "![[thorn|Thorn]]{size: medium, float: top-left}\n";
+        const source = "![[thorn|Thorn]]{size=medium float=top-left}\n";
         expect(checkEmbeds(source, "x.md", { index })).toEqual([]);
         expect(rewrite(source)).toBe(
-            "![Thorn](thalorna/assets/images/beings/thorn.webp){size: medium, float: top-left}\n",
+            "![Thorn](thalorna/assets/images/beings/thorn.webp){size=medium float=top-left}\n",
         );
     });
 
     it("locates an invalid size", () => {
-        expect(checkEmbeds("![[thorn|Thorn]]{size: huge}\n", "x.md", { index })).toEqual([
+        expect(checkEmbeds("![[thorn|Thorn]]{size=huge}\n", "x.md", { index })).toEqual([
             expect.objectContaining({ file: "x.md", line: 1, column: 17, severity: "error" }),
         ]);
     });
 
     it("honours a float", () => {
-        expect(rewrite("![[thorn|Thorn]]{float: top-left}\n")).toBe(
-            "![Thorn](thalorna/assets/images/beings/thorn.webp){float: top-left}\n",
+        expect(rewrite("![[thorn|Thorn]]{float=top-left}\n")).toBe(
+            "![Thorn](thalorna/assets/images/beings/thorn.webp){float=top-left}\n",
         );
     });
 
@@ -163,16 +163,16 @@ describe("the directive is the image directive, whole", () => {
     });
 
     it("honours both, in either order", () => {
-        expect(rewrite("![[thorn|Thorn]]{.full-width, float: top-left}\n")).toBe(
-            "![Thorn](thalorna/assets/images/beings/thorn.webp){.full-width, float: top-left}\n",
+        expect(rewrite("![[thorn|Thorn]]{.full-width float=top-left}\n")).toBe(
+            "![Thorn](thalorna/assets/images/beings/thorn.webp){.full-width float=top-left}\n",
         );
-        expect(rewrite("![[thorn|Thorn]]{float: top-left, .full-width}\n")).toBe(
-            "![Thorn](thalorna/assets/images/beings/thorn.webp){float: top-left, .full-width}\n",
+        expect(rewrite("![[thorn|Thorn]]{float=top-left .full-width}\n")).toBe(
+            "![Thorn](thalorna/assets/images/beings/thorn.webp){float=top-left .full-width}\n",
         );
     });
 
     it("refuses an unrecognised value, located, and honours no part of it", () => {
-        const findings = checkEmbeds("![[thorn|Thorn]]{.fullwidth, float: middle}\n", "x.md", {
+        const findings = checkEmbeds("![[thorn|Thorn]]{.fullwidth float=middle}\n", "x.md", {
             index,
         });
         expect(findings).toHaveLength(2);
@@ -182,8 +182,8 @@ describe("the directive is the image directive, whole", () => {
         }
         // Nothing partial: the braces stay as written, so the mistake is on the
         // page as well as in the log.
-        expect(rewrite("![[thorn|Thorn]]{.fullwidth, float: middle}\n")).toBe(
-            "![[thorn|Thorn]]{.fullwidth, float: middle}\n",
+        expect(rewrite("![[thorn|Thorn]]{.fullwidth float=middle}\n")).toBe(
+            "![[thorn|Thorn]]{.fullwidth float=middle}\n",
         );
     });
 });
@@ -196,7 +196,7 @@ describe("an embed is a block, and code is verbatim", () => {
     });
 
     it("leaves an embed inside a fence exactly as written", () => {
-        const fenced = "```markdown\n![[thorn|Thorn]]{float: top-left}\n```\n";
+        const fenced = "```markdown\n![[thorn|Thorn]]{float=top-left}\n```\n";
         expect(rewrite(fenced)).toBe(fenced);
         expect(checkEmbeds(fenced, "x.md", { index })).toEqual([]);
         expect(embedsIn(fenced)).toEqual([]);

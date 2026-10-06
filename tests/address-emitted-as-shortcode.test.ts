@@ -8,7 +8,7 @@
 /**
  * **An authored Address, an emitted Shortcode.**
  *
- * An affiliation's `seat`, `parents`, `domains` and `relations` keys are
+ * An affiliation's `seat`, `parents` and `relations` keys are
  * Addresses, written at whatever length says what they mean; the fields they
  * compile into hold a shortcode, read at runtime among the items one actor
  * carries. The builder resolves the one into the other, and the two questions
@@ -74,7 +74,6 @@ describe("the declarations that state an Address position", () => {
         );
         expect(stated.sort()).toEqual([
             "affiliation.commonSkills",
-            "affiliation.data.domains",
             "affiliation.data.parents",
             "affiliation.data.relations",
             "affiliation.data.seat",
@@ -86,11 +85,6 @@ describe("the declarations that state an Address position", () => {
         // rule — an art slot defaults to `icon` and accepts `icon` or `image` —
         // so the set is its own statement and the reduction reads it as one.
         expect(declared("seat").address).toEqual({ type: "place", accepts: ["place"] });
-        expect(declared("domains").address).toEqual({
-            type: "place",
-            accepts: ["place"],
-            holds: "items",
-        });
         expect(declared("parents").address).toEqual({
             type: "affiliation",
             accepts: ["affiliation"],
@@ -138,26 +132,6 @@ describe("a seat", () => {
     it("leaves the two empties alone", () => {
         expect(reduce("seat", null)).toEqual({ value: null, messages: [] });
         expect(reduce("seat", "")).toEqual({ value: "", messages: [] });
-    });
-});
-
-describe("domains", () => {
-    it("names places at every length", () => {
-        expect(
-            reduce("domains", ["tashal", "place-vylar", "none-place-north", "bar-none-place-far"]),
-        ).toEqual({ value: ["tashal", "vylar", "north", "far"], messages: [] });
-    });
-
-    it("refuses an entry naming an affiliation", () => {
-        const { messages } = reduce("domains", ["tashal", "affiliation-guild"]);
-        expect(messages).toHaveLength(1);
-        expect(messages[0]).toContain("`domains`");
-        expect(messages[0]).toContain("affiliation-guild");
-        expect(messages[0]).toContain("place");
-    });
-
-    it("leaves an empty list alone", () => {
-        expect(reduce("domains", [])).toEqual({ value: [], messages: [] });
     });
 });
 
@@ -218,14 +192,6 @@ describe("the reduction to a shortcode is lossy, and the collision it loses is l
         expect(messages[0]).toContain("b");
     });
 
-    it("reports two places sharing a shortcode in a list", () => {
-        const { messages } = reduce("domains", ["tashal", "bar-none-place-tashal"]);
-        expect(messages).toHaveLength(1);
-        // A place is a core document, so a bare value here takes `none`.
-        expect(messages[0]).toContain("foo-none-place-tashal");
-        expect(messages[0]).toContain("bar-none-place-tashal");
-    });
-
     it("reports one body named twice as two keys", () => {
         const { messages, value } = reduce("relations", {
             c: "aligned",
@@ -237,13 +203,6 @@ describe("the reduction to a shortcode is lossy, and the collision it loses is l
         // The first standing stands, so the emitted map is the same whatever
         // order the keys arrived in.
         expect(value).toEqual({ c: "aligned" });
-    });
-
-    it("takes one place named twice in a list as the duplicate it is", () => {
-        expect(reduce("domains", ["tashal", "place-tashal"])).toEqual({
-            value: ["tashal", "tashal"],
-            messages: [],
-        });
     });
 });
 

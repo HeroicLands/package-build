@@ -31,8 +31,6 @@
  * packageBuild:
  *     assets:
  *         - { from: assets/icons, to: assets/icons }
- * publish:
- *     site: content
  * ```
  *
  * `defineConfig` is the whole of the contract: it validates the object, fills
@@ -65,6 +63,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 // Leaves with no local imports of their own, so naming them here cannot close
@@ -247,58 +246,44 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
 });
 
 /**
- * How much of a package reaches the web.
- *
- * Every HeroicLands package publishes something: a top-level, human-authored
- * homepage at `https://www.heroiclands.org/<contentPackage>/` saying what the
- * module is, which system it needs and how to install it. So there is no
- * value here meaning *no web presence at all* — homepage-only is the **floor**,
- * and the default.
- *
- * - `homepage` — the authored homepage, and **no other page**. The content tree
- *   is not walked for pages, and nothing serves a page for its addresses.
- * - `content` — the homepage *plus* every page the content tree publishes, one
- *   per note.
- *
- * **Homepage-only is a first-class mode, not an accommodation.**
- * `sohl-kethira-basic` (unofficial Hârn fan material under Keléstia Productions'
- * Fan Material Guidelines) and `harn-adventures` (HârnFanon under Lythia's
- * terms) must each publish a homepage and nothing beneath it — two packages
- * under two different fan-content licences. The boundary is **published
- * content**: journal text, artwork, item descriptions, compiled notes. A
- * human-authored page announcing the module discloses none of it. Because the
- * failure mode is silent — a `site:` block added later ships licensed content
- * with nobody noticing — the mode fences the content surfaces off rather than
- * trusting a configuration to stay empty.
- *
- * This was a boolean until 5.0.0, and `false` read as "no web presence", which
- * no longer describes any package. Both spellings are refused rather than
- * mapped: a value silently reinterpreted reads to its author as though it still
- * means what it said.
- *
- * @typedef {"homepage" | "content"} SiteMode
- */
-
-/**
- * The publishing modes {@link PublishSwitches.site} may name, floor first.
- *
- * @satisfies {readonly SiteMode[]}
- */
-export const SITE_MODES = /** @type {const} */ (["homepage", "content"]);
-
-/**
  * Whether this package publishes the pages its content tree compiles to.
  *
- * The one question every reader of the mode actually asks — the site build, to
- * decide whether to walk the tree at all, and the content index, to
- * decide whether an entry carries a web `path`. Written once here so the two
- * cannot come to disagree about what a mode means.
+ * Every package publishes an authored homepage. Other authored notes provide
+ * content pages; a tree containing only the homepage publishes only that page.
  *
- * @param {{publish: {site: SiteMode}}} config - A resolved configuration.
+ * Site, PDF, index, and Foundry address emission use the same source-tree
+ * decision. A file without note frontmatter is not a content page.
+ *
+ * @param {{paths: {content: string}, skipDirectories: readonly string[]}} config -
+ *   A resolved configuration with content and skip paths.
  * @returns {boolean} Whether content pages are published.
  */
 export function publishesContentPages(config) {
-    return config.publish.site === "content";
+    const root = config.paths.content;
+    if (!fs.existsSync(root)) return false;
+    const skipped = new Set(config.skipDirectories);
+    const stack = [root];
+    while (stack.length) {
+        const dir = stack.pop();
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+            const file = path.join(dir, entry.name);
+            if (entry.isDirectory()) {
+                if (!skipped.has(entry.name)) stack.push(file);
+                continue;
+            }
+            if (!entry.isFile() || !entry.name.endsWith(".md")) continue;
+            const match = fs
+                .readFileSync(file, "utf8")
+                .match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+            if (!match) continue;
+            try {
+                if (YAML.parse(match[1])?.type !== "homepage") return true;
+            } catch {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 /**
@@ -383,7 +368,8 @@ export function publishesContentPages(config) {
  * @property {string} [stage]            Compiled LevelDB packs.
  * @property {string} [unpack]           Where `unpack` extracts JSON back to.
  * @property {string} [foreignCache]     Where a dependency declaring
- *                                       `itemCatalog: true` is unpacked.
+ *                                       `itemCatalog: true` or
+ *                                       `assetArchive: true` is unpacked.
  *                                       Inbound, and fetched rather than
  *                                       committed.
  * @property {string} [metadataCache]    Where a dependency's published content
@@ -447,8 +433,7 @@ export function publishesContentPages(config) {
 
 /**
  * @typedef {object} PublishSwitches
- * @property {SiteMode} site          How much of this package reaches the web.
- *                                    See {@link SITE_MODES}.
+ * @property {Readonly<{prefix: string}>} address  Where content pages mount within the package.
  */
 
 /**
@@ -502,6 +487,15 @@ export function publishesContentPages(config) {
  *                                   package this one targets — for a system
  *                                   relationship, `verified` is what
  *                                   `_stats.systemVersion` is stamped from.
+ * @property {boolean} [itemCatalog]  Whether `deps fetch` unpacks this
+ *                                   dependency's release archive and extracts
+ *                                   its Item packs, so the actors pass can
+ *                                   resolve embedded items this repository
+ *                                   does not hold. Needs a `manifest`.
+ * @property {boolean} [assetArchive]  Whether `deps fetch` unpacks this
+ *                                   dependency's release archive for its
+ *                                   asset bytes alone, building no item
+ *                                   catalogue from it. Needs a `manifest`.
  * @property {boolean} [contentIndex]  Whether `deps fetch` fetches this
  *                                   dependency's content index. Default
  *                                   `true`. `false` declares the dependency
@@ -510,6 +504,13 @@ export function publishesContentPages(config) {
  *                                   `itemCatalog: true` on the same entry,
  *                                   since a catalogue is fetched from the same
  *                                   index.
+ * @property {boolean} [assetReplacement]  Whether this dependency's asset
+ *                                   tree answers this package's own asset
+ *                                   addresses ahead of its local record.
+ *                                   Default `false`. Refuses `contentIndex:
+ *                                   false` on the same entry, since a
+ *                                   replacement with no fetched index to
+ *                                   check against resolves nothing.
  */
 
 /**
@@ -545,7 +546,6 @@ export function publishesContentPages(config) {
 
 /**
  * @typedef {object} PublishSwitchesInput
- * @property {SiteMode} [site]
  * @property {AddressSchemeInput} [address]
  */
 
@@ -637,6 +637,9 @@ export function publishesContentPages(config) {
  * @property {string[]} [skipDirectories]   Directory names the content walk ignores
  *                                          wherever they appear (e.g. Obsidian's
  *                                          `Templates`). Default `[]`.
+ * @property {boolean} [forbidGeneratedArt]  Whether `lint` refuses an asset
+ *                                          record of this package carrying
+ *                                          `ai: true`. Default `false`.
  * @property {PackageBuildSection} [packageBuild]  Reserved for
  *                                          `@heroiclands/package-build`, which
  *                                          validates it. Not read here.
@@ -717,6 +720,8 @@ export function publishesContentPages(config) {
  *                                     types. The one set the compilers and the
  *                                     link-manifest emitter both read.
  * @property {readonly string[]} skipDirectories
+ * @property {boolean} forbidGeneratedArt  Whether `lint` refuses an asset
+ *                                     record of this package carrying `ai: true`.
  * @property {import("./engine/content-icons.mjs").IconRegistry} icons  The
  *                                     fonts this package ships and the names it
  *                                     draws from them; empty when it declares
@@ -745,6 +750,7 @@ const CONFIG_KEYS = [
     "itemBuilders",
     "paths",
     "skipDirectories",
+    "forbidGeneratedArt",
     "icons",
     "packs",
     "docs",
@@ -782,14 +788,25 @@ const PDF_FONT_KEYS = ["serif", "sans", "mono", "path"];
 const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" });
 const DOC_PAGE_KEYS = ["title", "out", "preamble", "frontmatter"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
-const RELATIONSHIP_KEYS = [
+/**
+ * Every key a declared relationship may carry.
+ *
+ * Read by the manifest writer as well as by the configuration check: the keys
+ * Foundry's own relationship schema does not name are the build's own, and the
+ * published manifest carries none of them.
+ *
+ * @type {readonly string[]}
+ */
+export const RELATIONSHIP_KEYS = [
     "id",
     "contentPackage",
     "type",
     "manifest",
     "compatibility",
     "itemCatalog",
+    "assetArchive",
     "contentIndex",
+    "assetReplacement",
 ];
 const AUTHOR_KEYS = ["name", "email", "url"];
 const ITEM_BUILDER_KEYS = ["system", "img", "fields"];
@@ -822,7 +839,7 @@ const STATS_KEYS = ["lastModifiedBy"];
  * @type {symbol}
  */
 export const DERIVED_SYSTEM_VERSION = Symbol.for("package-build.derivedSystemVersion");
-const PUBLISH_KEYS = ["site", "address"];
+const PUBLISH_KEYS = ["address"];
 const ADDRESS_KEYS = ["prefix"];
 
 /** @param {unknown} value */
@@ -907,9 +924,10 @@ function requireNonEmptyString(value, field) {
  *    package's id to *be* its system id, and `sohl-sohl-skill-clmb` is the
  *    honest address that results — which is the reason to prevent the ones that
  *    are avoidable.
- * 3. _Not reserved_. `packagebuild` addresses the files this toolchain ships
- *    itself, so a repository claiming the name would publish addresses that
- *    collide with them — see {@link module:engine/packages}.
+ * 3. _Not reserved for another repository_. `packagebuild` addresses assets
+ *    and documentation this toolchain ships itself. Only this repository's
+ *    documentation build can use that namespace — see
+ *    {@link module:engine/packages}.
  *
  * The type vocabulary rule reaches the **asset** types too: `icon`, `image` and
  * `audio` are types an address names exactly as it names a being, so a package
@@ -920,9 +938,11 @@ function requireNonEmptyString(value, field) {
  *   to a documentation entry: the item types plus `macro` and the map types.
  *   With {@link PACK_BY_TYPE}, {@link NOTE_VOCABULARY} and the `doc`-prefixed
  *   forms, this is the whole type vocabulary an address may write.
+ * @param {{rootDir: string, packageKind: string}} scope - The source claiming
+ *   the namespace; this toolchain owns `packagebuild` for its documentation.
  * @returns {string} The value, unchanged.
  */
-function requireContentPackage(value, docEntryTypes) {
+function requireContentPackage(value, docEntryTypes, { rootDir, packageKind }) {
     const pkg = requireNonEmptyString(value, "contentPackage");
     if (!isAddressSegment(pkg)) {
         fail(
@@ -936,7 +956,12 @@ function requireContentPackage(value, docEntryTypes) {
                 "than merely ugly. `harn-adventures` became `harnadventures`",
         );
     }
-    if (isReservedPackage(pkg)) {
+    // This toolchain's own documentation shares the asset namespace it owns.
+    // Other repositories cannot claim that namespace.
+    const ownDocumentation =
+        packageKind === DOCUMENTATION_KIND &&
+        path.resolve(rootDir) === path.dirname(fileURLToPath(import.meta.url));
+    if (isReservedPackage(pkg) && !ownDocumentation) {
         fail(
             "contentPackage",
             `is \`${pkg}\`, which is a reserved package name. ` +
@@ -1271,7 +1296,7 @@ function normalizeIcons(value, rootDir) {
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
             fail(
                 `${where}.icons.${name}`,
-                "is not a name a note can write — `:icon-…:` takes lowercase " +
+                "is not a name a note can write — `:icon …:` takes lowercase " +
                     "letters, digits and hyphens, the charset an address segment uses",
             );
         }
@@ -1589,6 +1614,7 @@ export const DERIVED_HUGO_KEYS = Object.freeze({
     "params.brand": "the organisation's brand links, in `engine/site-config.mjs`",
     "params.notfound": "`site.notfound`",
     "markup.goldmark.renderer.unsafe": "the toolchain, whose pages carry raw HTML",
+    "markup.goldmark.extensions.taskList": "the toolchain, whose format has no checkbox",
     menu: "the navigation `package-build deps fetch` caches from heroiclands.org",
 });
 
@@ -1821,10 +1847,8 @@ function normalizeSite(value) {
  * choose, which is the whole reason they are configuration: the engine that
  * sets the book must be able to set somebody else's book.
  *
- * **Declaring the block is not the switch.** Whether a PDF is built at all is
- * `publish.site` — `content` builds one, `homepage` does not — so a package
- * cannot end up with two switches that disagree about whether it publishes its
- * content tree. See {@link publishesContentPages}.
+ * A PDF is built when the authored tree contains content pages and the `pdf`
+ * block names a document tree. See {@link publishesContentPages}.
  *
  * @param {unknown} value - The `pdf` block, or `undefined`.
  * @param {string} rootDir - The repository root configured paths resolve against.
@@ -1877,7 +1901,7 @@ function normalizePdf(value, rootDir) {
         });
     }
 
-    // Family name to the font file carrying its glyphs, for `:icon-…:`. A file
+    // Family name to the font file carrying its glyphs, for `:icon …:`. A file
     // rather than a codepoint, because the font's own tables are the only
     // trustworthy source of which glyph a name resolves to — see
     // {@link module:engine/content-icons}, which states the style and the name
@@ -1915,6 +1939,44 @@ function normalizePdf(value, rootDir) {
 }
 
 /**
+ * A dotted version string as the three-element tuple Foundry compares.
+ *
+ * A missing component reads as `0`, so `"14"` compares as `14.0.0` — the
+ * common way an author writes a major-only floor or pin. A non-numeric
+ * component reads as `0` too, rather than throwing: this runs on values
+ * {@link requireNonEmptyString} has already accepted as non-empty strings,
+ * and a version with a qualifier (`"14.359.0-beta"`) is not this function's
+ * place to refuse.
+ *
+ * @param {string} version - A dotted version string.
+ * @returns {readonly [number, number, number]} Major, minor, patch.
+ */
+function versionTriple(version) {
+    const parts = version.split(".");
+    return [0, 1, 2].map((index) => {
+        const n = Number.parseInt(parts[index] ?? "0", 10);
+        return Number.isNaN(n) ? 0 : n;
+    });
+}
+
+/**
+ * Whether `verified` names a build below `minimum`, compared as version
+ * triples.
+ *
+ * @param {string} minimum - The declared floor.
+ * @param {string} verified - The declared verified build.
+ * @returns {boolean} `true` when `verified` sorts below `minimum`.
+ */
+function verifiedBelowMinimum(minimum, verified) {
+    const a = versionTriple(verified);
+    const b = versionTriple(minimum);
+    for (let i = 0; i < 3; i++) {
+        if (a[i] !== b[i]) return a[i] < b[i];
+    }
+    return false;
+}
+
+/**
  * Validate a Foundry version range.
  *
  * `minimum` is required of the package's own range, because it is stamped into
@@ -1922,6 +1984,12 @@ function normalizePdf(value, rootDir) {
  * migrates on it. Inside a *relationship* neither field is required: what is
  * load-bearing there is `verified`, and a relationship may reasonably name a
  * package without pinning a floor at all.
+ *
+ * **The two keys are a range, not two independent facts.** Foundry reads
+ * `verified` as the build inside `minimum`'s floor that was actually tested,
+ * so a `verified` below `minimum` names a build the package already refuses
+ * to install on. Caught only when both are present — a relationship naming
+ * `verified` alone has nothing to compare it against.
  *
  * @param {unknown} value - The declared range, or `undefined`.
  * @param {string} where - Dotted path, for the error.
@@ -1939,6 +2007,18 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
     }
     if (input.verified !== undefined) {
         out.verified = requireNonEmptyString(input.verified, `${where}.verified`);
+    }
+    if (
+        out.minimum !== undefined &&
+        out.verified !== undefined &&
+        verifiedBelowMinimum(out.minimum, out.verified)
+    ) {
+        fail(
+            `${where}.verified`,
+            `declares \`${out.verified}\`, below \`${where}.minimum\`'s \`${out.minimum}\` — ` +
+                "Foundry reads the two as one range, so a build below the floor is " +
+                "never the one verified against it",
+        );
     }
     return Object.freeze(out);
 }
@@ -2033,6 +2113,21 @@ function normalizeSystems(value) {
         // declaration that cannot answer "which version was this built
         // against" is the gap this block exists to close.
         const verified = requireNonEmptyString(compat.verified, `${at}.compatibility.verified`);
+        const minimum =
+            compat.minimum === undefined || compat.minimum === null ?
+                null
+            :   requireNonEmptyString(compat.minimum, `${at}.compatibility.minimum`);
+        // Caught here too: the shape is the one {@link normalizeCompatibility}
+        // validates, and the same contradiction is possible wherever it
+        // appears.
+        if (minimum !== null && verifiedBelowMinimum(minimum, verified)) {
+            fail(
+                `${at}.compatibility.verified`,
+                `declares \`${verified}\`, below \`${at}.compatibility.minimum\`'s ` +
+                    `\`${minimum}\` — Foundry reads the two as one range, so a build ` +
+                    "below the floor is never the one verified against it",
+            );
+        }
 
         out[id] = Object.freeze({
             manifest:
@@ -2040,10 +2135,7 @@ function normalizeSystems(value) {
                     null
                 :   requireNonEmptyString(spec.manifest, `${at}.manifest`),
             compatibility: Object.freeze({
-                minimum:
-                    compat.minimum === undefined || compat.minimum === null ?
-                        null
-                    :   requireNonEmptyString(compat.minimum, `${at}.compatibility.minimum`),
+                minimum,
                 verified,
             }),
         });
@@ -2106,8 +2198,8 @@ function normalizeRelationships(value) {
                 };
                 // What the other package's *content* is called, where that
                 // differs from its Foundry id. A note addresses a file by the
-                // content package that owns it — `thalorna/assets/…` — and the
-                // Foundry id (`sohl-thalorna`) appears only in the install
+                // content package that owns it — `harnensemble/assets/…` — and the
+                // Foundry id (`harn-ensemble`) appears only in the install
                 // path this derives. Omitted where the two are the same word,
                 // which they are for every system.
                 if (rel.contentPackage !== undefined) {
@@ -2140,6 +2232,23 @@ function normalizeRelationships(value) {
                     }
                     spec.itemCatalog = rel.itemCatalog;
                 }
+                // Opt-in, sibling to `itemCatalog`: unpack this dependency's
+                // release archive for its asset bytes alone, building no item
+                // catalogue from it. Buys the archive for a package with no
+                // items of its own to extract — an asset-replacement source
+                // ships no Item packs and has no use for `itemCatalog: true`.
+                if (rel.assetArchive !== undefined) {
+                    if (typeof rel.assetArchive !== "boolean") {
+                        fail(`${at}.assetArchive`, "must be true or false");
+                    }
+                    if (rel.assetArchive && spec.manifest === undefined) {
+                        fail(
+                            `${at}.assetArchive`,
+                            "needs a `manifest` naming the package to fetch",
+                        );
+                    }
+                    spec.assetArchive = rel.assetArchive;
+                }
                 // Opt-out: declares the dependency for the Foundry manifest
                 // only, so `deps fetch` fetches no content index for it and a
                 // wikilink into it is refused rather than silently dead. A
@@ -2157,6 +2266,26 @@ function normalizeRelationships(value) {
                         );
                     }
                     spec.contentIndex = rel.contentIndex;
+                }
+                // Opt-in: this dependency's asset tree answers this
+                // package's own asset addresses ahead of its local record —
+                // the "rewrite table" `engine/asset-replacement.mjs` reads.
+                // A replacement with no fetched index to check against
+                // resolves nothing, so it cannot pair with
+                // `contentIndex: false`.
+                if (rel.assetReplacement !== undefined) {
+                    if (typeof rel.assetReplacement !== "boolean") {
+                        fail(`${at}.assetReplacement`, "must be true or false");
+                    }
+                    if (rel.assetReplacement && rel.contentIndex === false) {
+                        fail(
+                            `${at}.assetReplacement`,
+                            "cannot be true together with `contentIndex: false` — a " +
+                                "replacement with no fetched index to check against resolves " +
+                                "nothing",
+                        );
+                    }
+                    spec.assetReplacement = rel.assetReplacement;
                 }
                 return Object.freeze(spec);
             }),
@@ -2401,55 +2530,20 @@ function normalizeItemBuilders(value) {
 }
 
 /**
- * The publishing mode, refusing a boolean.
- *
- * A boolean is refused rather than mapped onto the nearest mode, because the
- * reading `false` invited — *this package has no web presence* — is exactly the
- * belief the change exists to correct, and a value quietly reinterpreted reads
- * to its author as though it still means what it said. So the message names the
- * mode to write instead of the value to fix.
- *
- * @param {unknown} value - The authored `publish.site`.
- * @returns {SiteMode} The mode.
- */
-function normalizeSiteMode(value) {
-    if (value === undefined) return "homepage";
-    if (typeof value === "boolean") {
-        fail(
-            "publish.site",
-            `is no longer a boolean — write \`site: ${value ? "content" : "homepage"}\`. ` +
-                `Every package publishes an authored homepage at ` +
-                `/<contentPackage>/, so no value means "no web presence": ` +
-                `\`homepage\` publishes that page and nothing else, and ` +
-                `\`content\` publishes it plus every page the content tree ` +
-                `compiles to`,
-        );
-    }
-    if (
-        typeof value !== "string" ||
-        !(/** @type {readonly string[]} */ (SITE_MODES).includes(value))
-    ) {
-        fail(
-            "publish.site",
-            `must be one of ${SITE_MODES.join(", ")} (got ${JSON.stringify(value)})`,
-        );
-    }
-    return /** @type {SiteMode} */ (value);
-}
-
-/**
  * @param {unknown} value
  * @returns {Readonly<PublishSwitches>}
  */
 function normalizePublish(value) {
     if (value === undefined) {
         return Object.freeze({
-            site: "homepage",
             address: Object.freeze({ ...DEFAULT_ADDRESS_SCHEME }),
         });
     }
     if (!isPlainObject(value)) fail("publish", "must be an object");
     const publish = /** @type {Record<string, unknown>} */ (value);
+    if (Object.hasOwn(publish, "site")) {
+        fail("publish.site", "is not configured; publishing follows the authored content tree");
+    }
     rejectUnknownKeys(publish, PUBLISH_KEYS, "publish.");
 
     const addressInput = publish.address;
@@ -2485,7 +2579,6 @@ function normalizePublish(value) {
     }
 
     return Object.freeze({
-        site: normalizeSiteMode(publish.site),
         address: Object.freeze({ prefix }),
     });
 }
@@ -2536,28 +2629,6 @@ export function defineConfig(config) {
         for (const [key, why] of Object.entries(DOCUMENTATION_REFUSES)) {
             if (input[key] === undefined) continue;
             fail(key, `is refused in a \`${DOCUMENTATION_KIND}\` package, which ${why}`);
-        }
-        // Publishing is what a documentation package is *for*, so the floor
-        // every other package may sit at is not available to it: `homepage`
-        // would leave a package that publishes one authored page, builds no
-        // book, and compiles nothing at all.
-        if (!isPlainObject(input.publish)) {
-            fail(
-                "publish",
-                `is required in a \`${DOCUMENTATION_KIND}\` package: publishing ` +
-                    "the content tree is the whole of what it does. Write " +
-                    "`publish: {site: content}`",
-            );
-        }
-        const mode = /** @type {Record<string, unknown>} */ (input.publish).site;
-        if (mode !== "content") {
-            fail(
-                "publish.site",
-                `must be \`content\` in a \`${DOCUMENTATION_KIND}\` package — ` +
-                    "`homepage` fences the content surfaces off, and a package " +
-                    "that compiles nothing and publishes nothing from its tree " +
-                    "would produce a single authored page and no book",
-            );
         }
     }
 
@@ -2694,6 +2765,12 @@ export function defineConfig(config) {
         requireNonEmptyString(name, `skipDirectories[${index}]`),
     );
 
+    const forbidGeneratedArt = optionalBoolean(
+        input.forbidGeneratedArt,
+        "forbidGeneratedArt",
+        false,
+    );
+
     // Refused above for a documentation package, so there is nothing to read
     // and nothing to derive an asset root or a package-wide system from.
     const foundryPackage =
@@ -2727,7 +2804,10 @@ export function defineConfig(config) {
 
     return Object.freeze({
         rootDir,
-        contentPackage: requireContentPackage(input.contentPackage, docEntryTypes),
+        contentPackage: requireContentPackage(input.contentPackage, docEntryTypes, {
+            rootDir,
+            packageKind,
+        }),
         foundryPackage,
         // `package.json`'s own address and byline. `homepage` is checked by
         // `checkHomepage` in `config.mjs`.
@@ -2736,7 +2816,7 @@ export function defineConfig(config) {
         author: normalizeAuthor(input.author),
         packageKind: /** @type {PackageKind} */ (packageKind),
         // Foundry serves a package's files from `<kind>/<id>/`, so this is the
-        // one place `systems/sohl` (or `modules/sohl-thalorna`) is spelled.
+        // one place `systems/sohl` (or `modules/harn-ensemble`) is spelled.
         //
         // **Conditional on the kind.** `documentation` names no directory
         // Foundry serves, and there is no package id to put under one either, so
@@ -2797,6 +2877,7 @@ export function defineConfig(config) {
         itemTypes,
         docEntryTypes,
         skipDirectories: Object.freeze(skipDirectories),
+        forbidGeneratedArt,
         icons: normalizeIcons(input.icons, rootDir),
         packs: Object.freeze(packs),
         packDirectories: Object.freeze(packDirectories),

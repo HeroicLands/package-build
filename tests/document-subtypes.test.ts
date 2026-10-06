@@ -324,6 +324,14 @@ describe("the compilers look the subtype up", () => {
         expect(actors().buildBeing(new Map(), BEING_FM, "").type).toBe("being");
     });
 
+    it("compiles NPC artwork from its note subtype", () => {
+        const compiler = actors();
+        compiler.artPathOf = (address: string) => address;
+        const emitted = compiler.buildBeing(new Map(), { ...BEING_FM, subType: "npc" }, "");
+        expect(emitted.type).toBe("being");
+        expect(emitted.img).toBe("sohl-none-icon-defaultcharhead");
+    });
+
     it("claims exactly the note types their half of the map declares", () => {
         expect(actors().selects({ type: "being" })).toBe(true);
         expect(actors().selects({ type: "skill" })).toBe(false);

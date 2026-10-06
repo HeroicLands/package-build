@@ -18,10 +18,9 @@
  * reference translation through the system's map, embedding and its stable ids,
  * the anchored prose sections — lives in
  * {@link module:engine/actor-compiler}, where a second system reaches it.
- * What is left here is SoHL's data model: the body structure and its
- * movement profiles, the attributes-and-items frontmatter that becomes embedded
- * documents, the opening mastery level a skill is baked with, and the `system`
- * block itself.
+ * What is left here is SoHL's data model: the `sohl.items` frontmatter that
+ * becomes embedded documents, the opening mastery level a skill is baked with,
+ * and the `system` block itself.
  *
  * One content type today, and the actor subtype it produces is **declared**
  * rather than assumed to be the same word: `sohl/document-subtypes.mjs` maps
@@ -29,15 +28,24 @@
  * `ACTOR_VAULT_TYPE = "being"` here and emitted `type: "being"` several hundred
  * lines below, which made the two vocabularies agree by coincidence.
  *
- * It was two content types — `character` and `creature` — which compiled to the
- * same `being` with no branch anywhere between them; they were retired in
- * retired, and are reported by `assertTypeNotRetired` in
- * `engine/ids.mjs`.
+ * Each entry in `sohl.items` is resolved by `(type, shortcode)` and deep-merged
+ * with the entry's other properties, so an attribute carries its `scoreBase`
+ * and a skill its `masteryLevelBase` as that entry's own `system` overlay.
  *
- * Attributes (`sohl.attributes` map) become embedded attribute items with
- * `scoreBase` set from the map value. Each entry in `sohl.items` is similarly
- * resolved by `(type, shortcode)` and deep-merged with the entry's other
- * properties. `sohl.skills` is ignored.
+ * **A being's own document fields are authored under `sohl.system`**, which
+ * {@link module:engine/system-block.mergeSystemData} writes at the DataModel's
+ * own paths: a being's body is `sohl.system.body`, with
+ * `sohl.system.currentMoveMedium` and `sohl.system.movementProfiles` beside it.
+ * So this pass writes no body itself, and an incorporeal being authors none and
+ * keeps the schema's empty one.
+ *
+ * **A membership is derived, never authored here.** `data.affiliations` names
+ * the bodies a being belongs to and the standing it holds in each, and each
+ * entry becomes one embedded affiliation item: the entry's `rank` is that
+ * item's `system.level` and its `office` is `system.office`. A standing is a
+ * fact about the setting rather than about one system — it does not become true
+ * because SoHL is installed — so the system block states none of it, and a
+ * sheet and a page cannot come to disagree.
  *
  * Not a standalone script — exports the `Actors` compiler class, imported and
  * driven by `engine/generate.mjs`. Must run after the items passes, since it
@@ -58,6 +66,10 @@ import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 // verbatim, and `sohl.img` / `sohl.effects` / `sohl.flags` overriding their
 // shared top-level forms for this system alone.
 import { blockProperty, mergeSystemData } from "../engine/system-block.mjs";
+// A being's memberships and the standing it holds in each, read from the one
+// place they are authored. The rank *is* the affiliation item's `level`, so
+// there is nothing to map and nowhere for a second authoring to disagree.
+import { readStandings } from "../engine/standings.mjs";
 
 /**
  * The system this pass compiles for — the block its notes write.
@@ -99,59 +111,11 @@ function defaultActorImg(subType) {
 }
 
 /**
- * Normalize a being's persisted `system.body` from a `sohl.body` block. The
- * authoring frontmatter mirrors the schema field-for-field: `sohl.body` nests
- * `structure` / `weight` / `reachBase` / `bodyScaleBase` / `personalFatigue`,
- * exactly like `system.body`.
- */
-function normalizeBody(bodyObj) {
-    const b = bodyObj && typeof bodyObj === "object" ? bodyObj : {};
-    const weight = b.weight || {};
-    return {
-        structure: b.structure ?? { parts: [], adjacent: [] },
-        weight: {
-            base: weight.base == null ? null : Number(weight.base),
-            calc: String(weight.calc ?? "0"),
-        },
-        reachBase: Number(b.reachBase ?? 0) || 0,
-        bodyScaleBase: Number(b.bodyScaleBase ?? 1) || 1,
-        personalFatigue: String(b.personalFatigue ?? "enc"),
-    };
-}
-
-/** Normalize per-medium movement profiles from a `sohl.movementProfiles` list. */
-function normalizeMovementProfiles(list) {
-    return (Array.isArray(list) ? list : []).map((p) => ({
-        medium: String(p.medium ?? "terrestrial"),
-        feetPerRound: Number(p.feetPerRound ?? 0) || 0,
-        leaguesPerWatch: Number(p.leaguesPerWatch ?? 0) || 0,
-        encumbrance: String(p.encumbrance ?? "0"),
-        strMod: String(p.strMod ?? "0"),
-        disabled: Boolean(p.disabled ?? false),
-    }));
-}
-
-/**
- * Extract a being's body (+ its movement) from a `sohl` block that mirrors the
- * schema: `sohl.body` (nested → `system.body`) and the flat
- * `sohl.currentMoveMedium` / `sohl.movementProfiles` (→ the base-actor movement
- * fields; movement is a universal actor capability, not part of the body).
- */
-function extractBodyAndMovement(fm) {
-    return {
-        body: normalizeBody(sohlField(fm, "body", {})),
-        currentMoveMedium: String(sohlField(fm, "currentMoveMedium", "none")),
-        movementProfiles: normalizeMovementProfiles(sohlField(fm, "movementProfiles", [])),
-    };
-}
-
-/**
  * SoHL's Actor compile pass.
  *
  * Declares SoHL's note-type → document-subtype map and builds a `being` note's
- * document: the body structure and its movement profiles, the embedded
- * attribute and item documents the frontmatter names, and the `system` block.
- * Everything else is {@link module:engine/actor-compiler}'s.
+ * document: the embedded item documents the frontmatter names, and the `system`
+ * block. Everything else is {@link module:engine/actor-compiler}'s.
  */
 export class Actors extends SystemActorCompiler {
     /**
@@ -177,29 +141,11 @@ export class Actors extends SystemActorCompiler {
     }
 
     /**
-     * Build all embedded items for an actor: one per `sohl.attributes`
-     * entry plus one per `sohl.items` entry. `sohl.skills` is ignored.
+     * Build all embedded items for an actor: one per `sohl.items` entry, plus
+     * one per body the being belongs to.
      */
     buildEmbeddedItems(itemsMap, actorId, fm, ctx) {
         const items = [];
-
-        const attributes = sohlField(fm, "attributes", null);
-        if (attributes && typeof attributes === "object") {
-            for (const [shortcode, value] of Object.entries(attributes)) {
-                const overlay = { system: { scoreBase: Number(value) || 0 } };
-                const embedded = this.resolveEmbedded(
-                    itemsMap,
-                    actorId,
-                    "attribute",
-                    shortcode,
-                    overlay,
-                    `attr:${shortcode}`,
-                    ctx,
-                    { fmKey: "attributes" },
-                );
-                if (embedded) items.push(embedded);
-            }
-        }
 
         const sohlItems = sohlField(fm, "items", null);
         if (Array.isArray(sohlItems)) {
@@ -256,7 +202,56 @@ export class Actors extends SystemActorCompiler {
             });
         }
 
+        for (const embedded of this.buildMemberships(itemsMap, actorId, fm, ctx)) {
+            items.push(embedded);
+        }
+
         this.openUnopenedSkills(items, ctx);
+        return items;
+    }
+
+    /**
+     * One embedded affiliation item per body the being belongs to.
+     *
+     * The body's own compiled item is the model, so a membership carries
+     * whatever that body declares — its subtype, its common skills, its
+     * standings toward others — and the being adds only what is true of *this*
+     * membership: the rung it stands on and the post it holds.
+     *
+     * A being naming a body that compiles to no item is a finding rather than a
+     * silently dropped membership: the note says the being belongs somewhere,
+     * and a sheet that shows nothing says it does not.
+     *
+     * @param {Map<string, object>} itemsMap - The predefined-item catalogue.
+     * @param {string} actorId - The owning actor's id.
+     * @param {object} fm - The note's frontmatter.
+     * @param {string} ctx - Diagnostic context.
+     * @returns {object[]} The embedded items, in the order the note names them.
+     */
+    buildMemberships(itemsMap, actorId, fm, ctx) {
+        const { entries } = readStandings(fm?.data?.affiliations);
+        const items = [];
+        for (const { body, standing } of entries) {
+            const shortcode = body?.shortcode;
+            if (!shortcode) continue;
+            const level = Number(standing?.rank);
+            const office = typeof standing?.office === "string" ? standing.office.trim() : "";
+            const system = {
+                ...(Number.isFinite(level) ? { level } : {}),
+                ...(office ? { office } : {}),
+            };
+            const embedded = this.resolveEmbedded(
+                itemsMap,
+                actorId,
+                "affiliation",
+                shortcode,
+                Object.keys(system).length ? { system } : {},
+                `affiliations:${shortcode}`,
+                ctx,
+                { fmKey: "affiliations", modelPackage: body.package ?? null },
+            );
+            if (embedded) items.push(embedded);
+        }
         return items;
     }
 
@@ -277,8 +272,8 @@ export class Actors extends SystemActorCompiler {
      *
      * **The scores used are the ones just written.** `SkillLogic` resolves
      * `attr.<code>` to an attribute's *effective* score, after active effects;
-     * all this pass has is the `scoreBase` it set from `sohl.attributes`. For a
-     * compiled being carrying no attribute-altering effects the two agree,
+     * all this pass has is the `scoreBase` on each embedded attribute item. For
+     * a compiled being carrying no attribute-altering effects the two agree,
      * which is every being in content today. One that did carry such an effect
      * would bake a Skill Base its client then disagrees with — that is the
      * limit of doing this at build time, and the point to revisit if it bites.
@@ -331,6 +326,9 @@ export class Actors extends SystemActorCompiler {
         const { value: authoredFolder, isAddress } = folderField(fm);
         const folder = this.folderResolver(authoredFolder, { isAddress });
 
+        this.checkAnchoredSection(body || "", "appearance", ctx);
+        this.checkAnchoredSection(body || "", "dossier", ctx);
+
         const system = {
             // The frontmatter shortcode is the actor's stable `(type, shortcode)`
             // key — and, for a being that is an archetype, its archetype
@@ -354,25 +352,6 @@ export class Actors extends SystemActorCompiler {
             // would be read twice on one page.
             dossier: withDraftNotice(fm, renderSection(body || "", "dossier")),
         };
-
-        // Fill `system.body` (+ the base-actor movement fields) from the being's
-        // frontmatter, rather than embedding a corpus item. The `sohl`
-        // block mirrors `system` field-for-field: `sohl.body` nests the body
-        // (`structure` / `weight` / …), with `currentMoveMedium` /
-        // `movementProfiles` flat alongside it. An **incorporeal** being omits
-        // `sohl.body` and keeps the schema's empty body.
-        const bodyField = sohlField(fm, "body", null);
-        if (bodyField && typeof bodyField === "object") {
-            const bodyData = extractBodyAndMovement(fm);
-            system.body = bodyData.body;
-            system.currentMoveMedium = bodyData.currentMoveMedium;
-            system.movementProfiles = bodyData.movementProfiles;
-        } else if (bodyField != null) {
-            this.noteError(
-                `${ctx}: sohl.body must be an inline object (structure/weight/…), got ${typeof bodyField}`,
-            );
-            this.errorCount++;
-        }
 
         // Being-only combat grouping (mirrors `system.defaultCombatGroup`).
         const defaultCombatGroup = sohlField(fm, "defaultCombatGroup", undefined);

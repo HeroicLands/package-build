@@ -51,6 +51,7 @@
  * @module
  */
 
+import { renderAlerts, scanAlerts } from "./content-alerts.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
 import { decodeNoteAddresses, noteAddressContext, encodeAddresses } from "./note-addresses.mjs";
 import fs from "node:fs";
@@ -62,15 +63,25 @@ import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { renderSecretBlocks } from "./content-secrets.mjs";
-import { renderImageFigures } from "./content-images.mjs";
-import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
-import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
+import { renderSpans, scanSpans } from "./content-spans.mjs";
+import { renderBlocks, renderWithheldSections, scanBlocks } from "./content-blocks.mjs";
+import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
+import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
+import { footnoteFindings } from "./content-footnotes.mjs";
+import { collectAnchors, markupAnchorFindings } from "./anchors.mjs";
+import { checkImages, renderImageFigures } from "./content-images.mjs";
+import { assetPathnameKey, pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import {
+    buildSiteIndex,
+    figureIndexKeys,
+    resolveCrossNoteFigures,
+    resolveInfoboxRef,
+    wikiContext,
+} from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { formatUnaddressableFinding, unaddressableForeignPackages } from "./metadata-index.mjs";
-import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
@@ -84,7 +95,9 @@ import { resolvedDateFields } from "./note-dates.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 // The one statement of what an empty body means, shared with the index.
 import { isStubNote } from "./note-state.mjs";
-import { ART_SLOTS, artPathname, assetAddressIndex } from "./art-fields.mjs";
+import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
+import { ART_SLOTS, artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
+import { embedRole } from "./content-embeds.mjs";
 import {
     HOMEPAGE_DESTINATION,
     checkHomepageCount,
@@ -96,6 +109,7 @@ import { publishesContentPages } from "../content-config.mjs";
 import { HUGO_CONTENT } from "./site-config.mjs";
 import { homepageLinkTargets, relatedPages } from "./related-pages.mjs";
 import { HOLDINGS_KEYS, foreignHoldingsNodes, holdingsNode, holdingsPages } from "./holdings.mjs";
+import { WORKS_KEY, foreignWorksNodes, worksNode, worksPages } from "./literature-works.mjs";
 import { drawSiteMaps } from "./site-maps.mjs";
 
 const require = createRequire(import.meta.url);
@@ -228,7 +242,7 @@ export function collectContentPages(contentBase, ctx) {
         // the index apply one rule from one module and a note that cannot be
         // addressed for some *other* reason still reaches the finding below
         // that says so.
-        if (isStubNote(fm, body)) continue;
+        if (isStubNote(fm, body) || isGmNote(fm)) continue;
 
         for (const hit of frontmatterWikilinks(fm)) {
             fmLinkFindings.push({ file, ...hit });
@@ -288,11 +302,8 @@ export function collectContentPages(contentBase, ctx) {
 /**
  * The package's homepage notes — the authored page at `/<contentPackage>/`.
  *
- * A separate walk from {@link collectContentPages} rather than a branch inside
- * it, because in homepage-only mode it is the **whole** of the site build: the
- * content tree is never read for pages at all, so the licensing constraint two
- * packages ship under is a property of the code path rather than of a
- * configuration that happens to be empty.
+ * A separate collection from {@link collectContentPages} keeps the homepage
+ * at the package root and leaves content pages at their note addresses.
  *
  * Returned as a list rather than as the one note there should be, because the
  * count is what {@link checkHomepageCount} judges — this walk reports
@@ -300,8 +311,7 @@ export function collectContentPages(contentBase, ctx) {
  *
  * A homepage that declares no `shortcode` has no address, and is
  * reported rather than written: it is the same finding a content page's missing
- * shortcode produces, and it has to be available in homepage-only mode, where
- * no other gate runs.
+ * shortcode produces, and it is reported even when the tree has no other notes.
  *
  * **It is still counted.** An unaddressable homepage is a homepage — dropping
  * it from the list would make {@link checkHomepageCount} report a tree with one
@@ -319,6 +329,10 @@ export function collectHomepages(contentBase, ctx) {
     for (const file of siteCorpusFiles(contentBase, ctx)) {
         const note = readNote(file, ctx);
         if (!note || !isHomepage(note.fm)) continue;
+        if (isGmNote(note.fm)) {
+            addressFindings.push({ file, reason: "a GM-tagged homepage cannot publish publicly" });
+            continue;
+        }
         try {
             addressSlug(note.fm);
         } catch (err) {
@@ -334,13 +348,10 @@ export function collectHomepages(contentBase, ctx) {
  *
  * Its own writer, deliberately small. A homepage is authored markdown published
  * verbatim — no table expansion and no link resolution — so routing it through
- * {@link renderPages} would buy it a pipeline it has no input for, and would
- * make homepage-only mode depend on the index, the foreign manifests and the
- * table universe that mode exists to not build.
+ * {@link renderPages} would give it a pipeline it does not use.
  *
  * **Verbatim is the answer, not a gap.** A homepage's links could not be
- * *resolved* here without giving `homepage` mode the index its licensing fence
- * exists to not build, so they are **checked** instead:
+ * *resolved* here, so they are **checked** instead:
  * {@link auditHomepageLinks} reads the body's markdown links, and reports a
  * wikilink on the page rather than resolving one.
  *
@@ -353,8 +364,8 @@ export function collectHomepages(contentBase, ctx) {
  * both sides of the link graph: a content page reaches it through
  * `[[homepage-root|Text]]`, and its own markdown links name content pages. So
  * it carries the same `related` block every content page does — handed in by
- * the caller, since the graph is read off the content render and homepage-only
- * mode has none.
+ * the caller, since the graph is read off the content render and a tree with
+ * only a homepage has no such graph.
  *
  * @param {string} outRoot - The package's site root — the content mount's
  *   root, `build/hugo/content`, one level above the mount itself.
@@ -364,7 +375,7 @@ export function collectHomepages(contentBase, ctx) {
  * @param {object} [options] - Options.
  * @param {import("./related-pages.mjs").Related} [options.related] - The
  *   homepage's backlinks and mentions. Absent where nothing connects to it,
- *   and in homepage-only mode, where no link resolves.
+ *   and when the tree contains only a homepage, where no content link resolves.
  * @returns {number} How many pages were written.
  */
 export function writeHomepages(outRoot, pages, config, { related } = {}) {
@@ -404,6 +415,7 @@ export function writeHomepages(outRoot, pages, config, { related } = {}) {
  *   collection.
  * @param {object} options
  * @param {object} options.config - The resolved build configuration.
+ * @param {object[]} options.records - Content-index records.
  * @returns {object} The gate results and, when they pass, the built index.
  */
 export function siteGates(pages, findings, { config, records }) {
@@ -471,7 +483,13 @@ export function emptyGates() {
     };
 }
 
-/** Whether any gate produced a finding. */
+/**
+ * Whether any gate produced a finding.
+ * @param {{homepages: unknown[], frontmatterLinks: unknown[],
+ *   addressErrors: unknown[], staleManifests: unknown[],
+ *   unaddressable: unknown[]}} gates - Results of the site checks.
+ * @returns {boolean} Whether at least one check found an error.
+ */
 export function gatesFailed(gates) {
     return Boolean(
         gates.homepages.length ||
@@ -548,7 +566,7 @@ export function tableUniverse(pages) {
  * about every other page, known only once the whole tree has resolved — see
  * {@link module:engine/related-pages} — so an authored value is dropped the
  * way `aliases` is, and {@link renderPages} writes the derived block once it
- * holds the graph. `contains`, `held_by` and `holdings` are dropped for the
+ * holds the graph. Derived geographical and government lists are dropped for the
  * same reason — see {@link module:engine/holdings}. **So is `map`**: the
  * file a place page names is the one the build drew beside it — see
  * {@link module:engine/site-maps} — and a page with no drawing names none.
@@ -586,17 +604,18 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
         kbfolder: page.folder,
     };
     if (decorate) decorate(data, page);
+    if (data.type === "affiliation" && data.data) delete data.data.domains;
     delete data.aliases;
     delete data.related;
     for (const key of HOLDINGS_KEYS) delete data[key];
+    delete data[WORKS_KEY];
     delete data.map;
     if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;
 }
 
 /**
- * The title a content page publishes under: an authored `title`, else the
- * note's name.
+ * The title a content page publishes under — the note's name.
  *
  * One rule, read by the page's own front matter and by every `related` entry
  * that names the page, so a card lists a page by exactly the title its heading
@@ -606,7 +625,7 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
  * @returns {string} The title.
  */
 function pageTitle(page) {
-    return page.fm.title ?? page.name;
+    return page.name;
 }
 
 /**
@@ -670,7 +689,7 @@ function isPlainObject(value) {
  * `_index.md`, and the page's stated `url` keeps its address exactly where the
  * flat file's was.
  *
- * @param {object} page - The page.
+ * @param {{slug: string}} page - The page.
  * @param {object} [opts]
  * @param {boolean} [opts.bundle=false] - Whether the page carries a resource.
  * @returns {string} The file, relative to the mount.
@@ -692,13 +711,18 @@ export function renderSitePage(
         sqlTables,
         config,
         artIndex,
+        figuresByAddress = new Map(),
     },
 ) {
     const tableErrors = [];
     const expressionErrors = [];
     const secretErrors = [];
+    const captionErrors = [];
+    const headingErrors = [];
+    const footnoteErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
+    const embedErrors = [];
     const resolved = [];
     const src = page.relPath ?? page.base;
     const ctx = wikiContext(index, {
@@ -735,47 +759,153 @@ export function renderSitePage(
         return src;
     };
     const artSrc = (value, type, accepts) => artPathname(artIndex, value, type, accepts).pathname;
+    // The role lookup a captioned item's `map` counter reaches through —
+    // see `engine/content-figures.mjs`'s `resolveRole`. Addressed form, for
+    // the page's own scan below, which runs before an embed is rewritten into
+    // an ordinary image; `roleByWebSrc` is the same lookup keyed by the web
+    // address each picture that reaches `renderImageFigures` resolves to,
+    // recorded as it is resolved rather than built across the whole corpus —
+    // `webSrc` itself reports an image's own problems as a side effect, which
+    // a speculative call over every asset would misfire for one this page
+    // never names.
+    const resolveRole = (address) => embedRole(artIndex, address);
+    const pathRoles = pathnameRoles(artIndex);
+    const roleByWebSrc = new Map();
+    const webSrcWithRole = (src) => {
+        const result = webSrc(src);
+        const role = pathRoles.get(src);
+        if (role) roleByWebSrc.set(result, role);
+        return result;
+    };
+    // The picture's role and pixel size, by the address it resolved to — read
+    // before `webSrc` translates it to the page's own host. A body image is
+    // free to write the bare, own-package form, so the address is normalized
+    // to the pathname the asset index keys by first.
+    const lookupAsset = (src) => {
+        const key = assetPathnameKey(src, config);
+        return key ? artIndex?.byPath?.get(key) : undefined;
+    };
     const resolve = (text) => {
         let transformed = pass.beforeLinks ? pass.beforeLinks(text, page) : text;
         transformed = resolveWebWikilinks(transformed, ctx);
-        return renderImageFigures(transformed, webSrc);
+        return renderImageFigures(transformed, webSrcWithRole, lookupAsset);
     };
 
-    const { markdown, errors } = expandContentTables(page.body, {
+    const { markdown, errors, lineMap } = expandContentTables(page.body, {
         docs: universe.get(page.pkg) ?? [],
         linkable,
         source: src,
         sqlTables: sqlTables?.get(page.file),
+        pageLists: sqlTables?.pageLists?.get(page.file),
         self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
     });
     tableErrors.push(...errors);
+    const figureScan = scanFigures(markdown, { resolveRole });
+    ctx.captionLabels = new Map(
+        figureScan.figures.filter((figure) => figure.id).map((figure) => [figure.id, figure.label]),
+    );
+    // What the `ref` expression helper needs beyond the label: the caption
+    // text and whether one was authored, by the same id `ctx.captionLabels`
+    // keys on.
+    const figuresById = new Map(
+        figureScan.figures
+            .filter((figure) => figure.id)
+            .map((figure) => [
+                figure.id,
+                { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+            ]),
+    );
+    // This page's own anchors, so a `[[#slug]]` self-link is checked against
+    // what the page actually declares rather than trusted unconditionally.
+    ctx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
     const expressions = renderMarkdownExpressions(markdown, {
         fm: page.fm,
         dates: index.dateContext,
         file: page.file,
         bodyLine: page.bodyLine,
         sqlResults: sqlTables?.inline?.get(page.file),
+        figures: {
+            get: (id) => figuresById.get(id),
+            // A cross-note `ref` resolves the written address exactly as a
+            // wikilink does, against every page's figures scanned before any
+            // page's expressions render — see `renderPages`.
+            note: (target) =>
+                resolveCrossNoteFigures(target, {
+                    contentTypes: index.contentTypes,
+                    packages: index.packages,
+                    noIndexPackages: index.noIndexPackages,
+                    contentPackage: index.contentPackage,
+                    siteIndexMap: index.index,
+                    figuresByAddress,
+                }),
+        },
     });
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
-    const secrets = renderSecretBlocks(protectCode(expressions.markdown, resolve), "web");
-    for (const error of renderSecretBlocks(page.body, "book").errors)
+    const figured = renderFigureBlocks(
+        protectCode(expressions.markdown, resolve),
+        undefined,
+        undefined,
+        {
+            resolveRole: (address) => roleByWebSrc.get(address),
+        },
+    );
+    for (const error of figureScan.errors)
+        captionErrors.push({
+            file: page.file,
+            line: (page.bodyLine ?? 1) + (lineMap[error.line - 1]?.line ?? error.line - 1),
+            column: error.column,
+            message: error.message,
+        });
+    for (const error of [
+        ...scanBlocks(page.body).errors,
+        ...scanAlerts(page.body).errors,
+        ...scanSpans(page.body).errors,
+        ...markupAnchorFindings(page.body),
+    ])
         secretErrors.push({
             file: page.file,
             line: (page.bodyLine ?? 1) + error.line - 1,
             column: error.column,
             message: error.message,
         });
+    for (const error of scanHeadingAttributes(page.body, page.bodyLine ?? 1).errors)
+        headingErrors.push({ file: page.file, ...error });
+    for (const error of withheldSections(page.body, page.bodyLine ?? 1).errors)
+        headingErrors.push({ file: page.file, ...error });
+    for (const error of footnoteFindings(page.body))
+        footnoteErrors.push({
+            file: page.file,
+            line: (page.bodyLine ?? 1) + error.line - 1,
+            column: error.column,
+            message: error.message,
+        });
+    // An image sharing its paragraph with other text, or an address or title
+    // the lint already refuses — asked here too, so a site build run on its
+    // own fails on the same input `renderImageFigures` otherwise renders as
+    // though the directive were absent.
+    for (const error of checkImages(page.body, page.file, { bodyLine: page.bodyLine ?? 1 }))
+        embedErrors.push(error);
     return {
         page,
-        body: secrets.markdown,
+        // The disclosure is written last, over the Markdown the page ships: the
+        // passes before this one carry line positions into their findings, and a
+        // line inserted ahead of them would move every one of them.
+        body: renderWithheldSections(
+            renderSpans(renderAlerts(renderBlocks(figured.markdown, "web").markdown).markdown)
+                .markdown,
+        ),
         data,
         resolved,
         tableErrors,
         expressionErrors,
         secretErrors,
+        captionErrors,
+        headingErrors,
+        footnoteErrors,
         wikiErrors,
         imageErrors,
+        embedErrors,
     };
 }
 
@@ -786,7 +916,7 @@ export function renderSitePage(
  * compilers use:
  *
  * 1. **Tables expand first**, and outside code-fence protection. A table is
- *    authored as a fenced `dataview` block, which `protectCode` would otherwise
+ *    authored as a fenced `sql` block, which `protectCode` would otherwise
  *    stash away before the expander saw it. Expanding first leaves an ordinary
  *    markdown table to walk, with every other fence still protected.
  * 2. **Then, inside protection**: the consumer's `beforeLinks` pass, then
@@ -814,7 +944,7 @@ export function renderSitePage(
  *   it by wikilink, and its own markdown links name content pages. `maps` is
  *   each drawing by the URL of the page that carries it.
  * @returns {{written: number, byKind: Record<string, number>, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[],
+ *   wikiErrors: object[], imageErrors: object[], embedErrors: object[],
  *   related: Map<string, import("./related-pages.mjs").Related>,
  *   maps: number}} `related`
  *   is keyed by page URL, and holds the homepage's block beside every content
@@ -847,11 +977,47 @@ export function renderPages(pages, options) {
         types: index?.contentTypes ?? [],
     });
 
+    // Every page's own figures, by the address a `ref` crossing into it would
+    // write — scanned once, before any page's own expressions render, so a
+    // page citing another's figure finds it already numbered. Numbering stays
+    // per page: each `scanFigures` call here starts its own counters, exactly
+    // as the page's own render does, so the number a cross-note `ref` reports
+    // is the one the target's own page carries.
+    const figuresByAddress = new Map();
+    for (const page of pages) {
+        const shortcode = page.fm.shortcode;
+        if (typeof shortcode !== "string" || !shortcode) continue;
+        const src = page.relPath ?? page.base;
+        const { markdown } = expandContentTables(page.body, {
+            docs: universe.get(page.pkg) ?? [],
+            linkable,
+            source: src,
+            sqlTables: sqlTables?.get(page.file),
+            pageLists: sqlTables?.pageLists?.get(page.file),
+            self: { fm: searchableFrontmatter(page.fm, page.pkg), path: page.relPath },
+        });
+        const byId = new Map(
+            scanFigures(markdown)
+                .figures.filter((figure) => figure.id)
+                .map((figure) => [
+                    figure.id,
+                    { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+                ]),
+        );
+        const type = String(page.fm.type ?? "").toLowerCase();
+        for (const key of figureIndexKeys(page.pkg, type, shortcode))
+            figuresByAddress.set(key, byId);
+    }
+
     const tableErrors = [];
     const expressionErrors = [];
     const secretErrors = [];
+    const captionErrors = [];
+    const headingErrors = [];
+    const footnoteErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
+    const embedErrors = [];
     const byKind = {};
     // The link graph, as `(source URL, target URL)` — read off each page's
     // resolution below, and off the homepage's markdown links.
@@ -888,24 +1054,54 @@ export function renderPages(pages, options) {
             sqlTables,
             config,
             artIndex,
+            figuresByAddress,
         });
         tableErrors.push(...result.tableErrors);
         expressionErrors.push(...result.expressionErrors);
         secretErrors.push(...result.secretErrors);
+        captionErrors.push(...result.captionErrors);
+        headingErrors.push(...result.headingErrors);
+        footnoteErrors.push(...result.footnoteErrors);
         wikiErrors.push(...result.wikiErrors);
         imageErrors.push(...result.imageErrors);
+        embedErrors.push(...result.embedErrors);
         rendered.push({ page, body: result.body, data: result.data });
         for (const hit of result.resolved) if (hit.url) edges.push([page.url, hit.url]);
     }
 
     const related = relatedPages(edges, entries);
-    // What lies within a place, who holds it, and what an affiliation holds
-    // — read off `parents` and `domains` across this package and every
-    // fetched index, local notes first so they shadow a dependency's.
-    const holdings = holdingsPages([
-        ...pages.map((page) => holdingsNode(page.fm, { title: pageTitle(page), url: page.url })),
-        ...foreignHoldingsNodes(foreign?.index),
-    ]);
+    // Geography follows parents; governing-body lists follow explicit government
+    // references across this package and every fetched index.
+    const holdings = holdingsPages(
+        [
+            ...pages.map((page) =>
+                holdingsNode(page.fm, { title: pageTitle(page), url: page.url, package: page.pkg }),
+            ),
+            ...foreignHoldingsNodes(foreign?.index),
+        ],
+        {
+            governmentNodes: records
+                .filter((record) => !isGmNote(record))
+                .map((record) =>
+                    holdingsNode(record, {
+                        title: record.name?.full ?? record.shortcode,
+                        package: config?.contentPackage ?? pages[0]?.pkg,
+                    }),
+                ),
+        },
+    );
+
+    // Each work of literature lists on the pages of the subjects it names,
+    // including works a fetched index carries.
+    const works = worksPages(
+        [
+            ...pages.map((page) =>
+                worksNode(page.fm, { title: pageTitle(page), url: page.url, package: page.pkg }),
+            ),
+            ...foreignWorksNodes(foreign?.index),
+        ],
+        { types: new Set(Object.keys(NOTE_VOCABULARY)) },
+    );
 
     let withMap = 0;
     const outputs = capture === true ? new Map() : null;
@@ -913,6 +1109,7 @@ export function renderPages(pages, options) {
         const block = related.get(page.url);
         if (block) data.related = block;
         Object.assign(data, holdings.get(page.url));
+        Object.assign(data, works.get(page.url));
         const map = maps.get(page.url);
         if (map) {
             data.map = map.name;
@@ -934,8 +1131,12 @@ export function renderPages(pages, options) {
         tableErrors,
         expressionErrors,
         secretErrors,
+        captionErrors,
+        headingErrors,
+        footnoteErrors,
         wikiErrors,
         imageErrors,
+        embedErrors,
         related,
         maps: withMap,
         ...(capture ? { ...(outputs ? { outputs } : {}), edges, entries } : {}),
@@ -982,11 +1183,11 @@ export function sitePageDecorator(config, index) {
     return (data, page) => {
         const resolvedDates = resolvedDateFields(page.fm, index.dateContext);
         if (Object.keys(resolvedDates).length) data.resolvedDates = resolvedDates;
-        if (isBeing(page.fm)) data.sohl = deriveBeingInfo(page.fm.sohl, index.refIndex);
         data.infoboxes = noteInfoboxes(page.fm, {
             resolve: (ref, hint) => resolveInfoboxRef(index, ref, hint),
             router,
             dates: index.dateContext,
+            contentPackage: index.contentPackage,
         });
     };
 }
@@ -1008,7 +1209,8 @@ export function sitePageDecorator(config, index) {
  *   `sql` directive with none prepared is a table error: nothing here runs a
  *   query.
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[], mapFindings: object[],
+ *   wikiErrors: object[], imageErrors: object[], embedErrors: object[],
+ *   mapFindings: object[],
  *   manifests: object|null}} `mapFindings` is what drawing the maps found —
  *   warnings, never a reason to fail the build.
  */
@@ -1016,9 +1218,7 @@ export function buildSite({ config, sqlTables } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
-    // Homepage-only or homepage-plus-content. The floor is the homepage,
-    // so this decides whether the *content* surfaces are published, never
-    // whether anything is.
+    // A tree containing only the homepage has no content pages to publish.
     const publishesContent = publishesContentPages(resolved);
 
     // Where the package is served, and where its content mounts inside it. The
@@ -1041,12 +1241,12 @@ export function buildSite({ config, sqlTables } = {}) {
     const out =
         publishesContent ?
             path.join(outBase, scheme.prefix.replace(/\/$/, ""))
-            // Homepage-only has no content mount, so the package's root *is*
+            // A tree containing only the homepage has no content mount, so its root is
             // the output root.
         :   outBase;
     // The homepage publishes at `/<contentPackage>/`, so its file goes at the
     // package's own root — one level above the content mount, and the same
-    // directory in homepage-only mode.
+    // directory when the tree contains only a homepage.
     const homeRoot = publishesContent ? outBase : out;
 
     const packages = new Set(site.packages.length ? site.packages : [resolved.contentPackage]);
@@ -1077,12 +1277,8 @@ export function buildSite({ config, sqlTables } = {}) {
     const collected = collectHomepages(resolved.paths.content, ctx);
     const homepages = collected.pages;
 
-    // Exactly one homepage, and checked here — before the output tree is
-    // cleared and before either mode branches. Before the clear, because
-    // a gate that fired after it would have destroyed a good site to report a
-    // bad tree. Before the branch, because the requirement does not vary by
-    // mode: `publish.site` chooses whether the *content* surfaces are
-    // published, and the homepage is the floor beneath both.
+    // Check for exactly one homepage before clearing the output tree, so a
+    // malformed tree does not destroy the last good site.
     //
     // The count is judged first, and alone when it fires: a tree with two
     // homepages does not need to be told about each one's address as well, and
@@ -1092,7 +1288,7 @@ export function buildSite({ config, sqlTables } = {}) {
         contentPackage: resolved.contentPackage,
     });
     // A homepage that cannot be addressed is reported in the same place, and
-    // reaches homepage-only mode — which runs no other gate at all.
+    // also applies when the tree contains only a homepage.
     const homepageFindings =
         counted.length ? counted : (
             collected.addressFindings.map((f) => ({
@@ -1108,8 +1304,12 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             expressionErrors: [],
             secretErrors: [],
+            captionErrors: [],
+            headingErrors: [],
+            footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            embedErrors: [],
             mapFindings: [],
             stats: null,
         };
@@ -1129,8 +1329,12 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             expressionErrors: [],
             secretErrors: [],
+            captionErrors: [],
+            headingErrors: [],
+            footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            embedErrors: [],
             mapFindings: [],
             stats: {
                 homepages: writeHomepages(homeRoot, homepages, resolved),
@@ -1176,8 +1380,12 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             expressionErrors: [],
             secretErrors: [],
+            captionErrors: [],
+            headingErrors: [],
+            footnoteErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            embedErrors: [],
             mapFindings: [],
         };
     }
@@ -1185,6 +1393,7 @@ export function buildSite({ config, sqlTables } = {}) {
     const pass = resolveSitePass(site.pass, {
         ...site.passOptions,
         repoRoot: resolved.rootDir,
+        config: resolved,
     });
 
     // The map from each related place, drawn now that every page is known to
@@ -1232,8 +1441,12 @@ export function buildSite({ config, sqlTables } = {}) {
         tableErrors: rendered.tableErrors,
         expressionErrors: rendered.expressionErrors,
         secretErrors: rendered.secretErrors,
+        captionErrors: rendered.captionErrors,
+        headingErrors: rendered.headingErrors,
+        footnoteErrors: rendered.footnoteErrors,
         wikiErrors: rendered.wikiErrors,
         imageErrors: rendered.imageErrors,
+        embedErrors: rendered.embedErrors,
         mapFindings: drawn.findings,
         stats: {
             ...rendered.byKind,

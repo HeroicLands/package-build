@@ -44,9 +44,9 @@
  *   another document type, or a companion pack, which no note may address —
  *   fails the build, naming the note and what it asked for. A silent fall-back
  *   to the default would publish an address into the wrong compendium.
- * - A note's **derived** documents are routed by the default of *their* type,
- *   not by the note's declaration: an item note's prose compiles into a
- *   JournalEntry, and `pack:` names where the *item* goes.
+ * - A note's **derived** documents use the default of their type. GM-only
+ *   prose uses a private pack of that type. An item's `pack:` names where the
+ *   item goes, not its prose JournalEntry.
  * - A note feeding **more than one system** declares `pack:` inside the block
  *   that differs. `pack` needed no new mechanism for that: it is an
  *   ordinary shared property, so `<system>.pack` overrides the top-level one
@@ -83,6 +83,7 @@
 import { NO_PACK, packForType } from "./ids.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { blockDataProperty, systemBlock } from "./system-block.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 
 /**
  * A note that cannot be routed to a pack. Thrown rather than returned so no
@@ -236,7 +237,7 @@ export function createPackRouter(packs) {
      * asking, only a pack of that system answers, or one that declares no
      * system at all and so belongs to all of them. The type-wide default is
      * otherwise free to be a neighbour's — `actors-sohl` is what
-     * `CONTENT.md`'s two-system layout marks `default: true` — and returning it
+     * the package's two-system layout marks `default: true` — and returning it
      * to the HM3 pass would either route an HM3 document into the SoHL pack or,
      * as it actually did, have the HM3 pass see a pack name that is not its own
      * and skip every note in the tree. The second is worse: it is silent, and
@@ -364,7 +365,20 @@ export function createPackRouter(packs) {
             return declared;
         }
 
-        const fallback = defaultFor(docType, system);
+        let fallback = defaultFor(docType, system);
+        if (isGmNote(fm) && docType !== ownDocType) {
+            const privatePacks = (byType.get(docType) ?? []).filter(
+                (name) => byName.get(name)?.private === true && !byName.get(name)?.system,
+            );
+            if (!fallback || !byName.get(fallback)?.private) {
+                fallback = privatePacks.length === 1 ? privatePacks[0] : undefined;
+            }
+            if (!fallback) {
+                throw new PackRoutingError(
+                    `${noteLabel(fm)} needs one private ${docType} pack for its GM-only prose.`,
+                );
+            }
+        }
         if (!fallback) {
             const candidates =
                 system === undefined ?
@@ -464,6 +478,11 @@ export function createPackRouter(packs) {
          */
         systemOf(name) {
             return byName.get(name)?.system || undefined;
+        },
+
+        /** Whether Foundry restricts this pack to GMs. */
+        privateOf(name) {
+            return byName.get(name)?.private === true;
         },
 
         /**

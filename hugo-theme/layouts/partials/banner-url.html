@@ -1,0 +1,117 @@
+{{- /*
+  Resolve a `banner:` value to a URL, or to "" when there is none.
+
+  Split out of `hero-banner.html` (issue #41): a single implementation is what
+  keeps a second caller from drifting the way issue #36 already failed once —
+  silently, behind a dead URL.
+
+  Resolution, in order:
+    1. `data.banner` — a note's own hero image, which the content build has
+       already resolved from an asset Address into the address its asset host
+       serves. It is used exactly as given. A blank one is a note naming no
+       hero image on purpose and declines an image.
+    2. `banner` — a hand-authored page's value. `none` (or `false`) declines an
+       image and returns "". A full URL is used as-is; anything else is a
+       fragment under `images/`.
+    3. `images/banners/{subtype}.webp`, when neither is set and a `subtype` is
+       supplied. A caller that passes no subtype gets "" instead, which is
+       what a card wants: a section with no banner of its own renders as the
+       text card it rendered before.
+    4. `images/banners/{fallback}` — whenever the name picked by 2 or 3 is not
+       in `data/banners.yaml`'s declared inventory. Hugo cannot ask a remote
+       host whether a URL exists, so the declaration stands in for the test;
+       see `hero-banner.html` for why, and `data/banners.yaml` for how the
+       list is kept honest.
+
+  The check applies only to a relative path resolving directly inside the
+  declared banner directory. An absolute URL, and a fragment pointing anywhere
+  else under `images/`, pass through untouched: the theme has no inventory for
+  either and must not second-guess an address it cannot know about. A step 1
+  address is never checked either — the build resolved it against a real asset
+  record and dropped one nothing answered, so there is no question left to
+  ask.
+
+  Whatever survives resolves through `cdn-url.html`, so the theme names a path
+  and never a host.
+
+  Usage:
+    {{ partial "banner-url.html" (dict "site" .Site "banner" .Params.banner
+                                       "subtype" $subtype "context" .RelPermalink) }}
+
+  Params:
+    site     — the site context (.Site), for `params.cdnBaseURL`.
+    data     — the page's `data` map (`.Params.data`), read for the `banner`
+               the content build resolved. Omit for a page that carries none.
+    banner   — the raw `banner:` value; may be unset, `none`/`false`, a
+               fragment or an absolute URL.
+    subtype  — optional. The name to default to when `banner` is unset. Omit
+               for "no banner means no image".
+    context  — optional. A page address, named in the missing-banner warning so
+               the report says where the want came from.
+*/ -}}
+{{- $site := .site -}}
+{{- $subtype := .subtype | default "" -}}
+{{- $context := .context | default "" -}}
+{{- $data := .data | default dict -}}
+
+{{- $banners := hugo.Data.banners | default dict -}}
+{{- $dir := $banners.dir | default "images/banners" -}}
+{{- $fallback := $banners.fallback | default "default.webp" -}}
+{{- $available := $banners.available | default slice -}}
+
+{{- /* `none`/`false` is a decision, not an absence, so it is read before the
+       resolution order rather than as a step in it. Formatted rather than
+       tested for truth, and deliberately not passed through `default`: both
+       `false` and an unset banner are falsy, and only formatting tells them
+       apart. */ -}}
+{{- $raw := printf "%v" .banner -}}
+{{- $declined := or (eq (lower $raw) "none") (eq $raw "false") -}}
+
+{{- /* A note's resolved banner, formatted for the same reason the decline
+       above is: an unset key and a deliberate blank are both falsy, and only
+       formatting tells them apart. `<nil>` covers both an absent key and an
+       explicit `null`, which the note format reads as *unset* — so the
+       resolution carries on to the subtype default. `""` is the format's
+       deliberate blank: a note naming no hero image, which declines one. */ -}}
+{{- $resolved := printf "%v" (index $data "banner") -}}
+{{- $fromBuild := ne $resolved "<nil>" -}}
+
+{{- $banner := "" -}}
+{{- $absolute := false -}}
+{{- if $fromBuild -}}
+  {{- $banner = $resolved -}}
+  {{- $absolute = true -}}
+{{- else if not $declined -}}
+  {{- with .banner -}}
+    {{- $banner = printf "images/%s" (strings.TrimPrefix "/" .) -}}
+    {{- if or (hasPrefix . "http://") (hasPrefix . "https://") (hasPrefix . "//") -}}
+      {{- $banner = . -}}
+      {{- $absolute = true -}}
+    {{- end -}}
+  {{- else -}}
+    {{- with $subtype -}}
+      {{- $banner = printf "%s/%s.webp" $dir . -}}
+    {{- end -}}
+  {{- end -}}
+
+  {{- /* The declared-existence check. Deduplicated by name, so a subtype with
+         no artwork is reported once per build rather than once per page. */ -}}
+  {{- if and $banner (not $absolute) (eq (path.Dir $banner) $dir) -}}
+    {{- $name := strings.TrimSuffix (path.Ext $banner) (path.Base $banner) -}}
+    {{- if not (in $available $name) -}}
+      {{- partialCached "warn-missing-banner.html" (dict
+          "name" $name
+          "dir" $dir
+          "fallback" $fallback
+          "context" $context
+        ) $name -}}
+      {{- $banner = printf "%s/%s" $dir $fallback -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+
+{{- $url := "" -}}
+{{- if $banner -}}
+  {{- $url = partial "cdn-url.html" (dict "site" $site "path" $banner) -}}
+{{- end -}}
+{{- return $url -}}

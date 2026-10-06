@@ -1,0 +1,43 @@
+{{- /*
+  One row's value, drawn by its `kind`.
+
+  Five kinds, a closed set:
+
+    text   — a string
+    number — a number
+    link   — `{text, url}`
+    links  — a list of those, comma-joined
+    list   — a list of strings, comma-joined
+
+  Takes the row.
+
+  **A value of `0` is a value**, so a number is printed as it comes rather
+  than guarded with `with`, which would drop a zero along with an absence.
+  Anything the build did not classify is set as text, which is what an
+  unlabelled scalar is.
+*/ -}}
+{{- $kind := .kind | default "text" -}}
+{{- if eq $kind "link" -}}
+  {{- partial "infobox/entry.html" (dict "entry" .value "class" "info-link") -}}
+{{- else if eq $kind "links" -}}
+  {{- range $i, $entry := .value -}}
+    {{- if $i }}, {{ end -}}
+    {{- partial "infobox/entry.html" (dict "entry" $entry "class" "info-link") -}}
+  {{- end -}}
+{{- else if eq $kind "list" -}}
+  {{- delimit .value ", " -}}
+{{- else if eq $kind "number" -}}
+  {{- /* A whole number is grouped, so a population reads as 500,000 rather
+         than as a run of digits a reader has to count. Grouping is
+         typography and belongs to the medium; the number itself is the
+         build's. Anything that is not a plain integer — a measurement, or a
+         value the build did not classify — is set as written. */ -}}
+  {{- $digits := printf "%v" .value -}}
+  {{- if findRE `^-?[0-9]+$` $digits -}}
+    {{- lang.FormatNumberCustom 0 (int $digits) -}}
+  {{- else -}}
+    {{- .value -}}
+  {{- end -}}
+{{- else -}}
+  {{- .value -}}
+{{- end -}}

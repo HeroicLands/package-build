@@ -1,3 +1,10 @@
+---
+shortcode: guidesreferencepages
+name: { full: "Reference pages and content indexes" }
+type: doc
+subType: howto
+---
+
 # Reference pages and content indexes
 
 A reference page gives readers an entry point into a group of notes. Author it
@@ -38,12 +45,27 @@ WHERE type = 'affiliation'
 ```
 ````
 
+Where the page introduces a _group_ rather than a type, a `pagelist` fence
+states the group by its tag and lists the pages carrying it:
+
+````markdown
+```pagelist {tag="key-concept" descriptions=true}
+
+```
+````
+
+That keeps the entry page true as notes are written: a page joins the list by
+carrying the tag, so nobody has to remember to add it here. A tag no page
+carries is a build error naming the tag. See
+[page lists](../authoring/links-and-markup.md#page-lists) for the attributes it
+takes.
+
 `data.pack: none` is appropriate when the page belongs on the site and in the
 index but does not need a Foundry compendium entry. A documentation package
 has no packs at all. A page with an empty body is a stub: it remains in the
 index for data references, but publishes no page address or anchors. Write a
 description for a stub and leave off the `draft` tag; use `draft` for a page
-with prose still in progress. The [stub rules](../content-format.md#a-stub-is-a-note-with-an-empty-body)
+with prose still in progress. The [stub rules](../reference/format-details.md#a-stub-is-a-note-with-an-empty-body)
 and [pack routing](packs.md) cover these cases.
 
 ## Link to the intended target
@@ -61,7 +83,7 @@ Frontmatter Address fields take the defaults declared for their position; an
 image field defaults to `none`, while most shared `data:` references default
 to `note`. Use a complete Address in generated content and SQL comparisons:
 `thalorna-note-affiliation-watch`, rather than its bare `watch` shortcode.
-The [Address reference](../content-format.md#addresses) lists the accepted
+The [Address reference](../reference/format-details.md#addresses) lists the accepted
 short forms and defaults.
 
 ## Generate a field reference from item builders

@@ -1,3 +1,10 @@
+---
+shortcode: guidespacks
+name: { full: "Compendium packs" }
+type: doc
+subType: howto
+---
+
 # Compendium packs
 
 A Foundry content package declares its compendiums in `packs:` in
@@ -63,7 +70,7 @@ For a page that belongs on the site and in the content index but in no
 compendium, a journal-only note can declare `data: {pack: none}`. An Item,
 Actor, Macro, Scene, or Adventure note cannot use that value because it would
 drop the document the note creates. The
-[content format](../content-format.md#the-pack-a-note-compiles-into) defines
+[content format](../reference/format-details.md#the-pack-a-note-compiles-into) defines
 this field and its placement.
 
 ## Build for more than one system

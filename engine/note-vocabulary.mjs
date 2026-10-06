@@ -12,30 +12,32 @@
  */
 
 /**
- * The **closed** half of a note's frontmatter: the `data:` container, and the
- * `subType` each note type declares.
+ * The **closed vocabularies** of a note's frontmatter: the top-level keys, the
+ * `data:` container, and the `subType` each note type declares.
  *
- * A note's frontmatter has three regions, and only one of them is open. The
- * **top level** describes the note as a published artefact, every key of it is
- * copied into the generated web page, and an unrecognised key there is a Hugo
- * or theme parameter this build has no standing to refuse. The **system
- * blocks** describe the subject as one system's documents. Between them sits
- * `data:` — the type-specific facts about the subject itself, system-agnostic,
- * and closed.
+ * A note's frontmatter has three regions and every one of them is closed. The
+ * **top level** describes the note as a published artefact and is a fixed list
+ * — {@link NOTE_TOP_LEVEL_FIELDS} — so a key it does not name is a finding at
+ * its own line rather than a value copied into the generated page. The
+ * **system blocks** describe the subject as one system's documents, and are
+ * checked against the published schema. Between them sits `data:` — the
+ * type-specific facts about the subject itself, system-agnostic.
  *
- * Closed is the whole point. Those facts previously sat at the top level, where
- * the pass-through rule applied to them too, so a misspelled `wieght` became a
- * theme parameter rather than a finding — indistinguishable, from the outside,
- * from a weapon that simply weighs nothing. Under `data:` the same misspelling
- * is an error naming the note and the key it was probably meant to be.
+ * Closed is the whole point, and the failure it answers is a misspelling. A
+ * region that passes an unrecognised key through cannot tell `wieght` from a
+ * weapon that weighs nothing: the note says one thing, the build does another,
+ * and nothing says so. Under a closed vocabulary the same misspelling is an
+ * error naming the note and the key it was probably meant to be.
  *
- * **`subType` rides along, and stays at the top level.** It is not a `data:`
- * key: a note's `(type, subType)` is what each system's map reads to derive a
- * document type, so it describes the note rather than the subject. But it is
- * the other per-type vocabulary the format closes, it is enumerated in the same
- * `### type:` section of the specification that enumerates the `data:` keys,
- * and keeping the two together means one entry per type rather than two
- * registries free to disagree about which types exist.
+ * **`subType` is a top-level key with a per-type vocabulary**, which is why it
+ * is declared twice over: once in {@link NOTE_TOP_LEVEL_FIELDS} as a key the
+ * region accepts, and once per type below as the closed set of values that type
+ * takes. It is not a `data:` key — a note's `(type, subType)` is what each
+ * system's map reads to derive a document type, so it describes the note rather
+ * than the subject — but its values are enumerated in the same `### type:`
+ * section of the specification that enumerates the `data:` keys, and keeping
+ * the two together means one entry per type rather than two registries free to
+ * disagree about which types exist.
  *
  * **This is note-format knowledge, so it lives in `engine/`.** `data:` holds
  * what is true of the *thing* — a weapon's weight, an affliction's
@@ -79,6 +81,9 @@
 // is how a disagreement between the three arises.
 import { ART_SLOTS } from "./art-slots.mjs";
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
+// The system registry, so the top-level block keys below are the systems this
+// toolchain recognises rather than a second list of them.
+import { SYSTEM_IDS } from "./systems.mjs";
 // The retirement window for a renamed type, read rather than restated: a
 // vocabulary that answered only to the current spelling would report every key
 // of an unswept note as unknown.
@@ -97,13 +102,18 @@ import {
 // question, asked the way `checkPlace` and `checkCalendarNote` are.
 import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
+import { checkStandings } from "./standings.mjs";
+import { STANDING_BODY_TYPES } from "./standing-terms.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
+import { checkAffiliationRankFloor, checkRankLadder } from "./rank-ladder.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
+import { checkLoreEvents } from "./lore-events.mjs";
 import { checkCultureChoice } from "./culture-choice.mjs";
+import { LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
-import { checkHeld } from "./holdings.mjs";
+import { checkGovernment } from "./holdings.mjs";
 import {
     checkBeingMeasurement,
     parseBeingHeight,
@@ -128,14 +138,23 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  * @typedef {object} DataFieldSpec
  * @property {string} name - The key under `data:`, dotted for a nested one
  *   (`charges.value`).
- * @property {"string"|"number"|"boolean"|"list"|"map"|"scalar-or-map"|"address"|"shortcode"} [kind] -
+ * @property {"string"|"number"|"boolean"|"list"|"map"|"list-or-map"|"scalar-or-map"|"address"|"shortcode"} [kind] -
  *   The value's shape, for the lint. Absent means no claim is made about the
  *   value — which is the honest answer wherever the specification's stated
  *   shape and the shape notes are authored in today disagree.
  * @property {"address"|"shortcode"} [entryKind] - Type of each list or pack-map value.
- * @property {"address"|"shortcode"} [keyKind] - Type of each map key.
+ * @property {"address"|"shortcode"} [keyKind] - Type of each map key. On a
+ *   `list-or-map` field it describes the map form alone, and `entryKind` the
+ *   list form alone: reading both of one value would check a map's entries as
+ *   if they were its keys.
+ * @property {boolean} [standings] - The map's entries are standings held in the
+ *   body each is keyed by, so a row names the two together — see
+ *   {@link module:engine/standings}.
+ * @property {boolean} [roster] - The map names posts, each with a description,
+ *   so each takes a row labelled and anchored by the post's own name.
  * @property {"subType"} [keySelector] - An alternative `subType:<skill-subtype>` key.
  * @property {readonly string[]} [accepts] - Allowed Address types, separate from `ref`.
+ * @property {string} [nullText] - Infobox text for an explicitly authored null with a declared meaning.
  * @property {string} [shape] - Human-readable shape, for a finding and for
  *   documentation.
  * @property {string} [entryShape] - For a `scalar-or-map` field, what one
@@ -179,8 +198,8 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *
  * Two types answer **false**, and both are structural: a `folder` note's page
  * is a generated section index and a `homepage`'s is the site's front door, so
- * each is complete with no body at all. An empty body on one of them keeps its
- * address and resolves as `full`.
+ * an empty body on one of them keeps its address and resolves as `full`.
+ * This is classification only: author validation requires a body for every type.
  *
  * @typedef {object} TypeVocabulary
  * @property {readonly DataFieldSpec[]} data - The `data:` keys, closed.
@@ -191,8 +210,7 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  * @property {(note: object, opts: {index?: object}) => object[]} [check] - A
  *   check of the whole note, run by the frontmatter lint beside the field
  *   checks with the same index. For a rule that is about the note rather than
- *   one of its fields — a place's tenure is a fact about every affiliation's
- *   `domains`, and is located at the note's `type:` line.
+ *   one of its fields, located at the note's `type:` line.
  */
 
 /* --------------------------------------------------------------------- */
@@ -208,11 +226,44 @@ const TEXT = Object.freeze({ shape: "string", kind: "string" });
 /** A list. */
 const LIST = Object.freeze({ shape: "list", kind: "list" });
 
+/**
+ * One value, or several.
+ *
+ * The two are the same fact at different lengths rather than two different
+ * facts, so a single value means a list of one and a consumer reads one shape.
+ * That is what separates this from `list-or-map`, whose halves say different
+ * things.
+ */
+const TEXT_OR_LIST = Object.freeze({ shape: "string or list", kind: "string-or-list" });
+
 /** A single Address. */
 const LINK = Object.freeze({ shape: "an Address", kind: "address" });
 
 /** A list of Addresses. */
 const LINKS = Object.freeze({ shape: "list of Addresses", kind: "list", entryKind: "address" });
+
+/**
+ * A being's memberships, and the standing it holds in each.
+ *
+ * A map keyed by the body's Address, whose entry is that membership's `rank`
+ * and `office` — the pair a flat list of bodies cannot state, because it has
+ * nowhere to say which body a standing is held in.
+ *
+ * **`list-or-map` is the sweep's shape**, and it says which half each
+ * declaration describes: `entryKind` the list's entries, `keyKind` the map's
+ * keys. A tree still writing the list form keeps the check it had, and the map
+ * form earns the two the body can answer — see {@link module:engine/standings}.
+ */
+const STANDINGS = Object.freeze({
+    shape: "a standing map keyed by Address, or a list of Addresses",
+    kind: "list-or-map",
+    entryKind: "address",
+    keyKind: "address",
+    standings: true,
+    ref: "affiliation",
+    accepts: STANDING_BODY_TYPES,
+    check: checkStandings,
+});
 
 /**
  * A single Address, or one per pack.
@@ -271,6 +322,101 @@ const TOKEN_ICON = Object.freeze({
 });
 
 /**
+ * One top-level frontmatter key.
+ *
+ * Narrower than a {@link DataFieldSpec}: the top level is a fixed list rather
+ * than a per-type vocabulary, nothing there is keyed by pack or resolved as an
+ * Address, and the value's shape is checked by whatever owns the region the key
+ * opens — `name`, `tags` and each system block each have their own check.
+ *
+ * @typedef {object} TopLevelFieldSpec
+ * @property {string} name - The key, as a note writes it.
+ * @property {boolean} [system] - The key opens a game system's block, so it is
+ *   one of {@link module:engine/systems.SYSTEM_IDS} rather than a fixed key.
+ * @property {string} describe - One line, for the author-facing reference.
+ */
+
+/**
+ * **The top-level vocabulary**, in the order a formatted note writes it.
+ *
+ * The region describes the note as a published artefact: what it is called,
+ * what kind of thing it is about, how it is classified, and which of the other
+ * two regions it opens. Everything else a note states is a fact about the
+ * subject, which belongs under `data:`, or a fact about one system's document,
+ * which belongs inside that system's block.
+ *
+ * **Closed, like the other two regions.** A key this list does not name is a
+ * finding at its own line, because a region that passed one through would turn
+ * a misspelling into a value nothing reads — `title` beside `name`, or `pack`
+ * where `data.pack` was meant.
+ *
+ * **The system blocks are derived from the system registry**, so recognising a
+ * further system is a change to {@link module:engine/systems.SYSTEM_IDS} and to
+ * nothing else. They sort by name after the fixed keys: a block is the largest
+ * thing a note writes, every one of them belongs at the end, and a rule a
+ * reader can restate in one sentence is worth more than a hand-kept order.
+ *
+ * Five readers derive from this one list — the frontmatter lint's accepted set,
+ * the message it prints, the formatter's key order, the content-format check,
+ * and the author-facing reference — so none of them can fall behind the others.
+ *
+ * @type {readonly TopLevelFieldSpec[]}
+ */
+export const NOTE_TOP_LEVEL_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "shortcode",
+        describe: "The note's own address segment, unique within its type.",
+    }),
+    Object.freeze({
+        name: "name",
+        describe: "The display names — a required `full`, and any `aliases`.",
+    }),
+    Object.freeze({
+        name: "type",
+        describe: "What the note is about, which decides its vocabulary and its document.",
+    }),
+    Object.freeze({
+        name: "subType",
+        describe: "The type's own genre, where it declares one.",
+    }),
+    Object.freeze({
+        name: "description",
+        describe: "The short page summary.",
+    }),
+    Object.freeze({
+        name: "tags",
+        describe: "Draft state, GM routing, and the descriptive labels a page list reads.",
+    }),
+    Object.freeze({
+        name: "data",
+        describe: "The facts about the subject itself, shared by every system.",
+    }),
+    ...[...SYSTEM_IDS].sort().map((system) =>
+        Object.freeze({
+            name: system,
+            system: true,
+            describe:
+                `What the \`${system}\` system makes of the subject — its ` +
+                `document's mechanics, routing and art.`,
+        }),
+    ),
+]);
+
+/**
+ * The top-level keys, in formatted order.
+ *
+ * @type {readonly string[]}
+ */
+export const NOTE_TOP_LEVEL_KEYS = Object.freeze(NOTE_TOP_LEVEL_FIELDS.map((field) => field.name));
+
+/**
+ * Membership test for the top-level vocabulary.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const NOTE_TOP_LEVEL_KEY_SET = Object.freeze(new Set(NOTE_TOP_LEVEL_KEYS));
+
+/**
  * The `data:` keys **every** note type accepts, whatever it is.
  *
  * `data:` is a closed container and the per-type vocabularies are the only
@@ -325,7 +471,9 @@ export const SHARED_DATA_FIELDS = Object.freeze([
         ...LINK,
         ref: "image",
         accepts: ART_SLOTS.find((slot) => slot.key === "banner").accepts,
-        describe: "The page's hero image — an `image` address. Reaches no compiled document.",
+        describe:
+            "The page's hero image — an `image` address, cut to 1792×768. " +
+            "Reaches no compiled document.",
     }),
 ]);
 
@@ -365,8 +513,8 @@ const CHARGES = Object.freeze([
 /**
  * Everything `place` asks of a whole note.
  *
- * Two questions about one subject, and they are independent: who holds this
- * land, and — where the note is a body rather than somewhere within one — what
+ * Two questions about one subject, and they are independent: who governs this
+ * inhabited place, and — where the note is a body rather than somewhere within one — what
  * the body states about itself. A type declares one whole-note check, so the
  * two are composed here rather than either being folded into the other.
  *
@@ -375,7 +523,7 @@ const CHARGES = Object.freeze([
  * @returns {object[]} Findings from both.
  */
 function checkPlace(note, opts) {
-    return [...checkHeld(note, opts), ...checkWorldFacts(note, opts)];
+    return [...checkGovernment(note), ...checkWorldFacts(note, opts)];
 }
 
 /** Validate a being's authored date using the shared note-date grammar. */
@@ -415,7 +563,7 @@ function checkPlacePurpose(note) {
             },
         ];
     if (hasTag(note.fm, value)) return [];
-    const tags = note.fm?.tags ?? note.fm?.tag;
+    const tags = note.fm?.tags;
     return [
         {
             ...at(),
@@ -443,18 +591,23 @@ function checkPlacePurpose(note) {
  */
 export const DRAFT_TAG = "draft";
 
+/** A note intended for the GM rather than the player-facing outputs. */
+export const GM_TAG = "gm";
+
 /**
  * The tags that **classify** a note, grouped by what they classify.
  *
- * `tags:` lives at the open top level and most tags belong there: a theme, a
- * region, a working state is the author's own and this build has no opinion
- * about it. A classifying tag is different, because something queries it — a
+ * `tags:` holds an open vocabulary of *values*, and most tags belong there: a
+ * theme, a region, a working state is the author's own and this build has no
+ * opinion about it. A classifying tag is different, because something queries
+ * it — a
  * settlement tagged `village` appears in the list of villages and an untagged
  * one does not, so `vilage` does not merely look wrong, it removes the note from
  * an index while the index still renders a table that looks complete.
  *
  * **This list is not a closed set.** An unrecognised tag is legal, because the
- * region is open; what is reported is a **near miss** — a tag close enough to a
+ * values are the author's; what is reported is a **near miss** — a tag close
+ * enough to a
  * declared one to be a typo of it.
  *
  * **Each group names the types it applies to**, and that scope is what makes the
@@ -568,17 +721,10 @@ export const DECLARED_TAGS = Object.freeze({
             "unguilded",
         ]),
     }),
-    /**
-     * What kind of being this is — a person, or one of the beasts and made
-     * things. A being is one or the other, so the group is a slot.
-     */
-    beingKind: Object.freeze({
-        types: ["being"],
-        exclusive: "kind",
-        tags: Object.freeze(["character", "creature"]),
-    }),
     /** A note's working state, which any note may carry. */
     state: Object.freeze({ types: null, tags: Object.freeze([DRAFT_TAG]) }),
+    /** Who may read a completed note. */
+    audience: Object.freeze({ types: null, tags: Object.freeze([GM_TAG]) }),
 });
 
 /**
@@ -633,14 +779,12 @@ export function exclusiveTagGroups(type, groups = DECLARED_TAGS) {
  * The spelling of the tag *itself* still is — a near miss is a near miss, and
  * the frontmatter lint is what reports it; nothing here guesses.
  *
- * Reads `tags` and the singular `tag` spelling.
- *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} tag - The tag to look for, in its declared spelling.
  * @returns {boolean} Whether the note carries it.
  */
 export function hasTag(fm, tag) {
-    const raw = fm?.tags ?? fm?.tag;
+    const raw = fm?.tags;
     if (raw == null) return false;
     const wanted = String(tag).toLowerCase();
     for (const entry of Array.isArray(raw) ? raw : [raw]) {
@@ -665,6 +809,30 @@ export function isDraftNote(fm) {
     return hasTag(fm, DRAFT_TAG);
 }
 
+/** Whether a note is restricted to GM-facing output. */
+export function isGmNote(fm) {
+    return hasTag(fm, GM_TAG);
+}
+
+/** The case-sensitive archetypes and their author-facing meanings. */
+export const BEING_ARCHETYPES = Object.freeze({
+    warrior: "Can hold a line and win a fight.",
+    skirmisher: "Fights light — ambush, missile, mobility.",
+    infiltrator: "Gets in unseen — locks, stealth, disguise.",
+    mage: "Commands arcane practice.",
+    cleric: "Commands religious practice and standing.",
+    healer: "Treats wounds and illness.",
+    scholar: "Reads, researches, and knows things.",
+    courtier: "Navigates rank, negotiation, and intrigue.",
+    woodsman: "Travels and survives wild country.",
+    mariner: "Handles boats and blue water.",
+    artisan: "Builds, repairs, and appraises craft work.",
+    trader: "Moves goods, values them, and knows markets.",
+    commoner: "Fits no more specific archetype; handles ordinary work and daily life.",
+    entertainer: "Performs for an audience through acting, music, comedy, or similar arts.",
+    guildsperson: "Has professional training, standing, or connections that open doors.",
+});
+
 /**
  * Every note type this toolchain compiles, and the closed vocabulary it
  * declares.
@@ -682,10 +850,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     being: Object.freeze({
         stubbable: true,
-        // Derived from the note's `(type, subType)` by each system's map, which
-        // lands with. Declared open until it does, because inventing the
-        // values here would put a second, weaker answer beside the real one.
-        subTypes: null,
+        subTypes: Object.freeze(["npc", "character", "creature"]),
         // Whether an authored `age` disagrees with what `born` and the
         // package's declared present compute — see `engine/being-age.mjs`.
         check: checkBeingAge,
@@ -708,7 +873,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "lore",
                 accepts: ["lore"],
                 describe:
-                    "Lore concerning this being, such as the standing it holds or the law it lives under.",
+                    "Lore concerning this being — the law it lives under, the customs it is " +
+                    "subject to, the traditions it was raised in.",
             },
             {
                 name: "culture",
@@ -727,10 +893,11 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             {
                 name: "affiliations",
-                ...LINKS,
-                ref: "affiliation",
-                accepts: ["affiliation"],
-                describe: "Affiliations the being belongs to — traditions, polities, and the rest.",
+                ...STANDINGS,
+                describe:
+                    "Bodies the being belongs to, keyed by Address, each entry holding the " +
+                    "standing it holds there — `rank`, required, a level on that body's own " +
+                    "ladder, and `office`, optional, a post that body names.",
             },
             {
                 name: "socialTies",
@@ -742,7 +909,14 @@ export const NOTE_VOCABULARY = Object.freeze({
                 check: checkSocialTies,
                 describe: `Defining ties directed from this being to others: ${SOCIAL_TIES.map(({ term, meaning }) => `\`${term}\` (${meaning})`).join("; ")}`,
             },
-            { name: "gender", ...TEXT, describe: "`male`, `female` or `other`." },
+            {
+                name: "gender",
+                ...TEXT,
+                describe:
+                    "One of `male`, `female`, `nonbinary`, `none` or `other`. " +
+                    "`none` says the being has no gender; an absent field says its " +
+                    "gender is unrecorded.",
+            },
             {
                 name: "species",
                 ...LINK,
@@ -810,12 +984,19 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "frame",
                 ...TEXT,
-                describe: "Relative frame — `scant`, `light`, `medium`, `large` or `massive`.",
+                describe:
+                    "Relative frame — one of `scant`, `light`, `medium`, `heavy` or `massive`.",
             },
             { name: "appearance.eye_color", ...TEXT, describe: "Eye colour." },
             { name: "appearance.hair_color", ...TEXT, describe: "Hair colour." },
             { name: "appearance.skin_color", ...TEXT, describe: "Skin colour." },
-            { name: "appearance.complexion", ...TEXT, describe: "Complexion." },
+            {
+                name: "appearance.complexion",
+                ...TEXT_OR_LIST,
+                describe:
+                    "The skin's condition — one value, or several, because a face " +
+                    "carries more than one at once. A single value means a list of one.",
+            },
             {
                 name: "appearance.extra_features",
                 ...LIST,
@@ -834,6 +1015,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     affiliation: Object.freeze({
         stubbable: true,
+        check: checkAffiliationRankFloor,
         subTypes: Object.freeze([
             "guild",
             "order",
@@ -879,11 +1061,25 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "governance.ranks",
                 ...LIST,
+                // A rung is `{level, title, description}` with an optional
+                // `lore`. The shape check sees a list and stops there, so the
+                // rungs inside it are checked here — a ladder is what a being's
+                // `rank` indexes into, and an incomplete rung resolves to a
+                // standing with no name.
+                check: checkRankLadder,
+                // Each rung takes a row of its own, labelled and anchored by
+                // its title, ordered by level — the ladder's parallel to
+                // `governance.offices`' `roster`.
+                ranks: true,
                 describe: "The ladder of ranks the body confers — level, title, description.",
             },
             {
                 name: "governance.offices",
                 ...ANY,
+                // A map of named posts: each takes a row of its own, labelled
+                // by the post and anchored by it, so the description a body
+                // declares is a destination a being's `office` can link to.
+                roster: true,
                 check: checkDatedOffices,
                 describe: "Named offices, each with a description and optional dated holders.",
             },
@@ -893,13 +1089,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "place",
                 accepts: ["place"],
                 describe: "Where the affiliation's authority sits.",
-            },
-            {
-                name: "domains",
-                ...LINKS,
-                ref: "place",
-                accepts: ["place"],
-                describe: "Places over which it holds sway.",
             },
             { name: "population", ...NUM, describe: "How many people it counts." },
             {
@@ -1225,8 +1414,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     // document, so its address carries the `none` system segment and
     // everything it says is a `data` property.
     //
-    // It carries **no prose**: a folder
-    // is structure, not content, so it wants no documentation journal and takes
+    // Its required body produces no documentation journal and takes
     // no part in `docEntryTypes`.
     folder: Object.freeze({
         stubbable: false,
@@ -1277,34 +1465,44 @@ export const NOTE_VOCABULARY = Object.freeze({
     lore: Object.freeze({
         stubbable: true,
         subTypes: Object.freeze([
-            "cosmology",
-            "deity",
-            "theology",
-            "arcana",
-            "spirit",
-            "economy",
-            "law",
-            "calendar",
-            "history",
-            "material",
-            "folk",
-            "culture",
-            "bestiary",
-            "gathering",
+            "cosmology", // The structure and origin of reality.
+            "deity", // An individual god and its attributed nature.
+            "theology", // Beliefs about divinity, worship, and the afterlife.
+            "arcana", // Beliefs and traditions concerning magic.
+            "spirit", // Non-divine supernatural beings and their natures.
+            "economy", // Trade, money, and the movement of wealth.
+            "law", // Obligations, rights, courts, and tenure.
+            "calendar", // The reckoning and marking of time.
+            "history", // Events, eras, and chronicles of the past.
+            "material", // Physical constituents and their qualities, including regional varieties.
+            "folk", // A kindred or ancestry of related sapient beings.
+            "culture", // A people sharing beliefs, mores, and values.
+            "custom", // How a people practices a rite, observance, or usage.
+            "bestiary", // A kind of creature that is not a people.
+            "gathering", // A recurring public assembly, such as a fair or tournament.
+            "literature", // A work a people tells, sings, or writes, such as an epic or legend.
         ]),
         // A lore note is prose, and what it *is* about is its subType — with
-        // one exception. A calendar is a division of the year, and a division
-        // is data; the check scopes the family to the subType that means it,
-        // because `DataFieldSpec` declares the keys a type accepts and not the
-        // subType that may write them.
-        check: checkCalendarNote,
+        // two exceptions. A calendar is a division of the year, and a division
+        // is data; a work of literature states whose it is, in what tongue and
+        // about what. The checks scope each family to the subType that means
+        // it, because `DataFieldSpec` declares the keys a type accepts and not
+        // the subType that may write them.
+        check: (note, context) => [
+            ...checkCalendarNote(note, context),
+            ...checkLiteratureNote(note),
+        ],
         data: Object.freeze([
             ...CALENDAR_FIELDS,
+            ...LITERATURE_FIELDS,
             {
-                name: "event",
-                kind: "map",
-                shape: "event metadata map",
-                describe: "A dated occurrence and its relationships to other events and places.",
+                name: "events",
+                kind: "list",
+                shape: "list of `{ when, until?, recurs? }`",
+                check: checkLoreEvents,
+                describe:
+                    "This note's dated occurrences — a founding once, an anniversary " +
+                    "that recurs, or a list of recorded happenings.",
             },
         ]),
     }),
@@ -1363,6 +1561,18 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...NUM,
                 check: checkPopulation,
                 describe: "Approximate population, to two significant digits.",
+            },
+            {
+                name: "government",
+                ...LINK,
+                shape: "an Address or null",
+                ref: "affiliation",
+                accepts: ["affiliation"],
+                nullText: "Complete anarchy",
+                describe:
+                    "The governing affiliation Address; the default target type is affiliation. " +
+                    "Explicit null means complete anarchy. " +
+                    "A positive population with no government key produces an advisory.",
             },
             {
                 name: "market",
@@ -1656,4 +1866,16 @@ export function subTypes(type, vocabulary = NOTE_VOCABULARY) {
     const entry = vocabulary?.[currentType(type)];
     if (!entry || !Object.hasOwn(entry, "subTypes")) return undefined;
     return entry.subTypes;
+}
+
+/**
+ * Accepted migration input with no canonical field or emitted value.
+ *
+ * Legacy affiliation domains are ignored. They never supply a government.
+ * @param {string} type - The note type.
+ * @param {string} key - An authored data key.
+ * @returns {boolean} Whether the obsolete key is accepted during migration.
+ */
+export function isLegacyDataField(type, key) {
+    return currentType(type) === "affiliation" && key === "domains";
 }

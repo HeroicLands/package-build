@@ -14,7 +14,8 @@
  * returning a `{ command, describe, builder, handler }` module. This file
  * parses both sources directly: it locates every `*Command()` function body by
  * brace-matching, finds which of them are wired as root commands versus nested
- * subcommands (a `.command(fooCommand())` call that falls textually inside
+ * subcommands (a `.command(fooCommand())` call, possibly with validation preflights,
+ * that falls textually inside
  * another `*Command()` function's own body is that command's child — this is
  * how `content-format` gets `schema` / `fields` / `notes` and everywhere else
  * does not), then reads each body's own `command:` signature, `.positional(`
@@ -41,6 +42,7 @@ import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
 import { CONTAINER_ACTIONS } from "../container.mjs";
 import { E2E_MODES } from "../e2e.mjs";
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const DOC_PATH = path.join(ROOT, "docs", "commands.md");
@@ -127,8 +129,10 @@ function choicesIn(body: string): string[] {
 function parseCommandTree(source: string): CommandNode[] {
     const bodies = functionBodies(source);
 
-    // Every `.command(xCommand())` reference in the file, wherever it sits.
-    const refs = [...source.matchAll(/\.command\(\s*(\w+Command)\(\)\s*\)/g)].map((m) => ({
+    // Every registered command, including one wrapped by the index preflight.
+    const refs = [
+        ...source.matchAll(/\.command\(\s*(?:with(?:Index|Body)Preflight\(\s*)*(\w+Command)\(\)/g),
+    ].map((m) => ({
         fnName: m[1],
         index: m.index,
     }));
@@ -223,9 +227,9 @@ const nodes = allNodes();
 const doc = fs.readFileSync(DOC_PATH, "utf8");
 
 describe("the command's real surface, extracted from source", () => {
-    it("has 33 top-level commands", () => {
+    it("has 37 top-level commands", () => {
         const topLevel = nodes.filter((n) => n.path.length === 1);
-        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(33);
+        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(37);
     });
 
     it("includes `package-build site-root`", () => {
@@ -240,34 +244,58 @@ describe("the command's real surface, extracted from source", () => {
         );
     });
 
-    it("lists every top-level command in root help", () => {
-        const help = execFileSync(
-            process.execPath,
-            [path.join(ROOT, "bin/package-build.mjs"), "--help"],
-            {
-                encoding: "utf8",
-            },
-        );
-        for (const node of nodes.filter((entry) => entry.path.length === 1)) {
-            expect(help).toContain(`package-build ${node.path[0]}`);
-        }
-        expect(help).toContain("package-build <command> --help");
-    });
-
-    it("shows actions and options in command help", () => {
-        const help = (command: string) =>
-            execFileSync(
+    it(
+        "lists every top-level command in root help",
+        () => {
+            const help = execFileSync(
                 process.execPath,
-                [path.join(ROOT, "bin/package-build.mjs"), command, "--help"],
+                [path.join(ROOT, "bin/package-build.mjs"), "--help"],
                 {
                     encoding: "utf8",
                 },
             );
-        expect(help("package")).toContain("compile");
-        expect(help("package")).toContain("unpack");
-        expect(help("docs")).toContain("item-fields");
-        expect(help("pdf")).toContain("--book-version");
-    });
+            for (const node of nodes.filter((entry) => entry.path.length === 1)) {
+                expect(help).toContain(`package-build ${node.path[0]}`);
+            }
+            expect(help).toContain("package-build <command> --help");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    const commandHelp = (command: string) =>
+        execFileSync(
+            process.execPath,
+            [path.join(ROOT, "bin/package-build.mjs"), command, "--help"],
+            {
+                encoding: "utf8",
+            },
+        );
+
+    it(
+        "shows package actions in command help",
+        () => {
+            const help = commandHelp("package");
+            expect(help).toContain("compile");
+            expect(help).toContain("unpack");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "shows documentation actions in command help",
+        () => {
+            expect(commandHelp("docs")).toContain("item-fields");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "shows PDF options in command help",
+        () => {
+            expect(commandHelp("pdf")).toContain("--book-version");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     // A representative sample of the parse itself, independent of the
     // document — if this drifts, the parser is wrong, not the document.

@@ -1,0 +1,26 @@
+{{- /*
+  Whether a page's note is an unfinished draft.
+
+  The `draft` tag is the authored signal, and it is the only one either side
+  can read: the content build asks it through its own single reader
+  (package-build/engine/note-vocabulary.mjs, `DRAFT_TAG`) and a theme cannot
+  import that, so the shared fact is the tag itself. It reaches the page
+  because the build copies a note's own front matter onto it.
+
+  It is spelled once, here. Two partials act on the state — the tag row leaves
+  it out of a page's subjects, and the notice states it — and a second literal
+  is how the two come apart.
+
+  Hugo's own reserved `draft: true` is a different thing entirely and is never
+  written by the build: a page carrying it is not rendered at all.
+
+  Context: the page. Returns "true" for a draft and "" for anything else, which
+  is what `if` reads.
+*/ -}}
+{{- $draft := false -}}
+{{- range .Params.tags -}}
+  {{- if eq (lower .) "draft" -}}
+    {{- $draft = true -}}
+  {{- end -}}
+{{- end -}}
+{{- return $draft -}}

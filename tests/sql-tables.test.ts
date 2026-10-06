@@ -6,6 +6,9 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
     RENDER_ALIASES,
@@ -96,10 +99,15 @@ describe("finding `sql` directives", () => {
     });
 
     it("reads `allow-empty` and `section-level` off the fence, not the query", () => {
-        const [block] = findSqlBlocks("```sql :allow-empty :section-level 3\nSELECT 1\n```\n");
+        const [block] = findSqlBlocks("```sql {allow-empty=true section-level=3}\nSELECT 1\n```\n");
 
         expect(block.allowEmpty).toBe(true);
         expect(block.sectionLevel).toBe(3);
+    });
+
+    it("requires literal Boolean values", () => {
+        const [block] = findSqlBlocks("```sql {allow-empty=yes}\nSELECT 1\n```\n");
+        expect(block.problems).toContain("allow-empty needs the literal value true or false");
     });
 
     it("defaults to a level-2 section heading and a required table", () => {
@@ -111,6 +119,44 @@ describe("finding `sql` directives", () => {
 });
 
 describe("querying the index", () => {
+    it("excludes GM notes from public local and dependency SQL relations", async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sql-gm-"));
+        const dependency = path.join(dir, "dependency.jsonl");
+        fs.writeFileSync(
+            dependency,
+            [
+                { type: "lore", shortcode: "open", tags: [], address: { slug: "lore-open" } },
+                {
+                    type: "lore",
+                    shortcode: "secret",
+                    tags: ["gm"],
+                    address: { slug: "lore-secret" },
+                },
+            ]
+                .map((record) => JSON.stringify(record))
+                .join("\n"),
+        );
+        const local = [
+            { type: "lore", shortcode: "open", tags: [], address: { slug: "lore-open" } },
+            { type: "lore", shortcode: "secret", tags: ["gm"], address: { slug: "lore-secret" } },
+        ];
+        const publicDb = await openNotesDatabase(local, {
+            dependencies: [{ id: "other", file: dependency }],
+            audience: "public",
+        });
+        try {
+            expect((await runSqlQuery(publicDb, "SELECT count(*) AS n FROM notes")).rows[0].n).toBe(
+                1n,
+            );
+            expect(
+                (await runSqlQuery(publicDb, "SELECT count(*) AS n FROM other.notes")).rows[0].n,
+            ).toBe(1n);
+        } finally {
+            await publicDb.close();
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
     it("reads a nested field exactly as a note authors it", async () => {
         // This is why DuckDB rather than SQLite: `sohl.weight` is struct access,
         // where a column-per-path table would force `"sohl.weight"` in quotes
@@ -293,7 +339,7 @@ describe("preparing directives ahead of expansion", () => {
 
         expect(await errs(dead)).toHaveLength(1);
         expect((await errs(dead))[0].reason).toMatch(/selects no notes/);
-        expect(await errs(dead.replace("```sql", "```sql :allow-empty"))).toEqual([]);
+        expect(await errs(dead.replace("```sql", "```sql {allow-empty=true}"))).toEqual([]);
     });
 
     it("renders the header and rule for a result selecting nothing", async () => {
@@ -301,7 +347,7 @@ describe("preparing directives ahead of expansion", () => {
         // an empty table under it says the query ran and matched nothing; a
         // heading with nothing under it reads as a page that failed to build.
         const dead =
-            "```sql :allow-empty\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'creature'\n```\n";
+            "```sql {allow-empty=true}\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'creature'\n```\n";
         const prepared = await prepareSqlTables(db, [{ source: "N.md", markdown: dead }]);
         const { markdown, errors } = expandContentTables(dead, {
             source: "N.md",
@@ -353,17 +399,12 @@ describe("preparing directives ahead of expansion", () => {
     });
 });
 
-describe("the retiring language", () => {
-    it("still expands, and is reported as a warning rather than an error", () => {
-        const body =
-            '```dataview\nTABLE WITHOUT ID name.full AS "Name"\nWHERE type = "skill"\n```\n';
-        const { errors, warnings } = expandContentTables(body, {
-            source: "N.md",
-            docs: [{ fm: { type: "skill", shortcode: "clmb", name: { full: "Climbing" } } }],
-        });
-
-        expect(errors).toEqual([]);
-        expect(warnings).toHaveLength(1);
-        expect(warnings[0].reason).toMatch(/`dataview`.*replaced by `sql`/);
+describe("unsupported table language", () => {
+    it("reports a located error", () => {
+        const body = "```dataview\nTABLE name.full\n```\n";
+        const { errors, warnings } = expandContentTables(body, { source: "N.md" });
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatchObject({ source: "N.md", line: 0, column: 1 });
+        expect(warnings).toEqual([]);
     });
 });

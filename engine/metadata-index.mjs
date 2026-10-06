@@ -61,6 +61,7 @@ import {
     resolvePackageUrl,
 } from "./content-address.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 
 /**
  * Written once a fetch completes, so a half-finished cache is never used.
@@ -401,7 +402,7 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // must tolerate that rather than invent an href, exactly as it
                 // already tolerates an entry with no `uuid`.
                 url:
-                    !web || !record.address.slug ? undefined
+                    !web || !record.address.slug || isGmNote(record) ? undefined
                         // A package's homepage is its root: the note is the
                         // mount's `_index.md`, so `[[thalorna-homepage-root]]`
                         // lands on `/thalorna/`, not on a page below it.
@@ -411,6 +412,7 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 doc: record.documentation ?? undefined,
                 anchors: foundry?.anchors,
                 type: parts.type,
+                gm: isGmNote(record),
                 // What the note *is*, not only where it lives. A consumer
                 // grouping a reference by the family its target declares —
                 // an infobox sorting a being's skills — has no other way to
@@ -422,15 +424,27 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // the record naming a path at all.
                 asset: record.asset ?? undefined,
                 // What a place is next to, reachable from and within, and
-                // what an affiliation holds, carried so a consumer's lint
+                // which affiliation governs it, carried so a consumer's lint
                 // checks a border across the package boundary from both ends,
                 // a consumer's map draws the dependency's places beside its
                 // own, and a consumer's pages list what a dependency's
-                // affiliation holds and what lies within its regions.
+                // affiliation governs and what lies within its regions. A
+                // population lets the same checks include dependency figures.
                 borders: record.data?.borders ?? undefined,
                 routes: record.data?.routes ?? undefined,
                 parents: record.data?.parents ?? undefined,
-                domains: record.data?.domains ?? undefined,
+                population: record.data?.population ?? undefined,
+                ...(Object.hasOwn(record.data ?? {}, "government") ?
+                    { government: record.data.government }
+                :   {}),
+                // What a work of literature concerns and what kind of work it
+                // is, so a consumer's subject pages list a dependency's works.
+                ...(parts.type === "lore" && record.subType === "literature" ?
+                    {
+                        subjects: record.data?.subjects ?? undefined,
+                        form: record.data?.form ?? undefined,
+                    }
+                :   {}),
                 package: pkg,
             });
             const entry = index.get(key);

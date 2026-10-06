@@ -1,3 +1,10 @@
+---
+shortcode: projectsetup
+name: { full: "Project setup" }
+type: doc
+subType: userguide
+---
+
 # Project setup
 
 [`getting-started.md`](getting-started.md) builds a package. This document
@@ -132,11 +139,12 @@ To commit here anyway just this once, use 'git commit --no-verify'. To opt this
 repository out permanently, 'git config hooks.allowCommitOnMain true'.
 ```
 
-`pre-push` reads the step list out of `.github/workflows/build.yml` rather than
-holding its own copy, and runs it over a clean export of `HEAD` in a
-`linux/amd64` container. That last detail is the one a Mac cannot reproduce any
-other way: this filesystem is case-insensitive and the runner's is not, so a
-wrong-case import passes locally and fails there.
+`pre-push` reads the pull-request workflows and runs their commands over a
+clean export of `HEAD` in a `linux/amd64` container. Run the same check manually
+with `package-build ci`; use `package-build ci --native` to run against the
+current working tree without Docker. The container catches wrong-case imports
+that pass on a case-insensitive Mac filesystem and fail on the Linux runner.
+Published `uses:` actions are listed but run only on GitHub.
 
 ### `clean` — removing what the build wrote
 
@@ -202,7 +210,8 @@ and stops at the first failure, which is what makes a named chain readable.
 ```json
 "build": "npm ci && npm run build:noci",
 "build:local": "npm i && npm run build:noci",
-"build:noci": "run-s lint build:db build:module",
+"build:noci": "run-s lint build:stage-reset build:db build:module",
+"build:stage-reset": "package-build stage reset",
 "build:db": "run-s build:content-index build:assets build:compiledb",
 "build:content-index": "package-build content-index",
 "build:assets": "package-build assets",
@@ -217,6 +226,11 @@ from the lockfile first**, so what it compiles is what CI compiles;
 `build:local` installs without the lockfile, for a working tree mid-change; and
 `build:noci` skips the install entirely, which is the one to reach for inside a
 git worktree where `node_modules` is already correct.
+
+`build:stage-reset` clears only the assembled Foundry package. Keep it before
+every stage writer, including a repository's own code or stylesheet bundle
+step. This keeps renamed and deleted files out of the next package while
+preserving the content index and other generated outputs.
 
 Within the chain, two orderings are real:
 
@@ -238,6 +252,11 @@ A package with a dependency adds `"build:deps": "package-build deps fetch"` at
 the head of `build:db`. Fetching is its own step and never happens during a
 compile, so a build never reaches the network silently — a cold cache fails
 naming `deps fetch`.
+
+Commands that read dependency addresses check for a complete local index before
+walking content or writing output. This applies to `lint`, `links`, `site`,
+`pdf`, `map`, `reachability`, and `package compile`. The check does not fetch;
+run `package-build deps fetch` as a separate step when the cache is empty.
 
 ### `format` — writing rather than checking
 
@@ -290,10 +309,10 @@ the rendered pages for search into `build/site/<contentPackage>/pagefind/`;
 and `serve:site` does the first and then `hugo server` for a live preview.
 The repository carries no Hugo configuration of its own: `hugo.toml` is
 generated on every run from `package.json`, `package-build.config.yaml`, the
-installed `@heroiclands/hugo-theme` and the navigation `deps fetch` cached,
-and the only file to add is `@heroiclands/hugo-theme` under
-`devDependencies`. Hugo itself is a separate install — the extended edition,
-on the developer's `PATH` and the runner's.
+shared theme that ships with `@heroiclands/package-build`, and the navigation
+`deps fetch` cached — a site declares this one package and needs nothing
+further added for its theme. Hugo itself is a separate install — the
+extended edition, on the developer's `PATH` and the runner's.
 
 The site build reads the cached navigation, so `build:site` in a package with
 no other dependency still runs `deps fetch` first:

@@ -34,11 +34,11 @@ import {
     HUGO_CONTENT,
     HUGO_SOURCE,
     NAVIGATION_FILE,
-    THEME_PACKAGE,
     navigationCacheDir,
 } from "../engine/site-config.mjs";
 import type { ContentBuildConfigInput } from "../content-config.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /** Every temporary repository this file writes, swept at the end. */
@@ -65,17 +65,11 @@ function minimal(rootDir = "/repo"): ContentBuildConfigInput {
         rootDir,
         contentPackage: "toolkit",
         packageKind: "documentation",
-        publish: { site: "content" },
     } as ContentBuildConfigInput;
 }
 
 /** The same configuration as YAML lines, so the loader can locate a key in it. */
-const MINIMAL_YAML = [
-    "contentPackage: toolkit",
-    "packageKind: documentation",
-    "publish:",
-    "    site: content",
-];
+const MINIMAL_YAML = ["contentPackage: toolkit", "packageKind: documentation"];
 
 /** Resolve a YAML configuration the way the loader does, and return the throw. */
 function failureFor(lines: readonly string[]): { err: Error; text: string } {
@@ -107,7 +101,7 @@ describe("what a documentation package declares", () => {
         expect(config.packageKind).toBe("documentation");
         expect(config.packs).toEqual([]);
         expect(config.packDirectories).toEqual([]);
-        expect(config.publish.site).toBe("content");
+        expect(config.publish.address.prefix).toBe("");
     });
 
     it("derives no Foundry package and no asset root", () => {
@@ -128,7 +122,7 @@ describe("what a documentation package declares", () => {
             skipDirectories: ["Templates"],
             paths: { content: "docs" },
             site: { description: "The toolkit's guides." },
-            publish: { site: "content", address: { prefix: "guide/" } },
+            publish: { address: { prefix: "guide/" } },
         } as ContentBuildConfigInput);
 
         expect(config.skipDirectories).toEqual(["Templates"]);
@@ -137,18 +131,13 @@ describe("what a documentation package declares", () => {
         expect(config.publish.address.prefix).toBe("guide/");
     });
 
-    it("refuses a `documentation` package that publishes no content", () => {
-        // The floor every other package may sit at: one authored page, no book,
-        // and — here — no compiled documents either, which is nothing at all.
-        expect(() =>
-            defineConfig({ ...minimal(), publish: undefined } as ContentBuildConfigInput),
-        ).toThrow(/`publish` is required in a `documentation` package/);
+    it("refuses a declared site mode", () => {
         expect(() =>
             defineConfig({
                 ...minimal(),
                 publish: { site: "homepage" },
             } as ContentBuildConfigInput),
-        ).toThrow(/`publish.site` must be `content`/);
+        ).toThrow(/publishing follows the authored content tree/);
     });
 });
 
@@ -285,9 +274,6 @@ function documentationRepo(): string {
             homepage: "https://www.heroiclands.org/toolkit/",
         }),
     );
-    const theme = path.join(dir, "node_modules", THEME_PACKAGE);
-    fs.mkdirSync(theme, { recursive: true });
-    fs.writeFileSync(path.join(theme, "theme.toml"), 'name = "Heroic Lands"\n');
     const config = defineConfig(minimal(dir));
     const cache = navigationCacheDir(config);
     fs.mkdirSync(cache, { recursive: true });
@@ -324,6 +310,7 @@ function documentationRepo(): string {
         path.join(dir, `${CONFIG_BASENAME}.yaml`),
         [
             ...MINIMAL_YAML,
+            "publish:",
             "    address:",
             "        prefix: guide/",
             "site:",
@@ -357,106 +344,138 @@ function run(dir: string, binary: "package-build" | "package-build", ...args: st
 }
 
 describe("what the pipeline does with one", () => {
-    it("builds the site, and no Foundry document with it", () => {
-        const dir = documentationRepo();
-        const { out, status } = run(dir, "package-build", "site");
+    it(
+        "builds the site, and no Foundry document with it",
+        () => {
+            const dir = documentationRepo();
+            const { out, status } = run(dir, "package-build", "site");
 
-        expect(out).not.toMatch(/error:/);
-        expect(status).toBe(0);
-        const guide = path.join(dir, HUGO_CONTENT, "guide");
-        expect(fs.existsSync(path.join(guide, "doc-commands.md"))).toBe(true);
-        // The homepage is the package's own root, one level above the
-        // content mount.
-        expect(fs.existsSync(path.join(dir, HUGO_CONTENT, "_index.md"))).toBe(true);
-        // The Hugo configuration lands beside the mount, generated from the
-        // sources the repository already states.
-        const toml = fs.readFileSync(path.join(dir, HUGO_SOURCE, "hugo.toml"), "utf8");
-        expect(toml).toMatch(/^baseURL = "https:\/\/www\.heroiclands\.org\/toolkit\/"$/m);
-        expect(toml).toMatch(/^title = "The Toolkit"$/m);
-        expect(toml).toMatch(/^description = "The toolkit, documented\."$/m);
-        expect(toml).toMatch(/^publishDir = "\.\.\/site\/toolkit"$/m);
-        // Nothing anywhere is a compiled pack.
-        expect(fs.existsSync(path.join(dir, "build", "packs"))).toBe(false);
-    });
+            expect(out).not.toMatch(/error:/);
+            expect(status).toBe(0);
+            const guide = path.join(dir, HUGO_CONTENT, "guide");
+            expect(fs.existsSync(path.join(guide, "doc-commands.md"))).toBe(true);
+            // The homepage is the package's own root, one level above the
+            // content mount.
+            expect(fs.existsSync(path.join(dir, HUGO_CONTENT, "_index.md"))).toBe(true);
+            // The Hugo configuration lands beside the mount, generated from the
+            // sources the repository already states.
+            const toml = fs.readFileSync(path.join(dir, HUGO_SOURCE, "hugo.toml"), "utf8");
+            expect(toml).toMatch(/^baseURL = "https:\/\/www\.heroiclands\.org\/toolkit\/"$/m);
+            expect(toml).toMatch(/^title = "The Toolkit"$/m);
+            expect(toml).toMatch(/^description = "The toolkit, documented\."$/m);
+            expect(toml).toMatch(/^publishDir = "\.\.\/site\/toolkit"$/m);
+            // Nothing anywhere is a compiled pack.
+            expect(fs.existsSync(path.join(dir, "build", "packs"))).toBe(false);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("refuses to build the site from a cold navigation cache, naming `deps fetch`", () => {
-        const dir = documentationRepo();
-        fs.rmSync(navigationCacheDir(defineConfig(minimal(dir))), { recursive: true });
-        const { out, status } = run(dir, "package-build", "site");
+    it(
+        "refuses to build the site from a cold navigation cache, naming `deps fetch`",
+        () => {
+            const dir = documentationRepo();
+            fs.rmSync(navigationCacheDir(defineConfig(minimal(dir))), { recursive: true });
+            const { out, status } = run(dir, "package-build", "site");
 
-        expect(status).not.toBe(0);
-        expect(out).toMatch(
-            /navigation has not been fetched\. Run `package-build deps fetch` first/,
-        );
-        // Nothing was written: the sources are read before the output tree is
-        // touched, so the previous site is intact to look at.
-        expect(fs.existsSync(path.join(dir, HUGO_SOURCE))).toBe(false);
-    });
+            expect(status).not.toBe(0);
+            expect(out).toMatch(
+                /navigation has not been fetched\. Run `package-build deps fetch` first/,
+            );
+            // Nothing was written: the sources are read before the output tree is
+            // touched, so the previous site is intact to look at.
+            expect(fs.existsSync(path.join(dir, HUGO_SOURCE))).toBe(false);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("builds the book from the same tree", () => {
-        const dir = documentationRepo();
-        const { out, status } = run(dir, "package-build", "pdf", "--no-compile");
+    it(
+        "builds the book from the same tree",
+        () => {
+            const dir = documentationRepo();
+            const { out, status } = run(dir, "package-build", "pdf", "--no-compile");
 
-        expect(out).toMatch(/Typst source:/);
-        expect(status).toBe(0);
-    });
+            expect(out).toMatch(/Typst source:/);
+            expect(status).toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("publishes a content index another package can resolve an address into", () => {
-        const dir = documentationRepo();
-        const { status } = run(dir, "package-build", "content-index");
+    it(
+        "publishes a content index another package can resolve an address into",
+        () => {
+            const dir = documentationRepo();
+            const { status } = run(dir, "package-build", "content-index");
 
-        expect(status).toBe(0);
-        const index = path.join(dir, "build", "content-index", "toolkit-metadata.jsonl");
-        expect(fs.existsSync(index)).toBe(true);
-        const addresses = fs
-            .readFileSync(index, "utf8")
-            .trim()
-            .split("\n")
-            .map((line) => JSON.parse(line).address?.canonical);
-        expect(addresses).toContain("toolkit-note-doc-commands");
-    });
+            expect(status).toBe(0);
+            const index = path.join(dir, "build", "content-index", "toolkit-metadata.jsonl");
+            expect(fs.existsSync(index)).toBe(true);
+            const addresses = fs
+                .readFileSync(index, "utf8")
+                .trim()
+                .split("\n")
+                .map((line) => JSON.parse(line).address?.canonical);
+            expect(addresses).toContain("toolkit-note-doc-commands");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("refuses to generate a Foundry manifest", () => {
-        const dir = documentationRepo();
-        const { out, status } = run(dir, "package-build", "manifest");
+    it(
+        "refuses to generate a Foundry manifest",
+        () => {
+            const dir = documentationRepo();
+            const { out, status } = run(dir, "package-build", "manifest");
 
-        expect(out).toMatch(/ships no Foundry package, so there is no manifest/);
-        expect(status).not.toBe(0);
-        expect(fs.existsSync(path.join(dir, "build", "stage", "module.json"))).toBe(false);
-    });
+            expect(out).toMatch(/ships no Foundry package, so there is no manifest/);
+            expect(status).not.toBe(0);
+            expect(fs.existsSync(path.join(dir, "build", "stage", "module.json"))).toBe(false);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("refuses to run a compile pass", () => {
-        const dir = documentationRepo();
-        const { out, status } = run(dir, "package-build", "package", "compile");
+    it(
+        "refuses to run a compile pass",
+        () => {
+            const dir = documentationRepo();
+            const { out, status } = run(dir, "package-build", "package", "compile");
 
-        // Exiting 0 having compiled nothing is the quiet failure — a build that
-        // succeeds and produces no documents.
-        expect(out).toMatch(/compiles no compendium, so there is nothing to compile/);
-        expect(status).not.toBe(0);
-    });
+            // Exiting 0 having compiled nothing is the quiet failure — a build that
+            // succeeds and produces no documents.
+            expect(out).toMatch(/compiles no compendium, so there is nothing to compile/);
+            expect(status).not.toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("reports a note whose type would have to become a document", () => {
-        const dir = documentationRepo();
-        fs.writeFileSync(
-            path.join(dir, "assets", "content", "Guides", "dagger.md"),
-            "---\ntype: weapongear\nshortcode: dagger\nname:\n  full: Dagger\n---\n\nA blade.\n",
-        );
-        const { out, status } = run(dir, "package-build", "lint");
+    it(
+        "reports a note whose type would have to become a document",
+        () => {
+            const dir = documentationRepo();
+            fs.writeFileSync(
+                path.join(dir, "assets", "content", "Guides", "dagger.md"),
+                "---\ntype: weapongear\nshortcode: dagger\nname:\n  full: Dagger\n---\n\nA blade.\n",
+            );
+            const { out, status } = run(dir, "package-build", "lint");
 
-        expect(out).toMatch(/`type: weapongear` compiles to a Foundry document/);
-        // Located at the value the finding is about, not at the frontmatter's
-        // first line.
-        expect(out).toMatch(/dagger\.md:2:\d+: error:/);
-        expect(status).not.toBe(0);
-    });
+            expect(out).toMatch(/`type: weapongear` compiles to a Foundry document/);
+            // Located at the value the finding is about, not at the frontmatter's
+            // first line.
+            expect(out).toMatch(/dagger\.md:2:\d+: error:/);
+            expect(status).not.toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("passes a tree of the vocabulary it does have", () => {
-        const dir = documentationRepo();
-        const { out, status } = run(dir, "package-build", "lint");
+    it(
+        "passes a tree of the vocabulary it does have",
+        () => {
+            const dir = documentationRepo();
+            const { out, status } = run(dir, "package-build", "lint");
 
-        expect(out).not.toMatch(/error:/);
-        expect(status).toBe(0);
-    });
+            expect(out).not.toMatch(/error:/);
+            expect(status).toBe(0);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("the narrowed vocabulary is the kind's, not the linter's", () => {

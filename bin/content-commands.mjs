@@ -44,8 +44,8 @@ import path from "node:path";
 import log from "loglevel";
 import prefix from "loglevel-plugin-prefix";
 import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
-import { compilesFoundryDocuments } from "../content-config.mjs";
-import { loadPackConfig } from "../engine/pack-config.mjs";
+import { compilesFoundryDocuments, publishesContentPages } from "../content-config.mjs";
+import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { buildPdf } from "../engine/pdf-build.mjs";
 import {
     fetchAllCatalogs,
@@ -56,19 +56,28 @@ import {
 } from "../engine/foreign-catalog.mjs";
 import {
     metadataRelationships,
+    cachedMetadataIndexes,
     cachedIndexPath,
     unaddressableForeignPackages,
     formatUnaddressableFinding,
 } from "../engine/metadata-index.mjs";
 import { fetchNavigation, generateHugoConfig, writeHugoConfig } from "../engine/site-config.mjs";
 import { renderItemFieldReference, renderItemFieldsPage } from "../engine/field-reference.mjs";
+import { checkDocLinks, checkDocIndex } from "../engine/docs-checks.mjs";
+import { checkArtSlotSizes } from "../engine/art-fields.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
 import { lintContentIcons } from "../engine/content-icons.mjs";
 import { lintContentImages } from "../engine/content-images.mjs";
-import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
+import { lintContentTaskLists } from "../engine/content-tasklists.mjs";
+import {
+    declaredSystems,
+    lintFrontmatter,
+    systemAddressFindings,
+    systemBlocksFor,
+} from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -95,10 +104,13 @@ import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
+import { lintProse, scoreProseTree } from "../engine/readability-lint.mjs";
+import { loadPackageBuildConfig } from "../config.mjs";
 import {
     authoredFrontmatter,
     emitContentIndex,
     indexRecordsFor,
+    isAssetRecord,
     isNoteRecord,
     noteFile,
 } from "../engine/content-index.mjs";
@@ -120,7 +132,6 @@ import { reportFindings } from "./report.mjs";
 import {
     readItemAddresses,
     diffItemAddresses,
-    declaredPredecessors,
     noteFilesById,
     locateAddressFinding,
     addressFindingMessage,
@@ -130,6 +141,7 @@ import { buildMaps, FROM_ALL, MAP_DIR } from "../engine/map-build.mjs";
 import { CHART_HORIZON_DAYS } from "../engine/map-layout.mjs";
 import { GRAPHVIZ_ENGINES } from "../engine/map-graphviz.mjs";
 import { loadMapWorld } from "../engine/map-places.mjs";
+import { encodeAddresses } from "../engine/address-values.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -214,20 +226,232 @@ const SHIPPED_ITEM_FIELDS = { sohl: ITEM_FIELDS, hm3: HM3_ITEM_FIELDS };
 /** Register the content operations on the package command line. */
 export function registerContentCommands(cli) {
     return cli
-        .command(packageCommand())
+        .command(
+            withIndexPreflight(
+                withBodyPreflight(packageCommand(), (_config, argv) => argv.action === "compile"),
+                (_config, argv) => argv.action === "compile",
+            ),
+        )
         .command(depsCommand())
         .command(docsCommand())
-        .command(lintCommand())
+        .command(withIndexPreflight(lintCommand()))
+        .command(proseCommand())
         .command(contentFormatCommand())
-        .command(linksCommand())
+        .command(withIndexPreflight(linksCommand()))
         .command(formatCommand())
         .command(markdownCommand())
-        .command(contentIndexCommand())
-        .command(siteCommand())
-        .command(pdfCommand())
-        .command(mapCommand())
-        .command(reachabilityCommand())
+        .command(
+            withBodyPreflight(
+                contentIndexCommand(),
+                () => true,
+                (config, argv) => argv.root || config.paths.content,
+            ),
+        )
+        .command(withIndexPreflight(withBodyPreflight(siteCommand()), publishesContentPages))
+        .command(
+            withIndexPreflight(
+                withBodyPreflight(pdfCommand(), (config) => Boolean(config.pdf)),
+                (config) => config.pdf && publishesContentPages(config),
+            ),
+        )
+        .command(withIndexPreflight(mapCommand()))
+        .command(withIndexPreflight(reachabilityCommand()))
         .command(addressesCommand());
+}
+
+/** Optional sentence findings and note-level readability reports. */
+function proseCommand() {
+    return {
+        command: "prose <action> [path]",
+        describe: "Analyze note prose on demand",
+        builder: (yargs) =>
+            yargs
+                .positional("action", { choices: ["lint", "score"], describe: "Analyze prose" })
+                .positional("path", {
+                    type: "string",
+                    describe: "One Markdown file or a content tree",
+                })
+                .option("age", { type: "number", describe: "Reader age" })
+                .option("threshold", {
+                    type: "number",
+                    describe: "Readability algorithms required (1–7)",
+                })
+                .option("min-words", {
+                    type: "number",
+                    describe: "Minimum words per sentence or note",
+                })
+                .option("rules", {
+                    choices: ["readability", "simplify", "all"],
+                    describe: "Lint rule set",
+                })
+                .option("fail-on-warning", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Exit unsuccessfully when lint reports suggestions",
+                })
+                .option("fail-outside", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Exit unsuccessfully when a scored note is outside a configured band",
+                }),
+        handler: async (argv) => {
+            try {
+                const config = loadPackConfig();
+                const defaults = loadPackageBuildConfig();
+                const root = argv.path ?? config.paths.content;
+                const displayFile = (file) => path.relative(process.cwd(), path.resolve(file));
+                if (argv.action === "score") {
+                    if (
+                        argv.age !== undefined ||
+                        argv.threshold !== undefined ||
+                        argv.rules !== undefined ||
+                        argv.failOnWarning
+                    ) {
+                        throw new Error(
+                            "--age, --threshold, --rules, and --fail-on-warning apply only to prose lint",
+                        );
+                    }
+                    const minWords = argv.minWords ?? defaults.proseScore.minWords;
+                    if (!Number.isInteger(minWords) || minWords < 1) {
+                        throw new Error("minWords must be a positive integer");
+                    }
+                    const result = await scoreProseTree(
+                        root,
+                        { ...defaults.proseScore, minWords },
+                        config.skipDirectories,
+                    );
+                    const fixed = (number, places = 1) => number.toFixed(places);
+                    for (const note of result.notes) {
+                        if (note.insufficient) {
+                            console.log(
+                                `${displayFile(note.file)}: insufficient prose (${note.words}/${minWords} words; coverage=${fixed(note.coveragePercent)}%)`,
+                            );
+                            continue;
+                        }
+                        const metrics = note.metrics;
+                        const detail =
+                            `flesch=${fixed(metrics.flesch)} syl/word=${fixed(metrics.syllablesPerWord, 2)} ` +
+                            `mean=${fixed(metrics.meanSentenceWords)}w longest=${note.longestSentenceWords}w ` +
+                            `unfamiliar=${fixed(metrics.unfamiliarWordPercent)}% ` +
+                            `nominalizations/1k=${fixed(metrics.nominalizationsPer1000Words)} ` +
+                            `words=${note.words} coverage=${fixed(note.coveragePercent)}%`;
+                        if (note.violations.length) {
+                            emitDiagnostic({
+                                file: displayFile(note.file),
+                                severity: "warning",
+                                message: `prose-score/band: ${detail}; ${note.violations.join(", ")}`,
+                            });
+                        } else {
+                            console.log(`${displayFile(note.file)}: ${detail}`);
+                        }
+                    }
+                    const aggregate = result.summary;
+                    console.log(
+                        `Total: ${aggregate.scored} scored, ${aggregate.insufficient} insufficient, ` +
+                            `${aggregate.outside} outside band; ${aggregate.words} words; ` +
+                            `pooled flesch=${aggregate.flesch === null ? "n/a" : fixed(aggregate.flesch)} ` +
+                            `syl/word=${aggregate.words ? fixed(aggregate.syllables / aggregate.words, 2) : "n/a"} ` +
+                            `mean=${aggregate.sentences ? fixed(aggregate.words / aggregate.sentences) : "n/a"}w ` +
+                            `unfamiliar=${aggregate.words ? fixed((100 * aggregate.unfamiliar) / aggregate.words) : "n/a"}% ` +
+                            `nominalizations/1k=${aggregate.words ? fixed((1000 * aggregate.nominalizations) / aggregate.words) : "n/a"}`,
+                    );
+                    if (argv.failOutside && aggregate.outside) process.exitCode = 1;
+                    return;
+                }
+                if (argv.failOutside) throw new Error("--fail-outside applies only to prose score");
+                const options = {
+                    age: argv.age ?? defaults.proseLint.age,
+                    threshold: argv.threshold ?? defaults.proseLint.threshold,
+                    minWords: argv.minWords ?? defaults.proseLint.minWords,
+                    rules: argv.rules ?? defaults.proseLint.rules,
+                };
+                for (const [key, value] of Object.entries(options)) {
+                    if (key === "rules") continue;
+                    if (
+                        !Number.isInteger(value) ||
+                        value < 1 ||
+                        (key === "threshold" && value > 7)
+                    ) {
+                        throw new TypeError(
+                            `${key} must be ${key === "threshold" ? "an integer from 1 to 7" : "a positive integer"}`,
+                        );
+                    }
+                }
+                const findings = await lintProse(root, options, config.skipDirectories);
+                for (const finding of findings) {
+                    emitDiagnostic({ ...finding, file: displayFile(finding.file) });
+                }
+                log.info(`${findings.length} prose suggestion(s).`);
+                if (argv.failOnWarning && findings.length) process.exitCode = 1;
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/** Refuse invalid note bodies before emitting metadata, packs, pages or a book. */
+function withBodyPreflight(
+    command,
+    shouldCheck = () => true,
+    contentRoot = (config) => config.paths.content,
+) {
+    const handler = command.handler;
+    return {
+        ...command,
+        handler: async (argv) => {
+            try {
+                const config = loadPackConfig();
+                if (shouldCheck(config, argv)) {
+                    const contentBase = contentRoot(config, argv);
+                    if (!fs.existsSync(contentBase)) return handler(argv);
+                    const records = indexRecordsFor({ config, contentBase });
+                    const { findings } = lintNoteStates(contentBase, {
+                        records,
+                        contentPackage: config.contentPackage,
+                    });
+                    const errors = findings.filter((finding) => finding.severity === "error");
+                    if (errors.length) {
+                        for (const finding of errors) emitDiagnostic(finding);
+                        process.exitCode = 1;
+                        return;
+                    }
+                }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+                return;
+            }
+            return handler(argv);
+        },
+    };
+}
+
+/** Check declared dependency indexes before an index-consuming command does any work. */
+function withIndexPreflight(command, shouldCheck = () => true) {
+    const handler = command.handler;
+    return {
+        ...command,
+        handler: async (argv) => {
+            let config;
+            try {
+                config = loadPackConfig();
+                if (shouldCheck(config, argv)) cachedMetadataIndexes(config);
+            } catch (err) {
+                if (config) {
+                    emitDiagnostic({
+                        file: packConfigPath(),
+                        severity: "error",
+                        message: err instanceof Error ? err.message : String(err),
+                    });
+                } else reportFailure(err);
+                process.exitCode = 1;
+                return;
+            }
+            return handler(argv);
+        },
+    };
 }
 
 /**
@@ -265,16 +489,21 @@ export function registerContentCommands(cli) {
 function docsCommand() {
     return {
         command: "docs <action>",
-        describe: "Generate documentation from the configured registries",
+        describe: "Generate and check project documentation",
         builder: (yargs) => {
             // Required and honoured, not optional and unread:
             // the handler rendered the item-field reference whatever it was
             // given, so the positional constrained what could be typed and
             // selected nothing.
             yargs.positional("action", {
-                describe: "The document to render.",
+                describe: "The documentation action.",
                 type: "string",
-                choices: ["item-fields"],
+                choices: ["item-fields", "links", "index"],
+            });
+            yargs.option("root", {
+                describe: "Documentation root for the links and index checks.",
+                type: "string",
+                default: "docs",
             });
             yargs.option("out", {
                 describe: "Write to this file instead of the configured location.",
@@ -293,6 +522,26 @@ function docsCommand() {
         handler: (argv) => {
             try {
                 const { action, title, check } = argv;
+                if (action === "links" || action === "index") {
+                    const requestedRoot = path.resolve(argv.root);
+                    const root =
+                        fs.existsSync(requestedRoot) ?
+                            fs.realpathSync(requestedRoot)
+                        :   requestedRoot;
+                    const findings = action === "links" ? checkDocLinks(root) : checkDocIndex(root);
+                    for (const finding of findings) {
+                        emitDiagnostic({
+                            ...finding,
+                            file: path.relative(process.cwd(), finding.file),
+                        });
+                    }
+                    if (findings.length) process.exitCode = 1;
+                    else
+                        log.info(
+                            `Documentation ${action} check passed for ${path.relative(process.cwd(), root) || "."}.`,
+                        );
+                    return;
+                }
                 // Dispatched on, so a second document added here cannot
                 // silently render the first. yargs' `choices` has already
                 // rejected anything unlisted, so the default is unreachable by
@@ -387,15 +636,11 @@ function docsCommand() {
  * - `schema` compares every `system.*` target the document names against the
  *   naming system's published `schema.json`. A failure means the specification
  *   and the system disagree, which is a defect in one of the two.
- * - `fields` compares the per-type tables against the field declarations that
- *   compile them, so the hand-written half cannot drift from the generated one.
- * - `notes` measures a content tree against the vocabulary the document
- *   declares per type. During the migration it is the progress bar rather
- *   than a gate, so it **reports** by default and `--strict` makes it fatal —
- *   turned on one class at a time as each slice lands.
+ * - `fields` compares declared field mappings with compiler declarations.
+ * - `notes` measures authored notes against the declared vocabulary.
  *
- * Both read the committed document rather than a transcription of it, so
- * editing `docs/content-format.md` changes what they assert.
+ * The shipped contract is `engine/content-format.yaml`; guide layout does not
+ * participate in validation.
  *
  * @returns {object} The yargs command module.
  */
@@ -445,7 +690,7 @@ function contentFormatSchemaCommand() {
         builder: (yargs) => {
             yargs.option("spec", {
                 describe:
-                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                    "The format contract to read. Defaults to the engine/content-format.yaml this package ships.",
                 type: "string",
             });
             yargs.option("schema", {
@@ -553,7 +798,7 @@ function contentFormatFieldsCommand() {
         builder: (yargs) => {
             yargs.option("spec", {
                 describe:
-                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                    "The format contract to read. Defaults to the engine/content-format.yaml this package ships.",
                 type: "string",
             });
             yargs.option("fields", {
@@ -642,7 +887,7 @@ function contentFormatNotesCommand() {
             });
             yargs.option("spec", {
                 describe:
-                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                    "The format contract to read. Defaults to the engine/content-format.yaml this package ships.",
                 type: "string",
             });
             yargs.option("strict", {
@@ -963,7 +1208,14 @@ function lintCommand() {
                     config,
                 });
 
-                // Whether every empty body is a stub on purpose, and how
+                // A list item opened with `[ ]` or `[x]` — nothing here is
+                // miscompiled, since every surface sets the marker as the
+                // item's own text and all three agree, so this is advisory.
+                const taskLists = lintContentTaskLists(root, {
+                    skipDirectories: config.skipDirectories,
+                });
+
+                // Whether every note has a body, and how
                 // finished the tree is. The counts and the oldest drafts are
                 // prose rather than findings: a note nobody has finished is not
                 // wrong, and 464 warnings a reader cannot clear is how a report
@@ -974,6 +1226,32 @@ function lintCommand() {
                 });
                 for (const line of states.summary) log.info(line);
 
+                // Generated art, when this package declares it carries none.
+                // `records` already holds every asset of this build, so the
+                // check is a filter over the corpus already in hand rather
+                // than a second enumeration of the asset trees.
+                const generatedArt =
+                    config.forbidGeneratedArt ?
+                        records
+                            .filter(isAssetRecord)
+                            .filter((record) => record.asset.ai === true)
+                            .map((record) => ({
+                                file: path.join(config.paths.assets, record.asset.path),
+                                severity: "error",
+                                message:
+                                    `\`${encodeAddresses(record.address.canonical)}\` is ` +
+                                    "machine-generated art (`ai: true`), and " +
+                                    "`forbidGeneratedArt` refuses it in this package",
+                            }))
+                    :   [];
+
+                // A hero image against the size its slot is cut to, read
+                // from the records already in hand.
+                const artSizes = checkArtSlotSizes(records, {
+                    config,
+                    assetsBase: config.paths.assets,
+                });
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
@@ -982,7 +1260,10 @@ function lintCommand() {
                     ...icons.findings,
                     ...html.findings,
                     ...images.findings,
+                    ...taskLists.findings,
                     ...states.findings,
+                    ...generatedArt,
+                    ...artSizes,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // by then, so this changes nothing on its own —
@@ -1260,15 +1541,28 @@ function linksCommand() {
                     homepageLinks,
                     usedManifest,
                 } = auditLinks(index);
+                const systemReferences = index.notes.flatMap((note) =>
+                    systemAddressFindings(note, {
+                        index,
+                        schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                        systems: systemBlocksFor(config, { schemaSystem: "sohl" }),
+                    }),
+                );
 
+                // Worded by the shared table, like every finding below it: a
+                // sentence written here is free to describe the same defect
+                // differently from the build that also refuses it, which is the
+                // drift the table exists to prevent.
                 for (const d of deadAnchors) {
                     emitDiagnostic({
                         file: d.note.file,
                         ...positionOfLiteral(d.note.raw, d.text, d.occurrence),
                         severity: "error",
-                        message:
-                            `link [[${d.link}]] points at an anchor no ` +
-                            `heading in ${d.dest.rel} declares`,
+                        message: linkFindingMessage({
+                            reason: "unknown-anchor",
+                            target: d.target,
+                            anchor: d.anchor,
+                        }),
                     });
                 }
                 // Every link is an address and every address must
@@ -1297,6 +1591,7 @@ function linksCommand() {
                             `${f.path} — frontmatter is data and is never resolved`,
                     });
                 }
+                for (const finding of systemReferences) emitDiagnostic(finding);
 
                 // The package homepage. Its addresses are markdown links and
                 // `landing:` url/href fields rather than wikilinks — it is
@@ -1317,6 +1612,7 @@ function linksCommand() {
                     deadEmbeds.length +
                     unlabelledLinks.length +
                     frontmatterLinks.length +
+                    systemReferences.length +
                     homepageLinks.length;
                 if (failures) {
                     log.error(`${failures} link problem(s) across ${index.notes.length} note(s).`);
@@ -1446,6 +1742,9 @@ function pdfCommand() {
                 // resolve is an error, because the same statement is wrong in
                 // Foundry and on the website too.
                 const errors = reportFindings(result.findings, {});
+                for (const report of result.imageReports ?? []) {
+                    log.info(`${report.file}: ${report.message}`);
+                }
 
                 if (!result.built) {
                     // A reason is a deliberate no-op — the fence, an absent
@@ -1523,6 +1822,8 @@ function siteCommand() {
                     config,
                     sqlTables: await prepareTreeSqlTables(config.paths.content, {
                         skipDirectories: config.skipDirectories,
+                        config,
+                        audience: "public",
                     }),
                 });
                 const { gates } = result;
@@ -1589,6 +1890,18 @@ function siteCommand() {
                 for (const e of result.secretErrors) {
                     emitDiagnostic({ ...e, severity: "error" });
                 }
+                for (const e of result.captionErrors) {
+                    emitDiagnostic({ ...e, severity: "error" });
+                }
+                for (const e of result.headingErrors) {
+                    emitDiagnostic({ ...e, severity: "error" });
+                }
+                for (const e of result.footnoteErrors) {
+                    emitDiagnostic({ ...e, severity: "error" });
+                }
+                for (const e of result.embedErrors) {
+                    emitDiagnostic({ ...e, severity: "error" });
+                }
                 // Reported the way the pack build reports the very same
                 // finding: `file:line:column: error: message`, path first, and
                 // the message from the shared table, not a
@@ -1627,8 +1940,12 @@ function siteCommand() {
                     result.tableErrors.length ||
                     result.expressionErrors.length ||
                     result.secretErrors.length ||
+                    result.captionErrors.length ||
+                    result.headingErrors.length ||
+                    result.footnoteErrors.length ||
                     result.wikiErrors.length ||
-                    result.imageErrors.length
+                    result.imageErrors.length ||
+                    result.embedErrors.length
                 ) {
                     process.exitCode = 1;
                     return;
@@ -1961,16 +2278,18 @@ async function fetchFromLocalArtifact(config, argv) {
 
 /**
  * `deps fetch` — fill the caches this build resolves other packages through:
- * the **content index** of every declared dependency, the **item catalogue**
- * of those additionally declaring `itemCatalog: true`, and the **site
- * navigation** heroiclands.org publishes, which the site build writes its
- * menu from.
+ * the **content index** of every declared dependency, the **item catalogue
+ * or asset archive** of those additionally declaring `itemCatalog: true` or
+ * `assetArchive: true`, and the **site navigation** heroiclands.org
+ * publishes, which the site build writes its menu from.
  *
- * The two dependency sets differ deliberately. Citing another package's
- * *addresses* and embedding its *items* are separate edges, and a package may
- * have either without the other — `harn-ensemble` cites no foreign address and
- * embeds 324,016 item references. The navigation is fetched for every package,
- * because every package publishes a site.
+ * The dependency sets differ deliberately. Citing another package's
+ * *addresses*, embedding its *items*, and staging its *asset bytes* are
+ * separate edges, and a package may declare any of them without the others —
+ * `harn-ensemble` cites no foreign address and embeds 324,016 item
+ * references. The navigation is fetched for every package, because every
+ * package publishes a site. A relationship declaring both `itemCatalog: true`
+ * and `assetArchive: true` is fetched once.
  *
  * Its own command rather than a step of `package compile` or `site`, so that
  * neither reaches the network. A build that downloads silently is not
@@ -2031,7 +2350,7 @@ function depsCommand() {
                 const indexes = await fetchAllMetadata(config);
                 if (indexes) log.info(`Fetched ${indexes} dependency content index(es).`);
                 const count = await fetchAllCatalogs(config);
-                if (count) log.info(`Fetched ${count} dependency catalogue(s).`);
+                if (count) log.info(`Fetched ${count} dependency catalogue(s) or archive(s).`);
                 if (!indexes && !count) {
                     // Distinguished from a package declaring nothing at all: a
                     // relationship may still be declared, just narrowed to the
@@ -2043,8 +2362,8 @@ function depsCommand() {
                     );
                     log.info(
                         declared ?
-                            "No declared dependency needs a fetched content index or item " +
-                                "catalogue."
+                            "No declared dependency needs a fetched content index, item " +
+                                "catalogue, or asset archive."
                         :   "This package declares no dependencies.",
                     );
                 }
@@ -2060,21 +2379,11 @@ function depsCommand() {
  * `addresses diff` — report every published `(type, shortcode)` this build no
  * longer publishes, against a released artifact.
  *
- * The address space is a published interface (see `engine/address-diff.mjs`),
- * and renaming a shortcode used to cost nothing and produce no signal. This is
- * the signal, emitted in the repository doing the renaming while the change is
- * still in front of the author.
+ * Compare this package's compiled Item addresses with the release artifact
+ * named by `--from`. The command reports departed addresses and locates
+ * findings against the current content tree or baseline artifact.
  *
- * **Its own command rather than a step of `package compile`.** It reads a
- * *second* artifact that the compile knows nothing about and that has to be
- * obtained separately, and it is a question about a release rather than about a
- * build — a repository between releases has nothing to compare against.
- *
- * **The baseline is named, never derived, and never downloaded.** `--from`
- * takes the artifact — the `.zip` a release publishes, or a directory built
- * from one — for the same reason `deps fetch --from` does: a command that
- * reaches the network on its own is not reproducible and fails strangely
- * offline. In a release workflow the artifact is one line ahead of it:
+ * `--from` accepts a release `.zip` or a directory built from one:
  *
  * ```sh
  * gh release download v0.8.2 -p system.zip -D build/baseline
@@ -2134,10 +2443,6 @@ async function diffAddresses(config, argv) {
         readItemAddresses(currentDirs),
         {
             baseline: label,
-            // Read whether or not anything departed: an id match needs no tree,
-            // but the diff decides rename-versus-withdrawal as it walks the
-            // baseline, so the declarations have to be in hand before it does.
-            predecessors: declaredPredecessors(config.paths.content, corpus),
         },
     );
     if (!findings.length) {
@@ -2145,9 +2450,8 @@ async function diffAddresses(config, argv) {
         return;
     }
 
-    // A rename is fixed in the note that made it, so findings are placed
-    // against the tree rather than against the compiled output they were read
-    // from.
+    // The tree locates a matched document; otherwise the baseline locates the
+    // departed address.
     const noteFiles = noteFilesById(config.paths.content, corpus);
     const severity = argv.strict ? "error" : "warning";
     for (const finding of findings) {

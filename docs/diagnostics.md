@@ -1,3 +1,10 @@
+---
+shortcode: diagnostics
+name: { full: "Diagnostics" }
+type: doc
+subType: reference
+---
+
 # Diagnostics
 
 Every warning or error this toolchain emits is machine-parseable and says

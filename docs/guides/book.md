@@ -1,3 +1,10 @@
+---
+shortcode: guidesbook
+name: { full: "Build a PDF book" }
+type: doc
+subType: howto
+---
+
 # Build a PDF book
 
 `package-build pdf` selects notes from a content package and sets them as a
@@ -13,21 +20,18 @@ The [command reference](../commands.md) lists the CLI options; the
 
 ## Declare the book
 
-Set `publish.site: content` and give the book a title and document tree:
+Give the book a title and document tree:
 
 ```yaml
-publish:
-  site: content
 pdf:
   title: The Setting Guide
   document: book.yaml
   out: build/pdf
 ```
 
-`publish.site: homepage` keeps the content surfaces closed, including the
-book. With no `pdf` block or no content tree, the command has nothing to
-build. `pdf.title` and `pdf.document` are required together when `pdf` is
-declared.
+A tree containing only a homepage has no content pages for a book. With no
+`pdf` block or no content tree, the command has nothing to build. `pdf.title`
+and `pdf.document` are required together when `pdf` is declared.
 
 `book.yaml` contains an ordered list of sections. Each section contains prose
 files, note filters, or nested sections:
@@ -84,10 +88,23 @@ finding.
 Each section and each selected entry starts on its own page. The PDF has a
 contents page and an outline for section and entry navigation. A note's
 `description` appears as an epigraph when present. Wider tables span both
-columns; a table too tall for one page takes pages of its own. Maps attached
-to selected places use full pages after those entries. The
+columns; a wide table outside a figure fence starts on a new page so it stays
+after its introduction. A wide table inside one may float to the page top, and
+its label stays with it. A table too tall for one page takes pages of its own.
+A figure's number runs through the whole book in reading order, counted within
+its own kind. Maps attached
+to selected places use landscape pages after those entries. Regional, theatre
+of the mind, battle, and local map backgrounds also print on landscape pages.
+Battle and local maps print each Scene level's background on its own page.
+The
 [content format](../content-format.md) describes image sizes, floats, and
 links as they are authored in notes.
+
+The book stages raster art at up to 300 dpi for its largest printed use.
+Ordinary images fit their column, full-width images fit the page's text width,
+and map backgrounds fit the landscape map area. An image smaller than that
+target keeps its authored pixels and still fills its allotted space on the
+page. SVG art stays vector. The build never changes authored image files.
 
 ## Set fonts and icon fonts
 

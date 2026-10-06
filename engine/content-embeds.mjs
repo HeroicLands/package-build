@@ -23,8 +23,8 @@
  *
  * ## An embed resolves to an ordinary image, and that is the whole design
  *
- * `![[thorn|Thorn]]{float: top-left}` becomes
- * `![Thorn](thalorna/assets/images/beings/thorn.webp){float: top-left}` in the
+ * `![[thorn|Thorn]]{float=top-left}` becomes
+ * `![Thorn](thalorna/assets/images/beings/thorn.webp){float=top-left}` in the
  * source text, before any surface renders it. Everything downstream is machinery
  * that already exists: {@link module:engine/content-images.imagePlugin} draws the
  * figure for a Foundry journal and for the book's Typst walk,
@@ -171,6 +171,25 @@ export function resolveEmbed(index, embed) {
         return { pathname: read.pathname };
     }
     return { reason: read.reason, target: embed.written, type: read.type };
+}
+
+/**
+ * The role an address's asset declares, read through the same resolution an
+ * embed's address takes.
+ *
+ * This is the lookup a captioned item's `map` counter reaches through —
+ * see {@link module:engine/content-figures.scanFigures}'s `resolveRole` — for
+ * an address still in its authored form, before {@link resolveEmbeds} has
+ * rewritten it into the ordinary image every surface renders.
+ *
+ * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex},
+ *   or the equivalent the site and the book build.
+ * @param {string} address - The address as authored, inside `![[...]]`.
+ * @returns {string|undefined} The role, or `undefined` for a note's address,
+ *   one that resolves nowhere, or a picture that declares none.
+ */
+export function embedRole(index, address) {
+    return readAssetAddress(index, address, EMBED_DEFAULT_TYPE).record?.asset?.role || undefined;
 }
 
 /**

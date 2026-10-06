@@ -50,6 +50,10 @@
  */
 
 import { buildReferenceTargets } from "./reference-targets.mjs";
+import { standingsDigest } from "./standings.mjs";
+// The leaf reader, shared with the content index and the link checker, so a
+// page's anchors are read once rather than re-derived a third way here.
+import { collectAnchors } from "./anchors.mjs";
 
 import { resolveShortcodeReference } from "./shortcode-references.mjs";
 
@@ -62,10 +66,12 @@ import {
     renderAddress,
     isAddressTuple,
     ownDocumentSystem,
+    expandAddress,
 } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
+import { presentAmongRecords } from "./being-age.mjs";
 // The declared tag vocabulary, which is where `draft` is stated.
 import { isDraftNote } from "./note-vocabulary.mjs";
 
@@ -82,16 +88,24 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  * @property {string} slug   URL segment.
  * @property {string} base   Source file's basename, e.g. `Climbing.md`.
  * @property {string} url    The page's published address.
+ * @property {string} [body] The note's markdown body, for its anchors. A
+ *                           content entry always carries one; absent, the
+ *                           page is indexed as declaring none.
  */
 
 /**
  * The resolved index and everything a wikilink resolver reads beside it.
  *
  * @typedef {object} SiteIndex
- * @property {Map<string, {url: string, name?: string, draft?: boolean}>} index
+ * @property {Map<string, {url: string, name?: string, draft?: boolean, anchors?: Set<string>|Record<string, string>}>} index
  *                                       Address → page. `draft` says the page
  *                                       carries the `draft` tag, which marks a
- *                                       link *into* it.
+ *                                       link *into* it. `anchors` names the
+ *                                       `{#slug}` sections it declares — a
+ *                                       `Set` for a local page, or the
+ *                                       `{slug: uuid}` map a foreign manifest
+ *                                       publishes — and is absent where
+ *                                       neither build recorded one.
  * @property {Set<string>} ambiguous     Short addresses claimed by two
  *                                       packages, and so deliberately absent
  *                                       from `index`.
@@ -161,6 +175,8 @@ function mergeForeign(index, foreignIndex) {
  *   `contentIndex: false` — a Foundry dependency only, with no fetched index.
  *   A link naming one fails naming the key, rather than reading as prose or an
  *   ordinary dead address.
+ * @param {object[]} [options.records] - Content-index records.
+ * @param {Map<string, object>} [options.foreignReferences] - Foreign reference targets.
  * @returns {SiteIndex} The index, and what could not be addressed unambiguously.
  */
 export function buildSiteIndex(
@@ -216,11 +232,21 @@ export function buildSiteIndex(
         // needs to know what it found, not only where it is: an infobox groups
         // a being's skills by the family each skill note declares, and that
         // fact lives on the target rather than on the reference.
+        // The rungs and posts a body confers, carried for the same reason
+        // `subType` is: a being states a rank as a number, and what that
+        // number is called is declared on the body.
+        const standings = standingsDigest(e.fm);
         const value = {
             url: e.url,
             name: e.name,
             draft: isDraftNote(e.fm),
             ...(e.fm.subType ? { subType: e.fm.subType } : {}),
+            ...(standings ? { standings } : {}),
+            // The `{#anchor}` slugs this page declares, so a `#section`
+            // written against it can be checked rather than joined onto the
+            // URL unverified. A Set even when empty: a page that declares no
+            // anchor still has a definite answer for one an author names.
+            anchors: new Set(collectAnchors(e.body ?? "").map((anchor) => anchor.slug)),
         };
 
         const shortcode = e.fm.shortcode;
@@ -253,7 +279,12 @@ export function buildSiteIndex(
 
     return {
         contentPackage: ownPackage,
-        dateContext: reckoningContext({ notes: records }),
+        // Carried on the same context `resolvedDateFields` reads: a recurring
+        // event's `next` is computed against this present.
+        dateContext: {
+            ...reckoningContext({ notes: records }),
+            present: presentAmongRecords(records),
+        },
         referenceTargets: buildReferenceTargets(records, new Map([...foreignReferences, ...index])),
         index,
         ambiguous,
@@ -262,6 +293,70 @@ export function buildSiteIndex(
         noIndexPackages,
         refIndex,
     };
+}
+
+/**
+ * The address keys one page's figures are reachable by — the same two forms
+ * {@link buildSiteIndex} assigns the page itself, so a `ref` crossing into it
+ * resolves by exactly the address a wikilink would use.
+ *
+ * @param {string} pkg - The page's own content package.
+ * @param {string} type - The note's `type`.
+ * @param {string} shortcode - The note's `shortcode`.
+ * @returns {Set<string>} The short `type/shortcode` key and the canonical
+ *   `package-system-type-shortcode` one.
+ */
+export function figureIndexKeys(pkg, type, shortcode) {
+    const system = ownDocumentSystem(type);
+    const keys = new Set([
+        `${type}/${shortcode}`.toLowerCase(),
+        canonicalKey(pkg, system, type, shortcode),
+    ]);
+    if (system !== NOTE_SYSTEM) keys.add(canonicalKey(pkg, NOTE_SYSTEM, type, shortcode));
+    return keys;
+}
+
+/**
+ * Resolve a `ref` call's cross-note address to the target's own figures and
+ * its own address — the `figures.note` a `ref` helper's render context reads,
+ * built once and threaded into every page.
+ *
+ * Reads the written address exactly as a wikilink does
+ * ({@link readQualifier}, {@link expandAddress}), so a `ref` crossing into
+ * another note and a `[[…]]` link to the same note agree on what resolves and
+ * what does not: a target naming no known type or no fetched package's index
+ * is unresolved for both, and one address names one note for both.
+ *
+ * @param {string} target - The address as written, anchor already removed —
+ *   {@link module:engine/wikilink-syntax.ParsedWikilink.target}.
+ * @param {object} options
+ * @param {Set<string>} options.contentTypes - Every type this build reads as
+ *   an address qualifier.
+ * @param {Set<string>} options.packages - Every package an address may name.
+ * @param {Set<string>} options.noIndexPackages - Packages declared
+ *   `contentIndex: false`.
+ * @param {string} options.contentPackage - The package a target with no
+ *   package segment defaults to.
+ * @param {Map<string, {url: string}>} options.siteIndexMap - {@link SiteIndex}'s
+ *   own `index`, read for the target's existence and its URL.
+ * @param {Map<string, Map<string, object>>} options.figuresByAddress - Every
+ *   note's figures, by id, keyed as {@link figureIndexKeys} keys the note.
+ * @returns {{url: string, figures: Map<string, object>}|undefined} The
+ *   target's own address and figures, or `undefined` when the address names
+ *   no note this build resolves.
+ */
+export function resolveCrossNoteFigures(
+    target,
+    { contentTypes, packages, noIndexPackages, contentPackage, siteIndexMap, figuresByAddress },
+) {
+    const read = readQualifier(target, contentTypes, packages, noIndexPackages);
+    if (!read || read.reason) return undefined;
+    const key = expandAddress(read, { package: contentPackage, system: NOTE_SYSTEM });
+    const shortKey = `${read.itemDoc ? "doc" : ""}${read.type}/${read.shortcode}`.toLowerCase();
+    const entry = siteIndexMap.get(key) ?? siteIndexMap.get(shortKey);
+    if (!entry) return undefined;
+    const figures = figuresByAddress.get(key) ?? figuresByAddress.get(shortKey) ?? new Map();
+    return { url: entry.url, figures };
 }
 
 /**
@@ -341,7 +436,13 @@ export function resolveInfoboxRef(siteIndex, ref, hint) {
             hint,
         );
         return found ?
-                { name: found.name, url: found.url, subType: found.subType, address: found.address }
+                {
+                    name: found.name,
+                    url: found.url,
+                    subType: found.subType,
+                    address: found.address,
+                    ...(found.standings ? { standings: found.standings } : {}),
+                }
             :   undefined;
     }
     const context = {
@@ -355,6 +456,13 @@ export function resolveInfoboxRef(siteIndex, ref, hint) {
     const found =
         siteIndex.referenceTargets?.get(renderAddress(tuple)) ??
         siteIndex.index?.get(renderAddress(tuple));
-    if (found) return { name: found.name, url: found.url, subType: found.subType, address: tuple };
+    if (found)
+        return {
+            name: found.name,
+            url: found.url,
+            subType: found.subType,
+            address: tuple,
+            ...(found.standings ? { standings: found.standings } : {}),
+        };
     return undefined;
 }

@@ -1,0 +1,250 @@
+/*
+ * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
+ * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
+ *
+ * This work is licensed under the GNU General Public License v3.0 (GPLv3).
+ * You may copy, modify, and distribute it under the terms of that license.
+ *
+ * For full terms, see the LICENSE.md file in the project root or visit:
+ * https://www.gnu.org/licenses/gpl-3.0.html
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/*
+ * The base stylesheet every package ships, staged into the package root and
+ * named first in the manifest's `styles`.
+ *
+ * It carries only what every package needs for its compiled content to be
+ * legible, which today is the definition list: an infobox emits one, and so
+ * does the ordinary markdown `Term` / `: definition` syntax. A package keeps
+ * its own stylesheet for its own needs and overrides anything here from it.
+ *
+ * `packageBuild.baseStyles: false` declines it.
+ *
+ * **The scope is the content, not the interface.** Foundry styles `dl dt` and
+ * `dl dd` itself, application-wide, and a package stylesheet loads into a later
+ * cascade layer than those rules sit in — so an unscoped `dl` here would
+ * restyle every definition list in Foundry's own chrome and in every other
+ * package's sheets. The four roots are where compiled content renders: a
+ * journal page, a journal entry, an enriched field, and the editor.
+ */
+
+/*
+ * Definition lists, in two states of one style.
+ *
+ * **Wide.** Two columns, the term right-aligned against a fixed gutter so every
+ * term in the list shares one right edge, the definition in the remaining
+ * space. The fixed track is what produces the shared edge; a `max-content`
+ * track cannot, because each row then sizes itself.
+ *
+ * **Narrow.** Stacked, the term above its own definition, with space between
+ * pairs and none between a term and the definition it belongs to.
+ *
+ * **The measurement is the list, not the screen.** A Foundry journal is a
+ * resizable window, usually far narrower than the viewport, so a viewport media
+ * query would hold a journal stacked while the screen said otherwise — or cramp
+ * it into two columns at 300px. `container-type: inline-size` on the `dl` and a
+ * `@container` query on its children measure the list itself, and give the same
+ * two states on a page, in a window and in a sidebar.
+ *
+ * The narrow state is reached by spanning both tracks rather than by changing
+ * the template, because an element cannot query the container it establishes:
+ * the `dl` holds the grid and the container, so only `dt` and `dd` can respond.
+ * Row spacing is the definition's bottom margin rather than the grid's
+ * `row-gap` for the same reason — `row-gap` sits on the `dl`, and the two
+ * states need different values.
+ *
+ * The three tunable values are custom properties, so a package adjusts the term
+ * column, the gutter or the stacking point without copying the rule.
+ */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) dl {
+    display: grid;
+    /* `minmax(0, …)` keeps the track at its full width wherever there is room
+     * and lets it shrink rather than overflow where there is not. */
+    grid-template-columns: minmax(0, var(--pb-deflist-term-width, 11rem)) 1fr;
+    column-gap: var(--pb-deflist-gutter, 2rem);
+    container-type: inline-size;
+    container-name: pb-deflist;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) dl > dt {
+    grid-column: 1;
+    /* The one rule that holds on every surface, so an author writes the term
+     * and nothing else rather than bolding it by hand. */
+    font-weight: 600;
+    text-align: right;
+    line-height: 1.6;
+    margin: 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) dl > dd {
+    grid-column: 2;
+    margin: 0 0 var(--pb-deflist-row-gap, 1.5rem);
+    line-height: 1.6;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) dl > dd:last-child {
+    margin-bottom: 0;
+}
+
+/*
+ * Stacked, below the width two columns need: the term column, the gutter, and
+ * enough left for a definition to read as prose rather than as a word per line.
+ *
+ * Named, so the query resolves against a list this sheet set up rather than
+ * against whichever ancestor container happens to be nearest.
+ */
+@container pb-deflist (max-width: 32rem) {
+    dt {
+        grid-column: 1 / -1;
+        text-align: left;
+    }
+
+    dd {
+        grid-column: 1 / -1;
+    }
+}
+
+/* Each verse line breaks in the markup; each paragraph is a stanza. */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .poetry {
+    margin: 1.5rem 0;
+    line-height: 1.7;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .poetry p {
+    margin: 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .poetry p + p {
+    margin-top: 1em;
+}
+
+.poetry .poetry-line {
+    display: inline-block;
+    margin-inline-start: var(--poetry-indent, 0em);
+    white-space: pre-wrap;
+}
+
+.poetry .poetry-line.i1 {
+    --poetry-indent: 1.25em;
+}
+.poetry .poetry-line.i2 {
+    --poetry-indent: 2.5em;
+}
+.poetry .poetry-line.i3 {
+    --poetry-indent: 3.75em;
+}
+.poetry .poetry-line.i4 {
+    --poetry-indent: 5em;
+}
+.poetry .poetry-line.i5 {
+    --poetry-indent: 6.25em;
+}
+.poetry .poetry-line.i6 {
+    --poetry-indent: 7.5em;
+}
+.poetry .poetry-line.i7 {
+    --poetry-indent: 8.75em;
+}
+.poetry .poetry-line.i8 {
+    --poetry-indent: 10em;
+}
+
+/*
+ * Historical info/warn section classes remain available for styled prose.
+ * New alerts use the separate alert classes below.
+ *
+ * `secret` is deliberately absent: Foundry styles `section.secret` itself and
+ * owns the reveal control on it, and a rule here would fight both.
+ *
+ * Every colour is a custom property, so a package overrides one from its own
+ * sheet without restating the layout.
+ */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    :is(section.info, section.warn) {
+    border-left: 3px solid var(--pb-block-edge);
+    background: var(--pb-block-fill);
+    color: var(--pb-block-text, inherit);
+    padding: 0.5em 0.8em;
+    margin: 0.75em 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    :is(section.info, section.warn)
+    > strong:first-child {
+    color: var(--pb-block-edge);
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) section.info {
+    --pb-block-edge: #2f6f9f;
+    --pb-block-fill: #eef6fb;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) section.warn {
+    --pb-block-edge: #9a6700;
+    --pb-block-fill: #fff5db;
+}
+
+/*
+ * A light panel keeps a dark foreground whatever the surrounding theme does to
+ * the inherited colour, because the fill does not follow it.
+ */
+@media (prefers-color-scheme: dark) {
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+        :is(section.info, section.warn) {
+        --pb-block-text: #1b1b1b;
+    }
+
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) section.info {
+        --pb-block-edge: #1d4f75;
+    }
+
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) section.warn {
+        --pb-block-edge: #7a5100;
+    }
+}
+
+/* Alerts share ordinary body colors, with an accent on their edge and title. */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert {
+    border-inline-start: 0.25rem solid var(--pb-alert-color);
+    padding: 0.5rem 1rem;
+    margin: 1rem 0;
+    color: inherit;
+    background: transparent;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+    margin: 0 0 0.5rem;
+    font-weight: 600;
+    color: var(--pb-alert-color);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-icon {
+    width: 1em;
+    height: 1em;
+    flex-shrink: 0;
+    fill: currentColor;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .alert
+    > :last-child {
+    margin-bottom: 0;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-note {
+    --pb-alert-color: #0969da;
+    --pb-alert-color: light-dark(#0969da, #4493f8);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-tip {
+    --pb-alert-color: #1a7f37;
+    --pb-alert-color: light-dark(#1a7f37, #3fb950);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-important {
+    --pb-alert-color: #8250df;
+    --pb-alert-color: light-dark(#8250df, #ab7df8);
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-warning {
+    --pb-alert-color: #9a6700;
+    --pb-alert-color: light-dark(#9a6700, #d29922);
+}

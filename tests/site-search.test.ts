@@ -35,6 +35,7 @@ import { defineConfig } from "../index.mjs";
 import { CONFIG_BASENAME, configFromData } from "../engine/pack-config.mjs";
 import { SEARCH_DIR, indexSite, writeSiteRoot } from "../engine/site-root.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /** Every temporary directory this file writes, swept at the end. */
@@ -123,8 +124,6 @@ describe("`site.search`", () => {
         const text = [
             "contentPackage: acme",
             "packageKind: documentation",
-            "publish:",
-            "    site: content",
             "site:",
             "    search: off",
             "",
@@ -139,7 +138,7 @@ describe("`site.search`", () => {
             thrown = err as Error;
         }
         expect(thrown?.message).toBe(
-            `${file}:6:5: error: package-build config: \`site.search\` must be a boolean.`,
+            `${file}:4:5: error: package-build config: \`site.search\` must be a boolean.`,
         );
     });
 });
@@ -259,14 +258,7 @@ describe("the index a deployment carries", () => {
         );
         fs.writeFileSync(
             path.join(dir, `${CONFIG_BASENAME}.yaml`),
-            [
-                "contentPackage: toolkit",
-                "packageKind: documentation",
-                "publish:",
-                "    site: content",
-                ...siteLines,
-                "",
-            ].join("\n"),
+            ["contentPackage: toolkit", "packageKind: documentation", ...siteLines, ""].join("\n"),
         );
         const site = path.join(dir, "build", "site", "toolkit");
         page(site, "", "The Toolkit", "The front of the documentation.");
@@ -286,35 +278,43 @@ describe("the index a deployment carries", () => {
         return { dir, site, out: `${r.stdout ?? ""}${r.stderr ?? ""}`, status: r.status };
     }
 
-    it("`package-build site-root` writes the index beside the pages", () => {
-        const { dir, site, out, status } = consumer([]);
+    it(
+        "`package-build site-root` writes the index beside the pages",
+        () => {
+            const { dir, site, out, status } = consumer([]);
 
-        expect(out).not.toMatch(/error:/);
-        expect(status).toBe(0);
-        expect(fs.existsSync(path.join(dir, "build", "site", "_headers"))).toBe(true);
-        expect(fs.existsSync(path.join(site, SEARCH_DIR, "pagefind.js"))).toBe(true);
-        const found = fragments(site);
-        expect(found.length).toBeGreaterThan(0);
-        // The fragments carry the pages' own text, which is what a search
-        // returns. Each is gzip-compressed, so a known sentence is findable
-        // in them with nothing more than `gzip -dc` and `grep`.
-        const text = found
-            .map((f) =>
-                gunzipSync(fs.readFileSync(path.join(site, SEARCH_DIR, "fragment", f))).toString(
-                    "utf8",
-                ),
-            )
-            .join("\n");
-        expect(text).toContain("Every command, and what it reads.");
-        expect(out).toMatch(/2 pages/);
-    });
+            expect(out).not.toMatch(/error:/);
+            expect(status).toBe(0);
+            expect(fs.existsSync(path.join(dir, "build", "site", "_headers"))).toBe(true);
+            expect(fs.existsSync(path.join(site, SEARCH_DIR, "pagefind.js"))).toBe(true);
+            const found = fragments(site);
+            expect(found.length).toBeGreaterThan(0);
+            // The fragments carry the pages' own text, which is what a search
+            // returns. Each is gzip-compressed, so a known sentence is findable
+            // in them with nothing more than `gzip -dc` and `grep`.
+            const text = found
+                .map((f) =>
+                    gunzipSync(
+                        fs.readFileSync(path.join(site, SEARCH_DIR, "fragment", f)),
+                    ).toString("utf8"),
+                )
+                .join("\n");
+            expect(text).toContain("Every command, and what it reads.");
+            expect(out).toMatch(/2 pages/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("`site.search: false` leaves no `pagefind/` directory", () => {
-        const { dir, site, out, status } = consumer(["site:", "    search: false"]);
+    it(
+        "`site.search: false` leaves no `pagefind/` directory",
+        () => {
+            const { dir, site, out, status } = consumer(["site:", "    search: false"]);
 
-        expect(out).not.toMatch(/error:/);
-        expect(status).toBe(0);
-        expect(fs.existsSync(path.join(dir, "build", "site", "_headers"))).toBe(true);
-        expect(fs.existsSync(path.join(site, SEARCH_DIR))).toBe(false);
-    });
+            expect(out).not.toMatch(/error:/);
+            expect(status).toBe(0);
+            expect(fs.existsSync(path.join(dir, "build", "site", "_headers"))).toBe(true);
+            expect(fs.existsSync(path.join(site, SEARCH_DIR))).toBe(false);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

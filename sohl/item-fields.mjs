@@ -336,6 +336,18 @@ const GEAR_COMMON = Object.freeze([
 /*  Per-type declarations                                                 */
 /* --------------------------------------------------------------------- */
 
+/** The strike mode required for combat techniques and omitted for other skills.
+ * @type {import("../engine/field-spec.mjs").FieldSpec}
+ */
+export const COMBAT_TECHNIQUE_STRIKE_MODE = Object.freeze({
+    name: "strikeMode",
+    to: "strikeMode",
+    ...STRIKE_MODE,
+    required: true,
+    when: (_fm, out) => out.subType === "combattechnique",
+    describe: "The strike mode the combat technique trains. Required for combat techniques only.",
+});
+
 /**
  * Every item type's frontmatter vocabulary, in the order the `system` block
  * emits it.
@@ -379,11 +391,11 @@ export const ITEM_FIELDS = Object.freeze({
             ...STRING,
             default: "",
             topLevelMeans:
-                "the note's own title — the heading its page is published under, " +
-                "which has nothing to do with the style of address an office " +
-                "carries. Author this on the membership instead: `sohl.system.title` " +
-                "on the item, or the `system.title` of the entry in a being's " +
-                "`sohl.items`.",
+                "A top-level `title` is refused outright, since an office's " +
+                "style of address belongs to the membership that holds the " +
+                "office and nothing outside the item supplies it. Author it " +
+                "at `sohl.system.title` on the item, or at the " +
+                "`system.title` of the entry in a being's `sohl.items`.",
             describe: "The style of address the office carries.",
         },
         {
@@ -436,22 +448,6 @@ export const ITEM_FIELDS = Object.freeze({
             address: PLACE_VALUE,
             default: null,
             describe: "Where the affiliation's authority sits, by place address.",
-        },
-        {
-            // The geographic relation, kept apart from the organisational one
-            // above: `parents` is *subordinate to*, this is *holds sway over*.
-            //
-            // Authored plural and emitted singular, as the content format's
-            // mapping row states (`data.domains` → `system.domain`). The two
-            // spellings are deliberate rather than a slip, so the declaration
-            // carries both rather than either side guessing.
-            name: "data.domains",
-            legacyKey: "domains",
-            to: "domain",
-            ...ADDRESS_LIST,
-            address: PLACE_ITEMS,
-            default: [],
-            describe: "Places this affiliation holds sway over, by address.",
         },
     ]),
 
@@ -512,6 +508,21 @@ export const ITEM_FIELDS = Object.freeze({
             default: null,
             describe:
                 "Days from contracting to onset, rolled by the receiving actor. Unset means no incubation.",
+        },
+        {
+            name: "onsetMacroUuid",
+            to: "onsetMacroUuid",
+            ...BLANK_IS_NULL,
+            default: null,
+            describe: "UUID of the macro run when symptoms begin, if any.",
+        },
+        {
+            name: "data.outcomeTraumas",
+            legacyKey: "outcomeTraumas",
+            to: "outcomeTraumas",
+            ...BLANK_IS_NULL,
+            default: null,
+            describe: "SafeExpression selecting traumas caused by the affliction's outcome.",
         },
         {
             name: "data.outcome",
@@ -630,6 +641,11 @@ export const ITEM_FIELDS = Object.freeze({
 
     armorgear: Object.freeze([
         ...GEAR_COMMON,
+        {
+            to: "isWorn",
+            runtimeOnly: "whether the armor is currently worn by an actor",
+            describe: "Worn state set during play, never authored.",
+        },
         {
             name: "material",
             to: "material",
@@ -974,6 +990,13 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "Shortcode of the skill this one specialises, for a specialisation.",
         },
         {
+            name: "adoptParentMasteryLevel",
+            to: "adoptParentMasteryLevel",
+            ...BOOLEAN,
+            default: false,
+            describe: "Whether a specialization uses its parent's mastery level.",
+        },
+        {
             name: "initSkillMult",
             to: "initSkillMult",
             ...NUMBER,
@@ -987,6 +1010,7 @@ export const ITEM_FIELDS = Object.freeze({
             default: [],
             describe: "Body-part roles whose impairment penalises tests against this skill.",
         },
+        COMBAT_TECHNIQUE_STRIKE_MODE,
     ]),
 
     trauma: Object.freeze([
@@ -1017,6 +1041,27 @@ export const ITEM_FIELDS = Object.freeze({
             ...NUMBER,
             default: 0,
             describe: "How readily it heals.",
+        },
+        {
+            name: "treatmentModifierBase",
+            to: "treatmentModifierBase",
+            ...NULLABLE_NUMBER,
+            default: null,
+            describe: "Modifier to treatment tests; unset means no modifier.",
+        },
+        {
+            name: "permanentImpairmentEligible",
+            to: "permanentImpairmentEligible",
+            ...BOOLEAN,
+            default: false,
+            describe: "Whether healing may leave a permanent impairment.",
+        },
+        {
+            name: "infectable",
+            to: "infectable",
+            ...BOOLEAN,
+            default: false,
+            describe: "Whether a failed healing test can cause infection.",
         },
         {
             name: "aspect",
@@ -1135,26 +1180,4 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "The ways the weapon can be used to strike.",
         },
     ]),
-});
-
-/**
- * The one conditional field in the vocabulary: a combat technique's strike
- * mode.
- *
- * A combat technique is authored as a `skill` of subtype `combattechnique` —
- * the standalone item type was merged into Skill — and carries an embedded,
- * discriminated strike mode. It is mandatory for that subtype and absent from
- * every other skill, which is a conditional a flat field list cannot state, so
- * it is applied after the declaration runs.
- *
- * @type {import("../engine/field-spec.mjs").FieldSpec}
- */
-export const COMBAT_TECHNIQUE_STRIKE_MODE = Object.freeze({
-    name: "strikeMode",
-    to: "strikeMode",
-    ...STRIKE_MODE,
-    required: true,
-    default: null,
-    describe:
-        "The strike mode the technique trains. Required on a `combattechnique` skill, and set on no other.",
 });

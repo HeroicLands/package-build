@@ -1,0 +1,41 @@
+{{- /*
+  A page's statement that its own content is not settled.
+
+  A draft page reads exactly like a finished one, and a reader who is not told
+  assumes it is finished — so the page says so itself, at the head of the
+  article, above the infobox and above the prose. A reader deciding whether to
+  rely on an entry has to be told before they read it.
+
+  The label alone will not do. "Draft" names the writing, so it reads as rough
+  prose; what has to land is that the facts may change. The label and the
+  sentence are one unit, and the sentence carries the meaning by itself — which
+  is the floor this is built to, because the mark is a third-party font and the
+  rule is a stylesheet, and either can be absent.
+
+  The sentence is the theme's default and a consumer overrides it with
+  `params.draftNotice`, the way `params.notfound` supplies its own wording. The
+  theme states no consumer's name and no address.
+
+  The mark is `circle-exclamation`: a notice, not a hazard. Draft-ness is a
+  status, and a page in a corpus where one page in several carries one cannot
+  wear a hazard mark without teaching a reader to discount it. `aria-hidden`
+  keeps it out of a screen reader, where the label reads the same thing.
+
+  The sentence sets in italic and the label in bold roman. Every other word on
+  the page is the world describing itself; this sentence is the page speaking
+  about its own state, and italic is how a reader is told the voice has
+  changed. It is an `em`, so the italic arrives with the markup rather than
+  with the stylesheet, and a bold italic beside the mark would be one emphasis
+  too many.
+
+  Silent-disappear: a settled page emits nothing here.
+
+  Context: the page.
+*/ -}}
+{{- if partial "draft-state.html" . -}}
+{{- $notice := .Site.Params.draftNotice | default "This entry is unfinished. What it states may change, and nothing in it is settled." -}}
+<aside class="draft-notice">
+  <i class="fa-solid fa-circle-exclamation draft-notice-icon" aria-hidden="true"></i>
+  <p class="draft-notice-text"><strong class="draft-notice-label">Draft.</strong> <em>{{ $notice }}</em></p>
+</aside>
+{{ end -}}

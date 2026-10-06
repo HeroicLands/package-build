@@ -44,8 +44,9 @@
  * @module
  */
 
+import path from "node:path";
+
 import { encodeAddresses } from "./address-values.mjs";
-import { hasTag } from "./note-vocabulary.mjs";
 import { ASSET_SYSTEM, isAssetType } from "./asset-types.mjs";
 import { ASSETS_SEGMENT } from "./pathnames.mjs";
 import { isAssetRecord } from "./index-records.mjs";
@@ -130,7 +131,47 @@ export function assetAddressIndex(records = [], { config, foreign, types = [] } 
                 .filter(([key]) => key),
         ),
         foreign: foreign?.index ?? new Map(),
+        // Foreign first, local last: a renderer sizing a picture looks it up
+        // by the pathname the record resolved to, never by address, and a
+        // local record is entered after a foreign one so it wins the lookup on
+        // the collision neither should ever cause.
+        byPath: assetImageInfoByPathname([
+            ...(foreign?.index?.values() ?? []),
+            ...records.filter(isAssetRecord),
+        ]),
     };
+}
+
+/**
+ * What a renderer needs to size one picture, keyed by the pathname its
+ * address resolves to.
+ *
+ * An image reaches a renderer as the resolved pathname an embed or an authored
+ * body image already carries — see {@link readAssetAddress} — never as the
+ * address that produced it, so the lookup a renderer wants is by pathname, not
+ * by {@link assetAddressIndex}'s own `assets` map.
+ *
+ * @param {readonly object[]} records - Asset records, local or foreign.
+ * @returns {Map<string, {type: string, role?: string, width: number|"", height: number|""}>}
+ *   One entry per addressable file, carrying only what a renderer sizes a
+ *   picture from. `role` is omitted when the record states none; `width` and
+ *   `height` are always present, blank (`""`) for a vector — the record's own
+ *   convention, carried through rather than collapsed into an absence a
+ *   renderer could not tell apart from "no asset resolved at all".
+ */
+export function assetImageInfoByPathname(records = []) {
+    const map = new Map();
+    for (const record of records) {
+        if (!record?.asset?.path || !record.package) continue;
+        const key = `${record.package}/${ASSETS_SEGMENT}/${record.asset.path}`;
+        map.set(key, {
+            type: record.type,
+            role: record.asset.role || undefined,
+            width: typeof record.asset.width === "number" ? record.asset.width : "",
+            height: typeof record.asset.height === "number" ? record.asset.height : "",
+        });
+    }
+    return map;
 }
 
 /**
@@ -202,6 +243,82 @@ export function resolveArtRecord(index, value, defaultType, accepts) {
 }
 
 /**
+ * Every asset's role, keyed by the pathname it resolves to — the form a body
+ * carries once an embed's address has been rewritten into the ordinary image
+ * every surface renders ({@link module:engine/content-embeds.resolveEmbeds}).
+ *
+ * This is the lookup a captioned item's `map` counter reaches through —
+ * see {@link module:engine/content-figures.scanFigures}'s `resolveRole` —
+ * for a caller that reads a body after that rewrite: a Foundry journal, an
+ * item or actor's documentation, and the book.
+ *
+ * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex},
+ *   or the equivalent the site and the book build.
+ * @returns {Map<string, string>} Pathname → role, one entry per asset that
+ *   declares one.
+ */
+export function pathnameRoles(index) {
+    const roles = new Map();
+    for (const record of [
+        ...(index?.assets?.values() ?? []),
+        ...(index?.foreign?.values() ?? []),
+    ]) {
+        const role = record?.asset?.role;
+        if (!role || !record.asset?.path || !record.package) continue;
+        roles.set(`${record.package}/${ASSETS_SEGMENT}/${record.asset.path}`, role);
+    }
+    return roles;
+}
+
+/**
+ * Flag a note whose art slot names a picture that is not the size that slot
+ * is cut to.
+ *
+ * The size is stated by the slot itself, in
+ * {@link module:engine/art-slots.ART_SLOTS}, so it is written once and a slot
+ * that states none asks nothing of the picture it names. Today the hero image
+ * is the one slot with a fixed strip to fill; a picture written in prose is
+ * fitted to the room it has and is never measured here.
+ *
+ * A vector carries no pixel size to compare, and neither does a raster whose
+ * header cannot be read; neither is flagged.
+ *
+ * @param {readonly object[]} records - The corpus, notes and assets together.
+ * @param {object} [opts]
+ * @param {object} [opts.config] - The resolved build configuration.
+ * @param {string} [opts.assetsBase] - Where the asset roots sit, so a finding
+ *   names the file from the working directory as every other finding does.
+ * @returns {object[]} A finding per picture off its slot's size,
+ *   `severity: "error"`.
+ */
+export function checkArtSlotSizes(records = [], { config, assetsBase = "" } = {}) {
+    const sized = ART_SLOTS.filter((slot) => slot.size);
+    if (!sized.length) return [];
+    const index = assetAddressIndex(records, { config });
+    const findings = [];
+    for (const record of records) {
+        const data = record?.data;
+        if (!data) continue;
+        for (const slot of sized) {
+            const value = data[slot.key];
+            if (!value) continue;
+            const asset = resolveArtRecord(index, value, slot.type, slot.accepts);
+            const { path: file, width, height } = asset?.asset ?? {};
+            if (!file || !width || !height) continue;
+            if (Number(width) === slot.size.width && Number(height) === slot.size.height) continue;
+            findings.push({
+                file: path.join(assetsBase, file),
+                severity: "error",
+                message:
+                    `${width}×${height} is not the ${slot.size.width}×${slot.size.height} ` +
+                    `a \`${slot.key}\` is cut to`,
+            });
+        }
+    }
+    return findings;
+}
+
+/**
  * The pathname an art value names, in the form an authored one takes.
  *
  * Handing the result to {@link module:engine/helpers.resolveImg} is what puts an
@@ -231,7 +348,7 @@ export function artPathname(index, value, defaultType, accepts) {
 }
 
 /**
- * The art a being falls back to, by the kind it is tagged.
+ * The art a being falls back to, by its subtype.
  *
  * Both files ship in `sohl`, under `assets/icons/other/`, and both are named
  * here as addresses rather than as paths for the reason every art reference is:
@@ -239,8 +356,8 @@ export function artPathname(index, value, defaultType, accepts) {
  * package borrowing the default gets the same file the system ships.
  *
  * **Only the compiler can choose between them**, because only the compiler
- * reads the note's tags. A schema default is the last resort beneath this one,
- * and covers a world document created by hand, which no note describes.
+ * reads the note's subtype. A schema default is the last resort beneath this
+ * one, and covers a world document created by hand, which no note describes.
  *
  * @type {Readonly<Record<string, string>>}
  */
@@ -250,19 +367,18 @@ export const BEING_DEFAULT_ART = Object.freeze({
 });
 
 /**
- * The default art address a being's own tags choose, or `null`.
+ * The default art address a being's subtype chooses, or `null`.
  *
- * `character` means a **person**, not a human, and `creature` everything else;
- * a being carries exactly one of the two, which is what makes the choice a
- * lookup rather than a precedence rule.
+ * An NPC and a character use person art; a creature uses creature art.
  *
  * @param {object} fm - The note's frontmatter.
- * @returns {string|null} The address, or `null` for a note carrying neither tag.
+ * @returns {string|null} The address, or `null` when no subtype selects one.
  */
 export function beingDefaultArt(fm) {
-    for (const [tag, address] of Object.entries(BEING_DEFAULT_ART)) {
-        if (hasTag(fm, tag)) return address;
+    if (fm?.subType === "npc" || fm?.subType === "character") {
+        return BEING_DEFAULT_ART.character;
     }
+    if (fm?.subType === "creature") return BEING_DEFAULT_ART.creature;
     return null;
 }
 

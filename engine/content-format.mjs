@@ -12,68 +12,12 @@
  */
 
 /**
- * Reading `docs/content-format.md` as data.
+ * Reads the structured note-format contract shipped with this package.
  *
- * The content format — three frontmatter regions, a note vocabulary with its
- * own `type` and `subType`, and a declared map from each note type onto each
- * system's document fields — is prose, because that is the only form in which
- * the *reasons* survive. But two of the things it states are checkable, and
- * were checked by throwaway scripts while it was being drafted:
- *
- * - **every `system.*` target it names** must exist in the naming system's
- *   published `schema.json`, or the specification and the system disagree; and
- * - **every authored note** should carry only the keys the format declares for
- *   its type, which during the migration is a progress bar as much as a
- *   check.
- *
- * Both need the document as data, and this is the module that supplies it.
- *
- * **It reads the document's own tables rather than a transcription of them.**
- * A hardcoded list of targets and per-type vocabularies would be a second copy
- * of the specification, free to drift from the first the moment either is
- * edited — which is exactly the failure the checks exist to prevent, moved one
- * level up. So the parser knows the *shape* of the tables the document uses and
- * nothing about their contents: no type name, no field name and no system name
- * is written here. Editing the document changes what the checks assert.
- *
- * **Three table shapes carry everything.**
- *
- * | table | recognised by its first header cell | yields |
- * | --- | --- | --- |
- * | the per-type vocabulary | `` `data` property `` | the keys that type's `data:` block may carry |
- * | the per-type mapping | `shared source` | one claim per `system.*` cell |
- * | a closed vocabulary | `` `<name>` value `` | the values `<name>` admits |
- *
- * A mapping table's remaining header cells name the systems (`→ sohl`,
- * `→ hm3`), so the system vocabulary comes from the document too.
- *
- * **A closed vocabulary is a table because it is a list with consequences.**
- * Where the format admits a fixed set of names and refuses the rest, each name
- * takes a row beside what it means, which is the only place a reader can
- * compare them. The header names the vocabulary rather than the parser, so a
- * second one costs a table and nothing here.
- *
- * **The other half of a type's vocabulary is a bullet list, not a table.** A
- * type's `subType` values are stated as `**subType**:` followed by one bullet
- * per value, `- <value>` or `- <value>: <definition>`, and that is read here
- * for the same reason the tables are: so the specification and
- * `note-vocabulary.mjs` cannot disagree about which genres exist. The
- * one shape is enforced rather than guessed at — the document wrote them five
- * ways, and a reader that accepted every spelling would accept the sixth by
- * reading the section as declaring nothing, which is the drift it exists to
- * catch. An unrecognised shape throws.
- *
- * **A mapping table before the first `### type:` heading is the shared one.**
- * The document states the rows every type maps identically once, at the top,
- * and omits them from all sixteen per-type tables — so a parser that only ever
- * looked inside a type's section could not see them, and the eight rows they
- * cover were checked by nothing. Position is the whole distinction:
- * there is no marker to read and none is wanted, since the document's own
- * argument for stating them once is that they belong to no type in particular. A cell that
- * names no field — `NA`, `**see above**`, a `flags.*` path — is not a claim,
- * and is skipped rather than reported: the check is about `system.*` targets,
- * and a column reading NA is the document saying this type produces no document
- * there.
+ * Types, subtype values, field paths, system mappings, and closed vocabularies
+ * have located declarations. The guides can change their headings and tables
+ * without changing validation. A caller may supply a Markdown specification
+ * explicitly through `--spec`; the bundled contract is YAML.
  *
  * @module
  */
@@ -81,35 +25,34 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import YAML from "yaml";
 
 /**
- * The specification this package ships.
+ * The structured format contract this package ships.
  *
  * Resolved from this module rather than from the working directory: a consumer
  * runs `package-build content-format` inside its own repository, and the
- * document it should be checked against is the one that came with the toolchain
+ * contract it should be checked against is the one that came with the toolchain
  * version it resolved — the same rule `--version` follows.
  *
  * @type {string}
  */
 export const CONTENT_FORMAT_PATH = path.join(
     path.dirname(fileURLToPath(import.meta.url)),
-    "..",
-    "docs",
-    "content-format.md",
+    "content-format.yaml",
 );
 
 /**
  * What one note type's section declares.
  *
  * @typedef {object} TypeSpec
- * @property {string} name - The note type, as the `### type:` heading spells it.
- * @property {number} line - 1-based line of that heading.
+ * @property {string} name - The note type as declared in the contract.
+ * @property {number} line - 1-based line of that declaration.
  * @property {Set<string>} dataKeys - The head segment of each declared `data`
  *   property — what a note actually writes. `appearance.eye_color` is authored
  *   as `appearance`, so that is the key recorded.
  * @property {Set<string>} dataPaths - The declared paths, whole.
- * @property {string[]} subTypes - The `subType` values the section enumerates,
+ * @property {string[]} subTypes - The declared `subType` values,
  *   in document order — empty when it states none, which is the ordinary case
  *   for a type that has no `subType` at all.
  */
@@ -426,11 +369,122 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
 }
 
 /**
- * Read and parse the specification from disk.
+ * Read and parse the bundled contract or a caller-supplied specification.
  *
- * @param {string} [file] - The document. Defaults to {@link CONTENT_FORMAT_PATH}.
+ * @param {string} [file] - The contract. Defaults to {@link CONTENT_FORMAT_PATH}.
  * @returns {ContentFormat} What it declares.
  */
 export function loadContentFormat(file = CONTENT_FORMAT_PATH) {
-    return parseContentFormat(fs.readFileSync(file, "utf8"), { file });
+    const source = fs.readFileSync(file, "utf8");
+    return file.endsWith(".md") ?
+            parseContentFormat(source, { file })
+        :   parseStructuredContentFormat(source, { file });
+}
+
+/**
+ * Read the machine contract without depending on the presentation of a guide.
+ * A Markdown file remains accepted by `--spec` for callers carrying a custom
+ * specification; the shipped contract is YAML.
+ *
+ * @param {string} text - YAML content.
+ * @param {object} [opts]
+ * @param {string} [opts.file] - Location reported in diagnostics.
+ * @returns {ContentFormat} Types, mappings, and closed vocabularies.
+ */
+export function parseStructuredContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
+    const lines = new YAML.LineCounter();
+    const document = YAML.parseDocument(text, { lineCounter: lines, uniqueKeys: true });
+    if (document.errors.length) {
+        const fault = document.errors[0];
+        const position = fault.pos?.[0] === undefined ? null : lines.linePos(fault.pos[0]);
+        throw new Error(
+            `${file}${position ? `:${position.line}:${position.col}` : ""}: error: ${fault.message}`,
+        );
+    }
+    const root = document.toJS();
+    const mapping = (value) => value && typeof value === "object" && !Array.isArray(value);
+    if (
+        root?.version !== 1 ||
+        !mapping(root.types) ||
+        !Array.isArray(root.claims) ||
+        !mapping(root.vocabularies)
+    ) {
+        throw new Error(
+            `${file}: error: expected format contract version 1 with types, claims, and vocabularies`,
+        );
+    }
+    const at = (node) => (node?.range?.[0] === undefined ? null : lines.linePos(node.range[0]));
+    const errorAt = (node, message) => {
+        const position = at(node);
+        return new Error(
+            `${file}${position ? `:${position.line}:${position.col}` : ""}: error: ${message}`,
+        );
+    };
+    const types = new Map();
+    for (const [name, spec] of Object.entries(root.types)) {
+        const node = document.getIn(["types", name], true);
+        if (!Array.isArray(spec.data) || !Array.isArray(spec.subTypes)) {
+            throw errorAt(node, `type ${name} needs data and subTypes lists`);
+        }
+        for (const [index, field] of spec.data.entries()) {
+            if (typeof field !== "string" || !field.trim()) {
+                throw errorAt(
+                    document.getIn(["types", name, "data", index], true),
+                    `type ${name} has an empty or non-string data field`,
+                );
+            }
+        }
+        for (const [index, subType] of spec.subTypes.entries()) {
+            if (typeof subType !== "string" || !subType.trim()) {
+                throw errorAt(
+                    document.getIn(["types", name, "subTypes", index], true),
+                    `type ${name} has an empty or non-string subType`,
+                );
+            }
+        }
+        types.set(name, {
+            name,
+            line: at(node)?.line,
+            dataKeys: new Set(spec.data.map((field) => field.split(".")[0])),
+            dataPaths: new Set(spec.data),
+            subTypes: spec.subTypes,
+        });
+    }
+    const claims = root.claims.map((claim, index) => {
+        const node = document.getIn(["claims", index], true);
+        const position = at(node);
+        if (
+            !mapping(claim) ||
+            ["noteType", "system", "source", "target"].some(
+                (key) => typeof claim[key] !== "string" || !claim[key].trim(),
+            )
+        ) {
+            throw errorAt(node, "a mapping needs noteType, system, source, and target");
+        }
+        return {
+            ...claim,
+            ...(position ? { line: position.line, column: position.col } : {}),
+        };
+    });
+    const vocabularies = new Map();
+    for (const [name, values] of Object.entries(root.vocabularies)) {
+        const node = document.getIn(["vocabularies", name], true);
+        if (!Array.isArray(values)) {
+            throw errorAt(node, `vocabulary ${name} needs a values list`);
+        }
+        for (const [index, value] of values.entries()) {
+            if (typeof value !== "string" || !value.trim()) {
+                throw errorAt(
+                    document.getIn(["vocabularies", name, index], true),
+                    `vocabulary ${name} has an empty or non-string value`,
+                );
+            }
+        }
+        vocabularies.set(name, {
+            name,
+            line: at(node)?.line,
+            values,
+        });
+    }
+    return { file, types, claims, vocabularies };
 }

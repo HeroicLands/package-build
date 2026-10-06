@@ -78,8 +78,8 @@ import { foundryAddressProblem, servesFoundry } from "./pathnames.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { ownDocumentSystem } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
-import { searchableFrontmatter } from "./note-package.mjs";
 import {
     blockSystem,
     canonicalKey,
@@ -301,39 +301,26 @@ export function buildLinkIndex(
         foreign: foreign.index,
     };
 
-    /** The searchable universe a `dataview` table draws its rows from. */
-    const tableDocs = notes.map((n) => ({
-        // Package present for a `WHERE … package = "…"` clause, synthesised
-        // rather than authored — see {@link searchableFrontmatter}.
-        fm: searchableFrontmatter(n.fm, pkg),
-        path: n.rel,
-        tld: n.rel.split("/")[0],
-        folder: path.dirname(n.rel).split("/").pop(),
-    }));
-
     /**
-     * One note's body with its `dataview` and `sql` tables expanded.
+     * One note's body with its SQL tables and page lists expanded.
      *
      * The body every body-level check reads, so a link and an embed in one note
-     * are found in the same text — a generated table is as free to carry either
-     * as prose is.
+     * are found in the same text — a generated table or list is as free to
+     * carry either as prose is.
      *
      * @param {object} note - A note from this index.
      * @returns {string} The markdown.
      */
     function expandedBody(note) {
         const body = note.body;
-        if (!/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:dataview|sql)\b/im.test(body)) return body;
+        if (!/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:sql|pagelist)\b/im.test(body)) return body;
         return expandContentTables(body, {
-            // Unfiltered: every note in the tree is this package's, so
-            // there is no other package's note to exclude.
-            docs: tableDocs,
-            linkable: (d) => Boolean(d.fm.shortcode),
             source: note.file,
-            // A `sql` table's links are checked like an authored one's, so
-            // its rows are prepared ahead of this walk — see
+            // A generated link is checked like an authored one, so both
+            // directives are prepared ahead of this walk — see
             // {@link module:engine/sql-tables.prepareTreeSqlTables}.
             sqlTables: sqlTables?.get(note.file),
+            pageLists: sqlTables?.pageLists?.get(note.file),
         }).markdown;
     }
 
@@ -392,7 +379,7 @@ export function buildLinkIndex(
     }
 
     /**
-     * Every wikilink in a note body, with its `dataview` tables expanded.
+     * Every wikilink in a note body, with its SQL tables expanded.
      *
      * An `![[…]]` embed is not one: it names a file rather than a note, and
      * {@link module:engine/wikilink-syntax.WIKILINK} excludes it so that no
@@ -779,9 +766,8 @@ function readAddress(url, packages) {
  *
  * **Why the homepage needs its own audit at all.** Every other note addresses
  * the corpus with wikilinks, which {@link auditLinks} resolves. A homepage does
- * not and cannot: it is published *verbatim* by every publishing mode, including
- * the homepage-only mode two fan-licensed packages ship under, where the content
- * tree is never walked and there is no index for a wikilink to resolve against.
+ * not and cannot: it is published *verbatim* even when the tree contains other
+ * notes. Its body never runs through the wikilink resolver.
  * So a homepage addresses the web the way the web does — markdown links in its
  * body — and this is what looks at those. A dead link on the page a reader
  * arrives at is the one nothing else would report.
@@ -796,8 +782,7 @@ function readAddress(url, packages) {
  *   is why every one is reported — including a bare `/<package>/`, which names
  *   another package's front page. A front page's address *is* its package
  *   prefix, so `/<package>/` is the absolute URL with the host struck off —
- *   host-free, emitted verbatim, and needing no index, which is what lets it
- *   hold in homepage-only mode where the tree is never walked.
+ *   host-free, emitted verbatim, and needing no index.
  * - A **wikilink**, which nothing on this page will ever resolve.
  *
  * **What is not checkable, and is not attempted.** Whether an external URL
@@ -842,7 +827,7 @@ export function auditHomepageLinks(index) {
                 all,
                 at(all),
                 `wikilink ${all} on the package homepage — a homepage is ` +
-                    `published verbatim in every publishing mode, so nothing ` +
+                    `published verbatim, so nothing ` +
                     `resolves it; write a markdown link, package-relative`,
             );
         }
@@ -970,6 +955,13 @@ export function auditLinks(index) {
                 deadAnchors.push({
                     note,
                     link: `${rawTarget}#${anchor}`,
+                    // The two the shared `unknown-anchor` wording reads, in the
+                    // same spelling the build's own pass gives them: the
+                    // address alone, and the slug the heading would have had to
+                    // declare. Carrying them is what lets one sentence serve
+                    // the checker and the build.
+                    target: rawTarget,
+                    anchor: slugify(anchor),
                     dest,
                     text,
                     occurrence,
@@ -1004,7 +996,13 @@ export function auditLinks(index) {
                 deadAddresses.push({ ...at, reason: "not-an-address" });
                 continue;
             }
-            if (index.resolveAddress(target)) continue;
+            const resolved = index.resolveAddress(target);
+            if (resolved) {
+                if ((isGmNote(resolved.fm) || resolved.gm) && !isGmNote(note.fm)) {
+                    deadAddresses.push({ ...at, reason: "gm" });
+                }
+                continue;
+            }
             // A stub is in the index, so the refusal can name it. Asked before
             // the foreign manifests, because a local note is what the author
             // meant and reporting it as an unresolved foreign address would
@@ -1019,7 +1017,12 @@ export function auditLinks(index) {
             // a fully qualified target names one package, so there is nothing
             // left to disambiguate, and no ambiguity finding this resolver can
             // report.
-            if (manifestHit(target)) {
+            const manifest = manifestHit(target);
+            if (manifest) {
+                if (manifest.gm && !isGmNote(note.fm)) {
+                    deadAddresses.push({ ...at, reason: "gm" });
+                    continue;
+                }
                 usedManifest.add(encodeAddresses(target).toLowerCase());
                 continue;
             }

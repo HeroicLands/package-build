@@ -4,7 +4,7 @@
 # container, over a clean export of HEAD — so a red GitHub check is something
 # you chose rather than something you discover.
 #
-# The steps are not listed here. `utils/ci-steps.mjs` reads them out of
+# The steps are not listed here. `ci/ci-steps.mjs` reads them out of
 # `.github/workflows/build.yml`, because a hook holding its own copy of the
 # command list is a second statement of one thing, and the copy is the one that
 # goes stale — silently, since running four of five steps still exits 0.

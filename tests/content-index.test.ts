@@ -282,14 +282,14 @@ describe("collectAnchors", () => {
 describe("buildIndexRecord", () => {
     it("carries the whole frontmatter through unflattened", () => {
         const record = buildIndexRecord({
-            frontmatter: { type: "being", sohl: { body: { weight: { base: 1500 } } } },
+            frontmatter: { type: "being", sohl: { system: { body: { weight: { base: 1500 } } } } },
             relPath: path.join("Bestiary", "Animal", "Aurochs.md"),
             contentPackage: "sohl",
         });
         expect(record.type).toBe("being");
         // The nested path survives as written — a reader addresses what the
         // note says, which is what a dataview query writes.
-        expect(record.sohl.body.weight.base).toBe(1500);
+        expect(record.sohl.system.body.weight.base).toBe(1500);
     });
 
     it("namespaces the note's place in the tree under `file`", () => {
@@ -1005,5 +1005,36 @@ describe("a note may declare more than one system", () => {
         // no system" and "nobody filled this in" are not the same shape.
         expect(macro.foundry.none.uuid).toContain(".Macro.");
         expect(macro.foundry.sohl).toBeUndefined();
+    });
+});
+
+describe("published place government", () => {
+    it("retains omitted, explicit null and canonical affiliation addresses in JSONL", () => {
+        note(
+            "Omitted.md",
+            "type: place\nsubType: site\nshortcode: omitted\nname: {full: Omitted}\ndata: {}",
+        );
+        note(
+            "Anarchy.md",
+            "type: place\nsubType: site\nshortcode: anarchy\nname: {full: Anarchy}\ndata: {government: null}",
+        );
+        note(
+            "Governed.md",
+            "type: place\nsubType: site\nshortcode: governed\nname: {full: Governed}\ndata: {government: council}",
+        );
+        const records = collectContentIndex(tmp, { contentPackage: "demo", skipDirectories: [] });
+        const published = serializeContentIndex(records)
+            .trim()
+            .split("\n")
+            .map((line) => JSON.parse(line));
+        expect(published.find((record) => record.shortcode === "omitted").data).not.toHaveProperty(
+            "government",
+        );
+        expect(
+            published.find((record) => record.shortcode === "anarchy").data.government,
+        ).toBeNull();
+        expect(published.find((record) => record.shortcode === "governed").data.government).toBe(
+            "demo-note-affiliation-council",
+        );
     });
 });

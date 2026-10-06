@@ -5,19 +5,6 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/**
- * A place page says what lies within it and who holds it; an affiliation page
- * says what it holds.
- *
- * Both are read off keys the notes already carry — a place's `data.parents`
- * for geography and an affiliation's `data.domains` for tenure — and written
- * as front-matter lists shaped like `related`: `contains` and `held_by` on a
- * place, `holdings` on an affiliation, each absent where empty. The fixture is
- * the one the rule is stated on: a region, two settlements within it, a house
- * holding one of them and a manor in another region, and a polity holding the
- * region. `package-build lint` reports the settlement nobody holds.
- */
-
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import matter from "gray-matter";
@@ -28,7 +15,6 @@ import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
 import {
     HOLDINGS_KEYS,
-    checkHeld,
     foreignHoldingsNodes,
     holdingsNode,
     holdingsPages,
@@ -38,6 +24,7 @@ import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { parseAddress } from "../engine/address.mjs";
 import { loadForeignIndexes } from "../engine/metadata-index.mjs";
 
 /* ---------------------------------------------------------------------- */
@@ -45,8 +32,7 @@ import { loadForeignIndexes } from "../engine/metadata-index.mjs";
 /* ---------------------------------------------------------------------- */
 
 /**
- * A place note. `type:` is the file's line 2, which is where the tenure
- * finding is located.
+ * A place note with optional additional data fields.
  */
 function place(
     shortcode: string,
@@ -71,7 +57,7 @@ function place(
     ].join("\n");
 }
 
-/** An affiliation note, holding what its `domains` name. */
+/** An affiliation note; legacy domains are accepted but never inverted. */
 function affiliation(
     shortcode: string,
     name: string,
@@ -98,17 +84,16 @@ function affiliation(
 /**
  * The fixture the rule is stated on, as `{ relPath: contents }`.
  *
- * - `rgn`, a region, holds the settlements `ham` and `mill` and the feature
- *   `river`; `far` is a second region holding the structure `manor`.
- * - The house `house` holds `ham` and `manor` — two places, two regions.
- * - The polity `crown` holds `rgn`; the sub-polity `duchy` is its vassal and
- *   holds nothing.
- * - Nobody holds `mill`, which is the tenure gap the lint reports; nobody
- *   holds `river` either, and a feature is exempt.
+ * - `rgn`, a region, contains the settlements `ham` and `mill` and the feature
+ *   `river`; `far` is a second region containing the structure `manor`.
+ * - The house `house` governs `ham` and `manor` — two places, two regions.
+ * - The polity `crown` governs `rgn`; the sub-polity `duchy` is its vassal and
+ *   governs nothing directly.
+ * - Nobody governs `mill` or `river`; government does not follow geography.
  * - `mill` authors a `contains:` of its own, which is replaced.
  */
 const FIXTURE: Record<string, string> = {
-    "Regions/Rgn.md": place("rgn", "The Region", "region"),
+    "Regions/Rgn.md": place("rgn", "The Region", "region", { extra: "    government: crown" }),
     "Regions/Far.md": place("far", "The Far Region", "region"),
     "Regions/Ham.md": place("ham", "Ham", "settlement", { parents: ["rgn"] }),
     "Regions/Mill.md": place("mill", "Mill", "settlement", {
@@ -116,12 +101,14 @@ const FIXTURE: Record<string, string> = {
         extra: "contains:\n    - authored",
     }),
     "Regions/River.md": place("river", "The River", "feature", { parents: ["rgn"] }),
-    "Regions/Manor.md": place("manor", "The Manor", "structure", { parents: ["far"] }),
+    "Regions/Manor.md": place("manor", "The Manor", "structure", {
+        parents: ["far"],
+        extra: "    government: house",
+    }),
     "Houses/House.md": affiliation("house", "The House", "lineage", {
-        domains: ["ham", "manor"],
         parents: ["crown"],
     }),
-    "Houses/Crown.md": affiliation("crown", "The Crown", "polity", { domains: ["rgn"] }),
+    "Houses/Crown.md": affiliation("crown", "The Crown", "polity"),
     "Houses/Duchy.md": affiliation("duchy", "The Duchy", "polity", { parents: ["crown"] }),
     "Lore/Silence.md": [
         "---",
@@ -166,10 +153,10 @@ const house = entry("The House", "/demo/affiliation-house/", "affiliation", "lin
 const crown = entry("The Crown", "/demo/affiliation-crown/", "affiliation", "polity");
 
 /* ---------------------------------------------------------------------- */
-/*  The site build writes the three lists                                 */
+/*  The site build writes containment and government lists                                 */
 /* ---------------------------------------------------------------------- */
 
-describe("the site build writes `contains`, `held_by` and `holdings`", () => {
+describe("the site build writes `contains`, `governed_by` and `governed_places`", () => {
     let root: string;
 
     /** The published front matter of one page under the content mount. */
@@ -185,6 +172,14 @@ describe("the site build writes `contains`, `held_by` and `holdings`", () => {
         fs.mkdirSync(path.join(root, "build/cache/metadata"), { recursive: true });
         writeTree(root, {
             ...FIXTURE,
+            "Regions/Ham.md": place("ham", "Ham", "settlement", {
+                parents: ["rgn"],
+                extra: "    government: house",
+            }),
+            "Regions/Mill.md": place("mill", "Mill", "settlement", {
+                parents: ["rgn"],
+                extra: "    government: null",
+            }),
             "homepage.md": "---\ntype: homepage\nshortcode: root\ntitle: The Demo\n---\n\nHome.\n",
         });
         const config = defineConfig({
@@ -198,7 +193,7 @@ describe("the site build writes `contains`, `held_by` and `holdings`", () => {
                 { name: "items", type: "Item" },
                 { name: "journals", type: "JournalEntry" },
             ],
-            publish: { site: "content", address: { prefix: "kb/" } },
+            publish: { address: { prefix: "kb/" } },
         });
         const result = buildSite({ config });
         expect(gatesFailed(result.gates)).toBe(false);
@@ -207,30 +202,38 @@ describe("the site build writes `contains`, `held_by` and `holdings`", () => {
 
     afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
+    it("preserves explicit anarchy, linked government and omitted government on site pages", () => {
+        expect((published("kb/place-mill.md").data as any).government).toBeNull();
+        expect((published("kb/place-ham.md").data as any).government).toBe(
+            "demo-note-affiliation-house",
+        );
+        expect(published("kb/place-river.md").data).not.toHaveProperty("government");
+    });
+
     it("lists on a region every place whose `parents` names it, by subType then title", () => {
         expect(published("kb/place-rgn.md").contains).toEqual([river, ham, mill]);
         expect(published("kb/place-far.md").contains).toEqual([manor]);
     });
 
-    it("lists on a house every place its `domains` names, across two regions", () => {
-        expect(published("kb/affiliation-house.md").holdings).toEqual([ham, manor]);
+    it("lists on a house every place naming it as government, across two regions", () => {
+        expect(published("kb/affiliation-house.md").governed_places).toEqual([ham, manor]);
     });
 
-    it("names on a manor the house that holds it", () => {
-        expect(published("kb/place-manor.md").held_by).toEqual([house]);
-        expect(published("kb/place-ham.md").held_by).toEqual([house]);
+    it("names on a manor its stated governing house", () => {
+        expect(published("kb/place-manor.md").governed_by).toEqual([house]);
+        expect(published("kb/place-ham.md").governed_by).toEqual([house]);
     });
 
-    it("never expands `domains`: the polity holding the region holds nothing within it", () => {
-        expect(published("kb/affiliation-crown.md").holdings).toEqual([rgn]);
-        expect(published("kb/place-rgn.md").held_by).toEqual([crown]);
-        expect(published("kb/place-ham.md").held_by).toEqual([house]);
-        expect(published("kb/place-mill.md")).not.toHaveProperty("held_by");
+    it("never inherits government from a region or affiliation hierarchy", () => {
+        expect(published("kb/affiliation-crown.md").governed_places).toEqual([rgn]);
+        expect(published("kb/place-rgn.md").governed_by).toEqual([crown]);
+        expect(published("kb/place-ham.md").governed_by).toEqual([house]);
+        expect(published("kb/place-mill.md")).not.toHaveProperty("governed_by");
     });
 
     it("shapes every entry as `{ title, url, type, subType }`", () => {
-        const page = published("kb/affiliation-house.md") as { holdings: object[] };
-        for (const e of page.holdings) {
+        const page = published("kb/affiliation-house.md") as { governed_places: object[] };
+        for (const e of page.governed_places) {
             expect(Object.keys(e).sort()).toEqual(["subType", "title", "type", "url"]);
         }
     });
@@ -244,9 +247,9 @@ describe("the site build writes `contains`, `held_by` and `holdings`", () => {
         // A place holding nothing within it and held by nobody carries only
         // the key it has something for.
         expect(published("kb/place-manor.md")).not.toHaveProperty("contains");
-        expect(published("kb/place-manor.md")).not.toHaveProperty("holdings");
+        expect(published("kb/place-manor.md")).not.toHaveProperty("governed_places");
         expect(published("kb/affiliation-house.md")).not.toHaveProperty("contains");
-        expect(published("kb/affiliation-house.md")).not.toHaveProperty("held_by");
+        expect(published("kb/affiliation-house.md")).not.toHaveProperty("governed_by");
     });
 
     it("composes `<base><slug>/` on every entry, where the page itself states `/<slug>/`", () => {
@@ -261,146 +264,214 @@ describe("the site build writes `contains`, `held_by` and `holdings`", () => {
 /* ---------------------------------------------------------------------- */
 
 describe("holdingsPages", () => {
-    const node = (
-        shortcode: string,
-        type: "place" | "affiliation",
-        subType: string,
-        {
-            parents = [],
-            domains = [],
-            url = `/demo/${type}-${shortcode}/`,
-            title = shortcode,
-        }: { parents?: string[]; domains?: string[]; url?: string; title?: string } = {},
-    ) => ({ shortcode, type, subType, title, url, parents, domains });
-
-    it("sorts `contains` and `holdings` by subType then title, and `held_by` by title", () => {
-        const pages = holdingsPages([
-            node("r", "place", "region", { title: "R" }),
-            node("b", "place", "settlement", { parents: ["r"], title: "B" }),
-            node("a", "place", "settlement", { parents: ["r"], title: "A" }),
-            node("f", "place", "feature", { parents: ["r"], title: "Z" }),
-            node("y", "affiliation", "polity", { domains: ["r"], title: "Y" }),
-            node("x", "affiliation", "lineage", { domains: ["r", "b", "a"], title: "X" }),
-        ]);
-        expect(pages.get("/demo/place-r/")?.contains.map((e) => e.title)).toEqual(["Z", "A", "B"]);
-        expect(pages.get("/demo/place-r/")?.held_by.map((e) => e.title)).toEqual(["X", "Y"]);
-        expect(pages.get("/demo/affiliation-x/")?.holdings.map((e) => e.title)).toEqual([
-            "R",
-            "A",
-            "B",
-        ]);
+    const node = (shortcode: string, type: "place" | "affiliation", opts: any = {}) => ({
+        shortcode,
+        type,
+        subType: type === "place" ? "settlement" : "polity",
+        title: shortcode,
+        url: `/demo/${type}-${shortcode}/`,
+        parents: [],
+        package: "demo",
+        ...opts,
     });
-
-    it("reads a parent or a domain written as a bare shortcode or an address", () => {
+    it("derives direct government and sorts governed places by subtype and title", () => {
         const pages = holdingsPages([
-            node("r", "place", "region"),
-            node("a", "place", "settlement", { parents: ["r"] }),
-            node("b", "place", "settlement", { parents: ["place-r"] }),
-            node("c", "place", "settlement", { parents: ["none-place-r"] }),
-            node("x", "affiliation", "polity", { domains: ["R", "place-a", "place-b"] }),
+            node("crown", "affiliation"),
+            node("region", "place", { government: "crown", subType: "region" }),
+            node("b", "place", { government: "crown", parents: ["region"] }),
+            node("a", "place", { government: "affiliation-crown", parents: ["region"] }),
         ]);
-        expect(pages.get("/demo/place-r/")?.contains.map((e) => e.title)).toEqual(["a", "b", "c"]);
-        expect(pages.get("/demo/affiliation-x/")?.holdings.map((e) => e.title)).toEqual([
-            "r",
-            "a",
+        expect(pages.get("/demo/affiliation-crown/")?.governed_places?.map((e) => e.title)).toEqual(
+            ["region", "a", "b"],
+        );
+        expect(pages.get("/demo/place-a/")?.governed_by?.map((e) => e.title)).toEqual(["crown"]);
+        expect(pages.get("/demo/place-region/")?.contains?.map((e) => e.title)).toEqual(["a", "b"]);
+    });
+    it("ignores domains and never inherits government through either hierarchy", () => {
+        const pages = holdingsPages([
+            node("crown", "affiliation", { domains: ["a"] }),
+            node("house", "affiliation", { parents: ["crown"] }),
+            node("region", "place", { government: "house" }),
+            node("a", "place", { parents: ["region"] }),
+        ]);
+        expect(pages.get("/demo/place-a/")).toBeUndefined();
+        expect(pages.get("/demo/affiliation-crown/")).toBeUndefined();
+        expect(pages.get("/demo/affiliation-house/")?.governed_places?.map((e) => e.title)).toEqual(
+            ["region"],
+        );
+    });
+    it("keeps same shortcodes in different packages separate for government", () => {
+        const foreign = node("crown", "affiliation", {
+            package: "other",
+            title: "Foreign crown",
+            url: "/other/crown/",
+        });
+        const tuple = parseAddress(
+            "other-sohl-affiliation-crown",
+            {
+                package: "demo",
+                system: "sohl",
+                type: "affiliation",
+                types: new Set(["affiliation"]),
+            },
+            { declared: true },
+        );
+        const pages = holdingsPages([
+            node("crown", "affiliation"),
+            foreign,
+            node("a", "place", { government: "crown" }),
+            node("b", "place", { government: "other-sohl-affiliation-crown" }),
+            node("c", "place", { government: tuple }),
+            node("d", "place", { package: "other", government: "crown" }),
+        ]);
+        expect(pages.get("/demo/affiliation-crown/")?.governed_places?.map((e) => e.title)).toEqual(
+            ["a"],
+        );
+        expect(pages.get("/other/crown/")?.governed_places?.map((e) => e.title)).toEqual([
             "b",
+            "c",
+            "d",
         ]);
     });
-
-    it("names nothing for a Wikilink or a value naming a type other than `place` — frontmatter holds neither", () => {
+    it("retains the first shortcode's containment while government keeps distinct packages", () => {
         const pages = holdingsPages([
-            node("r", "place", "region"),
-            node("c", "place", "settlement", { parents: ["[[place-r|The Region]]"] }),
-            node("d", "place", "settlement", { parents: ["affiliation-r"] }),
+            node("region", "place"),
+            node("crown", "affiliation"),
+            node("a", "place", { parents: ["region"], government: "crown" }),
+            node("a", "place", {
+                package: "other",
+                url: "/other/a/",
+                title: "Foreign A",
+                parents: ["region"],
+                government: "demo-sohl-affiliation-crown",
+            }),
         ]);
-        expect(pages.get("/demo/place-r/")).toBeUndefined();
+        expect(pages.get("/demo/place-region/")?.contains?.map((e) => e.title)).toEqual(["a"]);
+        expect(pages.get("/demo/affiliation-crown/")?.governed_places?.map((e) => e.title)).toEqual(
+            ["a", "Foreign A"],
+        );
     });
-
-    it("lists a place once however many times one note names it, and a name nothing declares not at all", () => {
+    it("normalizes Item and journal references to the same affiliation page", () => {
         const pages = holdingsPages([
-            node("r", "place", "region"),
-            node("x", "affiliation", "polity", { domains: ["r", "r", "nowhere"] }),
+            node("crown", "affiliation", { system: "sohl" }),
+            node("crown", "affiliation", {
+                system: "note",
+                title: "duplicate document",
+                url: "/duplicate/",
+            }),
+            node("a", "place", { government: "demo-note-affiliation-crown" }),
+            node("b", "place", { government: "demo-sohl-affiliation-crown" }),
         ]);
-        expect(pages.get("/demo/affiliation-x/")?.holdings.map((e) => e.title)).toEqual(["r"]);
-        expect(pages.get("/demo/place-r/")?.held_by.map((e) => e.title)).toEqual(["x"]);
+        expect(pages.get("/demo/affiliation-crown/")?.governed_places?.map((e) => e.title)).toEqual(
+            ["a", "b"],
+        );
+        expect(pages.has("/duplicate/")).toBe(false);
     });
-
-    // A URL gates where a list is *written*, never whether a node may appear
-    // in someone else's. A stub is a place somebody has not written yet, and
-    // it belongs in its region's `contains` whether or not it has a page.
-    it("lists a node with no page, as an entry with no url", () => {
+    it("omission, anarchy, unknown references, and invalid types produce no government list", () => {
         const pages = holdingsPages([
-            node("r", "place", "region"),
-            node("a", "place", "settlement", { parents: ["r"], url: "" }),
-            node("lone", "place", "site"),
+            node("crown", "affiliation"),
+            node("a", "place"),
+            node("b", "place", { government: null }),
+            node("c", "place", { government: "missing" }),
+            node("d", "place", { government: "place-crown" }),
+            node("e", "place", { government: "[[affiliation-crown]]" }),
         ]);
-        expect(pages.get("/demo/place-r/")?.contains).toEqual([
+        expect(pages.size).toBe(0);
+    });
+    it("includes stubs as plain text entries and never writes a list to a missing page", () => {
+        const pages = holdingsPages([
+            node("crown", "affiliation"),
+            node("a", "place", { government: "crown", url: "" }),
+            node("house", "affiliation", { url: "" }),
+            node("b", "place", { government: "house" }),
+        ]);
+        expect(pages.get("/demo/affiliation-crown/")?.governed_places).toEqual([
             { title: "a", type: "place", subType: "settlement" },
         ]);
-        // No page to write a list on, and nothing on any list.
+        expect(pages.get("/demo/place-b/")?.governed_by).toEqual([
+            { title: "house", type: "affiliation", subType: "polity" },
+        ]);
         expect(pages.has("")).toBe(false);
-        expect(pages.has("/demo/place-lone/")).toBe(false);
-        expect(pages.size).toBe(1);
     });
-
-    it("names a holder with no page on what it holds, and writes it no list of its own", () => {
-        const pages = holdingsPages([
-            node("r", "place", "region"),
-            node("x", "affiliation", "polity", { domains: ["r"], url: "" }),
+    it("includes supplemental local stub governments without changing containment", () => {
+        const pages = holdingsPages(
+            [
+                node("region", "place"),
+                node("crown", "affiliation"),
+                node("published", "place", {
+                    title: "Published",
+                    government: "crown",
+                    parents: ["region"],
+                }),
+                node("understub", "place", { government: "stubhouse" }),
+            ],
+            {
+                governmentNodes: [
+                    node("stub", "place", {
+                        title: "Stub place",
+                        government: "crown",
+                        parents: ["region"],
+                        url: undefined,
+                    }),
+                    node("stubhouse", "affiliation", { title: "Stub house", url: undefined }),
+                    node("published", "place", {
+                        title: "Duplicate record",
+                        government: "stubhouse",
+                        url: undefined,
+                    }),
+                ],
+            },
+        );
+        expect(pages.get("/demo/affiliation-crown/")?.governed_places).toEqual([
+            {
+                title: "Published",
+                type: "place",
+                subType: "settlement",
+                url: "/demo/place-published/",
+            },
+            { title: "Stub place", type: "place", subType: "settlement" },
         ]);
-        expect(pages.get("/demo/place-r/")?.held_by).toEqual([
-            { title: "x", type: "affiliation", subType: "polity" },
+        expect(pages.get("/demo/place-understub/")?.governed_by).toEqual([
+            { title: "Stub house", type: "affiliation", subType: "polity" },
         ]);
-        expect(pages.size).toBe(1);
+        expect(pages.get("/demo/place-region/")?.contains?.map((e) => e.title)).toEqual([
+            "Published",
+        ]);
+        expect(pages.get("/demo/place-published/")?.governed_by?.map((e) => e.title)).toEqual([
+            "crown",
+        ]);
+        expect(pages.has(undefined as never)).toBe(false);
     });
-
-    it("keeps the first node declaring a shortcode, so a local note shadows a fetched one", () => {
+    it("keeps the first full Address declaration and omits absent subtypes", () => {
         const pages = holdingsPages([
-            node("r", "place", "region", { title: "Mine" }),
-            node("r", "place", "region", { title: "Theirs", url: "/other/place-r/" }),
-            node("x", "affiliation", "polity", { domains: ["r"] }),
+            node("crown", "affiliation"),
+            node("crown", "affiliation", { title: "duplicate" }),
+            node("a", "place", { government: "crown", subType: undefined }),
         ]);
-        expect(pages.get("/demo/affiliation-x/")?.holdings.map((e) => e.title)).toEqual(["Mine"]);
-        expect(pages.has("/other/place-r/")).toBe(false);
-    });
-
-    it("omits `subType` from an entry whose note has none", () => {
-        const pages = holdingsPages([
-            { ...node("r", "place", "region"), subType: undefined },
-            node("x", "affiliation", "polity", { domains: ["r"] }),
-        ]);
-        expect(pages.get("/demo/affiliation-x/")?.holdings).toEqual([
-            { title: "r", url: "/demo/place-r/", type: "place" },
+        expect(pages.get("/demo/affiliation-crown/")?.governed_places).toEqual([
+            { title: "a", url: "/demo/place-a/", type: "place" },
         ]);
     });
 });
 
 describe("holdingsNode", () => {
-    it("reads a place or an affiliation, and nothing else", () => {
-        expect(
+    it("retains government null versus omission and ignores affiliation domains", () => {
+        const read = (data: any) =>
             holdingsNode(
-                { type: "place", subType: "region", shortcode: "R", data: { parents: ["w"] } },
-                { title: "R", url: "/demo/place-r/" },
-            ),
-        ).toEqual({
-            shortcode: "r",
-            type: "place",
-            subType: "region",
-            title: "R",
-            url: "/demo/place-r/",
-            parents: ["w"],
-            domains: [],
-        });
-        expect(
-            holdingsNode(
-                { type: "affiliation", subType: "polity", shortcode: "x", data: { domains: "r" } },
-                { title: "X", url: "/demo/affiliation-x/" },
-            )?.domains,
-        ).toEqual(["r"]);
-        expect(holdingsNode({ type: "lore", shortcode: "l" }, { title: "L", url: "/l/" })).toBe(
-            null,
+                { type: "place", shortcode: "r", data },
+                { title: "R", url: "/r/", package: "demo" },
+            );
+        expect(read({ government: null })).toHaveProperty("government", null);
+        expect(read({})).not.toHaveProperty("government");
+        const affiliation = holdingsNode(
+            { type: "affiliation", shortcode: "x", data: { domains: ["r"] } },
+            { title: "X", url: "/x/", package: "demo" },
         );
-        expect(holdingsNode({ type: "place" }, { title: "L", url: "/l/" })).toBe(null);
+        expect(affiliation).not.toHaveProperty("domains");
+        expect(
+            holdingsNode({ type: "lore", shortcode: "l" }, { title: "L", url: "/l/" }),
+        ).toBeNull();
+        expect(holdingsNode({ type: "place" }, { title: "L", url: "/l/" })).toBeNull();
     });
 });
 
@@ -420,7 +491,7 @@ function foreignCache(): { config: object; cache: string } {
             subType: "region",
             shortcode: "abroad",
             name: { full: "Abroad" },
-            data: { parents: ["rgn"] },
+            data: { parents: ["rgn"], government: null },
             address: { slug: "place-abroad", canonical: "thalorna-note-place-abroad" },
         },
         {
@@ -436,6 +507,26 @@ function foreignCache(): { config: object; cache: string } {
             },
         },
     ];
+    records.push(
+        {
+            package: "thalorna",
+            type: "place",
+            subType: "site",
+            shortcode: "governed",
+            name: { full: "Governed" },
+            data: { government: "thalorna-sohl-affiliation-empire" },
+            address: { slug: "place-governed", canonical: "thalorna-note-place-governed" },
+        } as any,
+        {
+            package: "thalorna",
+            type: "place",
+            subType: "site",
+            shortcode: "ungoverned",
+            name: { full: "Ungoverned" },
+            data: {},
+            address: { slug: "place-ungoverned", canonical: "thalorna-note-place-ungoverned" },
+        } as any,
+    );
     fs.writeFileSync(
         path.join(dir, "thalorna-metadata.jsonl"),
         records.map((r) => JSON.stringify(r)).join("\n") + "\n",
@@ -452,17 +543,64 @@ function foreignCache(): { config: object; cache: string } {
 }
 
 describe("a dependency's places and affiliations take part", () => {
-    it("carries an affiliation's `domains` through the fetched index", () => {
+    it("keeps explicit government null on fetched places", () => {
         const { config, cache } = foreignCache();
         try {
             const { index } = loadForeignIndexes(config as never, ["demo"]);
-            expect(index.get("thalorna-sohl-affiliation-empire")?.domains).toEqual([
-                { package: "demo", system: "note", type: "place", shortcode: "mill" },
-                { package: "demo", system: "note", type: "place", shortcode: "abroad" },
-            ]);
-            expect(index.get("thalorna-note-place-abroad")?.parents).toEqual([
-                { package: "demo", system: "note", type: "place", shortcode: "rgn" },
-            ]);
+            expect(index.get("thalorna-note-place-abroad")).toHaveProperty("government", null);
+            expect(index.get("thalorna-note-place-ungoverned")).not.toHaveProperty("government");
+            expect(index.get("thalorna-note-place-governed")?.government).toEqual({
+                package: "thalorna",
+                system: "sohl",
+                type: "affiliation",
+                shortcode: "empire",
+            });
+        } finally {
+            fs.rmSync(cache, { recursive: true, force: true });
+        }
+    });
+
+    it("resolves government from local and fetched affiliation indexes", () => {
+        const { config, cache } = foreignCache();
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-government-links-"));
+        try {
+            const base = writeTree(root, {
+                ...FIXTURE,
+                "Regions/Mill.md": place("mill", "Mill", "settlement", {
+                    parents: ["rgn"],
+                    extra: "    population: 120\n    government: thalorna-sohl-affiliation-empire",
+                }),
+                "Regions/Ham.md": place("ham", "Ham", "settlement", {
+                    parents: ["rgn"],
+                    extra: "    population: 120\n    government: house",
+                }),
+            });
+            const index = buildLinkIndex(base, { skipDirectories: [], config });
+            const { findings } = lintFrontmatter(index, {
+                schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS } as never,
+                vocabulary: NOTE_VOCABULARY,
+            });
+            expect(findings.filter((f) => f.message.includes("government"))).toEqual([]);
+        } finally {
+            fs.rmSync(root, { recursive: true, force: true });
+            fs.rmSync(cache, { recursive: true, force: true });
+        }
+    });
+
+    it("retains fetched government facts and canonical identity while ignoring domains", () => {
+        const { config, cache } = foreignCache();
+        try {
+            const { index } = loadForeignIndexes(config as never, ["demo"]);
+            const nodes = foreignHoldingsNodes(index);
+            expect(nodes.find((n) => n.shortcode === "abroad")).toHaveProperty("government", null);
+            expect(nodes.find((n) => n.shortcode === "ungoverned")).not.toHaveProperty(
+                "government",
+            );
+            expect(nodes.find((n) => n.shortcode === "empire")).toHaveProperty(
+                "canonical",
+                "thalorna-sohl-affiliation-empire",
+            );
+            expect(nodes.find((n) => n.shortcode === "empire")).not.toHaveProperty("domains");
         } finally {
             fs.rmSync(cache, { recursive: true, force: true });
         }
@@ -489,112 +627,49 @@ describe("a dependency's places and affiliations take part", () => {
                         type: "place",
                         subType: "settlement",
                         shortcode: "mill",
-                        data: { parents: ["rgn"] },
+                        data: { parents: ["rgn"], government: "thalorna-sohl-affiliation-empire" },
                     },
                     { title: "Mill", url: mill.url },
                 )!,
                 ...foreignHoldingsNodes(index),
             ]);
             expect(pages.get(rgn.url)?.contains).toEqual([abroad, mill]);
-            expect(pages.get(mill.url)?.held_by).toEqual([empire]);
-            expect(pages.get(empire.url)?.holdings).toEqual([abroad, mill]);
+            expect(pages.get(mill.url)?.governed_by).toEqual([empire]);
+            expect(pages.get(empire.url)?.governed_places).toEqual([
+                mill,
+                entry("Governed", "/thalorna/place-governed/", "place", "site"),
+            ]);
         } finally {
             fs.rmSync(cache, { recursive: true, force: true });
         }
     });
 });
 
-/* ---------------------------------------------------------------------- */
-/*  The lint reports unheld land                                          */
-/* ---------------------------------------------------------------------- */
-
-type Finding = { file: string; line?: number; column?: number; severity: string; message: string };
-
-/** Lint a tree and keep the tenure findings. */
-function lintTenure(
-    files: Record<string, string>,
-    config?: Record<string, unknown>,
-): { findings: Finding[]; root: string } {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-holdings-lint-"));
-    const base = writeTree(root, files);
-    const index = buildLinkIndex(base, { skipDirectories: [], ...(config ? { config } : {}) });
-    const { findings } = lintFrontmatter(index, {
-        schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS } as never,
-        vocabulary: NOTE_VOCABULARY,
-    });
-    return {
-        root,
-        findings: (findings as Finding[]).filter((f) => f.message.includes("unheld land")),
-    };
-}
-
-describe("`package-build lint` reports unheld land", () => {
-    it("warns once, at the `type:` line of the settlement no `domains` names", () => {
-        const { findings, root } = lintTenure(FIXTURE);
-        try {
-            expect(findings).toHaveLength(1);
-            const [f] = findings;
-            expect(f.file).toBe(path.join(root, "assets/content/Regions/Mill.md"));
-            expect(f.severity).toBe("warning");
-            expect(f.line).toBe(2);
-            expect(f.column).toBe(1);
-            expect(f.message).toMatch(/^unheld land/);
-            expect(f.message).toContain('"mill"');
-        } finally {
-            fs.rmSync(root, { recursive: true, force: true });
-        }
-    });
-
-    it("exempts a region and a feature, and holds a site and a structure to it", () => {
-        const { findings, root } = lintTenure({
-            "Rgn.md": place("rgn", "Rgn", "region"),
-            "World.md": place("wld", "Wld", "world"),
-            "River.md": place("river", "River", "feature", { parents: ["rgn"] }),
-            "Henge.md": place("henge", "Henge", "site", { parents: ["rgn"] }),
-            "Keep.md": place("keep", "Keep", "structure", { parents: ["rgn"] }),
-        });
-        try {
-            expect(findings.map((f) => path.basename(f.file)).sort()).toEqual([
-                "Henge.md",
-                "Keep.md",
-            ]);
-        } finally {
-            fs.rmSync(root, { recursive: true, force: true });
-        }
-    });
-
-    it("counts a dependency's `domains` as tenure", () => {
+describe("government advisories do not depend on holdings", () => {
+    it("does not infer government from local or fetched domains", () => {
         const { config, cache } = foreignCache();
-        const { findings, root } = lintTenure(
-            {
-                "Rgn.md": place("rgn", "Rgn", "region"),
-                "Mill.md": place("mill", "Mill", "settlement", { parents: ["rgn"] }),
-                "Ham.md": place("ham", "Ham", "settlement", { parents: ["rgn"] }),
-            },
-            config as Record<string, unknown>,
-        );
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-government-"));
         try {
-            expect(findings.map((f) => path.basename(f.file))).toEqual(["Ham.md"]);
+            const base = writeTree(root, {
+                ...FIXTURE,
+                "Regions/Mill.md": place("mill", "Mill", "settlement", {
+                    parents: ["rgn"],
+                    extra: "    population: 120",
+                }),
+            });
+            const index = buildLinkIndex(base, { skipDirectories: [], config });
+            const { findings } = lintFrontmatter(index, {
+                schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS } as never,
+                vocabulary: NOTE_VOCABULARY,
+            });
+            expect(findings.filter((f) => f.message.includes("unheld land"))).toEqual([]);
+            const warnings = findings.filter((f) => f.message.includes("missing government"));
+            expect(warnings).toHaveLength(1);
+            expect(warnings[0].file).toBe(path.join(base, "Regions/Mill.md"));
+            expect(warnings[0].line).toBe(9);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
             fs.rmSync(cache, { recursive: true, force: true });
         }
-    });
-
-    it("runs as part of the check the place vocabulary declares", () => {
-        // A type declares one whole-note check, and `place` asks two questions
-        // — who holds this land, and what a body states about itself — so the
-        // declaration composes them rather than either swallowing the other.
-        const unheld = {
-            file: "Ham.md",
-            raw: "---\ntype: place\nsubType: settlement\nshortcode: ham\n---\n",
-            fm: { type: "place", subType: "settlement", shortcode: "ham" },
-            type: "place",
-        };
-        const index = { notes: [unheld] };
-        expect(NOTE_VOCABULARY.place.check?.(unheld, { index })).toEqual(
-            checkHeld(unheld, { index }),
-        );
-        expect(checkHeld(unheld, { index })).toHaveLength(1);
     });
 });

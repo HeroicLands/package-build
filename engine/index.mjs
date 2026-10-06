@@ -42,6 +42,9 @@ export * as systemBlock from "./system-block.mjs";
 /** Fenced-code detection, so a rewrite never edits a code block. */
 export * as codeFences from "./code-fences.mjs";
 
+/** Format generated text using the destination's Prettier configuration. */
+export { formatGenerated } from "./format-generated.mjs";
+
 /** The `sohl:` frontmatter readers, shared by every content package. */
 export * as frontmatter from "./frontmatter.mjs";
 
@@ -90,13 +93,13 @@ export * as noteState from "./note-state.mjs";
 /** What a draft note says about itself, in one sentence, on every surface. */
 export * as draftNotice from "./draft-notice.mjs";
 
-/** Whether every empty body is a stub on purpose, and how finished a tree is. */
+/** Require written bodies on typed notes and report how finished a tree is. */
 export * as stubLint from "./stub-lint.mjs";
 
 /** What a place is next to and reachable from: the closed sets, and the checks. */
 export * as placeRelations from "./place-relations.mjs";
 
-/** What lies within a place, who holds it, and what an affiliation holds — the page lists, and the tenure check. */
+/** What lies within a place and who governs it — derived page lists and the government advisory. */
 export * as holdings from "./holdings.mjs";
 export * as populations from "./populations.mjs";
 
@@ -175,9 +178,6 @@ export * as infoboxRender from "./infobox-render.mjs";
 /** The id a note's document is filed under: its pin, or its address. */
 export * as noteIds from "./note-ids.mjs";
 
-/** The shortcodes a note declares it used to be published under. */
-export * as noteRenames from "./note-renames.mjs";
-
 /** The published content index packages exchange addresses through. */
 export * as metadataIndex from "./metadata-index.mjs";
 
@@ -220,6 +220,9 @@ export * as contentHtml from "./content-html.mjs";
 /** An image saying how wide it is and where it sits, in two closed vocabularies. */
 export * as contentImages from "./content-images.mjs";
 
+/** A list item opened with `[ ]` or `[x]`, which every surface reads as text. */
+export * as contentTaskLists from "./content-tasklists.mjs";
+
 /** `![[…]]` — the wikilink that renders a picture where it stands. */
 export * as contentEmbeds from "./content-embeds.mjs";
 
@@ -232,7 +235,7 @@ export * as contentLinks from "./content-links.mjs";
 /** Wikilinks resolved to a **web URL** — the site half of the pair below. */
 export * as webWikilinks from "./web-wikilinks.mjs";
 
-/** Dataview-style content tables, expanded into markdown at compile time. */
+/** Prepared SQL content tables, expanded into Markdown at compile time. */
 export * as contentTables from "./content-tables.mjs";
 
 /** Markdown parsing, stats, folders, images, and the wikilink index. */

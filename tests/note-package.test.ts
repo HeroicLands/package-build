@@ -328,81 +328,6 @@ describe("the compile loop refuses a note that declares `package:`", () => {
     });
 });
 
-describe("a generated table still scopes on `package` after the sweep", () => {
-    let tmp: string;
-
-    beforeAll(() => {
-        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "note-package-tables-"));
-    });
-
-    afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
-
-    /**
-     * A collection note scoping its table with `package = "<own>"` — the shape
-     * every collection note in every consumer repository has — over notes that
-     * no longer declare the field. The value the clause matches is synthesised
-     * for the search; it is the one place `package` survives, and 45 authored
-     * clauses across `sohl` and `thalorna` rely on it.
-     */
-    it("matches notes that no longer declare the field", async () => {
-        const content = path.join(tmp, "content");
-        const dest = path.join(tmp, "out");
-        fs.mkdirSync(content, { recursive: true });
-        fs.mkdirSync(dest, { recursive: true });
-
-        fs.writeFileSync(
-            path.join(content, "First.md"),
-            note({
-                name: { full: "First" },
-                type: "skill",
-                shortcode: "frst",
-                id: "EEEEEEEEEEEEEEEE",
-            }),
-            "utf8",
-        );
-        fs.writeFileSync(
-            path.join(content, "Second.md"),
-            note({
-                name: { full: "Second" },
-                type: "skill",
-                shortcode: "scnd",
-                id: "FFFFFFFFFFFFFFFF",
-            }),
-            "utf8",
-        );
-        fs.writeFileSync(
-            path.join(content, "Collection.md"),
-            note(
-                {
-                    name: { full: "Every Skill" },
-                    type: "doc",
-                    shortcode: "everyskill",
-                    id: "0000000000000001",
-                },
-                [
-                    "```dataview",
-                    'TABLE WITHOUT ID name.full AS "Name"',
-                    `WHERE type = "skill" and package = "${OWN}"`,
-                    "SORT name.full ASC",
-                    "```",
-                ].join("\n"),
-            ),
-            "utf8",
-        );
-
-        const probe = new Probe({ skipDirectories: [], contentBase: content, dest });
-        await probe.compile();
-        expect(probe.errorCount).toBe(0);
-
-        const doc = JSON.parse(fs.readFileSync(path.join(dest, fs.readdirSync(dest)[0]), "utf8"));
-        // Without the synthesised package the query would match neither note
-        // and render an empty table, in silence — the failure mode the sweep
-        // would otherwise have walked straight into.
-        expect(doc.body).toContain("First");
-        expect(doc.body).toContain("Second");
-    });
-});
-
 describe("addresses are keyed from the configuration alone", () => {
     let tmp: string;
 
@@ -445,7 +370,7 @@ describe("addresses are keyed from the configuration alone", () => {
                 { name: "items", type: "Item" },
                 { name: "journals", type: "JournalEntry" },
             ],
-            publish: { site: "content" },
+            publish: {},
         });
     }
 

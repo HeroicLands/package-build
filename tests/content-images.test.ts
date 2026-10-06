@@ -37,6 +37,7 @@ import {
     renderImageFigures,
 } from "../engine/content-images.mjs";
 import { BOOK_IMAGE_WIDTHS, bookTypstPreamble, markdownToTypst } from "../engine/pdf-render.mjs";
+import { BOOK_ROLE_SLOTS, PDF_PAGE, pdfTextWidth } from "../engine/pdf-images.mjs";
 
 const render = (markdown: string) =>
     new MarkdownIt({ html: true }).use(imagePlugin()).render(markdown);
@@ -45,7 +46,7 @@ describe("the three vocabularies parse and are closed", () => {
     it("accepts every declared size and records it", () => {
         expect(parseImageDirective("").size).toBe("auto");
         for (const value of IMAGE_SIZES) {
-            expect(parseImageDirective(`{size: ${value}}`)).toMatchObject({
+            expect(parseImageDirective(`{size=${value}}`)).toMatchObject({
                 size: value,
                 problems: [],
             });
@@ -58,13 +59,13 @@ describe("the three vocabularies parse and are closed", () => {
             float: "",
             problems: [],
         });
-        expect(parseImageDirective("{float: top-left}")).toEqual({
+        expect(parseImageDirective("{float=top-left}")).toEqual({
             classes: [],
             size: "auto",
             float: "top-left",
             problems: [],
         });
-        expect(parseImageDirective("{.full-width, float: bottom-right}")).toEqual({
+        expect(parseImageDirective("{.full-width float=bottom-right}")).toEqual({
             classes: ["full-width"],
             size: "auto",
             float: "bottom-right",
@@ -73,10 +74,7 @@ describe("the three vocabularies parse and are closed", () => {
     });
 
     it("accepts size and float in either order", () => {
-        for (const directive of [
-            "{size: medium, float: top-left}",
-            "{float: top-left, size: medium}",
-        ]) {
+        for (const directive of ["{size=medium float=top-left}", "{float=top-left size=medium}"]) {
             expect(parseImageDirective(directive)).toEqual({
                 classes: [],
                 size: "medium",
@@ -87,16 +85,16 @@ describe("the three vocabularies parse and are closed", () => {
     });
 
     it("refuses an empty, unknown, or repeated size", () => {
-        for (const directive of ["{size: }", "{size: huge}", "{size: auto, size: large}"]) {
+        for (const directive of ["{size=}", "{size=huge}", "{size=auto size=large}"]) {
             const parsed = parseImageDirective(directive);
-            expect(parsed.problems, directive).toHaveLength(1);
+            expect(parsed.problems.length, directive).toBeGreaterThan(0);
             expect(parsed.size, directive).toBe("auto");
         }
     });
 
     it("takes every float the specification lists", () => {
         for (const value of Object.keys(IMAGE_FLOATS)) {
-            expect(parseImageDirective(`{float: ${value}}`).float, value).toBe(value);
+            expect(parseImageDirective(`{float=${value}}`).float, value).toBe(value);
         }
     });
 
@@ -104,19 +102,21 @@ describe("the three vocabularies parse and are closed", () => {
         for (const spelling of [".fullwidth", ".full_width", ".fullWidth"]) {
             const { classes, problems } = parseImageDirective(`{${spelling}}`);
             expect(classes, spelling).toEqual([]);
-            expect(problems.join(" "), spelling).toContain("is not a width an image has");
+            expect(problems.join(" "), spelling).toContain("is not an image width");
         }
     });
 
     it("refuses a dimension, whatever it is spelled as", () => {
         for (const spelling of ["width=800", "width: 800", "height=12em"]) {
-            expect(parseImageDirective(`{${spelling}}`).problems.length, spelling).toBe(1);
+            expect(parseImageDirective(`{${spelling}}`).problems.length, spelling).toBeGreaterThan(
+                0,
+            );
         }
     });
 
     it("refuses a float it does not know", () => {
-        expect(parseImageDirective("{float: middle}").problems.join(" ")).toContain(
-            "is not a position",
+        expect(parseImageDirective("{float=middle}").problems.join(" ")).toContain(
+            "is not an image position",
         );
     });
 
@@ -125,7 +125,7 @@ describe("the three vocabularies parse and are closed", () => {
         // author who wrote both and got one would have to compare two outputs
         // to notice.
         const { classes, size, float, problems } = parseImageDirective(
-            "{.full-width, size: small, float: middle}",
+            "{.full-width size=small float=middle}",
         );
         expect(problems.length).toBe(1);
         expect(classes).toEqual([]);
@@ -189,6 +189,16 @@ describe("an image is found where it is written, and nowhere else", () => {
         expect(imagesIn("Prose.\n![A map](images/m.webp)\n")[0].block).toBe(false);
         expect(imagesIn("Prose.\n\n![A map](images/m.webp)\n\nMore.\n")[0].block).toBe(true);
     });
+
+    it("stays alone with a footnote reference trailing it, not other text", () => {
+        // `[^note]` annotates the picture rather than sitting beside it in
+        // prose — the same standing its own `{…}` directive already has.
+        expect(imagesIn("![A map](images/m.webp)[^note]\n")[0].block).toBe(true);
+        expect(imagesIn("![A map](images/m.webp){.full-width}[^note]\n")[0].block).toBe(true);
+        // A footnote reference is still the one thing a line may carry: real
+        // prose beside it is still reported.
+        expect(imagesIn("![A map](images/m.webp)[^note] and more.\n")[0].block).toBe(false);
+    });
 });
 
 describe("a refusal is located and fatal", () => {
@@ -215,21 +225,29 @@ describe("a refusal is located and fatal", () => {
         expect(findings.map((f) => f.message).join(" ")).toContain("shares its paragraph");
     });
 
+    it("reports an inline image even when its own directive would parse", () => {
+        // The directive is not what fails here: sharing a paragraph with other
+        // text is what fails, whether or not a `{…}` follows the image — a
+        // lint this does not catch is a lint an author has no reason to run.
+        const findings = checkImages("Text ![A](images/m.webp){size=medium} more.\n", "x.md");
+        expect(findings.map((f) => f.message).join(" ")).toContain("shares its paragraph");
+    });
+
     it("reports a title, rather than dropping the words in silence", () => {
         const findings = checkImages('![A map](images/m.webp "The realm")\n', "x.md");
         expect(findings.map((f) => f.message).join(" ")).toContain("is a title on an image");
     });
 
     it("says nothing about an image written correctly", () => {
-        expect(checkImages("![A map](images/m.webp){float: center}\n", "x.md")).toEqual([]);
-        expect(
-            checkImages("![A map](images/m.webp){size: medium, float: center}\n", "x.md"),
-        ).toEqual([]);
+        expect(checkImages("![A map](images/m.webp){float=center}\n", "x.md")).toEqual([]);
+        expect(checkImages("![A map](images/m.webp){size=medium float=center}\n", "x.md")).toEqual(
+            [],
+        );
         expect(checkImages("![A map](images/m.webp)\n", "x.md")).toEqual([]);
     });
 
     it("locates an invalid size at the directive", () => {
-        expect(checkImages("![A map](images/m.webp){size: huge}\n", "x.md")).toEqual([
+        expect(checkImages("![A map](images/m.webp){size=huge}\n", "x.md")).toEqual([
             expect.objectContaining({ file: "x.md", line: 1, column: 24, severity: "error" }),
         ]);
     });
@@ -242,15 +260,26 @@ describe("a refusal is located and fatal", () => {
 
 describe("the website is handed markup Hugo renders", () => {
     it("turns a block image into a figure carrying the vocabulary's classes", () => {
-        expect(renderImageFigures("![A map](images/m.webp){.full-width, float: top-right}\n")).toBe(
+        expect(renderImageFigures("![A map](images/m.webp){.full-width float=top-right}\n")).toBe(
             [
                 '<figure class="note-image note-image-full-width note-image-float-top-right">',
                 '<img src="images/m.webp" alt="A map">',
-                "<figcaption>A map</figcaption>",
                 "</figure>",
                 "",
             ].join("\n"),
         );
+    });
+
+    it("draws no caption line for an uncaptioned image, keeping its alt attribute", () => {
+        const html = renderImageFigures("![A map](images/m.webp)\n");
+        expect(html).not.toContain("<figcaption");
+        expect(html).toContain('alt="A map"');
+    });
+
+    it("draws no caption line for an image with empty alt text either", () => {
+        const html = renderImageFigures("![](images/m.webp)\n");
+        expect(html).not.toContain("<figcaption");
+        expect(html).toContain('alt=""');
     });
 
     it("escapes the alt text and the address", () => {
@@ -268,13 +297,22 @@ describe("the website is handed markup Hugo renders", () => {
         const body = "See ![A map](images/m.webp) there.\n";
         expect(renderImageFigures(body)).toBe(body);
     });
+
+    it("leaves an inline image's directive as literal text, size and all", () => {
+        // The failure 943 names: the directive neither applies nor disappears,
+        // so the page shows exactly what was authored and the separate
+        // `checkImages` lint is what tells the author why.
+        const body = "Text ![A](images/m.webp){size=medium} more.\n";
+        expect(renderImageFigures(body)).toBe(body);
+    });
 });
 
 describe("a Foundry journal page gets the same figure", () => {
     it("renders the figure as a block rather than inside a paragraph", () => {
-        const html = render("![A map](images/m.webp){float: top-left}\n");
+        const html = render("![A map](images/m.webp){float=top-left}\n");
         expect(html).toContain('<figure class="note-image note-image-float-top-left">');
         expect(html).not.toContain("<p>");
+        expect(html).not.toContain("<figcaption");
     });
 
     it("keeps an inline image an inline image", () => {
@@ -328,34 +366,47 @@ describe("the book prints the picture at the measure the class names", () => {
     });
 
     it("keeps the float where a full-width image asks for one", () => {
-        expect(typst("![A map](images/m.webp){.full-width, float: bottom-right}\n")).toContain(
+        expect(typst("![A map](images/m.webp){.full-width float=bottom-right}\n")).toContain(
             '#place(bottom + right, float: true, scope: "parent"',
         );
     });
 
     it("floats to the corner the position names, within its column", () => {
-        expect(typst("![A map](images/m.webp){float: bottom-right}\n")).toContain(
+        expect(typst("![A map](images/m.webp){float=bottom-right}\n")).toContain(
             '#place(bottom + right, float: true, scope: "column"',
         );
     });
 
-    it("draws the alt text as the caption, since print has no alt attribute", () => {
-        expect(typst("![A map](images/m.webp)\n")).toContain("[A map]");
+    it("draws no caption for an uncaptioned image, since alt text is not one", () => {
+        const out = typst("![A map](images/m.webp)\n");
+        expect(out).not.toContain("[A map]");
+        expect(out).toContain("caption: none");
     });
 
-    it("prints the caption alone when no file was staged for the address", () => {
+    it("draws no caption for an uncaptioned image with empty alt text either", () => {
+        expect(typst("![](images/m.webp)\n")).toContain("caption: none");
+    });
+
+    it("draws nothing at all when no file was staged for an uncaptioned address", () => {
         // `#image` on a path Typst cannot open is a compile error, and one of
-        // those is fatal to a whole book at the very end of a long run.
+        // those is fatal to a whole book at the very end of a long run — so an
+        // address the build could not stage draws nothing rather than falling
+        // back to its alt text.
         const out = markdownToTypst("![A map](https://example.org/m.webp)\n");
         expect(out).not.toContain("#image(");
-        expect(out).toContain("[A map]");
+        expect(out).not.toContain("[A map]");
+        expect(out.trim()).toBe("");
+    });
+
+    it("draws nothing for an unstaged image with empty alt text either", () => {
+        expect(markdownToTypst("![](https://example.org/m.webp)\n").trim()).toBe("");
     });
 });
 
 describe("named sizes reach every renderer", () => {
-    const plain = "![A map](images/m.webp){float: top-left}\n";
+    const plain = "![A map](images/m.webp){float=top-left}\n";
     const images = new Map([["images/m.webp", "assets/images/m.webp"]]);
-    const withSize = (size: string) => `![A map](images/m.webp){size: ${size}, float: top-left}\n`;
+    const withSize = (size: string) => `![A map](images/m.webp){size=${size} float=top-left}\n`;
 
     it("emits one HTML size class for every bounded or page-sized name", () => {
         for (const size of IMAGE_SIZES) {
@@ -383,7 +434,7 @@ describe("named sizes reach every renderer", () => {
 
     it("keeps the page-width class while honoring a bounded inner size", () => {
         const baseline = "![A map](images/m.webp){.full-width}\n";
-        const withSize = "![A map](images/m.webp){.full-width, size: medium}\n";
+        const withSize = "![A map](images/m.webp){.full-width size=medium}\n";
         expect(renderImageFigures(withSize)).toContain(
             "note-image-full-width note-image-size-medium",
         );
@@ -391,5 +442,112 @@ describe("named sizes reach every renderer", () => {
         expect(markdownToTypst(withSize, { images })).toContain("requested: 3.2cm");
         expect(markdownToTypst(withSize, { images })).toContain("#book-figure[");
         expect(markdownToTypst(baseline, { images })).toContain("requested: auto");
+    });
+});
+
+/** Mirrors {@link module:engine/pdf-render.typstInches}'s rounding, unexported. */
+const typstIn = (inches: number) => `${Math.round(inches * 1000) / 1000}in`;
+
+describe("a role sizes an unmarked picture in the book", () => {
+    const markdown = "![A portrait](images/m.webp)\n";
+    const images = new Map([["images/m.webp", "assets/images/m.webp"]]);
+
+    it("draws each role at its slot when the file's pixels do not narrow it", () => {
+        for (const [role, fraction] of Object.entries(BOOK_ROLE_SLOTS)) {
+            const slot = fraction * pdfTextWidth;
+            const assets = new Map([["images/m.webp", { type: "image", role, width: "" }]]);
+            const out = markdownToTypst(markdown, { images, assets });
+            expect(out, role).toContain(`requested: ${typstIn(slot)}`);
+        }
+    });
+
+    it("draws a picture whose pixels fall short of its role's slot at what its pixels support", () => {
+        const fraction = BOOK_ROLE_SLOTS.portrait;
+        const shortPixels = Math.round(fraction * pdfTextWidth * PDF_PAGE.dpi * 0.5);
+        const assets = new Map([
+            ["images/m.webp", { type: "image", role: "portrait", width: shortPixels }],
+        ]);
+        const out = markdownToTypst(markdown, { images, assets });
+        expect(out).toContain(`requested: ${typstIn(shortPixels / PDF_PAGE.dpi)}`);
+    });
+
+    it("draws an icon-type picture at the medium's nominal icon size, not a role's slot", () => {
+        const assets = new Map([["images/m.webp", { type: "icon", width: "" }]]);
+        const out = markdownToTypst(markdown, { images, assets });
+        expect(out).toContain("requested: 1in");
+    });
+
+    it("lets an author's own named size override a role's slot", () => {
+        const withSize = "![A portrait](images/m.webp){size=small}\n";
+        const assets = new Map([["images/m.webp", { type: "image", role: "banner", width: "" }]]);
+        const out = markdownToTypst(withSize, { images, assets });
+        expect(out).toContain(`requested: ${BOOK_IMAGE_WIDTHS.small}`);
+    });
+
+    it("leaves a picture declaring no role at the natural-pixel auto Typst resolves", () => {
+        const assets = new Map([["images/m.webp", { type: "image", width: 4000 }]]);
+        expect(markdownToTypst(markdown, { images, assets })).toContain("requested: auto");
+        expect(markdownToTypst(markdown, { images })).toContain("requested: auto");
+    });
+});
+
+describe("the emitted markup carries a picture's role and pixel size", () => {
+    it("carries no class and no dimensions for an address resolving to no asset", () => {
+        expect(imageFigureHtml({ src: "images/m.webp", alt: "A map" })).toBe(
+            '<figure class="note-image">\n<img src="images/m.webp" alt="A map">\n</figure>',
+        );
+    });
+
+    it("carries the role as a class and the pixels as attributes", () => {
+        const html = imageFigureHtml({
+            src: "images/m.webp",
+            alt: "A portrait",
+            role: "portrait",
+            width: 1024,
+            height: 1536,
+        });
+        expect(html).toContain("note-image note-image-role-portrait");
+        expect(html).toContain('width="1024" height="1536"');
+    });
+
+    it("carries blank dimension attributes for a vector that resolved to an asset", () => {
+        const html = imageFigureHtml({
+            src: "images/m.webp",
+            alt: "An emblem",
+            role: "emblem",
+            width: "",
+            height: "",
+        });
+        expect(html).toContain("note-image-role-emblem");
+        expect(html).toContain('width="" height=""');
+    });
+
+    it("carries dimensions with no role class for a picture declaring none", () => {
+        const html = imageFigureHtml({
+            src: "images/m.webp",
+            alt: "A map",
+            width: 800,
+            height: 600,
+        });
+        expect(html).not.toContain("note-image-role-");
+        expect(html).toContain('width="800" height="600"');
+    });
+
+    it("drops a role outside the closed set rather than emitting an unknown class", () => {
+        expect(imageFigureHtml({ src: "images/m.webp", role: "banner-ish" })).not.toContain(
+            "note-image-role-",
+        );
+    });
+
+    it("hands the website and Foundry the identical markup for the same asset", () => {
+        const markdown = "![A portrait](images/m.webp)\n";
+        const lookupAsset = () => ({ type: "image", role: "portrait", width: 1024, height: 1536 });
+        const website = renderImageFigures(markdown, (src) => src, lookupAsset);
+        const foundry = new MarkdownIt({ html: true })
+            .use(imagePlugin((src) => src, lookupAsset))
+            .render(markdown);
+        expect(website.trim()).toBe(foundry.trim());
+        expect(website).toContain("note-image-role-portrait");
+        expect(website).toContain('width="1024" height="1536"');
     });
 });

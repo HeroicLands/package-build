@@ -62,7 +62,6 @@
   pass, which reads them exactly as it reads a local pack.
 
   Three things it does deliberately:
-
   - **Pins, rather than following `latest`.** A published
     `releases/latest/download/…` URL is rewritten to the declared
     `compatibility.verified` version, so a build names one particular dependency
@@ -177,7 +176,6 @@
 
   `content-build lint` now checks frontmatter as well as addresses. Five classes,
   each previously reported somewhere other than where it was made, or not at all:
-
   - **Unknown or retired type**, told what replaced it.
   - **Missing required property** — `dimensions` on a map, `subType` on a skill.
   - **Wrong value shape** — `weight: heavy` where a number belongs.
@@ -215,7 +213,6 @@
   configures (#69).
 
   Two new commands:
-
   - `content-build format [paths..] [--write]` — Prettier, with the shared
     configuration.
   - `content-build markdown [paths..] [--fix]` — markdownlint, with a narrow,
@@ -310,7 +307,6 @@ version` regenerates it in every repository here.
   entries) exactly as the scripts it replaces emit them, on the same toolchain.
 
   Also new:
-
   - `paths.manifestOut` (default `build/manifests`) — where the manifest is
     written. Deliberately not `paths.manifests`, which is the _inbound_ directory
     of vendored foreign manifests that `links` consumes.
@@ -377,7 +373,6 @@ compile`. Publishing the _same tree_ as a website was a script each consumer
   exotic, so neither is left to care.
 
   Also new:
-
   - `engine/site-build.mjs` exports each stage (`collectContentPages`,
     `collectTreePages`, `siteGates`, `renderPages`, `writeSectionLandings`) for a
     consumer that needs a step rather than the whole command.
@@ -422,7 +417,6 @@ compile`. Publishing the _same tree_ as a website was a script each consumer
   stale by `--check` on every clean checkout — the two undoing each other forever.
   Three things were making that happen, and all three are fixed at the source
   rather than by adding a formatting pass:
-
   - Table columns are padded to their widest cell, which is what Prettier's
     alignment comes to for this content.
   - The worked example's fence said `yaml`, but the block is a whole note —
@@ -632,7 +626,6 @@ compile`. Publishing the _same tree_ as a website was a script each consumer
   hide the next drift instead of surfacing it.
 
   Two deliberate differences from the code it replaces:
-
   - **The `corpus` derivation is dropped.** `corpus` is not a registered item
     type, so nothing can compile to one and the branch matched nothing — the same
     class of dead code as the gate that caused the bug. It was in SoHL's copy and
@@ -654,7 +647,6 @@ compile`. Publishing the _same tree_ as a website was a script each consumer
   `gh release create`, because cutting the Release is what published. Nothing
   enforced the last step, so on 2026-08-21 `main` carried 0.5.1 while npm served
   0.4.0: two versions merged and never published, with no check red.
-
   - Every pull request now declares its bump as a `.changeset/*.md` file, and CI's
     **Changeset declared** job fails one that does not. `npx changeset add --empty`
     is how a change says it needs no release — explicitly, rather than by omission.

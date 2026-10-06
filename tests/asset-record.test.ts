@@ -36,8 +36,13 @@ import {
     collectAssetRecords,
 } from "../engine/asset-index.mjs";
 import { ASSET_TYPES } from "../engine/asset-types.mjs";
+import { assetImageInfoByPathname } from "../engine/art-fields.mjs";
+import { ASSETS_SEGMENT } from "../engine/pathnames.mjs";
 
-const SPEC = fs.readFileSync(path.resolve(__dirname, "../docs/content-format.md"), "utf8");
+const SPEC = fs.readFileSync(
+    path.resolve(__dirname, "../docs/reference/format-details.md"),
+    "utf8",
+);
 
 /**
  * The fields the specification's asset-record table names.
@@ -271,9 +276,106 @@ describe("provenance resolves per address", () => {
         const base = assetTree({ "images/thorn.webp": "webp" });
         const [record] = collectAssetRecords(base, { contentPackage: "harnensemble" });
         for (const field of ASSET_RECORD_FIELDS) {
-            expect(typeof record.asset[field.name], field.name).toBe("string");
+            // `ai` is the one field whose blank is a boolean rather than an
+            // empty string — every other field states nothing by carrying "".
+            const expected = field.type === "boolean" ? "boolean" : "string";
+            expect(typeof record.asset[field.name], field.name).toBe(expected);
         }
         expect(record.asset.attribution).toBe("");
+        expect(record.asset.ai).toBe(false);
+    });
+
+    it("states `ai` as the boolean the file declares, false and true alike", () => {
+        const base = assetTree({
+            [`icons/noun/${PROVENANCE_FILE}`]: [
+                "attribution: Someone",
+                "license: CC0",
+                "ai: false",
+            ].join("\n"),
+            "icons/noun/anvil.svg": "<svg/>",
+            [`images/drawn/${PROVENANCE_FILE}`]: [
+                "attribution: Someone Else",
+                "license: CC0",
+                "ai: true",
+            ].join("\n"),
+            "images/drawn/thorn.webp": "webp",
+        });
+        const records = collectAssetRecords(base, { contentPackage: "sohl" });
+        const anvil = recordFor(records, "sohl-none-icon-anvil");
+        const thorn = recordFor(records, "sohl-none-image-thorn");
+        expect(anvil?.asset.ai).toBe(false);
+        expect(thorn?.asset.ai).toBe(true);
+    });
+
+    it("accepts a case-variant spelling the YAML parser itself resolves to a boolean", () => {
+        // `TRUE` is not a string here — the YAML 1.2 core schema this parser
+        // reads resolves it to the native boolean `true` before this code ever
+        // sees a value, so there is nothing for the strict check to refuse.
+        const base = assetTree({
+            [`icons/${PROVENANCE_FILE}`]: ["attribution: Someone", "license: CC0", "ai: TRUE"].join(
+                "\n",
+            ),
+            "icons/anvil.svg": "<svg/>",
+        });
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        expect(record.asset.ai).toBe(true);
+    });
+
+    it("defaults `ai` to false when nothing states it", () => {
+        const base = assetTree({ "images/thorn.webp": "webp" });
+        const [record] = collectAssetRecords(base, { contentPackage: "harnensemble" });
+        expect(record.asset.ai).toBe(false);
+    });
+
+    it.each(["yes", "1", "maybe"])(
+        "refuses a non-boolean `ai: %s` with a located finding distinct from the unknown-key one",
+        (malformed) => {
+            const base = assetTree({
+                [`icons/${PROVENANCE_FILE}`]: [
+                    "attribution: Someone",
+                    "license: CC0",
+                    `ai: ${malformed}`,
+                ].join("\n"),
+                "icons/anvil.svg": "<svg/>",
+            });
+            const problems: any[] = [];
+            const records = collectAssetRecords(base, { contentPackage: "sohl", problems });
+
+            // Accepted and stringified is exactly what this must not do: the
+            // record carries no `ai` at all rather than a value that would read
+            // as truthy either way.
+            expect(records).toHaveLength(1);
+            expect(records[0].asset.ai).toBe(false);
+
+            const finding = problems.find((p) => /`ai`/.test(p.message));
+            expect(finding).toBeDefined();
+            expect(finding.severity).toBe("error");
+            expect(finding.line).toBeTypeOf("number");
+            expect(finding.message).not.toMatch(/is not a provenance key/);
+            expect(finding.message).toMatch(/boolean/);
+        },
+    );
+
+    it("keeps the present string parsing for every other provenance key", () => {
+        const base = assetTree({
+            [`icons/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "source: https://example.test/",
+                "ai: false",
+                "license: CC-BY-SA-4.0",
+                "notes: a note",
+            ].join("\n"),
+            "icons/anvil.svg": "<svg/>",
+        });
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        expect(record.asset.attribution).toBe("Tom Rodriguez");
+        expect(record.asset.source).toBe("https://example.test/");
+        expect(record.asset.license).toBe("CC-BY-SA-4.0");
+        expect(record.asset.notes).toBe("a note");
+        expect(typeof record.asset.attribution).toBe("string");
+        expect(typeof record.asset.source).toBe("string");
+        expect(typeof record.asset.license).toBe("string");
+        expect(typeof record.asset.notes).toBe("string");
     });
 
     it("reports an unknown key rather than dropping it", () => {
@@ -309,5 +411,139 @@ describe("the roots are a closed list", () => {
     it("declares no font root, because a font has no address", () => {
         expect(ASSET_TYPES.map((entry) => entry.root)).not.toContain("fonts");
         expect(ASSET_TYPES.map((entry) => entry.type)).not.toContain("font");
+    });
+});
+
+/** A minimal PNG whose header states the given pixel size, nothing else. */
+function pngBytes(width: number, height: number): Buffer {
+    const signature = Buffer.from("89504e470d0a1a0a", "hex");
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(13, 0);
+    const type = Buffer.from("IHDR", "ascii");
+    const w = Buffer.alloc(4);
+    w.writeUInt32BE(width, 0);
+    const h = Buffer.alloc(4);
+    h.writeUInt32BE(height, 0);
+    return Buffer.concat([signature, length, type, w, h]);
+}
+
+describe("`role` names what a picture is for, and is closed to the `image` type", () => {
+    it.each(["portrait", "emblem", "banner", "plate", "map"])(
+        "accepts the declared role %s on an image address",
+        (role) => {
+            const base = assetTree({
+                [`images/${PROVENANCE_FILE}`]: [
+                    "attribution: Tom Rodriguez",
+                    "license: CC-BY-SA-4.0",
+                    `role: ${role}`,
+                ].join("\n"),
+                "images/thorn.webp": "webp",
+            });
+            const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+            expect(record.asset.role).toBe(role);
+        },
+    );
+
+    it("refuses a value outside the closed set, with its position", () => {
+        const base = assetTree({
+            [`images/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "license: CC-BY-SA-4.0",
+                "role: cover",
+            ].join("\n"),
+            "images/thorn.webp": "webp",
+        });
+        const problems: any[] = [];
+        const records = collectAssetRecords(base, { contentPackage: "sohl", problems });
+        expect(records[0].asset.role).toBe("");
+
+        const finding = problems.find((p) => /`role`/.test(p.message));
+        expect(finding).toBeDefined();
+        expect(finding.severity).toBe("error");
+        expect(finding.line).toBeTypeOf("number");
+        expect(finding.message).toMatch(/portrait/);
+        expect(finding.message).toMatch(/cover/);
+    });
+
+    it("refuses a role declared on an icon address", () => {
+        const base = assetTree({
+            [`icons/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "license: CC-BY-SA-4.0",
+                "role: portrait",
+            ].join("\n"),
+            "icons/anvil.svg": "<svg/>",
+        });
+        const problems: any[] = [];
+        const records = collectAssetRecords(base, { contentPackage: "sohl", problems });
+        expect(records[0].asset.role).toBe("");
+
+        const finding = problems.find((p) => /`role`/.test(p.message));
+        expect(finding).toBeDefined();
+        expect(finding.severity).toBe("error");
+        expect(finding.message).toMatch(/icon/);
+        expect(finding.message).toMatch(/image/);
+    });
+});
+
+describe("`width` and `height` come from the walk, not from provenance", () => {
+    it("measures a raster file's own pixel dimensions", () => {
+        const base = assetTree({});
+        fs.mkdirSync(path.join(base, "images"), { recursive: true });
+        fs.writeFileSync(path.join(base, "images", "thorn.png"), pngBytes(640, 480));
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        expect(record.asset.width).toBe(640);
+        expect(record.asset.height).toBe(480);
+    });
+
+    it("leaves an SVG's dimensions blank, rather than guessing from a viewBox", () => {
+        const base = assetTree({
+            "images/thorn.svg": '<svg viewBox="0 0 640 480"></svg>',
+        });
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        expect(record.asset.width).toBe("");
+        expect(record.asset.height).toBe("");
+    });
+});
+
+describe("a renderer sizes a picture by the pathname it resolved to", () => {
+    it("keys an image's role and pixels by the same pathname `readAssetAddress` resolves", () => {
+        const base = assetTree({
+            [`images/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "license: CC-BY-SA-4.0",
+                "role: portrait",
+            ].join("\n"),
+        });
+        fs.writeFileSync(path.join(base, "images", "thorn.png"), pngBytes(640, 480));
+        const records = collectAssetRecords(base, { contentPackage: "sohl" });
+        const info = assetImageInfoByPathname(records);
+        const key = `sohl/${ASSETS_SEGMENT}/images/thorn.png`;
+        expect(info.get(key)).toEqual({
+            type: "image",
+            role: "portrait",
+            width: 640,
+            height: 480,
+        });
+    });
+
+    it("carries a vector's blank width and height through rather than dropping them", () => {
+        const base = assetTree({
+            "icons/anvil.svg": "<svg/>",
+        });
+        const records = collectAssetRecords(base, { contentPackage: "sohl" });
+        const info = assetImageInfoByPathname(records);
+        const key = `sohl/${ASSETS_SEGMENT}/icons/anvil.svg`;
+        expect(info.get(key)).toEqual({ type: "icon", role: undefined, width: "", height: "" });
+    });
+
+    it("omits a role an asset never declared, rather than a blank one", () => {
+        const base = assetTree({
+            "images/map.webp": "webp",
+        });
+        const records = collectAssetRecords(base, { contentPackage: "sohl" });
+        const info = assetImageInfoByPathname(records);
+        const key = `sohl/${ASSETS_SEGMENT}/images/map.webp`;
+        expect(info.get(key)?.role).toBeUndefined();
     });
 });

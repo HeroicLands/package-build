@@ -18,6 +18,8 @@ import { reckoningContext } from "./reckoning-markers.mjs";
 import { cachedMetadataIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { buildSiteIndex } from "./site-index.mjs";
 import { openNotesDatabase, prepareSqlTables, findSqlBlocks } from "./sql-tables.mjs";
+import { findPageListBlocks } from "./page-lists.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { relatedPages } from "./related-pages.mjs";
 import { holdingsNode, holdingsPages, foreignHoldingsNodes } from "./holdings.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
@@ -79,15 +81,23 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
         const gates = siteGates([...pages, ...homeEntries], findings, { config, records });
         if (gatesFailed(gates))
             throw new Error("site preview cannot prepare: site integrity gates failed");
-        const db = await openNotesDatabase(records, {
-            dependencies,
-            addressContext: noteAddressContext(config),
-        });
+        const db = await openNotesDatabase(
+            records.filter((record) => !isGmNote(record)),
+            {
+                dependencies,
+                addressContext: noteAddressContext(config),
+                audience: "public",
+            },
+        );
         try {
             const sources = pages
-                .filter((page) => findSqlBlocks(page.body).length)
+                .filter(
+                    (page) =>
+                        findSqlBlocks(page.body).length || findPageListBlocks(page.body).length,
+                )
                 .map((page) => ({ source: page.file, markdown: page.body }));
-            const sqlTables = await prepareSqlTables(db, sources);
+            const publicRecords = records.filter((record) => !isGmNote(record));
+            const sqlTables = await prepareSqlTables(db, sources, { records: publicRecords });
             const rendered = renderPages(pages, {
                 index: gates.index,
                 foreign: gates.foreign,
@@ -200,14 +210,20 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                         records,
                         noIndexPackages: noContentIndexPackages(config),
                     });
-                    db = await openNotesDatabase(records, {
-                        dependencies,
-                        addressContext: noteAddressContext(config),
-                    });
+                    db = await openNotesDatabase(
+                        records.filter((record) => !isGmNote(record)),
+                        {
+                            dependencies,
+                            addressContext: noteAddressContext(config),
+                            audience: "public",
+                        },
+                    );
                 }
-                const sqlTables = await prepareSqlTables(db, [
-                    { source: absolute, markdown: body },
-                ]);
+                const sqlTables = await prepareSqlTables(
+                    db,
+                    [{ source: absolute, markdown: body }],
+                    { records: records.filter((record) => !isGmNote(record)) },
+                );
                 const allPages = snapshot.pages.map((item) =>
                     item.file === absolute ? page : item,
                 );
@@ -235,6 +251,12 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                     });
                 for (const error of result.secretErrors)
                     findings.push({ ...error, severity: "error" });
+                for (const error of result.captionErrors)
+                    findings.push({ ...error, severity: "error" });
+                for (const error of result.headingErrors)
+                    findings.push({ ...error, severity: "error" });
+                for (const error of result.footnoteErrors)
+                    findings.push({ ...error, severity: "error" });
                 for (const error of result.wikiErrors) {
                     const pos = positionOfLiteral(text, error.link, error.occurrence);
                     findings.push({
@@ -248,24 +270,42 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                     const pos = positionOfLiteral(text, error.src, error.occurrence);
                     findings.push({ ...error, ...pos, severity: "error" });
                 }
+                for (const error of result.embedErrors)
+                    findings.push({ ...error, severity: "error" });
                 if (findings.length) return { ok: false, findings };
                 const edges = snapshot.rendered.edges.filter(([source]) => source !== original.url);
                 for (const hit of result.resolved) if (hit.url) edges.push([page.url, hit.url]);
                 const entries = new Map(snapshot.rendered.entries);
                 entries.delete(original.url);
                 entries.set(page.url, {
-                    title: fm.title ?? page.name,
+                    title: page.name,
                     url: page.url,
                     type: String(fm.type),
                 });
                 const related = relatedPages(edges, entries).get(page.url);
                 if (related) result.data.related = related;
-                const holdings = holdingsPages([
-                    ...allPages.map((item) =>
-                        holdingsNode(item.fm, { title: item.fm.title ?? item.name, url: item.url }),
-                    ),
-                    ...foreignHoldingsNodes(snapshot.gates.foreign.index),
-                ]);
+                const holdings = holdingsPages(
+                    [
+                        ...allPages.map((item) =>
+                            holdingsNode(item.fm, {
+                                title: item.name,
+                                url: item.url,
+                                package: item.pkg ?? config.contentPackage,
+                            }),
+                        ),
+                        ...foreignHoldingsNodes(snapshot.gates.foreign.index),
+                    ],
+                    {
+                        governmentNodes: records
+                            .filter((record) => !isGmNote(record))
+                            .map((record) =>
+                                holdingsNode(record, {
+                                    title: record.name?.full ?? record.shortcode,
+                                    package: config.contentPackage,
+                                }),
+                            ),
+                    },
+                );
                 Object.assign(result.data, holdings.get(page.url));
                 return {
                     ok: true,

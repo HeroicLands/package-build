@@ -2,7 +2,13 @@
 
 import { describe, expect, it } from "vitest";
 import { canonicalYear, eraYear } from "../engine/calendars.mjs";
-import { eraCovering, formatNoteDate, parseNoteDate } from "../engine/note-dates.mjs";
+import {
+    calendarEras,
+    eraCovering,
+    formatNoteDate,
+    occurrencesOf,
+    parseNoteDate,
+} from "../engine/note-dates.mjs";
 import { resolveReckoningMarkers } from "../engine/reckoning-markers.mjs";
 import { buildIndexRecord } from "../engine/content-index.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
@@ -22,19 +28,21 @@ const months = Array.from({ length: 12 }, (_, i) => ({
 const index = {
     notes: [
         {
+            package: "thalorna",
             fm: {
-                package: "thalorna",
                 shortcode: "vrcal",
                 type: "lore",
                 subType: "calendar",
                 data: {
+                    epoch: "1.1",
                     months,
                     eras: [
+                        { shortcode: "before", name: "Before", abbreviation: "BF", start: null },
                         {
                             shortcode: "founding",
                             marker: "VR",
                             abbreviation: "VR",
-                            start: "1.1",
+                            start: 1,
                             label: { after: "{date} AF", before: "{date} BF" },
                         },
                     ],
@@ -42,19 +50,21 @@ const index = {
             },
         },
         {
+            package: "thalorna",
             fm: {
-                package: "thalorna",
                 shortcode: "latercal",
                 type: "lore",
                 subType: "calendar",
                 data: {
+                    epoch: "1.1",
                     months,
                     eras: [
+                        { shortcode: "before", name: "Before", abbreviation: "BL", start: null },
+                        { shortcode: "early", name: "Early", abbreviation: "ER", start: 1 },
                         {
                             shortcode: "later",
                             marker: "LR",
-                            start: "701.1",
-                            end: "730.365",
+                            start: 701,
                             label: "Year {date} of the Later Count",
                         },
                     ],
@@ -96,11 +106,15 @@ describe("printable reckoning dates", () => {
         expect(() => dateFromCalendar("vrcal", "Month 5 720 VR", context)).toThrow(
             /precise to the day/,
         );
-        expect(() => dateToCalendar("latercal", "740.134", context)).toThrow(/outside calendar/);
+        expect(dateToCalendar("latercal", "740.134", context)).toBe("14 Month 5 40 LR");
     });
 
     it("accepts only canonical or named frontmatter dates and preserves approximation", () => {
         for (const input of [
+            "326",
+            326,
+            "-300",
+            "~326",
             "326.114",
             "-300.1",
             "326.114:143005",
@@ -114,7 +128,6 @@ describe("printable reckoning dates", () => {
             expect(result.date).not.toBeNull();
         }
         for (const input of [
-            "326",
             "326/4/23",
             "VR(326/4/23)",
             "326 vrcal.founding",
@@ -127,6 +140,26 @@ describe("printable reckoning dates", () => {
         expect(
             parseNoteDate("~326.114", { ...context, field: "data.born" }).date?.approximate,
         ).toBe(true);
+        expect(parseNoteDate("326", { ...context, field: "data.born" }).date).toMatchObject({
+            text: "326",
+            precision: "year",
+            approximate: false,
+            canonicalYear: 326,
+            spanDays: 365,
+        });
+        expect(parseNoteDate("326", { ...context, field: "data.born" }).date).not.toHaveProperty(
+            "canonicalDay",
+        );
+        expect(parseNoteDate("~326", { ...context, field: "data.born" }).date).toMatchObject({
+            precision: "year",
+            approximate: true,
+            spanDays: 365,
+        });
+        expect(parseNoteDate("326.1", { ...context, field: "data.born" }).date).toMatchObject({
+            precision: "day",
+            approximate: false,
+            spanDays: 1,
+        });
         expect(
             parseNoteDate("~datefrom vrcal 23 Taranis 326 VR", { ...context, field: "data.born" })
                 .date?.approximate,
@@ -147,20 +180,28 @@ describe("printable reckoning dates", () => {
             "datefrom vrcal 720 VR",
             "datefrom vrcal Month 5 720 VR",
             "datefrom vrcal 14 Month 5 720 VR",
-            "datefrom vrcal 30 Month 12 -1 VR",
-            "~datefrom vrcal -480 VR",
+            "datefrom vrcal 30 Month 12 1 BF",
+            "~datefrom vrcal 480 BF",
         ]) {
             const parsed = parseNoteDate(authored, context);
             expect(parsed.findings.filter((f) => f.severity === "error")).toEqual([]);
-            const printed = formatNoteDate(parsed.date, vr, 365);
-            expect(printed?.text).toContain("VR");
+            const printed = formatNoteDate(
+                parsed.date,
+                context.eras.get(parsed.date.qualifier),
+                365,
+            );
+            expect(printed?.text).toMatch(/VR|BF/);
             expect(printed?.year).not.toBe(0);
             expect(
                 parseNoteDate(`datefrom vrcal ${printed?.text}`, context).date?.canonicalYear,
             ).toBe(parsed.date?.canonicalYear);
         }
         expect(
-            formatNoteDate(parseNoteDate("datefrom vrcal -1 VR", context).date, vr, 365)?.prose,
+            formatNoteDate(
+                parseNoteDate("datefrom vrcal 1 BF", context).date,
+                context.eras.get("vrcal.before"),
+                365,
+            )?.text,
         ).toBe("1 BF");
         expect(
             formatNoteDate(parseNoteDate("~datefrom vrcal 720 VR", context).date, vr, 365)?.prose,
@@ -168,15 +209,36 @@ describe("printable reckoning dates", () => {
         expect(formatNoteDate(parseNoteDate("unknown", context).date, vr, 365)).toBeNull();
     });
 
-    it("selects one era, converts its year, and leaves gaps without a claimed count", () => {
+    it("preserves a canonical year's interval in the index and calendar display", () => {
+        const authored = parseNoteDate(720, { ...context, field: "data.born" }).date;
+        expect(authored).toMatchObject({
+            text: "720",
+            precision: "year",
+            spanDays: 365,
+            approximate: false,
+        });
+        expect(authored).not.toHaveProperty("canonicalDay");
+        expect(formatNoteDate(authored, vr, 365)?.text).toBe("720 VR");
+        const resolved = resolvedDateFields(
+            { type: "being", data: { born: 720, died: "~720" } },
+            context,
+        );
+        expect(resolved.born).toMatchObject({ precision: "year", spanDays: 365 });
+        expect(resolved.died).toMatchObject({ precision: "year", approximate: true });
+        expect(resolved.born.sort).toBeLessThan(
+            parseNoteDate("720.2", { ...context, field: "data.born" }).date.sort,
+        );
+    });
+
+    it("selects one era and converts its year without a gap between eras", () => {
         const date = parseNoteDate("datefrom vrcal 14 Month 5 720 VR", context).date;
         expect(eraCovering(date, [lr], 365)).toBe(lr);
         const printed = formatNoteDate(date, lr, 365);
         expect(printed?.text).toBe("14 Month 5 20 LR");
         expect(printed?.prose).toBe("Year 20/5/14 of the Later Count");
-        const gap = parseNoteDate("datefrom vrcal 14 Month 5 740 VR", context).date;
-        expect(eraCovering(gap, [lr], 365)).toBeNull();
-        expect(formatNoteDate(gap, null, 365)?.text).toBe("datefrom vrcal 14 Month 5 740 VR");
+        const later = parseNoteDate("datefrom vrcal 14 Month 5 740 VR", context).date;
+        expect(eraCovering(later, [lr], 365)).toBe(lr);
+        expect(formatNoteDate(later, lr, 365)?.text).toBe("14 Month 5 40 LR");
     });
 
     it("refuses overlapping claims rather than choosing one", () => {
@@ -286,5 +348,58 @@ describe("printable reckoning dates", () => {
                 message: expect.stringContaining("not calendar"),
             }),
         ]);
+    });
+});
+
+describe("a recurring event's occurrences, each selecting its own era", () => {
+    const context = { ...resolveReckoningMarkers(index, 365), daysPerYear: 365 };
+    // Derived from the fixture corpus at runtime, the way `resolvedDateFields`
+    // composes `occurrencesOf` with `calendarEras` and `eraCovering`: an era
+    // added to `latercal` and never exercised below fails this suite.
+    const latercalEras = calendarEras("latercal", context);
+
+    it("declares the three eras this suite exercises", () => {
+        expect(latercalEras.map((era) => era.era).sort()).toEqual(
+            ["latercal.before", "latercal.early", "latercal.later"].sort(),
+        );
+    });
+
+    it("selects a different era for an earlier and a later occurrence of the same series", () => {
+        const anchor = parseNoteDate("20 latercal.early", context).date;
+        const [early, stillEarly, later] = occurrencesOf(
+            anchor,
+            { every: 350 },
+            { from: 20, to: 720 },
+        );
+        expect([early, stillEarly, later].map((occ) => occ.canonicalYear)).toEqual([20, 370, 720]);
+
+        expect(formatNoteDate(early, eraCovering(early, latercalEras, 365), 365)?.text).toContain(
+            "ER",
+        );
+        expect(
+            formatNoteDate(stillEarly, eraCovering(stillEarly, latercalEras, 365), 365)?.text,
+        ).toContain("ER");
+        expect(formatNoteDate(later, eraCovering(later, latercalEras, 365), 365)?.text).toContain(
+            "LR",
+        );
+    });
+
+    it("selects the era that opens the axis for an anchor dated before it", () => {
+        const anchor = parseNoteDate("400 latercal.before", context).date;
+        const [occurrence] = occurrencesOf(anchor, { every: 1 }, { from: anchor.canonicalYear });
+        const era = eraCovering(occurrence, latercalEras, 365);
+        expect(era?.era).toBe("latercal.before");
+    });
+
+    it("prints bare rather than failing, where a generated occurrence outruns the eras it is checked against", () => {
+        // A generated occurrence is never a finding — not even one that
+        // outruns every era it is checked against, as this one does by
+        // construction: only `early` is offered, and the occurrence lies
+        // past where `early` ends.
+        const anchor = parseNoteDate("20 latercal.early", context).date;
+        const [farFuture] = occurrencesOf(anchor, { every: 350 }, { from: 720, to: 720 });
+        const early = latercalEras.find((era) => era.era === "latercal.early");
+        expect(eraCovering(farFuture, [early], 365)).toBeNull();
+        expect(formatNoteDate(farFuture, null, 365)?.prose).toBeNull();
     });
 });

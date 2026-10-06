@@ -65,6 +65,7 @@ const SECTION_KEYS = [
     "stageDir",
     "assets",
     "assetTransform",
+    "baseStyles",
     "manifest",
     "manifestFlags",
     "schema",
@@ -75,6 +76,8 @@ const SECTION_KEYS = [
     "bundle",
     "container",
     "e2e",
+    "proseLint",
+    "proseScore",
 ];
 
 /**
@@ -201,6 +204,23 @@ function requireNonEmptyString(value, where) {
         fail(where, "must be a non-empty string");
     }
     return /** @type {string} */ (value);
+}
+
+/**
+ * A declared switch, with the behaviour that applies when it is not declared.
+ *
+ * A truthy string is refused rather than coerced: `baseStyles: "false"` reads
+ * as off and would be on, which is the one wrong answer available here.
+ *
+ * @param {unknown} value - What was declared, or `undefined`.
+ * @param {boolean} fallback - The undeclared behaviour.
+ * @param {string} where - Dotted path, for the error.
+ * @returns {boolean} The setting.
+ */
+function requireBoolean(value, fallback, where) {
+    if (value === undefined) return fallback;
+    if (typeof value !== "boolean") fail(where, "must be true or false");
+    return value;
 }
 
 /**
@@ -527,12 +547,17 @@ function normalizeExceptions(value, field, where) {
  *
  * @typedef {object} PackageBuildConfig
  * @property {string} rootDir        The repository root, from package-build.
+ * @property {{age: number, threshold: number, minWords: number, rules: string}} proseLint Optional prose lint settings.
+ * @property {{minWords: number, bands: Record<string, {min?: number, max?: number}>}} proseScore Optional note score settings.
  * @property {string} packageKind    `systems` or `modules`.
  * @property {string} packageId      The Foundry package id.
  * @property {string} artifact       Derived: `system` or `module`.
  * @property {string} stageDir      The staged package root, relative to
  *                                   `rootDir`. Every asset `to:` lands under it.
  * @property {readonly Readonly<AssetSpec>[]} assets
+ * @property {boolean} baseStyles    Whether the package takes the shared base
+ *                                   stylesheet, staged into `stageDir` and
+ *                                   named first in the manifest's `styles`.
  * @property {Readonly<Record<string, unknown>>} manifest  The manifest
  *                                   specification, emitted as declared.
  * @property {string|null} manifestFlags  Module to load a `flags` function
@@ -689,6 +714,71 @@ export function resolvePackageBuildConfig(shared) {
     const section = /** @type {Record<string, unknown>} */ (shared.packageBuild ?? {});
     rejectUnknownKeys(section, SECTION_KEYS, "packageBuild.");
 
+    const proseLint = section.proseLint ?? {};
+    if (!isMapping(proseLint)) fail("packageBuild.proseLint", "must be a mapping");
+    rejectUnknownKeys(
+        proseLint,
+        ["age", "threshold", "minWords", "rules"],
+        "packageBuild.proseLint.",
+    );
+    const proseOptions = { age: 21, threshold: 5, minWords: 8, rules: "readability" };
+    for (const [key, value] of Object.entries(proseLint)) {
+        if (key === "rules") {
+            if (!["readability", "simplify", "all"].includes(value)) {
+                fail("packageBuild.proseLint.rules", "must be readability, simplify, or all");
+            }
+            proseOptions.rules = value;
+            continue;
+        }
+        const upper = key === "threshold" ? 7 : Infinity;
+        if (!Number.isInteger(value) || value < 1 || value > upper) {
+            fail(
+                `packageBuild.proseLint.${key}`,
+                upper === Infinity ?
+                    "must be a positive integer"
+                :   "must be an integer from 1 to 7",
+            );
+        }
+        proseOptions[key] = value;
+    }
+
+    const proseScore = section.proseScore ?? {};
+    if (!isMapping(proseScore)) fail("packageBuild.proseScore", "must be a mapping");
+    rejectUnknownKeys(proseScore, ["minWords", "bands"], "packageBuild.proseScore.");
+    const scoreMinWords = proseScore.minWords ?? 80;
+    if (!Number.isInteger(scoreMinWords) || scoreMinWords < 1) {
+        fail("packageBuild.proseScore.minWords", "must be a positive integer");
+    }
+    const bands = proseScore.bands ?? {};
+    if (!isMapping(bands)) fail("packageBuild.proseScore.bands", "must be a mapping");
+    const scoreMetrics = [
+        "flesch",
+        "syllablesPerWord",
+        "meanSentenceWords",
+        "longestSentenceWords",
+        "unfamiliarWordPercent",
+        "nominalizationsPer1000Words",
+    ];
+    rejectUnknownKeys(bands, scoreMetrics, "packageBuild.proseScore.bands.");
+    const scoreBands = {};
+    for (const [metric, band] of Object.entries(bands)) {
+        const where = `packageBuild.proseScore.bands.${metric}`;
+        if (!isMapping(band)) fail(where, "must be a mapping");
+        rejectUnknownKeys(band, ["min", "max"], `${where}.`);
+        if (band.min === undefined && band.max === undefined) {
+            fail(where, "must specify min, max, or both");
+        }
+        for (const [limit, value] of Object.entries(band)) {
+            if (typeof value !== "number" || !Number.isFinite(value)) {
+                fail(`${where}.${limit}`, "must be a finite number");
+            }
+        }
+        if (band.min !== undefined && band.max !== undefined && band.min > band.max) {
+            fail(where, "min must not exceed max");
+        }
+        scoreBands[metric] = Object.freeze({ ...band });
+    }
+
     if (section.assets !== undefined && !Array.isArray(section.assets)) {
         fail("packageBuild.assets", "must be a list");
     }
@@ -789,6 +879,8 @@ export function resolvePackageBuildConfig(shared) {
 
     return Object.freeze({
         rootDir: shared.rootDir,
+        proseLint: Object.freeze(proseOptions),
+        proseScore: Object.freeze({ minWords: scoreMinWords, bands: Object.freeze(scoreBands) }),
         // Where the package is assembled before it is zipped or deployed. Every
         // asset destination is relative to it, so a repository's table says
         // `lang`, not `build/stage/lang` — the latter is what each consumer's
@@ -806,6 +898,11 @@ export function resolvePackageBuildConfig(shared) {
                 ARTIFACT_OF_KIND[/** @type {"systems"|"modules"} */ (shared.packageKind)]
             :   requireNonEmptyString(releaseInput.artifact, "packageBuild.release.artifact"),
         assets: Object.freeze(assets),
+        // On by default, because the rules it carries are what compiled content
+        // needs to be legible and a package that declined them by omission
+        // would ship the content unstyled without anything saying so. A package
+        // that wants the surface entirely to itself says so.
+        baseStyles: requireBoolean(section.baseStyles, true, "packageBuild.baseStyles"),
         schema: normalizeSchema(section.schema),
         assetTransform:
             section.assetTransform === undefined ?

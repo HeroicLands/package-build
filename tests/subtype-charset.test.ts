@@ -46,6 +46,11 @@ const messages = (findings: Array<{ message: string }>) =>
 const opts = { schemas: NOTE_SCHEMAS as any, vocabulary: NOTE_VOCABULARY };
 
 describe("a `subType` is an address segment", () => {
+    it("accepts custom lore as a declared subtype", () => {
+        expect(lintNote(note("lore", { subType: "custom" }), opts)).toEqual([]);
+        expect(subTypes("lore")).toContain("custom");
+    });
+
     it("accepts the alphanumeric spelling `userguide` on a doc", () => {
         expect(lintNote(note("doc", { subType: "userguide" }), opts)).toEqual([]);
     });
@@ -65,11 +70,8 @@ describe("a `subType` is an address segment", () => {
         expect(findings[0]).toMatchObject({ severity: "error" });
     });
 
-    it("refuses a hyphenated subType on a type whose values are not enumerated", () => {
-        // A `being`'s values are declared-but-unenumerated (`null`), so the
-        // closed-set check makes no claim about them — the charset rule still
-        // does, which is the whole reason it is a separate check.
-        expect(subTypes("being")).toBeNull();
+    it("refuses a hyphenated being subType before checking its closed set", () => {
+        expect(subTypes("being")).toEqual(["npc", "character", "creature"]);
         const findings = lintNote(note("being", { subType: "common-folk" }), opts);
         expect(messages(findings)).toContain('`subType` "common-folk"');
         expect(messages(findings)).toMatch(/letters and digits/i);

@@ -1,0 +1,71 @@
+{{- /*
+  The kind-grouped body of a "Within" or "Holdings" table: its entries
+  broken into named groups by `subType`, in the closed order region,
+  settlement, site, structure, feature — the order a reader wants a place
+  hierarchy read in, not alphabetical. A `subType` outside that order, or
+  missing entirely, is grouped last, one group per remaining kind,
+  alphabetically by its `humanize`d label.
+
+  Each group is a CSS grid (`repeat(auto-fill, minmax(14em, 1fr))`, the same
+  the Related card uses) so a region with forty settlements stays scannable.
+
+  Takes the entries (a `HoldingsEntry` list). Renders nothing for an empty
+  list, so a caller can include it unconditionally once its own presence
+  check on the list has passed.
+*/ -}}
+{{- $entries := . -}}
+{{- $kindOrder := slice "region" "settlement" "site" "structure" "feature" -}}
+{{- $kindLabels := dict
+  "region"     "Regions"
+  "settlement" "Settlements"
+  "site"       "Sites"
+  "structure"  "Structures"
+  "feature"    "Features"
+-}}
+
+{{- /* Bucket entries by subType, defaulting an absent one to "". */ -}}
+{{- $byKind := dict -}}
+{{- range $entries -}}
+  {{- $kind := .subType | default "" -}}
+  {{- $existing := index $byKind $kind | default slice -}}
+  {{- $byKind = merge $byKind (dict $kind ($existing | append .)) -}}
+{{- end -}}
+
+{{- /* The closed order first. */ -}}
+{{- $groups := slice -}}
+{{- $seen := slice -}}
+{{- range $kindOrder -}}
+  {{- $kind := . -}}
+  {{- with index $byKind $kind -}}
+    {{- $groups = $groups | append (dict "label" (index $kindLabels $kind) "entries" .) -}}
+    {{- $seen = $seen | append $kind -}}
+  {{- end -}}
+{{- end -}}
+
+{{- /* Anything else — a kind outside the closed set, or none at all —
+       grouped last, alphabetically by its rendered label. */ -}}
+{{- $leftover := slice -}}
+{{- range $kind, $group := $byKind -}}
+  {{- if not (in $seen $kind) -}}
+    {{- $label := humanize $kind -}}
+    {{- if eq $kind "" -}}{{- $label = "Other" -}}{{- end -}}
+    {{- $leftover = $leftover | append (dict "label" $label "entries" $group) -}}
+  {{- end -}}
+{{- end -}}
+{{- if $leftover -}}
+  {{- $leftover = sort $leftover "label" "asc" -}}
+  {{- range $leftover -}}
+    {{- $groups = $groups | append . -}}
+  {{- end -}}
+{{- end -}}
+
+{{- range $groups }}
+<div class="holdings-kind-group">
+  <h4 class="holdings-kind-label">{{ .label }}</h4>
+  <ul class="holdings-table-grid">
+    {{- range .entries }}
+    <li>{{ partial "holdings/entry.html" (dict "entry" . "class" "holdings-entry-name") }}</li>
+    {{- end }}
+  </ul>
+</div>
+{{- end -}}

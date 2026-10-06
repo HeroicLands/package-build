@@ -22,7 +22,7 @@
  * disagree without anything detecting it, which the canonical-separator
  * handling already did once on each side.
  *
- * Five rules, all about a note's identity:
+ * Four rules, all about a note's identity:
  *
  * 1. **Shape** — a `shortcode` is strictly lowercase ASCII-alphanumeric. It is
  *    the identity key referenced from saved world data, and it is half of the
@@ -34,12 +34,7 @@
  *    reason the other two do: it is a statement about which note holds which
  *    address, it needs no `site:` configuration to decide, and a package with
  *    no front page is misconfigured whether or not anyone runs a site build.
- * 4. **Vacated addresses** — a `renamedFrom:` entry names an address this note
- *    once held and nothing holds now. It is the same statement as
- *    rule 2 read backwards, and it needs the same whole-tree view: an entry can
- *    only be checked against every *other* note's address, and two notes
- *    claiming one predecessor is the uniqueness rule applied to the past.
- * 5. **The vocabulary a package's kind leaves it** — a package compiling no
+ * 4. **The vocabulary a package's kind leaves it** — a package compiling no
  *    Foundry documents publishes `doc` and `homepage` notes and nothing else.
  *    It is here rather than with the claim check in `note-claims.mjs` because
  *    that check runs at compile, and this is the case where no compile runs.
@@ -72,7 +67,6 @@ import { assertStatedScope } from "./helpers.mjs";
 // The corpus, read from the one pass that derives it.
 import { authoredFrontmatter, indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
 import { checkHomepageCount, isHomepage } from "./homepage.mjs";
-import { declaresRenamedFrom, renamedFrom, renamedFromEntries } from "./note-renames.mjs";
 
 /**
  * The shape every `shortcode` must match: lowercase ASCII letters and digits
@@ -176,110 +170,6 @@ function collectNotes(contentBase, { skipDirectories, config, records, problems 
 }
 
 /**
- * What one note's `renamedFrom:` says, checked against itself.
- *
- * The entries a note can be wrong about on its own: a value that is not a
- * shortcode, one naming the address the note holds *now*, one written twice.
- * Every one of them is silent without a check — a malformed entry is skipped by
- * the diff, so the author who wrote it sees the rename they were trying to
- * announce reported as a withdrawal anyway, with nothing saying why.
- *
- * The cross-note questions are not here, because one note cannot answer them:
- * whether an entry names an address some *other* note still publishes, and
- * whether two notes claim one predecessor, both need the whole tree and are
- * asked in {@link lintContentTree} once it has one.
- *
- * @param {object} note - The note, as {@link collectNotes} yields it.
- * @param {() => string} raw - Reads the file, deferred so a clean note costs
- *   nothing.
- * @returns {Array<object>} The findings.
- */
-function checkRenamedFrom({ fm, file }, raw) {
-    if (!declaresRenamedFrom(fm)) return [];
-    const findings = [];
-    const at = (value) => positionInFrontmatter(raw(), "renamedFrom", value);
-    const shortcode = typeof fm.shortcode === "string" ? fm.shortcode.trim() : "";
-
-    // A rename is a statement about where this note's address moved *to*, so a
-    // note with no address of its own has made no such statement. Reported
-    // before the entries: telling the author their entries are fine would be
-    // the less useful half of the answer.
-    if (!shortcode) {
-        return [
-            {
-                file,
-                ...at(undefined),
-                severity: "error",
-                message:
-                    "`renamedFrom` names the address this note used to hold, " +
-                    "but the note declares no `shortcode`, so it holds none now " +
-                    "and nothing was renamed",
-            },
-        ];
-    }
-
-    const seen = new Set();
-    for (const entry of renamedFromEntries(fm)) {
-        // Not `String(entry)`: the point is that the author wrote something
-        // that is not a shortcode, and rendering a list as `a,b` would show
-        // them a string they never typed.
-        if (typeof entry !== "string" || !entry.trim()) {
-            findings.push({
-                file,
-                ...at(undefined),
-                severity: "error",
-                message:
-                    `\`renamedFrom\` takes shortcodes, and one entry is ` +
-                    `${entry === "" || (typeof entry === "string" && !entry.trim()) ? "blank" : `a ${typeof entry}`}; ` +
-                    `it is skipped, so the rename it was meant to announce is ` +
-                    `still reported as a withdrawal`,
-            });
-            continue;
-        }
-        const value = entry.trim();
-        if (!isValidShortcode(value)) {
-            findings.push({
-                file,
-                ...at(value),
-                severity: "error",
-                message:
-                    `\`renamedFrom: ${value}\` is not strictly alphanumeric — ` +
-                    `lowercase letters and digits only (${ADDRESS_SEGMENT_PATTERN.source}) — ` +
-                    `so it is not an address this package ever published — a ` +
-                    `shortcode is held to one charset whether it is current or past`,
-            });
-            continue;
-        }
-        if (value === shortcode) {
-            findings.push({
-                file,
-                ...at(value),
-                severity: "error",
-                message:
-                    `\`renamedFrom: ${value}\` is this note's own shortcode, so ` +
-                    `it declares a rename from itself; name the shortcode it ` +
-                    `was published under before, or drop the key`,
-            });
-            continue;
-        }
-        if (seen.has(value)) {
-            findings.push({
-                file,
-                ...at(value),
-                // The declaration still works — the reader de-duplicates — so
-                // this is tidiness, and failing a build over it would red a
-                // tree whose renames are all correctly announced.
-                severity: "warning",
-                message: `\`renamedFrom: ${value}\` is listed twice; the repeat says nothing new`,
-            });
-            continue;
-        }
-        seen.add(value);
-    }
-    return findings;
-}
-
-/**
  * Lint every address in a content tree.
  *
  * @param {string} contentBase - Root of the content tree.
@@ -313,9 +203,6 @@ export function lintContentTree(
 
     /** @type {Map<string, Array<{file: string, absPath: string}>>} */
     const byKey = new Map();
-    /** @type {Map<string, Array<{file: string, absPath: string, shortcode: string}>>} */
-    const claimedPredecessors = new Map();
-
     for (const note of notes) {
         const { fm, absPath, file } = note;
         const shortcode = fm.shortcode;
@@ -324,7 +211,7 @@ export function lintContentTree(
         // tree costs one pass rather than two.
         const raw = () => fs.readFileSync(absPath, "utf8");
 
-        // Rule 5, and it is the whole of the check for a package that compiles
+        // Rule 4, and it is the whole of the check for a package that compiles
         // nothing: no pass downstream would report the note, because the pass
         // that reports an unclaimed type is a compile pass and none runs.
         const type = typeof fm.type === "string" ? fm.type.trim() : "";
@@ -339,25 +226,6 @@ export function lintContentTree(
                     `note has no destination. Its vocabulary is ` +
                     `${[...DOCUMENTATION_NOTE_TYPES].map((t) => `\`${t}\``).join(" and ")}`,
             });
-        }
-
-        // Before the keyless `continue` below, because a note declaring a
-        // rename while carrying no address of its own is exactly one of the
-        // things this reports — and reaching it after the skip would mean it
-        // never ran on the case that needs it most.
-        findings.push(...checkRenamedFrom(note, raw));
-        if (shortcode) {
-            // The de-duplicated reader, not the raw entries: a note that listed
-            // one predecessor twice has made one claim, and indexing it twice
-            // would make the note collide with itself and be reported as two
-            // notes claiming one address.
-            for (const value of renamedFrom(fm)) {
-                if (value === shortcode) continue;
-                const claim = `${fm.type}:${value}`;
-                const seen = claimedPredecessors.get(claim);
-                if (seen) seen.push({ file, absPath, shortcode });
-                else claimedPredecessors.set(claim, [{ file, absPath, shortcode }]);
-            }
         }
 
         // Folder documents and keyless entries carry no address at all.
@@ -394,11 +262,7 @@ export function lintContentTree(
     // thing this guard needs them to do. A tree holding notes is therefore a
     // tree; only a tree holding none is the absent one.
     //
-    // The homepage is not the headline example, though it was once addressed
-    // by the package rather than by a slug — so a `publish.site: homepage`
-    // package had a tree with exactly one note and no key at all. It carries an
-    // address like every other note now; the guard is unchanged, because
-    // what it reads was never the key count.
+    // A tree containing only a homepage still contains one note.
     if (notes.length === 0) {
         findings.push({
             file: path.relative(process.cwd(), contentBase) || contentBase,
@@ -436,53 +300,6 @@ export function lintContentTree(
                     `${others.join(", ")}; a document is addressed by ` +
                     `(type, shortcode) across every pack of its document type, ` +
                     `so routing them to different packs does not separate them`,
-            });
-        }
-    }
-
-    // The two questions about a declared rename that need the whole tree.
-    // Both are the uniqueness rule above, applied to the past: an
-    // address has one holder, so it has one successor and it cannot be both
-    // vacated and occupied.
-    for (const [claim, claimants] of claimedPredecessors) {
-        const live = byKey.get(claim);
-        if (live) {
-            for (const { file, absPath } of claimants) {
-                findings.push({
-                    file,
-                    ...positionInFrontmatter(
-                        fs.readFileSync(absPath, "utf8"),
-                        "renamedFrom",
-                        claim.slice(claim.indexOf(":") + 1),
-                    ),
-                    severity: "error",
-                    message:
-                        `\`renamedFrom\` claims "${claim}", which ` +
-                        `${live.map((f) => f.file).join(", ")} still publishes; ` +
-                        `that address was never vacated, so nothing was renamed ` +
-                        `away from it`,
-                });
-            }
-        }
-        if (claimants.length < 2) continue;
-        // Named on every claimant rather than once on the address, for the same
-        // reason a duplicate address is: each is a file an author has to open,
-        // and a finding naming only the address sends them hunting for the rest.
-        for (const { file, absPath, shortcode } of claimants) {
-            const others = claimants.filter((c) => c.file !== file);
-            findings.push({
-                file,
-                ...positionInFrontmatter(
-                    fs.readFileSync(absPath, "utf8"),
-                    "renamedFrom",
-                    claim.slice(claim.indexOf(":") + 1),
-                ),
-                severity: "error",
-                message:
-                    `"${claim}" is claimed as a predecessor by more than one ` +
-                    `note — this one (now "${shortcode}") and ` +
-                    `${others.map((c) => `${c.file} (now "${c.shortcode}")`).join(", ")}; ` +
-                    `an address had one holder, so it has one successor`,
             });
         }
     }

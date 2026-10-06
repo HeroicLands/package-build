@@ -97,7 +97,12 @@ describe("the `draft` tag is read from where it is declared", () => {
         // A tag may have a leading `#`, and a single tag may be a scalar.
         expect(isDraftNote({ tags: "#draft" })).toBe(true);
         expect(isDraftNote({ tags: [" Draft "] })).toBe(true);
-        expect(isDraftNote({ tag: ["draft"] })).toBe(true);
+    });
+
+    it("reads only the declared spelling of the key", () => {
+        // `tags` is the key the format declares; a singular `tag` is an
+        // unknown top-level key, which the frontmatter lint refuses.
+        expect(isDraftNote({ tag: ["draft"] })).toBe(false);
     });
 
     it("is false for a note with no tags, other tags, or no frontmatter", () => {

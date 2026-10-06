@@ -106,11 +106,12 @@ function projectScripts(answers) {
     }
     Object.assign(scripts, {
         "build:assets": "package-build assets",
+        "build:stage-reset": "package-build stage reset",
         "build:compiledb": "package-build package compile",
         "build:unpackdb": "package-build package unpack",
         "build:module": "package-build manifest",
         "build:db": "run-s build:content-index build:assets build:compiledb",
-        "build:noci": "run-s lint build:db build:module",
+        "build:noci": "run-s lint build:stage-reset build:db build:module",
         "build:pack-release": "package-build release",
         "lint:lang": "package-build lang check",
         "push:dev": "package-build deploy dev",
@@ -136,7 +137,7 @@ function projectConfig(answers) {
         config.stats = { lastModifiedBy: "builder000000000" };
         config.packs = [{ name: "journals", label: "Journals", type: "JournalEntry" }];
     }
-    config.publish = { site: "content", address: { prefix: "" } };
+    config.publish = { address: { prefix: "" } };
     config.pdf = { title: answers.title, document: "book.yaml", out: "build/pdf" };
     config.site = {
         ...(answers.kind === "documentation" ? { title: answers.title } : {}),
@@ -461,9 +462,6 @@ export function checkProject(rootDir) {
         }
     }
     if (config) {
-        if (config.publish?.site !== "content") {
-            add(names[0], "publish.site must include the content pages");
-        }
         if (!nonempty(config.site?.assets) || !nonempty(config.site?.description)) {
             add(names[0], "site.assets and site.description are required for the website");
         }

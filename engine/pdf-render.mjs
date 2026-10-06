@@ -51,7 +51,7 @@
  *
  * ## Icons
  *
- * `:icon-star-outline:` is parsed by the *same* {@link module:engine/content-icons.iconPlugin}
+ * `:icon star-outline:` is parsed by the *same* {@link module:engine/content-icons.iconPlugin}
  * the journals and the website use — one rule, three surfaces — and only the
  * output differs. The glyph is resolved from the font file the consumer named,
  * because the registry deliberately holds no codepoints; when no font is
@@ -62,10 +62,19 @@
  */
 
 import MarkdownIt from "markdown-it";
+import footnotePlugin from "markdown-it-footnote";
+import deflistPlugin from "markdown-it-deflist";
 
 import { bookDraftNoticePreamble } from "./draft-notice.mjs";
-import { iconPlugin, ICON_PATTERN } from "./content-icons.mjs";
-import { IMAGE_CLASSES, IMAGE_FLOATS, imagePlugin } from "./content-images.mjs";
+import { iconPlugin, ICON_PATTERN, ICON_SIZES } from "./content-icons.mjs";
+import {
+    IMAGE_CLASSES,
+    IMAGE_FLOATS,
+    IMAGE_PATTERN,
+    checkImages,
+    imagePlugin,
+} from "./content-images.mjs";
+import { bookImageWidthIn } from "./pdf-images.mjs";
 
 /** Requested print width for every named image size. */
 export const BOOK_IMAGE_WIDTHS = Object.freeze({
@@ -76,7 +85,41 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
     xlarge: "8cm",
     "full-width": '"full-width"',
 });
+import { markupAnchorFindings } from "./anchors.mjs";
 import { slugify } from "./content-slug.mjs";
+import { alertMarkdownPlugin, scanAlerts, ALERT_TYPES } from "./content-alerts.mjs";
+import { spanMarkdownPlugin, scanSpans } from "./content-spans.mjs";
+import { scanFigures } from "./content-figures.mjs";
+import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
+import { inlineVerse, poetryStanzas, scanPoetry } from "./content-poetry.mjs";
+import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
+import { HTML_TAG, htmlMessage } from "./content-html.mjs";
+import { EXPRESSION } from "./markdown-expressions.mjs";
+import { WIKILINK } from "./wikilink-syntax.mjs";
+import { EMBED_PATTERN } from "./content-embeds.mjs";
+import { positionInBody } from "./diagnostics.mjs";
+import {
+    WITHHELD_CLASS,
+    scanHeadingAttributes,
+    splitHeadingAttributes,
+    withheldSections,
+} from "./heading-attributes.mjs";
+
+/**
+ * How each named block prints. Typst has no stylesheet to defer to, so the
+ * colours live here rather than in the emitted markup; the HTML surfaces carry
+ * a class and let CSS decide.
+ */
+const BLOCK_PRINT = Object.freeze({
+    secret: Object.freeze({ color: "#5c4b8a", background: "#f2eefb", symbol: "!" }),
+});
+
+import {
+    misplacedFootnoteDefinitions,
+    separateFootnotes,
+    unresolvedFootnoteReferences,
+    unusedFootnoteDefinitions,
+} from "./content-footnotes.mjs";
 
 /**
  * Characters that mean something to Typst's markup parser.
@@ -154,11 +197,237 @@ export function labelFor(anchor) {
  */
 export function createParser(registry) {
     const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
+    md.use(footnotePlugin);
+    md.use(alertMarkdownPlugin);
+    md.use(spanMarkdownPlugin);
+    // Verse is held inside a literal fence. Parse its inline content before
+    // footnote_tail collects definitions, using the surrounding note's env.
+    md.core.ruler.after("inline", "poetry_inline", (state) => {
+        for (const token of state.tokens) {
+            if (token.type !== "fence" || !/^poetry(?:\s|$)/.test(token.info?.trim() || ""))
+                continue;
+            token.meta ??= {};
+            token.meta.poetryStanzas = poetryStanzas(token.content).map((stanza) =>
+                stanza.map(({ text, level }) => {
+                    const children = [];
+                    state.md.inline.parse(inlineVerse(text), state.md, state.env, children);
+                    return { children, level };
+                }),
+            );
+        }
+    });
+    md.use(deflistPlugin);
     md.use(iconPlugin(registry));
     // The same plugin the HTML surfaces use, so one directive is read once and
     // three renderers read the same `meta` off the same token.
     md.use(imagePlugin());
     return md;
+}
+
+/**
+ * A closed HTML comment, however many lines it spans.
+ *
+ * Closed only: an unclosed `<!--` is text by CommonMark's reading, and a
+ * pattern that ran to the end of the file for want of a closer would delete
+ * every line after the mistake. {@link reportUnrenderable} names it instead.
+ *
+ * @type {RegExp}
+ */
+const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+
+/**
+ * A markdown body with its HTML comments taken out.
+ *
+ * A comment is an author's aside to the next author — a `markdownlint` pragma, a
+ * note recording why a notice is quoted verbatim — and no surface shows one: the
+ * packs and the website emit it into HTML, where it is a comment still. Typst
+ * has nowhere to put it, so markdown-it hands the delimiters over as prose and
+ * the aside is typeset. It comes out here instead, and a comment inside a fence
+ * or a code span stays, because there it is an example of a comment.
+ *
+ * **The line count is preserved.** Every finding this module reports is located
+ * in the markdown it was handed, so a pass that removed a line would move every
+ * position after it.
+ *
+ * @param {string} markdown - The body, as authored.
+ * @returns {string} The same body, its comments replaced by their own newlines.
+ */
+export function stripHtmlComments(markdown) {
+    return replaceOutsideCode(String(markdown ?? ""), HTML_COMMENT, (comment) =>
+        "\n".repeat((comment.match(/\n/g) ?? []).length),
+    );
+}
+
+/**
+ * Where a position in the markdown handed in falls in the file that holds it.
+ *
+ * The three corrections {@link module:engine/diagnostics.positionInBody} makes,
+ * applied to a line and column rather than to an offset: the frontmatter above
+ * the body, the indentation a trimmed first line lost, and a line that a
+ * content table generated and no author wrote — which has no column to point at.
+ *
+ * @param {number} line - 1-based line within the markdown.
+ * @param {number} column - 1-based column within that line.
+ * @param {object} [opts] - As {@link markdownToTypst} takes.
+ * @returns {{line: number, column?: number}} The position, in the file.
+ */
+function linePosition(line, column, { bodyLine = 1, bodyColumn = 1, lineMap } = {}) {
+    const mapped = lineMap?.[line - 1];
+    const sourceLine = mapped ? mapped.line : line - 1;
+    if (mapped?.generated) return { line: bodyLine + sourceLine };
+    return {
+        line: bodyLine + sourceLine,
+        column: sourceLine === 0 ? bodyColumn + column - 1 : column,
+    };
+}
+
+/**
+ * Where a character offset within the markdown handed in falls in its file.
+ *
+ * @param {string} source - The markdown the offset indexes into.
+ * @param {number} offset - 0-based character offset.
+ * @param {object} [opts] - As {@link markdownToTypst} takes.
+ * @returns {{line: number, column?: number}} The position, in the file.
+ */
+function offsetPosition(source, offset, opts = {}) {
+    const { line, column, generated } = positionInBody(source, offset, opts);
+    return generated ? { line } : { line, column };
+}
+
+/**
+ * Everything in one body that the book cannot set, reported.
+ *
+ * **The renderer owes a finding for every construct it meets and cannot
+ * render.** It emits text and reads nothing, so there is no state it can refuse
+ * from; what it can do is say what it met, at the line it met it, and let the
+ * caller decide. Without that a body carrying a construct this pass does not
+ * handle is typeset as its own markup — delimiters, braces and all — and the
+ * build exits 0 having printed the mistake into the book.
+ *
+ * Two families are named here, and they fail for opposite reasons:
+ *
+ * - **A construct no book renderer reads.** Raw HTML, and an HTML comment that
+ *   is never closed. Both reach Typst as prose, and the first is reported in
+ *   {@link module:engine/content-html}'s own words so one authored tag does not
+ *   get two explanations.
+ * - **A pass's output that never arrived.** A wikilink, an embed and an inline
+ *   `{{…}}` expression are each resolved before the book sees them; one that is
+ *   still in the markdown means the pass that owns it did not run over this
+ *   body, and the markup is about to be typeset verbatim. Reported only where
+ *   those passes did not run — `opts.prepared` — because each of them leaves the
+ *   markup as written when it fails and has already said so in its own words.
+ *
+ * A fenced div and a leading caption are the structures this pass handles, and their
+ * own scanners decide what is well formed; their findings are reported here so
+ * that a front-matter file, a prose file and a note body all get them.
+ *
+ * @param {string} source - The body, comments already stripped.
+ * @param {string} definitions - The footnote definitions separated from it.
+ * @param {object} opts - As {@link markdownToTypst} takes.
+ * @param {string} original - `source` before its definitions were blanked —
+ *   {@link unusedFootnoteDefinitions} locates a definition by searching for
+ *   its own text, which `source` no longer carries.
+ * @returns {void}
+ */
+function reportUnrenderable(source, definitions, opts, original) {
+    const findings = opts.findings;
+    if (!findings) return;
+    const file = opts.file ? { file: opts.file } : {};
+    /**
+     * @param {{line: number, column?: number}} position - Where it is.
+     * @param {"warning"|"error"} severity - Which level.
+     * @param {string} message - What is wrong.
+     * @returns {void}
+     */
+    const report = (position, severity, message) => {
+        findings.push({ ...file, ...position, severity, message });
+    };
+
+    const blocks = scanBlocks(source);
+    for (const error of [...blocks.errors, ...scanAlerts(source).errors])
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    // A container's body, read for faults of its own — an empty box, an
+    // attribute that does not parse — which the scan above passes over, because
+    // there an inner opener is a counted line rather than a block.
+    //
+    // Only where that reading was sound. One mistake draws several findings from
+    // a single scan already, and a body read from a misread outer block draws
+    // more that say the same thing in other words. One level down and no
+    // further: a box inside a GM-only section is the only nesting the format
+    // admits.
+    const lines = source.split("\n");
+    if (!blocks.errors.length) {
+        for (const block of blocks.blocks) {
+            if (!BLOCK_CONTAINERS.includes(block.name)) continue;
+            const body = lines.slice(block.start + 1, block.end).join("\n");
+            for (const error of scanBlocks(body).errors)
+                report(
+                    linePosition(block.start + 1 + error.line, error.column, opts),
+                    "error",
+                    error.message,
+                );
+        }
+    }
+    for (const error of [...scanSpans(source).errors, ...markupAnchorFindings(source)])
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of scanFigures(source).errors)
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    // An image sharing its paragraph with other text, or an address or title
+    // the website's own lint already refuses — asked here too, so the book
+    // fails on the same input rather than typesetting the directive as
+    // though it were absent. `checkImages` resolves `opts.bodyLine` and
+    // `opts.bodyColumn` itself.
+    for (const error of checkImages(source, opts.file ?? "", opts))
+        report({ line: error.line, column: error.column }, error.severity, error.message);
+    for (const error of scanHeadingAttributes(source).errors)
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of withheldSections(source).errors)
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+
+    // Every closed comment is gone by the time this runs, so an opener still
+    // here is one that was never closed — on the website that swallows the rest
+    // of the page, and here it is typeset.
+    for (const match of matchAllOutsideCode(source, /<!--/g))
+        report(
+            offsetPosition(source, match.index, opts),
+            "error",
+            "an HTML comment is opened and never closed — close it with `-->`",
+        );
+    for (const match of matchAllOutsideCode(source, HTML_TAG))
+        report(offsetPosition(source, match.index, opts), "warning", htmlMessage(match[0]));
+    if (!opts.prepared) {
+        for (const match of matchAllOutsideCode(source, EMBED_PATTERN))
+            report(
+                offsetPosition(source, match.index, opts),
+                "error",
+                `\`${match[0]}\` reaches the book as written — an embed is resolved to a ` +
+                    "picture before the book is set, and nothing resolved this one",
+            );
+        for (const match of matchAllOutsideCode(source, WIKILINK))
+            report(
+                offsetPosition(source, match.index, opts),
+                "error",
+                `\`${match[0]}\` reaches the book as written — a link is resolved to an ` +
+                    "address before the book is set, and nothing resolved this one",
+            );
+        for (const match of matchAllOutsideCode(source, EXPRESSION))
+            report(
+                offsetPosition(source, match.index, opts),
+                "error",
+                `\`${match[0]}\` reaches the book as written — an expression is evaluated ` +
+                    "before the book is set, and nothing evaluated this one",
+            );
+    }
+    // Derived from the one place that already finds definitions, rather than
+    // a second scanner that could drift from {@link separateFootnotes} — the
+    // web and Foundry report the identical three findings from the identical
+    // functions.
+    for (const error of misplacedFootnoteDefinitions(source))
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of unresolvedFootnoteReferences(source, definitions))
+        report(linePosition(error.line, error.column, opts), "error", error.message);
+    for (const error of unusedFootnoteDefinitions(original))
+        report(linePosition(error.line, error.column, opts), "error", error.message);
 }
 
 /**
@@ -175,12 +444,36 @@ export function createParser(registry) {
  *   the staged file's path, relative to the `.typ`. An address this does not
  *   carry has no file the compiler can open, so the figure prints its caption
  *   alone — see {@link renderImage}.
+ * @param {Map<string, {type: string, role?: string, width: number|"", height: number|""}>}
+ *   [opts.assets] - An image's address as authored → what
+ *   {@link module:engine/art-fields.assetImageInfoByPathname} records for it,
+ *   which is what sizes a picture carrying no named `size=` — see
+ *   {@link module:engine/pdf-images.bookImageWidthIn}. An address missing from
+ *   this map draws at the medium's ordinary size, the same as today.
  * @param {number} [opts.headingOffset] - Added to every heading level, so a
  *   note's own `##` nests beneath the entry heading the book gave it.
  * @param {string} [opts.anchorPrefix] - The entry's anchor, which namespaces
  *   every `{#slug}` the body declares.
- *   capital. Set for an entry, which begins a page; not for front matter or a
- *   prose file, which carry headings of their own.
+ * @param {object[]} [opts.findings] - Collected here rather than thrown. Every
+ *   construct this pass cannot render is reported into it — see
+ *   {@link reportUnrenderable} — and a caller that passes none renders the same
+ *   Typst and is told nothing.
+ * @param {string} [opts.file] - The file the markdown came from, named in every
+ *   finding.
+ * @param {number} [opts.bodyLine] - The 1-based file line the body starts on, so
+ *   a finding's line is the file's rather than the body's.
+ * @param {number} [opts.bodyColumn] - The 1-based column the body starts at.
+ * @param {Array<{line: number, generated: boolean}>} [opts.lineMap] - From
+ *   table expansion, mapping each line handed in back to the line an author
+ *   wrote.
+ * @param {boolean} [opts.prepared] - Whether this body has been through the
+ *   passes that resolve a wikilink, an embed and an inline expression. A note's
+ *   has; a front-matter file's and a prose file's have not, and markup of theirs
+ *   left in one is reported rather than typeset in silence.
+ * @param {string} [opts.url] - The absolute address this book's pages are served
+ *   at. Every link the book sets as a URL is resolved against it, because a
+ *   reader holding a PDF has no page to resolve a path against — see
+ *   {@link renderLink}.
  * @returns {string} Typst markup.
  */
 export function markdownToTypst(markdown, opts = {}) {
@@ -189,22 +482,200 @@ export function markdownToTypst(markdown, opts = {}) {
         links = new Map(),
         glyphs = new Map(),
         images = new Map(),
+        assets = new Map(),
         headingOffset = 0,
         anchorPrefix = "",
     } = opts;
-    const tokens = md.parse(String(markdown ?? ""), {});
+    const given = opts.nested ? String(markdown ?? "") : stripHtmlComments(markdown);
+    const separated = opts.footnoteDefinitions === undefined ? separateFootnotes(given) : null;
+    const source = separated?.markdown ?? given;
+    const definitions = opts.footnoteDefinitions ?? separated?.definitions ?? "";
+    const footnoteState = opts.footnoteState ?? { seen: new Set() };
+    const sharedOptions = {
+        ...opts,
+        footnoteDefinitions: definitions,
+        footnoteState,
+        nested: true,
+    };
+    // Read once, over the body as it arrived: every position a finding carries
+    // is an offset into *this* string, and the renderer below walks slices of it.
+    if (!opts.nested) reportUnrenderable(source, definitions, opts, given);
     // One map for the whole body, not one per block: a heading inside a
     // blockquote or a list item shares the entry's anchor namespace with every
     // other heading in the same body, because `sectionLabel` scopes by entry
     // rather than by container.
-    return renderTokens(tokens, {
+    const ctx = {
+        md,
         links,
         glyphs,
         images,
+        assets,
         headingOffset,
         anchorPrefix,
+        url: opts.url,
         seen: new Map(),
+        footnoteState,
+        footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
+    };
+    // A withheld section is set in the box a `:::secret` is set in, and its
+    // heading is set inside it: a printed page honours no reader permission, so
+    // the labelled box is what tells a referee the section is for them. Read
+    // outermost, before the named blocks, because a section holds blocks of its
+    // own and they are rendered by the recursion into its body.
+    if (!opts.insideAdmonition && !opts.insideWithheld) {
+        const { sections } = withheldSections(source);
+        if (sections.length) {
+            const lines = source.split("\n");
+            const output = [];
+            let cursor = 0;
+            for (const section of sections) {
+                output.push(
+                    markdownToTypst(lines.slice(cursor, section.start).join("\n"), sharedOptions),
+                );
+                output.push(
+                    withheldBox(
+                        markdownToTypst(lines.slice(section.start, section.end).join("\n"), {
+                            ...sharedOptions,
+                            insideWithheld: true,
+                        }),
+                        ctx,
+                    ),
+                );
+                cursor = section.end;
+            }
+            output.push(markdownToTypst(lines.slice(cursor).join("\n"), sharedOptions));
+            return output.join("\n");
+        }
+    }
+    if (!opts.insideAdmonition) {
+        const captionTargets = scanFigures(source).figures;
+        const blocks = scanBlocks(source).blocks.filter(
+            (block) =>
+                !captionTargets.some(
+                    (figure) => block.start >= figure.bodyStart && block.end < figure.bodyEnd,
+                ),
+        );
+        if (blocks.length) {
+            const lines = source.split("\n");
+            const output = [];
+            let cursor = 0;
+            for (const block of blocks) {
+                output.push(
+                    markdownToTypst(lines.slice(cursor, block.start).join("\n"), {
+                        ...sharedOptions,
+                        insideAdmonition: true,
+                    }),
+                );
+                if (block.name === "div") {
+                    const content = markdownToTypst(block.body, {
+                        ...sharedOptions,
+                        insideAdmonition: false,
+                    });
+                    const anchor = block.id ? ` <${sectionLabel(anchorPrefix, block.id)}>` : "";
+                    output.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
+                    cursor = block.end + 1;
+                    continue;
+                }
+                const { color, background, symbol } = BLOCK_PRINT[block.name];
+                // The title is inline markdown, rendered the way every other
+                // phrase in the book is. Set as it was written it would be read
+                // by Typst instead: `*word*` is bold there and emphasis here, a
+                // `#` opens a function call, and one unbalanced `]` ends the box
+                // and takes the rest of the document with it.
+                const label = inlineMarkup(block.title, ctx);
+                // A GM-only section holds a box, so its body is read for blocks
+                // of its own; a box holds none, and the scan has already said so.
+                const content = markdownToTypst(block.body, {
+                    ...sharedOptions,
+                    insideAdmonition: !BLOCK_CONTAINERS.includes(block.name),
+                });
+                output.push(
+                    `\n#block(width: 100%, fill: rgb("${background}"), stroke: (left: 2pt + rgb("${color}")), inset: 8pt, above: 0.7em, below: 0.7em)[#text(fill: rgb("${color}"), weight: "bold")[${symbol} ${label}]\n\n${content}]\n`,
+                );
+                cursor = block.end + 1;
+            }
+            output.push(
+                markdownToTypst(lines.slice(cursor).join("\n"), {
+                    ...sharedOptions,
+                    insideAdmonition: true,
+                }),
+            );
+            return output.join("\n");
+        }
+    }
+    const lines = source.split("\n");
+    const localFigures = scanFigures(source, { resolveRole: opts.resolveRole }).figures;
+    // Numbered by the caller, which counts across the whole book, and placed by
+    // the scan above, which is the only reading of *this* body. Paired by
+    // position: two figures may share an id — a finding, and the book is built
+    // anyway — and keying on one would give the second figure's lines to the
+    // first, printing its contents twice and losing its label.
+    const provided = opts.captions ?? localFigures;
+    const numbered = new Map(provided.map((figure) => [figure.id, figure]));
+    const captions = localFigures.map((figure, at) => {
+        const counted =
+            provided[at]?.id === figure.id ? provided[at] : (numbered.get(figure.id) ?? figure);
+        return { ...figure, label: counted.label, number: counted.number };
     });
+    if (!captions.length) return renderMarkdownSegment(source, md, ctx, definitions);
+    const out = [];
+    let cursor = 0;
+    for (const caption of captions) {
+        out.push(
+            renderMarkdownSegment(
+                lines.slice(cursor, caption.line - 1).join("\n"),
+                md,
+                ctx,
+                definitions,
+            ),
+        );
+        const block = lines.slice(caption.bodyStart, caption.bodyEnd).join("\n");
+        // A grouped figure's images are rendered through the same call that
+        // reads `ctx.caption`, so `renderImage` needs to know which one is
+        // last — see the counter it decrements, set only for a `figure`-kind
+        // fence, where more than one image can share the one caption.
+        const captioned =
+            caption.kind === "figure" || caption.kind === "map" ?
+                { ...caption, imagesRemaining: { n: countImages(block) } }
+            :   caption;
+        const segments = [
+            caption.kind !== "table" && caption.kind !== "figure" && caption.kind !== "map" ?
+                markdownToTypst(block, { ...sharedOptions, captions: undefined })
+            :   renderMarkdownSegment(block, md, { ...ctx, caption: captioned }, definitions),
+        ];
+        if (caption.kind !== "table" && caption.kind !== "figure" && caption.kind !== "map") {
+            segments.push(
+                `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]]${typstAnchor(anchorPrefix, caption)}\n\n`,
+            );
+        }
+        out.push(
+            caption.classes.includes("border") ?
+                figureBorder(segments.join(""))
+            :   segments.join(""),
+        );
+        cursor = caption.close + 1;
+    }
+    out.push(renderMarkdownSegment(lines.slice(cursor).join("\n"), md, ctx, definitions));
+    return out.filter(Boolean).join("\n\n");
+}
+
+/** Render one fragment with the note's footnote definitions available. */
+function renderMarkdownSegment(source, md, ctx, definitions) {
+    const input = definitions ? `${source}\n\n${definitions}` : source;
+    const tokens = md.parse(input, {});
+    const footnoteStart = tokens.findIndex((token) => token.type === "footnote_block_open");
+    const visible = footnoteStart < 0 ? tokens : tokens.slice(0, footnoteStart);
+    const footnotes = new Map();
+    if (footnoteStart >= 0) {
+        for (let at = footnoteStart + 1; at < tokens.length; at++) {
+            if (tokens[at].type !== "footnote_open") continue;
+            const id = tokens[at].meta.id;
+            const start = at + 1;
+            while (at < tokens.length && tokens[at].type !== "footnote_close") at++;
+            footnotes.set(id, tokens.slice(start, at));
+        }
+    }
+    return renderTokens(visible, { ...ctx, footnotes });
 }
 
 /**
@@ -271,7 +742,23 @@ function renderBlock(tokens, i, out, ctx) {
         }
         case "fence":
         case "code_block": {
-            out.push(rawBlock(token.content, token.info?.trim() || ""));
+            if (token.type === "fence" && /^poetry(?:\s|$)/.test(token.info?.trim() || "")) {
+                const content = token.meta.poetryStanzas
+                    .map((stanza) =>
+                        stanza
+                            .map(({ children, level }) => {
+                                const verse = renderInline({ children }, ctx);
+                                return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
+                            })
+                            .join(" \\\n"),
+                    )
+                    .join("\n\n");
+                const poem = scanPoetry(
+                    `${token.markup}${token.info}\n${token.content}${token.markup}`,
+                ).blocks[0];
+                const anchor = poem?.id ? ` <${sectionLabel(ctx.anchorPrefix, poem.id)}>` : "";
+                out.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
+            } else out.push(rawBlock(token.content, token.info?.trim() || ""));
             return 1;
         }
         case "hr":
@@ -280,7 +767,20 @@ function renderBlock(tokens, i, out, ctx) {
         case "blockquote_open": {
             const end = matching(tokens, i, "blockquote_open", "blockquote_close");
             const inner = renderTokens(tokens.slice(i + 1, end), { ...ctx });
-            out.push(`\n#quote(block: true)[${inner}]\n\n`);
+            if (token.meta?.alert) {
+                const alert = token.meta.alert;
+                const colors = {
+                    note: "#0969da",
+                    tip: "#1a7f37",
+                    important: "#8250df",
+                    warning: "#9a6700",
+                };
+                const spec = ALERT_TYPES[alert.type];
+                const icon = `#image(bytes("${escapeTypstString(spec.svg.replace("<svg ", '<svg xmlns="http://www.w3.org/2000/svg" ').replaceAll("currentColor", colors[alert.type]))}"), format: "svg", width: 0.9em, height: 0.9em)`;
+                const anchor = alert.id ? ` <${sectionLabel(ctx.anchorPrefix, alert.id)}>` : "";
+                const box = `\n#block(width: 100%, stroke: (left: 2pt + rgb("${colors[alert.type]}")), inset: 8pt, above: 0.7em, below: 0.7em)[#text(fill: rgb("${colors[alert.type]}"), weight: "bold")[${icon} ${inlineMarkup(alert.title ?? alert.attributes?.title ?? spec.title, ctx)}]\n\n${inner}]${anchor}\n\n`;
+                out.push(alert.classes?.includes("border") ? figureBorder(box) : box);
+            } else out.push(`\n#quote(block: true)[${inner}]\n\n`);
             return end - i + 1;
         }
         case "bullet_list_open":
@@ -291,6 +791,29 @@ function renderBlock(tokens, i, out, ctx) {
             const fn = token.type === "bullet_list_open" ? "list" : "enum";
             const items = listItems(tokens, i + 1, end, ctx);
             out.push(`\n#${fn}(${items.map((it) => `[${it}]`).join(", ")})\n\n`);
+            return end - i + 1;
+        }
+        case "dl_open": {
+            const end = matching(tokens, i, "dl_open", "dl_close");
+            const entries = [];
+            let at = i + 1;
+            while (at < end) {
+                if (tokens[at].type !== "dt_open") {
+                    at++;
+                    continue;
+                }
+                const termEnd = matching(tokens, at, "dt_open", "dt_close");
+                const term = renderTokens(tokens.slice(at + 1, termEnd), ctx);
+                at = termEnd + 1;
+                const definitions = [];
+                while (at < end && tokens[at].type === "dd_open") {
+                    const definitionEnd = matching(tokens, at, "dd_open", "dd_close");
+                    definitions.push(renderTokens(tokens.slice(at + 1, definitionEnd), ctx));
+                    at = definitionEnd + 1;
+                }
+                entries.push(`terms.item([${term}],[${definitions.join("\n\n")}])`);
+            }
+            out.push(`\n#terms(${entries.join(", ")})\n\n`);
             return end - i + 1;
         }
         case "table_open": {
@@ -307,11 +830,28 @@ function renderBlock(tokens, i, out, ctx) {
 }
 
 /**
- * A heading's text, and the `{#slug}` it may end with.
+ * A withheld section, set in the box a `secret` block is set in.
+ *
+ * @param {string} content - The section's rendered Typst, heading included.
+ * @param {object} ctx - Render context, for the label's inline markup.
+ * @returns {string} Typst markup.
+ */
+function withheldBox(content, ctx) {
+    const { color, background, symbol } = BLOCK_PRINT[WITHHELD_CLASS];
+    const label = inlineMarkup(BLOCK_NAMES[WITHHELD_CLASS], ctx);
+    return `\n#block(width: 100%, fill: rgb("${background}"), stroke: (left: 2pt + rgb("${color}")), inset: 8pt, above: 0.7em, below: 0.7em)[#text(fill: rgb("${color}"), weight: "bold")[${symbol} ${label}]\n\n${content}]\n`;
+}
+
+/**
+ * A heading's text, and the attribute block it may end with.
  *
  * The suffix is removed from the *rendered* children rather than from the raw
  * source, so an anchor written inside emphasis or after a link still comes off
  * cleanly and the text either side of it survives.
+ *
+ * A class and an attribute have nowhere to go in Typst, which has no
+ * stylesheet, so the id is what the book takes and the rest is dropped — the
+ * reference says so per surface.
  *
  * @param {object} inline - The heading's `inline` token.
  * @param {object} ctx - Render context.
@@ -320,31 +860,36 @@ function renderBlock(tokens, i, out, ctx) {
 function splitHeadingAnchor(inline, ctx) {
     const last = inline?.children?.[(inline.children?.length ?? 0) - 1];
     const raw = last?.type === "text" ? String(last.content ?? "") : "";
-    const match = /^(.*?)\s*\{#([^}]+)\}\s*$/.exec(raw);
-    if (!match) return { text: renderInline(inline, ctx), anchor: "" };
+    const parsed = splitHeadingAttributes(raw);
+    if (!parsed.braces || parsed.problems.length) {
+        return { text: renderInline(inline, ctx), anchor: "" };
+    }
     // Rendered with the suffix removed from a copy, so the token stream the
     // caller owns is not mutated — the same tokens are walked again by the
     // journals and the index.
     const children = [...inline.children];
-    children[children.length - 1] = { ...last, content: match[1] };
-    return { text: renderInline({ ...inline, children }, ctx), anchor: match[2] };
+    children[children.length - 1] = { ...last, content: parsed.text };
+    return { text: renderInline({ ...inline, children }, ctx), anchor: parsed.id };
 }
 
 /**
- * A heading's text, unescaped and with any `{#anchor}` suffix still attached.
+ * A heading's words, unescaped and without its attribute block.
  *
  * Used only to derive an anchor when the author wrote none, so it wants the
- * words as typed rather than the Typst-escaped, suffix-stripped text
- * {@link splitHeadingAnchor} renders — {@link module:engine/content-slug.slugify}
- * normalises punctuation and case itself and has no use for an escape
- * backslash.
+ * words as typed rather than the Typst-escaped text {@link splitHeadingAnchor}
+ * renders — {@link module:engine/content-slug.slugify} normalises punctuation
+ * and case itself and has no use for an escape backslash. The block comes off
+ * because a heading that declares classes alone would otherwise be addressed by
+ * an anchor naming them.
  *
  * @param {object} inline - The heading's `inline` token.
  * @returns {string} The heading's raw text.
  */
 function plainHeadingText(inline) {
     const children = inline?.children ?? [];
-    return children.map((child) => child.content ?? "").join("");
+    const raw = children.map((child) => child.content ?? "").join("");
+    const parsed = splitHeadingAttributes(raw);
+    return parsed.problems.length ? raw : parsed.text;
 }
 
 /**
@@ -430,6 +975,84 @@ function listItems(tokens, start, end, ctx) {
 }
 
 /**
+ * A phrase of inline Markdown, set the way the prose around it is.
+ *
+ * A caption, a named block's title: text an author writes outside a paragraph
+ * and still expects emphasis in. Rendering it through the same walk is also what
+ * makes it inert — Typst's own markup characters are escaped on the way, which
+ * handing the string over raw does not do.
+ *
+ * @param {string} text - The phrase, as authored.
+ * @param {object} ctx - Render context.
+ * @returns {string} Typst markup.
+ */
+function inlineMarkup(text, ctx) {
+    const inline = ctx.md.parseInline(String(text ?? ""), {})[0];
+    return inline ? renderInline(inline, ctx) : "";
+}
+
+/**
+ * A figure's label, with its caption when it carries one.
+ *
+ * The caption's inline Markdown is handled the way the surrounding prose is. A
+ * figure with no caption draws its label alone.
+ *
+ * @param {object} caption - A figure record.
+ * @param {object} ctx - Render context.
+ * @returns {string} Typst markup.
+ */
+function captionMarkup(caption, ctx) {
+    const label = escapeTypst(caption.label);
+    return caption.hasCaption ?
+            `${label ? `${label}: ` : ""}${inlineMarkup(caption.caption, ctx)}`
+        :   label;
+}
+
+/**
+ * How many markdown images a figure's contents carry.
+ *
+ * A grouped figure's leading caption describes the whole plate, not any one
+ * picture in it, so {@link renderImage} needs to know which image is the
+ * last — the one that carries the group's single label and anchor — and this
+ * is the count it counts down from.
+ *
+ * @param {string} contents - The figure's captioned contents, as authored.
+ * @returns {number} How many images the contents hold.
+ */
+function countImages(contents) {
+    return (String(contents ?? "").match(IMAGE_PATTERN) ?? []).length;
+}
+
+/**
+ * `.border` draws the whole figure — its content and its label together —
+ * inside a hairline box. A thin stroke is print's equivalent of a border and
+ * padding on the web and in a Foundry journal: a figure already sits inside
+ * its own column or float, so the book's version of a border is the lightest
+ * mark that still reads as one rather than a second, heavier frame around a
+ * frame.
+ *
+ * @param {string} body - The figure's own rendered Typst, content and label.
+ * @returns {string} Typst markup.
+ */
+function figureBorder(body) {
+    return `\n#block(width: 100%, stroke: 0.4pt + luma(60%), inset: 8pt, above: 0.6em, below: 0.6em)[\n${body}\n]\n\n`;
+}
+
+/**
+ * The Typst label a figure is referenced by, or `""` when it declares no id.
+ *
+ * A figure with no id is numbered and drawn and nothing addresses it, so it is
+ * given no label: an empty one would collide with every other idless figure.
+ *
+ * @param {string} prefix - The entry's anchor prefix.
+ * @param {object} caption - A figure record.
+ * @returns {string} A ` <label>` to append, or `""`.
+ */
+function typstAnchor(prefix, caption) {
+    return caption.id ? ` <${sectionLabel(prefix, slugify(caption.id))}>` : "";
+}
+
+/**
  * A markdown table as a Typst `#table`.
  *
  * The header row is emitted through `table.header`, which is what makes it
@@ -502,11 +1125,17 @@ function renderTable(tokens, ctx) {
             )}),`
         :   "";
     const drawn = `#table(\n  columns: ${columns},${alignment}${header}\n${body}\n)`;
+    const caption = ctx.caption;
+    const labelled =
+        caption ?
+            `#text(size: 7.6pt, style: "italic")[${captionMarkup(caption, ctx)}]${typstAnchor(ctx.anchorPrefix, caption)}\n${drawn}`
+        :   drawn;
     // Wide content is given an explicit span rather than left to overflow the
     // measure: past three columns a table is set across the page, and
     // `book-wide` decides between a float and pages of its own by measuring it.
-    if (columns > WIDE_TABLE_COLUMNS) return `\n#book-wide[\n${drawn}\n]\n\n`;
-    return `\n${drawn}\n\n`;
+    if (columns > WIDE_TABLE_COLUMNS)
+        return `${caption ? "" : "\n#pagebreak(weak: true)\n"}\n#book-wide[\n${labelled}\n]\n\n`;
+    return `\n${labelled}\n\n`;
 }
 
 /**
@@ -569,6 +1198,24 @@ function renderInline(token, ctx) {
             case "code_inline":
                 out.push(inlineRaw(child.content));
                 break;
+            case "span_open": {
+                out.push("#box[");
+                break;
+            }
+            case "span_close": {
+                let depth = 1;
+                let opening;
+                for (let j = i - 1; j >= 0; j -= 1) {
+                    if (children[j].type === "span_close") depth += 1;
+                    if (children[j].type === "span_open" && --depth === 0) {
+                        opening = children[j];
+                        break;
+                    }
+                }
+                const id = opening?.attrGet?.("id");
+                out.push(`]${id ? ` <${sectionLabel(ctx.anchorPrefix, id)}>` : ""}`);
+                break;
+            }
             case "strong_open":
                 out.push("#strong[");
                 break;
@@ -586,6 +1233,21 @@ function renderInline(token, ctx) {
             case "heroiclands_icon":
                 out.push(renderIcon(child, ctx));
                 break;
+            case "footnote_ref": {
+                const label = child.meta?.label ?? String(child.meta?.id ?? "");
+                const key = `${ctx.footnotePrefix}-${slugify(label)}`;
+                const body = ctx.footnotes?.get(child.meta?.id);
+                if (!body) {
+                    out.push(escapeTypst(`[^${label}]`));
+                    break;
+                }
+                if (ctx.footnoteState.seen.has(key)) out.push(`#footnote(<${key}>)`);
+                else {
+                    ctx.footnoteState.seen.add(key);
+                    out.push(`#footnote[${renderTokens(body, ctx)}] <${key}>`);
+                }
+                break;
+            }
             case "link_open": {
                 const close = childMatching(children, i, "link_open", "link_close");
                 const inner = renderInline({ children: children.slice(i + 1, close) }, ctx);
@@ -632,10 +1294,40 @@ function childMatching(children, i, open, close) {
  * @returns {string} Typst markup.
  */
 function inlineRaw(content) {
-    const text = String(content ?? "");
-    const longest = (text.match(/`+/g) ?? []).reduce((n, run) => Math.max(n, run.length), 0);
-    const ticks = "`".repeat(Math.max(1, longest + 1));
-    return `${ticks}${text}${ticks}`;
+    return `#raw("${escapeTypstString(content)}", block: false)`;
+}
+
+/**
+ * A page address as a reader of the book can follow it.
+ *
+ * **Every link the book sets as a URL is absolute.** A page's address is written
+ * from the root of the site that serves it — `/sohl/skill-guil/` — because on the
+ * website that is the shortest form that is right wherever the page is read
+ * from. A PDF is read from nowhere: a viewer handed a path has no document to
+ * resolve it against, so it either does nothing or looks for a file on the
+ * reader's own disk, and a book of a thousand pages carries a thousand links
+ * that do neither.
+ *
+ * So a root-relative address is resolved against the site's own, which is the
+ * one absolute address a build already holds. A **dependency's** page keeps its
+ * own package prefix, from the registry in
+ * {@link module:engine/content-address.PACKAGE_BASE}, so it resolves to the host
+ * serving that package — and where the registry names a host of its own the
+ * address is already absolute and is left exactly as it is.
+ *
+ * @param {string} url - The address, as the link pass resolved it.
+ * @param {string} [site] - The absolute address this book's pages are served at.
+ * @returns {string} An absolute URL, or the address unchanged when there is no
+ *   site to resolve it against or it is already absolute.
+ */
+export function absolutePageUrl(url, site) {
+    const address = String(url ?? "");
+    if (!site || !address.startsWith("/") || address.startsWith("//")) return address;
+    try {
+        return new URL(address, site).href;
+    } catch {
+        return address;
+    }
 }
 
 /**
@@ -655,6 +1347,8 @@ function inlineRaw(content) {
 function renderLink(href, inner, ctx) {
     const url = String(href ?? "");
     const fragment = /#([^?]*)/.exec(url)?.[1] ?? "";
+    if (url.startsWith("#") && fragment)
+        return `#link(<${sectionLabel(ctx.anchorPrefix, fragment)}>)[${inner}]`;
     const slug =
         url
             .replace(/[#?].*$/, "")
@@ -669,7 +1363,17 @@ function renderLink(href, inner, ctx) {
         return `#link(<${target}>)[${inner}]`;
     }
     if (!url) return inner;
-    return `#link("${escapeTypstString(url)}")[${inner}]`;
+    return `#link("${escapeTypstString(absolutePageUrl(url, ctx.url))}")[${inner}]`;
+}
+
+/**
+ * A width in inches, as a Typst length literal.
+ *
+ * @param {number} inches - The width.
+ * @returns {string} A Typst length, rounded to a thousandth of an inch.
+ */
+function typstInches(inches) {
+    return `${Math.round(inches * 1000) / 1000}in`;
 }
 
 /**
@@ -692,7 +1396,7 @@ function renderLink(href, inner, ctx) {
  * the figure at the top of the fresh one, where nothing is above it to displace
  * it and nothing that follows it can print first.
  *
- * A `.full-width` image that **also states a `float:`** is asking for a float,
+ * A `.full-width` image that **also states a `float`** is asking for a float,
  * and keeps one — deferral is the honest consequence of the request.
  *
  * ## A float occupies the measure
@@ -707,24 +1411,56 @@ function renderLink(href, inner, ctx) {
  * `#image` on a path Typst cannot open is a compile error, and a compile error
  * in a 2,500-entry book is fatal at the very end of a run that otherwise
  * succeeded — over an illustration, which is the least important thing on the
- * page. An address the build could not stage prints its caption alone instead,
- * and the build reports the address it could not find.
+ * page. An address the build could not stage prints its authored caption alone
+ * instead, if it has one, and nothing at all if it does not; the build reports
+ * the address it could not find either way.
+ *
+ * ## A grouped figure's one label belongs to the last picture
+ *
+ * Only a figure-kind fence labels an image inline — a fence holding anything
+ * besides pictures is prose, and gets its label from the generic block-level
+ * print in {@link markdownToTypst} instead, the same as a code or a table
+ * fence. Within a figure-kind fence, `ctx.caption.imagesRemaining` counts down
+ * one picture at a time; the picture that brings it to zero is the last one in
+ * document order, and only that one carries the caption and the anchor. Every
+ * other picture in the group draws with no caption at all. Attaching the label
+ * to each of them would print the same text under every picture and emit the
+ * same Typst label more than once, which Typst refuses to compile.
  *
  * @param {object} token - An `image` token.
  * @param {object} ctx - Render context.
  * @returns {string} Typst markup.
  */
 function renderImage(token, ctx) {
-    const alt = token.content || token.attrGet?.("alt") || "";
-    const caption = alt ? `[${escapeTypst(alt)}]` : "none";
-    const staged = ctx.images.get(token.attrGet?.("src") ?? "");
+    const figureCaption =
+        ctx.caption?.kind === "figure" || ctx.caption?.kind === "map" ? ctx.caption : null;
+    const remaining = figureCaption?.imagesRemaining;
+    const isLastImage = !remaining || --remaining.n <= 0;
+    const labelled = Boolean(figureCaption) && isLastImage;
+    const captionText = labelled ? captionMarkup(figureCaption, ctx) : "";
+    const caption = captionText ? `[${captionText}]` : "none";
+    const anchor = labelled ? typstAnchor(ctx.anchorPrefix, figureCaption) : "";
+    const src = token.attrGet?.("src") ?? "";
+    const staged = ctx.images.get(src);
     if (!staged)
-        return alt ?
-                `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic", fill: luma(45%))${caption}]\n\n`
+        return captionText ?
+                `\n#block(below: 0.6em)[#text(size: 7.6pt, style: "italic", fill: luma(45%))${caption}]${anchor}\n\n`
             :   "";
 
-    const size = BOOK_IMAGE_WIDTHS[token.meta?.size] ?? BOOK_IMAGE_WIDTHS.auto;
-    const figure = `#book-image("${escapeTypstString(staged)}", requested: ${size}, caption: ${caption})`;
+    // A named `size=` is the author's own statement and wins outright. Left
+    // unstated — `auto`, written or implied — the picture's role or its icon
+    // type decides instead, and only a picture declaring neither falls back to
+    // the natural-pixel `auto` Typst resolves for itself.
+    const requestedSize = token.meta?.size;
+    const roleWidthIn =
+        requestedSize && requestedSize !== "auto" ?
+            undefined
+        :   bookImageWidthIn(ctx.assets?.get(src));
+    const size =
+        roleWidthIn !== undefined ?
+            typstInches(roleWidthIn)
+        :   (BOOK_IMAGE_WIDTHS[requestedSize] ?? BOOK_IMAGE_WIDTHS.auto);
+    const figure = `#book-image("${escapeTypstString(staged)}", requested: ${size}, caption: ${caption})${anchor}`;
 
     const width = token.meta?.classes?.[0];
     const scope =
@@ -749,8 +1485,10 @@ function renderImage(token, ctx) {
 function renderIcon(token, ctx) {
     const name = token?.meta?.name ?? "";
     const glyph = ctx.glyphs.get(name);
-    if (!glyph) return escapeTypst(`:icon-${name}:`);
-    return `#text(font: "${escapeTypstString(glyph.font)}")[\\u{${glyph.codepoint.toString(16)}}]`;
+    if (!glyph) return escapeTypst(`:icon ${name}:`);
+    const scale = ICON_SIZES[token?.meta?.attrs?.size]?.scale;
+    const size = scale ? `, size: ${scale}em` : "";
+    return `#text(font: "${escapeTypstString(glyph.font)}"${size})[\\u{${glyph.codepoint.toString(16)}}]`;
 }
 
 /**
@@ -964,11 +1702,11 @@ export function bookTypstPreamble() {
             "  }\n" +
             "}",
         "#let book-place-map(title, path) = {\n" +
-            "  page(columns: 1)[\n" +
+            "  page(columns: 1, flipped: true)[\n" +
             "    #set par(justify: false, first-line-indent: 0em)\n" +
             '    #text(size: 18pt, weight: "bold", fill: book-head)[#title]\n' +
             "    #v(0.4cm)\n" +
-            '    #image(path, width: 100%, height: book-text-height - 2cm, fit: "contain")\n' +
+            '    #image(path, width: 100%, height: book-text-width - 2cm, fit: "contain")\n' +
             "  ]\n" +
             "}",
         // Wide content spans the page, and how it spans depends on how tall it
@@ -1122,6 +1860,7 @@ export function renderBook({
     out.push(
         `#set text(font: "${escapeTypstString(serif)}", size: 9.6pt, fill: book-ink, lang: "en")`,
     );
+    out.push("#show footnote.entry: set text(size: 7.8pt)");
     out.push("#set par(justify: true, leading: 0.55em, first-line-indent: 1.2em)");
     // The first-line indent is what separates one paragraph of running prose
     // from the next, and inside a list item the marker already does that. An
@@ -1247,8 +1986,7 @@ export function renderBook({
             out.push(body);
             out.push("");
         }
-        const map = maps.get(entry.anchor);
-        if (map) {
+        for (const map of maps.get(entry.anchor) ?? []) {
             out.push(
                 `#book-place-map([${escapeTypst(map.title)}], "${escapeTypstString(map.path)}")`,
             );

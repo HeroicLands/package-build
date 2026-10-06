@@ -17,6 +17,8 @@ import {
     manifestPacks,
     normalizeRepoUrl,
     packageHomepage,
+    BUILD_ONLY_RELATIONSHIP_KEYS,
+    FOUNDRY_RELATIONSHIP_KEYS,
     publishedRelationships,
     releaseUrls,
     writeManifest,
@@ -629,5 +631,37 @@ describe("manifestPacks — the system is per pack", () => {
             ],
         });
         expect(entries.map((e) => e.system)).toEqual([undefined, "hm3", "sohl"]);
+    });
+});
+
+describe("the published manifest carries none of the build's own keys", () => {
+    // Derived from the two lists rather than naming keys, so a key added to a
+    // relationship is covered here without this test being edited — which is
+    // the whole reason the build-only set is computed instead of kept.
+    it("drops every key Foundry's relationship schema does not name", () => {
+        for (const key of BUILD_ONLY_RELATIONSHIP_KEYS) {
+            const published = publishedRelationships({
+                requires: [{ id: "a", [key]: key === "contentPackage" ? "a" : true }],
+            });
+            expect(Object.keys(published.requires[0]), key).toEqual(["id"]);
+        }
+    });
+
+    it("keeps every key Foundry's relationship schema does name", () => {
+        const entry = {
+            id: "a",
+            type: "module",
+            manifest: "https://example.invalid/module.json",
+            compatibility: { minimum: "14" },
+            reason: "it supplies the art",
+        };
+        const published = publishedRelationships({ requires: [{ ...entry }] });
+        expect(Object.keys(published.requires[0])).toEqual(FOUNDRY_RELATIONSHIP_KEYS);
+        expect(published.requires[0]).toEqual(entry);
+    });
+
+    it("leaves a key neither list names alone, so a later Foundry key reaches the manifest", () => {
+        const published = publishedRelationships({ requires: [{ id: "a", futureKey: "x" }] });
+        expect(published.requires[0]).toEqual({ id: "a", futureKey: "x" });
     });
 });

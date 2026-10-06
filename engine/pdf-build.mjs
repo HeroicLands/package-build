@@ -32,18 +32,9 @@
  * the site publishes every page, and the book publishes what its document tree
  * asked for.
  *
- * ## `publish.site` is the switch, and it is the only switch
- *
- * `homepage` mode fences the content surfaces off: the tree is not walked for
- * pages, whatever else the configuration declares. A
- * PDF of the content tree is a content surface by any reading — arguably the
- * most portable one there is — so it is fenced on exactly the same terms, by
- * asking the same {@link module:content-config.publishesContentPages} the
- * site build asks. Four of the six packages that would adopt this run
- * `homepage`, and a PDF that appeared there would breach the fence silently:
- * nothing in those packages' configuration would say so. So the fence is
- * checked **before** the tree is read, and the command says why it built
- * nothing rather than emitting an empty document.
+ * The book builds when the authored tree contains content pages. The same
+ * {@link module:content-config.publishesContentPages} decision governs the
+ * site and the content index.
  *
  * ## Every gate reports; none exits
  *
@@ -96,17 +87,48 @@ import { indexRecordsFor } from "./content-index.mjs";
 import { isNoteRecord, isStub, noteFile } from "./index-records.mjs";
 import { openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
-import { collectContentPages, siteGates, tableUniverse, gatesFailed } from "./site-build.mjs";
-import { resolveInfoboxRef, wikiContext } from "./site-index.mjs";
+import {
+    collectContentPages,
+    siteGates,
+    tableUniverse,
+    gatesFailed,
+    resolveSitePass,
+} from "./site-build.mjs";
+import {
+    figureIndexKeys,
+    resolveCrossNoteFigures,
+    resolveInfoboxRef,
+    wikiContext,
+} from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
-import { artPathname, assetAddressIndex } from "./art-fields.mjs";
+import { positionOfLiteral } from "./diagnostics.mjs";
+import { artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
+import { embedRole } from "./content-embeds.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
-import { renderSecretBlocks } from "./content-secrets.mjs";
+import { numberFigures, scanFigures } from "./content-figures.mjs";
+import { collectAnchors } from "./anchors.mjs";
 import { protectCode } from "./code-fences.mjs";
-import { imageSourcesIn } from "./content-images.mjs";
-import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import { imagesIn, parseImageDirective } from "./content-images.mjs";
+import {
+    bookImageWidthIn,
+    PDF_IMAGE_INCHES,
+    PDF_PAGE,
+    pdfColumnWidth,
+    pdfTextHeight,
+    pdfTextWidth,
+    resamplePdfImages,
+} from "./pdf-images.mjs";
+import {
+    ASSETS_SEGMENT,
+    assetPathnameKey,
+    pathnameProblem,
+    resolvePathname,
+} from "./pathnames.mjs";
+import { ASSET_SYSTEM, assetTypeOfRoot, isAssetShortcode } from "./asset-types.mjs";
+import { canonicalKey } from "./address.mjs";
+import { isComplete as isForeignCacheComplete, newestVersionDir } from "./metadata-index.mjs";
 import {
     createParser,
     labelFor,
@@ -115,12 +137,13 @@ import {
     resolveDanglingLabels,
 } from "./pdf-render.mjs";
 import { draftNoticeTypst } from "./draft-notice.mjs";
-import { isDraftNote } from "./note-vocabulary.mjs";
+import { isDraftNote, isGmNote } from "./note-vocabulary.mjs";
 import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
 import { buildMaps, relatedPlaces } from "./map-build.mjs";
 import { mapWorld } from "./map-places.mjs";
+import { resolveAssetReplacement } from "./asset-replacement.mjs";
 
 /**
  * The file on disk an authored image pathname names, or `null`.
@@ -137,21 +160,165 @@ import { mapWorld } from "./map-places.mjs";
  * makes the source a consumer can compile by hand with no flags, and what keeps
  * a build from touching a path outside its own output.
  *
- * Only a file **this** package ships can be staged. A pathname naming another
- * package's file, or a URL, names something no build here can open — a build
- * reaches no network — and the caller reports it as a picture the book will not
- * carry.
+ * A file **this** package ships stages directly. A pathname naming another
+ * package's file stages instead from a declared replacement's cached archive,
+ * when `opts.resolveReplacement` — the pure function
+ * {@link module:engine/asset-replacement.resolveAssetReplacement} —
+ * answers it; `opts.foreignIndex` is the merged index that answer is read
+ * against. A pathname naming a package no replacement carries it for, or a
+ * URL, names something no build here can open — a build reaches no network —
+ * and the caller reports it as a picture the book will not carry.
  *
  * @param {string} src - The pathname, as authored.
  * @param {object} config - The resolved configuration.
+ * @param {object} [opts]
+ * @param {Map<string, object>} [opts.foreignIndex] - Every fetched
+ *   dependency's own records, keyed by canonical address — the index a
+ *   replacement's record is read out of.
+ * @param {Function} [opts.resolveReplacement] - {@link
+ *   module:engine/asset-replacement.resolveAssetReplacement}, or an
+ *   equivalent a caller injects for a test. Omitted, a foreign pathname this
+ *   package does not own stays declined exactly as it always has.
  * @returns {{from: string, to: string}|null} The file, and where under the
  *   output directory it is staged.
+ * @throws {Error} When a declared replacement answers the address but its
+ *   archive was never fetched.
  */
-export function stagedImagePath(src, config) {
+export function stagedImagePath(src, config, opts = {}) {
     const forms = resolvePathname(src, config);
-    if (!forms || forms.state !== "package" || !forms.own) return null;
+    if (!forms || forms.state !== "package") return null;
+    // A declared replacement answers before the package's own file does, which
+    // is the whole of what declaring one buys: the address a note writes is
+    // this package's own, and the picture staged for it is the replacement's.
+    // A miss falls through, so a package declaring none stages exactly what it
+    // ships.
+    const replaced = opts.resolveReplacement ? stagedReplacementPath(forms, config, opts) : null;
+    if (replaced) return replaced;
+    if (forms.own) {
+        return {
+            from: path.resolve(config.rootDir, forms.local),
+            to: forms.pdf,
+        };
+    }
+    return null;
+}
+
+/**
+ * Every declared relationship that opted a dependency in as this package's
+ * asset replacement, in declaration order.
+ *
+ * The same shape {@link module:engine/foreign-catalog.itemCatalogRelationships}
+ * returns, read directly rather than through that module: this file stays a
+ * leaf over the configuration it is handed, and the flag is as small to read
+ * back as it was to validate.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {Array<{id: string, package: string}>} The relationships, each
+ *   with the package segment its own content index publishes under.
+ */
+function assetReplacementRelationships(config) {
+    const out = [];
+    for (const entries of Object.values(config.relationships ?? {})) {
+        for (const rel of entries ?? []) {
+            if (rel.assetReplacement) {
+                out.push({ id: rel.id, package: rel.contentPackage ?? rel.id });
+            }
+        }
+    }
+    return out;
+}
+
+/**
+ * The address a pathname this package does not own is read back as, for
+ * asking whether a declared replacement answers it instead of the package
+ * the pathname names.
+ *
+ * {@link module:engine/asset-replacement.resolveAssetReplacement} only ever
+ * matches an address whose package segment is the compiling package's own,
+ * so the pathname's own package is set aside and its suffix — the one piece
+ * every surface derives from, and the piece a replacement publishes under
+ * its own package instead — is read back as this package's type and
+ * shortcode.
+ *
+ * @param {import("./pathnames.mjs").PathnameForms} forms - The pathname,
+ *   resolved.
+ * @param {object} config - The resolved build configuration.
+ * @returns {string|null} The canonical address, or `null` when the suffix is
+ *   not shaped like an asset's.
+ */
+function localAssetAddress(forms, config) {
+    const segments = String(forms.suffix ?? "").split("/");
+    const assetType = assetTypeOfRoot(segments[0]);
+    if (!assetType) return null;
+    const base = segments[segments.length - 1];
+    const ext = path.extname(base);
+    const shortcode = (ext ? base.slice(0, -ext.length) : base).toLowerCase();
+    if (!isAssetShortcode(shortcode)) return null;
+    return canonicalKey(config.contentPackage, ASSET_SYSTEM, assetType.type, shortcode);
+}
+
+/**
+ * The cache directory one relationship's archive was fetched into, found the
+ * way {@link module:engine/foreign-catalog.foreignItemCatalogDirs} finds an
+ * item catalogue's: the newest `.complete`-stamped `<id>@<version>`
+ * directory under `config.paths.foreignCache`.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {string} id - The relationship's dependency id.
+ * @returns {string|null} The directory, or `null` when nothing is cached.
+ */
+function cachedReplacementDir(config, id) {
+    const root = config.paths.foreignCache;
+    if (!fs.existsSync(root)) return null;
+    const cached = fs
+        .readdirSync(root)
+        .filter((name) => name.startsWith(`${id}@`))
+        .map((name) => path.join(root, name))
+        .filter(isForeignCacheComplete);
+    return cached.length ? newestVersionDir(cached) : null;
+}
+
+/**
+ * The file a declared replacement stages in place of a pathname this package
+ * does not own, or `null` when no replacement answers it.
+ *
+ * @param {import("./pathnames.mjs").PathnameForms} forms - The pathname,
+ *   resolved, with `forms.own` already `false`.
+ * @param {object} config - The resolved build configuration.
+ * @param {object} opts
+ * @param {Map<string, object>} [opts.foreignIndex] - Every fetched
+ *   dependency's own records, keyed by canonical address.
+ * @param {Function} opts.resolveReplacement - {@link
+ *   module:engine/asset-replacement.resolveAssetReplacement}.
+ * @returns {{from: string, to: string}|null} The file, staged at the same
+ *   `pdf`-relative path this address would have taken had this package
+ *   shipped it.
+ * @throws {Error} When the replacement that answers the address has not
+ *   been fetched.
+ */
+function stagedReplacementPath(forms, config, { foreignIndex = new Map(), resolveReplacement }) {
+    const address = localAssetAddress(forms, config);
+    if (!address) return null;
+    const relationships = assetReplacementRelationships(config);
+    if (!relationships.length) return null;
+    const hit = resolveReplacement(address, {
+        localPackage: config.contentPackage,
+        replacements: relationships.map((rel) => rel.package),
+        index: foreignIndex,
+    });
+    if (!hit) return null;
+    const assetPath = hit.record?.asset?.path;
+    if (!assetPath) return null;
+    const rel = relationships.find((entry) => entry.package === hit.package);
+    const dir = cachedReplacementDir(config, rel?.id ?? hit.package);
+    if (!dir) {
+        throw new Error(
+            `\`${hit.package}\` declares \`assetReplacement: true\` and carries \`${address}\`, ` +
+                "but its archive has not been fetched. Run `package-build deps fetch` first.",
+        );
+    }
     return {
-        from: path.resolve(config.rootDir, forms.local),
+        from: path.join(dir, ASSETS_SEGMENT, assetPath),
         to: forms.pdf,
     };
 }
@@ -294,9 +461,19 @@ function readDocumentTree(file) {
  * @param {string} [opts.version] - Stamped on the title page and the file name.
  * @param {boolean} [opts.compile] - Whether to run Typst. False leaves the
  *   `.typ` source, which is what the unit tests read.
+ * @param {Function} [opts.resolveReplacement] - {@link
+ *   module:engine/asset-replacement.resolveAssetReplacement}, for tests.
+ *   Loaded from that module otherwise, and only when a relationship declares
+ *   `assetReplacement: true` — a build with none never imports it.
  * @returns {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.
  */
-export async function buildPdf({ config, out, version = "", compile = true } = {}) {
+export async function buildPdf({
+    config,
+    out,
+    version = "",
+    compile = true,
+    resolveReplacement,
+} = {}) {
     const resolved = config ?? loadPackConfig();
     const findings = [];
 
@@ -305,8 +482,9 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         return {
             built: false,
             reason:
-                "`publish.site` is `homepage`, which fences the content surfaces off — " +
-                "the tree is not walked and no book is built. Publish content to build one.",
+                fs.existsSync(resolved.paths.content) ?
+                    "The content tree contains only a homepage, so there is no book to build."
+                :   "this package has no content tree, so there is nothing to print",
             findings,
             typ: null,
             pdf: null,
@@ -355,11 +533,11 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     });
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "content-pdf-"));
-    const db = await openNotesDatabase(records, { dir });
+    const db = await openNotesDatabase(records, { dir, audience: "public" });
     const ran = await runTreeFilters(parsed.nodes, db, {
         // A stub is a note and is deliberately in the corpus, but it has no
         // body — selecting one would print a blank page under its name.
-        keep: (record) => isNoteRecord(record) && !isStub(record),
+        keep: (record) => isNoteRecord(record) && !isStub(record) && !isGmNote(record),
         text: tree.text,
     });
     findings.push(...ran.findings.map((f) => ({ file: resolved.pdf.document, ...f })));
@@ -370,6 +548,23 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     // addresses collide would print the wrong entry under the right name.
     const scheme = resolved.publish.address;
     const base = resolved.site.base || `/${resolved.contentPackage}/`;
+    // Where the pages this book cites are served. A page's address is written
+    // from the root of a site, which is right everywhere on the web and nowhere
+    // in a PDF, so the book resolves each one against this — see
+    // {@link module:engine/pdf-render.absolutePageUrl}. `package.json`'s
+    // `homepage` is the one absolute address a build holds, and the site reads
+    // its own `baseURL` from it, so the book and the website cannot disagree
+    // about where a page is.
+    const site = typeof resolved.homepage === "string" ? resolved.homepage : "";
+    if (!site) {
+        findings.push({
+            file: "package.json",
+            severity: "error",
+            message:
+                "`homepage` is not declared, so a page the book cites is set as a path " +
+                `rather than an address a reader can follow — add \`https://www.heroiclands.org/${resolved.contentPackage}/\``,
+        });
+    }
     const ctx = {
         packages: new Set(
             resolved.site.packages.length ? resolved.site.packages : [resolved.contentPackage],
@@ -404,6 +599,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         config: resolved,
         skipDirectories: resolved.skipDirectories,
         records,
+        audience: "public",
     });
     // The address space an `![[…]]` embed resolves against — the same one the
     // site builds, so one authored picture reaches both surfaces or neither.
@@ -415,6 +611,17 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const md = createParser(resolved.icons);
     const glyphs = resolveIconGlyphs(resolved.icons, resolved.pdf.iconFonts, findings);
 
+    // Asked only where a relationship declares `assetReplacement: true`: with
+    // none declared the resolver is never consulted, and staging gives the
+    // answer it gives a package that declares no replacement. A caller may
+    // supply its own, which is how the staging tests drive it.
+    const stagingOpts = {
+        foreignIndex: gates.foreign.index,
+        resolveReplacement:
+            resolveReplacement ??
+            (assetReplacementRelationships(resolved).length ? resolveAssetReplacement : null),
+    };
+
     const outDir = path.resolve(
         resolved.rootDir,
         out || resolved.pdf.out || path.join("build", "dist"),
@@ -423,6 +630,15 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
 
     /** @type {Map<string, string>} Authored address → the staged file's path. */
     const images = new Map();
+    /** @type {Map<string, {type: string, role?: string, width: number|"", height: number|""}>}
+     *  Authored address, exactly as the note wrote it → its asset's role and
+     *  pixel size. Keyed the same way {@link images} is rather than by the
+     *  asset index's own canonical pathname, because a body image is free to
+     *  write the bare, own-package form — see
+     *  {@link module:engine/pathnames.assetPathnameKey}. */
+    const imageAssets = new Map();
+    /** @type {Map<string, {from: string, to: string, relative: string, file: string, uses: Array<{width: number, height: number}>}>} */
+    const imageCandidates = new Map();
     /** @type {Set<string>} Addresses already looked for, staged or not. */
     const seenImages = new Set();
 
@@ -435,11 +651,35 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      *
      * @param {string} body - The rendered markdown.
      * @param {string} file - The note, for the finding.
+     * @param {number} columns - The page's column count.
      * @returns {void}
      */
-    const stageImages = (body, file) => {
-        for (const src of imageSourcesIn(body)) {
-            if (seenImages.has(src)) continue;
+    const stageImages = (body, file, columns = 2) => {
+        for (const image of imagesIn(body)) {
+            const src = image.src;
+            const directive = parseImageDirective(image.directive);
+            const wide =
+                directive.size === "full-width" || directive.classes.includes("full-width");
+            const availableWidth = wide ? pdfTextWidth : pdfColumnWidth(columns);
+            const assetKey = assetPathnameKey(src, resolved);
+            const asset = assetKey ? assets.byPath.get(assetKey) : undefined;
+            if (asset) imageAssets.set(src, asset);
+            // `auto` is the one size a role or an icon's nominal width can
+            // narrow — a named `size=` is the author's own statement, honoured
+            // as it always was.
+            const roleWidth = directive.size === "auto" ? bookImageWidthIn(asset) : undefined;
+            const use = {
+                width: Math.min(
+                    roleWidth ?? PDF_IMAGE_INCHES[directive.size] ?? availableWidth,
+                    availableWidth,
+                ),
+                height: pdfTextHeight * 0.8,
+            };
+            if (seenImages.has(src)) {
+                const stagedTo = images.get(src);
+                if (stagedTo) imageCandidates.get(stagedTo)?.uses.push(use);
+                continue;
+            }
             seenImages.add(src);
             // An **error**, where a picture the book cannot carry is a warning:
             // this pathname resolves on no surface at all, and the replacement
@@ -449,7 +689,13 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 findings.push({ file, severity: "error", message: problem });
                 continue;
             }
-            const staged = stagedImagePath(src, resolved);
+            let staged;
+            try {
+                staged = stagedImagePath(src, resolved, stagingOpts);
+            } catch (err) {
+                findings.push({ file, severity: "error", message: err.message });
+                continue;
+            }
             if (!staged) {
                 findings.push({
                     file,
@@ -477,6 +723,15 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 continue;
             }
             images.set(src, staged.to);
+            const candidate = imageCandidates.get(staged.to);
+            if (candidate) candidate.uses.push(use);
+            else
+                imageCandidates.set(staged.to, {
+                    ...staged,
+                    relative: path.relative(resolved.rootDir, staged.from),
+                    file,
+                    uses: [use],
+                });
         }
     };
 
@@ -486,23 +741,126 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      * @param {object} page - A collected page.
      * @param {number} headingOffset - Where the book put this entry.
      * @param {string} anchorPrefix - The entry's anchor, namespacing its sections.
+     * @param {number} columns - The entry's page columns.
      * @returns {string} Typst markup.
      */
-    const renderPage = (page, headingOffset, anchorPrefix) => {
+    const figureCounts = { code: 0, table: 0, figure: 0, map: 0, poem: 0, prose: 0 };
+    // The role lookup a captioned item's `map` counter reaches through —
+    // see `engine/content-figures.mjs`'s `resolveRole`. Addressed form, for a
+    // page's own scan below, which runs before its embeds are rewritten into
+    // ordinary images; `pathRoles` is the same lookup keyed by the pathname
+    // that rewrite leaves behind, for the renderer's own rescan of the
+    // resolved body.
+    const resolveRole = (address) => embedRole(assets, address);
+    const pathRoles = pathnameRoles(assets);
+    const frontFigures = new Map();
+    for (const file of resolved.pdf.front) {
+        try {
+            const scan = scanFigures(fs.readFileSync(file, "utf8"), { resolveRole });
+            // Numbered here, because a number runs across the whole book and only
+            // this loop knows the order; what is *wrong* with a figure is
+            // reported by the renderer, which reads every one of the three kinds
+            // of markdown a book is made of.
+            frontFigures.set(file, numberFigures(scan.figures, figureCounts));
+        } catch {
+            // The rendering pass reports an unreadable front-matter file.
+        }
+    }
+    const pass = resolveSitePass(resolved.site?.pass, {
+        ...resolved.site?.passOptions,
+        repoRoot: resolved.rootDir,
+        config: resolved,
+        book: true,
+    });
+
+    /**
+     * Every entry's own figures, numbered across the whole book in reading
+     * order, before any entry's expressions render — so a cross-note `ref`
+     * finds the number its target carries in the finished book rather than a
+     * page-local recount. Walked in the same order {@link bodies} fills
+     * below, so `figureCounts` lands on the same final tallies either way;
+     * the note's table expansion is cached here too, so the render loop does
+     * not redo it.
+     *
+     * @type {Map<string, {markdown?: string, errors?: object[],
+     *   lineMap?: object[], numberedFigures: object[]}>}
+     */
+    const prepared = new Map();
+    // Every note's figures, by the address a `ref` crossing into it would
+    // write — see `engine/site-index.mjs`'s `figureIndexKeys`.
+    const figuresByAddress = new Map();
+    for (const entry of plan.entries) {
+        if (entry.kind === "note") {
+            const file = noteFile(contentBase, entry.record);
+            const page = byFile.get(file);
+            if (!page) continue; // reported as `missing` by the render loop below
+            const src = page.relPath ?? page.base;
+            const { markdown, errors, lineMap } = expandContentTables(page.body, {
+                docs: universe.get(page.pkg) ?? [],
+                linkable: (d) => Boolean(d.fm.shortcode),
+                source: src,
+                sqlTables: sqlTables?.get(page.file),
+                pageLists: sqlTables?.pageLists?.get(page.file),
+                self: { fm: page.fm, path: page.relPath },
+            });
+            const numberedFigures = numberFigures(
+                scanFigures(markdown, { resolveRole }).figures,
+                figureCounts,
+            );
+            prepared.set(entry.anchor, { markdown, errors, lineMap, numberedFigures });
+            const shortcode = page.fm.shortcode;
+            if (typeof shortcode === "string" && shortcode) {
+                const byId = new Map(
+                    numberedFigures
+                        .filter((figure) => figure.id)
+                        .map((figure) => [
+                            figure.id,
+                            {
+                                label: figure.label,
+                                caption: figure.caption,
+                                hasCaption: figure.hasCaption,
+                            },
+                        ]),
+                );
+                const type = String(page.fm.type ?? "").toLowerCase();
+                for (const key of figureIndexKeys(page.pkg, type, shortcode))
+                    figuresByAddress.set(key, byId);
+            }
+            continue;
+        }
+        if (entry.kind === "prose") {
+            const file = path.resolve(resolved.rootDir, entry.file);
+            let text;
+            try {
+                text = fs.readFileSync(file, "utf8");
+            } catch {
+                continue; // reported by the render loop below
+            }
+            prepared.set(entry.anchor, {
+                numberedFigures: numberFigures(
+                    scanFigures(text, { resolveRole }).figures,
+                    figureCounts,
+                ),
+            });
+        }
+    }
+
+    const renderPage = (page, headingOffset, anchorPrefix, columns) => {
         const src = page.relPath ?? page.base;
         const wikiErrors = [];
-        const { markdown, errors } = expandContentTables(page.body, {
-            docs: universe.get(page.pkg) ?? [],
-            linkable: (d) => Boolean(d.fm.shortcode),
-            source: src,
-            sqlTables: sqlTables?.get(page.file),
-            self: { fm: page.fm, path: page.relPath },
-        });
+        const { markdown, errors, lineMap, numberedFigures } = prepared.get(anchorPrefix);
+        // A content-table finding states its `reason`, its 0-based line within
+        // the body and its column, exactly as the site build reports them.
+        // Reading it as `message` yields `[object Object]` and discards the
+        // position, which is the one thing a reader needs to find the fence.
         for (const err of errors) {
             findings.push({
                 file: page.file,
+                ...(typeof err.line === "number" ?
+                    { line: (page.bodyLine ?? 1) + err.line, column: err.column }
+                :   {}),
                 severity: "error",
-                message: String(err.message ?? err),
+                message: err.reason ?? String(err.message ?? err),
             });
         }
         const linkCtx = wikiContext(gates.index, {
@@ -513,6 +871,31 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             foreignIndex: gates.foreign.index,
             assets,
         });
+        linkCtx.captionLabels = new Map(
+            numberedFigures
+                .filter((figure) => figure.id)
+                .map((figure) => [figure.id, figure.label]),
+        );
+        // This page's own anchors, so a `[[#slug]]` self-link is checked
+        // against what the page actually declares, exactly as the site build
+        // checks it.
+        linkCtx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
+        linkCtx.output = "book";
+        // What the `ref` expression helper needs beyond the label — the
+        // caption text and whether one was authored — keyed as
+        // `engine/site-build.mjs` keys its own, but built from this note's
+        // *book-wide* numbering rather than its page-local count: the book
+        // numbers each kind across the whole book in reading order, so a
+        // reference has to read the number the book gives the figure, not the
+        // number the note would give it alone.
+        const figuresById = new Map(
+            numberedFigures
+                .filter((figure) => figure.id)
+                .map((figure) => [
+                    figure.id,
+                    { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+                ]),
+        );
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
         // wikilink, and resolving it would make the example impossible to write.
@@ -522,56 +905,96 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             sqlResults: sqlTables?.inline?.get(page.file),
             file: page.file,
             bodyLine: page.bodyLine,
+            figures: {
+                get: (id) => figuresById.get(id),
+                // A cross-note `ref` resolves the written address exactly as
+                // a wikilink does, against every note's figures numbered
+                // before any entry's expressions render — see `prepared`
+                // above. The default link renders the target's own web
+                // address, which `renderLink` in `engine/pdf-render.mjs`
+                // resolves to the entry the book gave it, exactly as an
+                // ordinary cross-note wikilink does.
+                note: (target) =>
+                    resolveCrossNoteFigures(target, {
+                        contentTypes: gates.index.contentTypes,
+                        packages: gates.index.packages,
+                        noIndexPackages: gates.index.noIndexPackages,
+                        contentPackage: gates.index.contentPackage,
+                        siteIndexMap: gates.index.index,
+                        figuresByAddress,
+                    }),
+            },
         });
         findings.push(...expressions.findings);
         const resolvedBody = protectCode(expressions.markdown, (text) =>
-            resolveWebWikilinks(text, linkCtx),
+            resolveWebWikilinks(pass.beforeLinks ? pass.beforeLinks(text, page) : text, linkCtx),
         );
+        // A link finding carries the authored link and which occurrence of it
+        // this was, which is exactly what locates it: the position is implicit
+        // in the literal the pass matched, so it is recovered by searching the
+        // note for it rather than dropped. Read once per page, and only when
+        // there is a finding to locate.
+        let raw;
+        const noteSource = () => {
+            if (raw === undefined) {
+                try {
+                    raw = fs.readFileSync(page.file, "utf8");
+                } catch {
+                    raw = "";
+                }
+            }
+            return raw;
+        };
+        // An **error**, as it is from the pack build and from the site build. One
+        // authored address that resolves nowhere is one defect, and a reader of
+        // the book is the one reader who cannot act on it: a page printing
+        // `(unresolved link)` has shipped the mistake to somebody holding paper.
+        // The source is written and the compiler still runs, so the finding is a
+        // report on a book that was built, exactly as the site writes its pages
+        // and refuses the run.
         for (const err of wikiErrors) {
             findings.push({
                 file: page.file,
-                severity: "warning",
+                ...positionOfLiteral(noteSource(), err.link, err.occurrence),
+                severity: "error",
                 // A link finding names a `reason` from the shared table and no
                 // sentence of its own; an embed's directive complaint carries
                 // the sentence instead.
                 message: err.message ?? (err.reason ? linkFindingMessage(err) : String(err)),
             });
         }
-        const secrets = renderSecretBlocks(resolvedBody, "book");
-        for (const error of renderSecretBlocks(page.body, "book").errors) {
-            findings.push({
-                file: page.file,
-                line: (page.bodyLine ?? 1) + error.line - 1,
-                column: error.column,
-                severity: "error",
-                message: error.message,
-            });
-        }
-        stageImages(secrets.markdown, page.file);
-        const prose = markdownToTypst(secrets.markdown, {
+        stageImages(resolvedBody, page.file, columns);
+        const prose = markdownToTypst(resolvedBody, {
             md,
             links: plan.links,
             glyphs,
             images,
+            assets: imageAssets,
             headingOffset,
             anchorPrefix,
+            captions: numberedFigures,
+            url: site,
+            findings,
+            file: page.file,
+            bodyLine: page.bodyLine,
+            lineMap,
+            prepared: true,
+            resolveRole: (pathname) => pathRoles.get(pathname),
         });
-        // The infobox is generated content in document order — prepended,
-        // before the prose. An image the note authored ahead of it still comes
-        // first, because the image lives in the body and the body follows.
+        // Infoboxes follow the authored body within this note's entry.
         const boxes = noteInfoboxes(page.fm, {
             resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
             router: routerFor(resolved),
             dates: gates.index.dateContext,
+            contentPackage: gates.index.contentPackage,
         });
         const panel = infoboxesToTypst(boxes, {
-            link: (value) => linkToTypst(value, plan.links, labelFor),
+            link: (value) => linkToTypst(value, plan.links, labelFor, site),
         });
         // Whether the entry is settled comes before anything it says: the
-        // notice leads the leaf, ahead of the panel, which is the position it
-        // holds on every other surface.
+        // notice leads the leaf, before the authored body.
         const notice = isDraftNote(page.fm) ? draftNoticeTypst() : "";
-        const parts = [notice, panel, prose].filter((part) => part);
+        const parts = [notice, prose, panel].filter((part) => part);
         return parts.join("\n\n");
     };
 
@@ -589,7 +1012,10 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             // entry. A note's body starts at `##` — its name is frontmatter, not
             // an H1 — so an offset of the entry's depth puts that `##` one level
             // below the entry heading at `depth + 1`, which is where it belongs.
-            bodies.set(entry.anchor, renderPage(page, entry.depth, entry.anchor));
+            bodies.set(
+                entry.anchor,
+                renderPage(page, entry.depth, entry.anchor, entry.presentation?.page?.columns ?? 2),
+            );
             continue;
         }
         if (entry.kind === "prose") {
@@ -605,7 +1031,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 });
                 continue;
             }
-            stageImages(text, file);
+            stageImages(text, file, entry.presentation?.page?.columns ?? 2);
             bodies.set(
                 entry.anchor,
                 markdownToTypst(text, {
@@ -613,8 +1039,13 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                     links: plan.links,
                     glyphs,
                     images,
+                    assets: imageAssets,
                     headingOffset: entry.depth,
                     anchorPrefix: entry.anchor,
+                    captions: prepared.get(entry.anchor).numberedFigures,
+                    url: site,
+                    findings,
+                    file,
                 }),
             );
         }
@@ -629,15 +1060,21 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         });
     }
 
-    const front = resolved.pdf.front.map((file) => {
+    const front = resolved.pdf.front.map((file, index) => {
         try {
             const text = fs.readFileSync(file, "utf8");
-            stageImages(text, file);
+            stageImages(text, file, 1);
             return markdownToTypst(text, {
                 md,
                 links: plan.links,
                 glyphs,
                 images,
+                assets: imageAssets,
+                footnotePrefix: `footnote-front-${index + 1}`,
+                captions: frontFigures.get(file),
+                url: site,
+                findings,
+                file,
             });
         } catch {
             findings.push({
@@ -650,9 +1087,59 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     });
 
     const banners = stageBanners(plan.entries, resolved, outDir, findings);
+    for (const [declared, to] of banners) {
+        const from = path.resolve(resolved.rootDir, declared);
+        imageCandidates.set(`banner:${declared}`, {
+            from,
+            to,
+            relative: path.relative(resolved.rootDir, from),
+            file: resolved.pdf.document,
+            uses: [{ width: PDF_PAGE.width, height: Infinity }],
+        });
+    }
 
-    /** @type {Map<string, {path: string, title: string}>} Entry anchor → map page. */
+    /** @type {Map<string, Array<{path: string, title: string}>>} Entry anchor → map pages. */
     const maps = new Map();
+    const addMapPage = (anchor, page) => {
+        if (!maps.has(anchor)) maps.set(anchor, []);
+        maps.get(anchor).push(page);
+    };
+    const stageMapBackground = (entry, value, title) => {
+        const file = noteFile(contentBase, entry.record);
+        const found = artPathname(assets, value, "image", ["image", "icon"]);
+        let staged;
+        try {
+            staged = stagedImagePath(found.pathname ?? value, resolved, stagingOpts);
+        } catch (err) {
+            findings.push({ file, severity: "error", message: err.message });
+            return;
+        }
+        if (!staged || !fs.existsSync(staged.from)) {
+            findings.push({
+                file,
+                severity: "warning",
+                message: `the map background "${value}" cannot be resolved for the book`,
+            });
+            return;
+        }
+        const target = path.join(outDir, staged.to);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.copyFileSync(staged.from, target);
+        addMapPage(entry.anchor, { path: staged.to, title });
+        const candidate = imageCandidates.get(staged.to);
+        const use = {
+            width: PDF_PAGE.height - 2 * PDF_PAGE.margin,
+            height: pdfTextWidth - 2 / 2.54,
+        };
+        if (candidate) candidate.uses.push(use);
+        else
+            imageCandidates.set(staged.to, {
+                ...staged,
+                relative: path.relative(resolved.rootDir, staged.from),
+                file,
+                uses: [use],
+            });
+    };
     const world = mapWorld({
         records,
         foreignIndex: gates.foreign.index,
@@ -673,7 +1160,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         const drawn = buildMaps({ world, outDir: mapDir, from: centres });
         findings.push(...drawn.findings);
         for (const entry of mappedEntries) {
-            maps.set(entry.anchor, {
+            addMapPage(entry.anchor, {
                 path: `maps/from-${entry.record.shortcode}.svg`,
                 title: `From here: ${entry.record.name?.full ?? entry.record.shortcode}`,
             });
@@ -681,27 +1168,26 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     }
     for (const entry of plan.entries) {
         if (entry.kind !== "note" || entry.record?.type !== "map") continue;
-        if (entry.record.subType !== "regionalmap") continue;
-        const image = entry.record.data?.bgImage;
-        if (!image) continue;
-        const found = artPathname(assets, image, "image", ["image", "icon"]);
-        if (!found.pathname) {
-            findings.push({
-                file: noteFile(contentBase, entry.record),
-                severity: "warning",
-                message: `the regional map's background "${image}" cannot be resolved for the book`,
-            });
+        const title = entry.record.name?.full ?? entry.record.shortcode;
+        if (["regionalmap", "totm"].includes(entry.record.subType)) {
+            if (entry.record.data?.bgImage) {
+                stageMapBackground(entry, entry.record.data.bgImage, title);
+            }
             continue;
         }
-        const staged = stagedImagePath(found.pathname, resolved);
-        if (!staged || !staged.from.toLowerCase().endsWith(".svg")) continue;
-        const target = path.join(outDir, staged.to);
-        fs.mkdirSync(path.dirname(target), { recursive: true });
-        fs.copyFileSync(staged.from, target);
-        maps.set(entry.anchor, {
-            path: staged.to,
-            title: entry.record.name?.full ?? entry.record.shortcode,
-        });
+        if (!["battlemap", "localmap"].includes(entry.record.subType)) continue;
+        for (const [index, level] of (entry.record.data?.scene?.levels ?? []).entries()) {
+            const paths = [
+                `.levels[${index}].background.src`,
+                ...(level._id ? [`.levels[${level._id}].background.src`] : []),
+            ];
+            const fixup = (entry.record.data?.fixup ?? []).find((item) =>
+                paths.includes(item.path),
+            );
+            const value = fixup?.value ?? level.background?.src;
+            if (value)
+                stageMapBackground(entry, value, level.name ? `${title}: ${level.name}` : title);
+        }
     }
 
     const assembled = renderBook({
@@ -725,18 +1211,36 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const pdfPath = path.join(outDir, stem);
     fs.writeFileSync(typPath, source);
 
+    const imageReports = await resamplePdfImages(imageCandidates, outDir);
+
     const stats = { ...plan.stats, entries: plan.entries.length, bytes: source.length };
     if (!compile) {
-        return { built: true, reason: null, findings, typ: typPath, pdf: null, stats };
+        return {
+            built: true,
+            reason: null,
+            findings,
+            imageReports,
+            typ: typPath,
+            pdf: null,
+            stats,
+        };
     }
 
     const compiled = compileTypst(typPath, pdfPath, resolved.pdf);
     findings.push(...compiled.findings);
     if (!compiled.ok) {
         findings.push({ file: typPath, severity: "error", message: compiled.message });
-        return { built: false, reason: null, findings, typ: typPath, pdf: null, stats };
+        return {
+            built: false,
+            reason: null,
+            findings,
+            imageReports,
+            typ: typPath,
+            pdf: null,
+            stats,
+        };
     }
-    return { built: true, reason: null, findings, typ: typPath, pdf: pdfPath, stats };
+    return { built: true, reason: null, findings, imageReports, typ: typPath, pdf: pdfPath, stats };
 }
 
 /**

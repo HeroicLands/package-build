@@ -69,8 +69,8 @@ const WORKFLOW_DIR = path.join(ROOT, ".github/workflows");
 /**
  * The workflow's steps, split into what can be run here and what cannot.
  *
- * @returns {{run: Array<{name: string, run: string}>, skipped: string[]}} The
- *   `run:` steps in workflow order, and the names of the `uses:` steps.
+ * @returns {{run: Array<{name: string, run: string}>, skipped: string[], files: string[]}}
+ *   Workflow files, their `run:` steps in order, and the `uses:` step names.
  * @throws {Error} When the workflow cannot be read or declares no `run:` step.
  */
 export function ciSteps() {
@@ -139,7 +139,7 @@ function prTriggeredWorkflows() {
  * @param {string} file - The workflow.
  * @returns {{run: Array<{name: string, run: string}>, skipped: string[]}} Its steps.
  */
-function stepsIn(file) {
+export function stepsIn(file) {
     const lines = fs.readFileSync(file, "utf8").split("\n");
     const run = [];
     const skipped = [];
@@ -164,25 +164,32 @@ function stepsIn(file) {
             continue;
         }
 
-        const inline = /^-?\s*run:\s*(?!\|)(.+)$/.exec(text);
-        if (inline) {
-            run.push({ name: name ?? inline[1], run: inline[1].trim() });
-            name = null;
-            continue;
-        }
         // A `run: |` block scalar: every following line indented deeper.
-        if (/^-?\s*run:\s*\|\s*$/.test(text)) {
+        if (/^-?\s*run:\s*\|[+-]?\s*$/.test(text)) {
             const base = indentOf(line);
             const body = [];
             while (i + 1 < lines.length) {
                 const next = lines[i + 1];
                 if (next.trim() !== "" && indentOf(next) <= base) break;
-                body.push(next.trim());
+                body.push(next);
                 i += 1;
             }
-            const command = body.filter(Boolean).join(" && ");
+            const margin = Math.min(
+                ...body.filter((line) => line.trim()).map((line) => indentOf(line)),
+            );
+            const command = body
+                .map((line) => line.slice(margin))
+                .join("\n")
+                .trimEnd();
             if (command) run.push({ name: name ?? command, run: command });
             name = null;
+            continue;
+        }
+        const inline = /^-?\s*run:\s*(.+)$/.exec(text);
+        if (inline) {
+            run.push({ name: name ?? inline[1], run: inline[1].trim() });
+            name = null;
+            continue;
         }
     }
     return { run, skipped };
@@ -213,15 +220,20 @@ function main() {
         return 1;
     }
 
-    const { run, skipped } = steps;
-    console.log(`ci-steps: running ${run.length} step(s) from .github/workflows/build.yml`);
+    const { run, skipped, files } = steps;
+    console.log(
+        `ci-steps: running ${run.length} step(s) from ${files.map((file) => path.relative(ROOT, file)).join(", ")}`,
+    );
     if (skipped.length) {
         console.log(`ci-steps: not runnable here (published actions): ${skipped.join(", ")}`);
     }
 
     for (const [i, step] of run.entries()) {
         console.log(`\nci-steps: [${i + 1}/${run.length}] ${step.name}\n  $ ${step.run}`);
-        const result = spawnSync(step.run, { cwd: ROOT, shell: true, stdio: "inherit" });
+        const result = spawnSync("bash", ["-e", "-o", "pipefail", "-c", step.run], {
+            cwd: ROOT,
+            stdio: "inherit",
+        });
         if (result.status !== 0) {
             console.error(
                 `\nci-steps: FAILED at "${step.name}" — this is what GitHub would report.\n` +

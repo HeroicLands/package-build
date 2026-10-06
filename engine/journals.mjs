@@ -51,15 +51,20 @@
 
 import log from "loglevel";
 
+import path from "node:path";
+
 import {
     sohlField,
     makeId,
     resolveName,
+    resolveImg,
     defaultStats,
     renderFoundryMarkdown,
+    md,
     folderField,
 } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
+import { scanBlocks } from "./content-blocks.mjs";
 import { anchorPageId, resolveReference } from "./wikilinks.mjs";
 import { infoboxesToHtml, linkToUuid } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
@@ -68,14 +73,50 @@ import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
 import { journalHasContent } from "./note-state.mjs";
 import { draftNoticeFor } from "./draft-notice.mjs";
+import { scanFigures } from "./content-figures.mjs";
+import { separateFootnotes } from "./content-footnotes.mjs";
+import { WITHHELD_CLASS, pageOpenings } from "./heading-attributes.mjs";
+import { imagesIn } from "./content-images.mjs";
+import { IMAGE_EXTENSIONS } from "./asset-types.mjs";
+import { pathnameRoles } from "./art-fields.mjs";
+
+/**
+ * `CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE` — the default ownership a withheld
+ * page states. A GM reads every document whatever it says; everyone else reads
+ * this one not at all.
+ */
+const WITHHELD_OWNERSHIP = 0;
+
+/**
+ * Every line a named block's own markup occupies, from its `:::name` opener
+ * to its closing `:::` inclusive.
+ *
+ * Read from {@link module:engine/content-blocks.scanBlocks}'s own ranges
+ * rather than restated here, so a figure cannot disagree with the blocks pass
+ * about what counts as a named block or where one ends. `scanBlocks` already
+ * recognises every name in its registry, carrying an attribute block or not,
+ * and already tracks a nested construct's own closer by depth rather than by
+ * a flag a bare `:::` clears regardless of whose closer it is.
+ *
+ * @param {string} markdown - A note's body, as {@link splitPages} receives it.
+ * @returns {Set<number>} 0-based line indices inside a named block.
+ */
+function namedBlockLines(markdown) {
+    const lines = new Set();
+    for (const { start, end } of scanBlocks(markdown).blocks) {
+        for (let i = start; i <= end; i++) lines.add(i);
+    }
+    return lines;
+}
 
 /**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
- * code blocks are respected so `# foo` inside ``` blocks doesn't trigger
- * a split. Content before the first H1 (if non-empty) becomes a leading
- * page. Each H1 yields a page whose name is the heading
+ * code blocks are respected so `# foo` inside ``` or ~~~ blocks doesn't
+ * trigger a split. Content before the first H1 (if non-empty) becomes a
+ * leading page. Each H1 yields a page whose name is the heading
  * text (with any `{#anchor-id}` suffix stripped out and surfaced as
- * `anchorId`).
+ * `anchorSlug`). The classes the heading declares come along as `classes`, so
+ * a surface that honours one has it without reading the suffix again.
  *
  * `leadName` names that leading page. A journal note's is "Introduction",
  * because it introduces the pages that follow. An item doc's is the item — a
@@ -83,50 +124,129 @@ import { draftNoticeFor } from "./draft-notice.mjs";
  * calling that page "Introduction" would label the description as a preamble to
  * nothing.
  *
- * Returns an array of `{ name, anchorId, markdown }` in document order.
+ * A captioned item's page holds the item alone, and carries the item's record
+ * as `figure` — `null` for every other page. {@link buildPages} reads it to
+ * build the `image` or `text` page; nothing else sets it. The page is named
+ * for the item's number, or else its caption's visible text.
+ *
+ * Body that follows an item, up to the next page opening, resumes in a
+ * **continuation** of the section the item interrupted: the section's name,
+ * level and classes, with `continues` naming the item it follows. A
+ * continuation holding nothing is not emitted.
+ *
+ * @param {string} body - Markdown body to split.
+ * @param {string} [leadName] - Name of the page before the first heading.
+ * @param {(address: string) => string|undefined} [resolveRole] - From a
+ *   picture's address to the role its asset declares, so a figure page's
+ *   name reads `Map 1` rather than `Figure 1` where it is due — see
+ *   {@link module:engine/content-figures.scanFigures}.
+ * @returns {Array<{name: string, anchorSlug: string|null, level: number,
+ *   classes: string[], figure: object|null, continues?: string,
+ *   markdown: string}>} Pages in document order.
  */
-export function splitPages(body, leadName = "Introduction") {
-    const lines = body.split("\n");
+export function splitPages(body, leadName = "Introduction", resolveRole) {
+    const { markdown, definitions } = separateFootnotes(body);
+    const lines = markdown.split("\n");
+    const figureStarts = new Map(
+        scanFigures(markdown, { resolveRole }).figures.map((figure) => [figure.line - 1, figure]),
+    );
+    const blockLines = namedBlockLines(markdown);
+    const openings = pageOpenings(markdown, blockLines);
     const pages = [];
     const beforeFirstH1 = [];
     let current = null;
-    let inCodeBlock = false;
-    let inSecret = false;
+    let codeFence = null;
+    /** The page a heading last opened, which a captioned item interrupts. */
+    let section = { name: leadName, level: 1, classes: [] };
 
     const closeCurrent = () => {
         if (!current) return;
+        const markdown = current.lines.join("\n").trim();
+        // A continuation exists only to carry what follows its item; one
+        // holding nothing is not a page.
+        if (current.continues && !markdown) {
+            current = null;
+            return;
+        }
         pages.push({
             name: current.name,
             anchorSlug: current.anchorSlug,
             level: current.level,
-            markdown: current.lines.join("\n").trim(),
+            classes: current.classes,
+            figure: current.figure ?? null,
+            ...(current.continues ? { continues: current.continues } : {}),
+            markdown,
         });
         current = null;
     };
 
-    for (const line of lines) {
-        if (line.trim().startsWith("```")) {
-            inCodeBlock = !inCodeBlock;
+    for (const [lineIndex, line] of lines.entries()) {
+        // A fence's closer must carry the same character as its opener and
+        // be at least as long — a longer fence is what lets a fenced example
+        // carry a shorter fence of its own as literal content, same as
+        // {@link module:engine/content-blocks.scanBlocks} and
+        // {@link module:engine/content-figures.scanFigures} track it.
+        const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+        if (codeFence) {
+            if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length) {
+                codeFence = null;
+            }
+        } else if (fence) {
+            codeFence = fence[1];
         }
-        if (!inCodeBlock && /^:::secret[ \t]*$/.test(line)) inSecret = true;
-        else if (!inCodeBlock && /^:::[ \t]*$/.test(line)) inSecret = false;
+        const inCodeBlock = codeFence !== null;
 
         // An H1 starts a page, as does any heading carrying an `{#slug}`
         // anchor: a Foundry UUID can only address a page, so a linkable
         // section has to be one.
-        const headingMatch =
-            !inCodeBlock && !inSecret ? line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/) : null;
-        const rawHeading = headingMatch?.[2]?.trim();
-        const anchorMatch = rawHeading?.match(/^(.*?)\s*\{#([^}]+)\}\s*$/);
-        const startsPage = headingMatch && (headingMatch[1].length === 1 || anchorMatch);
-        if (startsPage) {
+        // {@link module:engine/heading-attributes.parseHeadingLine} is the one
+        // reading of that rule — `scanBlocks` and `scanFigures` refuse such a
+        // heading written where it cannot become a page, from the same
+        // function, so none of them can disagree about what starts one. The
+        // lines it claims here are collected by `pageOpenings`, which also
+        // skips a fence and a named block. A figure fence opens a page of its
+        // own, named for the figure's label.
+        // A captioned item's page holds the item alone. The body after it
+        // resumes in a continuation of the section it interrupted, keyed on
+        // the item so its id holds still when pages move around it.
+        if (current?.figure && lineIndex > current.figure.close) {
+            const item = current.figure;
             closeCurrent();
             current = {
-                name: (anchorMatch ? anchorMatch[1] : rawHeading).trim(),
-                anchorSlug: anchorMatch?.[2]?.trim() || null,
-                level: headingMatch[1].length,
+                name: section.name,
+                anchorSlug: null,
+                level: section.level,
+                classes: section.classes,
+                continues: item.slug || item.label || captionPageName(item.caption),
                 lines: [],
             };
+        }
+
+        const opening = openings.get(lineIndex);
+        const figure =
+            !inCodeBlock && !blockLines.has(lineIndex) ? figureStarts.get(lineIndex) : null;
+        if (figure) {
+            closeCurrent();
+            current = {
+                name: figure.label || captionPageName(figure.caption),
+                anchorSlug: figure.id || null,
+                level: 1,
+                classes: [],
+                figure,
+                lines: [line],
+            };
+            continue;
+        }
+        if (opening) {
+            closeCurrent();
+            current = {
+                name: opening.text,
+                anchorSlug: opening.id || null,
+                level: opening.level,
+                classes: opening.classes,
+                lines: [],
+            };
+            section = current;
             continue;
         }
 
@@ -144,10 +264,15 @@ export function splitPages(body, leadName = "Introduction") {
             name: leadName,
             anchorSlug: null,
             level: 1,
+            classes: [],
+            figure: null,
             markdown: intro,
         });
     }
 
+    if (definitions) {
+        for (const page of pages) page.markdown += `\n\n${definitions}`;
+    }
     return pages;
 }
 
@@ -178,7 +303,18 @@ export function splitPages(body, leadName = "Introduction") {
 export function assertUniquePages(rawPages, noteName) {
     const anchors = new Set();
     const names = new Set();
+    const continuations = new Set();
     for (const page of rawPages) {
+        if (page.continues) {
+            const key = `${page.name}\u0000${page.continues}`;
+            if (continuations.has(key)) {
+                throw new Error(
+                    `note "${noteName}" has two captioned items both captioned "${page.continues}" in "${page.name}"; give one an {#anchor}`,
+                );
+            }
+            continuations.add(key);
+            continue;
+        }
         if (page.anchorSlug) {
             if (anchors.has(page.anchorSlug)) {
                 throw new Error(
@@ -215,7 +351,7 @@ export function assertUniqueAnchors(rawPages, noteName) {
  * An anchored page takes the id its inbound links compute from the note id and
  * the slug, so link and page agree without shared state. Every other page is
  * keyed by its **name**, which is what lets the items pass address an item
- * doc's first page without having compiled it (see
+ * doc's selected page without having compiled it (see
  * {@link sohl.utils.packs.itemDocPointer}).
  *
  * **It takes no index**. Keying a page by position *and* name,
@@ -229,14 +365,165 @@ export function assertUniqueAnchors(rawPages, noteName) {
  * a lint error. {@link assertUniquePages} states the same thing at compile
  * time, where the packer would otherwise report only an opaque duplicate key.
  *
+ * A continuation page shares its section's name, so it is keyed by that name
+ * and the captioned item it follows.
+ *
  * @param {string} entryId - The owning JournalEntry's `_id`.
- * @param {{anchorSlug: string|null, name: string}} page - From {@link splitPages}.
+ * @param {{anchorSlug: string|null, name: string, continues?: string}} page -
+ *   From {@link splitPages}.
  * @returns {string} A 16-character Foundry id.
  */
 export function journalPageId(entryId, page) {
-    return page.anchorSlug ?
-            anchorPageId(entryId, page.anchorSlug)
+    if (page.anchorSlug) return anchorPageId(entryId, page.anchorSlug);
+    return page.continues ?
+            makeId("journal-page", `${entryId}:${page.name}:after:${page.continues}`)
         :   makeId("journal-page", `${entryId}:${page.name}`);
+}
+
+/**
+ * The name of the page a caption begins: the caption's visible text.
+ *
+ * Foundry shows a page name as plain text, so a caption's markup — emphasis, a
+ * code span, a Markdown link, or the `@UUID[...]{label}` a resolved wikilink
+ * has already become, inside its wrapping `<span>` — reduces to the text a
+ * reader sees, the same text a reference to the caption displays. The markup
+ * itself stays in the page's content, where it renders.
+ *
+ * @param {string} caption - The figure's caption, as the journal pass sees it.
+ * @returns {string} Its visible text, whitespace collapsed.
+ */
+function captionPageName(caption) {
+    if (!caption) return "";
+    const [inline] = md.parseInline(caption, {});
+    const text = (inline?.children ?? [])
+        .map((token) =>
+            token.type === "text" || token.type === "code_inline" ? token.content
+            : token.type === "softbreak" || token.type === "hardbreak" ? " "
+            : "",
+        )
+        .join("");
+    return text
+        .replace(/@UUID\[[^\]]*\]\{([^}]*)\}/g, "$1")
+        .replace(/\s+/g, " ")
+        .trim();
+}
+
+/**
+ * Whether a caption carries markup an `image` page's `caption` field cannot
+ * hold.
+ *
+ * `image.caption` is a `StringField`; `text.content` is an `HTMLField`.
+ * Parsed as inline Markdown, plain prose tokenises as `text` alone, wrapping
+ * at most on a `softbreak` — anything else (emphasis, a code span, a link, an
+ * inline image) is a token an image page has nowhere to render.
+ *
+ * @param {string} caption - The figure's raw caption markdown.
+ * @returns {boolean} Whether the caption needs a `text` page.
+ */
+function captionCarriesMarkup(caption) {
+    if (!caption) return false;
+    const [inline] = md.parseInline(caption, {});
+    return (inline?.children ?? []).some(
+        (token) => token.type !== "text" && token.type !== "softbreak",
+    );
+}
+
+/**
+ * The one picture a `figure`-kind fence holds, when it holds exactly one and
+ * nothing else — the shape an `image` page can draw on its own. A grouped
+ * fence, two pictures or more, keeps the `text` page a single `src` cannot
+ * hold, and an embed that resolves to a sound rather than a picture does too,
+ * there being no audio page type.
+ *
+ * By the time a journal note's markdown reaches this pass, an embed has
+ * already been rewritten into the ordinary `![alt](src)` image every surface
+ * renders ({@link module:engine/content-embeds}), so the file this needs is
+ * already sitting in the fence's own contents rather than behind an address
+ * this pass would have to resolve a second time.
+ *
+ * @param {object} figure - The figure record, `kind` already derived.
+ * @param {object} page - From {@link splitPages}; `page.markdown` starts on
+ *   the figure's own opening line, so `figure`'s line-based offsets translate
+ *   into it directly.
+ * @returns {string|null} The picture's `src`, or `null`.
+ */
+function soleFigurePicture(figure, page) {
+    if (figure.kind !== "figure" && figure.kind !== "map") return null;
+    const offset = figure.line - 1;
+    const lines = page.markdown.split("\n");
+    const contents = lines.slice(figure.bodyStart - offset, figure.bodyEnd - offset).join("\n");
+    const images = imagesIn(contents);
+    if (images.length !== 1) return null;
+    const extension = path.extname(images[0].src).toLowerCase();
+    return IMAGE_EXTENSIONS.includes(extension) ? images[0].src : null;
+}
+
+/**
+ * The fields particular to the Foundry page a captioned item begins.
+ *
+ * A captioned item holding exactly one picture, captioned with no inline
+ * markup, becomes a page of type `image`: `src` the picture, `image.caption`
+ * the caption text, the page named for the figure's own number. Every other
+ * item — grouped, an audio embed, or a caption `image.caption` cannot hold —
+ * becomes a page of type `text`.
+ *
+ * The `text` page's content is rendered and then relabeled. The render sees
+ * only this one fence — {@link scanFigures}, called again inside
+ * {@link module:engine/content-figures.renderFigureBlocks} on this page's own
+ * markdown, recounts it as the first of its kind regardless of its true,
+ * note-wide number. The fence is the whole of the figure on this page, so its
+ * label paragraph is the one element to correct, to the number the note-wide
+ * scan in {@link buildJournalEntry} already assigned.
+ *
+ * @param {object} figure - The figure record from {@link scanFigures},
+ *   carried onto the page by {@link splitPages}.
+ * @param {object} page - From {@link splitPages}.
+ * @param {string} pageId - The page's `_id`, threaded into footnote anchors.
+ * @param {Map<string, number>} footnoteNumbers - Shared across the note.
+ * @param {(address: string) => string|undefined} [resolveRole] - See
+ *   {@link splitPages}.
+ * @returns {{name: string, type: "image", src: string, image: {caption?: string}}
+ *   |{name: string, type: "text", text: {format: number, content: string}}}
+ */
+function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRole) {
+    const picture = soleFigurePicture(figure, page);
+    if (picture && !captionCarriesMarkup(figure.caption)) {
+        let src = picture;
+        try {
+            src = resolveImg(picture) ?? picture;
+        } catch {
+            // Left as the authored pathname — the same fallback an inline
+            // image's own render takes when no configuration resolves it.
+        }
+        return {
+            name: figure.label || captionPageName(figure.caption),
+            type: "image",
+            src,
+            image: figure.hasCaption ? { caption: figure.caption } : {},
+        };
+    }
+    const label =
+        figure.hasCaption ?
+            `${figure.label ? `${figure.label}: ` : ""}${md.renderInline(figure.caption)}`
+        :   figure.label;
+    const content = renderFoundryMarkdown(
+        page.markdown,
+        undefined,
+        footnoteNumbers,
+        pageId,
+        resolveRole,
+    );
+    return {
+        name: figure.label || captionPageName(figure.caption),
+        type: "text",
+        text: {
+            format: 1,
+            content: content.replace(
+                /<p class="content-figure-label">[\s\S]*?<\/p>/,
+                () => `<p class="content-figure-label">${label}</p>`,
+            ),
+        },
+    };
 }
 
 /**
@@ -245,30 +532,68 @@ export function journalPageId(entryId, page) {
  * @param {Array<object>} rawPages - From {@link splitPages}.
  * @param {string} entryId - The owning JournalEntry's `_id`.
  * @param {string} noteName - The note, for error messages.
+ * A page whose heading carries `.secret` is given to the GM alone, by the one
+ * ownership value Foundry reads as "nobody but a GM". Every other page states
+ * no ownership and inherits the journal's. A figure-started page states none
+ * either: {@link scanFigures} validates a figure's classes against its own
+ * closed vocabulary, which carries no `.secret`.
+ *
+ * @param {Array<object>} figures - From {@link scanFigures}, numbered across
+ *   the whole note. Read by a page a heading started; a page a figure started
+ *   carries its own figure already, from {@link splitPages}.
+ * @param {(address: string) => string|undefined} [resolveRole] - See
+ *   {@link splitPages}.
  * @returns {Array<{_id: string, name: string, type: string,
  *   title: {show: boolean, level: number},
- *   text: {format: number, content: string}, _key: string}>} The page
- *   documents, in order.
+ *   text: {format: number, content: string}, _key: string,
+ *   ownership?: {default: number}}>} The page documents, in order.
  * @throws {Error} When the note has no content at all, or repeats an anchor.
  */
-export function buildPages(rawPages, entryId, noteName) {
+export function buildPages(rawPages, entryId, noteName, figures, resolveRole) {
     if (rawPages.length === 0) {
         throw new Error(
             `note "${noteName}" has no Introduction content and no H1 headings — nothing to compile`,
         );
     }
     assertUniquePages(rawPages, noteName);
+    const footnoteNumbers = new Map();
+    for (const page of rawPages) {
+        const env = {};
+        md.parse(page.markdown ?? "", env);
+        for (const { label } of env.footnotes?.list ?? []) {
+            if (!footnoteNumbers.has(label)) footnoteNumbers.set(label, footnoteNumbers.size + 1);
+        }
+    }
     return rawPages.map((page) => {
         const pageId = journalPageId(entryId, page);
+        const withheld = (page.classes ?? []).includes(WITHHELD_CLASS);
+        const fields =
+            page.figure ?
+                buildFigurePageFields(page.figure, page, pageId, footnoteNumbers, resolveRole)
+            :   {
+                    name: page.name,
+                    type: "text",
+                    text: {
+                        format: 1,
+                        content:
+                            page.markdown ?
+                                renderFoundryMarkdown(
+                                    page.markdown,
+                                    figures,
+                                    footnoteNumbers,
+                                    pageId,
+                                    resolveRole,
+                                )
+                            :   "",
+                    },
+                };
         return {
             _id: pageId,
-            name: page.name,
-            type: "text",
-            title: { show: true, level: page.level ?? 1 },
-            text: {
-                format: 1,
-                content: page.markdown ? renderFoundryMarkdown(page.markdown) : "",
-            },
+            ...fields,
+            // A continuation resumes its section, whose title its first
+            // page already shows.
+            title: { show: !page.continues, level: page.level ?? 1 },
+            ...(withheld ? { ownership: { default: WITHHELD_OWNERSHIP } } : {}),
             _key: `!journal.pages!${entryId}.${pageId}`,
         };
     });
@@ -290,24 +615,24 @@ export function buildPages(rawPages, entryId, noteName) {
  * @param {string} [params.leadName] - Name for the page before the first
  *   heading; see {@link splitPages}.
  * @param {string|null} [params.folder] - The folder id, or `null`.
- * @param {object} [params.flags] - Document flags.
  * @param {object} [params.stats] - The `_stats` block to stamp. Passed by the
  *   caller because it is a property of the *pack* being written, not of the
  *   entry: a module may ship the same content for two systems, and each pack's
  *   documents record the system version they were built against. A
  *   caller with no pack in hand gets the package-wide block.
- * @param {string} [params.infobox] - The note's infobox, already rendered to
- *   HTML. Prepended to the entry's first page, which is where the format puts
- *   it: the box is generated content in document order, before the prose, and
- *   a Foundry page is narrow enough that inlining it is the only arrangement
- *   that reads. It is **not** a page of its own — a page is what a UUID
- *   addresses, and a summary a reader has to navigate to is a summary they do
- *   not see.
+ * @param {Array<{id: string, name: string, html: string}>} [params.infoboxes] -
+ *   Emitted boxes, each rendered to HTML. Each becomes a separate page after
+ *   the authored pages. Its identity uses the box id in a generated-page
+ *   namespace, independent of authored headings and anchors.
  * @param {string} [params.notice] - A statement about the entry rather than
  *   about its subject, already rendered to HTML — see {@link
- *   module:engine/draft-notice}. It leads the first page, ahead of the infobox,
+ *   module:engine/draft-notice}. It leads the first authored page,
  *   because a reader deciding whether to rely on the entry has to be told
  *   before they read it rather than after.
+ * @param {(address: string) => string|undefined} [params.resolveRole] - From
+ *   a picture's address to the role its asset declares, so a figure page's
+ *   name reads `Map 1` rather than `Figure 1` where it is due — see
+ *   {@link module:engine/content-figures.scanFigures}.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({
@@ -316,15 +641,29 @@ export function buildJournalEntry({
     markdown,
     leadName,
     folder = null,
-    flags,
     stats = defaultStats(),
-    infobox = "",
+    infoboxes = [],
     notice = "",
+    resolveRole,
 }) {
-    const rawPages = splitPages(markdown, leadName);
-    const pages = buildPages(rawPages, id, name);
-    if (infobox.trim() && pages.length) {
-        pages[0].text.content = `${infobox}\n${pages[0].text.content}`;
+    const rawPages = splitPages(markdown, leadName, resolveRole);
+    const pages = buildPages(
+        rawPages,
+        id,
+        name,
+        scanFigures(markdown, { resolveRole }).figures,
+        resolveRole,
+    );
+    for (const box of infoboxes) {
+        const pageId = makeId("journal-infobox-page", `${id}:${box.id}`);
+        pages.push({
+            _id: pageId,
+            name: box.name,
+            type: "text",
+            title: { show: true, level: 1 },
+            text: { format: 1, content: box.html },
+            _key: `!journal.pages!${id}.${pageId}`,
+        });
     }
     if (notice.trim() && pages.length) {
         pages[0].text.content = `${notice}\n${pages[0].text.content}`;
@@ -335,7 +674,7 @@ export function buildJournalEntry({
         folder,
         sort: 0,
         ownership: { default: 0 },
-        flags: flags || {},
+        flags: {},
         _id: id,
         _stats: stats,
         _key: `!journal!${id}`,
@@ -477,13 +816,29 @@ export class Journals extends BasePackCompiler {
             // by the pack list this build is being driven by.
             router: this.router,
             dates: reckoningContext(this.linkIndex),
+            contentPackage: this.linkIndex?.contentPackage,
         });
+
+        // The markdown this pass reads has already had its embeds rewritten
+        // into ordinary images, each `src` the pathname `pathnameRoles` keys
+        // its roles by — so a captioned map names itself `Map 1` here
+        // exactly as the website and the book name the same picture.
+        const roles = pathnameRoles(this.linkIndex);
 
         return buildJournalEntry({
             id,
             name,
             markdown,
-            infobox: infoboxesToHtml(boxes, { link: linkToUuid }),
+            resolveRole: (pathname) => roles.get(pathname),
+            infoboxes: boxes.map((box) => ({
+                id: box.id,
+                name: `${
+                    box.id === "note" ? "Properties"
+                    : box.id === "sohl" ? "SoHL"
+                    : "HM3"
+                } Infobox`,
+                html: infoboxesToHtml([box], { link: linkToUuid }),
+            })),
             // Whether the entry is settled, asked of the tag through the one
             // reader of it. This sits here rather than in `buildJournalEntry`
             // for the reason `skipNote` runs first: a note with no prose
@@ -494,7 +849,6 @@ export class Journals extends BasePackCompiler {
             // "Introduction" — see {@link splitPages}.
             leadName: ownsDoc ? name : undefined,
             folder,
-            flags: fm.flags,
             stats: this.stats,
         });
     }

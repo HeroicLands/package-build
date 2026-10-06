@@ -12,7 +12,7 @@
  */
 
 /**
- * The anchors a note declares on its headings — read in one place.
+ * The anchors a note declares on headings, captions, divs, poems and spans.
  *
  * **A leaf, deliberately.** This is asked by the link checker, by the content
  * index, and by the builds that emit a link, and they cannot all import one
@@ -22,62 +22,139 @@
  * anchors does this note declare?" had two answers and they disagreed on
  * `{#CalendarFormat}`.
  *
+ * The suffix itself is read by {@link module:engine/heading-attributes}, which
+ * {@link module:engine/journals.splitPages} also reads it through — so the index
+ * cannot name an anchor the pages do not carry.
+ *
  * @module
  */
 
+import { scanAlerts } from "./content-alerts.mjs";
+import { scanBlocks } from "./content-blocks.mjs";
+import { scanPoetry } from "./content-poetry.mjs";
+import { scanSpans } from "./content-spans.mjs";
+import { codeRegions } from "./code-fences.mjs";
+import { slugify } from "./content-slug.mjs";
+import { scanFigures } from "./content-figures.mjs";
+import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
+
 /**
- * A heading, and the `{#slug}` anchor it declares.
+ * The identifiers a note declares on headings, captions, divs, poems and spans.
  *
- * Kept identical to the pair {@link splitPages} matches, because the two must
- * agree about what an anchor is: that pass decides which sections become
- * addressable journal pages, and an index naming an anchor it does not produce
- * would advertise a link that resolves nowhere. `tests/content-index.test.ts`
- * asserts the two find the same anchors, so drift fails the suite rather than
- * shipping.
- */
-const HEADING = /^\s*(#{1,6})\s+(.+?)\s*#*\s*$/;
-const ANCHOR = /^(.*?)\s*\{#([^}]+)\}\s*$/;
-/**
- * The `{#slug}` anchors a note's body declares, with where each one sits.
- *
- * Only headings carrying an explicit anchor are collected. A bare `#` heading
- * also starts a journal page, but it declares no slug, so nothing can address
- * it with `#…` — listing it would offer a link that cannot be written.
+ * Headings and captions may start journal pages. Div, poem and inline-span
+ * anchors address locations within their containing pages.
  *
  * @param {string} body - The note's markdown body, frontmatter already removed.
  * @param {number} [bodyLine] - The 1-based file line the body starts on, from
  *   `parseMarkdownFile`. Anchors are reported at their position in the **file**,
  *   so an editor can jump straight to one; passing nothing numbers from the body.
+ * @param {(address: string) => string|undefined} [resolveRole] - From a
+ *   picture's address to the role its asset declares, so a figure anchor's
+ *   `name` reads `Map 1` rather than `Figure 1` where it is due — see
+ *   {@link module:engine/content-figures.scanFigures}.
  * @returns {Array<{slug: string, name: string, level: number, line: number}>}
  *   In document order.
  */
-export function collectAnchors(body, bodyLine = 1) {
+export function collectAnchors(body, bodyLine = 1, resolveRole) {
     const anchors = [];
-    let inCodeBlock = false;
+    const literal = codeRegions(body, { spans: false, poetryAsProse: false });
+    let offset = 0;
     const lines = String(body ?? "").split("\n");
 
     for (let i = 0; i < lines.length; i++) {
-        // A fenced block's contents are not headings, and `#` is a comment in
-        // most of what gets fenced.
-        if (lines[i].trim().startsWith("```")) {
-            inCodeBlock = !inCodeBlock;
+        const lineOffset = offset;
+        offset += lines[i].length + 1;
+        if (literal.some((region) => lineOffset >= region.start && lineOffset < region.end))
             continue;
-        }
-        if (inCodeBlock) continue;
 
-        const heading = HEADING.exec(lines[i]);
+        const heading = HEADING_LINE.exec(lines[i]);
         if (!heading) continue;
-        const anchor = ANCHOR.exec(heading[2].trim());
-        if (!anchor) continue;
-
-        const slug = anchor[2].trim();
-        if (!slug) continue;
+        const attributes = splitHeadingAttributes(heading[2]);
+        if (!attributes.id) continue;
         anchors.push({
-            slug,
-            name: anchor[1].trim(),
+            slug: attributes.id,
+            name: attributes.text,
             level: heading[1].length,
             line: bodyLine + i,
         });
     }
-    return anchors;
+    for (const figure of scanFigures(body, { resolveRole }).figures) {
+        if (!figure.id) continue;
+        anchors.push({
+            slug: figure.id,
+            name: figure.label || figure.caption,
+            level: 1,
+            line: bodyLine + figure.line - 1,
+        });
+    }
+    const blockAnchors = (source, firstLine) => {
+        const sourceLines = source.split("\n");
+        for (const block of scanBlocks(source).blocks) {
+            if (block.id)
+                anchors.push({
+                    slug: slugify(block.id),
+                    name: block.title || block.id,
+                    level: 0,
+                    line: firstLine + block.start,
+                });
+            blockAnchors(
+                sourceLines.slice(block.start + 1, block.end).join("\n"),
+                firstLine + block.start + 1,
+            );
+        }
+    };
+    blockAnchors(String(body ?? ""), bodyLine);
+    for (const alert of scanAlerts(body).blocks) {
+        if (alert.id)
+            anchors.push({
+                slug: slugify(alert.id),
+                name: alert.title,
+                level: 0,
+                line: bodyLine + alert.start,
+            });
+    }
+    for (const poem of scanPoetry(body).blocks) {
+        if (poem.id)
+            anchors.push({
+                slug: slugify(poem.id),
+                name: poem.id,
+                level: 0,
+                line: bodyLine + poem.start,
+            });
+    }
+    for (const span of scanSpans(body).spans) {
+        if (span.id)
+            anchors.push({
+                slug: slugify(span.id),
+                name: span.text,
+                level: 0,
+                line: bodyLine + span.line - 1,
+            });
+    }
+    return anchors.sort((a, b) => a.line - b.line);
+}
+
+/** Collisions involving a div, verse or inline-span anchor.
+ * Heading and caption collisions are diagnosed by their existing scanners.
+ * @param {string} body - Authored Markdown.
+ * @returns {Array<{line: number, column: number, message: string}>} Located collisions.
+ */
+export function markupAnchorFindings(body) {
+    const groups = new Map();
+    for (const anchor of collectAnchors(body)) {
+        const slug = slugify(anchor.slug);
+        if (!groups.has(slug)) groups.set(slug, []);
+        groups.get(slug).push(anchor);
+    }
+    const errors = [];
+    for (const [slug, anchors] of groups) {
+        if (anchors.length < 2 || !anchors.some((anchor) => anchor.level === 0)) continue;
+        for (const anchor of anchors.slice(1))
+            errors.push({
+                line: anchor.line,
+                column: 1,
+                message: `duplicate markup anchor "${slug}"`,
+            });
+    }
+    return errors;
 }

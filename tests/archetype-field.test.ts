@@ -245,24 +245,21 @@ describe("the compiled Item carries `system.templatePriority`, not the flag", ()
         }
     });
 
-    it("passes `flags` through unchanged, defaulting to an empty object", () => {
+    it("passes the block's `flags` through unchanged, defaulting to an empty object", () => {
         expect(items().buildEntry(skillNote({ archetype: 1 }), "").flags).toEqual({});
         const authored = items().buildEntry(
-            { ...skillNote({ archetype: 1 }), flags: { core: { keep: true } } },
+            skillNote({ archetype: 1, flags: { core: { keep: true } } }),
             "",
         );
         expect(authored.flags).toEqual({ core: { keep: true } });
     });
 
-    it("lets the system block override the shared `flags`", () => {
+    it("takes no `flags` from the note level, which declares no such key", () => {
         const doc = items().buildEntry(
-            {
-                ...skillNote({ archetype: 1, flags: { core: { own: true } } }),
-                flags: { core: { shared: true } },
-            },
+            { ...skillNote({ archetype: 1 }), flags: { core: { shared: true } } },
             "",
         );
-        expect(doc.flags).toEqual({ core: { own: true } });
+        expect(doc.flags).toEqual({});
     });
 
     it("refuses a note with no archetype at all", () => {
@@ -293,11 +290,11 @@ describe("the compiled Actor carries `system.templatePriority`, not the flag", (
         }
     });
 
-    it("passes `flags` through unchanged, defaulting to an empty object", () => {
+    it("passes the block's `flags` through unchanged, defaulting to an empty object", () => {
         expect(actors().buildBeing(new Map(), beingNote({ archetype: 1 }), "").flags).toEqual({});
         const authored = actors().buildBeing(
             new Map(),
-            { ...beingNote({ archetype: 1 }), flags: { core: { keep: true } } },
+            beingNote({ archetype: 1, flags: { core: { keep: true } } }),
             "",
         );
         expect(authored.flags).toEqual({ core: { keep: true } });

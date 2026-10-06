@@ -36,7 +36,7 @@
 
 import { encodeAddresses } from "./address-values.mjs";
 import { sectionHolds } from "./infobox.mjs";
-import { escapeTypst, escapeTypstString } from "./pdf-render.mjs";
+import { absolutePageUrl, escapeTypst, escapeTypstString } from "./pdf-render.mjs";
 
 /**
  * How many cells an attribute grid packs into a row.
@@ -139,7 +139,12 @@ function sectionToHtml(section, link) {
     if (section.layout === "rows") {
         out.push('<dl class="infobox-rows">');
         for (const row of section.rows ?? []) {
-            out.push(`<dt>${escapeHtml(row.label)}</dt><dd>${valueToHtml(row, link)}</dd>`);
+            // A row that declares an anchor carries it on the `<dt>`, so the
+            // label is the destination a link to that row arrives at. A row
+            // that declares none emits none: an id nobody wrote would be
+            // invented once per renderer, and the two would not agree.
+            const id = row.id ? ` id="${escapeHtml(row.id)}"` : "";
+            out.push(`<dt${id}>${escapeHtml(row.label)}</dt><dd>${valueToHtml(row, link)}</dd>`);
         }
         out.push("</dl>");
     } else if (section.layout === "grid") {
@@ -221,16 +226,22 @@ export function sectionHasContent(section) {
  * reference, so the link works on paper as a cross-reference and in a PDF
  * viewer as a jump. Everything else is set as its own words.
  *
+ * A panel's rows address pages the same way prose does, so a page the book does
+ * not print is set as the absolute URL a reader can follow — see
+ * {@link module:engine/pdf-render.absolutePageUrl}.
+ *
  * @param {object} value - A `link` value.
  * @param {Map<string, string>} links - Address slug → the book's anchor.
  * @param {(anchor: string) => string} labelFor - The anchor's Typst label.
+ * @param {string} [site] - The absolute address this book's pages are served at.
  * @returns {string} Typst markup.
  */
-export function linkToTypst(value, links, labelFor) {
+export function linkToTypst(value, links, labelFor, site) {
     const text = escapeTypst(value?.text ?? "");
     const anchor = value?.address ? links?.get(encodeAddresses(value.address)) : undefined;
     if (anchor) return `#link(<${labelFor(anchor)}>)[${text}]`;
-    if (value?.url) return `#link("${escapeTypstString(value.url)}")[${text}]`;
+    if (value?.url)
+        return `#link("${escapeTypstString(absolutePageUrl(value.url, site))}")[${text}]`;
     return text;
 }
 
@@ -370,7 +381,13 @@ export function infoboxTypstPreamble() {
             "fill: infobox-rule)[#upper(t)]; v(0.20em) }",
         '#let infobox-head(t) = { v(0.40em); text(size: 7.6pt, weight: "bold", ' +
             "tracking: 1.3pt, fill: infobox-rule)[#upper(t)]; v(0.16em) }",
+        // One definition-list style across the three surfaces: the term right
+        // against a fixed column so every term in the panel shares one edge,
+        // and space below the row rather than rows run together. A page has one
+        // width, so the stacked state the screen surfaces fall back to has
+        // nothing to answer here and is not drawn.
         "#let infobox-row(k, v) = grid(columns: (2.05cm, 1fr), column-gutter: 4pt, " +
+            "inset: (bottom: 2pt), align: (right + top, left + top), " +
             "text(size: 7pt, tracking: 0.5pt, fill: infobox-faint)[#upper(k)], text(size: 8pt)[#v])",
         "#let infobox-cell(lab, val) = align(center)[" +
             "#text(size: 7pt, tracking: 0.6pt, fill: infobox-faint)[#lab]#h(2.5pt)" +

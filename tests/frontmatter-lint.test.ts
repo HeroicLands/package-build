@@ -418,70 +418,54 @@ describe("checkTags — a classifying tag is queried, so a near miss is a findin
     });
 });
 
-describe("a being's kind is one slot, and a note fills it once or not at all", () => {
-    /** A being carrying tags, as the index hands one over. */
-    const being = (tags: string[]) => ({
+describe("a being's closed subtype vocabulary", () => {
+    const being = (subType: string | undefined, tags: string[] = []) => ({
         file: "/tree/being.md",
         type: "being",
-        raw: `---\ntype: being\ntags:\n${tags.map((x) => `  - ${x}`).join("\n")}\n---\n`,
-        fm: { type: "being", tags },
+        raw: `---\ntype: being\n${subType ? `subType: ${subType}\n` : ""}tags:\n${tags.map((x) => `  - ${x}`).join("\n")}\n---\n`,
+        fm: { type: "being", ...(subType ? { subType } : {}), tags },
     });
-    const findings = (tags: string[], type = "being") =>
+    const findings = (subType: string | undefined, tags: string[] = [], type = "being") =>
         lintFrontmatter(
             {
-                notes: [{ ...being(tags), type, fm: { type, tags } }],
+                notes: [
+                    {
+                        ...being(subType, tags),
+                        type,
+                        fm: {
+                            type,
+                            ...(subType ? { subType } : {}),
+                            tags,
+                            ...(type === "being" ? { data: { archetypes: ["warrior"] } } : {}),
+                        },
+                    },
+                ],
                 shortcodeHit: () => ({}),
             } as any,
             { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
-        ).findings.filter(
-            (f: { message: string }) => f.message.includes("kind") || f.message.startsWith('tag "'),
-        );
+        ).findings;
 
-    it("passes a being that states one kind", () => {
-        expect(findings(["character"])).toEqual([]);
-        expect(findings(["creature"])).toEqual([]);
+    it("accepts each declared subtype", () => {
+        expect(findings("npc")).toEqual([]);
+        expect(findings("character")).toEqual([]);
+        expect(findings("creature")).toEqual([]);
     });
 
-    it("passes a being that states no kind at all", () => {
-        // The kind is authored deliberately, and a tree part-way through
-        // tagging is a tree with untagged beings in it. Silence is the only
-        // honest answer: nothing can tell an unstated kind from a wrong one.
-        expect(findings([])).toEqual([]);
-        expect(findings(["soldiery", "draft"])).toEqual([]);
+    it("keeps subtype optional and tags open", () => {
+        expect(findings(undefined, ["character", "creature", "soldiery", "draft"])).toEqual([]);
     });
 
-    it("refuses a being that states both, as an error", () => {
-        const f = findings(["character", "creature"]);
+    it("rejects unknown subtypes at the subType key", () => {
+        const f = findings("charcter");
         expect(f).toHaveLength(1);
         expect(f[0].severity).toBe("error");
         expect(f[0].message).toContain('"character"');
-        expect(f[0].message).toContain('"creature"');
+        expect(f[0].line).toBe(3);
+        expect(f[0].column).toBe(1);
     });
 
-    it("locates the finding on the note's `tags` key", () => {
-        // The whole list is at fault, not one entry of it, so the key's own
-        // line is where a reader is sent. `type:` is line 2 and `tags:` line 3.
-        const f = findings(["character", "creature"])[0];
-        expect(f.line).toBe(3);
-        expect(f.column).toBe(1);
-    });
-
-    it("reports a near miss of either kind, naming what was probably meant", () => {
-        expect(findings(["charcter"])[0].message).toContain('"character"');
-        expect(findings(["creture"])[0].message).toContain('"creature"');
-    });
-
-    it("leaves a tag that is plainly the author's own alone", () => {
-        // Nothing else names a being's kind, and nothing else is refused for
-        // failing to: the top level stays open.
-        expect(findings(["monstrous", "undead", "beast-of-burden"])).toEqual([]);
-    });
-
-    it("checks the kind only on a being", () => {
-        // `character` is also what HM3 calls one of the two documents a being
-        // compiles to, and it was once a note type of its own. A place tagged
-        // with the word is neither, and is nobody's finding.
-        expect(findings(["character", "creature"], "place")).toEqual([]);
+    it("does not interpret category tags as a subtype", () => {
+        expect(findings(undefined, ["charcter", "creture", "character", "creature"])).toEqual([]);
     });
 });
 
@@ -541,20 +525,15 @@ describe('an authored `icon: ""`', () => {
         }
     });
 
-    it('warns on `title: ""` too, for the page\'s heading', () => {
-        // The collision that kept `title` off this rule is gone: the field
-        // declares `topLevelMeans`, so the top-level key no longer feeds an
-        // affiliation's `system.title` and `title: null` no longer compiles
-        // the literal `"null"`. What remains is the page heading, and the
-        // emitter is `fm.title ?? name` — so `""` survives, the page
-        // publishes unnamed, and it sorts ahead of every named page in its
-        // section. Fifteen notes in `sohl-thalorna` are in that state.
-        const findings = lintNote(note("skill", {}, { title: "" }), { schemas });
-        const titleFindings = findings.filter((f) => /title: ""/.test(f.message));
+    it("says nothing about a page heading, which is not an art path", () => {
+        // A page's heading is `name.full`, and a blank one there is a finding
+        // of its own — a harder one, because the name is required.
+        const findings = lintNote(note("skill", {}, { name: { full: "" } }), { schemas });
 
-        expect(titleFindings).toHaveLength(1);
-        expect(titleFindings[0].severity).toBe("warning");
-        expect(titleFindings[0].message).toMatch(/title: null/);
+        expect(findings.filter((f) => /ship no art at all/.test(f.message))).toHaveLength(0);
+        expect(findings.some((f) => /`name.full` must be a nonempty string/.test(f.message))).toBe(
+            true,
+        );
     });
 });
 
@@ -563,39 +542,27 @@ describe('an authored `icon: ""`', () => {
 /* -------------------------------------------------------------------- */
 
 describe("a system field that merely shares a note-level field's name", () => {
-    /** The blank-heading finding, whichever position provoked it. */
-    const blankHeading = (findings: Array<{ message: string }>) =>
-        findings.filter((f) => /publishes a page with no heading/.test(f.message));
+    /** The "ship no art at all" finding, whichever position provoked it. */
+    const inertArt = (findings: Array<{ message: string }>) =>
+        findings.filter((f) => /ship no art at all/.test(f.message));
 
     it("says nothing about an affiliation whose office has no style of address", () => {
         // `sohl.title` on an affiliation is the style of address the office
         // carries — "Ajaw", "Warden" — and `""` is the ordinary way to say an
-        // office carries none. The note's *heading* is its top-level `title`,
-        // which this note does not author at all, so its page takes `name.full`
-        // exactly as intended. Twenty-eight `sohl-kethira-basic` affiliations
+        // office carries none. Twenty-eight `sohl-kethira-basic` affiliations
         // are in this state and every one of them was reported.
         const findings = lintNote(note("affiliation", { title: "" }), { schemas: NOTE_SCHEMAS });
 
-        expect(blankHeading(findings)).toHaveLength(0);
+        expect(findings.filter((f) => /title/.test(f.message))).toHaveLength(0);
     });
 
-    it("still reports the note-level `title` on that same type", () => {
-        // The exemption removes one position, not the check: an affiliation
-        // that really does publish a blank heading is still reported.
-        const findings = lintNote(note("affiliation", {}, { title: "" }), {
-            schemas: NOTE_SCHEMAS,
-        });
+    it("still resolves through the block for a key no type claims", () => {
+        // `icon` is an art slot and no shipped type declares a system field of
+        // that name, so nothing competes for the spelling and a `sohl.icon: ""`
+        // answers for the note's own art.
+        const findings = lintNote(note("skill", { icon: "" }), { schemas: NOTE_SCHEMAS });
 
-        expect(blankHeading(findings)).toHaveLength(1);
-    });
-
-    it("still resolves through the block on a type that claims nothing there", () => {
-        // `skill` declares no `title`, so nothing competes for the spelling and
-        // the resolution is the unchanged one — a `sohl.title: ""` is the note's
-        // own heading, written in the block.
-        const findings = lintNote(note("skill", { title: "" }), { schemas: NOTE_SCHEMAS });
-
-        expect(blankHeading(findings)).toHaveLength(1);
+        expect(inertArt(findings)).toHaveLength(1);
     });
 
     it("reads the declaration rather than the field name", () => {
@@ -733,5 +700,25 @@ describe("two embedded items denoting one entity", () => {
                 ),
             ),
         ).toHaveLength(0);
+    });
+});
+
+describe("retired affiliation domains during migration", () => {
+    it("accepts ignored legacy input without publishing it in the vocabulary", () => {
+        const legacy = note(
+            "affiliation",
+            {},
+            { subType: "polity", data: { domains: ["unresolved-old-place"] } },
+        );
+        const findings = lintNote(legacy, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });
+        expect(messages(findings)).not.toContain("domains");
+        expect(dataFields("affiliation")?.some((field) => field.name === "domains")).toBe(false);
+    });
+    it("does not admit domains on a place", () => {
+        const findings = lintNote(note("place", {}, { data: { domains: [] } }), {
+            schemas: NOTE_SCHEMAS,
+            vocabulary: NOTE_VOCABULARY,
+        });
+        expect(messages(findings)).toContain('"domains" is not');
     });
 });

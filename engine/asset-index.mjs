@@ -50,6 +50,13 @@
  * drop: `licence` beside `license` is otherwise an attribution record that looks
  * complete and carries nothing.
  *
+ * **`role` names what the picture is for**, from a closed set, and belongs to
+ * the `image` type only — an `icon` address carries one nominal size per medium
+ * whatever the file holds, so a `role` declared there is a finding and is
+ * dropped rather than carried through. **`width` and `height` come from the
+ * walk itself**, read from the file's own header rather than declared, and are
+ * blank for an SVG, which has no pixel dimensions to state.
+ *
  * @module
  */
 
@@ -60,7 +67,18 @@ import YAML from "yaml";
 
 import { canonicalKey } from "./content-address.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
-import { ASSET_SYSTEM, ASSET_TYPES, isAssetShortcode } from "./asset-types.mjs";
+import { ASSET_SYSTEM, ASSET_TYPES, imageDimensions, isAssetShortcode } from "./asset-types.mjs";
+
+/**
+ * The closed set of roles a picture may declare.
+ *
+ * Shared with the field declaration below and with every medium that sizes a
+ * picture by its role, so the vocabulary cannot drift between the record that
+ * carries it and the renderer that reads it.
+ *
+ * @type {readonly string[]}
+ */
+export const ASSET_ROLES = Object.freeze(["portrait", "emblem", "banner", "plate", "map"]);
 
 /**
  * The file a directory records provenance for its subtree in.
@@ -92,6 +110,18 @@ export const PROVENANCE_SIDECAR_SUFFIX = ".yaml";
  *   state this key. Omitting one is a finding rather than a blank, because a
  *   record resolves wholesale: the nearest one is the whole answer, so a key it
  *   leaves out is not inherited from above but simply absent.
+ * @property {"boolean"|"integer"} [type] - The value's own type, for a field
+ *   whose answer is not a string. Omitted for every string field; `ai` carries
+ *   the YAML boolean itself rather than a stringified copy, and `width` and
+ *   `height` carry the pixel count the walk measured. Each is refused rather
+ *   than coerced when the value does not match.
+ * @property {readonly string[]} [values] - The closed set a provenance
+ *   declaration must choose one of; a value outside it is a finding and the
+ *   key is left blank, the same treatment an `ai` value of the wrong shape
+ *   gets. `role` is the one field that carries it.
+ * @property {string} [onlyType] - The one asset type this field may be
+ *   declared for. A provenance record stating it for another type is a
+ *   finding, and the value is dropped rather than carried through.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -134,7 +164,10 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "ai",
         from: "provenance",
-        describe: "Whether the file is machine-generated — `true` or `false`.",
+        type: "boolean",
+        describe:
+            "Whether the file is machine-generated — the YAML boolean `true` " +
+            "or `false`, never a string.",
     }),
     Object.freeze({
         name: "license",
@@ -146,6 +179,32 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
         name: "notes",
         from: "provenance",
         describe: "Anything else a person reading the attribution needs.",
+    }),
+    Object.freeze({
+        name: "role",
+        from: "provenance",
+        onlyType: "image",
+        values: ASSET_ROLES,
+        describe:
+            "What the picture is for — portrait, emblem, banner, plate or map. " +
+            "Absent for an ordinary picture, and refused outside that set. " +
+            "The `image` type only; a value on an `icon` address is a finding.",
+    }),
+    Object.freeze({
+        name: "width",
+        from: "walk",
+        type: "integer",
+        describe:
+            "The file's pixel width, read from its own header during the " +
+            "asset walk. Blank for an SVG, which has no pixel dimensions.",
+    }),
+    Object.freeze({
+        name: "height",
+        from: "walk",
+        type: "integer",
+        describe:
+            "The file's pixel height, read from its own header during the " +
+            "asset walk. Blank for an SVG, which has no pixel dimensions.",
     }),
 ]);
 
@@ -182,11 +241,29 @@ export const REQUIRED_PROVENANCE_KEYS = Object.freeze(
 );
 
 /**
+ * The provenance field declaring each key, by name.
+ *
+ * Read in the parsing loop below to ask whether a key has its own `type`
+ * rather than the ordinary string one — derived from {@link ASSET_RECORD_FIELDS}
+ * for the same reason {@link PROVENANCE_KEYS} is, so the field declaration
+ * stays the one place a key's shape is stated.
+ *
+ * @type {ReadonlyMap<string, AssetRecordField>}
+ */
+const PROVENANCE_FIELD_BY_KEY = new Map(
+    ASSET_RECORD_FIELDS.filter((field) => field.from === "provenance").map((field) => [
+        field.name,
+        field,
+    ]),
+);
+
+/**
  * Read one provenance file, reporting every key that is not a provenance key.
  *
  * @param {string} file - The provenance file.
  * @param {object[]} findings - Collects a diagnostic per unknown key.
- * @returns {Record<string, string>} The recognised keys, as strings.
+ * @returns {Record<string, string|boolean>} The recognised keys — a string for
+ *   every field but `ai`, which carries the YAML boolean itself.
  */
 function readProvenanceFile(file, findings) {
     let text;
@@ -236,6 +313,44 @@ function readProvenanceFile(file, findings) {
                     `${[...PROVENANCE_KEYS].join(", ")}, and anything else is ` +
                     "dropped rather than recorded",
             });
+            continue;
+        }
+        const field = PROVENANCE_FIELD_BY_KEY.get(key);
+        if (field?.type === "boolean") {
+            if (typeof value === "boolean") {
+                out[key] = value;
+            } else {
+                // Distinct from the unknown-key finding above: this key is
+                // recognised, and the problem is the shape of its value — a
+                // quoted `"false"` or a YAML `yes`/`1` would otherwise be
+                // stringified and read as truthy regardless of which it was.
+                findings.push({
+                    file,
+                    ...positionOfYamlPath(text, [key], { key: true }),
+                    severity: "error",
+                    message:
+                        `\`${key}\` must be the YAML boolean \`true\` or \`false\`, ` +
+                        `not ${JSON.stringify(value)}`,
+                });
+            }
+            continue;
+        }
+        if (field?.values) {
+            if (field.values.includes(value)) {
+                out[key] = value;
+            } else {
+                // Distinct from the unknown-key finding above: this key is
+                // recognised, and the problem is that its value is not one of
+                // the closed set it accepts.
+                findings.push({
+                    file,
+                    ...positionOfYamlPath(text, [key], { key: true }),
+                    severity: "error",
+                    message:
+                        `\`${key}\` must be one of ${field.values.join(", ")}, ` +
+                        `not ${JSON.stringify(value)}`,
+                });
+            }
             continue;
         }
         out[key] = value == null ? "" : String(value);
@@ -299,15 +414,30 @@ function inheritedProvenance(dir, root, cache, findings) {
 /**
  * The `asset` block for one file.
  *
- * @param {string} relPath - The file's path below the package's asset directory.
- * @param {Record<string, string>|null} provenance - The resolved record.
- * @returns {Record<string, string>} The block, every field present.
+ * @param {Record<string, unknown>} walkValues - Every `from: "walk"` field's
+ *   value, keyed by field name.
+ * @param {Record<string, string|boolean>|null} provenance - The resolved record.
+ * @param {string} type - The asset type this file was walked as, so a field
+ *   declaring `onlyType` can be dropped for every other type.
+ * @returns {Record<string, string|boolean|number>} The block, every field
+ *   present — blank (`""`) for a string or integer field nothing states,
+ *   `false` for `ai`.
  */
-function assetBlock(relPath, provenance) {
+function assetBlock(walkValues, provenance, type) {
     const block = {};
     for (const field of ASSET_RECORD_FIELDS) {
-        const value = field.from === "walk" ? relPath : provenance?.[field.name];
-        block[field.name] = typeof value === "string" ? value : "";
+        if (field.onlyType && field.onlyType !== type) {
+            block[field.name] = field.type === "boolean" ? false : "";
+            continue;
+        }
+        const value = field.from === "walk" ? walkValues[field.name] : provenance?.[field.name];
+        if (field.type === "boolean") {
+            block[field.name] = typeof value === "boolean" ? value : false;
+        } else if (field.type === "integer") {
+            block[field.name] = typeof value === "number" ? value : "";
+        } else {
+            block[field.name] = typeof value === "string" ? value : "";
+        }
     }
     return block;
 }
@@ -418,6 +548,18 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
                     // ancestor walk is not consulted when one is present.
                 :   inheritedProvenance(path.dirname(absPath), rootDir, cache, findings);
 
+            for (const field of ASSET_RECORD_FIELDS) {
+                if (field.onlyType && field.onlyType !== type && provenance?.[field.name]) {
+                    report(
+                        absPath,
+                        `\`${field.name}\` only applies to the \`${field.onlyType}\` type, ` +
+                            `and this address is \`${type}\` — the declaration is dropped`,
+                    );
+                }
+            }
+
+            const dimensions = imageDimensions(absPath, path.extname(absPath).toLowerCase());
+
             records.push({
                 package: contentPackage,
                 type,
@@ -427,7 +569,15 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
                 address: {
                     canonical: canonicalKey(contentPackage, ASSET_SYSTEM, type, shortcode),
                 },
-                asset: assetBlock(`${root}/${relPath}`, provenance),
+                asset: assetBlock(
+                    {
+                        path: `${root}/${relPath}`,
+                        width: dimensions?.width,
+                        height: dimensions?.height,
+                    },
+                    provenance,
+                    type,
+                ),
             });
         }
     }

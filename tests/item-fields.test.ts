@@ -13,12 +13,37 @@ import { DEFAULT_ITEM_ART } from "../sohl/default-item-art.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { authoredFields } from "../engine/field-spec.mjs";
+import { compareFields } from "../engine/schema-check.mjs";
+import schema from "./fixtures/content-format/schema-sohl.json";
 
 /** Build one type's `system` block from a bare `sohl:` block. */
 const build = (type: string, sohl: object = {}, fm: object = {}) =>
     (ITEM_BUILDERS as any)[type].system({ sohl, ...fm });
 
 describe("ITEM_FIELDS is the one list", () => {
+    it("accounts for the SoHL schema fields this issue covers", () => {
+        const { unemitted } = compareFields({
+            builders: ITEM_FIELDS as never,
+            artifact: schema as never,
+            subtypeOf: (type: string) =>
+                documentSubtype(SOHL_DOCUMENT_SUBTYPES as never, type, {}) ?? type,
+        });
+        for (const [type, field] of [
+            ["affliction", "onsetMacroUuid"],
+            ["affliction", "outcomeTraumas"],
+            ["armorgear", "isWorn"],
+            ["skill", "adoptParentMasteryLevel"],
+            ["skill", "strikeMode"],
+            ["trauma", "infectable"],
+            ["trauma", "permanentImpairmentEligible"],
+            ["trauma", "treatmentModifierBase"],
+        ]) {
+            expect(unemitted, `${type}.${field}`).not.toContainEqual(
+                expect.objectContaining({ type, field }),
+            );
+        }
+    });
+
     it("declares exactly the types the registry and the art map cover", () => {
         const declared = Object.keys(ITEM_FIELDS).sort();
         expect(Object.keys(ITEM_BUILDERS).sort()).toEqual(declared);
@@ -67,6 +92,9 @@ describe("the declarations preserve the vocabulary they replaced", () => {
 
     it("requires a strike mode on a combat technique and sets none otherwise", () => {
         expect(build("skill", { subType: "craft" })).not.toHaveProperty("strikeMode");
+        expect(
+            build("skill", { subType: "craft", strikeMode: { type: "melee", name: "Swing" } }),
+        ).not.toHaveProperty("strikeMode");
         expect(() => build("skill", { subType: "combattechnique" })).toThrow(
             /requires sohl\.strikeMode/,
         );
@@ -86,6 +114,36 @@ describe("the declarations preserve the vocabulary they replaced", () => {
         expect(
             build("affliction", { subType: "disease", contagionIndex: 7 }).contagionIndexBase,
         ).toBe(7);
+    });
+
+    it("carries authored affliction hooks and outcome traumas", () => {
+        expect(
+            build(
+                "affliction",
+                { subType: "disease", onsetMacroUuid: "Macro.abc" },
+                {
+                    data: { outcomeTraumas: "'fever'" },
+                },
+            ),
+        ).toMatchObject({ onsetMacroUuid: "Macro.abc", outcomeTraumas: "'fever'" });
+    });
+
+    it("carries skill mastery and trauma treatment choices", () => {
+        expect(build("skill", { subType: "craft", adoptParentMasteryLevel: true })).toMatchObject({
+            adoptParentMasteryLevel: true,
+        });
+        expect(
+            build("trauma", {
+                subType: "injury",
+                infectable: true,
+                permanentImpairmentEligible: true,
+                treatmentModifierBase: -2,
+            }),
+        ).toMatchObject({
+            infectable: true,
+            permanentImpairmentEligible: true,
+            treatmentModifierBase: -2,
+        });
     });
 
     it("keeps a descriptive trauma's injury fields unset", () => {
@@ -276,17 +334,10 @@ describe("a compiled gear item carries no isEquipped", () => {
         }
     });
 
-    // The armour-only replacement is `isWorn`, which `GEAR_COMMON` must not
-    // acquire in its place: it belongs to `ArmorGearDataModel` alone, and
-    // whether an `armorgear` note should be able to author one is a separate
-    // content question.
-    it("does not substitute isWorn for it", () => {
-        for (const [type, fields] of Object.entries(ITEM_FIELDS as any)) {
-            expect(
-                (fields as any[]).map((f) => f.to),
-                type,
-            ).not.toContain("isWorn");
-        }
+    it("declares armor worn state as runtime-only", () => {
+        const field = (ITEM_FIELDS.armorgear as any[]).find((f) => f.to === "isWorn");
+        expect(field.runtimeOnly).toBeTruthy();
+        expect(build("armorgear", { subType: "armor" })).not.toHaveProperty("isWorn");
     });
 });
 
@@ -326,7 +377,7 @@ describe("affiliation references", () => {
     it("ships the empty defaults that mean 'refers to nothing', not 'unset'", () => {
         const system = build("affiliation", { subType: "guild" });
         expect(system.parents).toEqual([]);
-        expect(system.domain).toEqual([]);
+        expect(system).not.toHaveProperty("domain");
         expect(system.seat).toBeNull();
     });
 
@@ -338,12 +389,12 @@ describe("affiliation references", () => {
         expect(system.parents).toEqual(["ordoarcanis", "vylarianempire"]);
     });
 
-    it("authors `domains` and emits `domain`, as the format's mapping row states", () => {
+    it("ignores retired domains without emitting an affiliation domain", () => {
         const system = build("affiliation", {
             subType: "polity",
             domains: ["kaldorregion", "tashal"],
         });
-        expect(system.domain).toEqual(["kaldorregion", "tashal"]);
+        expect(system).not.toHaveProperty("domain");
         expect(system).not.toHaveProperty("domains");
     });
 
@@ -354,16 +405,16 @@ describe("affiliation references", () => {
             domains: [],
         });
         expect(system.parents).toEqual(["ordoarcanis"]);
-        expect(system.domain).toEqual([]);
+        expect(system).not.toHaveProperty("domain");
     });
 
-    it("keeps a seat that lies outside its domain — a body in exile is a real case", () => {
+    it("keeps its declared seat while ignoring obsolete domains", () => {
         const system = build("affiliation", {
             subType: "polity",
             seat: "golotha",
             domains: ["kaldorregion"],
         });
         expect(system.seat).toBe("golotha");
-        expect(system.domain).not.toContain(system.seat);
+        expect(system).not.toHaveProperty("domain");
     });
 });

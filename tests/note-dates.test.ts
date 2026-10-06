@@ -480,7 +480,7 @@ describe("a date written in an era", () => {
 describe("year zero", () => {
     // Every form it can be written in, bare and inside an era, each its own
     // case so a conversion that admits one of them names which.
-    const FORMS = ["0.1", "-0.1", "~0.1", "~-0.1"];
+    const FORMS = ["0", "-0", "~0", "~-0", "0.1", "-0.1", "~0.1", "~-0.1"];
 
     for (const bad of FORMS) {
         it(`refuses \`${bad}\``, () => {
@@ -773,5 +773,77 @@ describe("a value with nothing to parse", () => {
         for (const bad of [true, {}, []]) {
             expect(parse(bad).findings.map((f) => f.severity)).toEqual(["error"]);
         }
+    });
+});
+
+describe("a `<year>.<day>` date written unquoted", () => {
+    /** The world's year, as the corpora this parses for declare one. */
+    const YEAR = { daysPerYear: 360 };
+
+    it("is refused where a trailing zero could still name a day", () => {
+        // `667.130` and `667.13` are one float, and day 130 is inside the year.
+        const { date, findings } = parse(667.13, { field: "data.born", ...YEAR });
+        expect(date).toBeNull();
+        expect(findings.map((f) => f.severity)).toEqual(["error"]);
+        expect(findings[0].message).toContain("`667.13` and `667.130`");
+        expect(findings[0].message).toContain("Quote a canonical date");
+    });
+
+    it("names both readings, so the author picks rather than guesses", () => {
+        const [finding] = parse(677.2, { field: "data.born", ...YEAR }).findings;
+        expect(finding.message).toContain('`"677.2"`');
+        expect(finding.message).toContain('`"677.20"`');
+    });
+
+    it("is read as written where no longer day exists", () => {
+        // 2810 is outside a 360-day year, so `675.281` has one reading.
+        const { date, findings } = parse(675.281, { field: "data.born", ...YEAR });
+        expect(findings).toEqual([]);
+        expect(date?.day).toBe(281);
+    });
+
+    it("keeps the quoted form of the same date working", () => {
+        const { date, findings } = parse("667.130", { field: "data.born", ...YEAR });
+        expect(findings).toEqual([]);
+        expect(date?.day).toBe(130);
+    });
+
+    it("says nothing about a bare year, which loses no digits", () => {
+        const { date, findings } = parse(667, { field: "data.born", ...YEAR });
+        expect(findings).toEqual([]);
+        expect(date?.year).toBe(667);
+    });
+
+    it("makes no claim where the world declares no year length", () => {
+        // The question is whether a longer day would still fall inside the
+        // year, and a tree that states no year cannot answer it — so the value
+        // is read as written rather than a whole corpus refused.
+        const { date, findings } = parse(667.13, { field: "data.born" });
+        expect(findings).toEqual([]);
+        expect(date?.day).toBe(13);
+    });
+
+    it("bounds no day at all where the world declares no year length", () => {
+        // `harn-ensemble` alone authors 2,507 unquoted dotted dates with no
+        // world year declared, so bounding a day here would refuse all of
+        // them over a check nothing could evaluate — the same reasoning the
+        // trailing-zero check above already follows. Day 1000 is read as
+        // written, exactly as day 13 is.
+        const { date, findings } = parse("677.1000", { field: "data.born" });
+        expect(findings).toEqual([]);
+        expect(date?.day).toBe(1000);
+    });
+
+    it("locates the finding on the key the note wrote", () => {
+        const raw = ["---", "type: being", "data:", "    born: 667.130", "---", ""].join("\n");
+        const [finding] = parse(667.13, {
+            field: "data.born",
+            file: "Characters/Drazha.md",
+            raw,
+            keyPath: ["data", "born"],
+            ...YEAR,
+        }).findings;
+        expect(finding.file).toBe("Characters/Drazha.md");
+        expect(finding.line).toBe(4);
     });
 });

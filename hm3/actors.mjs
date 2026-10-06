@@ -78,7 +78,7 @@ import {
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
-const ACTOR_FIELDS = Object.freeze([
+export const ACTOR_FIELDS = Object.freeze([
     {
         name: "species",
         to: "species",
@@ -97,7 +97,7 @@ const ACTOR_FIELDS = Object.freeze([
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
-const CHARACTER_FIELDS = Object.freeze([
+export const CHARACTER_FIELDS = Object.freeze([
     {
         name: "data.gender",
         legacyKey: "gender",
@@ -227,9 +227,9 @@ export class Hm3Actors extends SystemActorCompiler {
     /**
      * Build every embedded item an HM3 actor carries, from `hm3.items`.
      *
-     * One list, not two: HM3 keeps a character's abilities in `system.abilities`
-     * rather than as embedded documents, so there is no attributes map to
-     * expand the way SoHL's pass expands `sohl.attributes`.
+     * HM3 keeps a character's abilities in `system.abilities` rather than as
+     * embedded documents, so an ability reaches the document through the
+     * `hm3.system` passthrough and never through this list.
      *
      * @param {Map<string, object>} itemsMap - The predefined items, by address.
      * @param {string} actorId - The owning actor's id, seeding embedded ids.
@@ -332,6 +332,9 @@ export class Hm3Actors extends SystemActorCompiler {
         const folder = this.folderResolver(blockDataProperty(fm, block, "packFolder", null), {
             isAddress: true,
         });
+
+        this.checkAnchoredSection(body || "", "appearance", ctx);
+        this.checkAnchoredSection(body || "", "dossier", ctx);
 
         const system = {
             // `system.bioImage` is **not** written here, for the reason SoHL's

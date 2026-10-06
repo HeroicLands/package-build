@@ -203,6 +203,7 @@ export const LINK_FINDING_REASONS = Object.freeze(
         "not-an-asset",
         "unresolved",
         "stub",
+        "gm",
         "ambiguous",
         "unknown-anchor",
         "no-content-index",
@@ -344,6 +345,8 @@ export function linkFindingMessage({ reason, target, packages, anchor, type, stu
             return unresolvedAddressMessage(target);
         case "stub":
             return stubAddressMessage(target, stub);
+        case "gm":
+            return `address [[${target}]] names a GM-only note from a player-facing note`;
         case "no-content-index":
             return (
                 `address [[${target}]] names a package declared \`contentIndex: false\` — ` +

@@ -39,23 +39,28 @@ import {
 } from "../engine/systems.mjs";
 import { isAddressSegment } from "../engine/address-charset.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/note-claims.mjs";
+import { NOTE_TOP_LEVEL_KEYS, NOTE_TOP_LEVEL_KEY_SET } from "../engine/note-frontmatter.mjs";
 
 describe("the registry", () => {
     it("declares every system this toolchain ships a map for", () => {
         // The agreement the registry cannot check for itself: `systems.mjs` is
-        // a leaf and deliberately does not import `sohl/` or `hm3/` to derive
-        // this list, so *this* is what keeps a new system half from shipping
-        // with an id no address may name.
+        // a leaf and deliberately does not import system modules to derive
+        // this list, so *this* keeps every subtype map's id addressable.
         for (const map of KNOWN_DOCUMENT_SUBTYPE_MAPS) {
             expect(SYSTEM_IDS.has(map.system), `map declares \`${map.system}\``).toBe(true);
         }
     });
 
-    it("declares nothing the maps do not, so the list is not aspirational", () => {
-        // The other direction. An id nobody compiles would be accepted in an
-        // address, resolve to no document, and report nothing about why.
+    it("admits the three declared systems as top-level note blocks", () => {
+        expect([...SYSTEM_IDS]).toEqual(expect.arrayContaining(["sohl", "hm3", "dnd5e"]));
+        expect([...SYSTEM_IDS].filter((key) => !NOTE_TOP_LEVEL_KEY_SET.has(key))).toEqual([]);
+        expect(NOTE_TOP_LEVEL_KEYS).toHaveLength(10);
+    });
+
+    it("allows a recognized system without a system-specific document map", () => {
         const mapped = new Set(KNOWN_DOCUMENT_SUBTYPE_MAPS.map((map) => map.system));
-        expect([...SYSTEM_IDS].filter((id) => !mapped.has(id))).toEqual([]);
+        expect(SYSTEM_IDS.has("dnd5e")).toBe(true);
+        expect(mapped.has("dnd5e")).toBe(false);
     });
 
     it("is frozen, so a caller cannot add a system by writing to the set", () => {

@@ -47,6 +47,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { CONFIG_BASENAME, findConfigFile } from "../engine/pack-config.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.dirname(HERE);
 
@@ -151,11 +152,13 @@ describe("the shipped package needs no configuration to be imported", () => {
         expect(MODULES.length).toBeGreaterThan(20);
     });
 
-    it("imports every shipped module on its own", () => {
-        // One process, importing each module in isolation with a fresh
-        // registry, so a module that only works because another was loaded
-        // first is caught too.
-        const probe = `
+    it(
+        "imports every shipped module on its own",
+        () => {
+            // One process, importing each module in isolation with a fresh
+            // registry, so a module that only works because another was loaded
+            // first is caught too.
+            const probe = `
             const modules = ${JSON.stringify(MODULES)};
             const failures = [];
             for (const rel of modules) {
@@ -167,52 +170,66 @@ describe("the shipped package needs no configuration to be imported", () => {
             }
             console.log(JSON.stringify(failures));
         `;
-        const { status, stdout, stderr } = run(["--input-type=module", "-e", probe]);
-        expect(status, stderr).toBe(0);
-        expect(JSON.parse(stdout.trim())).toEqual([]);
-    });
+            const { status, stdout, stderr } = run(["--input-type=module", "-e", probe]);
+            expect(status, stderr).toBe(0);
+            expect(JSON.parse(stdout.trim())).toEqual([]);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("answers --version", () => {
-        const { status, stdout, stderr } = run([
-            path.join(installed, "bin", "package-build.mjs"),
-            "--version",
-        ]);
-        expect(status, stderr).toBe(0);
-        expect(stdout.trim()).toBe(manifest.version);
-    });
+    it(
+        "answers --version",
+        () => {
+            const { status, stdout, stderr } = run([
+                path.join(installed, "bin", "package-build.mjs"),
+                "--version",
+            ]);
+            expect(status, stderr).toBe(0);
+            expect(stdout.trim()).toBe(manifest.version);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     it("publishes one executable", () => {
         expect(manifest.bin).toEqual({ "package-build": "./bin/package-build.mjs" });
         expect(fs.existsSync(path.join(installed, "bin", "content-build.mjs"))).toBe(false);
     });
 
-    it("answers --help", () => {
-        const { status, stdout, stderr } = run([
-            path.join(installed, "bin", "package-build.mjs"),
-            "--help",
-        ]);
-        expect(status, stderr).toBe(0);
-        expect(stdout).toContain("package");
-    });
+    it(
+        "answers --help",
+        () => {
+            const { status, stdout, stderr } = run([
+                path.join(installed, "bin", "package-build.mjs"),
+                "--help",
+            ]);
+            expect(status, stderr).toBe(0);
+            expect(stdout).toContain("package");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("still fails loudly when a configured value is read", () => {
-        // *When* it throws is what moved, not *whether*: a build that actually
-        // needs configuration must not limp along on a default.
-        const probe = `
+    it(
+        "still fails loudly when a configured value is read",
+        () => {
+            // *When* it throws is what moved, not *whether*: a build that actually
+            // needs configuration must not limp along on a default.
+            const probe = `
             const { loadPackConfig } = await import(${JSON.stringify(
                 installedUrl("engine", "pack-config.mjs"),
             )});
             try { loadPackConfig(); console.log("NO THROW"); }
             catch (err) { console.log(err.message); }
         `;
-        const { status, stdout, stderr } = run(["--input-type=module", "-e", probe]);
-        expect(status, stderr).toBe(0);
-        expect(stdout).toContain(CONFIG_BASENAME);
-        expect(stdout).toContain("PACKAGE_BUILD_CONFIG");
-        // Both places it looked, not just the module's: resolution starts at
-        // the working directory, and naming only the installed
-        // package's directory would send a reader hunting inside
-        // `node_modules/` for a file that belongs at their own root.
-        expect(stdout).toContain("nor at or above");
-    });
+            const { status, stdout, stderr } = run(["--input-type=module", "-e", probe]);
+            expect(status, stderr).toBe(0);
+            expect(stdout).toContain(CONFIG_BASENAME);
+            expect(stdout).toContain("PACKAGE_BUILD_CONFIG");
+            // Both places it looked, not just the module's: resolution starts at
+            // the working directory, and naming only the installed
+            // package's directory would send a reader hunting inside
+            // `node_modules/` for a file that belongs at their own root.
+            expect(stdout).toContain("nor at or above");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

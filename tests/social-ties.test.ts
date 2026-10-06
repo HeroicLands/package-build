@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { SOCIAL_TIES, checkSocialTies } from "../engine/social-ties.mjs";
 import { isAddressSegment } from "../engine/address-charset.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
+import { decodeNoteAddresses } from "../engine/note-addresses.mjs";
 
 const index = {
     contentPackage: "thalorna",
@@ -52,6 +53,28 @@ describe("defining social ties", () => {
         );
     });
 
+    it("passes the documented form through the note boundary's decode step silently", () => {
+        // The note boundary normalises `kind: "map"` into an AddressEntries
+        // wrapper before this check ever sees the field — the shape every
+        // compile hands it. A check that only read the authored map would
+        // report the wrapper's own `entries` key as a bad Address and the
+        // whole decoded array as an unknown term.
+        const decoded: any = decodeNoteAddresses(
+            {
+                type: "being",
+                shortcode: "subject",
+                data: { socialTies: { "being-ally": "patron", "being-foe": "rival" } },
+            },
+            { package: "thalorna", system: "note" },
+        );
+        const subject = {
+            fm: decoded,
+            file: "subject.md",
+            raw: `---\nshortcode: subject\ntype: being\ndata:\n  socialTies:\n    being-ally: patron\n    being-foe: rival\n---`,
+        };
+        expect(checkSocialTies(subject, { index })).toEqual([]);
+    });
+
     it("locates a malformed value on its Address key", () => {
         expect(checkSocialTies(note({ "being-ally": "unknown" }), { index })).toEqual([
             expect.objectContaining({ file: "subject.md", line: 6, column: 5, severity: "error" }),
@@ -84,18 +107,25 @@ describe("defining social ties", () => {
         ).toEqual([]);
     });
 
-    it("renders one row for a target written in short and full forms", () => {
-        const rows = noteInfobox({
-            type: "being",
-            package: "thalorna",
-            name: { full: "Subject" },
-            data: {
-                socialTies: {
-                    "being-ally": "friend",
-                    "thalorna-note-being-ally": "nemesis",
+    it("renders one row for a target written in short and canonical forms", () => {
+        // The box canonicalises each key before grouping, so one target named
+        // twice is one row. A note states no package of its own, so the short
+        // form takes the build's own content package, and a canonical key
+        // naming that same package has to agree with it to be the same
+        // target.
+        const rows = noteInfobox(
+            {
+                type: "being",
+                name: { full: "Subject" },
+                data: {
+                    socialTies: {
+                        "being-ally": "friend",
+                        "thalorna-note-being-ally": "nemesis",
+                    },
                 },
             },
-        }).sections[0].rows;
+            { contentPackage: "thalorna" },
+        ).sections[0].rows;
         expect(rows.filter((row: { label: string }) => row.label === "Friend")).toHaveLength(1);
         expect(rows.some((row: { label: string }) => row.label === "Nemesis")).toBe(false);
     });
@@ -114,17 +144,25 @@ describe("defining social ties", () => {
             },
         };
         const resolve = (ref: unknown) => ({ name: String(ref), url: `/notes/${ref}` });
-        const rows = noteInfobox(fm, { resolve }).sections[0].rows;
+        const contentPackage = "thalorna";
+        const rows = noteInfobox(fm, { resolve, contentPackage }).sections[0].rows;
         expect(rows.find((row: { label: string }) => row.label === "Patron").value).toHaveLength(2);
         expect(rows.find((row: { label: string }) => row.label === "Friend").kind).toBe("links");
         expect(rows.find((row: { label: string }) => row.label === "Nemesis").kind).toBe("links");
-        expect(noteInfobox({ ...fm, data: { socialTies: {} } }).sections[0].rows).toHaveLength(1);
-        expect(noteInfobox({ ...fm, data: { socialTies: [] } }).sections[0].rows).toHaveLength(1);
         expect(
-            noteInfobox({
-                ...fm,
-                data: { socialTies: { "place-village": "friend", "being-ally": "unknown" } },
-            }).sections[0].rows,
+            noteInfobox({ ...fm, data: { socialTies: {} } }, { contentPackage }).sections[0].rows,
+        ).toHaveLength(1);
+        expect(
+            noteInfobox({ ...fm, data: { socialTies: [] } }, { contentPackage }).sections[0].rows,
+        ).toHaveLength(1);
+        expect(
+            noteInfobox(
+                {
+                    ...fm,
+                    data: { socialTies: { "place-village": "friend", "being-ally": "unknown" } },
+                },
+                { contentPackage },
+            ).sections[0].rows,
         ).toHaveLength(1);
     });
 });

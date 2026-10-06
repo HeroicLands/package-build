@@ -12,34 +12,18 @@
  */
 
 /**
- * An empty body must be deliberate.
+ * Every typed note needs a nonempty body.
  *
- * An empty body is what makes a note a **stub**, and the whole scheme turns on
- * that being on purpose rather than something somebody forgot. So four rules
- * hold the state honest, and two more report what the rules cannot decide:
+ * A missing or whitespace-only body is an error, whether or not the note has
+ * a `draft` tag or a frontmatter description. Placeholder-only bodies remain
+ * errors. A nonempty body below twenty-five words receives a warning when it
+ * is not tagged `draft`; the author decides whether that short note is done.
+ * A `folder` note is held only to the first rule: any nonempty body passes,
+ * with or without `draft`.
  *
- * 1. **A stub states what it is.** With nothing in the body, the `description`
- *    is the only sentence a reader gets and it is what every table and index
- *    prints. An **error**.
- * 2. **A stub is not tagged `draft`.** A thing not started is not a thing in
- *    progress. An **error**.
- * 3. **A body that renders to nothing is an abandoned draft, not a stub.** This
- *    is what keeps the empty-body rule's severity honest: the softer cases are
- *    *reported* rather than silently treated as one state or the other. An
- *    **error**.
- * 4. **A short unmarked body may be a draft that forgot its marker.** A
- *    **warning**, never an error — a note reading `See [[affiliation-meivor|Mëivōr]]`
- *    says everything it has to say, and a corpus holds many of them.
- * 5. **A long-standing draft is a report, not a finding.** It is unfinished,
- *    which the tag already says, so the oldest are listed and nobody is asked
- *    to dismiss a warning they cannot clear.
- * 6. **The counts are reported**, per package and per type, so the ratio of
- *    written to unwritten is visible on every run rather than discovered in a
- *    year.
- *
- * **What this does not decide is what earns a body.** Whether a given village
- * deserves prose is a question about a setting, and it belongs in the
- * repository that ships it. The toolchain's job is to make promotion free.
+ * Counts and the oldest drafts remain reports. Classification and indexing
+ * still derive full, draft and stub states from the existing note records;
+ * validation reports missing content without changing those records.
  *
  * @module
  */
@@ -50,7 +34,7 @@ import path from "node:path";
 import { authoredFrontmatter, isNoteRecord, isStub, noteFile } from "./index-records.mjs";
 import { positionInFrontmatter, positionOfLiteral } from "./diagnostics.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
-import { bodyWordCount, isStubNote, placeholderBody } from "./note-state.mjs";
+import { bodyWordCount, placeholderBody } from "./note-state.mjs";
 import { isDraftNote } from "./note-vocabulary.mjs";
 
 /**
@@ -68,16 +52,6 @@ export const SHORT_BODY_WORDS = 25;
 const OLDEST_DRAFTS = 10;
 
 /**
- * Whether a note states a description.
- *
- * @param {Record<string, any>} fm - The note's authored frontmatter.
- * @returns {boolean} Whether `description` carries a sentence.
- */
-function hasDescription(fm) {
-    return String(fm?.description ?? "").trim() !== "";
-}
-
-/**
  * Check one note's state, and say where the fault is.
  *
  * @param {object} note - `{ fm, body, file, raw }`.
@@ -87,31 +61,20 @@ function checkNote({ fm, body, file, raw }) {
     const findings = [];
     const at = (key, value) => positionInFrontmatter(raw, key, value, { topLevel: true });
 
-    if (isStubNote(fm, body)) {
-        if (!hasDescription(fm)) {
-            findings.push({
-                file,
-                ...at("type", fm.type),
-                severity: "error",
-                message:
-                    "this note has no body, so it is a stub — and a stub carries " +
-                    "a `description`, which is the only sentence a reader gets " +
-                    "and what every table listing it prints",
-            });
-        }
-        if (isDraftNote(fm)) {
-            findings.push({
-                file,
-                ...at("type", fm.type),
-                severity: "error",
-                message:
-                    "this note has no body and is tagged `draft`, and a thing " +
-                    "not started is not a thing in progress — remove the tag, " +
-                    "or write a body",
-            });
-        }
+    if (String(body ?? "").trim() === "") {
+        findings.push({
+            file,
+            ...at("type", fm.type),
+            severity: "error",
+            message:
+                "this note has no body — write a nonempty body, even when it is tagged `draft`",
+        });
         return findings;
     }
+
+    // A folder's body describes a pack folder rather than prose a reader is
+    // asked to finish, so any nonempty body is complete.
+    if (fm.type === "folder") return findings;
 
     const placeholders = placeholderBody(body);
     if (placeholders.length) {
@@ -122,8 +85,7 @@ function checkNote({ fm, body, file, raw }) {
             severity: "error",
             message:
                 `this note's body says only "${phrase}", so it publishes a page ` +
-                `that tells a reader nothing — empty the body to make this a ` +
-                `stub, or write it`,
+                `that tells a reader nothing — replace the placeholder with content`,
         });
         return findings;
     }
@@ -204,8 +166,8 @@ export function lintNoteStates(contentBase, { records, contentPackage } = {}) {
         if (state === "draft") drafts.push({ file, modified: fs.statSync(absPath).mtime });
 
         // Held to the rules only where there is a note to hold: a file that
-        // declares no type declares nothing for them to read, and asking it for
-        // a `description` would report vault scaffolding as content.
+        // declares no type declares nothing for them to read; requiring its
+        // body would report vault scaffolding as content.
         if (record.type) findings.push(...checkNote({ fm, body, file, raw }));
     }
 

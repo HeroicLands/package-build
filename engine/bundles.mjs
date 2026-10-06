@@ -75,6 +75,7 @@ import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { folderField, renderFoundryMarkdown, resolveName } from "./helpers.mjs";
 import { packForType } from "./ids.mjs";
 import { readQualifier } from "./wikilinks.mjs";
+import { pathnameRoles } from "./art-fields.mjs";
 
 /**
  * Load every compiled document a bundle may hold, keyed `<docType>/<id>`.
@@ -311,6 +312,12 @@ export class Bundles extends BasePackCompiler {
             contents.push({ docType: member.docType, document });
         }
 
+        // The markdown this pass reads has already had its embeds rewritten
+        // into ordinary images, each `src` the pathname `pathnameRoles` keys
+        // its roles by — so a captioned map names itself `Map 1` here
+        // exactly as the website and the book name the same picture.
+        const roles = pathnameRoles(this.linkIndex);
+
         return buildAdventure({
             id: fm.id,
             name,
@@ -323,9 +330,13 @@ export class Bundles extends BasePackCompiler {
             // Foundry renders on the import card. That is why a bundle earns no
             // separate documentation journal the way an item does: the document
             // it compiles into already has somewhere to put the prose.
-            description: markdown.trim() ? renderFoundryMarkdown(markdown) : "",
+            description:
+                markdown.trim() ?
+                    renderFoundryMarkdown(markdown, undefined, undefined, undefined, (pathname) =>
+                        roles.get(pathname),
+                    )
+                :   "",
             folder: this.folderResolver(authoredFolder, { isAddress: folderIsAddress }),
-            flags: fm.flags,
             stats: this.stats,
             contents,
         });

@@ -176,9 +176,6 @@ describe("what the loader derives from where the file sits", () => {
         expect(() => resolveIn(root, minimal())).toThrow(/version/);
     });
 
-    // `description` is npm metadata nothing displays for a private package —
-    // neither the Foundry manifest nor the site reads it, so a declared one is
-    // a warning rather than a silent no-op.
     describe("package.json `description`", () => {
         let warn: ReturnType<typeof vi.spyOn>;
 
@@ -187,20 +184,17 @@ describe("what the loader derives from where the file sits", () => {
         });
         afterEach(() => vi.restoreAllMocks());
 
-        it("warns, naming the two keys read instead, and does not fail the build", () => {
+        it.each([true, false])("does not warn when private is %s", (isPrivate) => {
             const root = repoDir({
                 "package.json": JSON.stringify({
                     name: "sohl",
                     version: "1.2.3",
+                    private: isPrivate,
                     description: "The SoHL Foundry VTT system.",
                 }),
             });
             expect(() => resolveIn(root, minimal())).not.toThrow();
-            expect(warn).toHaveBeenCalledWith(
-                expect.stringMatching(
-                    /package\.json: warning: `description` is read by nothing; the Foundry pitch is `packageBuild\.manifest\.descriptionHtml` and the site's is `site\.description`$/,
-                ),
-            );
+            expect(warn).not.toHaveBeenCalled();
         });
 
         it("stays silent when package.json declares none", () => {
@@ -418,6 +412,35 @@ describe("a system-agnostic module stamps no system version", () => {
                 systems: { sohl: { compatibility: { minimum: "0.4.0" } } },
             }),
         ).toThrow(/systems\.sohl\.compatibility\.verified/);
+    });
+
+    it("throws when a declared system's verified build is below its own minimum", () => {
+        expect(() =>
+            resolveIn(repoDir(), {
+                ...minimal(),
+                packageKind: "modules",
+                systems: { sohl: { compatibility: { minimum: "0.8.6", verified: "0.8.2" } } },
+            }),
+        ).toThrow(
+            /`systems\.sohl\.compatibility\.verified` declares `0\.8\.2`, below `systems\.sohl\.compatibility\.minimum`'s `0\.8\.6`/,
+        );
+    });
+
+    it("throws when a related system's verified build is below its own minimum", () => {
+        expect(() =>
+            resolveIn(repoDir(), {
+                ...minimal(),
+                packageKind: "modules",
+                stats: { lastModifiedBy: "harnbuild0000000" },
+                relationships: {
+                    systems: [
+                        { id: "sohl", compatibility: { minimum: "0.8.6", verified: "0.8.2" } },
+                    ],
+                },
+            }),
+        ).toThrow(
+            /`relationships\.systems\[0\]\.compatibility\.verified` declares `0\.8\.2`, below `relationships\.systems\[0\]\.compatibility\.minimum`'s `0\.8\.6`/,
+        );
     });
 
     it("still derives from a relationship declared without a systemId", () => {

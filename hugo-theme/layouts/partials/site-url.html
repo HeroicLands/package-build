@@ -1,0 +1,32 @@
+{{- /*
+  Resolve a consumer-supplied link against the site it is rendered on.
+
+  The theme carries layout, not addresses, so every URL it renders comes from
+  a consuming site's configuration or front matter — and a package published
+  under a path prefix (`/sohl/`, `/thalorna/`) needs its own links to carry
+  that prefix without writing it down anywhere.
+
+  Resolution:
+    1. An already-absolute URL (http://, https://, //) is returned as-is, so a
+       consumer can point at another host.
+    2. A page fragment or query alone (#anchor, ?q=) is returned as-is.
+    3. Anything else is treated as a path within this site and resolved with
+       `relURL`. A leading slash is trimmed first: `relURL` reads a leading
+       slash as "from the origin" and leaves the base path off, so trimming it
+       means a consumer writing the obvious "/section/" still gets a link
+       inside its own site when that site is served under a prefix.
+
+  Usage:
+    {{ partial "site-url.html" (dict "site" .Site "url" "kb/rules/") }}
+
+  Params:
+    site — the site context (.Site). Accepted for symmetry with cdn-url.html
+           and so this partial can never be tempted to read a page.
+    url  — the address to resolve. An empty value resolves to the site root.
+*/ -}}
+{{- $url := .url | default "" -}}
+{{- $resolved := $url -}}
+{{- if not (or (hasPrefix $url "http://") (hasPrefix $url "https://") (hasPrefix $url "//") (hasPrefix $url "#") (hasPrefix $url "?")) -}}
+  {{- $resolved = strings.TrimPrefix "/" $url | relURL -}}
+{{- end -}}
+{{- return $resolved -}}

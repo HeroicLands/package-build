@@ -1,0 +1,747 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+version: 1
+types:
+    being:
+        data:
+            - tokenIcon
+            - templatePriority
+            - archetypes
+            - occupation
+            - social
+            - stations
+            - lore
+            - culture
+            - homes
+            - affiliations
+            - socialTies
+            - gender
+            - species
+            - born
+            - calendar
+            - died
+            - age
+            - ageYears
+            - height
+            - weight
+            - frame
+            - appearance.eye_color
+            - appearance.hair_color
+            - appearance.skin_color
+            - appearance.complexion
+            - appearance.extra_features
+        subTypes:
+            - npc
+            - character
+            - creature
+    homepage:
+        data: []
+        subTypes: []
+    vehicle:
+        data:
+            - tokenIcon
+            - templatePriority
+        subTypes: []
+    affiliation:
+        data:
+            - templatePriority
+            - demonym
+            - epithet
+            - symbol
+            - governance.model
+            - governance.summary
+            - governance.ranks
+            - governance.offices
+            - seat
+            - population
+            - economy
+            - lore
+            - parents
+            - relations
+        subTypes:
+            - guild
+            - order
+            - polity
+            - faithtradition
+            - arcanetradition
+            - spirittradition
+            - lineage
+            - venture
+            - criminal
+            - governmental
+            - fellowship
+    affliction:
+        data:
+            - templatePriority
+            - transmission
+            - outcome
+            - healingRate
+            - contagionIndex
+            - outcomeTraumas
+            - onsetDurationFormula
+            - onsetDurationBase
+            - healingCheckDurationFormula
+            - healingCheckDurationBase
+            - resolutionDurationFormula
+            - resolutionDurationBase
+        subTypes:
+            - disease
+            - poisontoxin
+            - maladiction
+    armorgear:
+        data:
+            - templatePriority
+            - weight
+            - value
+            - quality
+            - durability
+        subTypes: []
+    armorlocation:
+        data:
+            - templatePriority
+        subTypes: []
+    attribute:
+        data:
+            - templatePriority
+        subTypes: []
+    concoctiongear:
+        data:
+            - templatePriority
+            - weight
+            - value
+            - quality
+            - durability
+            - quantity
+            - potency
+            - strength
+        subTypes:
+            - mundane
+            - exotic
+            - elixir
+    containergear:
+        data:
+            - templatePriority
+            - weight
+            - value
+            - quality
+            - durability
+            - capacity
+        subTypes: []
+    miscgear:
+        data:
+            - templatePriority
+            - weight
+            - value
+            - quality
+            - durability
+            - quantity
+        subTypes: []
+    mystery:
+        data:
+            - templatePriority
+            - assocSkill
+            - assocAffiliation
+            - skillAptitudes
+            - level
+            - charges.value
+            - charges.max
+        subTypes:
+            - boon
+            - boost
+            - fate
+            - grace
+            - birthsign
+            - other
+            - piety
+    mysticalability:
+        data:
+            - templatePriority
+            - assocSkill
+            - assocAffiliation
+            - masteryLevel
+            - level
+            - charges.value
+            - charges.max
+        subTypes:
+            - spiritrite
+            - spiritaction
+            - spiritpower
+            - ritualaction
+            - divineincantation
+            - arcaneincantation
+            - arcanetalent
+            - spirittalent
+            - alchemy
+            - divination
+    projectilegear:
+        data:
+            - templatePriority
+            - weight
+            - value
+            - quality
+            - durability
+            - quantity
+        subTypes:
+            - none
+            - arrow
+            - bolt
+            - bullet
+            - dart
+            - other
+    skill:
+        data:
+            - templatePriority
+            - masteryLevel
+            - parentSkill
+        subTypes:
+            - social
+            - nature
+            - craft
+            - lore
+            - language
+            - script
+            - mystical
+            - physical
+            - combat
+            - combattechnique
+    trauma:
+        data:
+            - templatePriority
+            - healingCheckDurationFormula
+            - healingCheckDurationBase
+            - bloodLossAdvanceDurationFormula
+            - bloodLossAdvanceDurationBase
+            - courseDurationFormula
+            - courseDurationBase
+        subTypes:
+            - injury
+            - fear
+            - morale
+            - pall
+            - psycond
+            - physcond
+            - auralshock
+            - fatigue
+            - infection
+            - shock
+            - coma
+    weapongear:
+        data:
+            - templatePriority
+            - weight
+            - value
+            - quality
+            - durability
+        subTypes: []
+    lore:
+        data:
+            - epoch
+            - months
+            - weekdays
+            - seasons
+            - namedDays
+            - eras
+            - formats
+            - culture
+            - form
+            - subjects
+            - language
+            - events
+        subTypes:
+            - cosmology
+            - deity
+            - theology
+            - arcana
+            - spirit
+            - economy
+            - law
+            - calendar
+            - history
+            - material
+            - folk
+            - culture
+            - custom
+            - bestiary
+            - gathering
+            - literature
+    map:
+        data:
+            - scene
+            - fixup
+            - bgImage
+            - scale
+            - dimensions
+            - pxPerGrid
+            - navName
+            - levelName
+            - backgroundColor
+            - overlay
+            - walls
+            - doors
+            - lights
+            - tiles
+            - sounds
+            - regions
+            - notes
+            - place
+        subTypes:
+            - battlemap
+            - localmap
+            - regionalmap
+            - totm
+    place:
+        data:
+            - calendar
+            - demonym
+            - purpose
+            - lore
+            - parents
+            - population
+            - government
+            - market
+            - borders
+            - routes
+            - world.equatorialCircumferenceKm
+            - world.surfaceGravityG
+            - world.axialTiltDegrees
+            - year.days
+            - year.hoursPerDay
+            - year.minutesPerHour
+            - year.secondsPerMinute
+            - present
+            - body.diameterKm
+            - body.orbitalRadiusKm
+            - body.orbit
+            - body.inclined
+            - moon.cycle
+            - moon.newOn
+            - moon.eclipses
+        subTypes:
+            - world
+            - region
+            - settlement
+            - site
+            - structure
+            - feature
+            - celestial
+    scenario:
+        data:
+            - parents
+            - locations
+            - cast
+            - factions
+            - follows
+            - status
+            - party.size
+            - party.archetypes
+        subTypes:
+            - campaign
+            - adventure
+            - encounter
+    doc:
+        data: []
+        subTypes:
+            - rules
+            - userguide
+            - reference
+            - howto
+            - concept
+            - settingguide
+    macro:
+        data: []
+        subTypes: []
+    bundle:
+        data:
+            - contents
+        subTypes: []
+    folder:
+        data:
+            - parent
+            - color
+        subTypes: []
+claims:
+    - noteType: the shared mappings
+      shared: true
+      system: sohl
+      source: shortcode
+      target: system.shortcode
+    - noteType: the shared mappings
+      shared: true
+      system: sohl
+      source: data.templatePriority
+      target: system.templatePriority
+    - noteType: the shared mappings
+      shared: true
+      system: sohl
+      source: actionDefs
+      target: system.actionDefs
+    - noteType: the shared mappings
+      shared: true
+      system: sohl
+      source: notes
+      target: system.notes
+    - noteType: the shared mappings
+      shared: true
+      system: hm3
+      source: notes
+      target: system.notes
+    - noteType: being
+      system: hm3
+      source: data.gender
+      target: system.gender
+    - noteType: being
+      system: hm3
+      source: data.occupation
+      target: system.occupation
+    - noteType: affiliation
+      system: sohl
+      source: subType
+      target: system.subType
+    - noteType: affiliation
+      system: sohl
+      source: data.seat
+      target: system.seat
+    - noteType: affiliation
+      system: sohl
+      source: data.parents
+      target: system.parents
+    - noteType: affiliation
+      system: sohl
+      source: data.relations
+      target: system.relations
+    - noteType: affliction
+      system: sohl
+      source: subType
+      target: system.subType
+    - noteType: affliction
+      system: sohl
+      source: data.transmission
+      target: system.transmission
+    - noteType: affliction
+      system: sohl
+      source: data.outcome
+      target: system.outcome
+    - noteType: affliction
+      system: sohl
+      source: data.contagionIndex
+      target: system.contagionIndexBase
+    - noteType: affliction
+      system: sohl
+      source: data.onsetDurationFormula
+      target: system.onsetDurationFormula
+    - noteType: affliction
+      system: sohl
+      source: data.onsetDurationBase
+      target: system.onsetDurationBase
+    - noteType: affliction
+      system: sohl
+      source: data.healingCheckDurationFormula
+      target: system.healingCheckDurationFormula
+    - noteType: affliction
+      system: sohl
+      source: data.healingCheckDurationBase
+      target: system.healingCheckDurationBase
+    - noteType: affliction
+      system: sohl
+      source: data.resolutionDurationFormula
+      target: system.resolutionDurationFormula
+    - noteType: affliction
+      system: sohl
+      source: data.resolutionDurationBase
+      target: system.resolutionDurationBase
+    - noteType: armorgear
+      system: sohl
+      source: data.weight
+      target: system.weightBase
+    - noteType: armorgear
+      system: hm3
+      source: data.weight
+      target: system.weight
+    - noteType: armorgear
+      system: sohl
+      source: data.value
+      target: system.valueBase
+    - noteType: armorgear
+      system: hm3
+      source: data.value
+      target: system.value
+    - noteType: armorgear
+      system: sohl
+      source: data.quality
+      target: system.qualityBase
+    - noteType: armorgear
+      system: sohl
+      source: data.durability
+      target: system.durabilityBase
+    - noteType: concoctiongear
+      system: sohl
+      source: subType
+      target: system.subType
+    - noteType: concoctiongear
+      system: sohl
+      source: data.weight
+      target: system.weightBase
+    - noteType: concoctiongear
+      system: sohl
+      source: data.value
+      target: system.valueBase
+    - noteType: concoctiongear
+      system: sohl
+      source: data.quality
+      target: system.qualityBase
+    - noteType: concoctiongear
+      system: sohl
+      source: data.durability
+      target: system.durabilityBase
+    - noteType: containergear
+      system: sohl
+      source: data.weight
+      target: system.weightBase
+    - noteType: containergear
+      system: hm3
+      source: data.weight
+      target: system.weight
+    - noteType: containergear
+      system: sohl
+      source: data.value
+      target: system.valueBase
+    - noteType: containergear
+      system: hm3
+      source: data.value
+      target: system.value
+    - noteType: containergear
+      system: sohl
+      source: data.quality
+      target: system.qualityBase
+    - noteType: containergear
+      system: sohl
+      source: data.durability
+      target: system.durabilityBase
+    - noteType: containergear
+      system: hm3
+      source: data.capacity
+      target: system.capacity.max
+    - noteType: miscgear
+      system: sohl
+      source: data.weight
+      target: system.weightBase
+    - noteType: miscgear
+      system: hm3
+      source: data.weight
+      target: system.weight
+    - noteType: miscgear
+      system: sohl
+      source: data.value
+      target: system.valueBase
+    - noteType: miscgear
+      system: hm3
+      source: data.value
+      target: system.value
+    - noteType: miscgear
+      system: sohl
+      source: data.quality
+      target: system.qualityBase
+    - noteType: miscgear
+      system: sohl
+      source: data.durability
+      target: system.durabilityBase
+    - noteType: miscgear
+      system: hm3
+      source: data.quantity
+      target: system.quantity
+    - noteType: mystery
+      system: sohl
+      source: subType
+      target: system.subType
+    - noteType: mystery
+      system: sohl
+      source: data.skillAptitudes
+      target: system.skillAptitudes
+    - noteType: mystery
+      system: sohl
+      source: data.charges.value
+      target: system.charges.value
+    - noteType: mystery
+      system: sohl
+      source: data.charges.max
+      target: system.charges.max
+    - noteType: mysticalability
+      system: sohl
+      source: subType
+      target: system.subType
+    - noteType: mysticalability
+      system: sohl
+      source: data.charges.value
+      target: system.charges.value
+    - noteType: mysticalability
+      system: sohl
+      source: data.charges.max
+      target: system.charges.max
+    - noteType: projectilegear
+      system: sohl
+      source: subType
+      target: system.subType
+    - noteType: projectilegear
+      system: sohl
+      source: data.weight
+      target: system.weightBase
+    - noteType: projectilegear
+      system: hm3
+      source: data.weight
+      target: system.weight
+    - noteType: projectilegear
+      system: sohl
+      source: data.value
+      target: system.valueBase
+    - noteType: projectilegear
+      system: hm3
+      source: data.value
+      target: system.value
+    - noteType: projectilegear
+      system: sohl
+      source: data.quality
+      target: system.qualityBase
+    - noteType: projectilegear
+      system: sohl
+      source: data.durability
+      target: system.durabilityBase
+    - noteType: projectilegear
+      system: hm3
+      source: data.quantity
+      target: system.quantity
+    - noteType: skill
+      system: sohl
+      source: subType
+      target: system.subType
+    - noteType: skill
+      system: hm3
+      source: data.masteryLevel
+      target: system.masteryLevel
+    - noteType: trauma
+      system: sohl
+      source: subType
+      target: system.subType
+    - noteType: trauma
+      system: sohl
+      source: data.healingCheckDurationFormula
+      target: system.healingCheckDurationFormula
+    - noteType: trauma
+      system: sohl
+      source: data.healingCheckDurationBase
+      target: system.healingCheckDurationBase
+    - noteType: trauma
+      system: sohl
+      source: data.bloodLossAdvanceDurationFormula
+      target: system.bloodLossAdvanceDurationFormula
+    - noteType: trauma
+      system: sohl
+      source: data.bloodLossAdvanceDurationBase
+      target: system.bloodLossAdvanceDurationBase
+    - noteType: trauma
+      system: sohl
+      source: data.courseDurationFormula
+      target: system.courseDurationFormula
+    - noteType: trauma
+      system: sohl
+      source: data.courseDurationBase
+      target: system.courseDurationBase
+    - noteType: weapongear
+      system: sohl
+      source: data.weight
+      target: system.weightBase
+    - noteType: weapongear
+      system: hm3
+      source: data.weight
+      target: system.weight
+    - noteType: weapongear
+      system: sohl
+      source: data.value
+      target: system.valueBase
+    - noteType: weapongear
+      system: hm3
+      source: data.value
+      target: system.value
+    - noteType: weapongear
+      system: sohl
+      source: data.quality
+      target: system.qualityBase
+    - noteType: weapongear
+      system: sohl
+      source: data.durability
+      target: system.durabilityBase
+vocabularies:
+    layout:
+        - rows
+        - grid
+        - runin
+        - list
+    kind:
+        - text
+        - number
+        - link
+        - links
+        - list
+    class:
+        - .full-width
+    size:
+        - auto
+        - small
+        - medium
+        - large
+        - xlarge
+        - full-width
+    float:
+        - top-left
+        - bottom-left
+        - top-right
+        - bottom-right
+        - center
+    market:
+        - "1"
+        - "2"
+        - "3"
+        - "4"
+        - "5"
+        - "6"
+    bearing:
+        - N
+        - NE
+        - E
+        - SE
+        - S
+        - SW
+        - W
+        - NW
+    mode:
+        - land
+        - boat
+        - ship
+    days:
+        - "1"
+        - "2"
+        - "3"
+        - "5"
+        - "10"
+        - "20"
+        - "30"
+        - "45"
+        - "60"
+        - "90"
+        - "180"
+        - "360"
+    terrain:
+        - road
+        - track
+        - plain
+        - steppe
+        - hills
+        - mountains
+        - forest
+        - jungle
+        - marsh
+        - dunes
+        - desert
+        - ice
+        - coast
+        - open-sea
+        - river
+        - lake

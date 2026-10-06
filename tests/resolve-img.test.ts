@@ -276,8 +276,8 @@ const beingNote = (data: Record<string, unknown>) => ({
     id: "EEEEEEEEEEEEEEEE",
     type: "being",
     shortcode: "folk",
+    subType: "character",
     name: { full: "Basic Folk" },
-    tags: ["character"],
     sohl: { archetype: null },
     data,
 });

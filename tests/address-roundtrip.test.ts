@@ -80,7 +80,7 @@ describe("the vocabularies an address is written from", () => {
         // over nothing and pass while checking nothing.
         expect(TYPES.length).toBeGreaterThan(20);
         expect(TYPES).toEqual(expect.arrayContaining(["being", "skill", "icon", "image", "audio"]));
-        expect(SYSTEMS).toEqual(expect.arrayContaining(["none", "sohl", "hm3"]));
+        expect(SYSTEMS).toEqual(expect.arrayContaining(["none", "sohl", "hm3", "dnd5e"]));
     });
 
     it("holds every type name to the address charset", () => {

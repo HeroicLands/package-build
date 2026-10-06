@@ -47,23 +47,31 @@ const messages = (findings: Array<{ message: string }>) =>
 const opts = { schemas: NOTE_SCHEMAS as any, vocabulary: NOTE_VOCABULARY };
 
 describe("the `data:` container is closed", () => {
-    it("accepts event metadata on every lore subtype", () => {
+    it("accepts a dated occurrence on every lore subtype", () => {
         for (const subType of subTypes("lore") ?? []) {
             const findings = lintNote(
-                note("lore", { subType, data: { event: { kind: "founding", when: { year: 1 } } } }),
+                note("lore", { subType, data: { events: [{ when: "412.1" }] } }),
                 opts,
             );
-            expect(messages(findings), subType).not.toContain("data.event");
+            expect(messages(findings), subType).not.toContain("data.events");
         }
     });
 
-    it("rejects event metadata outside lore and requires a map", () => {
+    it("rejects dated occurrences outside lore and requires a list", () => {
         expect(
-            messages(lintNote(note("place", { data: { event: { kind: "founding" } } }), opts)),
+            messages(lintNote(note("place", { data: { events: [{ when: "412.1" }] } }), opts)),
         ).toContain("`data:` property declared by place");
-        expect(messages(lintNote(note("lore", { data: { event: "founding" } }), opts))).toContain(
-            "`data.event` should",
+        expect(messages(lintNote(note("lore", { data: { events: "founding" } }), opts))).toContain(
+            "`data.events` should",
         );
+    });
+
+    it("retires the singular data.event container", () => {
+        const found = messages(
+            lintNote(note("lore", { data: { event: { kind: "founding" } } }), opts),
+        );
+        expect(found).toContain("`data.event` is retired");
+        expect(found).toContain("write `data.events`");
     });
 
     it("accepts every key the type declares", () => {
@@ -187,12 +195,17 @@ describe("`subType` is top level, and only where a type declares one", () => {
         expect(messages(findings)).toContain("declares no subtypes");
     });
 
-    it("permits a subType whose values the specification has not yet enumerated", () => {
-        // A being's document type is derived from its subType, but the values
-        // land with the note-type → subtype map, so nothing here may
-        // claim to know them.
-        expect(subTypes("being")).toBeNull();
-        expect(lintNote(note("being", { subType: "character" }), opts)).toEqual([]);
+    it("permits only the declared being subtypes", () => {
+        expect(subTypes("being")).toEqual(["npc", "character", "creature"]);
+        expect(
+            lintNote(
+                note("being", { subType: "character", data: { archetypes: ["warrior"] } }),
+                opts,
+            ),
+        ).toEqual([]);
+        expect(messages(lintNote(note("being", { subType: "charcter" }), opts))).toContain(
+            'Did you mean "character"?',
+        );
     });
 
     it("locates the finding on the `subType` line", () => {

@@ -25,7 +25,9 @@
  * journals.mjs, actors.mjs).
  */
 
+import { renderAlerts } from "./content-alerts.mjs";
 import { buildReferenceTargets } from "./reference-targets.mjs";
+import { standingsDigest } from "./standings.mjs";
 
 import { decodeNoteAddresses } from "./note-addresses.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
@@ -37,16 +39,24 @@ import path from "path";
 import yaml from "yaml";
 import unidecode from "unidecode";
 import markdownit from "markdown-it";
+import footnotePlugin from "markdown-it-footnote";
+import deflistPlugin from "markdown-it-deflist";
 import { iconPlugin } from "./content-icons.mjs";
 import { imagePlugin, imagesIn } from "./content-images.mjs";
-import { resolveEmbeds } from "./content-embeds.mjs";
-import { foundryAddressProblem, pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import { embedRole, resolveEmbeds } from "./content-embeds.mjs";
+import { collectAssetRecords } from "./asset-index.mjs";
+import { assetImageInfoByPathname } from "./art-fields.mjs";
+import {
+    assetPathnameKey,
+    foundryAddressProblem,
+    pathnameProblem,
+    resolvePathname,
+} from "./pathnames.mjs";
 import log from "loglevel";
 
 import { loadPackConfig } from "./pack-config.mjs";
 import { declaresNoPack, packRouter } from "./pack-router.mjs";
 import { contentPackage, foundryPackageId } from "./content-package.mjs";
-import { searchableFrontmatter } from "./note-package.mjs";
 import { PACKAGE_BASE } from "./content-address.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
@@ -63,7 +73,10 @@ import { linkFindingMessage } from "./wikilink-syntax.mjs";
 import { isDraftNote } from "./note-vocabulary.mjs";
 import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { renderSecretBlocks } from "./content-secrets.mjs";
+import { spanMarkdownPlugin } from "./content-spans.mjs";
+import { renderBlocks } from "./content-blocks.mjs";
+import { headingAttributesPlugin } from "./heading-attributes.mjs";
+import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
 // registry can import them without reaching back through this one.
@@ -80,6 +93,9 @@ export {
     parseValueDesc,
 } from "./frontmatter.mjs";
 
+/** @type {Map<string, object>|undefined} */
+let localAssetImageInfoCache;
+
 /**
  * The markdown renderer every surface shares.
  *
@@ -89,6 +105,12 @@ export {
  * the two HTML surfaces and be silently dropped by the third.
  */
 export const md = markdownit({ html: true })
+    .use(footnotePlugin)
+    .use(deflistPlugin)
+    .use(spanMarkdownPlugin)
+    // A heading's attribute block, written onto the heading element rather than
+    // typeset into it — the reading the website's renderer does for itself.
+    .use(headingAttributesPlugin)
     .use(
         // Resolved per render, not at import: this constant is built before any
         // configuration is read, and a package's own icons live in the
@@ -108,29 +130,104 @@ export const md = markdownit({ html: true })
     // serves a file from inside the install, so a body image's address is
     // translated by the same rule `img:` follows.
     .use(
-        imagePlugin((src) => {
-            // **Reported upstream, never here.** A renderer has no channel to
-            // report through, and this one runs inside the very passes whose
-            // job is to collect findings — a throw would take the whole lint
-            // down and lose every other finding in the tree. So nothing reaches
-            // this point unreported: {@link convertNoteWikilinks} refuses a body
-            // image with no address inside the install before a compiler renders
-            // one, and the address passes report the same pathname with a line
-            // and a column. What is left here is a fallback for a caller with no
-            // configuration to resolve against, where the authored pathname is
-            // the most honest thing to emit.
-            try {
-                return resolveImg(src, loadPackConfig()) ?? src;
-            } catch {
-                return src;
-            }
-        }),
+        imagePlugin(
+            (src) => {
+                // **Reported upstream, never here.** A renderer has no channel to
+                // report through, and this one runs inside the very passes whose
+                // job is to collect findings — a throw would take the whole lint
+                // down and lose every other finding in the tree. So nothing reaches
+                // this point unreported: {@link convertNoteWikilinks} refuses a body
+                // image with no address inside the install before a compiler renders
+                // one, and the address passes report the same pathname with a line
+                // and a column. What is left here is a fallback for a caller with no
+                // configuration to resolve against, where the authored pathname is
+                // the most honest thing to emit.
+                try {
+                    return resolveImg(src, loadPackConfig()) ?? src;
+                } catch {
+                    return src;
+                }
+            },
+            (src) => {
+                // A body image is free to write the bare, own-package form,
+                // so the address is normalized to the pathname the cache
+                // below keys by before it is looked up.
+                try {
+                    const key = assetPathnameKey(src, loadPackConfig());
+                    return key ? localAssetImageInfo().get(key) : undefined;
+                } catch {
+                    return undefined;
+                }
+            },
+        ),
     );
 
-/** Render a note body with Foundry's secret section markup. */
-export function renderFoundryMarkdown(body) {
-    const { markdown } = renderSecretBlocks(body, "foundry", (inner) => md.render(inner));
-    return md.render(markdown);
+/**
+ * The pictures this package's own tree ships, by the pathname their address
+ * resolves to — read lazily and cached for the process, exactly as
+ * {@link loadPackConfig} is, since one compile reads one tree once.
+ *
+ * **Local only.** A picture embedded from a dependency carries no role or
+ * pixel size here: fetching a foreign package's own asset index to size one
+ * inline Foundry image is a cost this lazy cache does not pay, and the
+ * picture simply draws at the medium's ordinary size, as it always has.
+ *
+ * @returns {Map<string, {type: string, role?: string, width: number|"", height: number|""}>}
+ */
+function localAssetImageInfo() {
+    if (localAssetImageInfoCache) return localAssetImageInfoCache;
+    try {
+        const config = loadPackConfig();
+        const records = collectAssetRecords(config.paths.assets, {
+            contentPackage: config.contentPackage,
+            problems: [],
+        });
+        localAssetImageInfoCache = assetImageInfoByPathname(records);
+    } catch {
+        localAssetImageInfoCache = new Map();
+    }
+    return localAssetImageInfoCache;
+}
+
+md.renderer.rules.footnote_block_open = () =>
+    '<section class="footnotes"><h2>Footnotes</h2><ol class="footnotes-list">\n';
+md.renderer.rules.footnote_caption = (tokens, idx, _options, env) => {
+    const meta = tokens[idx].meta;
+    const number = env.footnoteNumbers?.get(meta.label) ?? meta.id + 1;
+    return `[${number}${meta.subId > 0 ? `:${meta.subId}` : ""}]`;
+};
+md.renderer.rules.footnote_anchor_name = (tokens, idx, _options, env) => {
+    const meta = tokens[idx].meta;
+    const number = env.footnoteNumbers?.get(meta.label) ?? meta.id + 1;
+    return `${env.docId ? `-${env.docId}-` : ""}${number}`;
+};
+md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
+    const meta = tokens[idx].meta;
+    const number = env.footnoteNumbers?.get(meta.label) ?? meta.id + 1;
+    const id = renderer.rules.footnote_anchor_name(tokens, idx, options, env, renderer);
+    return `<li id="fn${id}" class="footnote-item" value="${number}">`;
+};
+
+/**
+ * Render a note body with Foundry's named-block markup.
+ *
+ * @param {string} body - The body, tables expanded and wikilinks resolved.
+ * @param {Array<{id: string, label: string}>} [figures] - Labels assigned by
+ *   a note-wide scan, matched by id — see
+ *   {@link module:engine/content-figures.renderFigureBlocks}.
+ * @param {Map<string, number>} [footnoteNumbers] - Shared across the note.
+ * @param {string} [docId] - Threaded into footnote anchors.
+ * @param {(address: string) => string|undefined} [resolveRole] - From a
+ *   picture's address to the role its asset declares — see
+ *   {@link module:engine/content-figures.scanFigures}.
+ * @returns {string} The rendered HTML.
+ */
+export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, resolveRole) {
+    const figured = renderFigureBlocks(body, (block) => md.render(block), figures, {
+        resolveRole,
+    });
+    const blocks = renderBlocks(figured.markdown, "foundry");
+    return md.render(renderAlerts(blocks.markdown, "foundry").markdown, { footnoteNumbers, docId });
 }
 
 /**
@@ -144,6 +241,11 @@ export function renderFoundryMarkdown(body) {
  * {@link positionInBody}. If the file has no frontmatter block, returns
  * `{ frontmatter: null, body: "", description: "" }` with a warn log, and no
  * position: there is no body to have one.
+ * @param {string} filePath - Markdown file to read.
+ * @param {{addressContext?: object}} [opts] - Address defaults for decoded fields.
+ * @returns {{frontmatter: object|null, body: string, description: string,
+ *   bodyLine?: number, bodyColumn?: number, parseError?: {message: string,
+ *   line?: number, column?: number}}} Parsed note and body position.
  */
 export function parseMarkdownFile(filePath, { addressContext } = {}) {
     const content = fs.readFileSync(filePath, "utf8");
@@ -155,8 +257,19 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
     try {
         frontmatter = yaml.parse(fmMatch[1]) || {};
     } catch (err) {
-        log.warn(`YAML parse error in ${filePath}: ${err.message}`);
-        return { frontmatter: null, body: "", description: "" };
+        const firstLine = String(err.message).split("\n", 1)[0];
+        const message = firstLine.replace(/ at line \d+, column \d+.*$/, "");
+        const location = err.linePos?.[0];
+        return {
+            frontmatter: null,
+            body: "",
+            description: "",
+            parseError: {
+                message: `YAML parse error: ${message}`,
+                ...(Number.isInteger(location?.line) ? { line: location.line + 1 } : {}),
+                ...(Number.isInteger(location?.col) ? { column: location.col } : {}),
+            },
+        };
     }
     if (addressContext) {
         try {
@@ -258,6 +371,7 @@ export function assertSuppliedCorpus(records, who) {
  * @param {readonly string[]} opts.skipDirectories - Directory names to ignore.
  *   Required: the scope is the caller's to state, so two passes cannot
  *   disagree about which files are the corpus.
+ * @param {object} [opts.addressContext] - Address resolution context.
  * @yields {{frontmatter: object|null, body: string, description: string,
  *   file: string, absPath: string, bodyLine?: number, bodyColumn?: number}}
  *   One entry per `.md` file found.
@@ -471,6 +585,9 @@ export function systemTemplatePriority(fm, label) {
 /**
  * Generates a compendium-source filename: `Name_id.json` with non-
  * alphanumeric runs replaced by underscores.
+ * @param {string} name - Document name.
+ * @param {string} id - Document id.
+ * @returns {string} Filename for the document.
  */
 export function makeFilename(name, id) {
     return `${unidecode(name)}_${id}`.replace(/[^0-9a-zA-Z]+/g, "_") + ".json";
@@ -496,16 +613,18 @@ export function makeFilename(name, id) {
  * the other.
  *
  * **`title` does not follow this rule**, and must not be made to. On a
- * `type: affiliation` note `title` is *also* a declared item field whose default
- * is `""` (`sohl/item-fields.mjs`), resolved from the very same shared top-level
- * key the site emitter reads as the page title — so `title: null` stringifies
- * into the compiled document as the literal `"null"`. One key, two destinations
- * that disagree about what empty means.
+ * `type: affiliation` note `title` is a declared item field with its own
+ * default (`""`, in `sohl/item-fields.mjs`), authored only inside the item's
+ * own `sohl` block — the closed top-level vocabulary has no `title` entry, so
+ * there is no shared key for this function's null-versus-blank distinction to
+ * apply to.
  *
  * **`banner:` does not follow it either, deliberately.** It is not a file
- * inside a Foundry install: it reaches no compiled document and no book, its
- * only consumer is the Hugo theme, and the theme resolves it against the site's
- * own asset root. See `docs/content-format.md`.
+ * inside a Foundry install: it reaches no compiled document, and the site build
+ * resolves it through the website's own resolver before a page is written, so
+ * the theme receives a URL rather than an address. The book's section plates
+ * read a banner of their own, from the book plan's `presentation.page.banner`
+ * rather than from a note. See `docs/guides/site.md`.
  *
  * For items, the default is the art paired with the type's builder, reached
  * through `itemArt()`, which runs the pathname back through this function so a
@@ -532,6 +651,9 @@ export function resolveImg(raw, config = loadPackConfig()) {
 /**
  * Resolves the display name from frontmatter, preferring `name.full`,
  * falling back to `name` (if string), then `defaultValue`.
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} [defaultValue] - Name when the note provides none.
+ * @returns {string} Display name.
  */
 export function resolveName(fm, defaultValue = "Unnamed") {
     const fullName = getFrontmatter(fm, "name.full", null);
@@ -708,20 +830,16 @@ import { collectAnchors } from "./anchors.mjs";
  *   the index and the compile agree about where each note landed; defaults to
  *   this repository's own.
  * @param {object} [opts]
- * @param {readonly string[]} [opts.skipDirectories] - Part of the options bag
- *   every corpus reader takes; the scope is already settled by `records`.
  * @param {object} [opts.config] - The resolved build configuration; loaded when
  *   omitted.
  * @param {readonly object[]} [opts.records] - The corpus, derived once per
  *   compile and handed in. Required: see {@link assertSuppliedCorpus}.
- * @param {object[]} [opts.problems] - Part of the same options bag; the notes
- *   the index cannot record are collected where the corpus is derived.
  * @returns {{byShortcode: Map, types: Set}} From `buildWikilinkIndex`.
  */
 export function buildContentLinkIndex(
     contentBase,
     router = packRouter(),
-    { skipDirectories, config, records, problems } = {},
+    { config, records } = {},
 ) {
     const docs = [];
     /** The files this package ships, by canonical address. */
@@ -785,6 +903,10 @@ export function buildContentLinkIndex(
             // can group by the family its target declares rather than only by
             // where the target lives.
             subType: fm.subType ?? null,
+            // The rungs and posts this body confers, carried for the same
+            // reason: a being holds a rank as a number, and the body is where
+            // what that number is called is declared.
+            standings: standingsDigest(fm) ?? null,
             name: fm.name?.full ?? base,
             // Whether the note is tagged `draft`. Read from the tag
             // vocabulary that declares it, and used for one thing: a link
@@ -799,6 +921,8 @@ export function buildContentLinkIndex(
             // Read from the record rather than from a second reading of the
             // note's headings — the one-anchor-reader rule.
             anchors: new Set((record.anchors ?? []).map((anchor) => anchor.slug)),
+            anchorUuids: record.foundry?.note?.anchors,
+            docAnchorUuids: documentation?.foundry?.note?.anchors,
         });
     }
     // Packages this build links *into* but does not publish. Each publishes
@@ -888,6 +1012,11 @@ export function convertNoteWikilinks(
         pack,
         docPack,
         index,
+        captionLabels: new Map(
+            scanFigures(source, { resolveRole: (address) => embedRole(index, address) })
+                .figures.filter((figure) => figure.id)
+                .map((figure) => [figure.id, figure.label]),
+        ),
     });
     /**
      * Where one unresolved link sits, in file coordinates.
@@ -978,115 +1107,24 @@ export function convertNoteWikilinks(
 /* ------------------------------------------------------------------------ */
 
 /**
- * Every note in the content tree, in the shape the `dataview` table expander
- * searches: its frontmatter plus where it sits in the tree. Ordered by path so
- * a table that leaves rows tied still emits identically on every build.
- *
- * @param {string} contentBase - Root of the content tree.
- * @param {object} [opts]
- * @param {readonly string[]} [opts.skipDirectories] - Part of the options bag
- *   every corpus reader takes; the scope is already settled by `records`.
- * @param {object} [opts.config] - The resolved build configuration; loaded when
- *   omitted.
- * @param {readonly object[]} [opts.records] - The corpus, derived once per
- *   compile and handed in. Required: see {@link assertSuppliedCorpus}.
- * @param {object[]} [opts.problems] - Part of the same options bag; the notes
- *   the walk cannot read are collected where the corpus is derived.
- * @returns {Array<{fm: object, path: string, tld: string, folder: string,
- *   absPath: string}>}
+ * Expand prepared SQL tables and page lists before resolving wikilinks in the
+ * links they generate.
+ * @param {string} body - The note body.
+ * @param {object} ctx - Source and prepared results.
+ * @param {string} ctx.name - Name used in diagnostics.
+ * @param {number} [ctx.bodyLine] - The first body line in the source file.
+ * @param {object[]} [ctx.sqlTables] - Prepared SQL results in document order.
+ * @param {object[]} [ctx.pageLists] - Prepared page lists in document order.
+ * @returns {{markdown: string, lineMap: Array<{line: number, generated: boolean}>}}
  */
-export function collectContentDocs(
-    contentBase,
-    { skipDirectories, config, records, problems } = {},
-) {
-    const docs = [];
-    const resolved = config ?? loadPackConfig();
-    assertSuppliedCorpus(records, "collectContentDocs");
-    for (const record of records) {
-        if (!isNoteRecord(record)) continue;
-        const fm = authoredFrontmatter(record);
-        const absPath = noteFile(contentBase, record);
-        const segments = String(record.file.path).split("/");
-        docs.push({
-            // With its package supplied for a `WHERE … package = "…"` query —
-            // synthesised from the configuration this build resolved, since no
-            // note declares it and the ambient one is a different
-            // configuration in a worktree or under `PACKAGE_BUILD_CONFIG`.
-            fm: searchableFrontmatter(fm, resolved.contentPackage),
-            // POSIX-separated and relative to the content root — what a
-            // `path:` search term globs, on every platform.
-            path: segments.join("/"),
-            tld: segments[0],
-            folder: segments[segments.length - 2] ?? segments[0],
-            absPath,
-        });
-    }
-    docs.sort((a, b) =>
-        a.absPath < b.absPath ? -1
-        : a.absPath > b.absPath ? 1
-        : 0,
-    );
-    log.debug(`Content table index: ${docs.length} searchable note(s)`);
-    return docs;
-}
-
-/**
- * A note is linkable from a generated table cell when it carries the identity
- * {@link convertWikilinks} addresses it by — a `type` and a `shortcode`. Every
- * type routes to a pack ({@link packForType}), so nothing else can make a note
- * unlinkable; a note missing either renders as plain text rather than shipping a
- * literal wikilink into a journal.
- */
-const packLinkable = (doc) => Boolean(doc.fm?.shortcode) && Boolean(doc.fm?.type);
-
-/**
- * Expand the fenced `dataview` tables in one note's markdown, before wikilinks
- * are resolved — so a generated cell may itself be a wikilink.
- *
- * A table searches the whole tree, which is one package's notes and nothing
- * else — so there is no longer a package to scope on. It used to filter, back
- * when a tree could hold several packages' notes and `package:` said which was
- * which; that field is retired and the filter with it.
- *
- * @param {string} body - The note's markdown body.
- * @param {object} ctx
- * @param {Array<object>} ctx.docs - From {@link collectContentDocs}.
- * @param {string} ctx.name - The note, for the error message.
- * @param {object} [ctx.fm] - The source note's frontmatter, which is what a
- *   query's `this` reads. Its entry in `docs` supplies the path as well.
- * @param {number} [ctx.bodyLine] - 1-based file line of the body's first line,
- *   so a failing directive can be reported at its position in the file.
- * @param {object[]} [ctx.sqlTables] - This note's prepared `sql` results, in
- *   document order, from
- *   {@link module:engine/sql-tables.prepareSqlTables}. An `sql` directive with
- *   no prepared result fails the note: nothing here runs a query.
- * @returns {{markdown: string, lineMap: Array<{line: number,
- *   generated: boolean}>}} The body with every table expanded, and where each
- *   emitted line came from — which is what lets a diagnostic about the
- *   expanded body name an authored position.
- * @throws {Error} When a query is malformed or unsupported — the note fails to
- *   compile rather than shipping a table-shaped hole. The error carries
- *   `position`, the directive's own line.
- */
-export function expandNoteTables(body, { docs, name, fm, bodyLine, sqlTables }) {
-    const self =
-        fm ?
-            (docs.find((d) => d.fm?.id && d.fm.id === fm.id) ?? {
-                fm: searchableFrontmatter(fm),
-            })
-        :   undefined;
+export function expandNoteTables(body, { name, bodyLine, sqlTables, pageLists }) {
     const { markdown, errors, lineMap } = expandContentTables(body ?? "", {
-        docs,
-        linkable: packLinkable,
         source: name,
-        self,
         sqlTables,
+        pageLists,
     });
     if (errors.length) {
         const err = new Error(errors.map((e) => `content table — ${e.reason}`).join("; "));
-        // The first failing directive's line. Reporting one position for a
-        // message that may name several is honest here: a caller opens the
-        // file at the first thing to fix, and the message lists the rest.
         if (bodyLine !== undefined && errors[0].line !== undefined) {
             err.position = { line: bodyLine + errors[0].line };
         }
@@ -1103,6 +1141,9 @@ export function expandNoteTables(body, { docs, name, fm, bodyLine, sqlTables }) 
  * Builds a compendium-source filename for a folder JSON document:
  * `folder_Name_id.json` with non-alphanumeric runs replaced by
  * underscores.
+ * @param {string} name - Folder name.
+ * @param {string} id - Folder id.
+ * @returns {string} Filename for the folder.
  */
 export function folderFilename(name, id) {
     return `folder_${unidecode(name)}_${id}`.replace(/[^0-9a-zA-Z]+/g, "_") + ".json";

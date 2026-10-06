@@ -61,9 +61,17 @@
  * @module
  */
 
+import { scanAlerts } from "./content-alerts.mjs";
 import { authoredFrontmatter } from "./index-records.mjs";
-import { renderSecretBlocks } from "./content-secrets.mjs";
+import { markupAnchorFindings } from "./anchors.mjs";
+import { scanSpans } from "./content-spans.mjs";
+import { scanBlocks } from "./content-blocks.mjs";
+import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
+import { scanFigures } from "./content-figures.mjs";
+import { footnoteFindings } from "./content-footnotes.mjs";
+import { checkImages } from "./content-images.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { cloneAddressState } from "./address-values.mjs";
 import fs from "fs";
 import path from "path";
@@ -83,7 +91,7 @@ import {
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { reduceAddressFields } from "./address-fields.mjs";
 import { artPathname, artSlot, unacceptedArtMessage, unresolvedArtMessage } from "./art-fields.mjs";
-import { emitDiagnostic } from "./diagnostics.mjs";
+import { emitDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoDeclaredFolder } from "./folder-notes.mjs";
 import {
@@ -120,6 +128,25 @@ import { reckoningContext } from "./reckoning-markers.mjs";
  *   retired frontmatter field, or one routed to a system pack whose system it
  *   says nothing about. Counted as errors, never as skips.
  */
+
+/**
+ * A `ref` call's Foundry rendering: a same-page wikilink rather than a
+ * Markdown link, so the wikilink pass that runs after expressions render
+ * addresses it exactly as an authored `[[#anchor|Text]]` is — by the
+ * JournalEntryPage the figure's own fence became, whether that page holds
+ * only the figure or carries it alongside other prose. A Markdown link's
+ * `#anchor` fragment resolves nowhere in Foundry, which addresses a page by
+ * UUID and an anchor within a page by that page's own anchor; this is why the
+ * two surfaces do not share a renderer.
+ *
+ * @param {{anchor: string}} target - The figure's own anchor.
+ * @param {string} label - The link's text, which may itself carry Markdown.
+ * @returns {string} `[[#anchor|label]]`, with a literal `|` in the label
+ *   escaped so it cannot be read as the wikilink's own separator.
+ */
+function foundryRefLink({ anchor }, label) {
+    return `[[#${anchor}|${label.replace(/\|/g, "\\|")}]]`;
+}
 
 /**
  * The shared walk → filter → expand → convert → build → write → count loop.
@@ -435,6 +462,7 @@ export class BasePackCompiler {
      *   routes to no pack at all — a build failure, never a silent drop.
      */
     routesHere(fm) {
+        if (isGmNote(fm) && !this.router?.privateOf?.(this.packName)) return false;
         if (!this.router || !this.packName || !this.docType) return true;
         return (
             this.router.resolve(fm, this.docType, this.packSystem ?? undefined) === this.packName
@@ -601,7 +629,6 @@ export class BasePackCompiler {
         // that converts no prose still compiles a document that carries art.
         this.linkIndex = this.corpus.linkIndex;
         if (this.constructor.convertsWikilinks) {
-            this.contentDocs = this.corpus.contentDocs;
             this.sqlTables = this.corpus.sqlTables;
         }
         // The package's declared present, read once from the same corpus — so
@@ -609,6 +636,34 @@ export class BasePackCompiler {
         // the content index.
         this.worldPresent = presentAmongRecords(this.corpus.records);
         this.unresolvedLinks = 0;
+    }
+
+    /**
+     * Report every finding {@link BasePackCompiler#convertBody} collected
+     * across its passes, and decline the note if there were any.
+     *
+     * Reported directly, one `noteError` per finding, rather than thrown as a
+     * single wrapped message: the site build and the book report the same way,
+     * each finding at its own line, and a note with three problems meets all
+     * three in the run that found them instead of one per rebuild. The thrown
+     * sentinel carries `alreadyReported` so the compile loop's generic catch
+     * does not add a fourth, vaguer line on top of the three already said.
+     *
+     * @param {readonly {message: string, line?: number, column?: number}[]} findings
+     * @throws {Error} When `findings` is non-empty, after reporting all of them.
+     */
+    reportConvertBodyFindings(findings) {
+        for (const finding of findings) {
+            this.errorCount++;
+            this.noteError(finding.message, { line: finding.line, column: finding.column });
+        }
+        if (findings.length) {
+            const error = new Error(
+                `${findings.length} finding(s) in the note body, each reported above`,
+            );
+            error.alreadyReported = true;
+            throw error;
+        }
     }
 
     /**
@@ -623,41 +678,119 @@ export class BasePackCompiler {
      *   that does not convert.
      */
     convertBody(fm, body) {
-        const secretError = renderSecretBlocks(body, "book").errors[0];
-        if (secretError) {
-            const error = new Error(secretError.message);
-            error.position = {
+        // Every pass's own findings are collected before any of them is
+        // reported, so a note with a malformed block *and* a malformed
+        // caption *and* a bad expression surfaces all three in one run
+        // instead of one per rebuild. Each pass already returns every finding
+        // it made — `errors` or `findings`, never just the first — so nothing
+        // here re-scans; it only stops taking `[0]`.
+        const findings = [];
+        for (const secretError of [
+            ...scanBlocks(body).errors,
+            ...scanAlerts(body).errors,
+            ...scanSpans(body).errors,
+            ...markupAnchorFindings(body),
+        ]) {
+            findings.push({
+                message: secretError.message,
                 line: (this.currentNote?.bodyLine ?? 1) + secretError.line - 1,
                 column:
                     secretError.line === 1 ?
                         (this.currentNote?.bodyColumn ?? 1)
                     :   secretError.column,
-            };
-            throw error;
+            });
         }
-        if (!this.constructor.convertsWikilinks) return body;
+        // A heading's attribute block, and a `.secret` written where no surface
+        // can honour it. Read off the body as authored, before the tables
+        // expand, because a heading is a heading whatever a pass does with the
+        // prose under it — so a pass that converts nothing reports these too.
+        for (const headingError of [
+            ...scanHeadingAttributes(body, this.currentNote?.bodyLine ?? 1).errors,
+            ...withheldSections(body, this.currentNote?.bodyLine ?? 1).errors,
+        ]) {
+            findings.push({
+                message: headingError.message,
+                line: headingError.line,
+                column:
+                    headingError.line === (this.currentNote?.bodyLine ?? 1) ?
+                        (this.currentNote?.bodyColumn ?? 1) + headingError.column - 1
+                    :   headingError.column,
+            });
+        }
+        for (const footnoteError of footnoteFindings(body)) {
+            findings.push({
+                message: footnoteError.message,
+                line: (this.currentNote?.bodyLine ?? 1) + footnoteError.line - 1,
+                column:
+                    footnoteError.line === 1 ?
+                        (this.currentNote?.bodyColumn ?? 1)
+                    :   footnoteError.column,
+            });
+        }
+        // An image sharing its paragraph with other text, a bad address or a
+        // title with nowhere to draw it — the same findings `lint` reports,
+        // asked here too so a build run on its own refuses what the lint
+        // already names rather than rendering the directive as though it were
+        // absent. `checkImages` already resolves `bodyLine` and `bodyColumn`
+        // internally, so its findings need no further adjustment.
+        for (const imageError of checkImages(body, "", {
+            bodyLine: this.currentNote?.bodyLine ?? 1,
+            bodyColumn: this.currentNote?.bodyColumn ?? 1,
+        })) {
+            findings.push({
+                message: imageError.message,
+                line: imageError.line,
+                column: imageError.column,
+            });
+        }
+        if (!this.constructor.convertsWikilinks) {
+            this.reportConvertBodyFindings(findings);
+            return body;
+        }
         const name = resolveName(fm);
         const { absPath, bodyLine, bodyColumn } = this.currentNote ?? {};
         const { markdown: tabulated, lineMap } = expandNoteTables(body, {
-            docs: this.contentDocs,
             name,
-            fm,
             bodyLine,
             sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
+            pageLists: absPath ? this.sqlTables?.pageLists?.get(absPath) : undefined,
         });
+        const figureScan = scanFigures(tabulated);
+        for (const captionError of figureScan.errors) {
+            findings.push({
+                message: captionError.message,
+                line:
+                    (bodyLine ?? 1) +
+                    (lineMap[captionError.line - 1]?.line ?? captionError.line - 1),
+                column: captionError.column,
+            });
+        }
+        // What the `ref` expression helper needs: this note's own figures, by
+        // id, and how a reference renders — a same-page wikilink rather than
+        // a Markdown link, so the wikilink pass below addresses it exactly as
+        // an authored `[[#anchor|Text]]` is, by the page the figure's own
+        // fence became. Cross-note resolution is omitted: a journal addresses
+        // a page by UUID, which this pass has none of for another note.
+        const figuresById = new Map(
+            figureScan.figures
+                .filter((figure) => figure.id)
+                .map((figure) => [
+                    figure.id,
+                    { label: figure.label, caption: figure.caption, hasCaption: figure.hasCaption },
+                ]),
+        );
         const expressions = renderMarkdownExpressions(tabulated, {
             fm,
             dates: reckoningContext(this.linkIndex),
             sqlResults: absPath ? this.sqlTables?.inline?.get(absPath) : undefined,
             file: absPath,
             bodyLine,
+            figures: { get: (id) => figuresById.get(id), link: foundryRefLink },
         });
-        if (expressions.findings.length) {
-            const finding = expressions.findings[0];
-            const error = new Error(finding.message);
-            error.position = { line: finding.line, column: finding.column };
-            throw error;
+        for (const finding of expressions.findings) {
+            findings.push({ message: finding.message, line: finding.line, column: finding.column });
         }
+        this.reportConvertBodyFindings(findings);
         const { markdown, unresolved } = convertNoteWikilinks(expressions.markdown, {
             type: fm.type,
             id: fm.id,
@@ -1120,8 +1253,8 @@ export class BasePackCompiler {
             // - `aliases:`: it fed the alias index, which the bare
             //   `[[Alias]]` form was looked up in; the form is retired, so the
             //   list has no reader left. The nested `name.aliases` is a
-            //   different field and is **not** refused — it is reserved, and
-            //   deliberately neither read nor validated.
+            //   different field: the infobox displays it, and the note name
+            //   check validates it.
             //
             // Both are reported and counted — never skipped, which is how a
             // tree naming a package nothing answers to used to compile zero
@@ -1224,14 +1357,28 @@ export class BasePackCompiler {
                 stats.compiled++;
                 this.onCompiled(fm, doc);
             } catch (err) {
+                // `convertBody` already reported every finding it collected,
+                // one `noteError` each, before throwing this sentinel — so the
+                // generic wrap below would only restate "failed to compile" on
+                // top of findings an author has already been told about.
+                if (err.alreadyReported) continue;
                 this.errorCount++;
+                const repeatedAnchor = err.message.match(
+                    /declares the anchor \{#([^}]+)\} on more than one heading/,
+                );
+                const position =
+                    err.position ??
+                    (repeatedAnchor ?
+                        positionOfLiteral(
+                            fs.readFileSync(absPath, "utf8"),
+                            `{#${repeatedAnchor[1]}}`,
+                            2,
+                        )
+                    :   undefined);
                 // `position` is set by whatever failed if it knew where — an
                 // unresolved address, a bad table directive — so the report
                 // points at the line rather than at the note.
-                this.noteError(
-                    `${this.noteLabel(fm)} failed to compile: ${err.message}`,
-                    err.position,
-                );
+                this.noteError(`${this.noteLabel(fm)} failed to compile: ${err.message}`, position);
             }
         }
 

@@ -42,9 +42,8 @@
  * because a `Folder` is a core Foundry document like a `JournalEntry` or a
  * `Scene`, not a system's.
  *
- * **A folder note carries no prose.** It is structure, not content, so it wants
- * no documentation journal and takes no part in `docEntryTypes` — the one
- * open decision, settled the way it recommended.
+ * **A folder note requires a body** under author validation. That body creates
+ * no documentation journal and takes no part in `docEntryTypes`.
  *
  * @module
  */

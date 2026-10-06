@@ -1,3 +1,10 @@
+---
+shortcode: configuration
+name: { full: "Configuration" }
+type: doc
+subType: reference
+---
+
 ## Configuration: `package-build.config.yaml`, key by key
 
 Every repository built by `@heroiclands/package-build` declares itself in one
@@ -48,39 +55,40 @@ around its own evaluation.
 
 ### Quick reference
 
-22 top-level keys. `rootDir` is not one of them — a data configuration never
+23 top-level keys. `rootDir` is not one of them — a data configuration never
 writes it — and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
 authoring.
 
-| Key                                         | Type                                                                       | Required                                                                                           | Default                                     |
-| ------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------- |
-| [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                                           |
-| [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                                           |
-| [`homepage`](#homepage)                     | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                                      |
-| [`author`](#author)                         | string, or `{name, email?, url?}`                                          | no (`.mjs` only — derived in YAML)                                                                 | `null`                                      |
-| [`packageKind`](#packagekind)               | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                                           |
-| [`stats`](#stats)                           | object                                                                     | yes; refused in a `documentation` package                                                          | —                                           |
-| [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                                        |
-| [`paths`](#paths)                           | object                                                                     | no                                                                                                 | see [`paths`](#paths)                       |
-| [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                                                                                 | `[]`                                        |
-| [`icons`](#icons)                           | object, or a path to a file holding one                                    | no                                                                                                 | empty registry                              |
-| [`packs`](#packs)                           | array                                                                      | yes, at least one entry, in a `systems` or `modules` package; refused in a `documentation` package | —                                           |
-| [`docs`](#docs)                             | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
-| [`site`](#site)                             | object                                                                     | no                                                                                                 | see [`site`](#site)                         |
-| [`pdf`](#pdf)                               | object                                                                     | no                                                                                                 | `null`                                      |
-| [`compatibility`](#compatibility)           | object                                                                     | no; refused in a `documentation` package                                                           | `null`                                      |
-| [`relationships`](#relationships)           | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
-| [`systems`](#systems)                       | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
-| [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                      |
-| [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                                        |
-| [`publish`](#publish)                       | object                                                                     | no; **required**, with `site: content`, in a `documentation` package                               | `{site: "homepage", address: {prefix: ""}}` |
-| [`changelog`](#changelog)                   | object                                                                     | no                                                                                                 | `{labels: null}`                            |
+| Key                                         | Type                                                                       | Required                                                                                           | Default                   |
+| ------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------- |
+| [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                         |
+| [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                         |
+| [`homepage`](#homepage)                     | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                    |
+| [`author`](#author)                         | string, or `{name, email?, url?}`                                          | no (`.mjs` only — derived in YAML)                                                                 | `null`                    |
+| [`packageKind`](#packagekind)               | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                         |
+| [`stats`](#stats)                           | object                                                                     | yes; refused in a `documentation` package                                                          | —                         |
+| [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                      |
+| [`paths`](#paths)                           | object                                                                     | no                                                                                                 | see [`paths`](#paths)     |
+| [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                                                                                 | `[]`                      |
+| [`forbidGeneratedArt`](#forbidgeneratedart) | boolean                                                                    | no                                                                                                 | `false`                   |
+| [`icons`](#icons)                           | object, or a path to a file holding one                                    | no                                                                                                 | empty registry            |
+| [`packs`](#packs)                           | array                                                                      | yes, at least one entry, in a `systems` or `modules` package; refused in a `documentation` package | —                         |
+| [`docs`](#docs)                             | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                      |
+| [`site`](#site)                             | object                                                                     | no                                                                                                 | see [`site`](#site)       |
+| [`pdf`](#pdf)                               | object                                                                     | no                                                                                                 | `null`                    |
+| [`compatibility`](#compatibility)           | object                                                                     | no; refused in a `documentation` package                                                           | `null`                    |
+| [`relationships`](#relationships)           | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                      |
+| [`systems`](#systems)                       | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                      |
+| [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                    |
+| [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                      |
+| [`publish`](#publish)                       | object                                                                     | no                                                                                                 | `{address: {prefix: ""}}` |
+| [`changelog`](#changelog)                   | object                                                                     | no                                                                                                 | `{labels: null}`          |
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -508,7 +516,7 @@ HeroicLands layout, resolved against `rootDir`:
 | `paths.packJson`        | `build/packs-json`       | Build-only per-entry JSON intermediate.                                                         |
 | `paths.stage`           | `build/stage/packs`      | Compiled LevelDB packs.                                                                         |
 | `paths.unpack`          | `build/tmp/packs`        | Where `unpack` extracts JSON back to.                                                           |
-| `paths.foreignCache`    | `build/cache/foreign`    | Where a dependency declaring `itemCatalog: true` is unpacked.                                   |
+| `paths.foreignCache`    | `build/cache/foreign`    | Where a dependency declaring `itemCatalog: true` or `assetArchive: true` is unpacked.           |
 | `paths.metadataCache`   | `build/cache/metadata`   | Where a dependency's published content index is fetched to, for every declared dependency.      |
 | `paths.navigationCache` | `build/cache/navigation` | Where the site navigation heroiclands.org publishes is fetched to, for the generated Hugo menu. |
 
@@ -539,6 +547,26 @@ skipDirectories: [Templates]
 > ``package-build config: `skipDirectories` must be an array.``
 
 > ``package-build config: `skipDirectories[<index>]` must be a non-empty string.``
+
+### `forbidGeneratedArt`
+
+**Type:** boolean · **Optional** · default `false`.
+
+With it `true`, `package-build lint` refuses every asset record of this
+package whose `ai` field states `true` — a licensing stance, not a build
+detail: this package carries no machine-generated art. With it absent or
+`false`, `lint` reports nothing extra about an `ai: true` record.
+
+```yaml
+forbidGeneratedArt: true
+```
+
+`lint` reports a located error naming the record and its file for each one it
+finds:
+
+> ``<file>: error: `<address>` is machine-generated art (`ai: true`), and `forbidGeneratedArt` refuses it in this package``
+
+> ``package-build config: `forbidGeneratedArt` must be a boolean.``
 
 ### `icons`
 
@@ -596,7 +624,7 @@ Every icon name is checked against the charset a note may write between the
 colons — lowercase letters, digits and hyphens, the same charset an address
 segment uses:
 
-> ``package-build config: `icons.icons.Bad_Name` is not a name a note can write — `:icon-…:` takes lowercase letters, digits and hyphens, the charset an address segment uses.``
+> ``package-build config: `icons.icons.Bad_Name` is not a name a note can write — `:icon …:` takes lowercase letters, digits and hyphens, the charset an address segment uses.``
 
 `defaultFamily`, if set, must name a family the registry actually declares:
 
@@ -640,6 +668,12 @@ packs:
 | `packs[].default`     | boolean                                                               | no       | `false`                                 |
 | `packs[].prebuilt`    | string (directory)                                                    | no       | `null`                                  |
 | `packs[].system`      | string                                                                | no       | `null` — falls back to `stats.systemId` |
+
+`private: true` restricts a Foundry compendium to GMs. A note tagged `gm`
+compiles only into private packs. Set `data.pack` to a private pack for the
+note's own document. A note that also creates a JournalEntry needs one private
+JournalEntry pack; the derived entry routes there automatically when the
+ordinary JournalEntry default is public.
 
 `packs` itself:
 
@@ -786,8 +820,8 @@ Any other key under `docs.itemFields` is refused:
 | `site.search`      | boolean  | `true`                                       |
 | `site.maps`        | boolean  | `true`                                       |
 
-How much of a package reaches the web at all is **not** here — it is
-[`publish.site`](#publish). `site` is framing: which named pass bundle
+The authored content tree determines which pages reach the web. `site` is
+framing: which named pass bundle
 supplies the repository's own body rewrites, and the residue of the
 [generated Hugo configuration](#the-generated-hugo-configuration) that is
 genuinely this repository's own.
@@ -997,8 +1031,8 @@ in it has one source, and that source is where it is edited:
 | `locale`                          | the organisation's locale, `en-us`, in `engine/site-config.mjs`                                                                                         |
 | `publishDir`                      | `contentPackage`, under the deployment root `build/site` — written relative to `build/hugo/`, so `../site/<contentPackage>`                             |
 | `contentDir`                      | the fixed content mount, `build/hugo/content` — written as `content`                                                                                    |
-| `themesDir`                       | where `@heroiclands/hugo-theme` is installed, resolved the way Node resolves a package and written relative to `build/hugo/`                            |
-| `theme`                           | the installed `@heroiclands/hugo-theme`, so `hugo-theme`                                                                                                |
+| `themesDir`                       | this package's own root, which holds the theme it ships, written relative to `build/hugo/`                                                              |
+| `theme`                           | the theme's directory inside this package, `hugo-theme`                                                                                                 |
 | `disableKinds`                    | the toolchain, which renders a site as its homepage and its pages: `["section", "taxonomy", "term", "RSS"]` on every site, whatever its notes carry     |
 | `taxonomies`                      | the toolchain — never written, because `taxonomy` and `term` are disabled kinds                                                                         |
 | `outputs`                         | the toolchain — never written, because every listing kind is disabled                                                                                   |
@@ -1014,10 +1048,6 @@ The site build reads the navigation from the cache only. A cold cache is an
 error naming the command that fills it:
 
 > `the site navigation has not been fetched. Run `package-build deps fetch` first.`
-
-A missing theme names the package to install:
-
-> `@heroiclands/hugo-theme is not installed anywhere above <rootDir> — add it to `devDependencies`and run`npm ci``
 
 The site needs a title from `site.title` or the package manifest:
 
@@ -1050,9 +1080,8 @@ The content tree published as a book — a **selection**, not a rendering of
 everything: `pdf.document` names the tree that says which notes the volume
 carries and in what order, parsed by `engine/pdf-toc.mjs`'s
 `parseDocumentTree` and not validated here. Whether a book is built at all
-is [`publish.site`](#publish), the same switch that gates the website —
-`content` builds one, `homepage` does not, so a package cannot end up with
-two switches that disagree about whether it publishes its content tree.
+determined by the authored content tree: a tree containing only a homepage has
+no content pages for a book.
 
 Each selected place with a border or route receives a dedicated full-page
 vector itinerary after its entry. A selected authored regional SVG map also
@@ -1193,15 +1222,17 @@ system relationship it declares — see [`stats.systemVersion`](#statssystemvers
 
 Each entry, in any of the four lists:
 
-| Key (under `relationships.<kind>[]`)     | Type                            | Required | Default |
-| ---------------------------------------- | ------------------------------- | -------- | ------- |
-| `relationships.systems[].id`             | string                          | yes      | —       |
-| `relationships.systems[].contentPackage` | string                          | no       | the id  |
-| `relationships.systems[].type`           | string                          | no       | none    |
-| `relationships.systems[].manifest`       | string                          | no       | none    |
-| `relationships.systems[].compatibility`  | object, `{minimum?, verified?}` | no       | none    |
-| `relationships.systems[].itemCatalog`    | boolean                         | no       | `false` |
-| `relationships.systems[].contentIndex`   | boolean                         | no       | `true`  |
+| Key (under `relationships.<kind>[]`)       | Type                            | Required | Default |
+| ------------------------------------------ | ------------------------------- | -------- | ------- |
+| `relationships.systems[].id`               | string                          | yes      | —       |
+| `relationships.systems[].contentPackage`   | string                          | no       | the id  |
+| `relationships.systems[].type`             | string                          | no       | none    |
+| `relationships.systems[].manifest`         | string                          | no       | none    |
+| `relationships.systems[].compatibility`    | object, `{minimum?, verified?}` | no       | none    |
+| `relationships.systems[].itemCatalog`      | boolean                         | no       | `false` |
+| `relationships.systems[].assetArchive`     | boolean                         | no       | `false` |
+| `relationships.systems[].contentIndex`     | boolean                         | no       | `true`  |
+| `relationships.systems[].assetReplacement` | boolean                         | no       | `false` |
 
 (the same keys apply under `requires[]`, `recommends[]` and
 `conflicts[]`.)
@@ -1210,12 +1241,12 @@ Each entry, in any of the four lists:
 
 > ``package-build config: `relationships.<kind>[<index>].id` must be a non-empty string.``
 
-> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog, contentIndex).``
+> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog, assetArchive, contentIndex, assetReplacement).``
 
 `contentPackage` names what the other package's _content_ is called, where
 that differs from its Foundry id. A note addresses a file by the content
-package that owns it — `thalorna/assets/images/map.webp` — and the Foundry id
-(`sohl-thalorna`) appears only in the install path that pathname resolves to.
+package that owns it — `harnensemble/assets/images/map.webp` — and the Foundry id
+(`harn-ensemble`) appears only in the install path that pathname resolves to.
 Omit it where the two are the same word, which they are for every system:
 
 > ``package-build config: `relationships.<kind>[<index>].contentPackage` must be a non-empty string.``
@@ -1228,6 +1259,31 @@ item catalogue at build time. It requires a `manifest`:
 > ``package-build config: `relationships.<kind>[<index>].itemCatalog` must be true or false.``
 
 > ``package-build config: `relationships.<kind>[<index>].itemCatalog` needs a `manifest` naming the package to fetch.``
+
+`assetArchive` opts into unpacking the named package's release archive for
+its asset bytes alone — the sibling of `itemCatalog`, for a dependency whose
+bytes are wanted and whose items are not. It builds no item catalogue from
+the archive, which is what distinguishes it from `itemCatalog: true`. It
+requires a `manifest`:
+
+> ``package-build config: `relationships.<kind>[<index>].assetArchive` must be true or false.``
+
+> ``package-build config: `relationships.<kind>[<index>].assetArchive` needs a `manifest` naming the package to fetch.``
+
+A relationship with no items of its own to extract, such as an asset
+replacement module, declares only `assetArchive: true`:
+
+```yaml
+relationships:
+  requires:
+    - id: thalornaaltart
+      manifest: https://…/releases/latest/download/module.json
+      compatibility: { verified: "1.0.0" }
+      assetArchive: true
+```
+
+A relationship declaring both `itemCatalog: true` and `assetArchive: true` is
+fetched once: `deps fetch` does not download the archive twice for one entry.
 
 `contentIndex` and `itemCatalog` are the two edges a relationship may declare,
 and a package may have either without the other. `itemCatalog` says a
@@ -1247,6 +1303,35 @@ demand.
 > ``package-build config: `relationships.<kind>[<index>].contentIndex` must be true or false.``
 
 > ``package-build config: `relationships.<kind>[<index>].contentIndex` cannot be false together with `itemCatalog: true` — a catalogue is fetched from the same index.``
+
+`assetReplacement` opts a relationship into serving this package's own asset
+addresses from the named dependency's tree instead of its local one —
+`engine/asset-replacement.mjs`'s `resolveAssetReplacement` is what reads the
+declaration. Off by default: declaring a dependency is not the same as
+wanting its pictures in place of the ones this package ships itself. It
+requires a fetched index to check the replacement against, so it cannot pair
+with `contentIndex: false`:
+
+```yaml
+relationships:
+  requires:
+    - id: thalornaaltart
+      manifest: https://…/releases/latest/download/module.json
+      assetReplacement: true
+      contentIndex: true
+```
+
+With that declared, an address `thalorna` would otherwise answer itself —
+`thalorna-none-image-thorn` — resolves against
+`thalornaaltart-none-image-thorn` first, falling back to `thalorna`'s own
+record when `thalornaaltart` carries no file at that address. A package
+declaring more than one `assetReplacement: true` relationship is tried in
+the order the relationships are declared, and the first one carrying the
+address wins.
+
+> ``package-build config: `relationships.<kind>[<index>].assetReplacement` must be true or false.``
+
+> ``package-build config: `relationships.<kind>[<index>].assetReplacement` cannot be true together with `contentIndex: false` — a replacement with no fetched index to check against resolves nothing.``
 
 ### `systems`
 
@@ -1331,46 +1416,28 @@ mapping:
 
 ### `publish`
 
-**Type:** object · **Optional** for a `systems` or `modules` package, default
-`{site: "homepage", address: {prefix: ""}}`. **Required** for a
-`documentation` package, with `site: content` — publishing the content tree is
-the whole of what that kind does:
+**Type:** object · **Optional** · default `{address: {prefix: ""}}`.
 
-> ``package-build config: `publish` is required in a `documentation` package: publishing the content tree is the whole of what it does. Write `publish: {site: content}`.``
+`publish.address` controls where content-page addresses mount inside the
+package. The content tree determines which pages are published.
 
-> ``package-build config: `publish.site` must be `content` in a `documentation` package — `homepage` fences the content surfaces off, and a package that compiles nothing and publishes nothing from its tree would produce a single authored page and no book.``
-
-Publishing switches — how much of this package reaches the web, and where
-its content tree's addresses mount inside the package.
-
-| Key                      | Type                        | Required | Default        |
-| ------------------------ | --------------------------- | -------- | -------------- |
-| `publish.site`           | `"homepage"` \| `"content"` | no       | `"homepage"`   |
-| `publish.address`        | object                      | no       | `{prefix: ""}` |
-| `publish.address.prefix` | string                      | no       | `""`           |
+| Key                      | Type   | Required | Default        |
+| ------------------------ | ------ | -------- | -------------- |
+| `publish.address`        | object | no       | `{prefix: ""}` |
+| `publish.address.prefix` | string | no       | `""`           |
 
 > ``package-build config: `publish` must be an object.``
 
-> ``package-build config: `publish.<key>` is not a recognized option (expected one of: site, address).``
+> ``package-build config: `publish.<key>` is not a recognized option (expected one of: address).``
 
-Every HeroicLands package publishes at least an authored homepage at
-`https://www.heroiclands.org/<contentPackage>/` — there is no value meaning
-_no web presence at all_. `homepage` is the floor: the authored homepage
-and nothing else, no content-tree walk. `content` is the homepage plus every
-page the content tree publishes. `publishesContentPages(config)`, exported from
-`content-config.mjs` alongside [`compilesFoundryDocuments`](#packagekind),
-answers the one question every reader of the mode actually asks — the site
-build, to decide whether to walk the tree at all, and the content index, to
-decide whether an entry carries a web `path`. It returns
-`config.publish.site === "content"`.
+Every HeroicLands package publishes an authored homepage at
+`https://www.heroiclands.org/<contentPackage>/`. Each other publishable note in
+the content tree supplies a content page. `publishesContentPages(config)`,
+exported from `content-config.mjs`, checks that tree for notes beyond the
+homepage. Site, PDF, index, and Foundry address emission use this same answer.
+Remove `publish.site` from package configurations:
 
-This was a boolean before `5.0.0`, and both spellings are refused rather
-than silently mapped, because a value reinterpreted reads to its author as
-though it still means what it said:
-
-> ``package-build config: `publish.site` is no longer a boolean — write `site: content`. Every package publishes an authored homepage at /<contentPackage>/, so no value means "no web presence": `homepage` publishes that page and nothing else, and `content` publishes it plus every page the content tree compiles to.``
-
-> ``package-build config: `publish.site` must be one of homepage, content (got "public").``
+> ``package-build config: `publish.site` is not configured; publishing follows the authored content tree.``
 
 `publish.address.prefix` is where the content tree mounts _inside the
 package_ — `"kb/"` for a repository whose knowledgebase is one surface
@@ -1463,23 +1530,65 @@ packageBuild:
     envPrefix: SOHL
 ```
 
-| Key                                                                                        | Type                                        | Required | Default                           |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------- | -------- | --------------------------------- |
-| [`packageBuild.stageDir`](#packagebuildstagedir-and-packagebuildassets)                    | string                                      | no       | `build/stage`                     |
-| [`packageBuild.assets`](#packagebuildstagedir-and-packagebuildassets)                      | array                                       | no       | `[]`                              |
-| [`packageBuild.assetTransform`](#packagebuildassettransform-and-packagebuildmanifestflags) | string (path to a module)                   | no       | `null`                            |
-| [`packageBuild.manifest`](#packagebuildmanifest)                                           | object, pass-through                        | no       | `{}`                              |
-| [`packageBuild.manifestFlags`](#packagebuildassettransform-and-packagebuildmanifestflags)  | string (path to a module)                   | no       | `null`                            |
-| [`packageBuild.schema`](#packagebuildschema)                                               | object (`{documentType: {from, registry}}`) | no       | `[]`                              |
-| [`packageBuild.clean`](#packagebuildclean)                                                 | object                                      | no       | `{extra: []}`                     |
-| [`packageBuild.lang`](#packagebuildlang)                                                   | object                                      | no       | see below                         |
-| [`packageBuild.deploy`](#packagebuilddeploy)                                               | object                                      | no       | `{envPrefix: "SOHL"}`             |
-| [`packageBuild.release`](#packagebuildrelease)                                             | object                                      | no       | `{artifact: <from packageKind>}`  |
-| [`packageBuild.bundle`](#packagebuildbundle)                                               | object                                      | no       | `{entry: "<foundryPackage>.mjs"}` |
-| [`packageBuild.container`](#packagebuildcontainer)                                         | object                                      | no       | see below                         |
-| [`packageBuild.e2e`](#packagebuilde2e)                                                     | object                                      | no       | see below                         |
+| Key                                                                                        | Type                                        | Required | Default                                                    |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------- | -------- | ---------------------------------------------------------- |
+| [`packageBuild.stageDir`](#packagebuildstagedir-and-packagebuildassets)                    | string                                      | no       | `build/stage`                                              |
+| [`packageBuild.assets`](#packagebuildstagedir-and-packagebuildassets)                      | array                                       | no       | `[]`                                                       |
+| [`packageBuild.assetTransform`](#packagebuildassettransform-and-packagebuildmanifestflags) | string (path to a module)                   | no       | `null`                                                     |
+| [`packageBuild.baseStyles`](#packagebuildbasestyles)                                       | boolean                                     | no       | `true`                                                     |
+| [`packageBuild.manifest`](#packagebuildmanifest)                                           | object, pass-through                        | no       | `{}`                                                       |
+| [`packageBuild.manifestFlags`](#packagebuildassettransform-and-packagebuildmanifestflags)  | string (path to a module)                   | no       | `null`                                                     |
+| [`packageBuild.schema`](#packagebuildschema)                                               | object (`{documentType: {from, registry}}`) | no       | `[]`                                                       |
+| [`packageBuild.clean`](#packagebuildclean)                                                 | object                                      | no       | `{extra: []}`                                              |
+| [`packageBuild.lang`](#packagebuildlang)                                                   | object                                      | no       | see below                                                  |
+| [`packageBuild.deploy`](#packagebuilddeploy)                                               | object                                      | no       | `{envPrefix: "SOHL"}`                                      |
+| [`packageBuild.release`](#packagebuildrelease)                                             | object                                      | no       | `{artifact: <from packageKind>}`                           |
+| [`packageBuild.bundle`](#packagebuildbundle)                                               | object                                      | no       | `{entry: "<foundryPackage>.mjs"}`                          |
+| [`packageBuild.container`](#packagebuildcontainer)                                         | object                                      | no       | see below                                                  |
+| [`packageBuild.e2e`](#packagebuilde2e)                                                     | object                                      | no       | see below                                                  |
+| [`packageBuild.proseLint`](#packagebuildproselint)                                         | object                                      | no       | `{age: 21, threshold: 5, minWords: 8, rules: readability}` |
+| [`packageBuild.proseScore`](#packagebuildprosescore)                                       | object                                      | no       | `{minWords: 80, bands: {}}`                                |
 
-> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, manifest, manifestFlags, schema, clean, lang, deploy, release, bundle, container, e2e).``
+> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, baseStyles, manifest, manifestFlags, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore).``
+
+### `packageBuild.proseLint`
+
+Optional defaults for [`package-build prose lint`](commands.md#package-build-prose-lint-path-and-prose-score-path).
+`age` is the reader age, `threshold` is the number of readability algorithms
+required to flag a sentence (1–7), and `minWords` is the minimum sentence
+length. `rules` is `readability`, `simplify`, or `all`. Each numeric setting is
+a positive integer; command-line options can override them for one analysis.
+
+```yaml
+packageBuild:
+  proseLint: { age: 21, threshold: 5, minWords: 8, rules: readability }
+```
+
+### `packageBuild.proseScore`
+
+Optional defaults for [`package-build prose score`](commands.md#package-build-prose-lint-path-and-prose-score-path).
+`minWords` is the minimum number of analyzed words for a note to receive a
+score. `bands` states the package's acceptable range for any reported metric;
+there are no default bands. Each band has `min`, `max`, or both, as finite
+numbers. An omitted bound is open. The score report stays advisory unless
+`--fail-outside` is requested.
+
+```yaml
+packageBuild:
+  proseScore:
+    minWords: 80
+    bands:
+      flesch: { min: 45, max: 80 }
+      syllablesPerWord: { max: 1.65 }
+      meanSentenceWords: { max: 28 }
+      longestSentenceWords: { max: 55 }
+      unfamiliarWordPercent: { max: 35 }
+      nominalizationsPer1000Words: { max: 30 }
+```
+
+Flesch is a reading-ease score, so a value below its minimum is harder prose
+and one above its maximum is simpler prose. These sample bounds are editorial
+choices for illustration. `--min-words` overrides `minWords` for one score run.
 
 ### `packageBuild.stageDir` and `packageBuild.assets`
 
@@ -1526,6 +1635,31 @@ repository has to compute. Neither declares anything, both default to
 
 > ``package-build config: `packageBuild.manifestFlags` must be a non-empty string.``
 
+### `packageBuild.baseStyles`
+
+Whether the package takes the shared base stylesheet. It defaults to `true`,
+is staged to `styles/package-build-base.css` under the stage root, and is
+named first in the generated manifest's `styles`.
+
+The sheet carries only what every package's compiled content relies on to be
+legible — the definition-list style an infobox and the markdown `Term` /
+`: definition` syntax both emit — and is scoped to the journal, enriched-field
+and editor containers so it cannot reach Foundry's own interface.
+
+It loads into the cascade layer Foundry reserves for the package kind,
+`system` or `modules`, which is the weakest layer a package can occupy. A
+package overrides any rule in it from its own stylesheet, whether that sheet
+names a layer or none at all, with no specificity contest and no
+`!important`. The term column, the gutter and the width at which the list
+stacks are custom properties — `--pb-deflist-term-width`,
+`--pb-deflist-gutter` and `--pb-deflist-row-gap` — so a package adjusts them
+without copying the rule.
+
+Declare `false` to decline it; nothing is staged and nothing is added to
+`styles`:
+
+> ``package-build config: `packageBuild.baseStyles` must be true or false.``
+
 ### `packageBuild.manifest`
 
 `packageBuild.manifest.title` is a required, non-empty string for a Foundry
@@ -1549,12 +1683,9 @@ declaration, all packs ship at the root without a finding.
 its own: it is not forbidden, it **is** how `description` is authored. It is
 the pitch Foundry's package browser shows — HTML allowed, any length — and it
 is emitted into the generated manifest as `description`; the key itself never
-survives into the manifest under its own name. `package.json`'s own
-`description` is read by neither this nor the site (see
-[`site.description`](#site)) — a declared one is reported as a warning naming
-both real keys, so it cannot drift back into use:
-
-> `package.json: warning: \`description\` is read by nothing; the Foundry pitch is \`packageBuild.manifest.descriptionHtml\` and the site's is \`site.description\`` — a JSON manifest carries no line to point at, so only the file is named.
+survives into the manifest under its own name. `package.json.description` is
+npm package metadata. It does not supply the Foundry description or the site
+description (see [`site.description`](#site)); each surface has its own copy.
 
 | Forbidden key                         | Derived from                                                     |
 | ------------------------------------- | ---------------------------------------------------------------- |
@@ -1802,5 +1933,5 @@ the source directory:
 | `site.trees`, `site.readmeSections`                                                                                                                                                                                                                                                         | Retired — a page is a note in the content tree.                                                                                                        |
 | `site.sections`, `site.landing`, `site.backfillSections`, `site.list`                                                                                                                                                                                                                       | Retired — a site is its homepage and its pages, and any index between them is a `doc` note.                                                            |
 | `site.hugo.baseURL`, `.title`, `.locale`, `.publishDir`, `.contentDir`, `.themesDir`, `.theme`, `.disableKinds`, `.taxonomies`, `.outputs`, `.params.description`, `.params.author`, `.params.cdnBaseURL`, `.params.brand`, `.params.notfound`, `.markup.goldmark.renderer.unsafe`, `.menu` | Forbidden — each is written by the site build from a source it names; see [the generated Hugo configuration](#the-generated-hugo-configuration).       |
-| `publish.site: true` / `publish.site: false`                                                                                                                                                                                                                                                | Refused rather than mapped — write `homepage` or `content`.                                                                                            |
+| `publish.site` (any value)                                                                                                                                                                                                                                                                  | Refused — publication follows the authored content tree.                                                                                               |
 | `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                                                                                                                                                                   | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |

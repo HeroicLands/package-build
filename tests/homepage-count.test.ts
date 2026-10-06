@@ -216,7 +216,7 @@ describe("`package-build lint` enforces it", () => {
     });
 });
 
-describe("the site build enforces it, in both publishing modes", () => {
+describe("the site build enforces the homepage count", () => {
     function sandbox(files: Record<string, string>): string {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-home-site-"));
         fs.writeFileSync(
@@ -232,7 +232,7 @@ describe("the site build enforces it, in both publishing modes", () => {
         return root;
     }
 
-    function configFor(root: string, site: "homepage" | "content") {
+    function configFor(root: string) {
         return defineConfig({
             rootDir: root,
             contentPackage: "demo",
@@ -244,32 +244,26 @@ describe("the site build enforces it, in both publishing modes", () => {
             },
             packs: [{ name: "items", type: "Item" }],
             packageBuild: { manifest: { title: "The Demo Module" } },
-            publish: {
-                site,
-                address: { prefix: "kb/" },
-            },
+            publish: { address: { prefix: "kb/" } },
         } as ContentBuildConfigInput);
     }
 
-    for (const mode of ["homepage", "content"] as const) {
-        it(`fails a tree with no homepage in ${mode} mode`, () => {
-            // The requirement does not vary by mode: `publish.site` chooses
-            // whether the *content* surfaces are published, never whether the
-            // package has a front page.
+    {
+        it("fails a tree with no homepage", () => {
             const root = sandbox({ "Gear/Dagger.md": note() });
-            const result = buildSite({ config: configFor(root, mode) });
+            const result = buildSite({ config: configFor(root) });
             expect(gatesFailed(result.gates)).toBe(true);
             expect(result.gates.homepages).toHaveLength(1);
             expect(result.stats).toBeNull();
         });
 
-        it(`fails a tree with two homepages in ${mode} mode`, () => {
+        it("fails a tree with two homepages", () => {
             const root = sandbox({
                 "homepage.md": homepage(),
                 "Landing.md": homepage("Second"),
                 "Gear/Dagger.md": note(),
             });
-            const result = buildSite({ config: configFor(root, mode) });
+            const result = buildSite({ config: configFor(root) });
             expect(gatesFailed(result.gates)).toBe(true);
             expect(result.gates.homepages).toHaveLength(2);
         });
@@ -280,7 +274,7 @@ describe("the site build enforces it, in both publishing modes", () => {
             "homepage.md": homepage(),
             "Gear/Dagger.md": note(),
         });
-        const result = buildSite({ config: configFor(root, "content") });
+        const result = buildSite({ config: configFor(root) });
         expect(result.gates.homepages).toEqual([]);
         expect(gatesFailed(result.gates)).toBe(false);
         // Written at its address, not at a destination of its own.
@@ -288,8 +282,7 @@ describe("the site build enforces it, in both publishing modes", () => {
     });
 
     it("fails a homepage that declares no shortcode, before the wipe", () => {
-        // The address rule reaches homepage-only mode too, which runs no other
-        // gate at all — so it is reported here, beside the count.
+        // The address rule applies even when a homepage is the only note.
         const root = sandbox({
             "homepage.md": ["---", `type: ${HOMEPAGE_TYPE}`, "---", "", "Prose.", ""].join("\n"),
             "Gear/Dagger.md": note(),
@@ -298,7 +291,7 @@ describe("the site build enforces it, in both publishing modes", () => {
         fs.mkdirSync(path.dirname(stale), { recursive: true });
         fs.writeFileSync(stale, "the previous build\n");
 
-        const result = buildSite({ config: configFor(root, "content") });
+        const result = buildSite({ config: configFor(root) });
         expect(gatesFailed(result.gates)).toBe(true);
         expect(result.gates.homepages).toHaveLength(1);
         expect(result.gates.homepages[0].message).toContain("shortcode");
@@ -314,7 +307,7 @@ describe("the site build enforces it, in both publishing modes", () => {
         fs.mkdirSync(path.dirname(stale), { recursive: true });
         fs.writeFileSync(stale, "the previous build\n");
 
-        const result = buildSite({ config: configFor(root, "homepage") });
+        const result = buildSite({ config: configFor(root) });
         expect(gatesFailed(result.gates)).toBe(true);
         expect(fs.readFileSync(stale, "utf8")).toBe("the previous build\n");
     });

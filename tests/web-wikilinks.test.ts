@@ -83,6 +83,24 @@ describe("slugify (KB heading/anchor slug)", () => {
 });
 
 describe("resolveWebWikilinks", () => {
+    it("uses readable cues in book Markdown without HTML spans", () => {
+        const draft = { url: "/rules/sohl-shock/", name: "Shock", draft: true };
+        const ctx = makeCtx({
+            output: "book",
+            index: new Map([
+                ["doc/shock", draft],
+                ["sohl-note-doc-shock", draft],
+            ]),
+        });
+        expect(resolveWebWikilinks("[[doc/shock|Shock]]", ctx)).toBe(
+            "[Shock](/rules/sohl-shock/) (draft)",
+        );
+        expect(resolveWebWikilinks("| [[doc/missing|Missing]] |", ctx)).toBe(
+            "| Missing (unresolved link) |",
+        );
+        expect(ctx.errors).toHaveLength(1);
+    });
+
     it("resolves type/shortcode to the target's KB url", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("see [[doc/shock|the rules]]", ctx)).toBe(
@@ -416,6 +434,102 @@ describe("cross-package addresses (link manifest)", () => {
                 reason: "not-an-address",
             },
         ]);
+    });
+});
+
+// A dead `#anchor` fails the pack build and `package-build links` already —
+// the web resolver is the one surface that joined it onto a URL unchecked.
+describe("a `#section` the target does not declare", () => {
+    it("reports a cross-page anchor the target's own anchor set does not have", () => {
+        // `climb` is shared by every key the default index carries for it, so
+        // setting its `anchors` once answers for `skill/climb`,
+        // `skill-climb` and every other spelling the same way.
+        const ctx = makeCtx();
+        (ctx.index.get("skill/climb") as { anchors?: Set<string> }).anchors = new Set(["crafting"]);
+        expect(resolveWebWikilinks("[[skill/climb#no-such-section|Text]]", ctx)).toBe(
+            unresolved("Text", "skill/climb"),
+        );
+        expect(ctx.errors[0]).toMatchObject({
+            reason: "unknown-anchor",
+            anchor: "no-such-section",
+        });
+    });
+
+    it("resolves a cross-page anchor the target's anchor set does have", () => {
+        const ctx = makeCtx();
+        (ctx.index.get("skill/climb") as { anchors?: Set<string> }).anchors = new Set(["crafting"]);
+        expect(resolveWebWikilinks("[[skill/climb#crafting|how]]", ctx)).toBe(
+            "[how](/skill/climbing/#crafting)",
+        );
+        expect(ctx.errors).toEqual([]);
+    });
+
+    it("reports a cross-page anchor against a foreign manifest's anchor map", () => {
+        // A fetched manifest publishes `{slug: uuid}`, not a `Set` — the same
+        // shape the pack build reads to resolve a cross-package `@UUID`.
+        const foreign = new Map<string, object>([
+            [
+                "thalorna-sohl-creature-grkrahk",
+                {
+                    url: "/thalorna/creature/grukar-ahk/",
+                    name: "Grukar-ahk",
+                    anchors: { lair: "uuid-1" },
+                },
+            ],
+        ]);
+        const ctx = makeCtx({ foreign });
+        expect(
+            resolveWebWikilinks("[[thalorna-sohl-creature-grkrahk#no-such-section|X]]", ctx),
+        ).toBe(unresolved("X", "thalorna-sohl-creature-grkrahk"));
+        expect(ctx.errors[0]).toMatchObject({
+            reason: "unknown-anchor",
+            anchor: "no-such-section",
+        });
+    });
+
+    it("keeps a pack-only target's present behaviour — no page, so no anchor check", () => {
+        // An asset-like target: it resolves and has no body, so there is
+        // nothing to check the anchor against, and nothing changes for it.
+        const packOnly = new Map<string, object>([
+            [
+                "adventure-sohl-creature-wolf",
+                { name: "Dire Wolf", uuid: "Compendium.sohl-adventure.items.Item.abc" },
+            ],
+        ]);
+        const ctx = makeCtx({ foreign: packOnly });
+        expect(resolveWebWikilinks("a [[adventure-sohl-creature-wolf#lair|]] howls", ctx)).toBe(
+            "a Dire Wolf howls",
+        );
+        expect(ctx.errors).toHaveLength(0);
+    });
+
+    it("reports a same-page anchor this page's own anchor set does not have", () => {
+        const ctx = makeCtx({ anchors: new Set(["course-test"]) });
+        expect(resolveWebWikilinks("see [[#no-such-section|the Test]]", ctx)).toBe(
+            `see ${unresolved("the Test", "")}`,
+        );
+        expect(ctx.errors[0]).toMatchObject({
+            reason: "unknown-anchor",
+            anchor: "no-such-section",
+        });
+    });
+
+    it("resolves a same-page anchor this page's own anchor set does have", () => {
+        const ctx = makeCtx({ anchors: new Set(["course-test"]) });
+        expect(resolveWebWikilinks("see [[#course-test|the Course Test]]", ctx)).toBe(
+            "see [the Course Test](#course-test)",
+        );
+        expect(ctx.errors).toEqual([]);
+    });
+
+    it("does not check a same-page anchor when the page's own set is unknown", () => {
+        // No `ctx.anchors` at all — the caller never computed one — reads as
+        // nothing to check against, exactly as before this existed.
+        const ctx = makeCtx();
+        expect(resolveWebWikilinks("see [[#course-test|the Course Test]]", ctx)).toBe(
+            "see [the Course Test](#course-test)",
+        );
+        expect(ctx.errors).toEqual([]);
     });
 });
 

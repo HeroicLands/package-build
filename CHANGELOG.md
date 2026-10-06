@@ -1,5 +1,462 @@
 # @heroiclands/package-build
 
+## 23.0.0
+
+### Major Changes
+
+Every page a work of literature names in its subjects lists that work under **In song and story**, with its form beside the title, including works from a package this one depends on.
+
+### Patch Changes
+
+Affiliations, skills, attributes, mysteries, mystical abilities and miscellaneous gear without their own art show SoHL's default icons again instead of a broken image.
+
+Folder notes need only a nonempty body: a short line or placeholder no longer warns or fails, with or without `draft`. An empty folder body is still an error.
+
+Lore notes can be typed `literature` for epics, sagas, poems, legends and other works a people tells, sings or writes. A literature note may name its people, its form, its subjects and its language, and each appears in the note's infobox, with the people, subjects and language as links.
+
+## 22.28.0
+
+### Minor Changes
+
+Notes now require a nonempty body, including drafts, folders and homepages. Short written notes still warn unless tagged as drafts.
+
+## 22.27.0
+
+### Minor Changes
+
+- Governing bodies list the places they govern from each place’s stated government, keeping those lists consistent with place descriptions.
+- Tables that listed governing bodies through affiliation territory lists must query each place’s government instead.
+- Captions now precede the item they describe; use `:@` for numbered captions or `:` for captions without numbers.
+- Write poetry in a `poetry` code fence, and use attributed divs and inline spans to group or style text.
+- Replace former figure wrappers with leading captions; the old figure and poetry div fences are no longer supported.
+- Blockquote alerts provide note, tip, important and warning callouts; the former info and warn div fences are removed.
+
+## 22.26.0
+
+### Minor Changes
+
+Place notes can name their governing affiliation in `data.government`, or state `null` for complete anarchy. A place with positive population and no government now receives an advisory. Places with zero, null or unspecified population no longer receive the old unheld-land warning; holdings remain separate tenure facts. Governments appear in note infoboxes and persist in published metadata.
+
+## 22.25.0
+
+### Minor Changes
+
+Write poems in a `:::poetry` fence to preserve verse lines, relative indentation, and stanza breaks across journals, websites, and books. A poem placed first in a `:::figure` uses the Poem counter and may carry a caption and reference.
+
+The bundled Hugo theme's image-role and banner guards now run as part of package-build lint. Affiliation notes must declare a `data.governance.ranks` rung at level 1; a missing ordinary standing now produces a located error.
+
+## 22.24.0
+
+### Minor Changes
+
+**Hero banners** — A page whose note names its own hero image shows that image, in place of the stock banner for its kind; a note naming none gets a band with no image.
+
+**Figures** — A numbered figure, table, listing or map reads as one block, its number and caption set beneath it rather than running on as body text, and a passage set apart as an aside draws as a box.
+
+**Pictures** — A portrait or an emblem draws at half the content column and a banner, plate or map at its full width, never wider than the size the picture was made at; a stated width still overrides the role's measure.
+
+**Installing** — The shared Hugo theme arrives with this package, so a site declares this package alone and needs no separate theme dependency.
+
+**Hero images** — The authoring guide states the three states of a note's hero image: a picture, a deliberate blank that declines one, and an absent key that takes the default for the note's type.
+
+## 22.23.0
+
+### Minor Changes
+
+**Figures**
+
+- A picture and the words about it are written as one block: the caption is optional, several pictures can share one, and a border is available.
+- Prose refers to a figure by name, in its own note or in another, and reads back its number, its number and caption, or the caption alone.
+- A figure drawn from a map counts as a Map, numbered the same way on every surface.
+- A figure holding one picture opens as an illustrated page in Foundry, with that viewer's own pop-out and zoom.
+
+**Pictures**
+
+- A picture carrying no caption draws no line beneath it, on a page, in a journal or in print.
+- A picture states what it is for, and is drawn at the size that choice gives it — never larger than it was made.
+- A page's hero image is 1792×768, and one of any other size is refused, naming the size to cut it to.
+
+**Art provenance**
+
+- A record saying a file is not machine-generated is published saying so.
+- A package may refuse generated art in its own tree.
+- A package may declare that a dependency's art answers its own addresses, and the book draws the replacement.
+
+**Notes**
+
+- A lore note states the occasions it records, each with a date and an optional recurrence, and publishes the next one due.
+- A note may write a shared field at the position it is being retired from, and the build accepts it with a warning rather than refusing the note.
+
+### Patch Changes
+
+**Item-frontmatter reference**: regenerating the page no longer renders a broken sentence for `affiliation`'s `title`, which now says plainly that a top-level key is refused outright.
+
+## 22.22.0
+
+### Minor Changes
+
+**Diagnostics**
+
+- A dead `#anchor` now fails the website build, matching the compendium build
+  and the link checker — a link that used to publish a dead section quietly now
+  reports it.
+- A note with more than one problem in its body now reports every one of them
+  in a single build, instead of only the first.
+
+**The book**
+
+- A page link in a book now goes where it says, and one into a package the book
+  depends on reaches that package's pages; the address they are built from is
+  `package.json`'s `homepage`, which a book now needs.
+- A note written for the next author — a `markdownlint` pragma, an aside about a
+  quoted notice — no longer appears on the page.
+- A box written inside a GM-only section prints as a box.
+- A box's title prints as written, emphasis included, and one carrying a bracket,
+  a `#` or a `$` no longer stops the book being made.
+- Two captions sharing one id each print their own block once, under their own
+  number.
+- A link that resolves nowhere now fails the book build, as it already fails the
+  compendium and website builds, and the book is still written so the page
+  carrying the link can be found.
+- Markup the book cannot set is reported at the file and line it is written on
+  rather than printed on the page, in a title page and a prose file as well as in
+  a note.
+- A table query that selects no rows now says so, and names the line, where it
+  read `[object Object]`.
+- A link the book cannot resolve names the line and column it is written on.
+
+**Affiliations**
+
+- A rank with no title or no description is now reported instead of shipping, so
+  a member's standing can no longer resolve to a blank on a sheet or a page.
+- A rank level that is not a whole number, and a key a rank does not take, are
+  reported too, each naming the line the rank is written on.
+- Every problem on one rank is reported at once, so a ladder is fixed in a single
+  pass.
+- A rank needs only its level, title and description; the lore note is for a
+  standing that needs more said about it than a description can hold.
+- An affiliation's rank ladder now appears on its page, alongside its offices,
+  ordered by level.
+- A note's `lore`, `parents`, `domains` and `economy` lists now reach the page
+  wherever they are authored, instead of vanishing silently.
+- A being's entry in a body states the rung it stands on — an ordinary member is
+  1, someone cast out is 0 — and an entry that states none is reported.
+- An office is not a rung, so an entry naming a post and no standing is reported
+  with the rest of them.
+- A body that gives two rungs one level is reported on the second, so what a
+  standing is called does not depend on which rung is written first.
+
+**Authoring**
+
+- A note's frontmatter accepts only the documented keys; an unrecognised one is an error at its own line, naming every accepted key and the one it was probably meant to be.
+- A page takes its heading from the note's name, so a homepage stating a title any other way publishes the name its package manifest carries.
+- Active Effects and document flags are read from the game-system block that carries them, so a note stating either outside one ships a document without them.
+- Info boxes, warning boxes and captions can be written again: any note using
+  one failed its build with an error about a secret block it did not contain.
+- A note may now mix boxes, captions and GM-only sections freely, and a box
+  inside a GM-only section stays inside it.
+- A `:::` line that closes nothing says so plainly instead of naming the wrong
+  construct.
+- An image may be sized `full-width`, and a float takes a named corner — both
+  always worked and neither was written down.
+
+**Beings**
+
+- A being's complexion can now hold several values, because a face is weathered
+  and ruddy at once rather than only one of them.
+- Several of them read as one phrase on a sheet or a page — "weathered, ruddy and
+  scarred complexion" — rather than saying the word once per value.
+- A being may be recorded as `nonbinary`, or as having no gender at all, where
+  before only `male`, `female` and `other` were named.
+- A frame is `scant`, `light`, `medium`, `heavy` or `massive`. The reference named
+  a `heavy` frame `large`, which nothing wrote.
+- A being's body and movement are authored under `sohl.system`, and its
+  attributes and skills as `sohl.items` entries; a note writing either
+  elsewhere in the block is reported.
+
+**Actors**
+
+- An `{#appearance}` or `{#dossier}` anchor written on a heading below the top
+  level now fails the build naming the file and the line, instead of compiling
+  a blank appearance or biography with nothing to say why.
+
+**Dates**
+
+- A birth or death date written without quotes is reported where a day's
+  trailing zero could have been lost, naming both days the value could mean. A
+  calendar's epoch and a moon's new day read the same way.
+
+**Definition lists**
+
+- Every package now ships a definition-list style, so a term and its definition
+  line up in two columns with the terms sharing one right edge.
+- A narrow journal window stacks each term above its own definition instead of
+  cramping both into columns, and widening the window restores them.
+- A term is bold wherever it appears, so writing one needs no `**` around it.
+- Infobox rows in the book sit against the same right edge, with space between
+  rows rather than run together.
+
+**Packages**
+
+- `packageBuild.baseStyles: false` declines the shared style for a package that
+  wants the surface entirely to itself.
+
+**Named blocks**
+
+- A `:::secret`, `:::info` or `:::warn` block now takes a title of its own, so a
+  GM passage can say "For the GM" or "If they ask about the harbour" instead of
+  one fixed word.
+- A block also takes an id, classes and other attributes, so a note can link to
+  one and a package can style a particular kind its own way.
+- Without a title a block heads itself **Secret**, **Info** or **Warn**. A
+  warning that used to head "Warning" now heads "Warn", and a secret that used to
+  head "GM note" now heads "Secret"; writing `title="GM note"` keeps the old
+  wording.
+- A secret on a web page now opens with its own title rather than the word
+  "Spoiler", and carries its kind so a site can style it.
+- A block's colours come from a stylesheet rather than from the block itself,
+  so a light panel no longer keeps a light background against dark page text.
+- A misspelled block name is now reported instead of being left in the page as
+  the literal `:::name` an author typed.
+- One malformed block no longer stops every other block in the same note from
+  rendering.
+- A box written inside a GM-only section stays inside it, and a box inside
+  another box says so rather than rendering as a muddle.
+
+**Configuration**
+
+- A `compatibility.verified` build below the package's own `compatibility.minimum`
+  is now reported instead of shipping a manifest that claims a build was verified
+  against a floor it cannot install on.
+- The same check applies to a declared system's and a related package's own
+  `compatibility`, naming the file and line of the offending `verified`.
+
+### Patch Changes
+
+**Lists**
+
+- A list item opened with `- [ ]` or `- [x]` reads as its own words everywhere
+  — on the website, in the compendium, and in the book — never as a checkbox.
+- Writing one that way is reported at its own line, naming the ordinary list
+  it belongs in.
+
+**Footnotes**
+
+- A footnote referenced inside a box or a caption now prints and numbers with
+  the rest of the note instead of showing as literal text.
+- A definition written below the top level of a note is reported, as is a
+  reference nothing defines.
+- A definition no reference uses is reported rather than dropped from the page.
+
+**Named blocks and captions**
+
+- A heading that would open a page of its own is reported when it is written
+  inside a box or a caption.
+
+**Headings**
+
+- A heading carrying classes or attributes beside its anchor now anchors on the
+  anchor alone, so a link written to it resolves on every surface.
+- A Foundry journal and a web page carry a heading's classes and attributes onto
+  the heading, and no surface prints the braces.
+- A heading whose braces hold something other than an attribute block is
+  reported at its own line instead of being typeset.
+- `.secret` on the heading that opens a section makes its Foundry page the
+  GM's alone.
+- A withheld section reads as a spoiler on the web and a labelled block in the
+  book, which conceal it rather than withhold it.
+- A heading refuses `id=`, `class=` and any key beginning `on`, as a named block
+  does, so no note writes an event handler onto a page.
+
+**Page lists**
+
+- A note can now write a page list: name a tag, and the pages carrying it come out as a list of links.
+- The list reaches a reader in Foundry, on the website and in the book alike, from the one directive.
+- A page joins the list by carrying its tag and leaves by losing it, so a landing page stays true as notes are written.
+- A list can print each page's description beside its link, and can be restricted to one note type.
+- A tag that no page carries is reported with the tag it looked for, rather than printing nothing.
+
+**Beings**
+
+- A being's `socialTies` map now builds without the two findings it always
+  produced, so a patron, friend, dependent, acquaintance, rival or nemesis
+  can be written.
+
+## 22.21.0
+
+### Minor Changes
+
+**Standing in a body** — A being's `affiliations` is now a map keyed by the body, and each entry says what the being is there: `rank`, a level on that body's own ladder, and `office`, one of the posts it names. A page prints the standing closing on the body it belongs to — "War Chief, Hárár, of Vrystwald Tribes" — and an office links to the description the body already carries. In SoHL a being now arrives carrying one affiliation item per body it belongs to, standing included.
+
+**Offices read the right way round** — An affiliation's offices each take their own row, with the post's name as the label and its description beside it, and each row can be linked to directly.
+
+### Patch Changes
+
+- Icons drawn with outlines follow the colour scheme instead of keeping a black rim in dark mode.
+- An explicitly black outline also moves to ink in light mode, matching the icon's filled shapes.
+
+## 22.20.0
+
+### Minor Changes
+
+- Content checks require characters and NPCs to name an archetype and reject unrecognized archetypes; creatures may omit them.
+- Names with unsupported fields now fail validation, and aliases appear beneath the name in infoboxes across published formats.
+
+## 22.19.0
+
+### Minor Changes
+
+**Beings**
+
+- Beings can be described as Commoners, Entertainers, or Guildspeople, and Commoner stands alone when no other archetype fits.
+
+### Patch Changes
+
+- Books place infoboxes after each entry’s authored content, and Foundry journals place each infobox on its own page after the authored pages.
+
+## 22.18.0
+
+### Minor Changes
+
+- Beings use their subtype to choose default art.
+
+### Patch Changes
+
+Being profiles identify each subject as Character, NPC, or Creature from its top-level subtype.
+
+## 22.17.2
+
+### Patch Changes
+
+Being notes can identify encounterable NPCs, playable characters, and creatures with a checked subtype.
+
+**Content notes**
+
+- Notes can carry an additional system-specific block in their frontmatter.
+
+**Content checks**
+
+- Lint and link checks report unresolved references in SoHL system fields.
+
+## 22.17.1
+
+### Patch Changes
+
+**Prose review**
+
+- Prose lint focuses on difficult sentences by default and skips tables and code; simpler-word suggestions remain available on request.
+- Prose score reports each note's readability and lets a content package define an advisory range for its writing.
+
+## 22.17.0
+
+### Minor Changes
+
+**Calendar dates**
+
+- Calendar notes anchor their first year to a canonical day, count eras from calendar years, and include an era for dates before year one.
+- Named calendar formats control how dates print; the standard format also controls how authored calendar dates are read.
+- Calendars can name special days and divide the year into seasons, with those names available in formatted dates.
+
+**Content dates**
+
+- A date written as a year covers that whole year; a written day covers that day, and a clock time identifies a moment.
+- Calendar starting days and moon phase references require a day so their dates cannot silently shift to the first day of a year.
+
+## 22.16.0
+
+### Minor Changes
+
+**SoHL API**
+
+- Being summaries are available through the infobox API; the unused being information derivation is not exported.
+- Frontmatter dates use canonical days or named calendar dates, with an optional `~` for approximation.
+- Calendar dates can be converted to and from the world's canonical dates with `datefrom` and `dateto`.
+- Notes can express dates in a chosen calendar, including the appropriate era, in prose and infoboxes.
+- Markdown expressions can insert frontmatter values, formatted dates, comparisons, and scalar SQL results.
+- Dated office holders are checked for valid terms and overlapping claims.
+- A Foundry package must declare a title before its manifest is generated, so the package can be installed.
+
+**Content authoring**
+
+- Notes use braced `key=value` attributes for images, inline icons, SQL tables, and captions; invalid or outdated syntax reports a source location.
+- Inline `:::info` and `:::warn` boxes appear in journals, web pages, and books.
+- Footnotes and definition lists render in journals, web pages, and books; footnotes appear with the page where they are referenced.
+- Content tables use SQL queries; unsupported table directives produce an error.
+
+**Population checks**
+
+- Population checks include figures from dependency packages when their published indexes carry them.
+
+**Publishing**
+
+- Sites and books follow the authored content tree; remove `publish.site` from package configurations, since declaring it now causes a configuration error.
+
+**Books**
+
+- PDF books size raster illustrations for 300 dpi printing, and map backgrounds fill landscape pages.
+- Foundry packages must declare their minimum supported core version before a build starts, with one error at the configuration file when it is missing.
+
+**Command line** — Use `package-build` for content checks, compendium builds, websites, books, and release tasks. Update scripts that invoke `content-build`.
+
+### Patch Changes
+
+- Journal links to a package homepage or folder display their names instead of opening a nonexistent compendium entry.
+- Lore notes can describe customs such as rites, observances, and other shared practices.
+- Captions give tables, figures, code, and prose numbered labels that readers can follow from links. Uncaptioned wide book tables stay after their introduction.
+- Beings can name their primary culture directly, and an invalid culture reference receives a clear content error.
+- Markdown checks skip installed dependencies even when the package has no ignore file or overrides its markdownlint ignore list.
+
+**Books**
+
+- Inline icons with a named size print at that size in the PDF.
+- Draft and unresolved note links display readable status cues instead of HTML markup.
+
+**Project setup**
+
+- Create a content package with website and book targets through `package-build init`, or check an existing package with `init --check`.
+- Documentation packages can set `site.title` to build a website without a Foundry manifest.
+
+**Authoring guidance**
+
+- The documentation now gives separate starting paths for systems, modules, and content notes, with a complete note-type reference and worked examples for links, assets, dates, and markup.
+- Beings can state height and weight with metric or imperial units, and their appearance displays in feet, inches, and pounds.
+
+**Authoring**
+
+- Analyze one note or a content collection on demand for difficult sentences and simpler word choices, with source locations and suggested replacements.
+
+**Documentation and books**
+
+- The guides are available as a browsable website and PDF book.
+- Inline code containing backticks prints correctly in PDF books.
+
+**SoHL content**
+
+- Afflictions can carry an onset macro and outcome traumas into their game documents.
+- Skills can adopt parent mastery, while traumas can carry infection, lasting impairment, and treatment modifiers.
+
+**Content builds**
+
+- A missing dependency content index is reported before content processing begins.
+
+**Foundry packages**
+
+- Newly initialized projects clear the package stage before each full build, so renamed or deleted assets do not remain in local packages.
+
+**Content authoring**
+
+- GM-tagged notes stay out of public websites and books and appear in Foundry only through private compendiums.
+- Inline SQL counts can be written as words or grouped numerals; invalid scalar results point to their source.
+- Site previews resolve links produced by SQL tables.
+- Package builds accept npm descriptions without a misleading warning.
+
+**Item descriptions**
+
+- SoHL and HM3 Items now point to the same description page when the note marks it with `{#description}`; existing notes continue to use their first page.
+- Project documentation can check its relative links, heading anchors, and index coverage.
+- TypeScript declaration checks can validate project files and published entry points.
+- Generators can format their output with the destination's Prettier settings.
+
 ## 22.15.1
 
 ### Patch Changes

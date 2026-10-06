@@ -51,9 +51,9 @@
  *
  * ## Six rules that hold in every medium
  *
- * 1. **The infobox is generated content in document order** — prepended,
- *    before the prose. Not a floating sidebar. An image authored before it
- *    appears before it.
+ * 1. **Placement belongs to the medium.** The book puts boxes after the
+ *    authored body, Foundry appends one page per box, and the website uses
+ *    a side rail on wide screens and inline boxes on narrow screens.
  * 2. **It contains no image.** A picture is authored in the text with its own
  *    directive, and its position governs. {@link NOTE_FIELD_PRESENTATION}
  *    withholds the art slots and `overlay` for that reason and no other.
@@ -119,8 +119,20 @@ import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { readAliasedField } from "./retired-fields.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
-import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
+import {
+    formatDateInCalendar,
+    formatNoteDate,
+    parseNoteDate,
+    resolvedDateFields,
+} from "./note-dates.mjs";
 import { displayBeingHeight, displayBeingWeight } from "./being-measurements.mjs";
+import {
+    officeAnchor,
+    officeRoster,
+    rankAnchor,
+    readStandings,
+    standingPhrase,
+} from "./standings.mjs";
 
 /**
  * How a section arranges what it holds.
@@ -186,6 +198,13 @@ export const NOTE_BOX_TITLE = "Profile";
 
 /** The note infobox's single section id. @type {string} */
 export const NOTE_SECTION_ID = "profile";
+
+/** @type {Readonly<Record<string, string>>} */
+const BEING_SUBTYPE_LABELS = Object.freeze({
+    npc: "NPC",
+    character: "Character",
+    creature: "Creature",
+});
 
 /**
  * What a **duration pair** is called.
@@ -276,7 +295,7 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     bgImage: Object.freeze({ withheld: "an image, which the box never carries" }),
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
-    "lore.event": Object.freeze({ withheld: "chronology machinery, not a summary row" }),
+    "lore.events": Object.freeze({ withheld: "chronology machinery, not a summary row" }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),
@@ -319,7 +338,8 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     }),
     "being.appearance.complexion": Object.freeze({
         group: "appearance",
-        phrase: (v) => `${humanizeValue(v)} complexion`,
+        whole: true,
+        phrase: (v) => `${humanizedList(v)} complexion`,
     }),
     "being.appearance.extra_features": Object.freeze({ group: "appearance" }),
 });
@@ -407,6 +427,7 @@ export function isUnsetSentinel(value) {
 /**
  * Whether a value is worth a row.
  *
+ * A field declaring `nullText` handles explicit null before this general test.
  * Rule 4: an absent field is absent. `null`, `""` and `[]` are how the corpus
  * writes "nobody filled this in" — a note that declares every key of its type
  * and leaves most of them empty is the ordinary shape, not the exception — and
@@ -459,6 +480,24 @@ export function humanizeValue(value) {
     return String(value ?? "")
         .replace(/[_-]+/g, " ")
         .trim();
+}
+
+/**
+ * Several enumerated values as one clause — `weathered, ruddy and scarred`.
+ *
+ * A field that admits one value or a list of them reads as a single phrase, so
+ * the noun it qualifies is said once rather than once per value. Internal: the
+ * phrase that wants it is declared in this module.
+ *
+ * @param {unknown} value - One value, or a list of them.
+ * @returns {string} The text.
+ */
+function humanizedList(value) {
+    const parts = (Array.isArray(value) ? value : [value])
+        .filter((entry) => entry !== undefined && entry !== null && entry !== "")
+        .map((entry) => humanizeValue(entry));
+    if (parts.length < 2) return parts[0] ?? "";
+    return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
 }
 
 /**
@@ -546,11 +585,150 @@ function rowValue(kind, raw, resolve, hint) {
     return presentValue(raw);
 }
 
-/** Expand structured references using the existing linked-row shape. */
-function structuredRows(field, raw, resolve, label, fm) {
-    if (Array.isArray(raw) && raw.some(isMapping)) {
-        const links = raw
-            .filter((entry) => isMapping(entry) && hasValue(entry.to))
+/**
+ * A being's memberships, each with the standing it holds there.
+ *
+ * One row, one entry per body, and the standing reads inside the entry rather
+ * than beside it — "War Chief, of Vrystwald Tribes" rather than a rank link
+ * with nothing saying which body confers it.
+ *
+ * **The office carries the link where the body's page anchors it.** An office's
+ * description is already declared in the body's own `governance.offices`, and
+ * the row that prints it is anchored by the same derivation, so the string a
+ * being wrote reaches the description without anyone authoring a note about the
+ * post. In a medium with no page to reach — a compendium journal links by
+ * document UUID — the entry keeps the body's own document, so the reader still
+ * lands somewhere.
+ *
+ * @param {object} field - The declaration.
+ * @param {unknown} raw - The authored value, in either form.
+ * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
+ *   medium's resolver.
+ * @param {string} label - The row's label.
+ * @returns {object[]} The row, or none where nothing is held.
+ */
+function standingRows(field, raw, resolve, label) {
+    const { entries } = readStandings(raw);
+    const value = [];
+    for (const { body, standing } of entries) {
+        if (!hasValue(body)) continue;
+        const link = linkValue(body, resolve, { type: field.ref });
+        const digest = resolve?.(body, { type: field.ref })?.standings;
+        const text = standingPhrase(standing, link.text, digest);
+        const anchor =
+            (
+                typeof standing?.office === "string" &&
+                digest?.offices?.[standing.office] !== undefined
+            ) ?
+                officeAnchor(standing.office)
+            :   "";
+        value.push({
+            ...link,
+            text,
+            ...(anchor && link.url ? { url: `${link.url}#${anchor}` } : {}),
+        });
+    }
+    return value.length ? [{ label, kind: "links", value }] : [];
+}
+
+/**
+ * A map of named posts, one row each, anchored by its name.
+ *
+ * The **name is the label and its description is the value**, which is the way
+ * round a reader needs: a field name belongs in the label column, and a whole
+ * sentence there leaves the post itself standing where a value goes.
+ *
+ * Each row carries the anchor its name derives, so the description is a
+ * destination rather than merely text on a page — which is what lets a being's
+ * `office` string link to the post it names without anyone authoring a note
+ * about the post.
+ *
+ * @param {unknown} raw - The authored map.
+ * @returns {object[]|null} One row per post, in the order the body declared
+ *   them, or `null` where the value is not a map of them — a note writing
+ *   something else keeps its row and states what it wrote.
+ */
+function rosterRows(raw) {
+    if (!isMapping(raw) || isAddressTuple(raw)) return null;
+    const rows = [];
+    for (const [post, description] of officeRoster(raw)) {
+        if (!hasValue(post)) continue;
+        const anchor = officeAnchor(post);
+        rows.push({
+            ...(anchor ? { id: anchor } : {}),
+            label: String(post),
+            kind: "text",
+            value: hasValue(description) ? String(description) : String(post),
+        });
+    }
+    return rows;
+}
+
+/**
+ * A ladder of named ranks, one row each, ordered by the level a body confers.
+ *
+ * The **title is the label and its description is the value**, the same
+ * convention {@link rosterRows} draws a body's offices with, so a reader
+ * meets the two lists the same way. A rung's optional `lore` — already
+ * resolved to an Address by the time this runs — reads alongside the
+ * description rather than replacing it, since the description is what the
+ * rung itself states and the lore is a pointer to more.
+ *
+ * @param {unknown} raw - The authored `governance.ranks` list.
+ * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
+ *   medium's resolver.
+ * @returns {object[]|null} One row per rung, in ascending level, or `null`
+ *   where the value is not a list of them.
+ */
+function rankRows(raw, resolve) {
+    if (!Array.isArray(raw)) return null;
+    const rungs = raw
+        .filter((rung) => isMapping(rung) && hasValue(rung.title))
+        .toSorted((a, b) => Number(a.level ?? 0) - Number(b.level ?? 0));
+    const rows = [];
+    for (const rung of rungs) {
+        const anchor = rankAnchor(String(rung.title));
+        const description =
+            hasValue(rung.description) ? String(rung.description) : String(rung.title);
+        const lore = hasValue(rung.lore) ? linkValue(rung.lore, resolve, { type: "lore" }) : null;
+        rows.push({
+            ...(anchor ? { id: anchor } : {}),
+            label: String(rung.title),
+            kind: "text",
+            value: lore?.text ? `${description} (Lore: ${lore.text})` : description,
+        });
+    }
+    return rows;
+}
+
+/**
+ * Expand structured references using the existing linked-row shape.
+ *
+ * @param {string} [contentPackage] - This build's content package, the
+ *   default a short-form Address resolves against — the same value the site
+ *   build and the pack compiler read `contentPackage()` for. A row naming a
+ *   short Address with none handed to it skips rather than guesses.
+ */
+function structuredRows(field, raw, resolve, label, contentPackage) {
+    if (field.standings) return standingRows(field, raw, resolve, label);
+    if (field.roster) {
+        const roster = rosterRows(raw);
+        if (roster) return roster;
+    }
+    if (field.ranks) {
+        const ranks = rankRows(raw, resolve);
+        if (ranks) return ranks;
+    }
+    // A relationship entry — `{to, ...}` — is a mapping that is not itself an
+    // Address: an authored plain list of addresses normalises to a list of
+    // Address tuples, which `isMapping` also reports true for, and treating
+    // one as a relationship keyed off a `to` it never carries is what emptied
+    // `lore`, `parents` and `economy` silently.
+    const relations =
+        Array.isArray(raw) ? raw.filter((entry) => isMapping(entry) && !isAddressTuple(entry)) : [];
+    if (relations.length) {
+        const links = relations
+            .filter((entry) => hasValue(entry.to))
             .map((entry) => {
                 const link = linkValue(entry.to, resolve, { type: field.ref ?? "place" });
                 const details = Object.entries(entry)
@@ -574,7 +752,7 @@ function structuredRows(field, raw, resolve, label, fm) {
                 const address = parseAddress(
                     target,
                     {
-                        package: fm.package ?? "local",
+                        package: contentPackage,
                         system: "note",
                         types: new Set(field.accepts),
                     },
@@ -659,13 +837,16 @@ export function linkValue(ref, resolve, hint) {
  *
  * The rows are {@link NOTE_VOCABULARY}'s declaration for the type, in its
  * order, minus what {@link NOTE_FIELD_PRESENTATION} withholds and minus every
- * field the note left empty. A type that declares no `data:` fields still gets
- * the box, because `Name` is a fact about every note.
+ * field the note left empty. A being's top-level `subType` adds its profile
+ * type. A type that declares no `data:` fields still gets the box, because
+ * `Name` is a fact about every note.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {object} [options] - Options.
  * @param {(ref: unknown) => object|undefined} [options.resolve] - Resolves a
  *   reference to `{name, url?, uuid?, address?}`.
+ * @param {string} [options.contentPackage] - This build's content package,
+ *   the default a relation row's short-form Address resolves against.
  * @param {object} [options.vocabulary] - The note vocabulary to read.
  * @param {object} [options.presentation] - The overlay to read.
  * @returns {object} The box.
@@ -691,13 +872,25 @@ export function noteInfobox(fm, options = {}) {
  */
 function noteBox(
     fm,
-    { resolve, dates, vocabulary = NOTE_VOCABULARY, presentation = NOTE_FIELD_PRESENTATION } = {},
+    {
+        resolve,
+        dates,
+        contentPackage,
+        vocabulary = NOTE_VOCABULARY,
+        presentation = NOTE_FIELD_PRESENTATION,
+    } = {},
 ) {
     const rows = [];
     /** @type {Set<string>} */
     const shown = new Set();
-    const name = fm?.name?.full ?? fm?.title;
+    const name = fm?.name?.full;
     if (hasValue(name)) rows.push({ label: "Name", kind: "text", value: String(name) });
+    if (Array.isArray(fm?.name?.aliases) && fm.name.aliases.length) {
+        rows.push({ label: "Aliases", kind: "list", value: fm.name.aliases });
+    }
+    if (fm?.type === "being" && Object.hasOwn(BEING_SUBTYPE_LABELS, fm.subType)) {
+        rows.push({ label: "Type", kind: "text", value: BEING_SUBTYPE_LABELS[fm.subType] });
+    }
 
     const data = isMapping(fm?.data) ? fm.data : {};
     /** @type {Map<string, {label: string, entries: string[]}>} */
@@ -744,11 +937,20 @@ function noteBox(
             raw,
             resolve,
             overlay.label ?? humanizeFieldName(field.name),
-            fm,
+            contentPackage,
         );
         if (structured) {
             rows.push(...structured);
             if (structured.length) shown.add(field.name);
+            continue;
+        }
+        if (raw === null && field.nullText) {
+            rows.push({
+                label: overlay.label ?? humanizeFieldName(field.name),
+                kind: "text",
+                value: field.nullText,
+            });
+            shown.add(field.name);
             continue;
         }
         if (!hasValue(raw)) continue;
@@ -758,7 +960,9 @@ function noteBox(
                 label: GROUP_LABELS[overlay.group] ?? humanizeFieldName(overlay.group),
                 entries: [],
             };
-            const parts = Array.isArray(raw) ? raw.filter(hasValue) : [raw];
+            // A `whole` phrase reads the value entire, so several values compose
+            // into one clause rather than repeating the noun once each.
+            const parts = overlay.whole || !Array.isArray(raw) ? [raw] : raw.filter(hasValue);
             for (const part of parts) {
                 group.entries.push(overlay.phrase ? overlay.phrase(part) : humanizeValue(part));
             }
@@ -778,6 +982,22 @@ function noteBox(
         const { kind, value } = applyUnit(declaredKind, built, overlay.unit);
         rows.push({ label: overlay.label ?? humanizeFieldName(field.name), kind, value });
         shown.add(field.name);
+    }
+
+    // `events` itself stays withheld — the family's shape is chronology
+    // machinery, not a summary row — but a reader meets each occurrence's
+    // own next date, the way a being's computed `age` reaches the box.
+    if (fm?.type === "lore" && Array.isArray(data.events) && data.events.length && dates) {
+        const resolved = resolvedDateFields(fm, dates);
+        for (const eventEntry of resolved.events ?? []) {
+            if (!eventEntry.next) continue;
+            rows.push({
+                label: "Next occurrence",
+                kind: "text",
+                value: eventEntry.next.prose ?? eventEntry.next.text,
+            });
+            shown.add("events");
+        }
     }
 
     return {
@@ -906,7 +1126,7 @@ export function isDeclaredDefault(field, raw) {
  *
  * @param {object} fm - The note's frontmatter.
  * @param {readonly object[]} fields - The system's field declaration.
- * @param {object} ctx - `{ block, resolve, resolveField, taken, presentation }`.
+ * @param {{block: string, resolve?: Function, resolveField?: Function, taken?: Set<string>, presentation?: object}} ctx - Rendering context.
  * @returns {object[]} Zero or one section.
  */
 export function systemRowsSection(
@@ -962,6 +1182,8 @@ export function systemRowsSection(
  *   Resolves one declared field against the note.
  * @param {(ref: unknown) => object|undefined} [options.resolve] - Resolves a
  *   reference to `{name, url?, uuid?, address?}`.
+ * @param {string} [options.contentPackage] - This build's content package,
+ *   the default a note box's short-form Address resolves against.
  * @param {object} [options.vocabulary] - The note vocabulary to read.
  * @returns {object[]} The boxes.
  */
@@ -972,11 +1194,12 @@ export function buildInfoboxes(fm, options) {
         compilesDocument,
         resolveField,
         resolve,
+        contentPackage,
         vocabulary = NOTE_VOCABULARY,
         dates,
     } = options;
 
-    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary, dates });
+    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary, dates, contentPackage });
     const boxes = [note];
 
     for (const map of maps ?? []) {
@@ -1035,7 +1258,7 @@ export function sectionHolds(section) {
  * against a restatement of it.
  *
  * @param {object} fm - The note's frontmatter.
- * @param {object} options - `{ maps }`.
+ * @param {{maps: readonly object[]}} options - Document subtype mappings.
  * @returns {string[]} The ids.
  */
 export function requiredInfoboxIds(fm, { maps }) {
@@ -1058,7 +1281,7 @@ export function requiredInfoboxIds(fm, { maps }) {
  *
  * @param {readonly object[]} boxes - What was built.
  * @param {object} fm - The note's frontmatter.
- * @param {object} options - `{ maps, where }`.
+ * @param {{maps: readonly object[], where?: string}} options - Document subtype mappings and context.
  * @returns {readonly object[]} The boxes, unchanged, so a caller may assert
  *   inline.
  * @throws {Error} Naming the note, what is missing and what is extra.

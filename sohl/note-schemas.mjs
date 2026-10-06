@@ -99,36 +99,26 @@ const MACRO_FIELDS = Object.freeze([
 const VEHICLE_FIELDS = Object.freeze([]);
 
 /**
- * A `being` note — an actor, with its body, movement and embedded items.
+ * A `being` note — an actor, with its embedded items and its combat grouping.
+ *
+ * **A being's own document fields are authored under `sohl.system`**, which the
+ * passthrough writes at the DataModel's own paths — a body and the movement that
+ * goes with it are `sohl.system.body`, `sohl.system.currentMoveMedium` and
+ * `sohl.system.movementProfiles`, written together — so this declaration states
+ * none of them. **Attributes and skills are embedded items**, each named by the
+ * catalogue entry it copies, so both are `sohl.items` entries with the score or
+ * the mastery level as that entry's own `system` overlay.
+ *
+ * What is left is the two keys the pass reads off the block itself.
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
 const BEING_FIELDS = Object.freeze([
     {
-        name: "body",
-        ...MAP,
-        describe: "The being's body structure, by part shortcode.",
-    },
-    {
-        name: "attributes",
-        ...MAP,
-        describe: "Attribute scores, by attribute shortcode.",
-    },
-    {
         name: "items",
         ...LIST,
         describe:
             "Items embedded on the being, each addressed by (type, shortcode) or carrying enough fields to stand alone.",
-    },
-    {
-        name: "currentMoveMedium",
-        ...STRING,
-        describe: "Which medium the being is currently moving through.",
-    },
-    {
-        name: "movementProfiles",
-        ...LIST,
-        describe: "Movement rates, one profile per medium.",
     },
     {
         name: "defaultCombatGroup",
@@ -293,14 +283,6 @@ const PRESENTATION_FIELDS = Object.freeze({
             name: "traits",
             ...AS_AUTHORED,
             describe: "Descriptive traits, read by the publishing sites.",
-        },
-    ]),
-    skill: Object.freeze([
-        {
-            name: "strikeMode",
-            ...AS_AUTHORED,
-            describe:
-                "The strike mode a combat technique declares. Compiled, but applied by the builder rather than listed in the type's fields.",
         },
     ]),
     being: Object.freeze([

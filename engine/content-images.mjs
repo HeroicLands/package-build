@@ -16,15 +16,15 @@
  * no way to say. A directive in the curly-attribute convention Pandoc and
  * Kramdown use closes that:
  *
- *     ![Brànwâal Dôrgaar](images/beings/branwldrgr-portrait.webp){float: top-left}
+ *     ![Brànwâal Dôrgaar](images/beings/branwldrgr-portrait.webp){float=top-left}
  *     ![Map of Thalorna](images/map.webp){.full-width}
  *
  * ## Three closed vocabularies, and closed is the point
  *
  * **Width is a class**, and the ordinary width carries no marker at all — the
  * simple case needs no spelling. {@link IMAGE_CLASSES} holds the one class
- * there is. **Position is `float:`**, and {@link IMAGE_FLOATS} holds the five
- * values it takes. **Named size is `size:`**, and {@link IMAGE_SIZES} holds its
+ * there is. **Position is `float`**, and {@link IMAGE_FLOATS} holds the five
+ * values it takes. **Named size is `size`**, and {@link IMAGE_SIZES} holds its
  * values. The HTML surfaces receive a size class; the book receives a print
  * measure.
  *
@@ -58,10 +58,12 @@
  * agree: a figure is a block on all three, and nothing has to decide what a
  * floated run of text inside a paragraph would mean.
  *
- * **The alt text is the caption.** Print has no `alt` attribute and has to put
- * those words somewhere visible; rather than one surface showing them and two
- * hiding them, every surface draws them under the picture, and the HTML
- * surfaces carry them as `alt` as well.
+ * **Alt text renders as a caption on no surface.** A caption is drawn only for
+ * an image inside a captioned item that carries an authored caption, and the
+ * text drawn is always that caption. An image with no fence, or a fence with no
+ * caption, draws no line under the picture anywhere. The HTML surfaces still
+ * carry the alt text as the `img` element's `alt` attribute, for the reader a
+ * screen reader serves.
  *
  * ## Where the address resolves
  *
@@ -77,8 +79,11 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
+import { parseExtensionAttributes } from "./extension-attributes.mjs";
 import { positionInBody } from "./diagnostics.mjs";
+import { FOOTNOTE_REFERENCE } from "./content-footnotes.mjs";
 import { foundryAddressProblem, pathnameProblem, servesFoundry } from "./pathnames.mjs";
+import { ASSET_ROLES } from "./asset-index.mjs";
 
 /**
  * The width classes an image may carry, and what each means to a renderer.
@@ -117,7 +122,7 @@ export const IMAGE_SIZES = Object.freeze([
 ]);
 
 /**
- * The `float:` positions an image may take, and where each puts it.
+ * The `float` positions an image may take, and where each puts it.
  *
  * `align` is the Typst alignment the float is placed at. **Print cannot wrap
  * text around an arbitrary shape**: a Typst float occupies the column measure,
@@ -235,7 +240,6 @@ export function parseImageDirective(raw) {
     /** @type {string[]} */
     const classes = [];
     let size = "auto";
-    let sizeSeen = false;
     let float = "";
     /** @type {string[]} */
     const problems = [];
@@ -245,75 +249,23 @@ export function parseImageDirective(raw) {
         .replace(/\}$/, "");
     if (!inner.trim()) return { classes, size, float, problems };
 
-    // Split on commas, not whitespace: `float: top-left` is one pair with a
-    // space in it, and the space after the colon is the spelling people write.
-    for (const part of inner
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)) {
-        if (part.startsWith(".")) {
-            const name = part.slice(1);
-            if (!Object.prototype.hasOwnProperty.call(IMAGE_CLASSES, name)) {
-                problems.push(
-                    `\`.${name}\` is not a width an image has — the width there is ` +
-                        `is \`.${Object.keys(IMAGE_CLASSES).join("`, `.")}\`, and an image ` +
-                        "with no class at all is the ordinary width",
-                );
-                continue;
-            }
-            if (classes.includes(name)) {
-                problems.push(`\`.${name}\` is written twice, and an image has one width`);
-                continue;
-            }
-            classes.push(name);
-            continue;
-        }
-
-        const colon = part.indexOf(":");
-        if (colon === -1) {
-            problems.push(
-                `\`${part}\` is neither a width class nor \`size: <name>\` or ` +
-                    "`float: <position>` — an image states its width as a class and its position as `float:`, " +
-                    "and it states no dimensions at all",
-            );
-            continue;
-        }
-        const key = part.slice(0, colon).trim();
-        const value = part.slice(colon + 1).trim();
+    const parsed = parseExtensionAttributes(inner);
+    problems.push(...parsed.problems);
+    if (parsed.id) problems.push("an image does not accept an id");
+    for (const name of parsed.classes) {
+        if (!Object.hasOwn(IMAGE_CLASSES, name)) problems.push(`.${name} is not an image width`);
+        else classes.push(name);
+    }
+    for (const [key, value] of Object.entries(parsed.values)) {
         if (key === "size") {
-            if (!IMAGE_SIZES.includes(value)) {
-                problems.push(
-                    `\`size: ${value}\` is not a size — the ones there are: ${IMAGE_SIZES.join(", ")}`,
-                );
-                continue;
-            }
-            if (sizeSeen) {
-                problems.push("`size:` is written twice, and an image has one named size");
-                continue;
-            }
-            size = value;
-            sizeSeen = true;
-            continue;
-        }
-        if (key !== "float") {
-            problems.push(
-                `\`${key}\` is not an image attribute — use \`size\` or \`float\`, ` +
-                    "and width is a class rather than an attribute",
-            );
-            continue;
-        }
-        if (!Object.prototype.hasOwnProperty.call(IMAGE_FLOATS, value)) {
-            problems.push(
-                `\`float: ${value}\` is not a position — the ones there are: ` +
-                    `${Object.keys(IMAGE_FLOATS).join(", ")}`,
-            );
-            continue;
-        }
-        if (float) {
-            problems.push("`float:` is written twice, and an image sits in one place");
-            continue;
-        }
-        float = value;
+            if (!IMAGE_SIZES.includes(value))
+                problems.push(`size=${value} is not a named image size`);
+            else size = value;
+        } else if (key === "float") {
+            if (!Object.hasOwn(IMAGE_FLOATS, value))
+                problems.push(`float=${value} is not an image position`);
+            else float = value;
+        } else problems.push(`${key} is not an image attribute`);
     }
 
     if (classes.length > 1) {
@@ -325,13 +277,27 @@ export function parseImageDirective(raw) {
 }
 
 /**
- * The classes a figure carries, from a parsed directive.
+ * The class a picture's role names, or `""` for no role or one outside the
+ * closed set — the same silent-degrade rule every other unrecognised value
+ * here gets, since a role this far downstream has already been validated or
+ * dropped by the asset record that carries it.
  *
- * @param {{classes?: string[], size?: string, float?: string}} [directive] - As parsed.
+ * @param {string} [role] - The role, from the resolved asset record.
+ * @returns {string} The class, or `""`.
+ */
+export function roleClass(role) {
+    return role && ASSET_ROLES.includes(role) ? `note-image-role-${role}` : "";
+}
+
+/**
+ * The classes a figure carries, from a parsed directive and its asset's role.
+ *
+ * @param {{classes?: string[], size?: string, float?: string, role?: string}} [directive] -
+ *   As parsed, plus the role the resolved asset record carries, if any.
  * @returns {string} A space-separated class list, always naming
  *   {@link IMAGE_FIGURE_CLASS} first.
  */
-export function figureClasses({ classes = [], size = "auto", float = "" } = {}) {
+export function figureClasses({ classes = [], size = "auto", float = "", role = "" } = {}) {
     const names = [IMAGE_FIGURE_CLASS];
     for (const name of classes) {
         const spec = IMAGE_CLASSES[/** @type {keyof typeof IMAGE_CLASSES} */ (name)];
@@ -340,6 +306,8 @@ export function figureClasses({ classes = [], size = "auto", float = "" } = {}) 
     if (size !== "auto" && IMAGE_SIZES.includes(size)) names.push(`note-image-size-${size}`);
     const position = IMAGE_FLOATS[/** @type {keyof typeof IMAGE_FLOATS} */ (float)];
     if (position) names.push(position.class);
+    const roleName = roleClass(role);
+    if (roleName) names.push(roleName);
     return names.join(" ");
 }
 
@@ -365,30 +333,85 @@ export function escapeHtml(text) {
  * function, so the two cannot drift into styling the same directive through
  * different class names.
  *
+ * **No `<figcaption>` is emitted here.** A captioned item draws its own
+ * label and authored caption around whatever this returns; the alt text stays
+ * on the `img` element alone.
+ *
+ * **The role class and the `width`/`height` attributes are what a stylesheet
+ * elsewhere keys a role's size on.** This module states none — the measure a
+ * `portrait` fills on a page is a Hugo theme's or a Foundry system's own
+ * decision — and emits only what the resolved asset record states: a role
+ * class when the picture declares one, and the attributes whenever the
+ * picture resolved to an asset record at all, blank for a vector. The
+ * attributes reserve the picture's own layout space before it loads, which is
+ * what lets a page avoid reflowing as pictures load in.
+ *
  * @param {object} image - The image.
  * @param {string} image.src - The address, resolved for the surface.
- * @param {string} [image.alt] - The alt text, which is also the caption.
+ * @param {string} [image.alt] - The alt text, for a reader who cannot see the
+ *   picture.
  * @param {string[]} [image.classes] - Width classes, from the directive.
  * @param {string} [image.size] - Named display size, from the directive.
  * @param {string} [image.float] - The float position, from the directive.
+ * @param {string} [image.role] - The picture's declared role, from the
+ *   resolved asset record.
+ * @param {number|""} [image.width] - The file's own pixel width, from the
+ *   resolved asset record; `""` for a vector. Omitted entirely when the
+ *   address resolved to no asset record at all.
+ * @param {number|""} [image.height] - As `width`.
  * @returns {string} The figure, as one HTML block.
  */
-export function imageFigureHtml({ src, alt = "", classes = [], size = "auto", float = "" }) {
-    const caption = alt ? `\n<figcaption>${escapeHtml(alt)}</figcaption>` : "";
+export function imageFigureHtml({
+    src,
+    alt = "",
+    classes = [],
+    size = "auto",
+    float = "",
+    role = "",
+    width,
+    height,
+}) {
+    const dims =
+        width !== undefined && height !== undefined ?
+            ` width="${escapeHtml(String(width))}" height="${escapeHtml(String(height))}"`
+        :   "";
     return (
-        `<figure class="${figureClasses({ classes, size, float })}">\n` +
-        `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}">${caption}\n` +
+        `<figure class="${figureClasses({ classes, size, float, role })}">\n` +
+        `<img src="${escapeHtml(src)}" alt="${escapeHtml(alt)}"${dims}>\n` +
         `</figure>`
     );
 }
 
 /**
+ * A body extension's own delimiter — a `:::` opener or closer, or a figure's
+ * `///`.
+ *
+ * It bounds a paragraph exactly as a blank line does: the line belongs to the
+ * construct rather than to the prose, and the pass that owns the construct
+ * hands its body on by itself. So a picture written tight against one is a
+ * block of its own, which is how `:::figure` is written.
+ */
+const DELIMITER = /^(?::{3,}[^\n]*|\/{3,}[ \t]*)$/;
+
+/**
+ * A footnote reference immediately trailing a match, anchored so it only
+ * consumes one sitting right against the end of it.
+ */
+const TRAILING_FOOTNOTE_REFERENCE = new RegExp(`^${FOOTNOTE_REFERENCE.source}`);
+
+/**
  * Whether a match sits alone in its own paragraph.
  *
- * "Alone" is the whole of a block: nothing else on its line, and a blank line
- * or the end of the body either side of it. A leading `>` or list marker
- * disqualifies it for the same reason a word does — the paragraph it belongs to
- * holds something the figure would have to be lifted out of.
+ * "Alone" is the whole of a block: nothing else on its line, and a blank line,
+ * a body-extension delimiter or the end of the body either side of it. A
+ * leading `>` or list marker disqualifies it for the same reason a word does —
+ * the paragraph it belongs to holds something the figure would have to be
+ * lifted out of.
+ *
+ * **A footnote reference trailing the match is not "other text."** `[^note]`
+ * annotates the picture rather than sitting beside it in prose, the same
+ * standing its own directive already has, so `![A ranger](r.webp)[^note]` is
+ * still alone.
  *
  * @param {string} text - The body the match indexes into.
  * @param {number} start - Where the match begins.
@@ -402,12 +425,18 @@ export function standsAlone(text, start, end) {
     // makes it an indented code block, which `matchAllOutsideCode` skips.
     if (!/^[ \t]*$/.test(src.slice(lineStart, start))) return false;
     const lineEnd = src.indexOf("\n", end);
-    if (!/^[ \t]*$/.test(src.slice(end, lineEnd === -1 ? src.length : lineEnd))) return false;
+    const afterMatch = src.slice(end, lineEnd === -1 ? src.length : lineEnd);
+    const reference = TRAILING_FOOTNOTE_REFERENCE.exec(afterMatch);
+    if (!/^[ \t]*$/.test(reference ? afterMatch.slice(reference[0].length) : afterMatch))
+        return false;
 
     const before = src.slice(0, lineStart);
-    if (before.trim() && !/\n[ \t]*\n[ \t]*$/.test(before)) return false;
+    const previous = before.replace(/\n$/, "").split("\n").pop() ?? "";
+    if (before.trim() && !/\n[ \t]*\n[ \t]*$/.test(before) && !DELIMITER.test(previous))
+        return false;
     const after = lineEnd === -1 ? "" : src.slice(lineEnd);
-    if (after.trim() && !/^\n[ \t]*\n/.test(after)) return false;
+    const next = after.replace(/^\n/, "").split("\n")[0] ?? "";
+    if (after.trim() && !/^\n[ \t]*\n/.test(after) && !DELIMITER.test(next)) return false;
     return true;
 }
 
@@ -466,6 +495,9 @@ export function imageSourcesIn(body) {
  * @param {object} [opts]
  * @param {number} [opts.bodyLine=1] - The 1-based file line the body starts on.
  * @param {number} [opts.bodyColumn=1] - The 1-based file column it starts at.
+ * @param {Array<{line: number, generated: boolean}>} [opts.lineMap] - From
+ *   table expansion, mapping each line of `body` back to the line an author
+ *   wrote, for a caller handing in a body whose tables already expanded.
  * @param {object} [opts.config] - The resolved build configuration. Supplied,
  *   an address is also held to the one surface a pathname can be dead on
  *   without any other pass noticing — see the Foundry address below. Omitted,
@@ -475,7 +507,7 @@ export function imageSourcesIn(body) {
  *   severity: "error", message: string}>} One finding per defect, in source
  *   order.
  */
-export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, config } = {}) {
+export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, lineMap, config } = {}) {
     const text = String(body ?? "");
     if (!text) return [];
 
@@ -486,7 +518,7 @@ export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, config }
      * @param {string} message - What is wrong.
      */
     const report = (offset, message) => {
-        const { line, column } = positionInBody(text, offset, { bodyLine, bodyColumn });
+        const { line, column } = positionInBody(text, offset, { bodyLine, bodyColumn, lineMap });
         findings.push({ file, line, column, severity: /** @type {"error"} */ ("error"), message });
     };
 
@@ -506,7 +538,7 @@ export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, config }
             report(
                 image.index,
                 `\`"${image.title}"\` is a title on an image, and no surface here draws ` +
-                    "one — an image's alt text is its caption",
+                    "one — write a leading caption before the image",
             );
         }
         if (!image.block) {
@@ -639,9 +671,13 @@ export function lintContentImages(contentBase, { skipDirectories = [], config } 
  * @param {(src: string) => string} [resolveSrc] - Translates an authored
  *   pathname into the address this surface serves. The default is the identity,
  *   for a caller rendering the format rather than publishing it.
+ * @param {(src: string) => {type?: string, role?: string, width?: number|"", height?: number|""}|undefined}
+ *   [lookupAsset] - What the resolved asset record says about the address, as
+ *   authored — before `resolveSrc` translates it. The default answers nothing,
+ *   which is what an address resolving to no asset record gets anyway.
  * @returns {string} The same body, with each block image as a `<figure>`.
  */
-export function renderImageFigures(body, resolveSrc = (src) => src) {
+export function renderImageFigures(body, resolveSrc = (src) => src, lookupAsset = () => undefined) {
     const text = String(body ?? "");
     let out = "";
     let last = 0;
@@ -650,12 +686,16 @@ export function renderImageFigures(body, resolveSrc = (src) => src) {
         const { classes, size, float, problems } = parseImageDirective(image.directive);
         if (problems.length) continue;
         out += text.slice(last, image.index);
+        const asset = lookupAsset(image.src);
         out += imageFigureHtml({
             src: resolveSrc(image.src),
             alt: image.alt,
             classes,
             size,
             float,
+            role: asset?.role,
+            width: asset?.width,
+            height: asset?.height,
         });
         last = image.index + image.length;
     }
@@ -666,7 +706,7 @@ export function renderImageFigures(body, resolveSrc = (src) => src) {
  * A markdown-it plugin that reads an image's directive and renders its figure.
  *
  * **A core rule, not an inline one.** markdown-it's own `image` rule consumes
- * `![alt](src)` and leaves `{float: top-left}` behind as text, and a rule
+ * `![alt](src)` and leaves `{float=top-left}` behind as text, and a rule
  * running before it would have to re-implement link parsing to find the brace.
  * Reading the token stream afterwards costs one pass and re-implements nothing.
  *
@@ -684,9 +724,13 @@ export function renderImageFigures(body, resolveSrc = (src) => src) {
  *   address into the one this surface serves. Foundry is handed the path inside
  *   the install; a renderer that resolves the address itself — the book stages
  *   its own copy — passes nothing and gets the address as authored.
+ * @param {(src: string) => {type?: string, role?: string, width?: number|"", height?: number|""}|undefined}
+ *   [lookupAsset] - What the resolved asset record says about the address, as
+ *   authored — before `resolveSrc` runs. The default answers nothing, which is
+ *   what an address resolving to no asset record gets anyway.
  * @returns {(md: object) => void} A markdown-it plugin.
  */
-export function imagePlugin(resolveSrc = (src) => src) {
+export function imagePlugin(resolveSrc = (src) => src, lookupAsset = () => undefined) {
     return (md) => {
         /** @type {any} */ (md).core.ruler.push("heroiclands_image", (state) => {
             attachImageDirectives(state.tokens);
@@ -701,12 +745,17 @@ export function imagePlugin(resolveSrc = (src) => src) {
         ) => {
             const token = tokens[idx];
             if (!token.meta?.block) return base(tokens, idx, options, env, self);
+            const src = token.attrGet("src") ?? "";
+            const asset = lookupAsset(src);
             return `${imageFigureHtml({
-                src: resolveSrc(token.attrGet("src") ?? ""),
+                src: resolveSrc(src),
                 alt: token.content ?? "",
                 classes: token.meta.classes,
                 size: token.meta.size,
                 float: token.meta.float,
+                role: asset?.role,
+                width: asset?.width,
+                height: asset?.height,
             })}\n`;
         };
     };

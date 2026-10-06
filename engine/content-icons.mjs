@@ -12,61 +12,22 @@
  */
 
 /**
- * Naming an interface icon in a note, without drawing it there.
+ * Resolve named inline font glyphs from a package's icon registry.
  *
- * The user guide describes Foundry's interface, and it did so by pasting
- * Unicode lookalikes of the icons the sheets actually draw: `☆` for the improve
- * flag, `✎` for the formula editor, `◆` in the success-value table, `★★★` for
- * mastery. The system renders every one of those with **Font Awesome** — a
- * `fa-regular fa-star`, a `fa-solid fa-pen-to-square` — so the note and the
- * screen it describes were drawing different pictures, and drifting apart with
- * every sheet change.
+ * A note writes `:icon warning:` or `:icon warning:{size=2x}`. Registry keys
+ * use lowercase letters, digits and hyphens. The package supplies the font,
+ * stylesheet, glyph name and accessible label. Unknown names remain literal
+ * and produce a warning; malformed syntax and attributes produce errors.
  *
- * They are also the worst characters in the corpus to typeset. Of the eight
- * book faces probed, **none** carries `✕ ✗ ✎ ☆ ⚗ ➕`; in a Libertinus
- * setting `✕` resolves to macOS LastResort, which draws a tofu box.
- *
- * **Neither obvious fix works.** Keeping the dingbats pins the book to some
- * icon-capable font forever, which is the coupling this exists to remove.
- * Pasting Font Awesome's own codepoints is worse: they live in the Private Use
- * Area, which is unassigned by definition, so they break search, copy-paste and
- * screen readers, and no charset check can validate them.
- *
- * So a note **names** an icon and never contains one. `:icon-star-outline:` is
- * ASCII, it is greppable, it survives a charset check, and it degrades to
- * visible literal text on any surface that has not been taught to render it —
- * which is the failure mode you want, because you can see it.
- *
- * **Why a registry rather than the Font Awesome classes.** Three surfaces need
- * three different artefacts from one name: the journals and the website want
- * `<i class="fa-solid fa-star">`, and the PDF wants a font file and a glyph.
- * Only a mapping serves both. It also means a Font Awesome major version that
- * renames an icon — `fa-trash-o` became `fa-trash-can` — costs one line here
- * rather than a sweep of the corpus, and it lets an unknown name be *reported*
- * instead of passing silently through as literal text.
- *
- * **The codepoint is deliberately not here.** A renderer that embeds Font
- * Awesome has to read the font to subset it, and the font's own `cmap` is the
- * only trustworthy source for which glyph a name resolves to. Writing the
- * codepoints out by hand would be a second copy of that table, wrong the first
- * time Font Awesome renumbers anything, and wrong silently. This module states
- * the style and the name; the renderer resolves them against the file it ships.
- *
- * **Licence.** Font Awesome Free's icons are CC BY 4.0 and its fonts SIL OFL
- * 1.1, so a distributed PDF may embed the subset it uses. Attribution belongs
- * in the book's colophon, not in every note.
- *
- * **Every finding here is a `warning`**, so nothing this module says can fail a
- * build — `reportFindings` fails on an error and not on a warning. An
- * undeclared name renders as its own literal text, which is visible on the page
- * and wrong in a way a reader will notice; that deserves to be reported and
- * does not deserve to stop a build that is otherwise correct.
+ * The registry stores glyph names rather than font codepoints. Print reads the
+ * font file's character map, while HTML uses the declared style classes.
  *
  * @module
  */
 
 import fs from "node:fs";
 import path from "node:path";
+import { parseExtensionAttributes } from "./extension-attributes.mjs";
 
 /**
  * A **family** is an icon font, and a consumer declares the ones it ships.
@@ -117,7 +78,7 @@ import path from "node:path";
  *
  * Empty rather than a starter set, because a starter set is a promise about
  * fonts this package does not ship. A tree with no `icons:` configured names no
- * icons, and `:icon-star:` in one of its notes renders as its own literal text
+ * icons, and `:icon star:` in one of its notes renders as its own literal text
  * and is reported — which is the visible failure, not a silent one.
  *
  * @type {IconRegistry}
@@ -203,22 +164,11 @@ export function parseIconAttributes(raw) {
     const problems = [];
     if (!raw || !raw.trim()) return { attrs, problems };
 
-    // Split on commas, not whitespace: `size: 2x` is one pair with a space in
-    // it, and the space after the colon is the whole point of the spelling.
-    for (const part of raw
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean)) {
-        const colon = part.indexOf(":");
-        if (colon === -1) {
-            problems.push(
-                `\`${part}\` is not a \`key: value\` attribute — an icon takes ` +
-                    `${Object.keys(ICON_ATTRIBUTES).join(", ")}`,
-            );
-            continue;
-        }
-        const key = part.slice(0, colon).trim();
-        const value = part.slice(colon + 1).trim();
+    const parsed = parseExtensionAttributes(raw);
+    problems.push(...parsed.problems);
+    if (parsed.id) problems.push("an icon does not accept an id");
+    if (parsed.classes.length) problems.push("an icon does not accept classes");
+    for (const [key, value] of Object.entries(parsed.values)) {
         const spec =
             Object.prototype.hasOwnProperty.call(ICON_ATTRIBUTES, key) ?
                 ICON_ATTRIBUTES[key]
@@ -232,7 +182,7 @@ export function parseIconAttributes(raw) {
         }
         if (!spec.values.includes(value)) {
             problems.push(
-                `\`${key}: ${value}\` is not one of ${spec.values.join(", ")} — ` +
+                `\`${key}=${value}\` is not one of ${spec.values.join(", ")} — ` +
                     `${key} says ${spec.describe}`,
             );
             continue;
@@ -245,25 +195,16 @@ export function parseIconAttributes(raw) {
 /**
  * The shape a note writes, and the one this module claims.
  *
- * The `icon-` prefix is what keeps it out of the way of an emoji shortcode: a
- * surface that also renders `:smile:` can tell the two apart without a lookup,
- * and a reader can tell what `:icon-star:` is without knowing this module
- * exists. Names are lowercase, digits and hyphens — the charset an address
- * segment already uses, so nothing new has to be explained.
+ * The `icon` keyword distinguishes inline glyphs from asset Addresses and
+ * other colon-based shorthand. Names use lowercase letters, digits and
+ * hyphens, and each name resolves in the package's declared icon registry.
  *
- * Not `:name[content]`. That is remark-directive syntax, and this toolchain
- * parses with markdown-it; a directive would render as its own literal text.
+ * An optional brace carries attributes, for example:
  *
- * An optional trailing brace carries **attributes**:
+ *     :icon affiliation:{size=2x}
  *
- *     :icon-affiliation:{size: 2x}
- *
- * `key: value` pairs, comma-separated, in the shape `markdown-it-attrs` and
- * remark-directive already use — so it is a convention a reader may recognise
- * rather than one this module invented. Attributes rather than a bare value
- * because `size` is merely the first one anybody needed: a fixed-width flag, a
- * rotation, a title override are the same shape of thing, and a syntax that
- * could only ever express size would have to be replaced to gain any of them.
+ * Attributes are whitespace-separated `key=value` pairs. The closed `size`
+ * values are declared in {@link ICON_SIZES}.
  *
  * One inline rule consumes the token **and** its brace, so there is no state in
  * which the icon resolves and the brace is left stranded on the page. An
@@ -271,12 +212,13 @@ export function parseIconAttributes(raw) {
  *
  * @type {RegExp}
  */
-export const ICON_PATTERN = /:icon-([a-z0-9]+(?:-[a-z0-9]+)*):(?:\{([^}]*)\})?/g;
+export const ICON_PATTERN = /:icon ([a-z0-9]+(?:-[a-z0-9]+)*):(?:\{([^}]*)\})?/g;
+const OBSOLETE_ICON_PATTERN = /:icon-([a-z0-9]+(?:-[a-z0-9]+)*):(?:\{([^}]*)\})?/g;
 
 /**
  * Look one name up.
  *
- * @param {string} name - The name written between the colons, without `icon-`.
+ * @param {string} name - The name written between the colons, without `icon `.
  * @param {IconRegistry} [registry] - The package's registry.
  * @returns {object|null} The entry, or `null` when the registry does not
  *   declare it.
@@ -355,17 +297,28 @@ export function iconsIn(text) {
  * Report every icon a tree names that its registry does not declare.
  *
  * The whole point of a registry is that a typo is answerable, so this is the
- * half that makes `:icon-stra:` a finding rather than three words of literal
+ * half that makes `:icon stra:` a finding rather than three words of literal
  * text nobody notices in a rendered page.
  *
  * @param {string} text - The file's contents.
  * @param {string} file - Path to report.
  * @param {IconRegistry} [registry] - The package's registry.
  * @returns {Array<{file: string, line: number, column: number,
- *   severity: "warning", message: string}>} The unknown names.
+ *   severity: "warning"|"error", message: string}>} The findings.
  */
 export function lintIcons(text, file, registry = EMPTY_ICON_REGISTRY) {
     const findings = [];
+    for (const match of text.matchAll(OBSOLETE_ICON_PATTERN)) {
+        const index = match.index ?? 0;
+        const before = text.slice(0, index);
+        findings.push({
+            file,
+            line: before.split("\n").length,
+            column: index - (before.lastIndexOf("\n") + 1) + 1,
+            severity: "error",
+            message: `\`${match[0]}\` needs the form \`:icon ${match[1]}:\``,
+        });
+    }
     for (const { name, index, raw, problems } of iconsIn(text)) {
         const before = text.slice(0, index);
         const line = before.split("\n").length;
@@ -380,7 +333,7 @@ export function lintIcons(text, file, registry = EMPTY_ICON_REGISTRY) {
                 ...at,
                 message:
                     `\`${raw}\` names an icon the registry does not declare` +
-                    (suggestion ? `; did you mean \`:icon-${suggestion}:\`?` : "") +
+                    (suggestion ? `; did you mean \`:icon ${suggestion}:\`?` : "") +
                     ` — an undeclared name renders as its own literal text`,
             });
             // The name is the bigger fault; reporting its attributes as well
@@ -392,7 +345,7 @@ export function lintIcons(text, file, registry = EMPTY_ICON_REGISTRY) {
         // and renders differently from what was asked for, which is the case
         // nobody notices without being told.
         for (const problem of problems) {
-            findings.push({ ...at, message: `\`${raw}\`: ${problem}` });
+            findings.push({ ...at, severity: "error", message: `\`${raw}\`: ${problem}` });
         }
     }
     return findings;
@@ -612,11 +565,11 @@ export function lintContentIcons(contentBase, { skipDirectories = [], registry }
 }
 
 /**
- * A markdown-it plugin rendering `:icon-name:` inline.
+ * A markdown-it plugin rendering `:icon name:` inline.
  *
  * An unknown name is left **exactly as written** rather than dropped. The name
  * is reported by {@link lintIcons}, and a rendered page that still shows
- * `:icon-stra:` is how the author finds it without reading a log.
+ * `:icon stra:` is how the author finds it without reading a log.
  *
  * **A function is accepted as well as a table**, and resolved per render. The
  * shared markdown-it instance is a module-level constant, so it is built before
@@ -645,7 +598,7 @@ export function iconPlugin(registry = EMPTY_ICON_REGISTRY) {
             if (state.src.charCodeAt(start) !== 0x3a /* : */) return false;
             // Anchored at the cursor, so the scan is O(token) rather than a
             // search of the remaining source at every colon in the paragraph.
-            const re = /^:icon-([a-z0-9]+(?:-[a-z0-9]+)*):(?:\{([^}]*)\})?/;
+            const re = /^:icon ([a-z0-9]+(?:-[a-z0-9]+)*):(?:\{([^}]*)\})?/;
             const m = re.exec(state.src.slice(start));
             if (!m) return false;
 

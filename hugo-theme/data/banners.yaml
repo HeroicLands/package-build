@@ -1,0 +1,69 @@
+# Which banner images exist in the shared artwork set.
+#
+# `partials/hero-banner.html` resolves a page's hero image to a path under
+# `images/banners/`, and that path is emitted into a `background-image` with no
+# way to test it: the artwork is served from the consuming site's
+# `params.cdnBaseURL`, and Hugo cannot ask a remote host whether a URL exists.
+# So a banner that was never drawn used to 404 in silence — the band rendered
+# with its title, palette and gradient intact and a dead image URL behind it,
+# and nothing failed: not the build, not Hugo, not the deploy guard
+# (issue #36).
+#
+# This file is the declaration that replaces that missing test. A name listed
+# here is asserted to exist; a resolved banner whose name is absent falls back
+# to `default.webp` and Hugo warns once for it during the consumer's build.
+#
+# It speaks for the names this theme resolves itself — a hand-authored
+# `banner:` and the subtype defaults below. A note's own `data.banner` arrives
+# already resolved from an asset Address, against a real asset record, so it is
+# used as given and never looked for here.
+#
+# Keeping it in step is not left to hope: `npm run lint:banners`
+# (`ci/check-banners.mjs`, part of `npm run lint`) fetches every name below
+# from a real asset host and fails on any non-200. Add a name here only after
+# the file is published, or the check will say so.
+#
+# A consumer publishing its own artwork set overrides the whole list by
+# shipping its own `data/banners.yaml` — Hugo reads the site's data directory
+# in preference to the theme's.
+
+# The asset root every name below is resolved under, and the name used when a
+# resolved banner is not in `available`. Both are relative to the consuming
+# site's `params.cdnBaseURL`, like every other image path in this theme.
+dir: images/banners
+fallback: default.webp
+
+# Verified against https://cdn.heroiclands.org on 2026-08-29.
+available:
+    - affliction
+    - armor-clothing
+    - character
+    - company
+    - containers
+    - continent
+    - creature
+    - default
+    - dev-docs
+    - faith
+    - fvtt-add-on-modules
+    - fvtt-cc-anvil
+    - misc-gear
+    - module-dnload
+    - mystical-abilities
+    - orators-chance
+    - organization
+    - pantheon
+    - people
+    - projectiles
+    - region
+    - rules
+    - settlement
+    - site
+    - skills-attributes
+    - sohl-icon-3d-1920x1080
+    - ta-kheperu-banner
+    - tamzir-banner
+    - tapestry-of-dreams
+    - trauma
+    - user-guide
+    - weapons

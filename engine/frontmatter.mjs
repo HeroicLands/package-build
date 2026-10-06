@@ -36,6 +36,10 @@ import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 /**
  * Resolves a dotted frontmatter key (e.g., "name.full") into the nested
  * value. Returns `defaultValue` if any path segment is missing.
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} key - A top-level or dotted property path.
+ * @param {unknown} [defaultValue] - Value for a missing property.
+ * @returns {unknown} The property value or default.
  */
 export function getFrontmatter(fm, key, defaultValue = undefined) {
     if (fm == null || typeof fm !== "object") return defaultValue;
@@ -53,6 +57,10 @@ export function getFrontmatter(fm, key, defaultValue = undefined) {
  * Reads a key from `fm.sohl` (the vault's nested system-fields block).
  * Supports dotted notation, e.g. sohlField(fm, "charges.value", 0).
  * Falls back to top-level `fm[key]` if `sohl` doesn't carry the key.
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} key - A top-level or dotted property path.
+ * @param {unknown} [defaultValue] - Value for a missing property.
+ * @returns {unknown} The system value, top-level value, or default.
  */
 export function sohlField(fm, key, defaultValue = undefined) {
     if (fm == null || typeof fm !== "object") return defaultValue;
@@ -301,14 +309,14 @@ export function resolveRelation(fm, ctx = "item") {
  *
  * @param {object} fm - The item frontmatter.
  * @param {string} [ctx] - Optional label for the error (defaults to the item's
- *   title/name, else "item").
+ *   display name, else "item").
  * @returns {string} The declared subType.
  * @throws {Error} When `subType` is missing or blank.
  */
 export function requireSubType(fm, ctx) {
     const subType = sohlSystemField(fm, "subType", undefined);
     if (subType == null || subType === "") {
-        const label = ctx || fm?.title || fm?.name || "item";
+        const label = ctx || fm?.name?.full || "item";
         throw new Error(
             `${label}: missing required 'subType' — every subType-bearing item must declare its kind (the builder substitutes no default).`,
         );
@@ -321,6 +329,8 @@ export function requireSubType(fm, ctx) {
  *   - Array of "Label:MaxValue" strings, e.g. ["Ugly:4", "Plain:12"]
  *   - Array of objects, e.g. [{ label, maxValue }]
  * Returns a normalized array of `{ label, maxValue: number }`.
+ * @param {unknown} raw - An authored threshold array.
+ * @returns {Array<{label: string, maxValue: number}>} Normalized thresholds.
  */
 export function parseValueDesc(raw) {
     if (!raw || !Array.isArray(raw)) return [];
@@ -369,7 +379,7 @@ export function parseValueDesc(raw) {
  *   two spellings, and there is only one left to be.
  */
 export function folderField(fm) {
-    const asAddress = fm?.sohl?.packFolder ?? fm?.data?.packFolder ?? fm?.packFolder ?? null;
+    const asAddress = fm?.sohl?.packFolder ?? fm?.data?.packFolder ?? null;
     if (asAddress != null && asAddress !== "") return { value: asAddress, isAddress: true };
     return { value: null, isAddress: true };
 }

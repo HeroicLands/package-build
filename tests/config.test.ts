@@ -523,9 +523,7 @@ describe("checkHomepage — package.json's homepage, against contentPackage", ()
         ).toThrow(/harnensemble/);
     });
 
-    // Every package publishes a site, so there is no "no web presence" case —
-    // unlike `publish.site`, `homepage` has no floor a package can sit at
-    // without one.
+    // Every package publishes an authored homepage.
     it("requires a homepage unconditionally, naming the key and the expected value", () => {
         expect(() => checkHomepage(null, "harnensemble")).toThrow(/`homepage`.*is not declared/);
         expect(() => checkHomepage(null, "harnensemble")).toThrow(

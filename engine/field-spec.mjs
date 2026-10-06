@@ -84,19 +84,21 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   retiring one — so a field can move into `data:` while the corpus catches
  *   up, instead of on a flag day across four repositories. A declaration that
  *   names one is mid-sweep by construction; see {@link readsLegacyKey}.
- * @property {string} [topLevelMeans] - **What the note's top-level key of this
- *   name means instead** — declared only where it means something else, and
- *   stating it removes the shared top-level position from this field's
- *   resolution order.
+ * @property {string} [topLevelMeans] - **Why the note's top-level key of this
+ *   name is not this field's source** — declared wherever that key's spelling
+ *   means something else at the note level, or the closed top-level
+ *   vocabulary refuses it outright, and stating either removes the shared
+ *   top-level position from this field's resolution order.
  *
  *   A field's `name` doubles as its identity and as the shared property it
  *   draws from, which is right wherever the two levels state the same quantity
  *   — `data.weight` is the weight, whoever reads it. It is wrong wherever a
- *   spelling collides across the two vocabularies. An `affiliation` item's
+ *   spelling collides across the two vocabularies, or names a key the closed
+ *   top-level vocabulary does not admit at all. An `affiliation` item's
  *   `system.title` is the style of address an office carries; a note's
- *   top-level `title` is the note's own heading. Nothing relates them, and
- *   before this key one silently fed the other, stringifying an authored
- *   `title: null` into fifteen documents.
+ *   top-level `title` is refused outright. Nothing relates them, and before
+ *   this key one silently fed the other, stringifying an authored `title:
+ *   null` into fifteen documents.
  *
  *   **The value is the reason**, not a flag with a comment beside it. A boolean
  *   would record the decision and lose the case for it, and the next person
@@ -161,6 +163,9 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   which is a Shortcode at both ends and resolves nothing.
  * @property {any|((fm: object) => any)} [value] - For a field with no `name`:
  *   the constant, or a function deriving it from the frontmatter.
+ * @property {(fm: object, out: object) => boolean} [when] - Emit this field
+ *   only when the note and fields already built meet the condition. The path
+ *   remains declared for schema checks and authoring validation.
  * @property {boolean} [omitWhenAbsent] - **The key is left out entirely when
  *   the note does not carry the field**, rather than written from a
  *   declared default.
@@ -460,6 +465,7 @@ export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetired
     return function buildDeclaredSystem(fm) {
         const out = {};
         for (const field of fields) {
+            if (field.when && !field.when(fm, out)) continue;
             // A runtime-only field is not this builder's to write. It is
             // declared so that the path is *claimed* — so the verbatim
             // passthrough leaves it alone and the refusal has a name — not so

@@ -1,0 +1,15 @@
+{{- /*
+  One entry of a `runin` group or a `list` section.
+
+  An entry is `{text, url}`. It links when the build reached the page it
+  names, and keeps its words when it did not — a panel naming something this
+  site does not publish is better than a panel silently one entry short.
+
+  Takes `entry` and the `class` its medium gives it.
+*/ -}}
+{{- $entry := .entry -}}
+{{- with $entry.url -}}
+<a class="{{ $.class }}" href="{{ . }}">{{ $entry.text }}</a>
+{{- else -}}
+<span class="{{ $.class }}">{{ $entry.text }}</span>
+{{- end -}}

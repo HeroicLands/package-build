@@ -1,3 +1,10 @@
+---
+shortcode: guidessite
+name: { full: "Build a content website" }
+type: doc
+subType: howto
+---
+
 # Build a content website
 
 `package-build site` turns the package's content notes into a Hugo source
@@ -5,8 +12,8 @@ tree. Hugo renders that tree with the shared theme. The build reads the same
 note addresses used by content indexes and links, so a page's URL follows the
 note it publishes.
 
-The site has an authored homepage and, when `publish.site: content`, one page
-for each publishable note. The [configuration reference](../configuration.md)
+The site has an authored homepage and one page for each other publishable note
+in the content tree. The [configuration reference](../configuration.md)
 defines the site settings; the [command reference](../commands.md) lists the
 build actions and options.
 
@@ -34,26 +41,21 @@ it with `[[homepage-root|The Setting Guide]]`. The homepage creates no
 Foundry compendium document and has no document ID. Its filename does not
 decide its role; the frontmatter does.
 
-`publish.site` controls the rest of the site:
-
-| Mode       | Pages                                   |
-| ---------- | --------------------------------------- |
-| `homepage` | The homepage only. This is the default. |
-| `content`  | The homepage and the content pages.     |
-
-The homepage-only mode does not walk and publish the note tree as web pages.
-The content index is a separate build artifact and is still emitted by
+The content tree controls the rest of the site. A tree containing only its
+homepage publishes that page alone. Each additional publishable note becomes
+its own page. The content index is a separate build artifact emitted by
 `package-build content-index`.
+
+Remove `publish.site` from package configurations. The presence of content
+notes determines whether the site and book contain pages beyond the homepage.
 
 ## Configure the site frame
 
-A site with content pages declares its publication mode, asset host, and
-description. A documentation package can give the site its own title; a
+A site with content pages declares its asset host and description. A
+documentation package can give the site its own title; a
 Foundry package can use its manifest title:
 
 ```yaml
-publish:
-  site: content
 site:
   title: The Setting Guide
   assets: https://cdn.heroiclands.org
@@ -114,8 +116,8 @@ notes is therefore a set of authored pages, each choosing its own contents.
 
 Wikilinks resolve through the address index. Each emitted page receives
 derived `related` entries for its outgoing links and backlinks. Place pages
-can receive `contains` and `held_by` entries from place parents and
-affiliation domains; affiliation pages can receive `holdings`. These values
+can receive `contains` from place parents and `governed_by` from their own explicit
+`data.government`; affiliation pages can receive `governed_places` from resolved government references. These values
 come from the content graph and should be read as generated page metadata.
 
 Place relationships can also produce a map alongside the page. The page
@@ -129,6 +131,47 @@ before wikilinks resolve. The pass runs inside code-fence protection, so a
 fenced example remains literal. `site.passOptions` supplies that named pass's
 options. This is a package-specific extension point; keep the general note
 format and link behavior in the [content format](../content-format.md).
+
+## What an emitted page carries
+
+A theme reads the front matter `package-build site` writes: the note's own
+front matter, plus the values the build derives. Which is which matters,
+because an authored value under a derived key is discarded.
+
+The build always writes `title`, `slug`, `url`, `kbfolder`, `package` and
+`infoboxes`. `title` is the note's name, `url` is the page's address, and
+`slug` is that address's last segment. `package` names the package shipping the
+note. `infoboxes` is assembled from the note's own fields, so no note authors
+it and nothing in the note format accepts it.
+
+The build writes `resolvedDates`, `related`, `contains`, `governed_by`, `governed_places`,
+`works` and `map` only when it has something to write. A page with no links either way
+carries no `related`, and a place with no drawing carries no `map`.
+
+An authored `aliases`, `related`, `contains`, `governed_by`, `governed_places`, `works` or
+`map` is dropped. Each states a fact about the whole tree rather than about one note, so
+the build replaces whatever a note wrote.
+
+Artwork addresses are rewritten in place under `data`. A page's `data.icon`,
+`data.bgImage` and `data.banner` carry the URLs the site serves rather than the
+addresses the note authored, and there are four cases to tell apart:
+
+| The note writes              | The page carries |
+| ---------------------------- | ---------------- |
+| an address something answers | the resolved URL |
+| an address nothing answers   | no key at all    |
+| `null`                       | `null`           |
+| `""`                         | `""`             |
+
+An address nothing answers is deleted rather than written through, so an absent
+key is the ordinary case for a theme to render nothing against, and no page
+reaches a reader carrying a broken image source. The two empties are distinct
+and both survive: `null` is a note naming no art, where a default may apply,
+and `""` is a note refusing art, where no default may replace it.
+
+The build writes these keys; [what the theme draws](../reference/theme-pages.md)
+describes the panel each one feeds — the infobox, the hero band, the government
+and related cards, the place map, and search.
 
 ## Build and serve
 

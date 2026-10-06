@@ -8,6 +8,7 @@ import {
 import { prepareInlineSqlExpressions } from "../engine/sql-tables.mjs";
 import { parseAddress } from "../engine/address.mjs";
 import { resolveReckoningMarkers } from "../engine/reckoning-markers.mjs";
+import { numberWords, numberDigits } from "../engine/number-words.mjs";
 
 const months = Array.from({ length: 12 }, (_, index) => ({
     name: `Month ${index + 1}`,
@@ -18,18 +19,25 @@ const dates = {
         {
             notes: [
                 {
+                    package: "thalorna",
                     fm: {
-                        package: "thalorna",
                         shortcode: "vrcal",
                         type: "lore",
                         subType: "calendar",
                         data: {
+                            epoch: "1.1",
                             months,
                             eras: [
                                 {
+                                    shortcode: "before",
+                                    name: "Before",
+                                    abbreviation: "BF",
+                                    start: null,
+                                },
+                                {
                                     shortcode: "founding",
                                     marker: "VR",
-                                    start: "1.1",
+                                    start: 1,
                                     label: { after: "{date} AF", before: "{date} BF" },
                                 },
                             ],
@@ -53,11 +61,11 @@ describe("Markdown expressions", () => {
     });
 
     it("accepts an era qualifier and a frontmatter date argument", () => {
-        const result = renderMarkdownExpressions('{{dateformat "vrcal.founding" data.born}}', {
+        const result = renderMarkdownExpressions('{{dateformat "vrcal.before" data.born}}', {
             fm: { data: { born: "-300.25" } },
             dates,
         });
-        expect(result).toEqual({ markdown: "301/1/25 BF", findings: [] });
+        expect(result).toEqual({ markdown: "25 Month 1 300 BF", findings: [] });
     });
 
     it("uses the note's calendar Address as a helper argument", () => {
@@ -102,6 +110,50 @@ describe("Markdown expressions", () => {
             markdown: "12 true",
             findings: [],
         });
+    });
+
+    it("formats a scalar count as words or grouped digits without changing its numeric value", async () => {
+        const query = "SELECT 12345 AS n";
+        const source = `{{words (sql "${query}")}}; {{digits (sql "${query}")}}; {{gt (sql "${query}") 10000}}`;
+        const prepared = await prepareInlineSqlExpressions(
+            { query: async () => ({ columnNames: ["n"], rows: [{ n: 12345n }] }) },
+            [{ source: "Aran.md", markdown: source, frontmatter: {} }],
+        );
+        expect(renderMarkdownExpressions(source, { sqlResults: prepared.get("Aran.md") })).toEqual({
+            markdown: "twelve thousand three hundred forty-five; 12,345; true",
+            findings: [],
+        });
+        expect(numberWords(-201n)).toBe("minus two hundred one");
+        expect(numberDigits(1200.5)).toBe("1,200.5");
+    });
+
+    it("leaves escaped expressions, Hugo shortcodes, and code examples literal", () => {
+        const source = "\\{{words 12}} {{< photo >}} `{{words 12}}` {{words 12}}";
+        expect(renderMarkdownExpressions(source)).toEqual({
+            markdown: "\\{{words 12}} {{< photo >}} `{{words 12}}` twelve",
+            findings: [],
+        });
+    });
+
+    it("reports empty SQL values instead of inserting an empty string into prose", async () => {
+        const source = '{{sql "SELECT NULL AS n"}}';
+        const prepared = await prepareInlineSqlExpressions(
+            { query: async () => ({ columnNames: ["n"], rows: [{ n: null }] }) },
+            [{ source: "Aran.md", markdown: source, frontmatter: {} }],
+        );
+        const result = renderMarkdownExpressions(source, {
+            sqlResults: prepared.get("Aran.md"),
+            file: "Aran.md",
+            bodyLine: 8,
+        });
+        expect(result.findings).toEqual([
+            expect.objectContaining({
+                line: 8,
+                column: 1,
+                severity: "error",
+                message: expect.stringContaining("scalar SQL result is empty"),
+            }),
+        ]);
     });
 
     it("reads a SQL query string from frontmatter", async () => {
@@ -169,4 +221,17 @@ describe("Markdown expressions", () => {
             }),
         ]);
     });
+});
+
+// Unnumbered captions have a title but cannot supply a numbered reference.
+it("references unnumbered captions by title or full text", () => {
+    const figures = { get: () => ({ label: "", caption: "A caption", hasCaption: true }) };
+    for (const form of ["title", "full"]) {
+        const result = renderMarkdownExpressions(`{{ref "#a" form="${form}"}}`, { figures });
+        expect(result.findings).toEqual([]);
+        expect(result.markdown).toBe("[A caption](#a)");
+    }
+    expect(renderMarkdownExpressions('{{ref "#a"}}', { figures }).findings[0].message).toContain(
+        "unnumbered",
+    );
 });

@@ -17,6 +17,7 @@ import {
     CONTENT_FORMAT_PATH,
     loadContentFormat,
     parseContentFormat,
+    parseStructuredContentFormat,
 } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -33,6 +34,36 @@ const FIXTURE_SCHEMA = path.join(here, "fixtures", "content-format", "schema-soh
 
 const messages = (findings: Array<{ message: string }>) =>
     findings.map((f) => f.message).join("\n");
+
+describe("the structured format contract", () => {
+    const source = [
+        "version: 1",
+        "types:",
+        "  weapon:",
+        "    data: [weight]",
+        "    subTypes: [melee]",
+        "claims:",
+        "  - { noteType: weapon, system: sohl, source: data.weight, target: system.weightBase }",
+        "vocabularies:",
+        "  mode: [melee]",
+    ].join("\n");
+
+    it("reads types, mappings, and vocabularies with source positions", () => {
+        const format = parseStructuredContentFormat(source, { file: "format.yaml" });
+        expect(format.types.get("weapon")?.dataKeys.has("weight")).toBe(true);
+        expect(format.types.get("weapon")?.subTypes).toEqual(["melee"]);
+        expect(format.claims[0]).toMatchObject({ line: 7, noteType: "weapon" });
+        expect(format.vocabularies.get("mode")?.values).toEqual(["melee"]);
+    });
+
+    it("locates a malformed type at its declaration", () => {
+        expect(() =>
+            parseStructuredContentFormat(source.replace("data: [weight]", "data: invalid"), {
+                file: "format.yaml",
+            }),
+        ).toThrow(/format\.yaml:4:\d+: error: type weapon needs data and subTypes lists/);
+    });
+});
 
 /** A miniature specification, in the shape the real one has. */
 const MINI = [
@@ -248,11 +279,11 @@ describe("the shipped specification", () => {
 
     it("is the committed document", () => {
         expect(fs.existsSync(CONTENT_FORMAT_PATH)).toBe(true);
-        expect(CONTENT_FORMAT_PATH.endsWith(path.join("docs", "content-format.md"))).toBe(true);
+        expect(CONTENT_FORMAT_PATH.endsWith(path.join("engine", "content-format.yaml"))).toBe(true);
     });
 
     it("makes every mapping claim its tables state", () => {
-        expect(format.claims).toHaveLength(77);
+        expect(format.claims).toHaveLength(76);
         expect([...new Set(format.claims.map((c) => c.system))].sort()).toEqual(["hm3", "sohl"]);
     });
 
@@ -354,7 +385,7 @@ describe("the specification against the committed fixture schema", () => {
         const artifact = JSON.parse(fs.readFileSync(FIXTURE_SCHEMA, "utf8"));
         const { findings, checked } = checkSchemaTargets({ format, schemas: { sohl: artifact } });
         expect(messages(findings)).toBe("");
-        expect(checked).toBe(60);
+        expect(checked).toBe(59);
     });
 });
 
@@ -618,6 +649,13 @@ describe("lore declares a genre for a scheduled public occasion", () => {
         expect(NOTE_VOCABULARY.lore.subTypes).toContain("gathering");
     });
 
+    // A composed work a people keeps and performs. Every other lore subType
+    // names what a note is about; filing an epic under `history` asserts that it
+    // happened, and under `theology` that it is a belief about the divine.
+    it("declares `literature`", () => {
+        expect(NOTE_VOCABULARY.lore.subTypes).toContain("literature");
+    });
+
     it("does not spell it `festival` or `event`", () => {
         expect(NOTE_VOCABULARY.lore.subTypes).not.toContain("festival");
         expect(NOTE_VOCABULARY.lore.subTypes).not.toContain("event");
@@ -630,4 +668,32 @@ describe("lore declares a genre for a scheduled public occasion", () => {
     // own business: `content-format-agreement.test.ts` compares every type's
     // documented genres to its declared ones, in both directions and in order,
     // which is where this type's assertion now lives.
+});
+
+describe("custom lore", () => {
+    it("uses the ordinary lore address", () => {
+        expect(packageAddress({ type: "lore", subType: "custom", shortcode: "greeting" })).toBe(
+            "lore-greeting/",
+        );
+    });
+});
+
+describe("retired affiliation domains during migration", () => {
+    it("accepts ignored legacy input but removes its canonical field and mapping", () => {
+        const format = loadContentFormat();
+        const findings = measureNote(
+            { fm: { type: "affiliation", data: { domains: ["temple"] } } },
+            format,
+        );
+        expect(findings).toEqual([]);
+        expect(format.types.get("affiliation")?.dataKeys.has("domains")).toBe(false);
+        expect(format.claims.some((row: any) => row.source === "data.domains")).toBe(false);
+    });
+    it("continues to reject domains on other note types", () => {
+        const findings = measureNote(
+            { fm: { type: "place", data: { domains: [] } } },
+            loadContentFormat(),
+        );
+        expect(findings.some((finding: any) => finding.class === "unknown-data-key")).toBe(true);
+    });
 });

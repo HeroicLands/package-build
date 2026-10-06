@@ -149,3 +149,15 @@ describe("matchAllOutsideCode", () => {
         expect(hits).toEqual(["a-b", "g-h"]);
     });
 });
+
+describe("poetry inline content", () => {
+    it("rewrites verse links while protecting inline code and fence attributes", () => {
+        expect(rewrite('```poetry {meter="[[literal]]"}\n  [[verse]] `[[code]]`\n```')).toBe(
+            '```poetry {meter="[[literal]]"}\n  X `[[code]]`\n```',
+        );
+    });
+    it("protects poetry inside an outer code example", () => {
+        const src = "````md\n```poetry\n[[literal]]\n```\n````";
+        expect(rewrite(src)).toBe(src);
+    });
+});

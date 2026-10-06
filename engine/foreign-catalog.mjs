@@ -38,6 +38,12 @@
  * local pack's output — the resolution logic needs no knowledge of where an
  * item came from.
  *
+ * `assetArchive: true` is the sibling flag, for a dependency whose bytes are
+ * wanted and whose items are not: an asset-replacement source such as
+ * `thalornaaltart` ships no Item packs at all. It unpacks the same release
+ * archive without extracting anything from it, so a relationship declaring
+ * both flags on one entry is fetched once rather than twice.
+ *
  * **The network is never touched by a compile.** Fetching is its own command
  * (`package-build deps fetch`), and a compile whose cache is cold fails saying
  * so. A build that silently downloads is not reproducible, fails strangely
@@ -56,7 +62,6 @@ import os from "node:os";
 import path from "node:path";
 
 import { unzipSync } from "fflate";
-import { extractPack } from "@foundryvtt/foundryvtt-cli";
 
 import log from "loglevel";
 
@@ -73,17 +78,22 @@ import {
 const STAMP = ".complete";
 
 /**
- * Every declared relationship that opted into supplying an item catalogue.
+ * Every declared relationship carrying a given flag, in declaration order.
+ *
+ * Shared by {@link itemCatalogRelationships} and
+ * {@link assetArchiveRelationships}: both read the same shape out of the same
+ * walk, filtered on a different key.
  *
  * @param {object} config - The resolved build configuration.
+ * @param {"itemCatalog"|"assetArchive"} flag - Which boolean to filter on.
  * @returns {Array<{id: string, manifest: string, kind: string, verified: string|undefined}>}
- *   The opted-in relationships, in declaration order.
+ *   The opted-in relationships.
  */
-export function itemCatalogRelationships(config) {
+function flaggedRelationships(config, flag) {
     const out = [];
     for (const [kind, entries] of Object.entries(config.relationships ?? {})) {
         for (const rel of entries ?? []) {
-            if (rel.itemCatalog) {
+            if (rel[flag]) {
                 out.push({
                     id: rel.id,
                     manifest: rel.manifest,
@@ -94,6 +104,29 @@ export function itemCatalogRelationships(config) {
         }
     }
     return out;
+}
+
+/**
+ * Every declared relationship that opted into supplying an item catalogue.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {Array<{id: string, manifest: string, kind: string, verified: string|undefined}>}
+ *   The opted-in relationships, in declaration order.
+ */
+export function itemCatalogRelationships(config) {
+    return flaggedRelationships(config, "itemCatalog");
+}
+
+/**
+ * Every declared relationship that opted into supplying its release archive
+ * for asset bytes alone, with no item catalogue built from it.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {Array<{id: string, manifest: string, kind: string, verified: string|undefined}>}
+ *   The opted-in relationships, in declaration order.
+ */
+export function assetArchiveRelationships(config) {
+    return flaggedRelationships(config, "assetArchive");
 }
 
 /**
@@ -292,6 +325,8 @@ async function extractItemPacks(id, version, manifest, root, dir) {
                 `cannot supply an item catalogue`,
         );
     }
+    // Loaded here so importing the content index does not load the extractor.
+    const { extractPack } = await import("@foundryvtt/foundryvtt-cli");
     for (const pack of itemPacks) {
         const src = resolvePackPath(root, pack.path);
         if (!src) {
@@ -366,15 +401,21 @@ export function pinnedManifestUrl(url, verified) {
 }
 
 /**
- * Fetch one dependency and extract its Item packs.
+ * Resolve a dependency's manifest, pinned to `compatibility.verified` the way
+ * both fetch paths require.
  *
- * Idempotent: a complete cache for the resolved version is left alone.
+ * Shared by {@link fetchCatalog} and {@link fetchAssetArchive}: both read the
+ * same manifest before deciding what to unpack from it.
  *
- * @param {object} config - The resolved build configuration.
- * @param {{id: string, manifest: string}} rel - The declared relationship.
- * @returns {Promise<string>} The dependency's cache directory.
+ * @param {{id: string, manifest: string, verified?: string}} rel - The
+ *   declared relationship.
+ * @param {string} subject - What floats when no version is verified —
+ *   "catalogue" or "archive" — named in the warning a reader would otherwise
+ *   get no word for.
+ * @returns {Promise<{manifest: object, version: string}>} The manifest and
+ *   its resolved version.
  */
-export async function fetchCatalog(config, rel) {
+async function resolveManifest(rel, subject) {
     const { url, pinned } = pinnedManifestUrl(rel.manifest, rel.verified);
     const manifest = await fetchManifest(url);
     const version = manifest.version;
@@ -391,10 +432,24 @@ export async function fetchCatalog(config, rel) {
     }
     if (!rel.verified) {
         log.warn(
-            `${rel.id}: no \`compatibility.verified\`, so its catalogue floats ` +
+            `${rel.id}: no \`compatibility.verified\`, so its ${subject} floats ` +
                 `with whatever ${url} currently serves`,
         );
     }
+    return { manifest, version };
+}
+
+/**
+ * Fetch one dependency and extract its Item packs.
+ *
+ * Idempotent: a complete cache for the resolved version is left alone.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {{id: string, manifest: string}} rel - The declared relationship.
+ * @returns {Promise<string>} The dependency's cache directory.
+ */
+export async function fetchCatalog(config, rel) {
+    const { manifest, version } = await resolveManifest(rel, "catalogue");
     const dir = catalogDir(config, rel.id, version);
     if (isComplete(dir)) {
         log.info(`${rel.id}@${version}: already cached`);
@@ -417,6 +472,61 @@ export async function fetchCatalog(config, rel) {
 
     await extractItemPacks(rel.id, version, manifest, raw, dir);
     cacheSchemaArtifact(raw, dir);
+    return dir;
+}
+
+/**
+ * Whether an asset-archive-only cache is present and complete.
+ *
+ * No item catalogue is built on this path, so completeness never asks for
+ * `item-packs.json` — an asset-only dependency, such as `thalornaaltart`,
+ * ships none.
+ *
+ * @param {string} dir - The dependency's cache directory.
+ * @returns {boolean} True when the archive was fetched to completion.
+ */
+const isArchiveComplete = (dir) => fs.existsSync(path.join(dir, STAMP));
+
+/**
+ * Fetch one dependency's release archive for its asset bytes alone, building
+ * no item catalogue from it.
+ *
+ * Idempotent: a complete cache for the resolved version is left alone. Where a
+ * relationship also declares `itemCatalog: true`, {@link fetchCatalog} already
+ * unpacked this same archive into this same cache directory, and
+ * {@link fetchAllCatalogs} does not call this function for it — the two never
+ * download the same bytes twice.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {{id: string, manifest: string, verified?: string}} rel - The
+ *   declared relationship.
+ * @returns {Promise<string>} The dependency's cache directory.
+ */
+export async function fetchAssetArchive(config, rel) {
+    const { manifest, version } = await resolveManifest(rel, "archive");
+    const dir = catalogDir(config, rel.id, version);
+    if (isArchiveComplete(dir)) {
+        log.info(`${rel.id}@${version}: already cached`);
+        return dir;
+    }
+
+    const download = manifest.download;
+    if (!download) {
+        throw new Error(`${rel.id}@${version}: its manifest declares no \`download\``);
+    }
+
+    // Rebuild from empty: a previous run may have died partway, and a stale
+    // half-tree is worse than no tree.
+    fs.rmSync(dir, { recursive: true, force: true });
+    const raw = path.join(dir, "package");
+    fs.mkdirSync(raw, { recursive: true });
+
+    log.info(`${rel.id}@${version}: downloading ${download}`);
+    await downloadAndUnzip(download, raw);
+
+    cacheSchemaArtifact(raw, dir);
+    // Last, so a fetch that died partway is never mistaken for a complete one.
+    fs.writeFileSync(path.join(dir, STAMP), `${version}\n`);
     return dir;
 }
 
@@ -700,17 +810,33 @@ export async function fetchAllMetadata(config) {
 /**
  * Fetch every opted-in dependency. The `deps fetch` command.
  *
+ * A relationship declaring both `itemCatalog: true` and `assetArchive: true`
+ * is fetched once: {@link fetchCatalog} already unpacks the archive on its
+ * way to extracting the item catalogue, so this skips the archive-only fetch
+ * for any id {@link fetchCatalog} already handled.
+ *
  * @param {object} config - The resolved build configuration.
  * @returns {Promise<number>} How many dependencies were fetched.
  */
 export async function fetchAllCatalogs(config) {
-    const rels = itemCatalogRelationships(config);
-    if (!rels.length) {
-        log.info("No relationship declares `itemCatalog: true`; nothing to fetch.");
+    const itemRels = itemCatalogRelationships(config);
+    const archiveRels = assetArchiveRelationships(config);
+    if (!itemRels.length && !archiveRels.length) {
+        log.info(
+            "No relationship declares `itemCatalog: true` or `assetArchive: true`; " +
+                "nothing to fetch.",
+        );
         return 0;
     }
-    for (const rel of rels) await fetchCatalog(config, rel);
-    return rels.length;
+    for (const rel of itemRels) await fetchCatalog(config, rel);
+    const alreadyFetched = new Set(itemRels.map((rel) => rel.id));
+    let archiveFetched = 0;
+    for (const rel of archiveRels) {
+        if (alreadyFetched.has(rel.id)) continue;
+        await fetchAssetArchive(config, rel);
+        archiveFetched++;
+    }
+    return itemRels.length + archiveFetched;
 }
 
 /**

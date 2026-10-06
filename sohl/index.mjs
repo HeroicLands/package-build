@@ -53,4 +53,4 @@ export * as infobox from "./infobox.mjs";
 // compilers arrived.
 export { DEFAULT_ITEM_ART, defaultItemArt } from "./default-item-art.mjs";
 export { AFFILIATION_STANDINGS } from "./affiliation-standings.mjs";
-export { BEING_TYPE, GEAR_TYPE_TO_KEY, deriveBeingInfo, isBeing } from "./being-info.mjs";
+export { BEING_TYPE, GEAR_TYPE_TO_KEY, isBeing } from "./being-info.mjs";

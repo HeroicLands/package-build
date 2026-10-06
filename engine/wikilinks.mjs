@@ -100,7 +100,8 @@ export function anchorPageId(noteId, anchorSlug) {
  *
  * @param {Array<{type: string, id: string, shortcode?: string|null,
  *   name?: string, pack?: string, docPack?: string, none?: boolean,
- *   draft?: boolean}>} docs -
+ *   draft?: boolean, anchors?: Set<string>, anchorUuids?: Record<string,string>,
+ *   docAnchorUuids?: Record<string,string>}>} docs -
  *   One entry per content note. `pack` / `docPack` name the packs the note's
  *   document and its documentation entry landed in; omitted, the conventional
  *   one-pack-per-type names stand in. `none` says the note declares
@@ -121,6 +122,8 @@ export function anchorPageId(noteId, anchorSlug) {
  *   `contentIndex: false` — a Foundry dependency only. A link naming one fails
  *   with `no-content-index` rather than resolving, ambiguously, as either a
  *   typo or an undeclared package.
+ * @param {Map<string, object>} [opts.referenceTargets] - Local reference targets.
+ * @param {Map<string, object>} [opts.foreignReferences] - Foreign reference targets.
  * @returns {{byShortcode: Map<string, object>, types: Set<string>}} `types` is
  *   every type the tree actually contains, so a qualifier naming no real type
  *   can be told apart from a missing target.
@@ -151,9 +154,11 @@ export function buildWikilinkIndex(
     // that stored value. Nothing downstream assembles a UUID from parts, so a
     // link and its target cannot disagree about where the document lives.
     const uuidByDoc = new Map();
+    const byId = new Map();
 
     for (const d of docs) {
         if (!d.id || !d.type) continue;
+        byId.set(`${d.type}/${d.id}`, d);
         types.add(norm(d.type));
 
         uuidByDoc.set(
@@ -170,6 +175,8 @@ export function buildWikilinkIndex(
                     // type and a UUID carries the pack name, so the address
                     // cannot be derived from the type alone.
                     uuid: compendiumUuid(packageId, d.type, d.id, d.pack),
+                    anchors: d.anchorUuids,
+                    docAnchors: d.docAnchorUuids,
                     // The readable note has a separate JournalEntry whose id
                     // is derived from the item's id.
                     docUuid: compendiumUuid(packageId, "doc", itemDocEntryId(d.id), d.docPack),
@@ -214,6 +221,7 @@ export function buildWikilinkIndex(
         foreignReferences,
         types,
         uuidByDoc,
+        byId,
         packageId,
         /** The content package this build publishes, which an art address defaults to. */
         contentPackage: contentPackage ?? packageId,
@@ -373,6 +381,7 @@ function draftLink(inner) {
  *   entry landed in.
  * @param {{byShortcode: Map, types: Set}} ctx.index - From
  *   {@link buildWikilinkIndex}.
+ * @param {Map<string, string>} [ctx.captionLabels] - Numbered caption references.
  * @returns {{markdown: string, unresolved: Array<{link: string, target: string,
  *   offset: number, reason: string, packages?: string[], anchor?: string}>}}
  *   Each `reason` is one of {@link LINK_FINDING_REASONS}, the vocabulary all
@@ -381,7 +390,7 @@ function draftLink(inner) {
  *   position in `markdown`, which is what lets a caller report the line and
  *   column it sits on.
  */
-export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
+export function convertWikilinks(markdown, { type, id, pack, docPack, index, captionLabels }) {
     const unresolved = [];
 
     // `offset` is the third replacer argument because the pattern has exactly
@@ -430,7 +439,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // Kept for the foreign fallback below, which needs the parsed address.
         let qualifiedRead = null;
         if (target === "" && slug) {
-            doc = { type, id, pack, docPack };
+            doc = index.byId?.get(`${type}/${id}`) ?? { type, id, pack, docPack };
         } else {
             const qualified = parsed.problem ?? parsed.target;
             qualifiedRead = qualified;
@@ -510,7 +519,8 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // the document's **current** name stands in and a rename shows at every
         // citation with no link edited. The knowledgebase build reads
         // the same authored link the same way.
-        if (!text) text = doc.name ?? target;
+        if (!text)
+            text = (target === "" && slug ? captionLabels?.get(slug) : null) ?? doc.name ?? target;
 
         // Both addresses were computed when the target was indexed. An item
         // doc lives in the journals pack under its own derived entry id, and
@@ -542,7 +552,13 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // reader. A foreign anchor has always been checked this way —
         // the manifest carries the map — and a local one now is too, from the
         // anchor set the index carries.
-        if (slug && isJournal && doc.anchors && !doc.anchors.has(slug)) {
+        const anchorUuids = itemDoc ? addresses.docAnchors : addresses.anchors;
+        if (
+            slug &&
+            isJournal &&
+            ((doc.anchors && !doc.anchors.has(slug)) ||
+                (anchorUuids && !Object.hasOwn(anchorUuids, slug)))
+        ) {
             unresolved.push({
                 link: all,
                 target,
@@ -554,7 +570,9 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
             return unresolvedLink(text || doc.name || target, target);
         }
         const uuid =
-            slug && isJournal ? pageUuid(entryUuid, anchorPageId(entryId, slug)) : entryUuid;
+            slug && isJournal ?
+                (anchorUuids?.[slug] ?? pageUuid(entryUuid, anchorPageId(entryId, slug)))
+            :   entryUuid;
         const link = `@UUID[${uuid}]{${text}}`;
         // A link into a note that exists but is not written renders marked.
         // Presentation only — the UUID above is unchanged, and a
@@ -579,7 +597,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
  * @param {object} index - From {@link buildWikilinkIndex}.
  * @param {unknown} ref - The reference, as authored.
  * @param {object} [hint] - `{type}`, where the caller knows what it expects.
- * @returns {{name?: string, uuid?: string, address?: import("./address.mjs").AddressTuple, subType?: string}|undefined}
+ * @returns {{name?: string, uuid?: string, address?: import("./address.mjs").AddressTuple, subType?: string, standings?: object}|undefined}
  *   The target, or `undefined` where nothing answers.
  */
 export function resolveReference(index, ref, hint) {
@@ -607,6 +625,7 @@ export function resolveReference(index, ref, hint) {
         return {
             name: published.name,
             subType: published.subType,
+            ...(published.standings ? { standings: published.standings } : {}),
             ...(published.uuid ? { uuid: published.uuid } : {}),
             address: tuple,
         };
@@ -634,6 +653,7 @@ export function resolveReference(index, ref, hint) {
         return {
             name: local.name,
             subType: local.subType,
+            ...(local.standings ? { standings: local.standings } : {}),
             ...(uuid ? { uuid } : {}),
             address: tuple,
         };

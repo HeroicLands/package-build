@@ -9,6 +9,17 @@ import { describe, it, expect } from "vitest";
 // Build-time pack helper (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
 import { splitPages, assertUniquePages } from "../engine/journals.mjs";
+import { pageOpenings } from "../engine/heading-attributes.mjs";
+import { scanBlocks } from "../engine/content-blocks.mjs";
+
+/** The lines inside a named block, as the page splitter supplies them. */
+function blockLines(markdown: string): Set<number> {
+    const lines = new Set<number>();
+    for (const { start, end } of scanBlocks(markdown).blocks) {
+        for (let i = start; i <= end; i++) lines.add(i);
+    }
+    return lines;
+}
 
 describe("splitPages (a page per H1, and per anchored heading)", () => {
     it("splits on an H1 and keeps its heading depth", () => {
@@ -42,6 +53,80 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
         const pages = splitPages("# Public\n\n:::secret\n# GM heading\nA clue.\n:::\n\n# Next");
         expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
         expect(pages[0].markdown).toContain("# GM heading");
+    });
+
+    it.each(["NOTE", "WARNING"])(
+        "keeps caption-looking text inside a %s alert on its containing page",
+        (type) => {
+            const pages = splitPages(
+                `# Public\n\n> [!${type}]\n>\n> :@ Caption. {#a}\n>\n> Alpha.\n\n# Next`,
+            );
+            expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
+            expect(pages[0].markdown).toContain(":@ Caption. {#a}");
+        },
+    );
+
+    it.each([":::secret {#hoard}", ':::secret {title="The hoard"}'])(
+        "keeps a figure inside %s on its containing page",
+        (opener) => {
+            const pages = splitPages(
+                `# Public\n\n${opener}\n\n:@ Caption. {#a}\n\nAlpha.\n:::\n\n# Next`,
+            );
+            expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
+            expect(pages[0].markdown).toContain(":@ Caption. {#a}");
+        },
+    );
+
+    it("keeps a second figure and the prose between two figures inside one secret on its containing page", () => {
+        const body = [
+            "# Public",
+            "",
+            ":::secret",
+            "",
+            ":@ Alpha. {#a}",
+            "",
+            "Alpha.",
+            "",
+            "GM prose between figures.",
+            "",
+            ":@ Beta. {#b}",
+            "",
+            "Beta.",
+            ":::",
+            "",
+            "# Next",
+        ].join("\n");
+        const pages = splitPages(body);
+        expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
+        expect(pages[0].markdown).toContain("GM prose between figures.");
+        expect(pages[0].markdown).toContain(":@ Beta. {#b}");
+    });
+
+    it("still starts its own page for a figure at the top level", () => {
+        const pages = splitPages("# Public\n\n:@ Caption. {#a}\n\nAlpha.\n\n# Next");
+        expect(pages.map((page) => page.name)).toEqual(["Public", "Prose 1", "Next"]);
+    });
+
+    it("ignores a heading inside a tilde-fenced code block", () => {
+        const pages = splitPages("# Real\n\n~~~\n# Not a heading {#nope}\n~~~\n");
+        expect(pages).toHaveLength(1);
+        expect(pages[0].name).toBe("Real");
+    });
+
+    it("keeps a four-backtick fence's own three-backtick line from closing it early", () => {
+        const body = [
+            "# Real",
+            "",
+            "````",
+            "# Not a heading {#nope}",
+            "```",
+            "more code",
+            "````",
+            "",
+            "# Next",
+        ].join("\n");
+        const pages = splitPages(body);
+        expect(pages.map((page) => page.name)).toEqual(["Real", "Next"]);
     });
 });
 
@@ -116,5 +201,36 @@ describe("assertUniquePages", () => {
                 "Mystical Ability",
             ),
         ).toThrow(/Mystical Ability.*before-you-start/);
+    });
+});
+
+describe("a page-opening heading inside a named block", () => {
+    it("is no opening, for every name and however the opener is written", () => {
+        // `pageOpenings` is told which lines sit inside a named block rather
+        // than reading them itself, so every name in the registry, an opener
+        // carrying an attribute block, and a nested construct's own closing
+        // line are all answered by the one reading `scanBlocks` performs.
+        for (const opener of [":::secret", "::: {#info}", "::: {#warning}", ":::secret {#hoard}"]) {
+            const body = [
+                "# Public",
+                "Before.",
+                "",
+                opener,
+                "# Hidden {#hidden}",
+                "Inside.",
+                ":::",
+                "",
+                "# Next",
+                "After.",
+            ].join("\n");
+            const names = [...pageOpenings(body, blockLines(body)).values()].map((o) => o.text);
+            expect(names, opener).toEqual(["Public", "Next"]);
+        }
+    });
+
+    it("is an opening at the top level, with no block to sit inside", () => {
+        const body = ["# Public", "Before.", "", "# Next {#next}", "After."].join("\n");
+        const names = [...pageOpenings(body, blockLines(body)).values()].map((o) => o.text);
+        expect(names).toEqual(["Public", "Next"]);
     });
 });

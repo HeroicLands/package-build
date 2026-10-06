@@ -55,12 +55,21 @@
  */
 
 import { isAddressTuple } from "./address.mjs";
-import { authoredNoteKeys, NOTE_TOP_LEVEL_KEY_SET } from "./note-frontmatter.mjs";
+import {
+    authoredNoteKeys,
+    CHARACTER_NAME_KEYS,
+    NOTE_NAME_KEYS,
+    NOTE_TOP_LEVEL_KEY_SET,
+    NOTE_TOP_LEVEL_KEYS,
+} from "./note-frontmatter.mjs";
 import { AddressEntries } from "./address-values.mjs";
-import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
+import { addressPositions } from "./note-addresses.mjs";
+import { authoredFields, readsLegacyKey, readsRetiredTopLevel } from "./field-spec.mjs";
 import {
     legacyKeyOf,
+    resolveDataProperty,
     resolveFieldValue,
+    retiredTopLevelKey,
     systemBlock,
     SYSTEM_BLOCK_KEYS,
     unknownBlockKeys,
@@ -77,9 +86,10 @@ import { isAddressSegment } from "./address-charset.mjs";
 // reads is exactly the disagreement to avoid.
 import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import {
+    BEING_ARCHETYPES,
     dataFields,
+    isLegacyDataField,
     declaredTags,
-    exclusiveTagGroups,
     subTypeCharsetMessage,
     typeCharsetMessage,
 } from "./note-vocabulary.mjs";
@@ -94,6 +104,7 @@ import {
     legacyKeyMessage,
     readAliasedField,
     retiredAliasMessage,
+    retiredTopLevelMessage,
     sectionRetiredMessage,
     traitsRetiredMessage,
 } from "./retired-fields.mjs";
@@ -129,6 +140,19 @@ import {
 export const UNIVERSAL_KEYS = Object.freeze(
     new Set(["packFolder", "pack", "archetype", "templatePriority", "kbcat"]),
 );
+
+/**
+ * The shared `data:` keys declared for every note type that still have a
+ * retiring top-level spelling — `pack` and `packFolder`, the two
+ * {@link module:engine/note-vocabulary.SHARED_DATA_FIELDS} entries
+ * {@link module:engine/system-block.resolveDataProperty} reads off a tree's
+ * bare top level. Unlike a type's own declarations, which the retiring set
+ * below derives from `schemas`, these apply to every type at once, so they
+ * are named once here rather than attached to one type's vocabulary.
+ *
+ * @type {readonly string[]}
+ */
+const UNIVERSAL_RETIRING_DATA_KEYS = Object.freeze(["pack", "packFolder"]);
 
 /**
  * The system blocks a build checks, and what each accepts beyond the shared
@@ -286,6 +310,21 @@ function distance(a, b) {
 }
 
 /**
+ * A closed vocabulary as an English list, for the message that names it.
+ *
+ * Written from the declaration rather than spelled into the message, so a key
+ * the vocabulary gains cannot go unmentioned by the finding that refuses its
+ * neighbours.
+ *
+ * @param {readonly string[]} keys - The declared keys, in declared order.
+ * @returns {string} `"a, b, or c"`.
+ */
+function listed(keys) {
+    if (keys.length < 2) return keys.join("");
+    return `${keys.slice(0, -1).join(", ")}, or ${keys[keys.length - 1]}`;
+}
+
+/**
  * The declared key an unknown one was most likely meant to be.
  *
  * @param {string} key - The unknown key.
@@ -351,6 +390,18 @@ export function matchesKind(value, kind, context = {}) {
             // this answers is whether the value has one of the two shapes the
             // field admits. A list has neither.
             return matchesKind(value, "string") || matchesKind(value, "map");
+        case "string-or-list":
+            // One value or several of the same kind. Unlike `list-or-map` the
+            // two halves say the same thing at different lengths, so either is
+            // accepted here and the entries are read by the field's own check.
+            return matchesKind(value, "string") || Array.isArray(value);
+        case "list-or-map":
+            // A list, or a map. The two carry different facts rather than
+            // being two spellings of one — a map keyed by Address says what is
+            // true *of* each key, which a list has nowhere to put — so the
+            // field's own check is what reads the entries, and all this
+            // answers is whether the value has one of the two shapes.
+            return Array.isArray(value) || matchesKind(value, "map");
         default:
             return true;
     }
@@ -402,9 +453,8 @@ function dataBlock(fm) {
  * Check a note's `data:` container against the closed vocabulary its type
  * declares.
  *
- * Unlike the top level, which is passed through to the published page and so
- * cannot be refused, `data:` holds the type-specific facts about the subject
- * and every key of it is declared. An unrecognised key is therefore a finding
+ * `data:` holds the type-specific facts about the subject, and every key of it
+ * is declared by the note's type. An unrecognised key is therefore a finding
  * naming the note, with the key it was most likely meant to be — the same
  * capped edit distance {@link nearest} applies to a `sohl:` key, drawn from
  * this type's own vocabulary rather than from every type's.
@@ -453,7 +503,7 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
     }
 
     for (const key of Object.keys(entries)) {
-        if (declared.has(key)) continue;
+        if (declared.has(key) || isLegacyDataField(type, key)) continue;
         const current = renamed.get(key);
         if (current) {
             findings.push({
@@ -478,9 +528,12 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
             message:
                 type === "affiliation" && key === "commonSkills" ?
                     "`data.commonSkills` is not an affiliation field; write skill Addresses at `sohl.system.commonSkills`"
+                : type === "lore" && key === "event" ?
+                    "`data.event` is retired — write `data.events`, a list of occurrences, " +
+                    "instead, each `{ when, until?, recurs? }`; a note may state several"
                 :   `"${key}" is not a \`data:\` property declared by ${type}; ` +
-                    `the container is closed, so unlike a top-level key it is ` +
-                    `not passed through to the page` +
+                    `the container is closed, so the key reaches no document ` +
+                    `and no page` +
                     (guess ? `. Did you mean "${guess}"?` : ""),
         });
     }
@@ -533,7 +586,13 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
 function checkDataReferences(note, field, value, segments, context, index) {
     const checks = [];
     if (field.kind === "address") checks.push({ value, path: [], kind: "address" });
-    if (field.entryKind) {
+    // A `list-or-map` field declares both halves, and each describes one shape:
+    // `entryKind` the list's entries, `keyKind` the map's keys. Reading both of
+    // one value would check a map's standings as if they were Addresses and a
+    // list's indices as if they were its keys.
+    const dual = field.kind === "list-or-map";
+    const written = Array.isArray(value) ? "list" : "map";
+    if (field.entryKind && !(dual && written === "map")) {
         if (Array.isArray(value)) {
             value.forEach((entry, i) =>
                 checks.push({ value: entry, path: [i], kind: field.entryKind }),
@@ -545,7 +604,7 @@ function checkDataReferences(note, field, value, segments, context, index) {
             });
         } else checks.push({ value, path: [], kind: field.entryKind });
     }
-    if (field.keyKind) {
+    if (field.keyKind && !(dual && written === "list")) {
         if (value instanceof AddressEntries) {
             for (const entry of value.entries)
                 checks.push({
@@ -593,6 +652,115 @@ function checkDataReferences(note, field, value, segments, context, index) {
             severity: "error",
             message: `\`${path.join(".")}\` ${reason}, but reads ${JSON.stringify(check.value)}`,
         });
+    }
+    return findings;
+}
+
+/**
+ * Read values at a schema-declared address path, expanding wildcard segments.
+ * @param {unknown} value - The value at the current path.
+ * @param {readonly string[]} path - Remaining declaration path.
+ * @param {readonly (string|number)[]} [actual] - Authored path so far.
+ * @returns {Array<{value: unknown, path: Array<string|number>}>} Values and their paths.
+ */
+function valuesAtAddressPath(value, path, actual = []) {
+    if (!path.length) return [{ value, path: [...actual] }];
+    const [head, ...tail] = path;
+    if (head === "*") {
+        const entries =
+            Array.isArray(value) ? value.map((entry, index) => [index, entry])
+            : value && typeof value === "object" && !isAddressTuple(value) ? Object.entries(value)
+            : [];
+        return entries.flatMap(([key, entry]) =>
+            valuesAtAddressPath(entry, tail, [...actual, key]),
+        );
+    }
+    if (!value || typeof value !== "object" || isAddressTuple(value)) return [];
+    return valuesAtAddressPath(value[head], tail, [...actual, head]);
+}
+
+/**
+ * Resolve system-block addresses declared by the system's own field schema.
+ * @param {object} note - A note from the link index.
+ * @param {object} opts
+ * @param {object} opts.index - The address index.
+ * @param {Record<string, readonly object[]>} [opts.schemas] - Note schemas.
+ * @param {Readonly<Record<string, object>>} [opts.systems] - Declared system blocks.
+ * @returns {object[]} Located findings for unresolved addresses.
+ */
+export function systemAddressFindings(note, { index, schemas, systems } = {}) {
+    if (!index?.addressHit) return [];
+    const findings = [];
+    const fm = note.fm ?? {};
+    for (const position of addressPositions(fm, { schemas, systemBlocks: systems })) {
+        const block = position.path[0];
+        if (!Object.hasOwn(systems ?? {}, block) || position.path[1] === "packFolder") continue;
+        const candidates = valuesAtAddressPath(fm, position.path);
+        for (const candidate of candidates) {
+            let values;
+            if (position.shape === "list") {
+                values =
+                    Array.isArray(candidate.value) ?
+                        candidate.value.map((value, index) => ({
+                            value,
+                            path: [...candidate.path, index],
+                        }))
+                    :   [];
+            } else if (position.shape === "keys") {
+                values =
+                    candidate.value instanceof AddressEntries ?
+                        candidate.value.entries.map((entry) => ({
+                            value: entry.target,
+                            path: [...candidate.path, entry.sourceKey],
+                            key: true,
+                        }))
+                    : candidate.value && typeof candidate.value === "object" ?
+                        Object.keys(candidate.value).map((key) => ({
+                            value: key,
+                            path: [...candidate.path, key],
+                            key: true,
+                        }))
+                    :   [];
+            } else if (position.shape === "scalar-or-map" && mapEntries(candidate.value)) {
+                values = Object.entries(mapEntries(candidate.value)).map(([key, value]) => ({
+                    value,
+                    path: [...candidate.path, key],
+                }));
+            } else {
+                values = [candidate];
+            }
+
+            for (const item of values) {
+                if (item.value == null || item.value === "") continue;
+                const context = {
+                    package: index.contentPackage,
+                    system: position.system ?? block,
+                    type: position.type,
+                    types: index.types,
+                };
+                const address =
+                    isAddressTuple(item.value) ? item.value
+                    : typeof item.value === "string" ?
+                        parseAddress(item.value, context, {
+                            declared: true,
+                            legacyShortcodeCase: position.legacyShortcodeCase,
+                        })
+                    :   null;
+                if (!address || address.reason) continue;
+                if (position.accepts && !acceptsType(address, position.accepts)) continue;
+                const target = renderAddress(address);
+                if (index.addressHit(target)) continue;
+                const path = item.path;
+                findings.push({
+                    file: note.file,
+                    ...positionOfFrontmatterPath(note.raw ?? "", path, { key: item.key }),
+                    severity: "error",
+                    message:
+                        `\`${path.map(String).join(".")}\` names ${target}, which does not ` +
+                        `resolve in this package or its declared dependencies`,
+                });
+            }
+        }
     }
     return findings;
 }
@@ -759,9 +927,9 @@ function checkSubType(note, { type, entry }) {
 /**
  * Check a note's `tags` for near misses against the tags that classify.
  *
- * `tags:` is top-level and the top level is open, so an unrecognised tag is
- * **not** a finding: a theme, a region or a working state is the author's own
- * vocabulary and this build has no standing to refuse it.
+ * `tags:` is a closed key holding an open vocabulary of values, so an
+ * unrecognised tag is **not** a finding: a theme, a region or a working state
+ * is the author's own vocabulary and this build has no standing to refuse it.
  *
  * **Distance alone is not enough either**, which the corpus settles rather than
  * argues: `azravan` on a faith, `barter` on an economy note and `secret` on
@@ -773,14 +941,6 @@ function checkSubType(note, { type, entry }) {
  * to, so a place's kinds are only ever checked on a place, and the eight
  * findings above become none while a settlement tagged `vilage` is still
  * caught.
- *
- * **A group declared as a slot is checked twice over.** Its tags are the
- * alternative answers to one question — a being is a `character` or a
- * `creature` — so two of them on one note is refused outright, by
- * {@link checkExclusiveTags}, on top of the near miss every group gets. An
- * *unfilled* slot is not a finding: the kind is authored deliberately, and
- * nothing can tell a being nobody has classified yet from one the author means
- * to leave unclassified.
  *
  * @param {object} note - The note.
  * @param {object} opts
@@ -811,55 +971,6 @@ function checkTags(note, { type }) {
                 `tag "${guess}". A classifying tag is queried, so a misspelt one drops ` +
                 `this note out of an index without failing anything. Write "${guess}", ` +
                 `or rename the tag so it is plainly the author's own`,
-        });
-    }
-    return findings;
-}
-
-/**
- * Refuse a note that fills one single-valued tag slot twice.
- *
- * This is the whole of what "a closed tag vocabulary" can mean while `tags:`
- * stays open. A slot's values are alternatives, not attributes: a being is a
- * `character` or a `creature`, so a note carrying both has answered the
- * question twice and every reader of the tag — an index, a query, a renderer —
- * gets to pick. That is the same silent wrongness a misspelt classifying tag
- * is, and it gets the same answer.
- *
- * **An error, not a warning**, because a warning does not change the build's
- * exit code and a contradiction that still ships is a contradiction nobody
- * fixes.
- *
- * **Located on the `tags` key**, because the fault is the list rather than
- * either entry in it — both values are correctly spelt, and pointing at one of
- * them would say the wrong one is the wrong one.
- *
- * @param {object} note - The note.
- * @param {object} opts
- * @param {string} opts.type - The note's declared `type`, which scopes the
- *   slots checked.
- * @returns {object[]} Findings.
- */
-function checkExclusiveTags(note, { type }) {
-    const authored = (note.fm ?? {}).tags;
-    if (!Array.isArray(authored)) return [];
-
-    const carried = new Set(
-        authored.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()),
-    );
-    const findings = [];
-    for (const { slot, tags } of exclusiveTagGroups(type)) {
-        const filled = tags.filter((t) => carried.has(t));
-        if (filled.length < 2) continue;
-        findings.push({
-            file: note.file,
-            ...positionInFrontmatter(note.raw ?? "", "tags"),
-            severity: "error",
-            message:
-                `a ${type}'s ${slot} is one tag, and this note carries ` +
-                `${filled.map((t) => `"${t}"`).join(" and ")}. Those are the alternative ` +
-                `answers to one question (${tags.join(", ")}), so carrying two of them ` +
-                `states no ${slot} at all. Keep the one that is true, or neither`,
         });
     }
     return findings;
@@ -918,13 +1029,10 @@ function inBlockKeys(schema) {
  * note-level field either, and a check about the note-level field must not read
  * it.
  *
- * `affiliation`'s `title` is the case that named this. A note's top-level
- * `title` is its page heading, which the site emitter publishes as
- * `fm.title ?? name`; `sohl.title` is the style of address an office carries —
- * "Ajaw", "Warden". Twenty-eight `sohl-kethira-basic` affiliations author
- * `sohl.title: ""` — an office with no style of address, which is ordinary —
- * and every one of them was reported as publishing a page with no heading. None
- * of them does; their pages take `name.full` exactly as intended.
+ * `affiliation`'s `commonSkills` is the case to read it against: the skills
+ * common among a society's members belong to the SoHL affiliation item, so
+ * nothing outside that item supplies them and a note-level check must not go
+ * looking in the block for one.
  *
  * Keyed on the **in-block** key — `legacyKey` where a field declares one, and
  * its first segment where that is dotted — because that is the position a note
@@ -1121,6 +1229,118 @@ export function lintNote(
     const type = String(fm.type ?? "");
     const raw = () => note.raw ?? "";
     const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
+
+    // The keys the closed top-level region refuses in general, but a
+    // declaration still reads at the retiring position — this type's own
+    // fields, which `resolveFieldValue`'s step 3b resolves, plus `pack` and
+    // `packFolder`, declared for every type and resolved the same way by
+    // {@link resolveDataProperty}. Derived ahead of the schema lookup below,
+    // which runs after the closed-region check, so that check can skip
+    // exactly these and nothing else: a key no declaration names stays
+    // refused.
+    const retiringTopLevelKeys = new Set([
+        ...UNIVERSAL_RETIRING_DATA_KEYS,
+        ...authoredFields(schemas?.[currentType(type)] ?? [])
+            .filter((field) => field.topLevelMeans === undefined)
+            .map((field) => retiredTopLevelKey(field))
+            .filter((key) => key !== undefined),
+    ]);
+    if (type === "being") {
+        const archetypes = fm.data?.archetypes;
+        if (
+            ["character", "npc"].includes(fm.subType) &&
+            (archetypes == null || (Array.isArray(archetypes) && archetypes.length === 0))
+        ) {
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(
+                    raw(),
+                    archetypes == null ? ["subType"] : ["data", "archetypes"],
+                ),
+                severity: "error",
+                message: "A character or npc requires at least one `data.archetypes` value",
+            });
+        }
+        if (Array.isArray(archetypes)) {
+            archetypes.forEach((value, i) => {
+                if (!Object.hasOwn(BEING_ARCHETYPES, value)) {
+                    findings.push({
+                        file: note.file,
+                        ...positionOfFrontmatterPath(raw(), ["data", "archetypes", i]),
+                        severity: "error",
+                        message: `Unknown archetype \`${String(value)}\`; use a case-sensitive archetype from the reference`,
+                    });
+                }
+            });
+            const commoner = archetypes.indexOf("commoner");
+            if (commoner !== -1 && archetypes.length > 1) {
+                findings.push({
+                    file: note.file,
+                    ...positionOfFrontmatterPath(raw(), ["data", "archetypes", commoner]),
+                    severity: "error",
+                    message: "`data.archetypes` may contain `commoner` only by itself",
+                });
+            }
+        }
+    }
+    if (Object.hasOwn(fm, "name")) {
+        const name = fm.name;
+        const nameAt = (path) => positionOfFrontmatterPath(raw(), ["name", ...path], { key: true });
+        if (!name || typeof name !== "object" || Array.isArray(name)) {
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw(), ["name"], { key: true }),
+                severity: "error",
+                message: "`name` must be a map with a nonempty `full` string",
+            });
+        } else {
+            const allowed = new Set(NOTE_NAME_KEYS);
+            if (type === "being" && fm.subType === "character") {
+                for (const key of CHARACTER_NAME_KEYS) allowed.add(key);
+            }
+            for (const key of Object.keys(name)) {
+                if (!allowed.has(key)) {
+                    findings.push({
+                        file: note.file,
+                        ...nameAt([key]),
+                        severity: "error",
+                        message: `\`name.${key}\` is not valid for this note`,
+                    });
+                }
+            }
+            if (typeof name.full !== "string" || !name.full.trim()) {
+                findings.push({
+                    file: note.file,
+                    ...(Object.hasOwn(name, "full") ? nameAt(["full"]) : nameAt([])),
+                    severity: "error",
+                    message: "`name.full` must be a nonempty string",
+                });
+            }
+            if (Object.hasOwn(name, "aliases")) {
+                if (
+                    !Array.isArray(name.aliases) ||
+                    name.aliases.some((alias) => typeof alias !== "string" || !alias.trim())
+                ) {
+                    findings.push({
+                        file: note.file,
+                        ...nameAt(["aliases"]),
+                        severity: "error",
+                        message: "`name.aliases` must be a list of nonempty strings",
+                    });
+                }
+            }
+            for (const key of CHARACTER_NAME_KEYS) {
+                if (!Object.hasOwn(name, key) || !allowed.has(key)) continue;
+                if (typeof name[key] === "string" && name[key].trim()) continue;
+                findings.push({
+                    file: note.file,
+                    ...nameAt([key]),
+                    severity: "error",
+                    message: `\`name.${key}\` must be a nonempty string`,
+                });
+            }
+        }
+    }
     /**
      * The in-block keys this note's own type claims for something other than
      * the note-level field of that name, which every note-level check below
@@ -1195,26 +1415,16 @@ export function lintNote(
     // it. It is transitional in the same sense — `""` is a legal thing to mean,
     // and the message says so, but nothing in any tree means it yet.
     //
-    // **These two only, never `title`.** The rule reads as a general one about
-    // optional strings, and it is not — it belongs to `resolveImg`, and `title`
-    // never goes through it.
+    // **The art slots only.** The rule reads as a general one about optional
+    // strings, and it is not — it belongs to `resolveImg`, and nothing else
+    // goes through it.
     //
-    // It once had a sharper reason: a note's top-level `title` was
-    // simultaneously the shared source for an `affiliation` item's
-    // `system.title`, so asking an author for `title: null` would have compiled
-    // the literal string `"null"` into the document. The field declares
-    // `topLevelMeans` now, so the top-level key is no longer a source for it and
-    // `title: null` is harmless. `title: ""` is warned about on its own account
-    // below, as the *page's* heading rather than as an art path.
-    //
-    // **The collision itself did not go away, and this was where that was
-    // misread.** `topLevelMeans` settles which position the *emitted field*
-    // reads; it says nothing about which position a *check* reads, and
-    // `authoredValue` went on resolving through the block regardless — so an
-    // office with no style of address answered for its note's heading, in
-    // twenty-eight `sohl-kethira-basic` affiliations. Hence
-    // `blockCollisions`: a note-level check reads past a block key its type
-    // claims for something else.
+    // **A block key a type claims for something else is read past.**
+    // `topLevelMeans` settles which position the *emitted field* reads; it says
+    // nothing about which position a *check* reads, and `authoredValue` would
+    // go on resolving through the block regardless — so an office with no style
+    // of address would answer for a note's art, in twenty-eight
+    // `sohl-kethira-basic` affiliations. Hence `blockCollisions`.
 
     // The template priority is a *shared source* — the specification states it
     // once for every type, as it does `pack` — so its retirement is reported
@@ -1341,35 +1551,6 @@ export function lintNote(
                 "meant to have no image",
         });
     }
-    // `title: ""` publishes a blank heading. The rule the art fields
-    // follow — `null` falls back, `""` is blank on purpose — reads the same way
-    // here, and for a *page heading* the deliberate blank is almost never what
-    // anyone wants: the emitter is `fm.title ?? name`, so `""` survives, the
-    // page publishes with no name, and it sorts to the front of its section
-    // landing ahead of every named page. Fifteen notes in `sohl-thalorna` are
-    // in exactly that state.
-    //
-    // A warning rather than an error: the value is legal under the rule, and a
-    // note that genuinely wants no heading may keep it — it just has to mean it.
-    //
-    // **The emitter reads `fm.title`, so this reads the note level.** On an
-    // `affiliation` `sohl.title` is the office's style of address, which the
-    // heading has nothing to do with — and `blockCollisions` is what keeps the
-    // two apart. On every other type nothing claims the block key, so the
-    // resolution is the unchanged one.
-    if (authoredValue(fm, "title", { blockCollides: blockCollisions.has("title") }) === "") {
-        findings.push({
-            file: note.file,
-            ...at("title"),
-            severity: "warning",
-            message:
-                '`title: ""` publishes a page with no heading, which sorts to ' +
-                "the front of its section ahead of every named page. Write " +
-                "`title: null` to fall back to `name.full`, or give the page a " +
-                'heading; keep `""` only where the blank is meant',
-        });
-    }
-
     if (Object.hasOwn(fm, "draft")) {
         findings.push({
             file: note.file,
@@ -1421,7 +1602,6 @@ export function lintNote(
     // type's property — `draft` belongs to any note and `village` to a place —
     // so the finding must survive the early returns below.
     findings.push(...checkTags(note, { type }));
-    findings.push(...checkExclusiveTags(note, { type }));
 
     // A refused field must be one the note *wrote*: `resolveNoteId` fills
     // `fm.id` in place, so the parsed frontmatter carries a derived id the
@@ -1445,6 +1625,9 @@ export function lintNote(
 
     for (const key of authoredNoteKeys(raw())) {
         if (NOTE_TOP_LEVEL_KEY_SET.has(key)) continue;
+        // Reported below, as the retiring position it is rather than a key
+        // nobody recognises.
+        if (retiringTopLevelKeys.has(key)) continue;
         const position = positionInFrontmatter(raw(), key, undefined, { topLevel: true });
         if (
             findings.some(
@@ -1453,11 +1636,38 @@ export function lintNote(
         ) {
             continue;
         }
+        const guess = nearest(key, NOTE_TOP_LEVEL_KEYS);
         findings.push({
             file: note.file,
             ...position,
             severity: "error",
-            message: `unknown top-level frontmatter key ${JSON.stringify(key)}; use shortcode, name, type, subType, description, tags, data, hm3, or sohl`,
+            message:
+                `unknown top-level frontmatter key ${JSON.stringify(key)}; ` +
+                `the region is closed, so the key reaches no document and no ` +
+                `page. Use ${listed(NOTE_TOP_LEVEL_KEYS)}` +
+                (guess ? `. Did you mean "${guess}"?` : ""),
+        });
+    }
+
+    // `pack` and `packFolder` are declared for every type, so each is
+    // checked once here rather than in the per-type `fields` loop below,
+    // which only iterates a type's own declarations. A **warning**, for the
+    // reason the per-type retiring position above is one: the note compiles
+    // to the correct document either way, so failing a build over it would
+    // red a tree that has done nothing wrong yet. Checked against every
+    // configured system block, because `resolveDataProperty` reads a
+    // system's own override before the top level, and a note may configure
+    // more than one.
+    for (const key of UNIVERSAL_RETIRING_DATA_KEYS) {
+        const retiring = Object.keys(systems ?? {}).some(
+            (blockName) => resolveDataProperty(fm, blockName, key).from === "topLevel",
+        );
+        if (!retiring) continue;
+        findings.push({
+            file: note.file,
+            ...at(key),
+            severity: "warning",
+            message: retiredTopLevelMessage({ name: `data.${key}` }),
         });
     }
 
@@ -1678,6 +1888,18 @@ export function lintNote(
                 message: legacyKeyMessage("sohl", field),
             });
         }
+        // `readsLegacyKey`'s sibling for the other retiring position — the
+        // note's own top level, which `data:` gathered the fact off. Also a
+        // **warning**: the closed-region check above already let this exact
+        // key through for this exact reason, and the two must agree.
+        if (readsRetiredTopLevel(field, from)) {
+            findings.push({
+                file: note.file,
+                ...at(retiredTopLevelKey(field)),
+                severity: "warning",
+                message: retiredTopLevelMessage(field),
+            });
+        }
         const absent = from === "default" || value === undefined || value === null;
         // Where the field belongs, as a message names it: a shared field is not
         // under `sohl:`, so telling an author to write `sohl.img` would send
@@ -1689,7 +1911,11 @@ export function lintNote(
                 `\`${field.name}\``
             :   `\`sohl.${field.name}\``;
 
-        if (field.required && absent) {
+        if (
+            field.required &&
+            absent &&
+            (!field.when || field.when(fm, { subType: fm.subType ?? fm.sohl?.subType }))
+        ) {
             findings.push({
                 file: note.file,
                 ...at("type", type),
@@ -1748,6 +1974,8 @@ export function lintNote(
             }
         }
     }
+
+    findings.push(...systemAddressFindings(note, { index, schemas, systems }));
 
     return findings;
 }

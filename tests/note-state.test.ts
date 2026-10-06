@@ -30,11 +30,25 @@ import { buildJournalEntry, Journals } from "../engine/journals.mjs";
 import { buildIndexRecord, collectContentIndex } from "../engine/content-index.mjs";
 import { isStub } from "../engine/index-records.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
-import { isEmptyBody, isStubbableType, isStubNote } from "../engine/note-state.mjs";
+import { bodyWordCount, isEmptyBody, isStubbableType, isStubNote } from "../engine/note-state.mjs";
 import { openNotesDatabase, renderSqlTable, runSqlQuery } from "../engine/sql-tables.mjs";
 import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import { Items } from "../sohl/items.mjs";
+
+describe("body word count", () => {
+    it("counts words on both sides of a closed dash", () => {
+        expect(bodyWordCount("The gods withdrew — and the line held.")).toBe(7);
+        expect(bodyWordCount("The gods withdrew—and the line held.")).toBe(7);
+        expect(bodyWordCount("The north–south road remained open.")).toBe(6);
+    });
+
+    it("counts a slash or ellipsis between words as a boundary", () => {
+        expect(bodyWordCount("and/or")).toBe(2);
+        expect(bodyWordCount("wait…what")).toBe(2);
+        expect(bodyWordCount("wait...what")).toBe(2);
+    });
+});
 
 /* ---------------------------------------------------------------------- */
 /*  The classification, derived from the registry's own key list           */
@@ -515,7 +529,7 @@ describe("links across the boundary", () => {
 });
 
 /* ---------------------------------------------------------------------- */
-/*  The lint: an empty body must be deliberate                             */
+/*  The lint: every typed note needs a body                             */
 /* ---------------------------------------------------------------------- */
 
 describe("the stub lint", () => {
@@ -536,26 +550,45 @@ describe("the stub lint", () => {
     const note = (fm: string[], body = "") =>
         ["---", "type: place", "subType: settlement", ...fm, "---", "", body, ""].join("\n");
 
-    it("refuses a stub that says nothing about itself", () => {
-        const { findings } = lint({ "A.md": note(["shortcode: a"]) });
-        expect(findings).toHaveLength(1);
-        expect(findings[0].severity).toBe("error");
-        expect(findings[0].message).toContain("`description`");
-        expect(findings[0].line).toBeGreaterThan(0);
+    const emptyCases = ["place", "mysticalability", "folder", "homepage"].flatMap((type) =>
+        [false, true].flatMap((draft) =>
+            [false, true].flatMap((description) =>
+                ["", " \n\t  \n"].map((body) => ({ type, draft, description, body })),
+            ),
+        ),
+    );
+
+    it.each(emptyCases)(
+        "errors for an empty $type body with draft=$draft and description=$description",
+        ({ type, draft, description, body }) => {
+            const text = [
+                "---",
+                `type: ${type}`,
+                "shortcode: empty",
+                ...(draft ? ["tags: [draft]"] : []),
+                ...(description ? ["description: A complete description."] : []),
+                "---",
+                "",
+                body,
+                "",
+            ].join("\n");
+            const { findings } = lint({ "Empty.md": text });
+            expect(findings).toHaveLength(1);
+            expect(findings[0]).toMatchObject({ severity: "error", line: 2, column: 7 });
+            expect(findings[0].message).toContain("no body");
+            expect(findings[0].message).not.toContain("remove the tag");
+            expect(findings[0].message).not.toContain("description");
+        },
+    );
+
+    it("leaves untyped vault scaffolding outside the body requirement", () => {
+        expect(lint({ "Scratch.md": "---\ntags: [draft]\n---\n\n" }).findings).toEqual([]);
     });
 
-    it("passes a stub that carries one", () => {
+    it("suppresses the short nonempty warning on a draft", () => {
         expect(
-            lint({ "A.md": note(["shortcode: a", "description: A manor village."]) }).findings,
+            lint({ "A.md": note(["shortcode: a", "tags: [draft]"], "A manor village.") }).findings,
         ).toEqual([]);
-    });
-
-    it("refuses a stub tagged `draft`", () => {
-        const { findings } = lint({
-            "A.md": note(["shortcode: a", "description: A manor village.", "tags: [draft]"]),
-        });
-        expect(findings.map((f: any) => f.severity)).toEqual(["error"]);
-        expect(findings[0].message).toContain("not started is not a thing in progress");
     });
 
     it("refuses a body that reduces to a placeholder, and names the phrase", () => {
@@ -565,6 +598,7 @@ describe("the stub lint", () => {
         expect(findings).toHaveLength(1);
         expect(findings[0].severity).toBe("error");
         expect(findings[0].message).toContain('"_To be written._"');
+        expect(findings[0].message).not.toContain("empty the body");
     });
 
     it("leaves a body with real prose beside an unwritten section alone", () => {
@@ -583,6 +617,30 @@ describe("the stub lint", () => {
         expect(findings.map((f: any) => f.severity)).toEqual(["warning"]);
         expect(findings[0].message).toContain("3 word(s)");
     });
+
+    const folderCases = [
+        "Pack folder.",
+        "TBD",
+        "## Overview\n\n_To be written._",
+        "<!-- the regional folders -->",
+    ].flatMap((body) => [false, true].map((draft) => ({ body, draft })));
+
+    it.each(folderCases)(
+        "accepts any nonempty folder body: $body with draft=$draft",
+        ({ body, draft }) => {
+            const text = [
+                "---",
+                "type: folder",
+                "shortcode: regions",
+                ...(draft ? ["tags: [draft]"] : []),
+                "---",
+                "",
+                body,
+                "",
+            ].join("\n");
+            expect(lint({ "Regions.md": text }).findings).toEqual([]);
+        },
+    );
 
     it("counts a wikilink as the one word it renders", () => {
         const { findings } = lint({

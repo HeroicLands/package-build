@@ -15,6 +15,7 @@ import { fileURLToPath } from "node:url";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import { MARKDOWNLINT_CONFIG, PRETTIER_CONFIG } from "../engine/prose-config.mjs";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 /**
  * A throwaway repository.
  *
@@ -264,24 +265,28 @@ describe("package-build format --write reports what it could not do", () => {
     /** The real binary, because the exit code is half of what is under test. */
     const bin = fileURLToPath(new URL("../bin/package-build.mjs", import.meta.url));
 
-    it("emits the diagnostic and fails, instead of reporting a clean write", () => {
-        // `--write` used to discard `findings` entirely: an unparseable file
-        // was collected and thrown away, so the run said "Formatted N of M"
-        // and exited 0 having silently left a file unformatted. The same
-        // channel now carries a file that will not converge, so it has to
-        // reach the caller.
-        write("lang/en.json", '[\n    "KEY.One": "value"\n]\n');
+    it(
+        "emits the diagnostic and fails, instead of reporting a clean write",
+        () => {
+            // `--write` used to discard `findings` entirely: an unparseable file
+            // was collected and thrown away, so the run said "Formatted N of M"
+            // and exited 0 having silently left a file unformatted. The same
+            // channel now carries a file that will not converge, so it has to
+            // reach the caller.
+            write("lang/en.json", '[\n    "KEY.One": "value"\n]\n');
 
-        const r = spawnSync(process.execPath, [bin, "format", "--write"], {
-            cwd: root,
-            encoding: "utf8",
-        });
+            const r = spawnSync(process.execPath, [bin, "format", "--write"], {
+                cwd: root,
+                encoding: "utf8",
+            });
 
-        expect(r.status).toBe(1);
-        const output = `${r.stdout}${r.stderr}`;
-        expect(output).toContain(path.join("lang", "en.json"));
-        expect(output).toMatch(/cannot be parsed/);
-    });
+            expect(r.status).toBe(1);
+            const output = `${r.stdout}${r.stderr}`;
+            expect(output).toContain(path.join("lang", "en.json"));
+            expect(output).toMatch(/cannot be parsed/);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("package-build format agrees with Prettier itself", () => {
@@ -443,22 +448,26 @@ describe("the shared conventions say when they are not in force", () => {
         expect(r.findings[0].file).toBeUndefined();
     });
 
-    it("leaves a deliberate local override working, as a warning and not a failure", () => {
-        // The whole tree is formatted to the local config's rules, so the only
-        // thing `format` has to say is that those rules are not the shared
-        // ones — and it must still exit 0.
-        const bin = fileURLToPath(new URL("../bin/package-build.mjs", import.meta.url));
-        write(".prettierrc", '{ "tabWidth": 2 }\n');
-        write("a.md", "Some _emphasis_ here.\n");
+    it(
+        "leaves a deliberate local override working, as a warning and not a failure",
+        () => {
+            // The whole tree is formatted to the local config's rules, so the only
+            // thing `format` has to say is that those rules are not the shared
+            // ones — and it must still exit 0.
+            const bin = fileURLToPath(new URL("../bin/package-build.mjs", import.meta.url));
+            write(".prettierrc", '{ "tabWidth": 2 }\n');
+            write("a.md", "Some _emphasis_ here.\n");
 
-        const r = spawnSync(process.execPath, [bin, "format"], { cwd: root, encoding: "utf8" });
+            const r = spawnSync(process.execPath, [bin, "format"], { cwd: root, encoding: "utf8" });
 
-        expect(r.status).toBe(0);
-        const output = `${r.stdout}${r.stderr}`;
-        expect(output).toContain("warning: `printWidth` is not set here");
-        expect(output).not.toContain("error:");
-        expect(output).toContain("Formatting is clean");
-    });
+            expect(r.status).toBe(0);
+            const output = `${r.stdout}${r.stderr}`;
+            expect(output).toContain("warning: `printWidth` is not set here");
+            expect(output).not.toContain("error:");
+            expect(output).toContain("Formatting is clean");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });
 
 describe("package-build markdown", () => {

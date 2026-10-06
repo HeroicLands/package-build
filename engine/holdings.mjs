@@ -12,195 +12,114 @@
  */
 
 /**
- * What lies within a place, who holds it, and what an affiliation holds.
- *
- * Two keys the notes already carry answer all three. A place's `data.parents`
- * is geography — the places it sits within — and an affiliation's
- * `data.domains` is tenure — the places it holds. Read across the whole
- * corpus and inverted, they give each page the lists a reader wants:
- * `contains` and `held_by` on a place, `holdings` on an affiliation, each
- * shaped like an entry of `related` and absent where empty.
- *
- * **`domains` names what an affiliation holds directly**, and is never
- * expanded. A polity whose `domains` names a region holds the region; the
- * settlements within it are reachable from the region's `contains`, and
- * repeating them in `holdings` would make every list say the same thing at
- * every level. Tenure below a lord runs through `affiliation.parents` — a
- * house of its earl, an earl of the crown — and geography through
- * `place.parents`, so a subinfeudated manor sits in one region by the first
- * and under a lord of another polity by the second, and both pages say so.
- *
- * **A dependency's places and affiliations take part.** A fetched index entry
- * carries the `parents` and `domains` its record stated, so a place another
- * package publishes is listed within a local region, and a house another
- * package publishes is named on the local manor it holds.
- *
- * **A place's tenure is checked.** A settlement, a site or a structure that no
- * affiliation's `domains` names is land nobody holds — a gap in tenure the
- * lint reports as a warning at the note's `type:` line. A region is held
- * through its polity's `domains` and a feature by nobody, so both are exempt.
- *
+ * Derive containment and government lists from place facts. Geography comes
+ * only from `data.parents`; government comes only from `data.government`.
+ * Affiliation domains never supply government, and neither graph expands
+ * through geographic or affiliation ancestors. Government identity preserves the Address package, type and shortcode.
+ * Its system normalizes to `note` because Item and journal documents share one page.
+ * Historical holdings API names remain for callers migrating their imports.
  * @module
  */
-
-import { isAddressTuple } from "./address.mjs";
-import { positionInFrontmatter } from "./diagnostics.mjs";
-import { parseAddress } from "./address.mjs";
+import { isAddressTuple, ownDocumentSystem, parseAddress, renderAddress } from "./address.mjs";
+import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
 
-/**
- * The one type a `parents` or `domains` entry may name — the default
- * {@link module:engine/address.parseAddress} fills in when the segment is
- * omitted, and the whole of what this position accepts.
- *
- * @type {ReadonlySet<string>}
- */
-const PLACE_TYPES = Object.freeze(new Set(["place"]));
-
-/**
- * The keys this module writes, and which a note cannot author: `contains`
- * and `held_by` on a place, `holdings` on an affiliation.
- *
+/** Derived keys, including retired keys removed from generated pages.
  * @type {readonly string[]}
  */
-export const HOLDINGS_KEYS = Object.freeze(["contains", "held_by", "holdings"]);
-
-/**
- * The place subTypes tenure is checked on. A region is held through its
- * polity's `domains`, a world by nobody, a feature by nobody — a river has no
- * lord — so the rest are the kinds of place a body holds directly.
- *
+export const HOLDINGS_KEYS = Object.freeze([
+    "contains",
+    "governed_by",
+    "governed_places",
+    "held_by",
+    "holdings",
+]);
+/** @deprecated Government advisories apply to every inhabited place subtype.
  * @type {readonly string[]}
  */
 export const HELD_SUBTYPES = Object.freeze(["settlement", "site", "structure"]);
 
+/** @typedef {{title:string,url?:string,type:string,subType?:string}} HoldingsEntry */
 /**
- * One entry of a holdings list — a page a reader is pointed at.
- *
- * @typedef {object} HoldingsEntry
- * @property {string} title   The page's published title.
- * @property {string} [url]   `<base><slug>/` — the page's address as every
- *                            href this build renders composes it. **Absent
- *                            for a stub**, which has no page: an entry with no
- *                            `url` renders as plain text.
- * @property {string} type    The note's `type` — `place` or `affiliation`.
- * @property {string} [subType] The note's `subType`, where it declares one.
- */
-
-/**
- * One place or affiliation, as the derivation reads it — a local page or a
- * fetched index entry through one shape.
- *
  * @typedef {object} HoldingsNode
- * @property {string} shortcode Lower case.
+ * @property {string} shortcode
  * @property {"place"|"affiliation"} type
  * @property {string} [subType]
- * @property {string} title     The page's published title.
- * @property {string} [url]     The page's URL; absent where the package
- *                              publishes no page for it.
- * @property {string[]} parents What a place sits within, as written.
- * @property {string[]} domains What an affiliation holds, as written.
+ * @property {string} title
+ * @property {string} [url]
+ * @property {string} [package] Owning content package.
+ * @property {string} [system] Own document system.
+ * @property {string} [canonical] Full own Address.
+ * @property {string} [governmentSystem] Affiliation reference default system.
+ * @property {unknown[]} parents
+ * @property {unknown} [government] Null is explicit anarchy; absence is omission.
  */
+/** @typedef {{contains?:HoldingsEntry[],governed_by?:HoldingsEntry[],governed_places?:HoldingsEntry[]}} Holdings */
 
-/**
- * The lists one page carries. Every key is optional, and a key present holds
- * at least one entry.
- *
- * @typedef {object} Holdings
- * @property {HoldingsEntry[]} [contains] Places whose `parents` name this one.
- * @property {HoldingsEntry[]} [held_by]  Affiliations whose `domains` name this one.
- * @property {HoldingsEntry[]} [holdings] Places this affiliation's `domains` name.
- */
-
-/**
- * The shortcode a `parents` or `domains` entry names, lower case.
- *
- * **A `parents` or `domains` entry is an Address** — the specification types
- * both `Address[]`, targeting `place` — read at whatever length says what it
- * means, `place` the default and the whole of the accepted set. Frontmatter
- * never holds a Wikilink, so no bracket, `|` or `#` is stripped here; a
- * qualified form is read structurally by {@link readCanonicalKey} for its
- * literal four segments, since this position asks neither its package nor its
- * system, only the shortcode {@link module:engine/address} would resolve it
- * to anyway.
- *
- * **The holdings graph has package-blind Shortcode identity.** `places` and
- * `affiliations` merge local and fetched notes into one shortcode space; the
- * first declaration wins. A fetched place attaches to a local parent with
- * the same shortcode, and a fetched affiliation can name both local and
- * fetched domains. The authored entries remain Addresses; this graph uses
- * their shortcode projection for containment and tenure. See
- * `tests/site-holdings.test.ts`'s `empire.domains: ["mill", "abroad"]`, where
- * `mill` is local and `abroad` is the dependency's own, both bare, both
- * correct only because neither package is asked.
- *
- * @param {unknown} value - One entry.
- * @returns {string} Its shortcode, or `""` for an entry that names nothing.
- */
-function namedShortcode(value) {
-    if (isAddressTuple(value)) return value.shortcode.toLowerCase();
-    const text = String(value ?? "").trim();
-    if (!text) return "";
-    const qualified = readCanonicalKey(text);
-    if (qualified) return qualified.shortcode.toLowerCase();
-    const read = parseAddress(text, { type: "place", types: PLACE_TYPES });
-    return read.reason ? "" : read.shortcode.toLowerCase();
-}
-
-/**
- * A `parents` or `domains` value as the shortcodes it names, in order,
- * empties dropped and repeats collapsed.
- *
- * @param {unknown} value - The authored value — a list, or a lone entry.
- * @returns {string[]} The shortcodes.
+/** Historical shortcode projection for callers that explicitly need one.
+ * @param {unknown} value
+ * @returns {string[]}
  */
 export function shortcodesOf(value) {
     const list =
         Array.isArray(value) ? value
         : value ? [value]
         : [];
-    return [...new Set(list.map(namedShortcode).filter(Boolean))];
+    return [
+        ...new Set(
+            list
+                .map((one) => {
+                    if (isAddressTuple(one)) return one.shortcode.toLowerCase();
+                    const canonical = readCanonicalKey(String(one ?? "").trim());
+                    if (canonical) return canonical.shortcode.toLowerCase();
+                    const tuple = parseAddress(one, { type: "place", types: new Set(["place"]) });
+                    return tuple.reason ? "" : tuple.shortcode.toLowerCase();
+                })
+                .filter(Boolean),
+        ),
+    ];
 }
 
-/**
- * A stable order for `contains` and `holdings`: by subType, then title. An
- * entry with no subType sorts first.
- *
- * @param {HoldingsEntry} a
- * @param {HoldingsEntry} b
- * @returns {number}
+/** Resolve in the citing node's package, never another package's namespace.
+ * @param {unknown} value
+ * @param {HoldingsNode} node
+ * @param {"place"|"affiliation"} type
+ * @returns {string}
  */
-function bySubTypeThenTitle(a, b) {
-    return (
-        (a.subType ?? "").localeCompare(b.subType ?? "", "en") ||
-        a.title.localeCompare(b.title, "en")
+function referenceKey(value, node, type) {
+    if (value == null) return "";
+    const tuple = parseAddress(
+        value,
+        {
+            package: node.package ?? "local",
+            system:
+                type === "place" ? "note" : (
+                    (node.governmentSystem ?? ownDocumentSystem("affiliation"))
+                ),
+            type,
+            types: new Set([type]),
+        },
+        { declared: true, legacyShortcodeCase: true },
     );
+    if (tuple.reason || tuple.type !== type) return "";
+    return renderAddress({ ...tuple, system: "note" }).toLowerCase();
 }
 
-/**
- * A stable order for `held_by`: by title.
- *
- * @param {HoldingsEntry} a
- * @param {HoldingsEntry} b
- * @returns {number}
- */
-function byTitle(a, b) {
-    return a.title.localeCompare(b.title, "en");
+/** @param {HoldingsNode} node @returns {string} */
+function ownKey(node) {
+    const tuple = node.canonical ? readCanonicalKey(node.canonical) : node;
+    return renderAddress({
+        package: tuple.package ?? "local",
+        system: "note",
+        type: node.type,
+        shortcode: node.shortcode.toLowerCase(),
+    });
 }
-
-/**
- * The entry a node is listed as.
- *
- * **`url` is absent for a node that publishes no page**, and the entry is
- * emitted all the same. A stub is a place somebody has not written yet: it
- * carries its facts, and Weyshott belongs in Aelwyth's `contains` whether or
- * not anyone has written Weyshott's page. What it cannot have is a link, so
- * the renderer prints the title as plain text — the same rule a table cell
- * follows when its `_ref` is null, in a different renderer.
- *
- * @param {HoldingsNode} node - The node.
- * @returns {HoldingsEntry} Its entry.
- */
+/** @param {HoldingsNode} node @returns {boolean} */
+function listed(node) {
+    return node.url !== undefined && node.url !== null && node.url !== "";
+}
+/** @param {HoldingsNode} node @returns {HoldingsEntry} */
 function entryOf(node) {
     return {
         title: node.title,
@@ -209,35 +128,20 @@ function entryOf(node) {
         ...(node.subType === undefined ? {} : { subType: node.subType }),
     };
 }
-
-/**
- * Whether a node publishes a page.
- *
- * **A URL gates where a list is written, never whether a node may appear in
- * someone else's list.** You cannot write a `contains` block on a page that
- * does not exist, so this guards {@link holdingsPages}'s `on(url)` calls — and
- * nothing else. Guarding the membership too is how a stub vanishes from every
- * containment and tenure list in the corpus, silently, which is the one failure
- * mode a diff cannot show.
- *
- * @param {HoldingsNode} node - The node.
- * @returns {boolean} Whether it has a page to write a list on.
- */
-function listed(node) {
-    return node.url !== undefined && node.url !== null && node.url !== "";
+/** @param {HoldingsEntry} a @param {HoldingsEntry} b @returns {number} */
+function bySubTypeThenTitle(a, b) {
+    return (
+        (a.subType ?? "").localeCompare(b.subType ?? "", "en") ||
+        a.title.localeCompare(b.title, "en")
+    );
 }
 
-/**
- * Read a local note into a node, or `null` for a note that takes no part.
- *
- * @param {object} fm - The note's frontmatter.
- * @param {object} page - The page it publishes as.
- * @param {string} page.title - Its published title.
- * @param {string} page.url - Its URL.
- * @returns {HoldingsNode|null} The node, or `null` for a note that is neither
- *   a place nor an affiliation, or that declares no shortcode.
+/** Read local facts without converting government omission into anarchy.
+ * @param {object} fm
+ * @param {{title:string,url?:string,package?:string,system?:string,governmentSystem?:string}} page
+ * @returns {HoldingsNode|null}
  */
-export function holdingsNode(fm, { title, url }) {
+export function holdingsNode(fm, { title, url, package: pkg, system, governmentSystem }) {
     const type = String(fm?.type ?? "");
     if (type !== "place" && type !== "affiliation") return null;
     const shortcode = String(fm?.shortcode ?? "").toLowerCase();
@@ -249,123 +153,110 @@ export function holdingsNode(fm, { title, url }) {
         subType: fm.subType == null ? undefined : String(fm.subType),
         title,
         url,
-        parents: type === "place" ? shortcodesOf(data.parents) : [],
-        domains: type === "affiliation" ? shortcodesOf(data.domains) : [],
+        ...(pkg ? { package: pkg } : {}),
+        ...(system ? { system } : {}),
+        ...(governmentSystem ? { governmentSystem } : {}),
+        parents:
+            type === "place" ?
+                Array.isArray(data.parents) ? data.parents
+                : data.parents ? [data.parents]
+                : []
+            :   [],
+        ...(type === "place" && Object.hasOwn(data, "government") ?
+            { government: data.government }
+        :   {}),
     };
 }
 
-/**
- * Read a fetched index's places and affiliations as nodes.
- *
- * An entry carries what the producer's record stated — its name, `subType`,
- * `parents` and `domains` — and its page URL where the package publishes one.
- *
- * @param {Map<string, object>|undefined} foreignIndex - As
- *   {@link module:engine/metadata-index.loadForeignIndexes} returns it.
- * @returns {HoldingsNode[]} The nodes, in index order.
- */
+/** @param {Map<string,object>|undefined} foreignIndex @returns {HoldingsNode[]} */
 export function foreignHoldingsNodes(foreignIndex) {
     const out = [];
-    if (!foreignIndex) return out;
-    for (const [canonical, entry] of foreignIndex) {
+    for (const [canonical, entry] of foreignIndex ?? []) {
+        const tuple = readCanonicalKey(canonical);
         const type = String(entry?.type ?? "");
-        if (type !== "place" && type !== "affiliation") continue;
-        const shortcode = readCanonicalKey(canonical)?.shortcode?.toLowerCase() ?? "";
-        if (!shortcode) continue;
+        if (!tuple || (type !== "place" && type !== "affiliation")) continue;
         out.push({
-            shortcode,
+            canonical,
+            package: tuple.package,
+            system: tuple.system,
+            shortcode: tuple.shortcode.toLowerCase(),
             type,
             subType: entry.subType == null ? undefined : String(entry.subType),
-            title: String(entry.name ?? shortcode),
+            title: String(entry.name ?? tuple.shortcode),
             url: entry.url,
-            parents: type === "place" ? shortcodesOf(entry.parents) : [],
-            domains: type === "affiliation" ? shortcodesOf(entry.domains) : [],
+            parents:
+                type === "place" ?
+                    Array.isArray(entry.parents) ? entry.parents
+                    : entry.parents ? [entry.parents]
+                    : []
+                :   [],
+            ...(type === "place" && Object.hasOwn(entry, "government") ?
+                { government: entry.government }
+            :   {}),
         });
     }
     return out;
 }
 
-/**
- * Invert `parents` and `domains` into each page's lists.
- *
- * A shortcode is declared once per type: the first node declaring it wins,
- * so local nodes handed in ahead of fetched ones shadow a dependency's, the
- * way the link resolver answers. A node with no URL carries no lists of its
- * own, since there is no page to write them on — and is still an entry on
- * everybody else's, rendered as plain text. A name no node declares is
- * dropped: a `parents` naming nowhere is the map's finding, a `domains`
- * naming nowhere the reference check's.
- *
- * The result holds only pages with at least one entry on at least one list,
- * and a page's block carries only the keys it has entries for — the theme's
- * silent-disappear convention, kept at the source.
- *
- * @param {Iterable<HoldingsNode|null>} nodes - Every place and affiliation,
- *   local first. `parents` and `domains` are read as written, so a node
- *   built by hand may carry them as the note spells them.
- * @returns {Map<string, Holdings>} URL → the page's lists, sorted.
+/** Invert direct place facts. A stub remains a plain text entry; a stub's own
+ * absent page receives no lists. First declaration of a page Address wins;
+ * different document systems for one page normalize to its `note` identity.
+ * @param {Iterable<HoldingsNode|null>} nodes
+ * @param {object} [options]
+ * @param {Iterable<HoldingsNode|null>} [options.governmentNodes] Additional public
+ *   records without pages, participating only in government relationships.
+ * @returns {Map<string,Holdings>}
  */
-export function holdingsPages(nodes) {
-    /** @type {Map<string, HoldingsNode>} */
+export function holdingsPages(nodes, { governmentNodes = [] } = {}) {
     const places = new Map();
-    /** @type {Map<string, HoldingsNode>} */
     const affiliations = new Map();
+    const geographicPlaces = new Map();
     for (const node of nodes) {
-        if (!node) continue;
+        if (!node || !node.shortcode) continue;
         const by = node.type === "place" ? places : affiliations;
-        const shortcode = String(node.shortcode ?? "").toLowerCase();
-        if (!shortcode || by.has(shortcode)) continue;
-        // Read through the one reader, so a caller handing in what a note
-        // wrote — an address, a wikilink, a repeat — is read as `holdingsNode`
-        // reads it.
-        // Shortcode identity: the first node of each type owns this graph key.
-        by.set(shortcode, {
-            ...node,
-            shortcode,
-            parents: shortcodesOf(node.parents),
-            domains: shortcodesOf(node.domains),
-        });
+        const key = ownKey(node);
+        if (!by.has(key)) by.set(key, node);
+        if (node.type === "place" && !geographicPlaces.has(node.shortcode.toLowerCase())) {
+            // Shortcode identity: geography keeps its historical first-declaration rule.
+            geographicPlaces.set(node.shortcode.toLowerCase(), node);
+        }
     }
-
-    /** @type {Map<string, {contains: HoldingsEntry[], held_by: HoldingsEntry[], holdings: HoldingsEntry[]}>} */
+    // Local records with no published page still state government. They must
+    // not add geographic edges: containment keeps its existing page graph.
+    for (const node of governmentNodes) {
+        if (!node || !node.shortcode) continue;
+        const by = node.type === "place" ? places : affiliations;
+        const key = ownKey(node);
+        if (!by.has(key)) by.set(key, node);
+    }
     const lists = new Map();
-    const on = (url) => {
-        let found = lists.get(url);
-        if (!found) {
-            found = { contains: [], held_by: [], holdings: [] };
-            lists.set(url, found);
+    const add = (node, key, entry) => {
+        if (!listed(node)) return;
+        let block = lists.get(node.url);
+        if (!block) {
+            block = {};
+            lists.set(node.url, block);
         }
-        return found;
+        (block[key] ??= []).push(entryOf(entry));
     };
-    // Every gate below is on the page a list is *written* on, never on the
-    // node the list names — see {@link listed}.
+    for (const child of geographicPlaces.values()) {
+        const parentKeys = shortcodesOf(child.parents);
+        for (const key of parentKeys) {
+            const parent = geographicPlaces.get(key);
+            if (parent && parent !== child) add(parent, "contains", child);
+        }
+    }
     for (const child of places.values()) {
-        for (const shortcode of child.parents) {
-            const parent = places.get(shortcode);
-            if (!parent || !listed(parent) || parent === child) continue;
-            on(parent.url).contains.push(entryOf(child));
-        }
+        const government = affiliations.get(referenceKey(child.government, child, "affiliation"));
+        if (!government) continue;
+        add(child, "governed_by", government);
+        add(government, "governed_places", child);
     }
-
-    for (const holder of affiliations.values()) {
-        for (const shortcode of holder.domains) {
-            const held = places.get(shortcode);
-            if (!held) continue;
-            if (listed(holder)) on(holder.url).holdings.push(entryOf(held));
-            if (listed(held)) on(held.url).held_by.push(entryOf(holder));
-        }
+    for (const block of lists.values()) {
+        block.contains?.sort(bySubTypeThenTitle);
+        block.governed_places?.sort(bySubTypeThenTitle);
     }
-
-    const out = new Map();
-    for (const [url, { contains, held_by, holdings }] of lists) {
-        /** @type {Holdings} */
-        const block = {};
-        if (contains.length) block.contains = contains.sort(bySubTypeThenTitle);
-        if (held_by.length) block.held_by = held_by.sort(byTitle);
-        if (holdings.length) block.holdings = holdings.sort(bySubTypeThenTitle);
-        if (Object.keys(block).length) out.set(url, block);
-    }
-    return out;
+    return lists;
 }
 
 /* --------------------------------------------------------------------- */
@@ -373,71 +264,44 @@ export function holdingsPages(nodes) {
 /* --------------------------------------------------------------------- */
 
 /**
- * Every shortcode some affiliation's `domains` names, computed once per link
- * index. The lint asks the question once per place note, and the answer is a
- * fact about the whole corpus — local notes and every fetched entry — so it
- * is read off the index the first time and kept beside it.
+ * Advise when a place with an authored positive population omits government.
+ * Missing, null or zero population establishes no inhabited population.
+ * Property presence distinguishes omitted government from explicit null,
+ * which means complete anarchy. Non-null values are validated by the declared
+ * affiliation reference field. Neither geographic containment nor tenure
+ * supplies this fact, and the rule is independent of place subtype.
  *
- * @type {WeakMap<object, Set<string>>}
+ * @param {object} note - The note with parsed frontmatter and raw source.
+ * @returns {object[]} Located warning findings.
  */
-const HELD = new WeakMap();
-
-/**
- * The shortcodes every affiliation's `domains` names, across the link index.
- *
- * @param {object} index - The link index.
- * @returns {Set<string>} The held shortcodes, lower case.
- */
-function heldShortcodes(index) {
-    let held = HELD.get(index);
-    if (held) return held;
-    held = new Set();
-    for (const note of index.notes ?? []) {
-        if (String(note.type ?? note.fm?.type ?? "") !== "affiliation") continue;
-        const data = note.fm?.data;
-        const domains = data && typeof data === "object" ? data.domains : undefined;
-        for (const shortcode of shortcodesOf(domains)) held.add(shortcode);
-    }
-    for (const entry of index.foreign?.index?.values?.() ?? []) {
-        if (String(entry?.type ?? "") !== "affiliation") continue;
-        for (const shortcode of shortcodesOf(entry.domains)) held.add(shortcode);
-    }
-    HELD.set(index, held);
-    return held;
-}
-
-/**
- * Check a place note's tenure: a settlement, a site or a structure that no
- * affiliation's `domains` names is unheld land, reported as a warning at the
- * note's `type:` line.
- *
- * Declared on the `place` vocabulary as its type-level check, so the lint
- * runs it beside the field checks with the same index. Without an index the
- * question cannot be asked and nothing is reported.
- *
- * @param {object} note - The note, as the link index hands it over.
- * @param {object} [opts]
- * @param {object} [opts.index] - The link index, holding every affiliation.
- * @returns {object[]} Findings.
- */
-export function checkHeld(note, { index } = {}) {
-    if (!index) return [];
+export function checkGovernment(note) {
     const fm = note.fm ?? {};
-    if (String(fm.type ?? "") !== "place") return [];
-    const subType = String(fm.subType ?? "");
-    if (!HELD_SUBTYPES.includes(subType)) return [];
-    const shortcode = String(fm.shortcode ?? "").toLowerCase();
-    if (!shortcode) return [];
-    if (heldShortcodes(index).has(shortcode)) return [];
+    if (fm.type !== "place") return [];
+    const data = fm.data;
+    if (!data || typeof data !== "object" || Array.isArray(data)) return [];
+    const population = data.population;
+    if (typeof population !== "number" && typeof population !== "string") return [];
+    const count = Number(population);
+    if (!Number.isFinite(count) || count <= 0 || Object.hasOwn(data, "government")) return [];
     return [
         {
             file: note.file,
-            ...positionInFrontmatter(note.raw ?? "", "type", undefined, { topLevel: true }),
+            ...positionOfFrontmatterPath(note.raw ?? "", ["data", "population"], { key: true }),
             severity: "warning",
             message:
-                `unheld land: no affiliation's \`domains\` names "${shortcode}", so nothing ` +
-                `says who holds this ${subType}; name it in the \`domains\` of the house, ` +
-                `order or polity that does`,
+                `missing government: place "${fm.shortcode ?? ""}" has positive population ` +
+                "but no `data.government`; name an affiliation or write null for complete anarchy",
         },
     ];
+}
+
+/**
+ * The historical API name for the government advisory. Tenure is no longer checked.
+ * @deprecated Use checkGovernment.
+ * @param {object} note - The place note.
+ * @param {object} [_opts] - Historical options, no longer needed.
+ * @returns {object[]} Government advisory findings.
+ */
+export function checkHeld(note, _opts = {}) {
+    return checkGovernment(note);
 }

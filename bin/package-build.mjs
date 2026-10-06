@@ -78,7 +78,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { spawnSync } from "node:child_process";
 import { createInterface } from "node:readline/promises";
+import { fileURLToPath } from "node:url";
 import { globSync } from "glob";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
@@ -90,7 +92,8 @@ import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pack-config.mjs";
-import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
+import { cleanBuildArtifacts, resetStage, stageAssets } from "../stage.mjs";
+import { baseStyleStageEntry } from "../engine/base-styles.mjs";
 import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
 import { emitCalendarArtifacts } from "../engine/calendar-artifacts.mjs";
 import { dateFromCalendar, dateToCalendar } from "../engine/date-conversion.mjs";
@@ -118,6 +121,7 @@ import { deployStage } from "../deploy.mjs";
 import { CONTAINER_ACTIONS, containerAction } from "../container.mjs";
 import { E2E_MODES, e2eFast, e2eRun, e2eSweep, seedTestWorld } from "../e2e.mjs";
 import { reportFindings } from "./report.mjs";
+import { formatGenerated } from "../engine/format-generated.mjs";
 import {
     checkProject,
     initializeProject,
@@ -133,6 +137,38 @@ import { registerContentCommands } from "./content-commands.mjs";
  * them are still on the screen.
  */
 const ADVISORY_PREVIEW = 20;
+
+/** Replay pull-request workflow commands in Docker or on the host. */
+function ciCommand() {
+    return {
+        command: "ci",
+        describe: "Replay pull-request workflow commands",
+        builder: (y) =>
+            y.option("native", {
+                type: "boolean",
+                default: false,
+                describe: "Run in the current working tree without Docker",
+            }),
+        handler: handler(async (args) => {
+            const script = fileURLToPath(
+                new URL(
+                    args.native ? "../ci/ci-steps.mjs" : "../ci/ci-docker.mjs",
+                    import.meta.url,
+                ),
+            );
+            const top = spawnSync("git", ["rev-parse", "--show-toplevel"], {
+                encoding: "utf8",
+            });
+            const root = top.status === 0 ? top.stdout.trim() : process.cwd();
+            const result = spawnSync(process.execPath, [script], {
+                cwd: root,
+                stdio: "inherit",
+            });
+            if (result.error) throw result.error;
+            if (result.status !== 0) process.exitCode = 1;
+        }),
+    };
+}
 
 /** Initialize a repository from anywhere, including outside a Git checkout. */
 function initCommand() {
@@ -389,7 +425,7 @@ function assetsCommand() {
         builder: (y) => y,
         handler: handler(async () => {
             const config = loadPackageBuildConfig();
-            if (!config.assets.length) {
+            if (!config.assets.length && !config.baseStyles) {
                 console.log("package-build: no `packageBuild.assets` declared; nothing to stage.");
                 return;
             }
@@ -427,11 +463,41 @@ function assetsCommand() {
                 from,
                 path.join(config.stageDir, to),
             ]);
-            const { entries: count, files } = stageAssets(entries, {
+            let { entries: count, files } = stageAssets(entries, {
                 cwd: config.rootDir,
                 transform,
             });
+
+            // Staged in its own pass, without the repository's transform: the
+            // sheet is this toolchain's file rather than one of the
+            // repository's assets, and a `transform` written to retheme a
+            // package's own SVGs has no business being handed it.
+            if (config.baseStyles) {
+                const staged = stageAssets([baseStyleStageEntry(config.stageDir)], {
+                    cwd: config.rootDir,
+                });
+                count += staged.entries;
+                files += staged.files;
+            }
             console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
+        }),
+    };
+}
+
+/** Clear the package stage before a complete build writes to it. */
+function stageCommand() {
+    return {
+        command: "stage <action>",
+        describe: "Manage the assembled Foundry package stage",
+        builder: (y) =>
+            y.positional("action", {
+                choices: ["reset"],
+                describe: "Remove the configured stage directory",
+            }),
+        handler: handler(() => {
+            const config = loadPackageBuildConfig();
+            const removed = resetStage(config.rootDir, config.stageDir);
+            console.log(removed ? `Removed ${config.stageDir}` : "Stage is already empty.");
         }),
     };
 }
@@ -487,7 +553,10 @@ function datefromCommand() {
                     type: "string",
                     describe: "Calendar Address or shortcode",
                 })
-                .positional("date", { type: "string", describe: "Day in that calendar" }),
+                .positional("date", {
+                    type: "string",
+                    describe: "Day written in that calendar's std format (or first named format)",
+                }),
         handler: handler((args) => {
             console.log(dateFromCalendar(args.calendar, args.date, calendarConversionContext()));
         }),
@@ -508,35 +577,63 @@ function datetoCommand() {
                 .positional("canonical-date", {
                     type: "string",
                     describe: "Canonical <year>.<day>[:HHMMSS]",
+                })
+                .option("format", {
+                    type: "string",
+                    describe: "Named calendar format; defaults to std or the first declared format",
                 }),
         handler: handler((args) => {
             console.log(
-                dateToCalendar(args.calendar, args.canonicalDate, calendarConversionContext()),
+                dateToCalendar(
+                    args.calendar,
+                    args.canonicalDate,
+                    calendarConversionContext(),
+                    args.format,
+                ),
             );
         }),
     };
 }
 
-/**
- * Format generated text the way the repository formats everything else.
- *
- * Not cosmetic. A generated file that Prettier would reformat leaves
- * `lint:format` and the generator's own `--check` each demanding what the other
- * forbids, and the repository cannot be made green. Resolving the config from
- * the *output path* is what makes one implementation here serve repositories
- * with different Prettier settings.
- *
- * Imported on use, as `prose-lint.mjs` does, so that commands which never
- * format do not pay to load it.
- *
- * @param {string} text - The unformatted content.
- * @param {string} filepath - Where it will be written.
- * @returns {Promise<string>} The formatted content.
- */
-async function formatGenerated(text, filepath) {
-    const prettier = await import("prettier");
-    const config = await prettier.resolveConfig(filepath);
-    return prettier.format(text, { ...config, filepath });
+/** Check a project's declarations with library checks enabled. */
+function typesCheckCommand() {
+    return {
+        command: "check",
+        describe: "Check project declaration files with TypeScript library checks enabled",
+        builder: (yargs) =>
+            yargs
+                .option("project", {
+                    describe: "TypeScript project file.",
+                    type: "string",
+                    default: "tsconfig.json",
+                })
+                .option("exports", {
+                    describe: "Include every declaration entry point in package.json exports.",
+                    type: "boolean",
+                    default: false,
+                }),
+        handler: handler(async (args) => {
+            const { checkDeclarations } = await import("../engine/declaration-check.mjs");
+            const findings = checkDeclarations(args.project, { exports: args.exports }).map(
+                (finding) => ({
+                    ...finding,
+                    file: path.relative(process.cwd(), finding.file),
+                }),
+            );
+            if (reportFindings(findings, {}) > 0) process.exitCode = 1;
+            else console.log("Package declarations are valid.");
+        }),
+    };
+}
+
+/** Check project declaration files. */
+function typesCommand() {
+    return {
+        command: "types <action>",
+        describe: "Check TypeScript declarations",
+        builder: (yargs) => yargs.command(typesCheckCommand()).demandCommand(1).strict(),
+        handler: () => {},
+    };
 }
 
 /**
@@ -1587,13 +1684,16 @@ registerContentCommands(
     yargs(hideBin(process.argv))
         .scriptName("package-build")
         .command(initCommand())
+        .command(ciCommand())
         .command(cleanCommand())
         .command(assetsCommand())
+        .command(stageCommand())
         .command(calendarsCommand())
         .command(datefromCommand())
         .command(datetoCommand())
         .command(manifestCommand())
         .command(siteRootCommand())
+        .command(typesCommand())
         .command(schemaCommand())
         .command(langCommand())
         .command(labelsCommand())

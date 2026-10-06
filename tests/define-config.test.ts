@@ -39,9 +39,6 @@ describe("defineConfig", () => {
             packageBuild: {
                 assets: [{ from: "assets/icons", to: "assets/icons" }],
             },
-            publish: {
-                site: "content",
-            },
         });
 
         expect(config.contentPackage).toBe("sohl");
@@ -70,34 +67,17 @@ describe("defineConfig", () => {
             assets: [{ from: "assets/icons", to: "assets/icons" }],
         });
         expect(config.publish).toEqual({
-            site: "content",
             address: { prefix: "" },
         });
     });
 
-    it("defaults the reserved section to empty, and publishing to the floor", () => {
+    it("defaults the reserved section and address scheme", () => {
         const config = defineConfig(minimal());
 
         expect(config.packageBuild).toEqual({});
         expect(config.publish).toEqual({
-            site: "homepage",
             address: { prefix: "" },
         });
-    });
-
-    it("defaults publishing to the floor", () => {
-        // `kethira` publishes a homepage and no other page, and no manifest at
-        // all, while still consuming other packages' — the shape
-        // must express exactly that. The site mode and the manifest switches
-        // answer different questions: the homepage is one row in a routing
-        // table, and a link manifest is the dependency edge that would stop the
-        // module being withdrawable.
-        const config = defineConfig({
-            ...minimal(),
-            publish: {},
-        });
-
-        expect(config.publish.site).toBe("homepage");
     });
 
     it("freezes the returned config, deeply", () => {
@@ -178,10 +158,8 @@ describe("defineConfig", () => {
         ],
         ["a non-mapping packageBuild section", { ...minimal(), packageBuild: [] }],
         ["an unknown site mode", { ...minimal(), publish: { site: "yes" } }],
-        // Refused rather than mapped onto the nearest mode: `false` read as
-        // "no web presence", which describes no package.
-        ["the retired `site: true`", { ...minimal(), publish: { site: true } }],
-        ["the retired `site: false`", { ...minimal(), publish: { site: false } }],
+        ["boolean `site: true`", { ...minimal(), publish: { site: true } }],
+        ["boolean `site: false`", { ...minimal(), publish: { site: false } }],
         ["an unknown key", { ...minimal(), publishSite: true }],
     ])("rejects %s", (_label, input) => {
         expect(() => defineConfig(input as ContentBuildConfigInput)).toThrow(TypeError);
@@ -375,6 +353,43 @@ describe("defineConfig — the layout a consumer supplies", () => {
         );
     });
 
+    it("refuses a `verified` below `minimum`, since Foundry reads the two as one range", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                compatibility: { minimum: "14.359", verified: "14.356" },
+            }),
+        ).toThrow(
+            /`compatibility\.verified` declares `14\.356`, below `compatibility\.minimum`'s `14\.359`/,
+        );
+
+        // A major-only value is the common way to write the lower one, and the
+        // comparison is on the version triple, so it is caught the same way.
+        expect(() =>
+            defineConfig({ ...minimal(), compatibility: { minimum: "14.359", verified: "14" } }),
+        ).toThrow(
+            /`compatibility\.verified` declares `14`, below `compatibility\.minimum`'s `14\.359`/,
+        );
+    });
+
+    it("accepts `verified` equal to `minimum`, and anything above it", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                compatibility: { minimum: "14.359", verified: "14.359" },
+            }),
+        ).not.toThrow();
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                compatibility: { minimum: "14.359", verified: "14.360" },
+            }),
+        ).not.toThrow();
+        expect(() =>
+            defineConfig({ ...minimal(), compatibility: { minimum: "14.359", verified: "15" } }),
+        ).not.toThrow();
+    });
+
     it("freezes the added blocks too", () => {
         const config = defineConfig(minimal());
         expect(Object.isFrozen(config.paths)).toBe(true);
@@ -557,7 +572,7 @@ describe("the address scheme a repository publishes at", () => {
     const address = (value: unknown) =>
         defineConfig({
             ...minimal(),
-            publish: { site: "content", address: value },
+            publish: { address: value },
         }).publish.address;
 
     it("defaults to the package root", () => {

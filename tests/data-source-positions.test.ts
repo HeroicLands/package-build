@@ -214,6 +214,87 @@ describe("the retiring top-level position is reported", () => {
 });
 
 /* --------------------------------------------------------------------- */
+/*  The lint must agree with the resolver about what a note may write    */
+/* --------------------------------------------------------------------- */
+
+/**
+ * `resolveFieldValue` reads the retiring top-level key and the top-level
+ * region is closed, so the two have to agree about it: a key step 3b resolves
+ * is a key the lint's closed-region check must not refuse outright. Left
+ * disagreeing, every note still on the pre-`data:` spelling fails the lint
+ * with "unknown top-level frontmatter key", before a build ever reaches the
+ * position that reads it correctly.
+ */
+describe("the lint on a note using the retiring top-level position", () => {
+    const raw = "---\nshortcode: example\ntype: critter\nspecies: lore-b\n---\n\nBody.\n";
+    const note = {
+        file: "note.md",
+        type: "critter",
+        raw,
+        fm: { shortcode: "example", type: "critter", species: "lore-b" },
+    };
+    const findings = () => lintNote(note, { schemas: { critter: [SPECIES] } });
+
+    it("is not refused as an unknown top-level key", () => {
+        expect(findings().some((f) => /unknown top-level frontmatter key/.test(f.message))).toBe(
+            false,
+        );
+    });
+
+    it("is reported as the retiring position instead, as a warning", () => {
+        expect(findings()).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    severity: "warning",
+                    message: retiredTopLevelMessage(SPECIES),
+                }),
+            ]),
+        );
+    });
+});
+
+/**
+ * `pack` and `packFolder` are declared for every type — not through a
+ * `FieldSpec` `resolveFieldValue` takes, but through
+ * {@link module:engine/system-block.resolveDataProperty}'s identical order:
+ * a system's own override, then `data:`, then the retiring top-level
+ * spelling `data:` gathered it off. The lint has to recognize that position
+ * the same way it recognizes a declared field's, or a tree still authoring
+ * `pack:` or `packFolder:` at the bare top level — as some trees still do —
+ * fails the lint with "unknown top-level frontmatter key" before a build
+ * ever reaches the position that reads it correctly.
+ */
+describe("the lint on a note using pack's or packFolder's retiring top-level position", () => {
+    const findings = (key: string) => {
+        const raw = `---\nshortcode: example\ntype: critter\n${key}: items\n---\n\nBody.\n`;
+        const note = {
+            file: "note.md",
+            type: "critter",
+            raw,
+            fm: { shortcode: "example", type: "critter", [key]: "items" },
+        };
+        return lintNote(note, { schemas: { critter: [] } });
+    };
+
+    it.each(["pack", "packFolder"])("is not refused as an unknown top-level key: %s", (key) => {
+        expect(findings(key).some((f) => /unknown top-level frontmatter key/.test(f.message))).toBe(
+            false,
+        );
+    });
+
+    it.each(["pack", "packFolder"])("is reported as the retiring position instead: %s", (key) => {
+        expect(findings(key)).toEqual(
+            expect.arrayContaining([
+                expect.objectContaining({
+                    severity: "warning",
+                    message: retiredTopLevelMessage({ name: `data.${key}` }),
+                }),
+            ]),
+        );
+    });
+});
+
+/* --------------------------------------------------------------------- */
 /*  The emitters — the acceptance criteria themselves                     */
 /* --------------------------------------------------------------------- */
 

@@ -1,0 +1,86 @@
+{{- /*
+  Hero banner partial.
+
+  Displays a full-width banner band (using the same .hero.hero-with-image
+  classes as the homepage) with a centered page title and description
+  above the content.
+
+  Every path below resolves through cdn-url.html against the consuming
+  site's `params.cdnBaseURL`; the theme names no host of its own.
+
+  The resolution itself lives in `banner-url.html`, which a derived landing card
+  calls too. The order is documented in both places because this is where a
+  reader looking at a banner starts; that partial is where it happens.
+
+  Banner image resolution order:
+    1. .Params.data.banner         — a note's own hero image, which the content
+                                     build resolved from an asset Address into
+                                     the address its asset host serves. Used
+                                     exactly as given. A blank declines a hero
+                                     image; unset or `null` carries on.
+    2. .Params.banner              — a hand-authored page's value. `none` (or
+                                     `false`) declines a hero image entirely —
+                                     see "Declining" below. A full URL is used
+                                     as-is; anything else is treated as a
+                                     fragment under images/.
+    3. images/banners/{subtype}.webp — subtype-specific default, where
+                                     subtype = category for type=doc pages,
+                                     otherwise type
+    4. images/banners/default.webp — used when the page has no type, *and*
+                                     whenever the name picked by 2 or 3 is not
+                                     in the declared inventory (see below).
+
+  Existence, and why step 4 is a declaration rather than a test.
+  The image is served from the consumer's asset host, and Hugo cannot ask a
+  remote host whether a URL exists — so a name that was never drawn would be
+  emitted unchecked and 404 in silence, the band rendering with its title,
+  palette and gradient intact behind a dead URL. `data/banners.yaml`
+  is the declaration that stands in for the test it cannot make: a resolved name
+  absent from `available` falls back to `fallback` and warns once. That file
+  documents how the list is kept honest (`npm run lint:banners` fetches every
+  name and fails on a non-200), and a consumer publishing its own artwork set
+  overrides the whole list by shipping its own `data/banners.yaml`.
+
+  The check applies only to a *relative* path resolving directly inside the
+  declared banner directory. An absolute URL, and a fragment pointing anywhere
+  else under images/, pass through untouched: the theme has no inventory for
+  either and must not second-guess an address it cannot know about. A step 1
+  address is not checked either — the build resolved it against a real asset
+  record, so the question has already been answered.
+
+  Declining a hero image.
+  `banner: none` on a hand-authored page, and a blank `data.banner` on a note,
+  render the band with no image at all — the title, the palette
+  and the .hero-with-image gradient, which is what gives the band its presence.
+  This is not the same as having no banner yet: a package may have a standing
+  editorial reason to publish no imagery, and the fan-material carve-outs do.
+  Falling back to a default for them would substitute artwork where the
+  considered answer was "none", so declining has to be sayable.
+*/ -}}
+
+{{- /* For narrative content (type=doc) the meaningful kind of page lives in
+       `category` — continent, region, polity, faith, lore, etc. — so prefer
+       that when picking a default banner. */ -}}
+{{- $type := .Params.type | default "" -}}
+{{- $subtype := cond (eq $type "doc") (.Params.category | default "") $type -}}
+{{- if not $subtype }}{{ $subtype = "default" }}{{ end -}}
+
+{{- /* The order above, the `none` decision and the declared-existence check
+       all live in `banner-url.html`, which a derived landing card calls too
+       (issue #41). A hero band always wants the subtype default; a card never
+       does. */ -}}
+{{- $bannerURL := partial "banner-url.html" (dict
+    "site" .Site
+    "data" .Params.data
+    "banner" .Params.banner
+    "subtype" $subtype
+    "context" .RelPermalink) -}}
+
+<section class="hero hero-with-image"{{ with $bannerURL }} style="background-image: url('{{ . }}');"{{ end }}>
+  <div class="hero-inner" data-pagefind-ignore>
+    <h1>{{ .Title }}</h1>
+    {{- with .Params.description }}
+    <p class="hero-tagline">{{ . }}</p>
+    {{- end }}
+  </div>
+</section>

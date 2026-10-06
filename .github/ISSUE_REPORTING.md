@@ -84,9 +84,11 @@ both that file and this table — `package-build labels check` (run as
 
 | Label             | Use it for                                                                               |
 | ----------------- | ---------------------------------------------------------------------------------------- |
-| `documentation`   | The README, CONTENT.md, JSDoc, process.                                                  |
+| `documentation`   | The README, docs/, JSDoc, process.                                                       |
 | `devops`          | Build, tooling, CI, release, repo config.                                                |
 | `tests`           | The vitest suite, its fixtures, and the e2e harness this package ships to consumers.     |
+| `layout`          | Templates, partials, shortcodes — the structure a page renders into.                     |
+| `styling`         | CSS, fonts, images, icons, palette — how a rendered page looks.                          |
 | `security`        | Evaluating untrusted note content, path traversal, subprocess handling.                  |
 | `tech-debt`       | Restructuring or cleanup of working code; refactors.                                     |
 | `regression`      | Something that previously worked and stopped. Pairs with type **bug**.                   |
@@ -177,13 +179,13 @@ useful line in a report.
 - `npm run build:types` — the published `.d.mts` surface compiles
 
 A change that alters what consumers see updates the documentation that describes
-it: **README.md** for the packaging half, and **CONTENT.md** for the content half
-and the note format.
+it: **README.md** for the entry point, and the relevant guide or reference under
+**docs/** for content and packaging behavior.
 
 **Changing the toolchain is not the same as proving it.** A behaviour change here
 is only really verified when a consumer tree compiles through it — see the
-regression harness described in CONTENT.md, which diffs `build/packs-json` before
-and after against a real tree.
+consumer regression harness, which compares `build/packs-json` before and after
+against a real content tree.
 
 ## 7. Which repository does an issue belong in?
 

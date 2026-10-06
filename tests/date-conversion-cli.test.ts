@@ -7,6 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 const cli = path.join(
     path.dirname(path.dirname(fileURLToPath(import.meta.url))),
     "bin/package-build.mjs",
@@ -24,7 +25,7 @@ beforeAll(() => {
         path.join(root, "package-build.config.yaml"),
         `contentPackage: demo
 packageKind: documentation
-publish: { site: content }
+publish: {}
 `,
     );
     fs.writeFileSync(
@@ -47,8 +48,10 @@ name: { full: Common Calendar }
 type: lore
 subType: calendar
 data:
+  epoch: "1.1"
   months: [{ name: First, days: 30 }, { name: Second, days: 31 }, { name: Third, days: 30 }, { name: Taranis, days: 31 }, { name: Fifth, days: 243 }]
-  eras: [{ shortcode: founding, marker: VR, abbreviation: VR, start: 1.1 }]
+  formats: { std: "D MMMM [yearInEra] G", long: "DD MMMM [yearInEra] G" }
+  eras: [{ shortcode: before, name: Before, abbreviation: BVR, start: null }, { shortcode: founding, name: Founding, marker: VR, abbreviation: VR, start: 1 }]
 ---
 `,
     );
@@ -65,18 +68,29 @@ function run(...args: string[]) {
 }
 
 describe("date conversion commands", () => {
-    it("prints only the exact converted value", () => {
-        const from = run("datefrom", "vrcal", "23 Taranis 326 VR");
-        expect(from.status).toBe(0);
-        expect(from.stdout).toBe("326.114\n");
-        const to = run("dateto", "vrcal", "326.114");
-        expect(to.status).toBe(0);
-        expect(to.stdout).toBe("23 Taranis 326 VR\n");
-    });
+    it(
+        "prints only the exact converted value",
+        () => {
+            const from = run("datefrom", "vrcal", "23 Taranis 326 VR");
+            expect(from.status).toBe(0);
+            expect(from.stdout).toBe("326.114\n");
+            const to = run("dateto", "vrcal", "326.114");
+            expect(to.status).toBe(0);
+            expect(to.stdout).toBe("23 Taranis 326 VR\n");
+            const long = run("dateto", "vrcal", "326.94", "--format", "long");
+            expect(long.status).toBe(0);
+            expect(long.stdout).toBe("03 Taranis 326 VR\n");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
-    it("rejects a date without a day", () => {
-        const result = run("datefrom", "vrcal", "326 VR");
-        expect(result.status).toBe(1);
-        expect(result.stderr).toContain("precise to the day");
-    });
+    it(
+        "rejects a date without a day",
+        () => {
+            const result = run("datefrom", "vrcal", "326 VR");
+            expect(result.status).toBe(1);
+            expect(result.stderr).toContain("precise to the day");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 });

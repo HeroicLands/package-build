@@ -166,3 +166,22 @@ export function cleanBuildArtifacts(root, { extra = [], includeNodeModules = fal
     }
     return removed;
 }
+
+/**
+ * Remove the configured Foundry stage before a complete build assembles it.
+ * Other build outputs, including the content index, remain available.
+ *
+ * @param {string} root - Repository root.
+ * @param {string} stageDir - Configured stage directory, relative to root.
+ * @returns {boolean} Whether the stage existed.
+ */
+export function resetStage(root, stageDir) {
+    const projectRoot = path.resolve(root);
+    const target = path.resolve(projectRoot, stageDir);
+    if (!target.startsWith(`${projectRoot}${path.sep}`)) {
+        throw new Error("The stage directory must be inside the project root.");
+    }
+    if (!fs.existsSync(target)) return false;
+    fs.rmSync(target, { recursive: true, force: true });
+    return true;
+}

@@ -83,9 +83,11 @@ describe("a content lint locates a finding from the working directory", () => {
                 "  full: Note",
                 "---",
                 "",
-                "A <strong>bold</strong> claim about the vowel /ə/, and :icon-nosuchglyph: too.",
+                "A <strong>bold</strong> claim about the vowel /ə/, and :icon nosuchglyph: too.",
                 "",
                 "![A map](maps/x.png){.no-such-width}",
+                "",
+                "- [ ] a checklist line",
                 "",
             ].join("\n"),
         );
@@ -100,6 +102,7 @@ describe("a content lint locates a finding from the working directory", () => {
             "lintContentHtml",
             "lintContentIcons",
             "lintContentImages",
+            "lintContentTaskLists",
             "lintContentTree",
         ]);
     });

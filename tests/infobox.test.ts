@@ -49,7 +49,13 @@ import {
     presentValue,
     requiredInfoboxIds,
 } from "../engine/infobox.mjs";
-import { SOHL_FIELD_PRESENTATION, UNSTATED, decodeItem, strikeModes } from "../sohl/infobox.mjs";
+import {
+    SOHL_FIELD_PRESENTATION,
+    UNSTATED,
+    beingSections,
+    decodeItem,
+    strikeModes,
+} from "../sohl/infobox.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { infoboxesToHtml, infoboxesToTypst, sectionHasContent } from "../engine/infobox-render.mjs";
 import { compilesSystemDocument, noteInfoboxes } from "../engine/infobox-registry.mjs";
@@ -57,6 +63,7 @@ import { createPackRouter } from "../engine/pack-router.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
 import { authoredKey } from "../engine/system-block.mjs";
+import { parseAddress } from "../engine/address.mjs";
 
 /**
  * The suffixes a declaration's own key carries into a label.
@@ -69,14 +76,42 @@ import { authoredKey } from "../engine/system-block.mjs";
  */
 const COMPILER_WORDS = /\b(base|code|flag|mult|desc)$/i;
 
+/**
+ * An Address tuple a field's declaration will accept, branded exactly as the
+ * content index normalises one — a plain `{package, system, type, shortcode}`
+ * object looks the same to the eye but is not what `isAddressTuple` reports
+ * true for, and a sample built from one would miss whatever only fires on
+ * the branded shape.
+ */
+function addressSample(field: { ref?: string; accepts?: readonly string[] }): unknown {
+    const type = field.accepts?.[0] ?? field.ref ?? "lore";
+    return parseAddress(
+        "someref",
+        { package: "test", system: "note", type, types: new Set([type]) },
+        { declared: true },
+    );
+}
+
 /** A value the vocabulary's declared shape will accept, so every field is filled. */
-function sampleFor(field: { shape?: string; kind?: string; entryKind?: string }): unknown {
+function sampleFor(field: {
+    shape?: string;
+    kind?: string;
+    entryKind?: string;
+    standings?: boolean;
+    roster?: boolean;
+    ranks?: boolean;
+    ref?: string;
+    accepts?: readonly string[];
+}): unknown {
     if (field.shape?.startsWith("list of `{ to,"))
         return [{ to: "someref", bearing: "NE", mode: "land", days: 2 }];
+    if (field.standings) return { "affiliation-someref": { rank: 3, office: "Steward" } };
+    if (field.roster) return { Steward: "Keeps the body's accounts." };
+    if (field.ranks) return [{ level: 0, title: "Thrall", description: "Bound to serve." }];
     if (field.shape?.startsWith("a map keyed by Address"))
         return { "affiliation-someref": "friend" };
-    if (field.kind === "address") return "someref";
-    if (field.kind === "list" && field.entryKind === "address") return ["someref"];
+    if (field.kind === "address") return addressSample(field);
+    if (field.kind === "list" && field.entryKind === "address") return [addressSample(field)];
     if (field.kind === "number") return 7;
     if (field.kind === "list") return ["one", "two"];
     return "something";
@@ -141,10 +176,25 @@ describe("the note box's fields are the type's own vocabulary", () => {
         const box = noteInfobox({
             type: "lore",
             name: { full: "The Founding" },
-            data: { event: { kind: "founding", when: { year: 1 } } },
+            data: { events: [{ when: "412.1" }] },
         });
         expect(box.sections[0].rows).toEqual([
             { label: "Name", kind: "text", value: "The Founding" },
+        ]);
+    });
+
+    it("shows a recurring event's next occurrence, and nothing else of the family", () => {
+        const box = noteInfobox(
+            {
+                type: "lore",
+                name: { full: "Founders' Day" },
+                data: { events: [{ when: "412.1", recurs: { every: 10 } }] },
+            },
+            { dates: { daysPerYear: 365, present: "707.1" } },
+        );
+        expect(box.sections[0].rows).toEqual([
+            { label: "Name", kind: "text", value: "Founders' Day" },
+            { label: "Next occurrence", kind: "text", value: "712.1" },
         ]);
     });
 
@@ -160,22 +210,127 @@ describe("the note box's fields are the type's own vocabulary", () => {
         }
     });
 
+    it("shows every alias below the full name in authored order on every output", () => {
+        for (const type of Object.keys(NOTE_VOCABULARY)) {
+            const box = noteInfobox({
+                type,
+                name: { full: "Ada", aliases: ["The Swift", "Night Fox"] },
+            });
+            expect(box.sections[0].rows.slice(0, 2)).toEqual([
+                { label: "Name", kind: "text", value: "Ada" },
+                { label: "Aliases", kind: "list", value: ["The Swift", "Night Fox"] },
+            ]);
+            const html = infoboxesToHtml([box]);
+            const typst = infoboxesToTypst([box]);
+            for (const output of [html, typst]) {
+                expect(output.indexOf("Ada")).toBeLessThan(output.indexOf("The Swift"));
+                expect(output.indexOf("The Swift")).toBeLessThan(output.indexOf("Night Fox"));
+            }
+        }
+    });
+
+    it("shows a being's declared subtype as its profile type", () => {
+        const labels = { npc: "NPC", character: "Character", creature: "Creature" };
+        const subTypes = NOTE_VOCABULARY.being.subTypes;
+        expect(subTypes).not.toBeNull();
+        expect([...subTypes!].sort()).toEqual(Object.keys(labels).sort());
+
+        for (const subType of subTypes!) {
+            const box = noteInfobox({
+                type: "being",
+                name: { full: "A Note" },
+                subType,
+                data: {},
+            });
+            expect(box.sections[0].rows).toEqual([
+                { label: "Name", kind: "text", value: "A Note" },
+                { label: "Type", kind: "text", value: labels[subType as keyof typeof labels] },
+            ]);
+        }
+
+        const categoryTagOnly = noteInfobox({
+            type: "being",
+            name: { full: "A Person" },
+            tags: ["character"],
+            data: {},
+        });
+        expect(categoryTagOnly.sections[0].rows).toEqual([
+            { label: "Name", kind: "text", value: "A Person" },
+        ]);
+    });
+
     it("carries every field the vocabulary declares, unless the overlay withholds it", () => {
         const missing: Record<string, string[]> = {};
         for (const type of Object.keys(NOTE_VOCABULARY)) {
-            const box = noteInfobox(fullyStated(type));
+            const box = noteInfobox(fullyStated(type), { contentPackage: "test" });
             const labels = new Set(box.sections[0].rows.map((row: { label: string }) => row.label));
             for (const field of NOTE_VOCABULARY[type].data) {
                 const overlay = overlayFor(NOTE_FIELD_PRESENTATION, type, field.name);
                 if (overlay.withheld) continue;
                 const wanted =
                     overlay.group ? "Appearance"
+                    : field.roster ? "Steward"
+                    : field.ranks ? "Thrall"
                     : field.shape?.startsWith("a map keyed by Address") ? "Friend"
                     : (overlay.label ?? humanizeFieldName(field.name));
                 if (!labels.has(wanted)) (missing[type] ??= []).push(field.name);
             }
         }
         expect(missing).toEqual({});
+    });
+
+    it("renders a rank ladder beside its offices, in level order, and a plain address list beside them", () => {
+        const address = (type: string, shortcode: string) =>
+            parseAddress(
+                shortcode,
+                { package: "test", system: "note", type, types: new Set([type]) },
+                { declared: true },
+            );
+        const resolve = (ref: unknown) => {
+            const shortcode = (ref as { shortcode?: string })?.shortcode ?? String(ref);
+            return { name: `Named ${shortcode}`, url: `/x/${shortcode}/` };
+        };
+        const box = noteInfobox(
+            {
+                type: "affiliation",
+                name: { full: "Kingdom of Nordheim" },
+                data: {
+                    governance: {
+                        ranks: [
+                            { level: 1, title: "Thrall", description: "Bound to serve." },
+                            { level: 0, title: "Níðing", description: "Cast out and nameless." },
+                        ],
+                        offices: { Jarl: "Rules a district in the King's name." },
+                    },
+                    lore: [address("lore", "humanflk")],
+                    domains: [address("place", "vrystwald")],
+                    economy: [address("lore", "bartercnmy")],
+                },
+            },
+            { resolve },
+        );
+        const rows = box.sections[0].rows;
+        const labels = rows.map((row: { label: string }) => row.label);
+        expect(labels).not.toContain("Domains");
+
+        // The ladder reaches the page, ordered by level, ahead of the offices
+        // it names alongside — issue 916.
+        expect(rows.find((row: { label: string }) => row.label === "Níðing")?.value).toBe(
+            "Cast out and nameless.",
+        );
+        expect(labels.indexOf("Níðing")).toBeLessThan(labels.indexOf("Thrall"));
+        expect(labels.indexOf("Thrall")).toBeLessThan(labels.indexOf("Jarl"));
+        expect(rows.find((row: { label: string }) => row.label === "Jarl")?.value).toBe(
+            "Rules a district in the King's name.",
+        );
+
+        // A plain list of addresses reaches its row rather than being
+        // silently dropped — issue 928.
+        for (const label of ["Lore", "Economy"]) {
+            const row = rows.find((r: { label: string }) => r.label === label);
+            expect(row?.kind).toBe("links");
+            expect(row?.value.length).toBeGreaterThan(0);
+        }
     });
 
     it("keeps the vocabulary's order", () => {
@@ -422,7 +577,13 @@ describe("the rendered box", () => {
  */
 function specVocabulary(name: string): string[] {
     const text = readFileSync(
-        path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "docs", "content-format.md"),
+        path.join(
+            path.dirname(fileURLToPath(import.meta.url)),
+            "..",
+            "docs",
+            "reference",
+            "format-details.md",
+        ),
         "utf8",
     );
     const values: string[] = [];
@@ -971,6 +1132,37 @@ describe("a sentinel is an absence, not a value", () => {
 });
 
 describe("decodeItem — what one `sohl.items` entry names", () => {
+    it("shows model-addressed skills and equipment in a being's infobox", () => {
+        const sections = beingSections(
+            {
+                type: "being",
+                sohl: {
+                    items: [
+                        {
+                            model: "demo-sohl-skill-melee",
+                            system: { masteryLevelBase: 75 },
+                        },
+                        { model: "demo-sohl-weapongear-dagger" },
+                    ],
+                },
+            },
+            {
+                block: "sohl",
+                resolve: (ref: { type: string }) => ({
+                    name: ref.type === "skill" ? "Melee" : "Dagger",
+                }),
+            },
+        );
+        expect(sections.find((section: { id: string }) => section.id === "skills")).toMatchObject({
+            groups: [{ entries: [{ text: "Melee 75" }] }],
+        });
+        expect(
+            sections.find((section: { id: string }) => section.id === "equipment"),
+        ).toMatchObject({
+            groups: [{ entries: [{ text: "Dagger" }] }],
+        });
+    });
+
     it("prefers the explicit `type` and `shortcode` over `model`", () => {
         expect(
             decodeItem({

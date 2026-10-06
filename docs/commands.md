@@ -1,3 +1,10 @@
+---
+shortcode: commands
+name: { full: "Command reference" }
+type: doc
+subType: reference
+---
+
 # Command reference
 
 `@heroiclands/package-build` ships the `package-build` command. It checks and
@@ -60,6 +67,58 @@ behaviour where they appear below; read the command, not the name.
 ---
 
 ## Package and release operations
+
+### `package-build ci`
+
+**NAME**
+
+Replay the commands from pull-request workflows.
+
+**SYNOPSIS**
+
+```text
+package-build ci [--native]
+```
+
+**DESCRIPTION**
+
+The default command runs in Docker on Linux against a clean export of the
+current commit. It reads the repository's pull-request workflows under
+`.github/workflows/` and runs their `run:` steps in workflow order. A failed
+step stops the replay. Uncommitted changes are absent from the clean export.
+
+`--native` runs the same steps on the host in the current working tree. It
+needs no Docker and includes uncommitted changes, but its operating system and
+existing files can differ from a clean GitHub runner. The steps themselves
+still come from the workflow files.
+
+The command lists `uses:` steps that it cannot run locally. A successful replay
+covers the listed `run:` steps; GitHub runs the published actions separately.
+Workflow steps may install dependencies, generate files, or perform other
+declared build actions.
+
+**OPTIONS**
+
+| Option     | Type    | Default | Description                                  |
+| ---------- | ------- | ------- | -------------------------------------------- |
+| `--native` | boolean | false   | Run on the host in the current working tree. |
+
+**EXIT STATUS**
+
+0 when every runnable step succeeds. 1 when a step fails, no pull-request
+workflow supplies runnable steps, Docker is unavailable for the default mode,
+or the replay cannot start.
+
+**EXAMPLES**
+
+```bash
+package-build ci
+package-build ci --native
+```
+
+**SEE ALSO**
+
+[End-to-end testing](guides/e2e.md), [Project setup](project-setup.md).
 
 ### `package-build init [directory]`
 
@@ -182,6 +241,43 @@ Nothing to clean.
 
 [Configuration](configuration.md).
 
+### `package-build stage reset`
+
+**NAME**
+
+Clear the assembled Foundry package stage before a complete build.
+
+**SYNOPSIS**
+
+```
+package-build stage reset
+```
+
+**DESCRIPTION**
+
+The `reset` action removes `packageBuild.stageDir` without removing the content index, PDF, site,
+or other build outputs. Run it once before the commands that write assets, packs,
+bundles, and the manifest. It succeeds when the stage is already empty.
+
+**OPTIONS**
+
+There are no options.
+
+**EXIT STATUS**
+
+1 on an invalid configuration or a stage directory outside the project. Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build stage reset
+Removed build/stage
+```
+
+**SEE ALSO**
+
+[Project setup](project-setup.md), [Configuration](configuration.md).
+
 ### `package-build assets`
 
 **NAME**
@@ -286,9 +382,10 @@ package-build datefrom <calendar> <date>
 
 Reads the current content tree, resolves its world year and calendar eras, and
 prints `<year>.<day>[:HHMMSS]` to standard output. `<calendar>` is a calendar
-shortcode, full Address, or addressed era. The date uses the calendar's month
-name and era label, for example `23 Taranis 326 VR`. A date in a calendar with
-multiple eras must identify its era. A date must specify a day;
+shortcode, full Address, or addressed era. The date follows the calendar's
+`data.formats.std` pattern, or its first named pattern when `std` is absent.
+For example, `MM/DD/Y GGG` reads `04/23/326 VR`. An era-relative year written
+with `[yearInEra]` must identify its era. A date must specify a day;
 year-only and month-only dates do not identify one canonical day.
 Prefix the date with `~` to preserve an approximate value.
 
@@ -321,19 +418,20 @@ Express a canonical day in an authored calendar.
 **SYNOPSIS**
 
 ```
-package-build dateto <calendar> <canonical-date>
+package-build dateto <calendar> <canonical-date> [--format <name>]
 ```
 
 **DESCRIPTION**
 
 Reads the current content tree, selects the era covering the canonical day, and
-prints the date with its named month and era label. The input is
+prints the date using `data.formats.std`, or the first named pattern if `std`
+is absent. The input is
 `<year>.<day>[:HHMMSS]`, optionally prefixed with `~`. A date in a gap between
 eras has no conversion.
 
 **OPTIONS**
 
-None.
+`--format` selects another named pattern from the calendar note; pass its name as the value.
 
 **EXIT STATUS**
 
@@ -787,8 +885,8 @@ Install it with `npm ci`, which resolves from the lockfile this just moved.
 ```
 
 ```
-$ package-build bump @heroiclands/hugo-theme --check
-@heroiclands/hugo-theme  0.5.0 → 0.6.0
+$ package-build bump @heroiclands/package-build --check
+@heroiclands/package-build  22.6.0 → 22.7.0
 
 Run without --check to take it.
 ```
@@ -874,7 +972,9 @@ from the heading rule, since neither is authored.
 A token that reads as code — `camelCase()`, a `path/with/slashes.ext`,
 `SCREAMING_SNAKE` — outside any code span is a warning, not a failure: a
 user-facing note sometimes needs one (`Compendium.hm3.items.Item.<id>`), but
-rarely. A block's bold label absent from a declared `changelog.labels` is
+rarely. Accented letters keep proper names such as HârnMaster whole, so a
+fragment of one does not trigger a code-token warning. A block's bold label
+absent from a declared `changelog.labels` is
 also a warning — the drift `**Character data**` beside `**Characters**`
 produces — and checks nothing when the repository declares no
 `changelog.labels`. Every other finding is an error. Reads the files given,
@@ -1038,7 +1138,7 @@ states it a second time. It also publishes the content index the manifest
 advertises (`flags.metadataUrl`) and, when the stage carries one,
 `schema.json` — a repository that names `build/schema.json` in
 `packageBuild.assets` gets it released beside the archive; one that does not
-gets none. When the package publishes content (`publish.site: content`), it
+gets none. When the content tree holds notes beyond its homepage, it
 also builds the content-tree book (see `package-build pdf`) and reports it
 alongside the archive; `--no-pdf` skips that step for a release that has a
 tree but does not want the book this time. A book that fails to build is
@@ -1063,7 +1163,7 @@ are reported on stderr but do not fail the release.
 ```
 $ package-build release
 ✅ Packaged 1.0.0 for release: build/dist/module.zip (0.0 MB)
-   No book: `publish.site` is `homepage`, which fences the content surfaces off — the tree is not walked and no book is built. Publish content to build one.
+   No book: The content tree contains only a homepage, so there is no book to build.
 ```
 
 **SEE ALSO**
@@ -1355,15 +1455,23 @@ package-build deps fetch [--from <zip|dir>] [--id <id>]
 **DESCRIPTION**
 
 The only action is `fetch`, which fills three caches under `build/cache/`:
-the **content index** of every declared dependency, the **item catalogue**
-of those that additionally declare `itemCatalog: true`, and the **site
-navigation** — `https://www.heroiclands.org/nav.json`, the header menu
-every package site renders, fetched for every package because every package
-publishes a site. Its own command rather than a step of `package compile`
-or `site`, so neither reaches the network — a build that downloads silently
-is not reproducible and hides a dependency's version change behind a
-passing run. Each cache is stamped complete only once its fetch finishes,
-so a half-finished one reads as cold.
+the **content index** of every declared dependency, the **item catalogue or
+asset archive** of those that additionally declare `itemCatalog: true` or
+`assetArchive: true`, and the **site navigation** —
+`https://www.heroiclands.org/nav.json`, the header menu every package site
+renders, fetched for every package because every package publishes a site.
+A relationship declaring both `itemCatalog: true` and `assetArchive: true`
+is fetched once. Its own command rather than a step of `package compile` or
+`site`, so neither reaches the network — a build that downloads silently is
+not reproducible and hides a dependency's version change behind a passing
+run. Each cache is stamped complete only once its fetch finishes, so a
+half-finished one reads as cold.
+
+`lint`, `links`, `site`, `pdf`, `map`, `reachability`, and `package compile`
+check the declared dependencies' content-index cache before reading notes or
+writing output. A cold cache produces a diagnostic at the package configuration
+file naming `deps fetch`. These checks only read local files; `deps fetch` is
+the separate step that reaches the network.
 
 The navigation is fetched first, because every package needs it and it
 depends on nothing a repository declares — so a dependency whose release
@@ -1395,7 +1503,7 @@ including when the repository declares no dependencies at all.
 ```
 $ package-build deps fetch
 […] Fetched the site navigation to build/cache/navigation/nav.json.
-[…] No relationship declares `itemCatalog: true`; nothing to fetch.
+[…] No relationship declares `itemCatalog: true` or `assetArchive: true`; nothing to fetch.
 […] This package declares no dependencies.
 
 $ package-build deps fetch --from build/dist/module.zip
@@ -1405,6 +1513,126 @@ $ package-build deps fetch --from build/dist/module.zip
 **SEE ALSO**
 
 `package-build site`, `package-build addresses diff`, [Configuration](configuration.md).
+
+### `package-build types check`
+
+**NAME**
+
+Check project declarations.
+
+**SYNOPSIS**
+
+```sh
+package-build types check [--project <tsconfig>] [--exports]
+```
+
+**DESCRIPTION**
+
+Check a TypeScript project's declarations with library checking enabled. The
+default `--project` is `tsconfig.json`. Diagnostics in `node_modules` are
+excluded; diagnostics in project files name the file, line, and column.
+`--exports` also checks every declaration entry point advertised by
+`package.json` `exports`, including wildcard subpaths. Run it after generating
+declarations.
+
+**OPTIONS**
+
+| Option      | Default         | Meaning                                     |
+| ----------- | --------------- | ------------------------------------------- |
+| `--project` | `tsconfig.json` | TypeScript project file.                    |
+| `--exports` | off             | Include published declaration entry points. |
+
+**EXIT STATUS**
+
+1 when a project declaration fails to type-check or an exported entry point is
+missing; otherwise 0.
+
+**EXAMPLES**
+
+```sh
+package-build types check --project tsconfig.json
+```
+
+**SEE ALSO**
+
+`package-build docs links`.
+
+### `package-build docs links`
+
+**NAME**
+
+Check documentation links.
+
+**SYNOPSIS**
+
+```sh
+package-build docs links [--root <dir>]
+```
+
+**DESCRIPTION**
+
+Check relative Markdown links and heading anchors in a documentation tree.
+Code fences and code spans are ignored. The default root is `docs`; use
+`--root <dir>` for another tree. Missing targets and anchors are reported at
+the link's file, line, and column.
+
+**OPTIONS**
+
+| Option   | Default | Meaning             |
+| -------- | ------- | ------------------- |
+| `--root` | `docs`  | Documentation root. |
+
+**EXIT STATUS**
+
+1 when a link or anchor fails to resolve; otherwise 0.
+
+**EXAMPLES**
+
+```sh
+package-build docs links --root docs
+```
+
+**SEE ALSO**
+
+`package-build docs index`.
+
+### `package-build docs index`
+
+**NAME**
+
+Check documentation index coverage.
+
+**SYNOPSIS**
+
+```sh
+package-build docs index [--root <dir>]
+```
+
+**DESCRIPTION**
+
+Check that every Markdown page immediately inside each section directory is
+linked from the documentation root's `README.md`. The default root is `docs`;
+use `--root <dir>` for another tree. Each unlinked page is reported by path.
+
+**OPTIONS**
+
+| Option   | Default | Meaning             |
+| -------- | ------- | ------------------- |
+| `--root` | `docs`  | Documentation root. |
+
+**EXIT STATUS**
+
+1 when a page is not indexed; otherwise 0.
+
+**EXAMPLES**
+
+```sh
+package-build docs index --root docs
+```
+
+**SEE ALSO**
+
+`package-build docs links`.
 
 ### `package-build docs item-fields`
 
@@ -1456,15 +1684,16 @@ body alone, with no frontmatter, exactly as before.
 
 **OPTIONS**
 
-| Positional | Type                         | Default | Description             |
-| ---------- | ---------------------------- | ------- | ----------------------- |
-| `action`   | string, one of `item-fields` | —       | The document to render. |
+| Positional | Type                                           | Default | Description               |
+| ---------- | ---------------------------------------------- | ------- | ------------------------- |
+| `action`   | string, one of `item-fields`, `links`, `index` | —       | The documentation action. |
 
 | Option    | Type    | Default                 | Description                                            |
 | --------- | ------- | ----------------------- | ------------------------------------------------------ |
 | `--out`   | string  | `docs.itemFields.out`   | Write to this file instead of the configured location. |
 | `--check` | boolean | `false`                 | Compare against the file already there; write nothing. |
 | `--title` | string  | `docs.itemFields.title` | The page's H1.                                         |
+| `--root`  | string  | `docs`                  | Documentation root for `links` and `index`.            |
 
 **EXIT STATUS**
 
@@ -1484,6 +1713,131 @@ $ package-build docs item-fields --out docs/item-fields.md --title "Demo Item Fi
 **SEE ALSO**
 
 [Configuration](configuration.md).
+
+### `package-build prose lint [path]` and `prose score [path]`
+
+**NAME**
+
+Review sentence readability or score each note against a package's prose bands.
+
+**SYNOPSIS**
+
+```text
+package-build prose lint [path] [--age <years>] [--threshold <count>] [--min-words <count>] [--rules readability|simplify|all] [--fail-on-warning]
+package-build prose score [path] [--min-words <count>] [--fail-outside]
+```
+
+**DESCRIPTION**
+
+Run the `lint` or `score` action from the package root. Pass a Markdown note while editing;
+omit the path to read the configured `paths.content` tree. A directory path
+scans Markdown files recursively and honors `skipDirectories`. A file path
+analyzes that file alone, even in an excluded directory. Both actions read
+source files and write nothing. They are optional editorial checks and are
+outside `package-build lint` and the normal build.
+
+Set defaults in `package-build.config.yaml` under `packageBuild.proseLint`:
+
+```yaml
+packageBuild:
+  proseLint: { age: 21, threshold: 5, minWords: 8, rules: readability }
+  proseScore:
+    minWords: 80
+    bands:
+      flesch: { min: 45, max: 80 }
+      syllablesPerWord: { max: 1.65 }
+```
+
+No configuration is required. `proseLint` uses the defaults shown. The
+`proseScore` default is `minWords: 80` with no bands; the example bands express
+one package's editorial preference, not a toolchain standard. `age` is the
+intended reader's age in years. `threshold` is the number of seven readability
+algorithms that must classify a sentence as difficult before it is reported.
+For example, a threshold of 5 reports a sentence if five or more algorithms
+flag it; a threshold of 7 reports only unanimous findings. Lint's `minWords`
+excludes shorter sentences. `rules: readability` reports difficult sentences;
+`simplify` reports wording suggestions; `all` reports both. The CLI options
+override individual settings. Lint numeric settings are positive integers;
+`threshold` is at most 7.
+
+Lint analyzes Markdown paragraphs, including those in blockquotes, with `retext-english` and the selected
+readability or simplify rules; `retext-stringify` completes the text pipeline.
+Frontmatter, headings, lists, GFM tables, code blocks and inline code, image
+embeds, wikilinks, and inline expressions are excluded. The body of an ordinary
+directive such as `:::info` remains prose; SQL directive bodies are excluded.
+Each suggestion is a warning with a file, line,
+column, rule ID, confidence, offending sentence, and `expected` replacement
+list. The source location marks the difficult sentence or the specific phrase
+that could be simplified. Readability confidence is the number of algorithms
+that found the sentence difficult, out of seven. Simplify suggestions have no
+numeric confidence score, so they say `unscored`. `expected` lists suggested
+replacements; `[]` means the rule offers no replacement and may recommend
+deleting a word or rewriting a sentence. Suggestions are advisory and are
+never applied automatically. `--fail-on-warning` makes a selected rule's
+suggestions an explicit exit-code gate.
+
+Score uses the same paragraph selection. It reports Flesch reading ease,
+syllables per word, mean and longest sentence length, unfamiliar-word percentage
+against the Dale–Chall list, and nominalizations per thousand words. A
+nominalization is counted by its word ending (`-tion`, `-sion`, `-ment`,
+`-ness`, `-ity`, `-ance`, `-ence`, or `-ism`); this is a mechanical count, not a
+grammar judgment. Coverage is the percentage of readable body words included
+in the score: headings and lists count toward the body but are not scored.
+Review low-coverage notes in context. A note with fewer than score's `minWords`
+is reported as insufficient and is not compared with bands.
+
+Under `packageBuild.proseScore.bands`, any of `flesch`, `syllablesPerWord`,
+`meanSentenceWords`, `longestSentenceWords`, `unfamiliarWordPercent`, and
+`nominalizationsPer1000Words` may set `min`, `max`, or both. Limits are finite
+numbers and a minimum cannot exceed a maximum. Violations are warnings. The
+directory summary pools sentence, word, and syllable counts across sufficiently
+long notes before computing Flesch; it is not an average of note scores.
+`--fail-outside` makes band violations an explicit gate. No band is enforced
+until the package declares it.
+
+**OPTIONS**
+
+| Input               | Default                    | Meaning                                      |
+| ------------------- | -------------------------- | -------------------------------------------- |
+| `path`              | configured `paths.content` | Markdown file or content tree                |
+| `--age`             | 21                         | Lint reader age in years                     |
+| `--threshold`       | 5                          | Lint readability algorithms required (1–7)   |
+| `--rules`           | `readability`              | Lint rules: `readability`, `simplify`, `all` |
+| `--min-words`       | 8 lint; 80 score           | Minimum words per sentence or note           |
+| `--fail-on-warning` | false                      | Fail lint on selected rule findings          |
+| `--fail-outside`    | false                      | Fail score when a note crosses a band        |
+
+**EXIT STATUS**
+
+0 after an advisory report; 1 for invalid options, unreadable paths, or an
+explicit failure condition.
+
+**EXAMPLES**
+
+```bash
+package-build prose lint assets/content/Lore/Harbor.md
+package-build prose lint assets/content/Lore/Harbor.md --rules simplify
+package-build prose lint assets/content/Lore/Harbor.md --fail-on-warning
+package-build prose lint
+package-build prose lint assets/content --age 18 --threshold 6 --min-words 10
+package-build prose score assets/content/Lore/Harbor.md
+package-build prose score assets/content/Lore --fail-outside
+```
+
+For a note whose fifth line says `The utilization is very high.`, lint with
+`--rules simplify` can report:
+
+```text
+assets/content/Lore/Harbor.md:5:5: warning: retext-simplify/utilization: confidence=unscored; sentence="The utilization is very high."; expected=["use"]; Unexpected `utilization`, use `use` instead
+```
+
+Open the file at line 5, column 5, and decide whether `use` suits the context.
+The rule ID identifies the suggestion if you need to search or group results.
+
+**SEE ALSO**
+
+[`package-build lint`](#package-build-lint-root),
+[Configuration](configuration.md#packagebuildproselint).
 
 ### `package-build lint [root]`
 
@@ -1507,8 +1861,11 @@ checks frontmatter against the declared vocabulary and each system's `sohl:`
 it), that an icon a note writes is one the registry declares, and that
 markup inside a note's body does not smuggle in a character the charset
 check cannot see. `--no-references` turns off the check that a frontmatter
-shortcode reference lands, for a tree whose cross-package references it
-cannot see. Reads the content tree named by `root`, defaulting to
+shortcode reference lands, including references in schema-declared system
+fields, for a tree whose cross-package references it cannot see. Address
+references in system fields resolve against this package and its declared
+dependencies; exact Item UUID validation remains part of compilation. Reads
+the content tree named by `root`, defaulting to
 `paths.content`; writes nothing.
 
 **OPTIONS**
@@ -1572,10 +1929,10 @@ like one that passed.
 
 **OPTIONS**
 
-| Option     | Type                         | Default                              | Description                               |
-| ---------- | ---------------------------- | ------------------------------------ | ----------------------------------------- |
-| `--spec`   | string                       | the shipped `docs/content-format.md` | The specification to read.                |
-| `--schema` | string, repeatable, required | —                                    | A published schema, as `<system>=<path>`. |
+| Option     | Type                         | Default                                  | Description                               |
+| ---------- | ---------------------------- | ---------------------------------------- | ----------------------------------------- |
+| `--spec`   | string                       | the shipped `engine/content-format.yaml` | The specification to read.                |
+| `--schema` | string, repeatable, required | —                                        | A published schema, as `<system>=<path>`. |
 
 **EXIT STATUS**
 
@@ -1627,7 +1984,7 @@ vocabularies differ by design until a note's data fully moves under `data:`.
 
 | Option       | Type                         | Default                                       | Description                                         |
 | ------------ | ---------------------------- | --------------------------------------------- | --------------------------------------------------- |
-| `--spec`     | string                       | the shipped `docs/content-format.md`          | The specification to read.                          |
+| `--spec`     | string                       | the shipped `engine/content-format.yaml`      | The specification to read.                          |
 | `--fields`   | string, one of `sohl`, `hm3` | the consuming repository's own `itemBuilders` | A declaration set this package ships, by system id. |
 | `--coverage` | boolean                      | `false`                                       | List, per type, the fields only one side names.     |
 
@@ -1677,10 +2034,10 @@ class of finding reaches zero.
 | ---------- | ------ | ------------------------------ | ------------------------ |
 | `root`     | string | the configured `paths.content` | Content tree to measure. |
 
-| Option     | Type    | Default                              | Description                                          |
-| ---------- | ------- | ------------------------------------ | ---------------------------------------------------- |
-| `--spec`   | string  | the shipped `docs/content-format.md` | The specification to read.                           |
-| `--strict` | boolean | `false`                              | Fail on the findings instead of only reporting them. |
+| Option     | Type    | Default                                  | Description                                          |
+| ---------- | ------- | ---------------------------------------- | ---------------------------------------------------- |
+| `--spec`   | string  | the shipped `engine/content-format.yaml` | The specification to read.                           |
+| `--strict` | boolean | `false`                                  | Fail on the findings instead of only reporting them. |
 
 **EXIT STATUS**
 
@@ -1721,7 +2078,9 @@ retired — every link is an address), a wikilink authored in frontmatter
 (which is data and is never resolved), and a package homepage's markdown
 links and `landing:` addresses, which are published verbatim and use no
 wikilink at all. Also reports a vendored foreign-package content index that
-has drifted out of reach, naming `package-build deps fetch` as the fix.
+has drifted out of reach, naming `package-build deps fetch` as the fix. Resolves
+address-valued SoHL system fields declared by the installed schema against this
+package and its declared dependencies.
 Reads the content tree named by `root`, defaulting to `paths.content`, and
 the cached content indexes of any declared dependency; writes nothing.
 
@@ -1951,9 +2310,9 @@ Three things are written, and nothing outside `build/`:
 - `build/hugo/hugo.toml`, generated on every run from `package.json`
   (`homepage`, `description`, `author`), `package-build.config.yaml`
   (`packageBuild.manifest.title`, `site.assets`, `site.notfound`,
-  `site.hugo`), the organisation's constants, the installed
-  `@heroiclands/hugo-theme`'s location, and the navigation `deps fetch`
-  cached. Every value's source is listed under
+  `site.hugo`), the organisation's constants, the shared theme's own
+  location, and the navigation `deps fetch` cached. Every value's source is
+  listed under
   [the generated Hugo configuration](configuration.md#the-generated-hugo-configuration).
 - `build/hugo/content/`, the content mount — the homepage as its `_index.md`,
   and the content tree's pages flat below `publish.address.prefix`. Wiped on
@@ -1962,13 +2321,13 @@ Three things are written, and nothing outside `build/`:
   deployment root `package-build site-root` writes beside. Nothing Hugo
   reads lands in what is published.
 
-The configuration's sources are read before the output tree is touched, so
-a missing `homepage`, a cold navigation cache or an uninstalled theme fails
-with the previous site intact. Every gate is then checked and reported, and
-the run stops at the first that fires, ordered so the report names the cause
-rather than its symptoms — an unusable dependency manifest, reported after
-the links that failed because of it, would otherwise read as a pile of
-broken notes. Reads the content tree named by `paths.content`.
+The configuration's sources are read before the output tree is touched, so a
+missing `homepage` or a cold navigation cache fails with the previous site
+intact. Every gate is then checked and reported, and the run stops at the
+first that fires, ordered so the report names the cause rather than its
+symptoms — an unusable dependency manifest, reported after the links that
+failed because of it, would otherwise read as a pile of broken notes. Reads
+the content tree named by `paths.content`.
 
 **OPTIONS**
 
@@ -1977,13 +2336,12 @@ None.
 **EXIT STATUS**
 
 1 if `package.json` declares no `homepage`, or one that does not end
-`/<contentPackage>/`; if `packageBuild.manifest.title` is undeclared; if the
-navigation has not been fetched (`package-build deps fetch` fills the cache
-and is named in the message); or if `@heroiclands/hugo-theme` is not
-installed. 1 if any gate fires — no homepage or two competing for it, a
-frontmatter wikilink, an address that cannot be derived, a stale or
-unaddressable dependency manifest, an address published twice, a table that
-failed to expand, or a dead wikilink. Otherwise 0.
+`/<contentPackage>/`; if `packageBuild.manifest.title` is undeclared; or if
+the navigation has not been fetched (`package-build deps fetch` fills the
+cache and is named in the message). 1 if any gate fires — no homepage or two
+competing for it, a frontmatter wikilink, an address that cannot be derived,
+a stale or unaddressable dependency manifest, an address published twice, a
+table that failed to expand, or a dead wikilink. Otherwise 0.
 
 **EXAMPLES**
 
@@ -2038,8 +2396,8 @@ configured `pdf.out`.
 
 **EXIT STATUS**
 
-0 when there is a stated reason not to build (`publish.site` is
-`homepage`, no `pdf:` block, no content tree). 1 if the document tree
+0 when there is a stated reason not to build (only a homepage note, no `pdf:`
+block, no content tree). 1 if the document tree
 `pdf.document` names cannot be read or parsed, or on any other thrown
 error. Otherwise 0 — findings inside a book that did build (a filter that
 matched nothing, for instance) are reported but never fail the command.
@@ -2331,19 +2689,15 @@ package-build addresses diff --from <zip|dir> [--strict]
 **DESCRIPTION**
 
 Reports every published `(type, shortcode)` address this build no longer
-publishes, against a released artifact — the signal that a shortcode
-rename or a withdrawn note used to cost nothing and now does, emitted in
-the repository doing the renaming while the change is still in front of
-its author. Its own command rather than a step of `package compile`,
-because it reads a _second_ artifact the compile knows nothing about and
-asks a question about a release, not about a build — a repository between
-releases has nothing to compare against. `--from` names the baseline
-explicitly — a release's `.zip`, or the directory built from one — never
-derived and never downloaded, for the same reason `deps fetch --from` is
-explicit: a command that reaches the network on its own is not
-reproducible. A finding is placed against the tree, at the note that made
-the rename, not against the compiled output it was read from. Reads the
-baseline artifact and the current content tree; writes nothing.
+publishes, against a released artifact. A departed address is identified as
+renamed when the same document id appears under another address; otherwise it
+is reported as withdrawn. An id derived from the canonical address changes
+with its shortcode. The old address is reported as withdrawn; the new address
+appears in the current package and produces no finding. Pair those addresses
+by hand. A pinned id lets the command identify the same document at its new
+address. `--from` names the baseline explicitly: a release's `.zip`, or the
+directory built from one. The command reads the baseline artifact and current
+content tree and writes diagnostics only.
 
 **OPTIONS**
 
@@ -2358,8 +2712,8 @@ baseline artifact and the current content tree; writes nothing.
 
 **EXIT STATUS**
 
-1 if `diff` is named with no `--from`. Without `--strict`, a renamed or
-withdrawn address is reported as a warning and does not fail the run. With
+1 if `diff` is named with no `--from`. Without `--strict`, a departed address
+is reported as a warning and does not fail the run. With
 `--strict`, 1 if any address is no longer published. 1 on any other thrown
 error (the baseline declaring an Item pack this build does not have, or
 this repository declaring no Item pack at all to diff). Otherwise 0.

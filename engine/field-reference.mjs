@@ -124,15 +124,40 @@ function fieldTable(fields) {
 }
 
 /**
+ * The one line explaining why a single field's shared top-level fallback is
+ * off.
+ *
+ * **The field's reason stands on its own** — a complete sentence, or more
+ * than one — rather than completing a clause the frame starts. A field that
+ * collides with a top-level spelling meaning something else can say so
+ * ("`weight` is the item's own, independent of the note's."); a field whose
+ * top-level spelling is refused outright by the closed vocabulary can say
+ * that instead, honestly, which "there it means …" cannot: a refused key
+ * carries no meaning to report.
+ *
+ * Exported so a guard can walk every field declaring `topLevelMeans` across
+ * every registry and check that each one composes into a grammatical
+ * sentence, without reimplementing the frame it is checking.
+ *
+ * @param {import("./field-spec.mjs").FieldSpec} field - A field declaring
+ *   `topLevelMeans`.
+ * @returns {string} The composed markdown line.
+ */
+export function topLevelExemptionLine(field) {
+    return `**\`${field.name}\` is not read from the note's top level.** ${field.topLevelMeans}`;
+}
+
+/**
  * The fields of one type that are **not** filled from the note's top level.
  *
  * A field ordinarily falls back to the top-level property spelled like its
  * name, so an author who writes `weight: 3` at the top of a note reasonably
- * expects it to reach the document. Where that spelling means something else at
- * the note level the fallback is off, and an author has no way to tell from the
- * table — the field is there, the value is written, and the document ships the
- * default. So the reason each such field declares is rendered beside its table
- * rather than left in the source.
+ * expects it to reach the document. Where that spelling is wrong at the note
+ * level — it means something else there, or the closed top-level vocabulary
+ * refuses it outright — the fallback is off, and an author has no way to tell
+ * from the table — the field is there, the value is written, and the document
+ * ships the default. So the reason each such field declares is rendered
+ * beside its table rather than left in the source.
  *
  * Below the table, not inside it: the reason is a sentence or two, and
  * {@link padTable} pads every column to its widest cell, so a cell holding it
@@ -144,11 +169,7 @@ function fieldTable(fields) {
 function sharedExemptions(fields) {
     const exempt = authoredFields(fields).filter((field) => field.topLevelMeans);
     if (!exempt.length) return [];
-    return exempt.flatMap((field) => [
-        `**\`${field.name}\` is not read from the note's top level.** There it means ` +
-            `${field.topLevelMeans}`,
-        "",
-    ]);
+    return exempt.flatMap((field) => [topLevelExemptionLine(field), ""]);
 }
 
 /**
