@@ -437,6 +437,14 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 ...(Object.hasOwn(record.data ?? {}, "government") ?
                     { government: record.data.government }
                 :   {}),
+                // What a work of literature concerns and what kind of work it
+                // is, so a consumer's subject pages list a dependency's works.
+                ...(parts.type === "lore" && record.subType === "literature" ?
+                    {
+                        subjects: record.data?.subjects ?? undefined,
+                        form: record.data?.form ?? undefined,
+                    }
+                :   {}),
                 package: pkg,
             });
             const entry = index.get(key);

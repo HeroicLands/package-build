@@ -14,7 +14,7 @@ map, search, and the markup an image or a figure renders as — and names the
 classes a consumer styles against.
 
 **None of the sections below is an authoring instruction.** `infoboxes`,
-`related`, `contains`, `governed_by`, `governed_places`, `map`, `package`, `slug`, `url`
+`related`, `contains`, `governed_by`, `governed_places`, `works`, `map`, `package`, `slug`, `url`
 and `title` cannot be written by a note at all: a note's top-level region is
 closed and does not admit them, so each arrives already resolved by the time
 the theme sees it. Read this page when a panel is missing or a class needs
@@ -214,6 +214,37 @@ uses, so a region with forty settlements stays scannable.
 
 A page whose front matter declares none of `contains`, `governed_by` or
 `governed_places` renders no card at all.
+
+## The "In song and story" card
+
+`partials/literature-works.html` renders a second card directly below the
+government card, listing the works of literature that name the page's subject.
+The build derives `works` from every `literature` lore note's `data.subjects`,
+including works a fetched index carries, so no note writes it:
+
+```yaml
+---
+works: [{ title: …, url: …, form: … }] # works naming this page, sorted by title
+---
+```
+
+`form` is the work's `data.form`, printed in parentheses beside its title, and is
+absent when the work states none. A work naming one subject twice lists once, and
+a work naming itself is not listed on its own page. An entry's `url` is absent
+for a work that publishes no page, which renders as plain text through
+`partials/holdings/entry.html`. A page no work names carries no `works` and
+renders no card.
+
+The card reuses the government card's classes, so a consumer styling one styles
+both; `.literature-works` on the `<section>` tells them apart.
+
+| class                   | drawn as                          |
+| ----------------------- | --------------------------------- |
+| `.literature-works`     | the card, beside `.holdings`      |
+| `.holdings-table-label` | "In song and story"               |
+| `.holdings-table-grid`  | the grid of works                 |
+| `.holdings-entry-name`  | a work's title, linked or plain   |
+| `.holdings-entry-kind`  | the work's form, beside its title |
 
 ## The place map
 

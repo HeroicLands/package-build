@@ -3942,6 +3942,11 @@ the setting itself, rather than instructions or other apparatus for the GM.
   legend is literature whether or not its events took place, and a chronicle is literature as a
   work even where its events are also history.
 
+Each note a work names in `data.subjects` lists that work on its own site page, under **In
+song and story**, with the work's `form` beside its title; the subject note writes nothing.
+A work in a fetched index lists on this package's pages when that index carries its
+`subjects`.
+
 Calendar fields are written only on a `calendar` note, and `culture`, `form`, `subjects` and
 `language` only on a `literature` note; written on any other lore subType, each is an error at
 its own key.
