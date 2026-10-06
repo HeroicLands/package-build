@@ -31,7 +31,7 @@ document ID appears under another address, and **withdrawn** when that ID
 appears under none. Findings are warnings by default. `--strict` turns them
 into errors for a release gate. The comparison reads shipped Item packs, so it
 reports the surface consumers actually resolve rather than inferring changes
-from filenames. Use the [Address reference](../reference/format-details.md#addresses)
+from filenames. Use the [Address reference](../content-format.md#addresses)
 when choosing a durable shortcode.
 
 ## Build the release files
