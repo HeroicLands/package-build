@@ -144,12 +144,12 @@ The build always writes `title`, `slug`, `url`, `kbfolder`, `package` and
 note. `infoboxes` is assembled from the note's own fields, so no note authors
 it and nothing in the note format accepts it.
 
-The build writes `resolvedDates`, `related`, `contains`, `governed_by`, `governed_places`
-and `map` only when it has something to write. A page with no links either way
+The build writes `resolvedDates`, `related`, `contains`, `governed_by`, `governed_places`,
+`works` and `map` only when it has something to write. A page with no links either way
 carries no `related`, and a place with no drawing carries no `map`.
 
-An authored `aliases`, `related`, `contains`, `governed_by`, `governed_places` or `map` is
-dropped. Each states a fact about the whole tree rather than about one note, so
+An authored `aliases`, `related`, `contains`, `governed_by`, `governed_places`, `works` or
+`map` is dropped. Each states a fact about the whole tree rather than about one note, so
 the build replaces whatever a note wrote.
 
 Artwork addresses are rewritten in place under `data`. A page's `data.icon`,

@@ -95,7 +95,7 @@ import { resolvedDateFields } from "./note-dates.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 // The one statement of what an empty body means, shared with the index.
 import { isStubNote } from "./note-state.mjs";
-import { isGmNote } from "./note-vocabulary.mjs";
+import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { ART_SLOTS, artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
 import {
@@ -109,6 +109,7 @@ import { publishesContentPages } from "../content-config.mjs";
 import { HUGO_CONTENT } from "./site-config.mjs";
 import { homepageLinkTargets, relatedPages } from "./related-pages.mjs";
 import { HOLDINGS_KEYS, foreignHoldingsNodes, holdingsNode, holdingsPages } from "./holdings.mjs";
+import { WORKS_KEY, foreignWorksNodes, worksNode, worksPages } from "./literature-works.mjs";
 import { drawSiteMaps } from "./site-maps.mjs";
 
 const require = createRequire(import.meta.url);
@@ -607,6 +608,7 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
     delete data.aliases;
     delete data.related;
     for (const key of HOLDINGS_KEYS) delete data[key];
+    delete data[WORKS_KEY];
     delete data.map;
     if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;
@@ -1089,12 +1091,25 @@ export function renderPages(pages, options) {
         },
     );
 
+    // Each work of literature lists on the pages of the subjects it names,
+    // including works a fetched index carries.
+    const works = worksPages(
+        [
+            ...pages.map((page) =>
+                worksNode(page.fm, { title: pageTitle(page), url: page.url, package: page.pkg }),
+            ),
+            ...foreignWorksNodes(foreign?.index),
+        ],
+        { types: new Set(Object.keys(NOTE_VOCABULARY)) },
+    );
+
     let withMap = 0;
     const outputs = capture === true ? new Map() : null;
     for (const { page, body, data } of rendered) {
         const block = related.get(page.url);
         if (block) data.related = block;
         Object.assign(data, holdings.get(page.url));
+        Object.assign(data, works.get(page.url));
         const map = maps.get(page.url);
         if (map) {
             data.map = map.name;

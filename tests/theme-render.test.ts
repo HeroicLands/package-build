@@ -80,6 +80,7 @@ const CONTRACT = [
     "subType",
     "tags",
     "type",
+    "works",
 ] as const;
 
 /** Every `.Params.<name>` the shipped partials read. */
@@ -182,6 +183,20 @@ beforeAll(() => {
             "data:",
             "    parents: []",
             "    domains: [place-rgn]",
+        ]),
+    );
+
+    write(
+        "Lore/lore-hamlay.md",
+        note([
+            "type: lore",
+            "subType: literature",
+            "shortcode: hamlay",
+            "name:",
+            "    full: The Lay of Little Ham",
+            "data:",
+            "    form: lay",
+            "    subjects: [place-ham]",
         ]),
     );
 
@@ -350,5 +365,17 @@ describe("the theme renders a page the build emitted", () => {
             .match(/<section class="holdings"[\s\S]*?<\/section>/)?.[0];
         expect(card).toContain("Little Ham");
         expect(card).not.toContain("The Region");
+    });
+
+    it.runIf(HAS_HUGO)("lists the works that name a place on its page", () => {
+        const place = [...html.keys()].find((key) => key.includes("place-ham"))!;
+        const card = html
+            .get(place)!
+            .match(/<section class="holdings literature-works"[\s\S]*?<\/section>/)?.[0];
+        expect(card).toContain("In song and story");
+        expect(card).toMatch(/<a [^>]*href="[^"]*lore-hamlay\/"[^>]*>The Lay of Little Ham<\/a>/);
+        expect(card).toContain("(lay)");
+        const region = [...html.keys()].find((key) => key.includes("place-rgn"))!;
+        expect(html.get(region)).not.toContain("In song and story");
     });
 });
