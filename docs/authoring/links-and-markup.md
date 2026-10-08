@@ -321,6 +321,27 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 
 Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.weight`, `data.born`. Every Address is a string — the full canonical Address, as in `list_contains(data.parents, 'thalorna-note-place-xerathia')` — whichever package published it. Every note carries a computed `state` column of `full`, `draft` or `stub`. Notes tagged `gm` are absent from the relations on public surfaces.
 
+### Sections the build adds about events
+
+A note's events are listed for you on the notes they concern: a place gets a **Chronology** of what happened there and below it, a being, affiliation or people the **Events** it took part in, an affiliation, place or people the **Accounts** it gives, and a note holding events **What followed** them. Each is a section appended after everything you wrote, with a fixed anchor — `chronology`, `events`, `accounts`, `followed` — and it appears only where it has something to list.
+
+To replace one, write the section yourself with the same anchor. The build then adds nothing for it and leaves yours exactly as written:
+
+````markdown
+# Chronology {#chronology}
+
+The fells keep no reckoning before the raising.
+
+```sql
+SELECT summary AS "What happened", "when" AS "When"
+FROM events
+WHERE list_contains("where".locus, 'thalorna-note-place-ironfells')
+ORDER BY whenSort
+```
+````
+
+The [format reference](../reference/format-details.md#event-views) lists what each view selects.
+
 ### Fence attributes
 
 A braced list may follow the language on the opening fence. Two attributes are accepted, and anything else is reported by name.

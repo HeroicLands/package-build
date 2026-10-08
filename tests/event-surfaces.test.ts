@@ -19,8 +19,11 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import matter from "gray-matter";
+
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
+import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
@@ -46,6 +49,8 @@ data:
           summary: Ironfells is sacked.
           names:
               - { name: The Burning, by: place-ironfells }
+          where:
+              locus: [ironfells]
 ---
 
 A town of the fells.
@@ -61,6 +66,18 @@ name:
 
 The sack began in {{ref "place-ironfells#sack" field="when"}} and is remembered as {{ref "place-ironfells#sack" field="name"}}; it was a {{ref "place-ironfells#sack" field="kind"}}.
 `;
+
+/** The rendered names of every Foundry journal's pages, by journal name. */
+function pageNames(root: string): Record<string, string[]> {
+    const dir = path.join(root, "build", "packs-json", "journals");
+    const out: Record<string, string[]> = {};
+    if (!fs.existsSync(dir)) return out;
+    for (const file of fs.readdirSync(dir)) {
+        const doc = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
+        out[doc.name] = (doc.pages ?? []).map((p: any) => p?.name);
+    }
+    return out;
+}
 
 /** A repository the three builds share. */
 function repo(): string {
@@ -92,6 +109,9 @@ function repo(): string {
             "  - sectionName: Lore",
             "    contents:",
             "      - filter: \"type = 'lore'\"",
+            "  - sectionName: Places",
+            "    contents:",
+            "      - filter: \"type = 'place'\"",
         ].join("\n") + "\n",
     );
     fs.writeFileSync(
@@ -154,10 +174,15 @@ function journals(root: string): Record<string, string> {
 
 let root: string;
 let site: Record<string, string>;
-let foundry: { status: number | null; output: string; journals: Record<string, string> };
+let foundry: {
+    status: number | null;
+    output: string;
+    journals: Record<string, string>;
+    pages: Record<string, string[]>;
+};
 let book: { status: number | null; output: string; source: string };
 
-beforeAll(() => {
+beforeAll(async () => {
     root = repo();
 
     const config = defineConfig({
@@ -169,7 +194,14 @@ beforeAll(() => {
         stats: { lastModifiedBy: "demobuilder0000" },
         packs: [{ name: "journals", type: "JournalEntry", default: true }],
     });
-    const built = buildSite({ config });
+    const built = buildSite({
+        config,
+        sqlTables: await prepareTreeSqlTables(config.paths.content, {
+            skipDirectories: config.skipDirectories,
+            config,
+            audience: "public",
+        }),
+    });
     expect(gatesFailed(built.gates), JSON.stringify(built.gates)).toBe(false);
     const content = path.join(root, "build/hugo/content");
     site = Object.fromEntries(
@@ -180,7 +212,7 @@ beforeAll(() => {
     );
 
     const packs = compilePacks(root);
-    foundry = { ...packs, journals: journals(root) };
+    foundry = { ...packs, journals: journals(root), pages: pageNames(root) };
 
     const pdf = run(root, [path.join(PKG_ROOT, "bin", "package-build.mjs"), "pdf", "--no-compile"]);
     const dist = path.join(root, "build", "dist");
@@ -205,5 +237,37 @@ describe("an inline reference to an event's field, on every surface", () => {
         expect(book.status, book.output).toBe(0);
         const flat = book.source.replace(/\\(.)/g, "$1");
         expect(flat).toContain(PRINTED);
+    });
+});
+
+describe("a note's event views, on every surface", () => {
+    it("are a section of the website page, after the author's text", () => {
+        const page = matter(site["place-ironfells.md"]);
+        expect(page.content).toContain("# Chronology {#chronology}");
+        expect(page.content.indexOf("A town of the fells.")).toBeLessThan(
+            page.content.indexOf("# Chronology"),
+        );
+        expect(page.content).toContain("Ironfells is sacked.");
+        expect(page.content).not.toContain("```sql");
+    });
+
+    it("are a page of the Foundry journal", () => {
+        expect(foundry.output).toMatch(/ERRORS=0/);
+        expect(foundry.pages.Ironfells).toContain("Chronology");
+        expect(foundry.journals.Ironfells).toContain("Ironfells is sacked.");
+    });
+
+    it("are a section of the book", () => {
+        expect(book.status, book.output).toBe(0);
+        const flat = book.source.replace(/\\(.)/g, "$1");
+        expect(flat).toContain("Chronology");
+        expect(flat).toContain("Ironfells is sacked.");
+    });
+
+    it("put nothing from events in the infobox", () => {
+        const front = JSON.stringify(matter(site["place-ironfells.md"]).data.infoboxes);
+        expect(front).toContain("Ironfells");
+        for (const text of ["sacked", "raised", "The Burning", "siege", "~280"])
+            expect(front, text).not.toContain(text);
     });
 });

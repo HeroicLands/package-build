@@ -30,6 +30,7 @@ import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
 import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventRows } from "./event-rows.mjs";
+import { appendEventViews, eventViewSections } from "./event-views.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -746,6 +747,58 @@ export async function prepareInlineSqlExpressions(db, sources) {
 }
 
 /**
+ * Join each note's event views to its body among the sources a preparation
+ * answers, so the fences the views hold are answered with the author's own, in
+ * order after them. A note given views and holding no directive of its own
+ * joins the sources, its body read as {@link prepareTreeSqlTables} reads one.
+ *
+ * The expansion every surface runs appends the same text again, from the
+ * `eventViews` {@link attachEventViews} sets on the note's results — see
+ * {@link module:engine/content-tables.expandContentTables}.
+ *
+ * @param {object} db - From {@link openNotesDatabase}, over `records`.
+ * @param {object[]} records - Content-index records.
+ * @param {string} contentBase - Root of the content tree.
+ * @param {Array<{source: string, markdown: string, frontmatter?: object}>} sources -
+ *   The bodies to answer, extended in place.
+ * @param {string} [only] - One note file to give views to; absent, every note.
+ * @returns {Promise<Map<string, string>>} Note file to its views.
+ */
+export async function joinEventViews(db, records, contentBase, sources, only) {
+    const views = await eventViewSections(
+        db,
+        records.filter((record) => isNoteRecord(record)),
+        (record) => noteFile(contentBase, record),
+        only,
+    );
+    for (const [absPath, text] of views) {
+        const source = sources.find((one) => one.source === absPath);
+        if (source) {
+            source.markdown = appendEventViews(source.markdown, text);
+            continue;
+        }
+        const { body, frontmatter } = parseMarkdownFile(absPath);
+        sources.push({ source: absPath, markdown: appendEventViews(body, text), frontmatter });
+    }
+    return views;
+}
+
+/**
+ * Record each note's event views on its prepared results, where the table
+ * expansion reads them.
+ *
+ * @param {Map<string, object[]>} prepared - From {@link prepareSqlTables}.
+ * @param {Map<string, string>} views - From {@link joinEventViews}.
+ * @returns {void}
+ */
+export function attachEventViews(prepared, views) {
+    for (const [absPath, text] of views) {
+        const results = prepared.get(absPath);
+        if (results) results.eventViews = text;
+    }
+}
+
+/**
  * Answer every `sql` directive in a content tree.
  *
  * The one entry point each pass uses, so the compiler, the link checker and the
@@ -809,16 +862,27 @@ export async function prepareTreeSqlTables(
         )
             sources.push({ source: absPath, markdown: body, frontmatter });
     }
-    if (!sources.length) return undefined;
+    // A note's event views are fences too, so a tree whose notes carry events
+    // asks a query even where no author wrote one.
+    const hasEvents = indexRecords.some(
+        (record) =>
+            isNoteRecord(record) &&
+            Array.isArray(record.data?.events) &&
+            record.data.events.length > 0,
+    );
+    if (!sources.length && !hasEvents) return undefined;
 
     // A page list is a filter over the records, so it needs no database. A tree
     // whose only corpus-reading directive is one therefore opens none — which
     // is the same bargain the early return above makes for a tree with no
     // directive at all.
-    const needsDatabase = sources.some(
-        ({ markdown, frontmatter }) =>
-            findSqlBlocks(markdown).length || sqlQueriesInMarkdown(markdown, frontmatter).length,
-    );
+    const needsDatabase =
+        hasEvents ||
+        sources.some(
+            ({ markdown, frontmatter }) =>
+                findSqlBlocks(markdown).length ||
+                sqlQueriesInMarkdown(markdown, frontmatter).length,
+        );
     if (!needsDatabase) {
         const pageOnly = new Map();
         pageOnly.inline = new Map();
@@ -854,11 +918,13 @@ export async function prepareTreeSqlTables(
     }
     const db = await openNotesDatabase(indexRecords, { dependencies, audience });
     try {
+        const views = await joinEventViews(db, indexRecords, contentBase, sources);
         const prepared = await prepareSqlTables(db, sources, {
             linkable: (ref) => addresses.has(renderAddress(ref)),
             records: indexRecords,
         });
         prepared.inline = await prepareInlineSqlExpressions(db, sources);
+        attachEventViews(prepared, views);
         return prepared;
     } finally {
         await db.close();

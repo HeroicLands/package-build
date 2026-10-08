@@ -246,6 +246,17 @@ both; `.literature-works` on the `<section>` tells them apart.
 | `.holdings-entry-name`  | a work's title, linked or plain   |
 | `.holdings-entry-kind`  | the work's form, beside its title |
 
+## Event views
+
+A note's event views — **Chronology**, **Events**, **Accounts** and **What
+followed** — reach the page as ordinary Markdown: an H1 with a fixed anchor
+followed by a table, appended after the author's text before the page is
+written. The theme draws them as it draws any authored section and table, and
+lists each in the table of contents; no partial and no front-matter key is
+involved, and the infobox carries nothing from a note's events. The views, their
+anchors and the rows each lists are in the
+[format reference](format-details.md#event-views).
+
 ## The place map
 
 A place page with `map: from-<shortcode>.svg` displays a **From here** panel

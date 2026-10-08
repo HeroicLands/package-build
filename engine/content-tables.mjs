@@ -2,6 +2,7 @@
 
 import { FENCE_LINE } from "./code-fences.mjs";
 import { PAGE_LIST_LANGUAGE } from "./page-lists.mjs";
+import { appendEventViews } from "./event-views.mjs";
 
 /**
  * Replace prepared SQL fences and page lists with Markdown while retaining
@@ -18,7 +19,9 @@ import { PAGE_LIST_LANGUAGE } from "./page-lists.mjs";
  * @returns {{markdown: string, errors: object[], warnings: object[], lineMap: object[]}}
  */
 export function expandContentTables(markdown, { source = "", sqlTables, pageLists } = {}) {
-    const lines = String(markdown ?? "").split("\n");
+    // A note's event views follow its own text, joined exactly as the pass that
+    // answered their fences joined them — see `engine/event-views.mjs`.
+    const lines = String(appendEventViews(markdown ?? "", sqlTables?.eventViews)).split("\n");
     const out = [];
     const lineMap = [];
     const errors = [];

@@ -2587,9 +2587,10 @@ ORDER BY whenSort
 event writes is still a column, `NULL` in every row, and so is a sort key for
 a date with no position on the axis — `unknown`, or a year-`0` day that recurs
 every year. Every Address is a string, as in every other relation, and a list
-stays a list: `list_contains(where.locus, 'thalorna-note-place-ironfells')`.
-`when` is an SQL keyword, so a query names that column in double quotes,
-`"when"`. A note tagged `gm` contributes no row on a public surface.
+stays a list: `list_contains("where".locus, 'thalorna-note-place-ironfells')`.
+`when` and `where` are SQL keywords, so a query names those columns in double
+quotes, `"when"` and `"where"`. A note tagged `gm` contributes no row on a
+public surface.
 
 **`market`** is the six-step market scale as a relation — `value`, `name`,
 `trade` — so a table prints `village` beside the number a note wrote without a
@@ -2881,7 +2882,7 @@ An **event** is one dated, attributed record of something that happened in the s
 
 Every key of an entry is closed, and so is every key of each map nested in one. A key this section does not list is an error at that key, and a value outside a key's closed list is an error at that value. Every Address an entry writes resolves in this package or a declared dependency, or it is an error at that Address.
 
-An event appears on its note's page and in its Foundry journal as prose the note's body writes. Nothing derived from the list is displayed: it reaches no system field, no infobox row and no page's front matter. The content index carries each entry's resolved dates under `resolvedDates.events`.
+An event appears on its note's page and in its Foundry journal as prose the note's body writes, and in the [event views](#event-views) the build appends to the notes it concerns. It reaches no system field, no infobox row and no page's front matter. The content index carries each entry's resolved dates under `resolvedDates.events`, and the [`events`](#content-tables) relation holds one row per entry.
 
 #### The keys of an event
 
@@ -2943,6 +2944,23 @@ An event's `id` is an [anchor](#anchors) of kind `event`, in the one namespace t
 A note's prose prints one field of an event with an inline reference, `{{ref "place-ironfells#sack" field="when"}}`: the event's `when` or `until` as the note format prints a date, its `kind`, its `summary`, or the first of its `names`, as text and never a link, identically on every surface. The address names one event as a `follows[].event` does, or `"#<id>"` for one of the note's own. An address naming no event, a `prose` anchor, a `field` outside those five, or a field the event does not state is an error at the reference's position. The [authoring guide](../authoring/links-and-markup.md#an-events-date-inline) has examples.
 
 A `follows[].event` resolves to exactly one event: a note holding one event, or `note#id`. Naming a note that holds several events without an `id` is an error, and so is naming an anchor the note does not declare or one that is not an event. An Address into another package is checked the same way against that package's published index, which carries each note's anchors with their kinds and each event's date.
+
+#### Event views
+
+The build appends sections to the end of a note's body that list the events concerning it — a region's chronology, the events a being took part in, the accounts a people gives, what followed an event. Each is an H1 with a fixed anchor holding a `sql` fence over the `events` relation, the same Markdown an author could write, so every surface sets it as it sets an authored section: a page of the Foundry journal, a section of the website page in its table of contents, a section of the book.
+
+| View          | Anchor       | On                                                               | Rows                                                                                                                                                                              | Columns                            |
+| ------------- | ------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Chronology    | `chronology` | a `place`                                                        | events whose `where.locus` names the place or a place below it in `parents`; events whose `where.reach` names one, with that entry's `how`; every `depth: world` event as context | What happened, When, Felt here     |
+| Events        | `events`     | a `being`, an `affiliation`, a `lore` note of `subType: culture` | events whose `who[].ref` names the note, with the role it played                                                                                                                  | What happened, When, Role          |
+| Accounts      | `accounts`   | an `affiliation`, a `place`, a `lore` note of `subType: culture` | each `accounts[]` entry the note gives, with the event it concerns                                                                                                                | Event, When, What they say, Agrees |
+| What followed | `followed`   | a note holding events                                            | events whose `follows[].event` names one of this note's events, with how                                                                                                          | What followed, When, How           |
+
+- **The views follow everything the author wrote**, in the order of the table.
+- **A view with no rows is not generated.** A chronology is generated only where the place has rows of its own; the world events beside them are context and make no chronology by themselves.
+- **An author's own section replaces a view.** A note whose body declares a prose anchor with the view's slug — `# Chronology {#chronology}`, or a block or span with that `id` — gets no generated section for it, and its own section is left exactly as written. This is the one way to turn a view off, and the way to choose a different table: write the section and its own `sql` fence.
+- Places below a place are found by walking `parents` down from it, so an event felt in towns under two continents is in each continent's chronology and each region's.
+- A stub publishes no page and gets no view. The views read this package's own events; a dependency's are read with a fence over `<package>.events`.
 
 #### What sort of event: `kind`
 

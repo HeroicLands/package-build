@@ -212,6 +212,16 @@ describe("the `events` relation", () => {
         ]);
     });
 
+    it("filters on a list of Addresses as the reference writes it", async () => {
+        const result = await runSqlQuery(
+            db,
+            `SELECT address FROM events WHERE list_contains("where".locus, 'demo-note-place-ironfells')`,
+        );
+        expect(result.rows.map((row: any) => row.address)).toEqual([
+            "demo-note-place-ironfells#sack",
+        ]);
+    });
+
     it("answers a key no event writes as NULL rather than failing to bind", async () => {
         const result = await runSqlQuery(
             db,
