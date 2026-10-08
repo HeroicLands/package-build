@@ -126,8 +126,9 @@ import {
     officeRoster,
     rankAnchor,
     readStandings,
-    standingPhrase,
+    standingLead,
 } from "./standings.mjs";
+import { AddressEntries } from "./address-values.mjs";
 
 /**
  * How a section arranges what it holds.
@@ -255,10 +256,11 @@ export const GEAR_UNITS = Object.freeze({
  * Three properties, all optional:
  *
  * - `label` — what the row is called. Absent means the key, humanised.
- * - `withheld` — why the field carries no row. Two reasons only: it is
+ * - `withheld` — why the field carries no row. Three reasons only: it is
  *   machinery — something that steers a build or an interface rather than
- *   describing the subject — or it is an image, which rule 2 keeps out of the
- *   box.
+ *   describing the subject, which includes a calendar's definition and a map's
+ *   canvas — it is an image, which rule 2 keeps out of the box, or it is a
+ *   source system's own detail, which no surface's box shows.
  * - `unit` — what the quantity is measured in, appended to the value verbatim.
  *   See {@link applyUnit}.
  * - `group` / `phrase` — the field composes into one row with its group mates
@@ -282,6 +284,14 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     templatePriority: Object.freeze({
         withheld: "template machinery, not a fact about the subject",
     }),
+    id: Object.freeze({ withheld: "document identity machinery, not a fact about the subject" }),
+    pack: Object.freeze({ withheld: "compendium routing machinery, not a fact about the subject" }),
+    packFolder: Object.freeze({
+        withheld: "compendium routing machinery, not a fact about the subject",
+    }),
+    harnworld: Object.freeze({
+        withheld: "HârnWorld source detail, which no surface's box shows",
+    }),
     color: Object.freeze({
         withheld: "sidebar machinery, not a fact about the subject",
     }),
@@ -291,6 +301,18 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
     events: Object.freeze({ withheld: "chronology machinery, which no infobox row draws on" }),
+    // A calendar's definition is what dates are read through, not a fact a
+    // summary row can carry: a list of months or eras is the calendar itself.
+    "lore.months": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
+    "lore.weekdays": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
+    "lore.seasons": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
+    "lore.namedDays": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
+    "lore.eras": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
+    "lore.formats": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
+    // A map's canvas — the exported Scene and its asset fixups — is what the
+    // Scene is built from.
+    "map.scene": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
+    "map.fixup": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),
@@ -564,66 +586,63 @@ export function valueKindOf(field, value) {
  * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
  *   medium's resolver.
  * @param {object} [hint] - What the reference is expected to name.
+ * @param {boolean} [verbatim] - The value is a symbol, shown exactly as written.
  * @returns {unknown} The row value, shaped for the kind.
  */
-function rowValue(kind, raw, resolve, hint) {
+function rowValue(kind, raw, resolve, hint, verbatim = false) {
     if (kind === "link") return linkValue(raw, resolve, hint);
     if (kind === "links") {
         return (Array.isArray(raw) ? raw : [raw])
             .filter(hasValue)
             .map((r) => linkValue(r, resolve, hint));
     }
+    // A symbol such as a unit is shown as written, never recased.
+    const shown = (value) => (verbatim ? String(value) : presentValue(value));
     if (kind === "list") {
-        return (Array.isArray(raw) ? raw : [raw]).filter(hasValue).map((v) => presentValue(v));
+        return (Array.isArray(raw) ? raw : [raw]).filter(hasValue).map((v) => shown(v));
     }
     if (kind === "number") return raw;
-    return presentValue(raw);
+    return shown(raw);
 }
 
 /**
- * A being's memberships, each with the standing it holds there.
+ * The section id and title a being's memberships are drawn under.
  *
- * One row, one entry per body, and the standing reads inside the entry rather
- * than beside it — "War Chief, of Vrystwald Tribes" rather than a rank link
- * with nothing saying which body confers it.
+ * @type {Readonly<{id: string, label: string}>}
+ */
+export const MEMBERSHIPS_SECTION = Object.freeze({ id: "affiliations", label: "Affiliations" });
+
+/**
+ * A being's memberships, one entry each, in the order the note writes them.
  *
- * **The office carries the link where the body's page anchors it.** An office's
- * description is already declared in the body's own `governance.offices`, and
- * the row that prints it is anchored by the same derivation, so the string a
- * being wrote reaches the description without anyone authoring a note about the
- * post. In a medium with no page to reach — a compendium journal links by
- * document UUID — the entry keeps the body's own document, so the reader still
- * lands somewhere.
+ * Each entry is the line a reader meets — `War Chief, Hárár (5), of Vrystwald
+ * Tribes` — with the body's name as the link and the standing before it as the
+ * entry's `lead`, drawn as plain text. The rung's title is read from the body's
+ * own ladder, carried on the reference as its `standings` digest, so a renamed
+ * rung renames every line pointing at it. A body that publishes no page keeps
+ * its name as plain text, and a membership in the list form is the name alone.
+ *
+ * The entries are a `list` section of their own rather than one `links` row,
+ * because a line already holds commas and a `links` row joins its values with
+ * them: one line per membership is what keeps two memberships apart.
  *
  * @param {object} field - The declaration.
  * @param {unknown} raw - The authored value, in either form.
  * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
  *   medium's resolver.
- * @param {string} label - The row's label.
- * @returns {object[]} The row, or none where nothing is held.
+ * @returns {object[]} One entry per membership.
  */
-function standingRows(field, raw, resolve, label) {
+function membershipEntries(field, raw, resolve) {
     const { entries } = readStandings(raw);
-    const value = [];
+    const out = [];
     for (const { body, standing } of entries) {
         if (!hasValue(body)) continue;
         const link = linkValue(body, resolve, { type: field.ref });
         const digest = resolve?.(body, { type: field.ref })?.standings;
-        const text = standingPhrase(standing, link.text, digest);
-        const anchor =
-            (
-                typeof standing?.office === "string" &&
-                digest?.offices?.[standing.office] !== undefined
-            ) ?
-                officeAnchor(standing.office)
-            :   "";
-        value.push({
-            ...link,
-            text,
-            ...(anchor && link.url ? { url: `${link.url}#${anchor}` } : {}),
-        });
+        const lead = standingLead(isMapping(standing) ? standing : {}, digest);
+        out.push(lead ? { lead, ...link } : link);
     }
-    return value.length ? [{ label, kind: "links", value }] : [];
+    return out;
 }
 
 /**
@@ -705,7 +724,8 @@ function rankRows(raw, resolve) {
  *   short Address with none handed to it skips rather than guesses.
  */
 function structuredRows(field, raw, resolve, label, contentPackage) {
-    if (field.standings) return standingRows(field, raw, resolve, label);
+    // Drawn as a section of their own; see `membershipEntries`.
+    if (field.standings) return [];
     if (field.roster) {
         const roster = rosterRows(raw);
         if (roster) return roster;
@@ -736,43 +756,145 @@ function structuredRows(field, raw, resolve, label, contentPackage) {
             });
         return links.length ? [{ label, kind: "links", value: links }] : [];
     }
-    if (isMapping(raw) && !isAddressTuple(raw)) {
-        const groups = new Map();
-        const seen = new Set();
-        for (const [target, relation] of Object.entries(raw)) {
-            if (!hasValue(target) || !hasValue(relation) || isMapping(relation)) continue;
-            const term = String(relation);
-            if (field.terms && !field.terms.some((entry) => entry.term === term)) continue;
-            if (field.terms && field.keyKind === "address") {
-                const address = parseAddress(
-                    target,
-                    {
-                        package: contentPackage,
-                        system: "note",
-                        types: new Set(field.accepts),
-                    },
-                    { declared: true },
+    if (!isMapping(raw) || isAddressTuple(raw)) return null;
+    // A map keyed by Address relates this note to others, and its value is
+    // the term the relation goes by: the term labels the row and the targets
+    // are its links.
+    if (field.keyKind === "address") return relationRows(field, raw, resolve, contentPackage);
+    // A map keyed by Shortcode weighs each named thing: one row, each target
+    // linked and its weight beside it.
+    if (field.keyKind === "shortcode") return weightedRows(field, raw, resolve, label);
+    // A map with declared keys: each key is a row's label and its value the
+    // row's value.
+    if (field.fields) return declaredKeyRows(field.fields, raw);
+    // Any other map has no summary shape, and a map is never drawn as text.
+    return [];
+}
+
+/**
+ * The authored entries of a keyed map, with each key's Address where the note
+ * boundary has typed it.
+ *
+ * @param {unknown} raw - The authored map.
+ * @returns {Array<[unknown, unknown]>} `[key, value]` pairs, in authored order.
+ */
+function keyedEntries(raw) {
+    if (raw instanceof AddressEntries)
+        return raw.entries.map((entry) => [entry.target, entry.value]);
+    return Object.entries(raw);
+}
+
+/**
+ * A map keyed by Address, one row per relation term, each target linked.
+ *
+ * @param {object} field - The declaration.
+ * @param {unknown} raw - The authored map.
+ * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
+ *   medium's resolver.
+ * @param {string} [contentPackage] - This build's content package.
+ * @returns {object[]} The rows, in the declared term order where one is
+ *   declared and in authored order otherwise.
+ */
+function relationRows(field, raw, resolve, contentPackage) {
+    const groups = new Map();
+    const seen = new Set();
+    for (const [target, relation] of keyedEntries(raw)) {
+        if (!hasValue(target) || !hasValue(relation) || isMapping(relation)) continue;
+        const term = String(relation);
+        if (field.terms && !field.terms.some((entry) => entry.term === term)) continue;
+        if (field.terms) {
+            const address =
+                isAddressTuple(target) ? target : (
+                    parseAddress(
+                        target,
+                        { package: contentPackage, system: "note", types: new Set(field.accepts) },
+                        { declared: true },
+                    )
                 );
-                if (address.reason || (field.accepts && !field.accepts.includes(address.type)))
-                    continue;
-                const canonical = renderAddress(address);
-                if (seen.has(canonical)) continue;
-                seen.add(canonical);
-            }
-            const links = groups.get(term) ?? [];
-            links.push(linkValue(target, resolve, { type: field.ref }));
-            groups.set(term, links);
+            if (address.reason || (field.accepts && !field.accepts.includes(address.type)))
+                continue;
+            const canonical = renderAddress(address);
+            if (seen.has(canonical)) continue;
+            seen.add(canonical);
         }
-        const terms = field.terms ? field.terms.map(({ term }) => term) : [...groups.keys()];
-        return terms
-            .filter((term) => groups.has(term))
-            .map((term) => ({
-                label: presentValue(term),
-                kind: "links",
-                value: groups.get(term),
-            }));
+        const links = groups.get(term) ?? [];
+        links.push(linkValue(target, resolve, { type: field.ref }));
+        groups.set(term, links);
     }
-    return null;
+    const terms = field.terms ? field.terms.map(({ term }) => term) : [...groups.keys()];
+    return terms
+        .filter((term) => groups.has(term))
+        .map((term) => ({ label: presentValue(term), kind: "links", value: groups.get(term) }));
+}
+
+/**
+ * A map keyed by Shortcode, one row: each key linked, its value beside it.
+ *
+ * A `subType:<subtype>` key names every skill of that kind rather than one
+ * note, so it reads as the kind and links nowhere.
+ *
+ * @param {object} field - The declaration.
+ * @param {unknown} raw - The authored map.
+ * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
+ *   medium's resolver.
+ * @param {string} label - The row's label.
+ * @returns {object[]} The row, or none where nothing is stated.
+ */
+function weightedRows(field, raw, resolve, label) {
+    const value = [];
+    for (const [key, weight] of keyedEntries(raw)) {
+        if (!hasValue(key) || !hasValue(weight) || isMapping(weight)) continue;
+        const selector =
+            field.keySelector === "subType" &&
+            typeof key === "string" &&
+            key.startsWith("subType:");
+        const link =
+            selector ?
+                { text: `${humanizeFieldName(key.slice("subType:".length))} skills` }
+            :   linkValue(key, resolve, { type: field.ref });
+        const amount = Number(weight);
+        const shown = Number.isFinite(amount) && amount > 0 ? `+${amount}` : presentValue(weight);
+        value.push({ ...link, text: `${link.text} (${shown})` });
+    }
+    return value.length ? [{ label, kind: "links", value }] : [];
+}
+
+/**
+ * A map whose keys are declared: one row per key that holds a value, in
+ * declared order, labelled by the key and carrying its value.
+ *
+ * A list of words is one row of them; a key holding a map has no summary
+ * shape and takes no row; a key holding nothing takes none either.
+ *
+ * @param {readonly object[]} fields - The declared keys.
+ * @param {Record<string, unknown>} raw - The authored map.
+ * @returns {object[]} The rows.
+ */
+function declaredKeyRows(fields, raw) {
+    const rows = [];
+    for (const inner of fields) {
+        const value = raw[inner.name];
+        if (isMapping(value) && !isAddressTuple(value)) continue;
+        if (!hasValue(value)) continue;
+        const label = inner.label ?? humanizeFieldName(inner.name);
+        // A symbol such as a unit is shown as written: `km` recased is a
+        // different unit, or none.
+        const shown = (entry) => (inner.verbatim ? String(entry) : presentValue(entry));
+        if (Array.isArray(value)) {
+            const words = value
+                .filter((entry) => hasValue(entry) && !isMapping(entry))
+                .map((entry) => shown(entry));
+            if (words.length) rows.push({ label, kind: "list", value: words });
+        } else if (
+            (inner.kind === "number" || inner.kind === "integer") &&
+            Number.isFinite(Number(value))
+        ) {
+            rows.push({ label, kind: "number", value: Number(value) });
+        } else {
+            rows.push({ label, kind: "text", value: shown(value) });
+        }
+    }
+    return rows;
 }
 
 /**
@@ -890,6 +1012,8 @@ function noteBox(
     const data = isMapping(fm?.data) ? fm.data : {};
     /** @type {Map<string, {label: string, entries: string[]}>} */
     const groups = new Map();
+    /** One entry per membership, drawn as a section after the profile. */
+    const memberships = [];
 
     for (const field of dataFields(fm?.type, vocabulary) ?? []) {
         const overlay = overlayFor(presentation, fm?.type, field.name);
@@ -926,6 +1050,12 @@ function noteBox(
             }
             printable ??= formatNoteDate(parsed, era, dates.daysPerYear);
             if (printable) raw = printable.prose ?? printable.text;
+        }
+        if (field.standings) {
+            const entries = membershipEntries(field, raw, resolve);
+            memberships.push(...entries);
+            if (entries.length) shown.add(field.name);
+            continue;
         }
         const structured = structuredRows(
             field,
@@ -972,7 +1102,7 @@ function noteBox(
         }
 
         const declaredKind = valueKindOf(field, raw);
-        const built = rowValue(declaredKind, raw, resolve);
+        const built = rowValue(declaredKind, raw, resolve, undefined, field.verbatim);
         if (!hasRenderableValue(declaredKind, built)) continue;
         const { kind, value } = applyUnit(declaredKind, built, overlay.unit);
         rows.push({ label: overlay.label ?? humanizeFieldName(field.name), kind, value });
@@ -984,7 +1114,12 @@ function noteBox(
             id: NOTE_BOX_ID,
             kind: "note",
             title: NOTE_BOX_TITLE,
-            sections: [{ id: NOTE_SECTION_ID, layout: "rows", rows }],
+            sections: [
+                { id: NOTE_SECTION_ID, layout: "rows", rows },
+                ...(memberships.length ?
+                    [{ ...MEMBERSHIPS_SECTION, layout: "list", entries: memberships }]
+                :   []),
+            ],
         },
         shown,
     };

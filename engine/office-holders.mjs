@@ -1,4 +1,13 @@
 /*
+ * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
+ * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
+ *
+ * This work is licensed under the GNU General Public License v3.0 (GPLv3).
+ * You may copy, modify, and distribute it under the terms of that license.
+ *
+ * For full terms, see the LICENSE.md file in the project root or visit:
+ * https://www.gnu.org/licenses/gpl-3.0.html
+ *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
@@ -7,8 +16,10 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 
-const OFFICE_KEYS = new Set(["description", "holders"]);
-const HOLDER_KEYS = new Set(["being", "start", "end", "contested"]);
+import { HOLDER_FIELDS, OFFICE_FIELDS } from "./standing-terms.mjs";
+
+export { HOLDER_FIELDS, OFFICE_FIELDS };
+
 const mapping = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
 /**
@@ -26,65 +37,20 @@ export function checkDatedOffices(note, { index } = {}) {
         severity: "error",
         message,
     });
-    if (!mapping(offices))
-        return [
-            at(
-                ["data", "governance", "offices"],
-                "data.governance.offices must be a map of named offices",
-            ),
-        ];
+    // The roster's shape — a map of offices, each a description or a map of
+    // `OFFICE_FIELDS`, each holder a map of `HOLDER_FIELDS` — is the inner-key
+    // check's. What is checked here is what the holders and their dates mean.
+    if (!mapping(offices)) return [];
 
     const dates = reckoningContext(index);
     for (const [office, value] of Object.entries(offices)) {
         const base = ["data", "governance", "offices", office];
-        if (typeof value === "string") continue;
-        if (!mapping(value)) {
-            findings.push(
-                at(base, `office ${office} must be a description or a {description, holders} map`),
-            );
-            continue;
-        }
-        for (const key of Object.keys(value))
-            if (!OFFICE_KEYS.has(key))
-                findings.push(
-                    at(
-                        [...base, key],
-                        `office ${office} has unknown key ${key}; use description or holders`,
-                    ),
-                );
-        if (typeof value.description !== "string")
-            findings.push(
-                at([...base, "description"], `office ${office} needs a string description`),
-            );
-        if (!Array.isArray(value.holders)) {
-            findings.push(at([...base, "holders"], `office ${office} needs a holders list`));
-            continue;
-        }
+        if (!mapping(value) || !Array.isArray(value.holders)) continue;
         const terms = [];
         value.holders.forEach((row, position) => {
             const rowPath = [...base, "holders", position];
-            if (!mapping(row)) {
-                findings.push(at(rowPath, `office ${office} holder must be a map`));
-                return;
-            }
-            for (const key of Object.keys(row))
-                if (!HOLDER_KEYS.has(key))
-                    findings.push(
-                        at([...rowPath, key], `office ${office} holder has unknown key ${key}`),
-                    );
-            if (row.contested !== undefined && typeof row.contested !== "boolean")
-                findings.push(
-                    at(
-                        [...rowPath, "contested"],
-                        `office ${office} contested must be true or false`,
-                    ),
-                );
-
-            if (typeof row.being !== "string" || !row.being.trim()) {
-                findings.push(
-                    at([...rowPath, "being"], `office ${office} holder needs a being Address`),
-                );
-            } else {
+            if (!mapping(row)) return;
+            if (typeof row.being === "string" && row.being.trim()) {
                 const tuple = parseAddress(row.being, {
                     package: index?.contentPackage,
                     system: "note",

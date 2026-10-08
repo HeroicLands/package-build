@@ -23,7 +23,8 @@ import { parseAddress, renderAddress } from "../engine/address.mjs";
 import { loadContentFormat, parseContentFormat } from "../engine/content-format.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { EVENT_ENTRY_KEYS, EVENT_VOCABULARIES, checkNoteEvents } from "../engine/note-events.mjs";
-import { EVENTS_FIELD, NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { EVENTS_FIELD, NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
+import { checkDataKeys } from "../engine/data-keys.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 const REFERENCE = path.resolve(
@@ -129,7 +130,9 @@ function findingsFor(events: unknown[], { type = "lore", extra = [] as any[] } =
         data: { events },
     });
     const index = indexOf([...WORLD, ...extra, subject]);
-    return checkNoteEvents(subject, { index });
+    // What an entry holds is the inner-key check's, read from the field's
+    // declaration; what its values mean is the event check's.
+    return [...checkDataKeys(subject, dataFields(type)), ...checkNoteEvents(subject, { index })];
 }
 
 const messages = (findings: Array<{ message: string }>) => findings.map((f) => f.message);
@@ -675,8 +678,7 @@ describe("a key the schema does not declare", () => {
         it(`refuses ${key} at its own key`, () => {
             const found = findingsFor([fullEvent({ [key]: "year" })]);
             expect(found).toHaveLength(1);
-            expect(found[0].message).toContain(`\`${key}\``);
-            expect(found[0].message).toContain("not a key an event declares");
+            expect(found[0].message).toContain(`"${key}" is not a key of \`data.events[0]\``);
             expect(found[0].line).toBeGreaterThan(0);
             expect(found[0].column).toBeGreaterThan(0);
         });
@@ -687,7 +689,7 @@ describe("a key the schema does not declare", () => {
             fullEvent({ follows: [{ event: "lore-folk", how: "echoed", strength: 3 }] }),
         ]);
         const text = messages(found).join("\n");
-        expect(text).toContain("`strength`");
+        expect(text).toContain('"strength" is not a key of `data.events[0].follows[0]`');
         expect(text).toContain("`how`");
     });
 
@@ -710,6 +712,6 @@ describe("a key the schema does not declare", () => {
         });
         expect(
             findings.filter((f: any) => f.file === place.file).map((f: any) => f.message),
-        ).toEqual([expect.stringContaining("`precision`")]);
+        ).toEqual([expect.stringContaining('"precision" is not a key of `data.events[0]`')]);
     });
 });

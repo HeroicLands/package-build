@@ -31,6 +31,7 @@
 // enum cannot drift apart — a value absent from the list is a build
 // error, never a silent ship.
 import { AddressEntries } from "./address-values.mjs";
+import { renderAddress } from "./address-render.mjs";
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 
 /**
@@ -287,9 +288,13 @@ export function resolveRelation(fm, ctx = "item") {
     for (const [code, value] of entries) {
         const standing = String(value);
         if (!AFFILIATION_STANDINGS.includes(standing)) {
-            throw new Error(
-                `${ctx}: ${key}["${code}"] must be one of ${AFFILIATION_STANDINGS.join(", ")}, got "${value}"`,
+            const error = new Error(
+                `${ctx}: ${key}["${typeof code === "string" ? code : renderAddress(code)}"] must be one of ${AFFILIATION_STANDINGS.join(", ")}, got "${value}"`,
             );
+            // Where the compiler reports it: the authored key's value where the
+            // key is still its written text, else the map itself.
+            error.keyPath = ["data", key, ...(typeof code === "string" ? [code] : [])];
+            throw error;
         }
         if (typed) typedEntries.push({ target: code, value: standing, sourceKey: "" });
         else out[code] = standing;
