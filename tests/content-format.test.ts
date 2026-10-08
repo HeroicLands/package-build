@@ -311,7 +311,7 @@ describe("the shipped specification", () => {
 
     it("declares a `data` vocabulary for the types that have one", () => {
         expect(format.types.get("being")!.dataKeys.has("species")).toBe(true);
-        expect(format.types.get("map")!.dataKeys.has("pxPerGrid")).toBe(true);
+        expect(format.types.get("map")!.dataKeys.has("scene")).toBe(true);
         // `appearance.eye_color` is authored as `appearance`.
         expect(format.types.get("being")!.dataKeys.has("appearance")).toBe(true);
     });

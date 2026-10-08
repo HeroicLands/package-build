@@ -555,7 +555,7 @@ describe.runIf(HAS_TYPST)("the compiled PDF", () => {
 
 describe("full-page place maps", () => {
     it(
-        "stages vector itineraries only for selected places with relations",
+        "stages vector itineraries for related places, and every map's exported Scene background",
         () => {
             const dir = makeRepo("content");
             const placeDir = path.join(dir, "assets", "content", "Places");
@@ -581,8 +581,37 @@ describe("full-page place maps", () => {
                 '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100"><text x="10" y="30">Regional Chart</text></svg>',
             );
             fs.writeFileSync(
+                path.join(artDir, "tavern.svg"),
+                '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100"><text x="10" y="30">Tavern</text></svg>',
+            );
+            // Each map's picture is its exported Scene's level background, on
+            // every subtype, with `data.fixup` applied.
+            const exportedMap = (shortcode: string, name: string, subType: string, art: string) =>
+                [
+                    "---",
+                    `shortcode: ${shortcode}`,
+                    `name: { full: ${name} }`,
+                    "type: map",
+                    `subType: ${subType}`,
+                    "data:",
+                    "  fixup:",
+                    `    - { path: '.levels[0].background.src', type: address, value: ${art} }`,
+                    "  scene:",
+                    `    name: ${name}`,
+                    "    levels:",
+                    `      - { _id: level0000000000, background: { src: modules/maps/${art}.webp } }`,
+                    "---",
+                    "",
+                    "A chart.",
+                    "",
+                ].join("\n");
+            fs.writeFileSync(
                 path.join(placeDir, "Regional_Chart.md"),
-                "---\nshortcode: regionalchart\nname: { full: Regional Chart }\ntype: map\nsubType: regionalmap\ndata:\n  bgImage: regional\n  scale: { distance: 5, unit: leagues }\n---\n\nA chart.\n",
+                exportedMap("regionalchart", "Regional Chart", "regionalmap", "regional"),
+            );
+            fs.writeFileSync(
+                path.join(placeDir, "Tavern_Scene.md"),
+                exportedMap("tavernscene", "Tavern Scene", "totm", "tavern"),
             );
             fs.writeFileSync(
                 path.join(dir, "book.yaml"),
@@ -603,6 +632,7 @@ describe("full-page place maps", () => {
             expect(source).toContain(
                 '#book-place-map([Regional Chart], "assets/images/regional.svg")',
             );
+            expect(source).toContain('#book-place-map([Tavern Scene], "assets/images/tavern.svg")');
             expect(source).toContain("page(columns: 1, flipped: true)");
 
             if (HAS_TYPST) {

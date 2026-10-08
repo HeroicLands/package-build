@@ -13,142 +13,68 @@
 
 /**
  * Scenes pack compiler — map notes in `assets/content/` → Foundry `Scene`
- * documents, and the `Adventure` bundles that make their references resolve.
+ * documents, and the `Adventure` bundles that make their pins resolve.
  *
- * The translation itself lives in the framework-free `map-notes.mjs`; this
- * module is the pass that walks the tree, resolves what one note says about
- * another, and writes the JSON the compendium CLI compiles.
+ * A map note carries its Scene as exported from Foundry, at `data.scene`. The
+ * build never constructs a Scene: {@link module:engine/exported-scene} passes
+ * the export through, applying `data.fixup` and binding pins marked `#anchor`
+ * to the note's own journal pages.
  *
  * **Two outputs, for two different jobs.**
  *
  * - The **`scenes` pack** holds every map note's Scene. It is what a wikilink
  *   to a map addresses, and what a GM browses.
- * - The **`adventures` pack** holds one Adventure per *place* — a group of map
- *   notes sharing a `place:`, defaulting to the note's own shortcode — bundling
- *   those scenes with the JournalEntries their prose compiled into. A map with
- *   `locations:` **must** be imported this way: `Adventure#importContent`
- *   creates with `keepId: true`, and a pin's `Note.entryId` / `pageId`, a
- *   `teleportToken` destination and a `toggleBehavior` target are all
- *   id-based. Dragged out of the bare `scenes` pack, a pinned scene lands with
- *   pins pointing at ids no document in the world carries.
- *
- * **Cross-references are addresses, never UUIDs.** A note says
- * `to: {map: manorsolar, region: stair-landing}`; this pass turns that into
- * `Scene.<id>.Region.<id>` from an index built before any scene is compiled,
- * because every embedded id is derived from the scene id and the authored key
- * rather than stored. It is the same vocabulary the link manifest uses.
+ * - The **`adventures` pack** holds one Adventure per *place* — the map notes
+ *   sharing a `data.place`, defaulting to the note's own shortcode — bundling
+ *   those scenes with the JournalEntries their prose compiled into. A Scene
+ *   whose pins open this note's pages **must** be imported this way:
+ *   `Adventure#importContent` creates with `keepId: true`, and a pin's
+ *   `Note.entryId` / `pageId` are id-based. Dragged out of the bare `scenes`
+ *   pack, a pinned scene lands with pins pointing at ids no document in the
+ *   world carries.
  *
  * Not a standalone script — exports the `Scenes` compiler class, imported and
- * driven by `packages/package-build/engine/generate.mjs` (via `npm run build:compiledb`).
+ * driven by `engine/generate.mjs`.
  *
  * The walk itself — filtering by type, expanding tables, converting
- * wikilinks, writing the JSON and counting errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module
- * states only what makes this pass its own.
+ * wikilinks, writing the JSON and counting errors — belongs to
+ * {@link sohl.utils.packs.BasePackCompiler}; this module states only what makes
+ * this pass its own.
  */
 
-import fs from "fs";
-import path from "path";
 import log from "loglevel";
 
-// The one reader of a system block's own properties, so a scene's effect
-// references resolve from the same position the item compiler emits from.
-import { blockProperty } from "./system-block.mjs";
-
-import {
-    parseMarkdownFile,
-    sohlField,
-    resolveName,
-    slugify,
-    defaultStats,
-    folderField,
-    resolveImg,
-} from "./helpers.mjs";
+import { folderField, resolveName, resolveImg } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 // What an Adventure member may carry is one rule, and the module that owns the
 // Adventure states it: the scenes pass bundles its pinned places, and the
 // bundles pass compiles a note into one.
 import { stripAdventureKeys } from "./bundle-notes.mjs";
-import { buildJournalEntry, splitPages, journalPageId } from "./journals.mjs";
-import { compendiumUuid, makeId, packForType } from "./ids.mjs";
-// The record accessors only — see `engine/index-records.mjs` for why they live
-// apart from the index that builds them.
-import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
-import { packRouter } from "./pack-router.mjs";
-import { foundryPackageId } from "./content-package.mjs";
+import { buildJournalEntry } from "./journals.mjs";
+import { isMapType, makeId } from "./ids.mjs";
+import { renderAddress } from "./address.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
-import { behaviorDocId, buildScene, isMapType, regionDocId } from "./map-notes.mjs";
-import { buildItineraryScenes } from "./itinerary-scenes.mjs";
-import { emitDiagnostic } from "./diagnostics.mjs";
-import { rasterizeMapSvg } from "./map-raster.mjs";
-import { artPathname, artSlot, pathnameRoles } from "./art-fields.mjs";
+import { artPathname, pathnameRoles } from "./art-fields.mjs";
 import { buildExportedScene } from "./exported-scene.mjs";
-
-/**
- * Every SoHL action name this build knows about, for the `action:` warning on a
- * region trigger.
- *
- * Deliberately a **superset**, gathered from the localization keys every
- * intrinsic action's `title:` points at and from the `shortcode:` / `executor:`
- * string literals the action definitions carry. A warning that fires on a real
- * action would be worse than one that misses a typo, so the wider net is the
- * right one: this only has to recognise the names that exist, not enumerate
- * them exactly.
- *
- * @param {string} repoRoot - The repository root.
- * @returns {Set<string>} The known action names.
- */
-export function collectKnownActionNames(repoRoot) {
-    const names = new Set();
-    const langFile = path.join(repoRoot, "lang", "en.json");
-    if (fs.existsSync(langFile)) {
-        const lang = JSON.parse(fs.readFileSync(langFile, "utf8"));
-        for (const key of Object.keys(lang)) {
-            const at = key.indexOf(".Action.");
-            if (at < 0) continue;
-            const [leaf] = key.slice(at + ".Action.".length).split(".");
-            if (/^[A-Za-z][A-Za-z0-9]*$/.test(leaf)) names.add(leaf);
-        }
-    }
-    const srcRoot = path.join(repoRoot, "src");
-    const pattern = /(?:shortcode|executor):\s*"([A-Za-z][A-Za-z0-9]*)"/g;
-    const walk = (dir) => {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-            const abs = path.join(dir, entry.name);
-            if (entry.isDirectory()) walk(abs);
-            else if (entry.name.endsWith(".ts")) {
-                const text = fs.readFileSync(abs, "utf8");
-                for (const m of text.matchAll(pattern)) names.add(m[1]);
-            }
-        }
-    };
-    if (fs.existsSync(srcRoot)) walk(srcRoot);
-    return names;
-}
 
 /**
  * Scenes pack compiler.
  *
- * Walks the content tree and compiles every map note into one Scene, resolving
- * what one note says about another through an index built before any scene is
- * written. It also writes one Adventure per place, bundling those scenes with
- * the JournalEntries their prose compiled into, which is what makes a pinned
- * scene's id-based references resolve on import.
+ * Compiles every map note's exported Scene, and writes one Adventure per place
+ * whose scenes carry pins, bundling those scenes with the JournalEntries their
+ * prose compiled into.
  */
 export class Scenes extends BasePackCompiler {
     static id = "scenes";
     static label = "map";
-    static readsPackOutputOf = Object.freeze(["JournalEntry"]);
 
     /**
-     * A map note's `bgImage` is its background art, and it is **required**: the
-     * map compiler refuses a note without one. It lands on the scene's level
-     * rather than on a property spelled `img`, which makes no difference to the
-     * question this declaration answers — the authored address reaches the
-     * output. The place Adventure this pass bundles carries it too.
+     * A map's Scene is exported from Foundry and names its own art, so no art
+     * slot a note authors reaches it.
      *
      * @type {readonly string[]}
      */
-    static emitsArt = Object.freeze(["bgImage"]);
+    static emitsArt = Object.freeze([]);
 
     /** @type {string} */
     adventureDir;
@@ -167,10 +93,7 @@ export class Scenes extends BasePackCompiler {
         skipDirectories,
         companionDests = {},
         folderResolver = () => null,
-        repoRoot = process.cwd(),
-        config,
         packName,
-        bundleSourceDirs = {},
         corpus,
     }) {
         super({ contentBase, assetsBase, dest, folderResolver, skipDirectories, packName, corpus });
@@ -181,13 +104,6 @@ export class Scenes extends BasePackCompiler {
             value: companionDests.adventures,
             writable: false,
         });
-        Object.defineProperty(this, "repoRoot", {
-            value: repoRoot,
-            writable: false,
-        });
-        this.mapConfig = config;
-        this.packName = packName;
-        this.journalSourceDirs = bundleSourceDirs.JournalEntry ?? [];
     }
 
     /**
@@ -199,241 +115,21 @@ export class Scenes extends BasePackCompiler {
     }
 
     /**
-     * The router this pass resolves pack names through.
-     *
-     * `generatePack` hands every pass the one router the compile resolved, and
-     * that is the answer whenever a real compile is running — a second router
-     * is a second answer to where a document landed, built from whichever
-     * configuration the working directory offers. A compiler
-     * constructed directly, as a consumer's or a test's is, has none, and falls
-     * back exactly as `prepare` falls back to deriving its own corpus.
-     *
-     * @returns {object} The pack router.
-     */
-    get #packRouter() {
-        return this.router ?? packRouter();
-    }
-
-    /**
-     * Collect every map note in the tree, and every item note's Active Effects.
-     *
-     * @returns {{maps: Array<object>, effectsByAddress: Map<string, object>}}
-     */
-    #collect() {
-        const maps = [];
-        const effectsByAddress = new Map();
-        // The corpus this compile derived once, not a walk of this pass's own
-        // — and a note is opened only when this pass needs its *prose*,
-        // which for a map note means three files in `sohl` rather than 1,685.
-        for (const record of this.corpus.records) {
-            if (!isNoteRecord(record)) continue;
-            // No retired-field test: this pass's own walk — the shared compile
-            // loop — is where a note still declaring `package:` or
-            // `draft:` is reported, once. Repeating either check here
-            // would double the diagnostic or throw past it. A refused note is
-            // indexed and then never compiled, so it reaches no document.
-            const fm = authoredFrontmatter(record);
-            const absPath = noteFile(this.contentBase, record);
-            // The id is the index's, derived against the configuration this
-            // build resolved — it was derived here through
-            // `resolveNoteId(fm)` with no package, which falls back to the
-            // ambient one. What remains unset is a file with no address.
-            if (!fm || !fm.id) continue;
-            // The Active Effects a region behaviour may point at, read from
-            // the block that carries them onto the document — the one position
-            // the format accepts for them.
-            const effects = blockProperty(fm, "sohl", "effects");
-            if (fm.shortcode && Array.isArray(effects) && effects.length) {
-                effectsByAddress.set(`${fm.type}-${fm.shortcode}`, {
-                    id: fm.id,
-                    type: fm.type,
-                    // Where the owning item landed, so a region behaviour's
-                    // effect reference addresses the right pack when a
-                    // repository ships several of one type.
-                    // This compile's router, not a freshly built one: a
-                    // second router is a second answer to where the document
-                    // landed, resolved from the working directory.
-                    pack: this.#packRouter.resolveOrNull(fm, packForType(fm.type).docType),
-                    effects,
-                });
-            }
-            if (!isMapType(fm.type)) continue;
-            // Read here, and only here: the index carries no note body, and a
-            // map's prose is what this pass compiles into its Scene.
-            maps.push({ fm, body: parseMarkdownFile(absPath).body, absPath });
-        }
-        return { maps, effectsByAddress };
-    }
-
-    /**
-     * Index every map's derived region and behaviour ids, keyed by shortcode.
-     *
-     * Built before any scene is compiled, because a cross-reference in the
-     * first note may address the last. Every id is a pure function of the
-     * scene id and the authored key (or an authored `_id`), so this needs
-     * nothing but frontmatter.
-     *
-     * @param {Array<object>} maps - The collected map notes.
-     * @returns {Map<string, object>} shortcode → `{sceneId, name, regions}`.
-     */
-    #indexMaps(maps) {
-        const index = new Map();
-        for (const { fm, absPath } of maps) {
-            if (!fm.shortcode) {
-                throw new Error(`Map note missing shortcode: ${absPath}`);
-            }
-            if (index.has(fm.shortcode)) {
-                throw new Error(`Two map notes share the shortcode "${fm.shortcode}"`);
-            }
-            const regions = new Map();
-            for (const [key, spec] of Object.entries(fm.sohl?.regions ?? {})) {
-                const id = regionDocId(fm.id, key, spec?._id);
-                const behaviors = new Map();
-                for (const [bKey, bSpec] of Object.entries(spec?.behaviors ?? {})) {
-                    behaviors.set(bKey, behaviorDocId(id, bKey, bSpec?._id));
-                }
-                regions.set(key, { id, behaviors });
-            }
-            index.set(fm.shortcode, {
-                sceneId: fm.id,
-                name: resolveName(fm),
-                regions,
-            });
-        }
-        return index;
-    }
-
-    /**
-     * Build the three address → UUID resolvers a scene's behaviours need.
-     *
-     * @param {Map<string, object>} index - From {@link Scenes#indexMaps}.
-     * @param {Map<string, object>} effectsByAddress - Item notes with effects.
-     * @param {string} selfShortcode - The note being compiled, so `map:` may be
-     *   omitted for a reference within the same map.
-     * @returns {object} `{resolveRegionRef, resolveBehaviorRef, resolveEffectRef}`.
-     */
-    #resolvers(index, effectsByAddress, selfShortcode) {
-        const lookupRegion = (addr, label) => {
-            if (!addr || typeof addr !== "object" || !addr.region) {
-                throw new Error(
-                    `${label}: a cross-reference is {map, region} — the target ` +
-                        `map's shortcode and the region's key, never a UUID`,
-                );
-            }
-            const mapKey = addr.map ?? selfShortcode;
-            const target = index.get(mapKey);
-            if (!target) {
-                throw new Error(`${label}: no map note has the shortcode "${mapKey}"`);
-            }
-            const region = target.regions.get(addr.region);
-            if (!region) {
-                throw new Error(
-                    `${label}: map "${mapKey}" has no region "${addr.region}" — ` +
-                        `it has ${[...target.regions.keys()].join(", ") || "none"}`,
-                );
-            }
-            return { target, region };
-        };
-
-        return {
-            resolveRegionRef: (addr, label) => {
-                const { target, region } = lookupRegion(addr, label);
-                return `Scene.${target.sceneId}.Region.${region.id}`;
-            },
-            resolveBehaviorRef: (addr, label) => {
-                const { target, region } = lookupRegion(addr, label);
-                if (!addr.behavior) {
-                    throw new Error(`${label}: a behaviour reference is {map, region, behavior}`);
-                }
-                const behaviorId = region.behaviors.get(addr.behavior);
-                if (!behaviorId) {
-                    throw new Error(
-                        `${label}: region "${addr.region}" has no behaviour ` +
-                            `"${addr.behavior}"`,
-                    );
-                }
-                return (
-                    `Scene.${target.sceneId}.Region.${region.id}` + `.RegionBehavior.${behaviorId}`
-                );
-            },
-            resolveEffectRef: (addr, label) => {
-                if (!addr || typeof addr !== "object" || !addr.item) {
-                    throw new Error(
-                        `${label}: an effect reference is {item, effect} — the ` +
-                            `owning item's \`type-shortcode\` address and the ` +
-                            `effect's name, never a UUID`,
-                    );
-                }
-                const item = effectsByAddress.get(addr.item);
-                if (!item) {
-                    throw new Error(
-                        `${label}: no content note addressed "${addr.item}" ` +
-                            `carries Active Effects`,
-                    );
-                }
-                const effect = item.effects.find(
-                    (e) => e.name === addr.effect || e._id === addr.effect,
-                );
-                if (!effect?._id) {
-                    throw new Error(
-                        `${label}: "${addr.item}" has no Active Effect named ` +
-                            `"${addr.effect}" with an \`_id\``,
-                    );
-                }
-                return `${compendiumUuid(foundryPackageId(), item.type, item.id, item.pack)}.ActiveEffect.${effect._id}`;
-            },
-        };
-    }
-
-    /**
-     * The heading keys a map pin may name, mapped to the page each compiled to.
-     *
-     * A location key matches a heading's `{#anchor}` slug, or the slug of its
-     * text. Both passes split the *converted* markdown, so the ids agree with
-     * the journals pack without either reading the other's output.
-     *
-     * @param {string} markdown - The converted body.
-     * @param {string} entryId - The JournalEntry's id.
-     * @param {string} name - The map's name (its lead page).
-     * @param {(address: string) => string|undefined} resolveRole - See
-     *   {@link module:engine/journals.splitPages}; threaded through so an
-     *   unanchored map figure's page key agrees with the journal this pass
-     *   derives it against.
-     * @returns {Map<string, string>} heading key → page id.
-     */
-    #pageIds(markdown, entryId, name, resolveRole) {
-        const pageIds = new Map();
-        splitPages(markdown, name, resolveRole).forEach((page) => {
-            const id = journalPageId(entryId, page);
-            if (page.anchorSlug) pageIds.set(page.anchorSlug, id);
-            const slug = slugify(page.name);
-            if (slug && !pageIds.has(slug)) pageIds.set(slug, id);
-        });
-        return pageIds;
-    }
-
-    /**
-     * Index every cross-reference before the walk: a reference in the first
-     * note may address the last, and the effects an authored `to:` names live
-     * on item notes this pass does not otherwise read.
+     * Start each compile with no places accumulated.
      *
      * @returns {Promise<void>}
      */
     async prepare() {
         await super.prepare();
-        const { maps, effectsByAddress } = this.#collect();
-        this.index = this.#indexMaps(maps);
-        this.effectsByAddress = effectsByAddress;
-        this.knownActions = collectKnownActionNames(this.repoRoot);
-        /** place key → `{name, img, scenes: [], journal: []}` */
+        /** place key → `{key, name, scenes: [], journal: [], pinned}` */
         this.places = new Map();
     }
 
     /**
-     * Compile one map note into a Scene, and accumulate the place it belongs
-     * to — a map's Scene and the JournalEntry its prose compiles into ship
-     * together in an Adventure, which is the only import that preserves the
-     * ids its pins address.
+     * Compile one map note's exported Scene, and accumulate the place it
+     * belongs to — a map's Scene and the JournalEntry its prose compiles into
+     * ship together in an Adventure, which is the only import that preserves
+     * the ids its pins address.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} markdown - The body, tables expanded and wikilinks
@@ -449,96 +145,29 @@ export class Scenes extends BasePackCompiler {
         // which derives this same journal's pages the same way.
         const roles = pathnameRoles(this.linkIndex);
         const resolveRole = (pathname) => roles.get(pathname);
-        // The same doc-entry id the journals pass derives, from the
-        // shared `docEntryTypes` arrangement — so neither
-        // pass has to read the other's output.
+        // The same doc-entry id the journals pass derives, from the shared
+        // `docEntryTypes` arrangement — so neither pass has to read the
+        // other's output.
         const entryId = hasBody ? itemDocEntryId(fm.id) : undefined;
-        const { value: authoredFolder } = folderField(fm);
-        const folder = this.folderResolver(authoredFolder, { isAddress: true });
-        const warnings = [];
-        if (fm.data?.scene && fm.subType === "regionalmap") {
-            throw new Error("`data.scene` is for battlemap and localmap notes");
-        }
-        if (fm.data?.fixup !== undefined && !fm.data?.scene) {
-            throw new Error("`data.fixup` needs an exported Scene at `data.scene`");
-        }
-        const bgImage =
-            fm.data?.scene ?
-                null
-            :   this.artPathOf(fm.data?.bgImage, "bgImage", "image", artSlot("bgImage")?.accepts);
-        if (
-            bgImage?.toLowerCase().endsWith(".svg") &&
-            (!["regionalmap", "totm"].includes(fm.subType) ||
-                (fm.subType === "regionalmap" && !fm.data?.scale))
-        ) {
-            throw new Error("an SVG map needs `subType: regionalmap` and `data.scale`");
-        }
-        const raster =
-            bgImage?.toLowerCase().endsWith(".svg") ?
-                rasterizeMapSvg({
-                    foundryPath: bgImage,
-                    width: fm.sohl?.dimensions?.[0],
-                    height: fm.sohl?.dimensions?.[1],
-                    sceneId: fm.id,
-                    config: this.mapConfig,
-                })
-            :   null;
-        const scene =
-            fm.data?.scene ?
-                buildExportedScene(fm, markdown, {
-                    journalEntryId: entryId,
-                    stats: this.stats,
-                    resolveAddress: (address) => {
-                        const result = artPathname(this.linkIndex, address, "image");
-                        if (!result.resolved || !result.pathname) {
-                            throw new Error(
-                                `Scene fixup address "${address}" cannot resolve to an asset: ${result.reason ?? "no pathname"}`,
-                            );
-                        }
-                        return resolveImg(result.pathname);
-                    },
-                })
-            :   buildScene(fm, {
-                    packageId: foundryPackageId(),
-                    // The art resolver, so the map pass turns an address into the path
-                    // each surface serves without holding an index of its own. `accepts`
-                    // is threaded through so `bgImage`, one of the four declared art
-                    // slots, is held to its own accepted set here exactly as it is
-                    // through `artPath`.
-                    art: (value, key, type, accepts) =>
-                        key === "bgImage" && raster ?
-                            raster
-                        :   this.artPathOf(value, key, type, accepts),
-                    name,
-                    folder,
-                    stats: this.stats,
-                    journalEntryId: entryId,
-                    // A map note's prose is a derived JournalEntry: it lands in the
-                    // default JournalEntry pack, not in whichever Scene pack the map
-                    // itself was routed to.
-                    // This compile's router, as everywhere else in this pass.
-                    journalPack:
-                        hasBody ?
-                            this.#packRouter.resolve(fm, "JournalEntry")
-                        :   this.#packRouter.defaultOf("JournalEntry"),
-                    pageIds:
-                        hasBody ? this.#pageIds(markdown, entryId, name, resolveRole) : new Map(),
-                    knownActions: this.knownActions,
-                    warnings,
-                    ...this.#resolvers(this.index, this.effectsByAddress, fm.shortcode),
-                });
-        for (const message of warnings) {
-            // Named by file, like every other note diagnostic. A map
-            // warning is about the note's frontmatter, which carries no
-            // offset, so it names the file and stops there rather than
-            // pointing at a line it cannot establish.
-            this.noteWarn(`map "${name}": ${message}`);
-        }
+        const scene = buildExportedScene(fm, markdown, {
+            journalEntryId: entryId,
+            stats: this.stats,
+            resolveAddress: (address) => {
+                const result = artPathname(this.linkIndex, address, "image");
+                if (!result.resolved || !result.pathname) {
+                    throw new Error(
+                        `Scene fixup address "${address}" cannot resolve to an asset: ${result.reason ?? "no pathname"}`,
+                    );
+                }
+                return resolveImg(result.pathname);
+            },
+        });
         this.writeEntry(scene);
 
-        // The journal the pins point at, derived here exactly as the
-        // journals pass derives it, so the Adventure bundles the same
-        // document that pack ships.
+        // The journal the pins point at, derived here exactly as the journals
+        // pass derives it, so the Adventure bundles the same document that
+        // pack ships.
+        const { value: authoredFolder } = folderField(fm);
         const journal =
             hasBody ?
                 buildJournalEntry({
@@ -547,31 +176,35 @@ export class Scenes extends BasePackCompiler {
                     markdown,
                     leadName: name,
                     resolveRole,
-                    // As in the journals pass: an address resolves in the
-                    // pack that emits it, which is what makes the folder
-                    // materialise there too. The id spelling that used
-                    // to cross packs verbatim is retired.
+                    // As in the journals pass: an address resolves in the pack
+                    // that emits it, which is what makes the folder
+                    // materialise there too.
                     folder: this.folderResolver(authoredFolder, { isAddress: true }),
                 })
             :   null;
 
-        const placeKey = sohlField(fm, "place", null) || fm.shortcode;
+        // The compile hands `data.place` over as its resolved Address, and the
+        // rendered form keys the place.
+        const place = fm.data?.place;
+        const placeKey =
+            place && typeof place === "object" && place.type && place.shortcode ?
+                renderAddress(place)
+            : typeof place === "string" && place ? place
+            : fm.shortcode;
         if (!this.places.has(placeKey)) {
             this.places.set(placeKey, {
                 key: placeKey,
-                name: sohlField(fm, "placeName", null) || name,
-                img: fm.data?.scene ? null : this.artPath(fm, "bgImage"),
+                // Named after the first map of the place to compile.
+                name,
                 pinned: false,
                 scenes: [],
                 journal: [],
             });
         }
-        const place = this.places.get(placeKey);
-        place.scenes.push(stripAdventureKeys(scene));
-        if (journal) place.journal.push(stripAdventureKeys(journal));
-        if (scene.notes?.length || Object.keys(fm.sohl?.locations ?? {}).length) {
-            place.pinned = true;
-        }
+        const entry = this.places.get(placeKey);
+        entry.scenes.push(stripAdventureKeys(scene));
+        if (journal) entry.journal.push(stripAdventureKeys(journal));
+        if (Array.isArray(scene.notes) && scene.notes.length) entry.pinned = true;
         return scene;
     }
 
@@ -581,36 +214,8 @@ export class Scenes extends BasePackCompiler {
      *
      * @returns {Promise<void>}
      */
-    async finish(stats) {
+    async finish() {
         this.adventureCount = 0;
-        const firstScenePack = this.mapConfig?.packs.find((pack) => pack.type === "Scene")?.name;
-        if (this.mapConfig && this.packName === firstScenePack) {
-            const generated = buildItineraryScenes({
-                config: this.mapConfig,
-                records: this.corpus.records,
-                contentBase: this.contentBase,
-                journalSourceDirs: this.journalSourceDirs,
-                stats: this.stats,
-            });
-            for (const finding of generated.findings) emitDiagnostic(finding);
-            if (generated.scenes.length) {
-                const place = {
-                    key: "generated-itineraries",
-                    name: "Itinerary Maps",
-                    img: null,
-                    pinned: true,
-                    scenes: [],
-                    journal: generated.journal,
-                };
-                for (const scene of generated.scenes) {
-                    this.writeEntry(scene);
-                    place.scenes.push(stripAdventureKeys(scene));
-                }
-                this.places.set(place.key, place);
-                stats.compiled += generated.scenes.length;
-                this.compiledCount = stats.compiled;
-            }
-        }
         for (const place of this.places.values()) {
             // A scene that references nothing ships fine as a plain `scenes`
             // entry; only pins need the id-preserving import an Adventure gives.
@@ -635,7 +240,7 @@ export class Scenes extends BasePackCompiler {
         const id = makeId("map-adventure", place.key);
         return {
             name: place.name,
-            img: place.img ?? null,
+            img: null,
             caption: "",
             description: "",
             actors: [],

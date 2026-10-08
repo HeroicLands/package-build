@@ -29,7 +29,7 @@
 /**
  * What every art slot accepts, whichever type it defaults to.
  *
- * A sound is not art: `audio` is refused at all four slots, and every slot
+ * A sound is not art: `audio` is refused at every slot, and every slot
  * that defaults to `icon` or to `image` accepts either — the corpus is why:
  * `sohl-kethira-basic` writes a deity's profile art as `icon: image-…` twenty
  * times, one full illustration per faith tradition, and a slot refusing the
@@ -40,7 +40,7 @@
 const ART_TYPES = Object.freeze(["icon", "image"]);
 
 /**
- * The four art slots, in the order the specification tabulates them.
+ * The art slots, in the order the specification tabulates them.
  *
  * `banner` is the one that reaches no compiled document: it is the page's hero
  * image, read by the site and by nothing else. The book's section plates read a
@@ -64,13 +64,6 @@ export const ART_SLOTS = Object.freeze([
         accepts: ART_TYPES,
         document: true,
         describe: "What a token on the canvas wears; unset, it follows `icon`.",
-    }),
-    Object.freeze({
-        key: "bgImage",
-        type: "image",
-        accepts: ART_TYPES,
-        document: true,
-        describe: "A map's background art, resolved into `background.src`.",
     }),
     Object.freeze({
         key: "banner",

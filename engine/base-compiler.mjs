@@ -260,10 +260,8 @@ export class BasePackCompiler {
      * here is what lets the lint tell an inert key from a live one.
      *
      * A pass that emits art **anywhere** in its document declares it, not only
-     * one that writes a top-level `img`: the scenes pass puts the path on the
-     * scene's background rather than on a property called `img`, and the value
-     * is no less live for it. The question this answers is whether the authored
-     * path reaches the output at all.
+     * one that writes a top-level `img`. The question this answers is whether
+     * the authored path reaches the output at all.
      *
      * @type {readonly string[]}
      */

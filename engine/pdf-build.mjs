@@ -1169,20 +1169,25 @@ export async function buildPdf({
     for (const entry of plan.entries) {
         if (entry.kind !== "note" || entry.record?.type !== "map") continue;
         const title = entry.record.name?.full ?? entry.record.shortcode;
-        if (["regionalmap", "totm"].includes(entry.record.subType)) {
-            if (entry.record.data?.bgImage) {
-                stageMapBackground(entry, entry.record.data.bgImage, title);
-            }
-            continue;
-        }
-        if (!["battlemap", "localmap"].includes(entry.record.subType)) continue;
-        for (const [index, level] of (entry.record.data?.scene?.levels ?? []).entries()) {
+        // Every subtype's picture is its exported Scene's level backgrounds,
+        // each with `data.fixup` applied. Nothing else in the Scene is read.
+        const levels = entry.record.data?.scene?.levels;
+        for (const [index, level] of (Array.isArray(levels) ? levels : []).entries()) {
+            if (!level || typeof level !== "object") continue;
             const paths = [
                 `.levels[${index}].background.src`,
-                ...(level._id ? [`.levels[${level._id}].background.src`] : []),
+                ...(level._id ?
+                    [
+                        `.levels[${level._id}].background.src`,
+                        `.levels[_id=${level._id}].background.src`,
+                        `.levels[_id="${level._id}"].background.src`,
+                        `.levels[_id='${level._id}'].background.src`,
+                    ]
+                :   []),
             ];
-            const fixup = (entry.record.data?.fixup ?? []).find((item) =>
-                paths.includes(item.path),
+            const fixups = entry.record.data?.fixup;
+            const fixup = (Array.isArray(fixups) ? fixups : []).find((item) =>
+                paths.includes(item?.path),
             );
             const value = fixup?.value ?? level.background?.src;
             if (value)

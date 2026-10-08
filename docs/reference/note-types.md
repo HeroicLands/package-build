@@ -441,26 +441,11 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 **Subtypes:** `battlemap`, `localmap`, `regionalmap`, `totm`.
 
-| Field                  | Shape       | Meaning                                                                                                                    |
-| ---------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `data.scene`           | as authored | A Foundry Scene export with all its authored fields.                                                                       |
-| `data.fixup`           | list        | Asset address replacements in an exported Scene.                                                                           |
-| `data.bgImage`         | an Address  | The map's background art — an `image` address.                                                                             |
-| `data.scale`           | as authored | Regional map distance per grid unit: {distance, unit}.                                                                     |
-| `data.dimensions`      | list        | `[width, height]` in whole pixels — the art's own size.                                                                    |
-| `data.pxPerGrid`       | number      | Whole pixels per grid square; must match the art.                                                                          |
-| `data.navName`         | string      | Short name for the navigation bar.                                                                                         |
-| `data.levelName`       | string      | Name of the embedded level.                                                                                                |
-| `data.backgroundColor` | string      | Colour shown where the art does not reach.                                                                                 |
-| `data.overlay`         | string      | Path to the foreground art.                                                                                                |
-| `data.walls`           | as authored | Wall segments.                                                                                                             |
-| `data.doors`           | as authored | Doors.                                                                                                                     |
-| `data.lights`          | as authored | Light sources.                                                                                                             |
-| `data.tiles`           | as authored | Tiles.                                                                                                                     |
-| `data.sounds`          | as authored | Ambient sounds.                                                                                                            |
-| `data.regions`         | as authored | Regions and their behaviours.                                                                                              |
-| `data.notes`           | as authored | Map pins, each a grid location and an anchor in this note's own body.                                                      |
-| `data.place`           | an Address  | The place this map depicts. Named here and not on the place, because a place has several maps and a map depicts one place. |
+| Field        | Shape                                            | Meaning                                                                                                                                                                                     |
+| ------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data.scene` | an object — a Foundry Scene document as exported | The Foundry Scene as exported, passed through unchanged apart from `data.fixup` and its pins marked `#anchor`. Nothing inside it is checked; the book prints its levels' background images. |
+| `data.fixup` | list                                             | Asset address replacements in an exported Scene.                                                                                                                                            |
+| `data.place` | an Address                                       | The place this map depicts. Named here and not on the place, because a place has several maps and a map depicts one place.                                                                  |
 
 ### place
 

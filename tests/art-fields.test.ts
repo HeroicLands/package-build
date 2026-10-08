@@ -55,14 +55,14 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const SPEC = readFileSync(path.resolve(here, "../docs/reference/format-details.md"), "utf8");
 
 /**
- * The default type and the accepted set *The four art slots* tabulates, keyed
+ * The default type and the accepted set *The art slots* tabulates, keyed
  * by field — read from the document's own table rather than a transcription
  * of it, so a slot the table adds or drops is caught here without a second
  * list to maintain.
  */
 function documentedArtSlots(): Map<string, { type: string; accepts: string[] }> {
     const lines = SPEC.split("\n");
-    const heading = lines.findIndex((line) => /^####\s+The four art slots\s*$/.test(line));
+    const heading = lines.findIndex((line) => /^####\s+The art slots\s*$/.test(line));
     const header = lines.findIndex((line, i) => i > heading && /^\|\s*field\s*\|/.test(line));
     const out = new Map<string, { type: string; accepts: string[] }>();
     for (let i = header + 2; lines[i]?.trim().startsWith("|"); i++) {
@@ -82,7 +82,7 @@ const SHIPPED = [Items, Actors, Hm3Actors, Macros, Scenes, Bundles, Journals];
 
 describe("the art slots are declared once", () => {
     it("declares slots to check, so the comparison is not vacuous", () => {
-        expect(ART_SLOTS.length).toBeGreaterThan(3);
+        expect(ART_SLOTS.length).toBeGreaterThan(2);
         expect(ART_SLOTS.map((slot) => slot.key)).toContain("icon");
     });
 
@@ -92,7 +92,7 @@ describe("the art slots are declared once", () => {
     });
 
     it("declares a non-empty accepted set for every slot, of real asset types", () => {
-        // Derived from ART_SLOTS itself, so a fifth slot omitting `accepts` — or
+        // Derived from ART_SLOTS itself, so a further slot omitting `accepts` — or
         // naming something that is not an asset type — is reported here rather
         // than silently accepting nothing, or accepting a type no address can
         // name.
@@ -158,7 +158,8 @@ describe("the art slots are declared once", () => {
 
     it("looks a slot up by key, and answers nothing for a key that is not one", () => {
         expect(artSlot("icon")?.type).toBe("icon");
-        expect(artSlot("bgImage")?.type).toBe("image");
+        expect(artSlot("banner")?.type).toBe("image");
+        expect(artSlot("bgImage")).toBeUndefined();
         expect(artSlot("portrait")).toBeUndefined();
     });
 });
@@ -211,7 +212,8 @@ describe("what a pass emits is a slot, and nothing else", () => {
     it("routes each document-bound slot to the type that carries it", () => {
         expect(emittedArtFor("being")!.art).toEqual(expect.arrayContaining(["icon", "tokenIcon"]));
         expect(emittedArtFor("skill")!.art).toEqual(["icon"]);
-        expect(emittedArtFor("map")!.art).toEqual(["bgImage"]);
+        // A map's Scene is exported from Foundry; no slot reaches it.
+        expect(emittedArtFor("map")!.art).toEqual([]);
     });
 });
 

@@ -280,8 +280,8 @@ export * as journals from "./journals.mjs";
 /** The Macro compiler. */
 export * as macros from "./macros.mjs";
 
-/** The map-note schema a Scene is authored in. */
-export * as mapNotes from "./map-notes.mjs";
+/** An exported Scene's compile: its fixups, keys and anchored pins. */
+export * as exportedScene from "./exported-scene.mjs";
 
 /** The Scene and Adventure compiler. */
 export * as scenes from "./scenes.mjs";
@@ -303,8 +303,8 @@ export * as compendiums from "./compendiums.mjs";
 
 // The region-event vocabulary stays flat as well as namespaced: the Foundry
 // runtime imports these three by name through
-// `@heroiclands/package-build/engine/region-events`, and they were part of this
-// barrel's surface before the pipeline arrived.
+// `@heroiclands/package-build/engine/region-events`, and this barrel carries
+// them by name too.
 export {
     CURATED_REGION_EVENTS,
     EXCLUDED_REGION_EVENTS,

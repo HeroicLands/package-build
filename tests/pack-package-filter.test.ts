@@ -160,10 +160,6 @@ id: EEEEEEEEEEEEEEEE
 shortcode: foreignmap
 type: map
 subType: battlemap
-sohl:
-  archetype: null
-  place: foreignplace
-  placeName: Foreign Place
 data:
   scene:
     name: Foreign Map

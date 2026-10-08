@@ -162,8 +162,7 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *   quoting the whole map back, so the string an author has to correct is the
  *   one the message holds.
  * @property {string} [ref] - The Address's default type, an art slot declares
- *   one — `icon` for `icon` and `tokenIcon`, `image` for `bgImage` and
- *   `banner` — so `icon: anvil` names `icon-anvil` while a value carrying the
+ *   one — `icon` for `icon` and `tokenIcon`, `image` for `banner` — so `icon: anvil` names `icon-anvil` while a value carrying the
  *   separator states its own address. Distinct from a `FieldSpec`'s `code`
  *   ({@link module:engine/field-spec}), which names a **Shortcode** instead.
  * @property {"pack"} [keys] - For a `scalar-or-map` field, what its keys name.
@@ -1680,65 +1679,22 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     map: Object.freeze({
         stubbable: true,
-        // The subType classifies the map; `data.scene` carries its canvas.
+        // The subType classifies the map; `data.scene` is its Foundry Scene.
         subTypes: Object.freeze(["battlemap", "localmap", "regionalmap", "totm"]),
         data: Object.freeze([
             {
                 name: "scene",
-                ...ANY,
-                describe: "A Foundry Scene export with all its authored fields.",
+                kind: "map",
+                shape: "an object — a Foundry Scene document as exported",
+                describe:
+                    "The Foundry Scene as exported, passed through unchanged apart " +
+                    "from `data.fixup` and its pins marked `#anchor`. Nothing inside it is checked; " +
+                    "the book prints its levels' background images.",
             },
             {
                 name: "fixup",
                 ...LIST,
                 describe: "Asset address replacements in an exported Scene.",
-            },
-            // A Scene has no `img`, so the shared art key reaches nothing here:
-            // a map's background is its own slot, and an `image` address.
-            {
-                name: "bgImage",
-                ...LINK,
-                ref: "image",
-                accepts: ART_SLOTS.find((slot) => slot.key === "bgImage").accepts,
-                describe: "The map's background art — an `image` address.",
-            },
-            {
-                name: "scale",
-                ...ANY,
-                describe: "Regional map distance per grid unit: {distance, unit}.",
-            },
-            {
-                name: "dimensions",
-                ...LIST,
-                describe: "`[width, height]` in whole pixels — the art's own size.",
-            },
-            {
-                name: "pxPerGrid",
-                ...NUM,
-                describe: "Whole pixels per grid square; must match the art.",
-            },
-            { name: "navName", ...TEXT, describe: "Short name for the navigation bar." },
-            { name: "levelName", ...TEXT, describe: "Name of the embedded level." },
-            {
-                name: "backgroundColor",
-                ...TEXT,
-                describe: "Colour shown where the art does not reach.",
-            },
-            { name: "overlay", ...TEXT, describe: "Path to the foreground art." },
-            // Geometry carries no `kind`. The specification lists each
-            // as a sequence while the notes authoring them today write
-            // a map keyed by name, and a lint has no business picking
-            // the winner of a disagreement the format has not settled.
-            { name: "walls", ...ANY, describe: "Wall segments." },
-            { name: "doors", ...ANY, describe: "Doors." },
-            { name: "lights", ...ANY, describe: "Light sources." },
-            { name: "tiles", ...ANY, describe: "Tiles." },
-            { name: "sounds", ...ANY, describe: "Ambient sounds." },
-            { name: "regions", ...ANY, describe: "Regions and their behaviours." },
-            {
-                name: "notes",
-                ...ANY,
-                describe: "Map pins, each a grid location and an anchor in this note's own body.",
             },
             {
                 name: "place",

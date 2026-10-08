@@ -93,7 +93,7 @@ describe("the size a hero image is cut to", () => {
     it("asks nothing of a picture named at a slot that states no size", () => {
         const base = treeWith("hearthmoor", 3000, 1800);
         expect(
-            checkArtSlotSizes(corpus(base, noteNaming("bgImage", "image-hearthmoor")), {
+            checkArtSlotSizes(corpus(base, noteNaming("icon", "image-hearthmoor")), {
                 config: { contentPackage: "sohl" },
             }),
         ).toEqual([]);

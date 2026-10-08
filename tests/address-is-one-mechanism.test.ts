@@ -230,17 +230,6 @@ const EXEMPT: readonly Exemption[] = [
             "(which always renders all four) describes a two-segment value, " +
             "so this is not the Address this module owns",
     },
-    {
-        file: "engine/scenes.mjs",
-        snippet: "`${fm.type}-${fm.shortcode}`",
-        count: 1,
-        converts: null,
-        why:
-            "an item's Active-Effects lookup key: a `(type, shortcode)` " +
-            "identity with no package and no system, built from the item " +
-            "note's own fields. The same shape as the page slug above, so " +
-            "the same reason it is not the Address this module owns",
-    },
 ];
 
 describe("an Address is read and written in one place", () => {
