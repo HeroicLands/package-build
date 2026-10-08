@@ -342,6 +342,58 @@ ORDER BY whenSort
 
 The [format reference](../reference/format-details.md#event-views) lists what each view selects.
 
+### A century view
+
+A view of what happened in one century is a fence an author writes, on whatever note should carry it. Filter `events` on `whenYear`, leave out events of local reach, and order by `whenSort`:
+
+````markdown
+# The Third Century {#third-century}
+
+```sql
+SELECT note                                   AS _ref,
+       summary                                AS "What happened",
+       "when"                                 AS "When",
+       array_to_string("where".locus, ', ')   AS "Where"
+FROM events
+WHERE whenYear BETWEEN 200 AND 299
+  AND depth <> 'local'
+ORDER BY whenSort, address
+```
+````
+
+Each row is one event, linked to the note that records it, with its date as the note wrote it and the Addresses of the places it happened at:
+
+| What happened                                      | When | Where                                              |
+| -------------------------------------------------- | ---- | -------------------------------------------------- |
+| [Ironfells is sacked.](/thalorna/place-ironfells/) | ~280 | thalorna-note-place-ironfells                      |
+| [The fords are bridged.](/thalorna/lore-fords/)    | ~291 | thalorna-note-place-east, thalorna-note-place-west |
+
+`depth <> 'local'` also leaves out an event that states no `depth`; write `depth IS DISTINCT FROM 'local'` to keep those. Use `whenYear BETWEEN -299 AND -200` for a century before year zero.
+
+To print each place by its name rather than its Address, join `notes` on the place's Address. The `GROUP BY` keeps one row per event when it happened in several places:
+
+````markdown
+```sql
+SELECT e.note                          AS _ref,
+       e.summary                       AS "What happened",
+       e."when"                        AS "When",
+       string_agg(p.name.full, ', ')   AS "Where"
+FROM events e
+LEFT JOIN notes p ON list_contains(e."where".locus, p.address.canonical)
+WHERE e.whenYear BETWEEN 200 AND 299
+  AND e.depth <> 'local'
+GROUP BY e.note, e.address, e.summary, e."when", e.whenSort
+ORDER BY e.whenSort, e.address
+```
+````
+
+| What happened                                      | When | Where      |
+| -------------------------------------------------- | ---- | ---------- |
+| [Ironfells is sacked.](/thalorna/place-ironfells/) | ~280 | Ironfells  |
+| [The fords are bridged.](/thalorna/lore-fords/)    | ~291 | East, West |
+
+An event with no `where.locus` keeps its row with an empty **Where** cell.
+
 ### Fence attributes
 
 A braced list may follow the language on the opening fence. Two attributes are accepted, and anything else is reported by name.
