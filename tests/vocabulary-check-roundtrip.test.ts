@@ -125,7 +125,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     affiliation: {
-        covers: ["events", "governance.ranks"],
+        covers: ["events", "governance.ranks", "governance.offices"],
         fm: () => ({
             type: "affiliation",
             shortcode: "someaffiliation",
@@ -141,6 +141,10 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                 ],
                 governance: {
                     ranks: [{ level: 1, title: "Member", description: "An ordinary member." }],
+                    offices: {
+                        Steward: "Keeps the accounts.",
+                        Chancellor: { description: "Keeps the seal.", holders: [] },
+                    },
                 },
             },
         }),

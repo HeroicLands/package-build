@@ -55,6 +55,8 @@
  */
 
 import { isAddressTuple } from "./address.mjs";
+import { listed, nearest } from "./near-miss.mjs";
+import { checkDataKeys } from "./data-keys.mjs";
 import {
     authoredNoteKeys,
     CHARACTER_NAME_KEYS,
@@ -93,7 +95,6 @@ import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import {
     BEING_ARCHETYPES,
     dataFields,
-    isLegacyDataField,
     declaredTags,
     subTypeCharsetMessage,
     typeCharsetMessage,
@@ -286,72 +287,6 @@ export { declaredSystems } from "./system-vocabulary.mjs";
 export { systemBlocksFor } from "./system-vocabulary.mjs";
 
 /**
- * Edit distance, capped — enough to answer "did you mean".
- *
- * A misspelled property is the failure class this check exists for, and a
- * finding that names the key the author *meant* turns a hunt through the
- * reference into a one-character fix.
- *
- * @param {string} a - One string.
- * @param {string} b - The other.
- * @returns {number} The Levenshtein distance.
- */
-function distance(a, b) {
-    const rows = a.length + 1;
-    const cols = b.length + 1;
-    let prev = Array.from({ length: cols }, (_, j) => j);
-    for (let i = 1; i < rows; i += 1) {
-        const row = [i];
-        for (let j = 1; j < cols; j += 1) {
-            row[j] = Math.min(
-                prev[j] + 1,
-                row[j - 1] + 1,
-                prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1),
-            );
-        }
-        prev = row;
-    }
-    return prev[cols - 1];
-}
-
-/**
- * A closed vocabulary as an English list, for the message that names it.
- *
- * Written from the declaration rather than spelled into the message, so a key
- * the vocabulary gains cannot go unmentioned by the finding that refuses its
- * neighbours.
- *
- * @param {readonly string[]} keys - The declared keys, in declared order.
- * @returns {string} `"a, b, or c"`.
- */
-function listed(keys) {
-    if (keys.length < 2) return keys.join("");
-    return `${keys.slice(0, -1).join(", ")}, or ${keys[keys.length - 1]}`;
-}
-
-/**
- * The declared key an unknown one was most likely meant to be.
- *
- * @param {string} key - The unknown key.
- * @param {Iterable<string>} candidates - The declared keys.
- * @returns {string|undefined} The nearest, when it is near enough to suggest.
- */
-function nearest(key, candidates) {
-    let best;
-    let bestAt = Infinity;
-    for (const candidate of candidates) {
-        const d = distance(key.toLowerCase(), candidate.toLowerCase());
-        if (d < bestAt) {
-            bestAt = d;
-            best = candidate;
-        }
-    }
-    // A third of the key's length, so a suggestion is a plausible typo rather
-    // than the least-bad of a list of unrelated words.
-    return bestAt <= Math.max(1, Math.floor(key.length / 3)) ? best : undefined;
-}
-
-/**
  * Whether a value satisfies a declared {@link FieldSpec.kind}.
  *
  * Deliberately lenient about the spellings YAML makes ambiguous: `"12"` is a
@@ -508,7 +443,7 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
     }
 
     for (const key of Object.keys(entries)) {
-        if (declared.has(key) || isLegacyDataField(type, key)) continue;
+        if (declared.has(key)) continue;
         const current = renamed.get(key);
         if (current) {
             findings.push({
@@ -586,6 +521,10 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
             );
         }
     }
+
+    // One level down and every level below: each field's value is closed to
+    // the inner keys its declaration states, as the container is to its own.
+    findings.push(...checkDataKeys(note, fields));
 
     return findings;
 }

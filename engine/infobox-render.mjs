@@ -116,12 +116,17 @@ function valueToHtml(row, link) {
 /**
  * One entry of a `runin` group or a `list` section as HTML.
  *
+ * An entry's optional `lead` is plain text set before it, so a line such as a
+ * membership — `War Chief, Hárár (5), of Vrystwald Tribes` — links the body's
+ * name and nothing else.
+ *
  * @param {object} entry - The entry.
  * @param {(value: object) => string} link - How this medium draws a link.
  * @returns {string} HTML.
  */
 function entryToHtml(entry, link) {
-    return entry?.url || entry?.address ? link(entry) : escapeHtml(entry?.text);
+    const lead = entry?.lead ? escapeHtml(entry.lead) : "";
+    return lead + (entry?.url || entry?.address ? link(entry) : escapeHtml(entry?.text));
 }
 
 /**
@@ -266,6 +271,19 @@ function valueToTypst(row, link) {
 }
 
 /**
+ * One entry of a `runin` group or a `list` section as Typst: its `lead` as
+ * plain text, then the entry, linked where the book can reach it.
+ *
+ * @param {object} entry - The entry.
+ * @param {(value: object) => string} link - How the book draws a link.
+ * @returns {string} Typst markup.
+ */
+function entryToTypst(entry, link) {
+    const lead = entry?.lead ? escapeTypst(entry.lead) : "";
+    return lead + (entry?.url || entry?.address ? link(entry) : escapeTypst(entry?.text));
+}
+
+/**
  * One section as Typst, whole and unbreakable.
  *
  * `lead` rides **inside** the block rather than above it. A panel breaks
@@ -306,16 +324,13 @@ function sectionToTypst(section, link, lead = "") {
     } else if (section.layout === "runin") {
         for (const group of section.groups ?? []) {
             const entries = (group.entries ?? [])
-                .map((entry) =>
-                    entry?.url || entry?.address ? link(entry) : escapeTypst(entry?.text),
-                )
+                .map((entry) => entryToTypst(entry, link))
                 .join(", ");
             body.push(`#infobox-runin("${escapeTypstString(group.label ?? "")}")[${entries}]`);
         }
     } else {
         for (const entry of section.entries ?? []) {
-            const text = entry?.url || entry?.address ? link(entry) : escapeTypst(entry?.text);
-            body.push(`#infobox-runin("")[${text}]`);
+            body.push(`#infobox-runin("")[${entryToTypst(entry, link)}]`);
         }
     }
 

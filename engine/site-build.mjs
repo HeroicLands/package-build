@@ -605,7 +605,6 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
         kbfolder: page.folder,
     };
     if (decorate) decorate(data, page);
-    if (data.type === "affiliation" && data.data) delete data.data.domains;
     delete data.aliases;
     delete data.related;
     for (const key of HOLDINGS_KEYS) delete data[key];

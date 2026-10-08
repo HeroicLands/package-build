@@ -1,13 +1,16 @@
 {{- /*
   One entry of a `runin` group or a `list` section.
 
-  An entry is `{text, url}`. It links when the build reached the page it
+  An entry is `{lead, text, url}`. It links when the build reached the page it
   names, and keeps its words when it did not — a panel naming something this
   site does not publish is better than a panel silently one entry short.
+  `lead`, where present, is plain text set before the link, so a line such as
+  a membership links the body's name and nothing else.
 
   Takes `entry` and the `class` its medium gives it.
 */ -}}
 {{- $entry := .entry -}}
+{{- with $entry.lead }}{{ . }}{{ end -}}
 {{- with $entry.url -}}
 <a class="{{ $.class }}" href="{{ . }}">{{ $entry.text }}</a>
 {{- else -}}

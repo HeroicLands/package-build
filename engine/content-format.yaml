@@ -7,7 +7,6 @@ types:
             - templatePriority
             - archetypes
             - occupation
-            - social
             - stations
             - lore
             - culture
@@ -288,13 +287,6 @@ types:
             - levelName
             - backgroundColor
             - overlay
-            - walls
-            - doors
-            - lights
-            - tiles
-            - sounds
-            - regions
-            - notes
             - place
         subTypes:
             - battlemap

@@ -28,6 +28,50 @@ const fields = (list) =>
         (field) =>
             `| \`data.${cell(field.name)}\` | ${cell(field.shape ?? field.kind ?? "value")} | ${cell(field.describe)} |`,
     );
+/**
+ * Every inner key a list of field declarations states, at every depth, as
+ * table rows — the keys of a map value, of each entry of a list, and of each
+ * value of a keyed map.
+ *
+ * @param {readonly object[]} list - Field declarations.
+ * @returns {string[]} The rows, or none where no field holds maps.
+ */
+const innerKeys = (list) => {
+    const out = [];
+    const walk = (spec, at) => {
+        for (const inner of spec.fields ?? []) {
+            const key = `${at}.${inner.name}`;
+            out.push(
+                `| \`${cell(key)}\` | ${cell(inner.shape ?? inner.kind ?? "value")} | ${
+                    inner.required ? "yes" : "no"
+                } | ${cell(inner.describe)} |`,
+            );
+            walk(inner, key);
+        }
+        if (spec.entries) walk(spec.entries, `${at}[]`);
+        if (spec.values) {
+            const placeholder =
+                spec.keyKind === "address" ? "<Address>"
+                : spec.keyKind === "shortcode" ? "<Shortcode>"
+                : "<name>";
+            walk(spec.values, `${at}.${placeholder}`);
+        }
+    };
+    for (const field of list) walk(field, `data.${field.name}`);
+    return out;
+};
+const innerKeyTable = (list) => {
+    const keyRows = innerKeys(list);
+    if (!keyRows.length) return [];
+    return [
+        "**Inner keys** — a key a field's value does not declare is an error at its own line and column.",
+        "",
+        "| Key | Shape | Required | Meaning |",
+        "| --- | --- | --- | --- |",
+        ...keyRows,
+        "",
+    ];
+};
 const rows = [
     "---",
     "shortcode: referencenotetypes",
@@ -60,6 +104,7 @@ const rows = [
     "| --- | --- | --- |",
     ...fields(SHARED_DATA_FIELDS),
     "",
+    ...innerKeyTable(SHARED_DATA_FIELDS),
     "## Type-specific fields",
     "",
 ];
@@ -88,6 +133,7 @@ for (const [type, spec] of contract.types) {
         :   ["| — | — | No type-specific `data` fields. |"]),
     );
     rows.push("");
+    rows.push(...innerKeyTable(declared.data ?? []));
     const claims = contract.claims.filter((claim) => !claim.shared && claim.noteType === type);
     if (claims.length) {
         rows.push("**System mappings**", "", "| Source | System | Target |", "| --- | --- | --- |");

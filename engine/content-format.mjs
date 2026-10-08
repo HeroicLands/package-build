@@ -52,9 +52,21 @@ export const CONTENT_FORMAT_PATH = path.join(
  *   property — what a note actually writes. `appearance.eye_color` is authored
  *   as `appearance`, so that is the key recorded.
  * @property {Set<string>} dataPaths - The declared paths, whole.
+ * @property {Map<string, DataRow>} [dataRows] - Each documented path's row, as
+ *   a reference document states it. Read from a Markdown specification only.
  * @property {string[]} subTypes - The declared `subType` values,
  *   in document order — empty when it states none, which is the ordinary case
  *   for a type that has no `subType` at all.
+ */
+
+/**
+ * One row of a `data` property table, as a reference document states it.
+ *
+ * @typedef {object} DataRow
+ * @property {string} shape - The second cell, the value's shape in words.
+ * @property {string} text - The whole row as written, for a reader looking for
+ *   a marker anywhere in it.
+ * @property {number} line - 1-based line of the row.
  */
 
 /**
@@ -95,6 +107,12 @@ export const CONTENT_FORMAT_PATH = path.join(
  * @property {MappingClaim[]} claims - Every `system.*` target, in document order.
  * @property {Map<string, VocabularySpec>} vocabularies - Key → the values it
  *   admits, for every closed vocabulary the document states as a table.
+ * @property {Map<string, DataRow>} [sharedDataRows] - The rows of the shared
+ *   `data` property table — the keys every type accepts — by path. Read from a
+ *   Markdown specification only.
+ * @property {Map<string, DataRow>} [eventRows] - The rows of the event key
+ *   tables, by path from one event entry (`names[].by`). Read from a Markdown
+ *   specification only.
  */
 
 /**
@@ -245,6 +263,10 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
     const claims = [];
     /** @type {Map<string, VocabularySpec>} */
     const vocabularies = new Map();
+    /** @type {Map<string, DataRow>} */
+    const sharedDataRows = new Map();
+    /** @type {Map<string, DataRow>} */
+    const eventRows = new Map();
 
     const lines = String(text ?? "").split("\n");
     /** @type {TypeSpec|undefined} */
@@ -262,6 +284,7 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
                 line: i + 1,
                 dataKeys: new Set(),
                 dataPaths: new Set(),
+                dataRows: new Map(),
                 subTypes: [],
             };
             types.set(current.name, current);
@@ -297,6 +320,14 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
         // A header row, recognised by its first cell alone.
         if (cells[0] === "`data` property") {
             table = { kind: "data", systems: [] };
+            continue;
+        }
+        if (cells[0] === "shared `data` property") {
+            table = { kind: "shared-data", systems: [] };
+            continue;
+        }
+        if (cells[0] === "event key" || cells[0] === "nested key") {
+            table = { kind: "event", systems: [] };
             continue;
         }
         if (cells[0] === "shared source") {
@@ -343,6 +374,18 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
             if (!declared) continue;
             current.dataPaths.add(declared);
             current.dataKeys.add(declared.split(".")[0]);
+            current.dataRows?.set(declared, { shape: cells[1] ?? "", text: line, line: i + 1 });
+            continue;
+        }
+
+        if (table.kind === "shared-data" || table.kind === "event") {
+            const declared = code(cells[0]);
+            if (declared)
+                (table.kind === "event" ? eventRows : sharedDataRows).set(declared, {
+                    shape: cells[1] ?? "",
+                    text: line,
+                    line: i + 1,
+                });
             continue;
         }
 
@@ -365,7 +408,7 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
         }
     }
 
-    return { file, types, claims, vocabularies };
+    return { file, types, claims, vocabularies, sharedDataRows, eventRows };
 }
 
 /**

@@ -17,7 +17,7 @@
  * already strings.
  *
  * **Every row has every column.** The event keys come from
- * {@link module:engine/note-events.EVENT_ENTRY_KEYS}, so a key no event in a
+ * {@link module:engine/note-event-terms.EVENT_ENTRY_KEYS}, so a key no event in a
  * corpus writes is still a column, `NULL` in every row, and a fence naming it
  * binds rather than failing on a corpus that happens not to use it.
  *
@@ -29,7 +29,7 @@
  */
 
 import { ownDocumentSystem, renderAddress } from "./address.mjs";
-import { EVENT_ENTRY_KEYS } from "./note-events.mjs";
+import { EVENT_ENTRY_KEYS } from "./note-event-terms.mjs";
 
 /** The columns a row carries besides the event's own keys, before them. */
 const IDENTITY_COLUMNS = Object.freeze(["note", "address"]);

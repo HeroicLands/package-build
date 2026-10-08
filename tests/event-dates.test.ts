@@ -16,9 +16,10 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 import { canonicalYear, eraYear } from "../engine/calendars.mjs";
 import { occurrencesOf, parseNoteDate, resolvedDateFields } from "../engine/note-dates.mjs";
+import { checkDataKeys } from "../engine/data-keys.mjs";
 import { checkNoteEvents } from "../engine/note-events.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
-import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { openNotesDatabase, runSqlQuery } from "../engine/sql-tables.mjs";
 
@@ -202,7 +203,12 @@ describe("checkNoteEvents", () => {
                 ...calendar,
                 data: { events: [{ summary: "S", when: "412.1", recurs: { every: bad } }] },
             });
-            expect(messages(checkNoteEvents(n, {}))[0], String(bad)).toContain("`recurs.every`");
+            // A value that is no number at all is the inner-key check's finding.
+            const found = [
+                ...checkDataKeys(n as any, dataFields("lore")),
+                ...checkNoteEvents(n, {}),
+            ];
+            expect(messages(found)[0], String(bad)).toContain("recurs.every");
         }
     });
 

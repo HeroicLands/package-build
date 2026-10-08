@@ -47,11 +47,18 @@ infoboxes:
           - label: Name
             kind: text
             value: Brànwâal Dôrgaar
-          - label: Affiliations
+          - label: Homes
             kind: links
             value:
-              - text: The Silent Talon Company
-                url: /thalorna/affiliation-slntlncmpny/
+              - text: Vylar
+                url: /thalorna/place-vylar/
+      - id: affiliations
+        label: Affiliations
+        layout: list
+        entries:
+          - lead: "Captain, Blade (4), of "
+            text: The Silent Talon Company
+            url: /thalorna/affiliation-slntlncmpny/
   - id: sohl
     kind: system
     system: sohl
@@ -84,6 +91,11 @@ Each layout draws under its own class:
 
 A `link` value renders as an anchor where the build reached the page, and as
 its own words where it did not; a whole `number` is set with digit grouping.
+An entry of a `runin` group or a `list` section is `{lead, text, url}`: `lead`,
+where present, is plain text set before the link, so a membership line —
+`Captain, Blade (4), of The Silent Talon Company` — links the body's name and
+nothing else. A being's memberships arrive as a `list` section of their own,
+one entry per membership, because a line already holds commas.
 
 **How the boxes are drawn.**
 

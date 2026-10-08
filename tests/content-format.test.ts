@@ -678,18 +678,20 @@ describe("custom lore", () => {
     });
 });
 
-describe("retired affiliation domains during migration", () => {
-    it("accepts ignored legacy input but removes its canonical field and mapping", () => {
+describe("affiliation domains", () => {
+    it("is not a declared affiliation data key and has no mapping", () => {
         const format = loadContentFormat();
-        const findings = measureNote(
-            { fm: { type: "affiliation", data: { domains: ["temple"] } } },
-            format,
-        );
-        expect(findings).toEqual([]);
         expect(format.types.get("affiliation")?.dataKeys.has("domains")).toBe(false);
         expect(format.claims.some((row: any) => row.source === "data.domains")).toBe(false);
     });
-    it("continues to reject domains on other note types", () => {
+    it("is reported as an unknown data key on an affiliation", () => {
+        const findings = measureNote(
+            { fm: { type: "affiliation", data: { domains: ["temple"] } } },
+            loadContentFormat(),
+        );
+        expect(findings.some((finding: any) => finding.class === "unknown-data-key")).toBe(true);
+    });
+    it("is reported as an unknown data key on other note types", () => {
         const findings = measureNote(
             { fm: { type: "place", data: { domains: [] } } },
             loadContentFormat(),

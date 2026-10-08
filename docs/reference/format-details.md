@@ -120,20 +120,46 @@ in a compendium journal with no further edit. A `Name` row stands first on
 every note, because every note has one. An `Aliases` row follows it when the
 note names any aliases, preserving their authored order.
 
-A few keys carry no row, and the reason in each case is one of exactly two —
+A few keys carry no row, and the reason in each case is one of exactly three —
 the key is **machinery**, steering a build or an interface rather than
-describing the subject, or it is an **image**, which rule 2 keeps out of the
-box:
+describing the subject; it is an **image**, which rule 2 keeps out of the box;
+or it is a **source system's own detail**, which no surface's box shows:
 
-| key                      | why it carries no row                            |
-| ------------------------ | ------------------------------------------------ |
-| `templatePriority`       | template machinery, not a fact about the subject |
-| `color`                  | sidebar machinery, not a fact about the subject  |
-| the art slots, `overlay` | an image, which rule 2 keeps out of the box      |
+| key                                                                          | why it carries no row                                      |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `templatePriority`                                                           | template machinery, not a fact about the subject           |
+| `color`                                                                      | sidebar machinery, not a fact about the subject            |
+| `id`                                                                         | document identity machinery, not a fact about the subject  |
+| `pack`, `packFolder`                                                         | compendium routing machinery, not a fact about the subject |
+| `events`                                                                     | chronology machinery, not a summary row                    |
+| a calendar's `months`, `weekdays`, `seasons`, `namedDays`, `eras`, `formats` | calendar machinery, not a summary row                      |
+| a map's `scene`, `fixup`                                                     | canvas machinery, not a summary row                        |
+| `harnworld`                                                                  | HârnWorld source detail, which no surface's box shows      |
+| the art slots, `overlay`                                                     | an image, which rule 2 keeps out of the box                |
 
-A field whose value is a **mapping** carries no row either — a governance
-ladder or a wall layout has no summary shape — and neither does one the note
-left empty.
+**A field whose value holds maps is drawn by what its declaration says the
+maps are**, and a map is never set as text:
+
+- **A map with declared keys** — a regional map's `scale` — takes one row per
+  key that holds a value, in declared order, labelled by the key and carrying
+  its value: `Distance 5`, `Unit km`. A list of words under a key is one row of
+  them, comma-joined. A key holding nothing — `null`, `""`, `[]` — takes no
+  row, and a map with nothing to show takes none at all.
+- **A map keyed by Address** relates the note to others: `socialTies` and an
+  affiliation's `relations` take one row per term — `Patron`, `Rival`,
+  `Aligned` — whose value is the targets, each linked.
+- **A map keyed by Shortcode** weighs each thing it names: a mystery's
+  `skillAptitudes` is one row, each skill linked with its weight beside it —
+  `Sword (+5)`, `Combat skills (-2)`.
+- **A list of maps** keeps the rendering its field was built for — a place's
+  `borders` and `routes` as linked places with their bearings, an affiliation's
+  `governance.ranks` and `governance.offices` as one row per rung or post — or
+  is withheld above as machinery.
+
+**A being's memberships are a section of their own**, titled
+**Affiliations**, after the profile rows: one line per membership, in the
+order the note writes them — `War Chief, Hárár (5), of Vrystwald Tribes`. See
+[the bodies a being belongs to](#the-bodies-a-being-belongs-to-and-its-standing-in-each).
 
 A being's `age`, `height`, `weight` and `appearance.*` compose into a single
 **Appearance** clause rather than taking six rows of their own: _Age 34, 6′ 1″,
@@ -230,12 +256,12 @@ A section says how it is arranged, and a renderer switches on that and on a
 value's `kind` — never on a field name, which is what keeps a field list from
 leaking back into a template.
 
-| `layout` value | shape                           | what carries it | where it is used           |
-| -------------- | ------------------------------- | --------------- | -------------------------- |
-| `rows`         | label/value pairs, one per line | `rows`          | a profile                  |
-| `grid`         | short label/value cells         | `cells`         | attributes, armour aspects |
-| `runin`        | groups of comma-joined entries  | `groups`        | skills, equipment          |
-| `list`         | one entry per line              | `entries`       | mystical abilities         |
+| `layout` value | shape                           | what carries it | where it is used                          |
+| -------------- | ------------------------------- | --------------- | ----------------------------------------- |
+| `rows`         | label/value pairs, one per line | `rows`          | a profile                                 |
+| `grid`         | short label/value cells         | `cells`         | attributes, armour aspects                |
+| `runin`        | groups of comma-joined entries  | `groups`        | skills, equipment                         |
+| `list`         | one entry per line              | `entries`       | mystical abilities, a being's memberships |
 
 | `kind` value | the value is                    |
 | ------------ | ------------------------------- |
@@ -248,6 +274,9 @@ leaking back into a template.
 A website renders a link by its `url`, a compendium journal by its `uuid`, and
 the book by the `address`, which is the entry's own label in the volume. A
 reference the index could not reach keeps its words rather than being dropped.
+An entry of a `runin` group or a `list` section is a link, and may carry a
+`lead`: plain text set before it, so a membership line — `Captain, Blade (4), of
+The Silent Talon Company` — links the body's name and nothing else.
 
 **Emitted shape**, as a page's front matter carries it:
 
@@ -263,11 +292,18 @@ infoboxes:
           - label: Name
             kind: text
             value: Brànwâal Dôrgaar
-          - label: Affiliations
+          - label: Homes
             kind: links
             value:
-              - text: The Silent Talon Company
-                url: /thalorna/affiliation-slntlncmpny/
+              - text: Vylar
+                url: /thalorna/place-vylar/
+      - id: affiliations
+        label: Affiliations
+        layout: list
+        entries:
+          - lead: "Captain, Blade (4), of "
+            text: The Silent Talon Company
+            url: /thalorna/affiliation-slntlncmpny/
   - id: sohl
     kind: system
     system: sohl
@@ -350,6 +386,27 @@ flow collection is formatted into one of those forms; folded collections are
 not used. `package-build format --write` applies this rule and the top-level
 order without changing the Markdown body.
 
+#### What checks a system block
+
+A system block — `sohl:` or `hm3:` — is checked against that system's own
+field schema: the fields the system declares for each document type, with
+their shapes. None of the `data:` vocabulary applies inside it, the inner-key
+rule included, and a key the system's schema does not declare is an error at
+its own line.
+
+A block is checked only where both of these hold:
+
+- **The package declares the system** — under `systems:`, as a pack's
+  `system:`, or as the system the package is or requires. A block for a system
+  the package does not declare is not checked.
+- **The system's fields are known.** The `sohl:` block is held to the note
+  schemas the build carries; any other system's block is held to the
+  `itemBuilders` registry that declares it. Where a declared system has
+  neither, the lint says that system's block is unchecked, and a key inside it
+  is discarded at compile.
+
+A `dnd5e:` block has no field schema, so nothing checks it.
+
 #### Dates and calendars
 
 A canonical date is `<year>[.<day>[:HHMMSS]]`. The day is one-based within the world's year, bound against `data.year.days` on the world's `place` note. A tree whose notes declare no world year bounds no day: the value is read as written, however large. `720` covers the whole year; `720.136` covers that day; `720.136:143005` identifies one second. Negative years are valid. Prefix either form with `~` to express uncertainty beyond its written interval. `unknown` is allowed only in fields that accept an unknown occurrence.
@@ -408,11 +465,28 @@ subject — a weapon's weight, an affliction's transmission, a being's species �
 and every note type declares which keys it may carry. A misspelled key is a
 finding in either region.
 
+**So is every map inside it, at every depth.** A field whose value holds maps
+— a map such as `harnworld`, a list of maps such as `borders` or `months`, a map
+keyed by Address whose values are maps such as `affiliations` — declares the
+keys those maps take, which of them are required, and what each holds. A key a
+field does not declare is an error at that key's own line and column, however
+deeply it is nested: `data.governance.offices.Chancellor.holders[0].stat` is
+refused at `stat`, with the declared key it was probably meant to be. A
+required key left out is an error at the map that should carry it, and a value
+of the wrong kind is an error at the value. A dotted property such as
+`appearance.eye_color` closes its container the same way, so `appearance`
+takes only the keys the type's table lists. The
+[note-type reference](note-types.md) tabulates every inner key, generated from
+the same declarations the lint reads; an event's keys are tabulated under
+[Events](#events). Two things are outside this rule. A system block follows its
+own schema — see [What checks a system block](#what-checks-a-system-block). A
+map note's `data.scene` is an exported Foundry Scene and keeps Foundry's own
+keys; its table row says so, beginning **Keys not declared here:**.
+
 Every note type may put a pinned document id in `data.id`, a shared compendium
-route in `data.pack`, a shared folder Address in `data.packFolder`, and source
-details in `data.harnworld`. A system block's `pack` or `packFolder` overrides
-the shared value for that system. A `being` may also describe its social profile
-in `data.social`.
+route in `data.pack`, a shared folder Address in `data.packFolder`, and its
+HârnWorld source details in `data.harnworld`. A system block's `pack` or
+`packFolder` overrides the shared value for that system.
 
 **Tags are open, except the ones that classify.** A tag naming a theme or a region — `underworld`,
 `byzaria`, `riverlands` — is the author's own and this build has no opinion about it.
@@ -743,14 +817,27 @@ are, so a key legal everywhere is stated once here rather than repeated in
 twenty-five tables where the one that was mistyped would be the one nobody
 noticed:
 
-| shared `data` property | Values                 | Description                                                          |
-| ---------------------- | ---------------------- | -------------------------------------------------------------------- |
-| `id`                   | `string`               | A pinned document identity.                                          |
-| `pack`                 | `string`               | The shared compendium route.                                         |
-| `packFolder`           | `Address` or pack map  | The shared compendium folder Address.                                |
-| `harnworld`            | `Map<string, unknown>` | HârnWorld source details.                                            |
-| `icon`                 | `Address`              | The document's profile art — an `icon` address, resolved into `img`. |
-| `banner`               | `Address`              | The page's hero image — an `image` address, cut to 1792×768.         |
+| shared `data` property | Values                | Description                                                          |
+| ---------------------- | --------------------- | -------------------------------------------------------------------- |
+| `id`                   | `string`              | A pinned document identity.                                          |
+| `pack`                 | `string`              | The shared compendium route.                                         |
+| `packFolder`           | `Address` or pack map | The shared compendium folder Address.                                |
+| `harnworld`            | `{ realm?, ritual? }` | HârnWorld source details.                                            |
+| `harnworld.realm`      | `string`              | The HârnWorld realm the subject belongs to.                          |
+| `harnworld.ritual`     | `string[]`            | The HârnWorld religions the subject observes.                        |
+| `icon`                 | `Address`             | The document's profile art — an `icon` address, resolved into `img`. |
+| `banner`               | `Address`             | The page's hero image — an `image` address, cut to 1792×768.         |
+
+`data.harnworld` takes two keys and nothing else: `realm`, a string naming the
+HârnWorld realm the subject belongs to, and `ritual`, a list of strings naming
+the religions it observes. Both are optional. The infobox does not show either.
+
+```yaml
+data:
+  harnworld:
+    realm: Kaldor
+    ritual: [Larani, Peoni]
+```
 
 `icon` is legal everywhere because most types compile into a document that
 carries one; where a type's passes emit none, the lint says so and the value is
@@ -2918,6 +3005,7 @@ The nested entries, each closed the same way:
 | `names[].by`                 | Address naming an `affiliation`, `lore`, `place`, `being` or `skill` note          | yes      | Who uses that name — a people, a polity, a faith, a place, a tongue; resolves             |
 | `names[].gloss`              | string                                                                             | no       | What the name means, or how it is used                                                    |
 | `where.locus`                | list of Addresses, each defaulting to `place`                                      | no       | Where the event physically happened; each must resolve to a place                         |
+| `where.reach`                | `{ place, how, knowledge, attributedTo? }[]`                                       | no       | Where the event was felt, and whether each place knows why                                |
 | `where.reach[].place`        | an Address, defaulting to `place`                                                  | yes      | A place where the event was felt; must resolve to a place                                 |
 | `where.reach[].how`          | string                                                                             | yes      | One clause: a consequence someone in that place could notice                              |
 | `where.reach[].knowledge`    | one `knowledge` value                                                              | yes      | Whether that place connects what it felt to this event                                    |
@@ -3244,34 +3332,35 @@ Generates a living (or undead, or spirit) being.
 
 See [a being's subtype describes the subject](#a-beings-subtype-describes-the-subject).
 
-| `data` property             | Values                                         | Description                                                                                                                                           |
-| --------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tokenIcon`                 | `Address`                                      | What a token on the canvas wears — an `icon` address; defaults to `icon`                                                                              |
-| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                                                                            |
-| `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — character and npc require at least one; creature may omit it or write `[]`; `null` is an error. |
-| `occupation`                | `string`                                       | Name of the character's occupation                                                                                                                    |
-| `social`                    | `Map<string, unknown>`                         | The being's social profile                                                                                                                            |
-| `stations`                  | `Address[]`                                    | Name of the stations the character belongs to                                                                                                         |
-| `lore`                      | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                                                                      |
-| `culture`                   | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
-| `homes`                     | `Address[]`                                    | Place the being calls home                                                                                                                            |
-| `affiliations`              | `Map<Address, Membership>`                     | Bodies the being belongs to, keyed by Address, each entry the standing it holds there                                                                 |
-| `socialTies`                | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                                                                                   |
-| `gender`                    | `male \| female \| other`                      | Gender of the character                                                                                                                               |
-| `species`                   | `Address`                                      | Being's species (lore)                                                                                                                                |
-| `born`                      | `date \| unknown`                              | When the being was born; absent, it was never born                                                                                                    |
-| `calendar`                  | `Address`                                      | Calendar note used to print the being's dates                                                                                                         |
-| `died`                      | `date \| unknown`                              | When the being died; absent, it is alive                                                                                                              |
-| `age`                       | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                                                                         |
-| `ageYears`                  | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this                                                        |
-| `height`                    | `1.91m \| 6' 3"`                               | Height in metres or feet and inches                                                                                                                   |
-| `weight`                    | `85kg \| 187 lbs`                              | Body weight in kilograms or pounds                                                                                                                    |
-| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                                                                                   |
-| `appearance.eye_color`      | `string`                                       | Eye color                                                                                                                                             |
-| `appearance.hair_color`     | `string`                                       | Hair color                                                                                                                                            |
-| `appearance.skin_color`     | `string`                                       | Skin color                                                                                                                                            |
-| `appearance.complexion`     | `string`                                       | Complexion                                                                                                                                            |
-| `appearance.extra_features` | `string[]`                                     | Extra features                                                                                                                                        |
+| `data` property                 | Values                                         | Description                                                                                                                                           |
+| ------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tokenIcon`                     | `Address`                                      | What a token on the canvas wears — an `icon` address; defaults to `icon`                                                                              |
+| `templatePriority`              | `number`                                       | Template priority, _null_ = not a template                                                                                                            |
+| `archetypes`                    | `Archetype[]`                                  | What sort of character this is. **Always an array** — character and npc require at least one; creature may omit it or write `[]`; `null` is an error. |
+| `occupation`                    | `string`                                       | Name of the character's occupation                                                                                                                    |
+| `stations`                      | `Address[]`                                    | Name of the stations the character belongs to                                                                                                         |
+| `lore`                          | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                                                                      |
+| `culture`                       | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
+| `homes`                         | `Address[]`                                    | Place the being calls home                                                                                                                            |
+| `affiliations`                  | `Map<Address, Membership>`                     | Bodies the being belongs to, keyed by Address, each entry the standing it holds there                                                                 |
+| `affiliations.<Address>.rank`   | `integer`, required                            | The level on that body's own `governance.ranks` ladder; `1` is an ordinary member, `0` someone cast out                                               |
+| `affiliations.<Address>.office` | `string`                                       | A post that body names in its `governance.offices`, where the being holds one                                                                         |
+| `socialTies`                    | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                                                                                   |
+| `gender`                        | `male \| female \| other`                      | Gender of the character                                                                                                                               |
+| `species`                       | `Address`                                      | Being's species (lore)                                                                                                                                |
+| `born`                          | `date \| unknown`                              | When the being was born; absent, it was never born                                                                                                    |
+| `calendar`                      | `Address`                                      | Calendar note used to print the being's dates                                                                                                         |
+| `died`                          | `date \| unknown`                              | When the being died; absent, it is alive                                                                                                              |
+| `age`                           | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                                                                         |
+| `ageYears`                      | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this                                                        |
+| `height`                        | `1.91m \| 6' 3"`                               | Height in metres or feet and inches                                                                                                                   |
+| `weight`                        | `85kg \| 187 lbs`                              | Body weight in kilograms or pounds                                                                                                                    |
+| `frame`                         | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                                                                                   |
+| `appearance.eye_color`          | `string`                                       | Eye color                                                                                                                                             |
+| `appearance.hair_color`         | `string`                                       | Hair color                                                                                                                                            |
+| `appearance.skin_color`         | `string`                                       | Skin color                                                                                                                                            |
+| `appearance.complexion`         | `string`                                       | Complexion                                                                                                                                            |
+| `appearance.extra_features`     | `string[]`                                     | Extra features                                                                                                                                        |
 
 Author `data.height` as a string of decimal metres (`1.91m` or `1.91 m`) or
 whole feet with optional inches (`6'`, `6'3"`, or `6' 3"`). Inches must be
@@ -3340,9 +3429,18 @@ each an error naming the file, line and column — so a renamed rung or a rename
 post fails on every being pointing at it. Naming one body twice, by its short
 and full Address, still names one body and is an error.
 
-The infobox prints the standing closing on its body — `War Chief, Hárár, of
-Vrystwald Tribes` — and links an office to the description the body itself
-declares, so recording the post needs no note about the post.
+The infobox prints one line per membership, in the order the note writes them,
+in a section of its own titled **Affiliations**: the office where one is held, then the rung's
+title with its level in parentheses, then the body — `War Chief, Hárár (5), of
+Vrystwald Tribes`, or `Hárár (5), of Vrystwald Tribes` with no office. The title
+is read from the body's own `governance.ranks`; where the body declares no rung
+at that level, or its ladder is not available, the rung reads as `Rank 5` —
+`Rank 5, of Vrystwald Tribes`. The body's name links to its page, and is plain
+text where it publishes none. A membership written in the list form, with no
+standing, is the body's name alone. The lines are the same on the website, in
+a Foundry journal and in the book. On the body's own page each office is a row
+anchored by its name, so the post a being holds is described where the body
+declares it.
 
 For SoHL, a being embeds one affiliation item per entry: `rank` **is** that
 item's `system.level` and `office` its `system.office`. A standing is a fact
@@ -3774,23 +3872,35 @@ rank names the standing, and the standing says.
 
 **Standing**: aligned, unaligned, rival, nemesis
 
-| `data` property      | Values                                             | Description                                                                                    |
-| -------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `templatePriority`   | `number`                                           | Template priority, _null_ = not a template                                                     |
-| `events`             | event entries — see [Events](#events)              | What happened to or at this subject: dated, attributed events                                  |
-| `demonym`            | `string`                                           | What a member of this affiliation is called (a Vylarian)                                       |
-| `epithet`            | `string`                                           | The by-name it is known by — a god's, an order's, a company's                                  |
-| `symbol`             | `string`                                           | Its emblem in words: a feather atop a golden scale, a chisel carving a star                    |
-| `governance.model`   | `GovernanceModel`                                  | Type of government structure, if applicable                                                    |
-| `governance.summary` | `string`                                           | summary of the governance situation                                                            |
-| `governance.ranks`   | `Rank[]`                                           | The ranks available to members of the affiliation                                              |
-| `governance.offices` | `Map<name, description \| {description, holders}>` | Official offices and their dated holders                                                       |
-| `seat`               | `Address`                                          | Where the affiliation's authority sits                                                         |
-| `population`         | `number`                                           | Number of people in the affiliation (precision 2 significant digits).                          |
-| `economy`            | `Address[]`                                        | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default         |
-| `lore`               | `Address[]`                                        | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
-| `parents`            | `Address[]`                                        | Affiliations that this affiliation is subordinate to                                           |
-| `relations`          | `Map<Address, Standing>`                           | Standing with other affiliations, keyed by the other body's Address                            |
+| `data` property                                 | Values                                             | Description                                                                                    |
+| ----------------------------------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `templatePriority`                              | `number`                                           | Template priority, _null_ = not a template                                                     |
+| `events`                                        | event entries — see [Events](#events)              | What happened to or at this subject: dated, attributed events                                  |
+| `demonym`                                       | `string`                                           | What a member of this affiliation is called (a Vylarian)                                       |
+| `epithet`                                       | `string`                                           | The by-name it is known by — a god's, an order's, a company's                                  |
+| `symbol`                                        | `string`                                           | Its emblem in words: a feather atop a golden scale, a chisel carving a star                    |
+| `governance.model`                              | `GovernanceModel`                                  | Type of government structure, if applicable                                                    |
+| `governance.summary`                            | `string`                                           | summary of the governance situation                                                            |
+| `governance.ranks`                              | `Rank[]`                                           | The ranks available to members of the affiliation                                              |
+| `governance.ranks[].level`                      | `integer`, required                                | The rung's position on this body's ladder; a member's `rank` names it                          |
+| `governance.ranks[].title`                      | `string`, required                                 | What the standing is called                                                                    |
+| `governance.ranks[].description`                | `string`, required                                 | What the standing is                                                                           |
+| `governance.ranks[].lore`                       | `Address`                                          | The `law` lore note stating what the standing is, shared with every body that confers it       |
+| `governance.offices`                            | `Map<name, description \| {description, holders}>` | Official offices and their dated holders                                                       |
+| `governance.offices.<name>`                     | `string` or `{ description, holders }`             | One office, keyed by its name: its description, or a map of description and holders            |
+| `governance.offices.<name>.description`         | `string`, required                                 | What the office is                                                                             |
+| `governance.offices.<name>.holders`             | `{ being, start?, end?, contested? }[]`, required  | Who has held the office, each with the dates of the term                                       |
+| `governance.offices.<name>.holders[].being`     | `Address`, required                                | The `being` who held it                                                                        |
+| `governance.offices.<name>.holders[].start`     | `date`                                             | When the term began; omitted, it began before anything recorded                                |
+| `governance.offices.<name>.holders[].end`       | `date`                                             | When the term ended; omitted, the being holds the office now                                   |
+| `governance.offices.<name>.holders[].contested` | `boolean`                                          | `true` where the term may overlap another holder's                                             |
+| `seat`                                          | `Address`                                          | Where the affiliation's authority sits                                                         |
+| `population`                                    | `number`                                           | Number of people in the affiliation (precision 2 significant digits).                          |
+| `economy`                                       | `Address[]`                                        | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default         |
+| `lore`                                          | `Address[]`                                        | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
+| `parents`                                       | `Address[]`                                        | Affiliations that this affiliation is subordinate to                                           |
+| `relations`                                     | `Map<Address, Standing>`                           | Standing with other affiliations, keyed by the other body's Address                            |
+| `relations.<Address>`                           | `aligned`, `unaligned`, `rival` or `nemesis`       | The standing this body holds toward that one; any other value is an error at the value         |
 
 **A faith tradition is not its god.** An `affiliation` of subType
 `faithtradition` is a _religion_ — a practice, with an ordained priesthood, a
@@ -4430,20 +4540,40 @@ Calendar fields are written only on a `calendar` note, and `culture`, `form`, `s
 `language` only on a `literature` note; written on any other lore subType, each is an error at
 its own key.
 
-| `data` property | Values                                                                        | Description                                                                                                       |
-| --------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `epoch`         | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                              |
-| `months`        | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                |
-| `weekdays`      | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                      |
-| `seasons`       | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                        |
-| `namedDays`     | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                          |
-| `eras`          | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                             |
-| `formats`       | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                |
-| `culture`       | `Address`                                                                     | `literature` only: the people whose work it is, naming a lore note with `subType: culture`                        |
-| `form`          | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text |
-| `subjects`      | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`        |
-| `language`      | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                     |
-| `events`        | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                     |
+| `data` property            | Values                                                                        | Description                                                                                                           |
+| -------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `epoch`                    | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                                  |
+| `months`                   | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                    |
+| `months[].name`            | `string`, required                                                            | The month's name                                                                                                      |
+| `months[].abbreviation`    | `string`                                                                      | Its short form, for a compact date                                                                                    |
+| `months[].days`            | `integer`, required                                                           | How many days the month holds                                                                                         |
+| `weekdays`                 | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                          |
+| `weekdays[].name`          | `string`, required                                                            | The day's name                                                                                                        |
+| `weekdays[].abbreviation`  | `string`                                                                      | Its short form, for a compact date                                                                                    |
+| `seasons`                  | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                            |
+| `seasons[].name`           | `string`, required                                                            | The season's name                                                                                                     |
+| `seasons[].abbreviation`   | `string`                                                                      | Its short form, for a compact date                                                                                    |
+| `seasons[].start`          | `integer`, required                                                           | The one-based day of the year it begins; starts increase down the list                                                |
+| `namedDays`                | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                              |
+| `namedDays[].name`         | `string`, required                                                            | The day's name                                                                                                        |
+| `namedDays[].abbreviation` | `string`                                                                      | Its short form, for a compact date                                                                                    |
+| `namedDays[].day`          | `integer`, required                                                           | The one-based day of the year it names, distinct within the calendar                                                  |
+| `eras`                     | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                                 |
+| `eras[].shortcode`         | `string`, required                                                            | The era's own segment of `<calendar>.<era>`, unique within the calendar                                               |
+| `eras[].name`              | `string`, required                                                            | The era's name                                                                                                        |
+| `eras[].marker`            | `string`                                                                      | Uppercase letters and digits, beginning with a letter, unique across the corpus; an authored date names the era by it |
+| `eras[].abbreviation`      | `string`                                                                      | Its short form, for a compact date                                                                                    |
+| `eras[].proclaimedBy`      | `Address`                                                                     | The body that began the reckoning                                                                                     |
+| `eras[].start`             | `null` or `integer`, required                                                 | The calendar year the era begins; `null` for the era before year 1                                                    |
+| `eras[].label`             | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                            |
+| `eras[].label.after`       | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                      |
+| `eras[].label.before`      | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                    |
+| `formats`                  | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                    |
+| `culture`                  | `Address`                                                                     | `literature` only: the people whose work it is, naming a lore note with `subType: culture`                            |
+| `form`                     | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text     |
+| `subjects`                 | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`            |
+| `language`                 | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                         |
+| `events`                   | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                         |
 
 `data.events` is available on every `lore` subType, and is described in full under [Events](#events).
 
@@ -4557,26 +4687,24 @@ A map note has its own prose and a Foundry Scene. A map can depict a place or an
 - `regionalmap`: A large-scale chart with an authored image and scale.
 - `totm`: A gridless image Scene for theatre-of-the-mind play.
 
-| `data` property   | Values       | Description                                                |
-| ----------------- | ------------ | ---------------------------------------------------------- |
-| `scene`           | object       | Exported Foundry Scene for battle and local maps           |
-| `fixup`           | object[]     | Asset address replacements in an exported Scene            |
-| `bgImage`         | Address      | Background image for regional and theatre-of-the-mind maps |
-| `scale`           | object       | Regional distance and unit per grid unit                   |
-| `dimensions`      | `[int, int]` | Optional shared dimensions metadata                        |
-| `pxPerGrid`       | number       | Optional shared grid size metadata                         |
-| `navName`         | string       | Short Scene navigation name                                |
-| `levelName`       | string       | Embedded Level name                                        |
-| `backgroundColor` | string       | Colour outside the art                                     |
-| `overlay`         | string       | Foreground art path                                        |
-| `walls`           | object       | Regional wall geometry                                     |
-| `doors`           | object       | Regional door geometry                                     |
-| `lights`          | object       | Regional light geometry                                    |
-| `tiles`           | object       | Regional tile geometry                                     |
-| `sounds`          | object       | Regional sound geometry                                    |
-| `regions`         | object       | Regional region geometry                                   |
-| `notes`           | object       | Regional pin geometry                                      |
-| `place`           | Address      | Depicted place, when one exists                            |
+| `data` property   | Values                       | Description                                                                                                                                                                                                                                                                                   |
+| ----------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scene`           | object                       | **Keys not declared here:** an exported Foundry Scene for a battle or local map. Its keys are Foundry's Scene schema and are not checked key by key; the build checks its `width`, `height`, Levels, `initialLevel` and embedded `_id`s — see [Battle and local maps](#battle-and-local-maps) |
+| `fixup`           | `{ path, type, value }[]`    | Asset address replacements in an exported Scene                                                                                                                                                                                                                                               |
+| `fixup[].path`    | `string`, required           | The exported field to replace, as a property path from `data.scene`                                                                                                                                                                                                                           |
+| `fixup[].type`    | `address`, required          | What `value` is                                                                                                                                                                                                                                                                               |
+| `fixup[].value`   | `Address`, required          | The asset Address whose path replaces the exported one                                                                                                                                                                                                                                        |
+| `bgImage`         | Address                      | Background image for regional and theatre-of-the-mind maps                                                                                                                                                                                                                                    |
+| `scale`           | `{ distance, unit }`         | Regional distance and unit per grid unit                                                                                                                                                                                                                                                      |
+| `scale.distance`  | `number`, positive, required | The distance one grid unit covers                                                                                                                                                                                                                                                             |
+| `scale.unit`      | `string`, nonempty, required | What the distance is measured in                                                                                                                                                                                                                                                              |
+| `dimensions`      | `[int, int]`                 | Optional shared dimensions metadata                                                                                                                                                                                                                                                           |
+| `pxPerGrid`       | number                       | Optional shared grid size metadata                                                                                                                                                                                                                                                            |
+| `navName`         | string                       | Short Scene navigation name                                                                                                                                                                                                                                                                   |
+| `levelName`       | string                       | Embedded Level name                                                                                                                                                                                                                                                                           |
+| `backgroundColor` | string                       | Colour outside the art                                                                                                                                                                                                                                                                        |
+| `overlay`         | string                       | Foreground art path                                                                                                                                                                                                                                                                           |
+| `place`           | Address                      | Depicted place, when one exists                                                                                                                                                                                                                                                               |
 
 #### Battle and local maps
 
@@ -4614,7 +4742,7 @@ data:
     name: Wolf Den Scene
     width: 1900
     height: 2600
-    grid: { type: 1 size=100 distance: 5 units: ft }
+    grid: { type: 1, size: 100, distance: 5, units: ft }
     initialLevel: defaultLevel0000
     levels:
       - { _id: defaultLevel0000, background: { src: modules/maps/den.webp } }
@@ -4628,7 +4756,7 @@ When the Scene has pins, its Adventure bundle carries the Scene and the JournalE
 
 #### Regional maps
 
-A `regionalmap` uses `data.bgImage`, an image Address, and `sohl.dimensions: [width, height]` plus `sohl.pxPerGrid` to build a gridless Scene. `data.scale: {distance: positive number, unit: nonempty string}` sets the distance per grid unit. Its shared `data` fields can also name `overlay`, `backgroundColor`, `levelName`, `navName`, `walls`, `doors`, `lights`, `tiles`, `sounds`, `regions`, and `notes`; the latter geometry uses the map-note conventions described in the SoHL map authoring guide. `data.scene` is not used for a regional map.
+A `regionalmap` uses `data.bgImage`, an image Address, and `sohl.dimensions: [width, height]` plus `sohl.pxPerGrid` to build a gridless Scene. `data.scale: {distance: positive number, unit: nonempty string}` sets the distance per grid unit. Its shared `data` fields can also name `overlay`, `backgroundColor`, `levelName`, and `navName`. Its geometry is written in the note's `sohl:` block, which is where the Scene compiler reads it: `sohl.walls`, `sohl.doors`, `sohl.lights`, `sohl.tiles`, `sohl.sounds` and `sohl.regions`, with pins in `sohl.locations`, following the map-note conventions described in the SoHL map authoring guide. `data.scene` is not used for a regional map.
 
 An SVG `data.bgImage` remains vector art on the site and in the book. The Foundry build stages a PNG at the note's stated dimensions with the installed SVG renderer; the source SVG is unchanged. Its aspect ratio must match the stated dimensions. A selected regional SVG map takes a full page in the PDF.
 
@@ -4651,34 +4779,42 @@ map's prose.
 - feature: A place significant by its terrain — forests, rivers, falls, passes, fords.
 - celestial: A body observed from a world rather than located on one — a sun, a planet, a comet.
 
-| `data` property                   | Values                                              | Description                                                                                               |
-| --------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `events`                          | event entries — see [Events](#events)               | What happened to or at this subject: dated, attributed events                                             |
-| `calendar`                        | `Address`                                           | Calendar note used to print this place's dates                                                            |
-| `demonym`                         | `string`                                            | What a person from this place is called — a Vylarian                                                      |
-| `purpose`                         | `placeCharacter` tag                                | The reason a settlement, site, or structure exists                                                        |
-| `lore`                            | `Address[]`                                         | Lore concerning this place — its peoples, its law, its calendar, its history                              |
-| `parents`                         | `Address[]`                                         | Enclosing places within which this place is located                                                       |
-| `population`                      | `number`                                            | Approximate population (precision 2 significant digits)                                                   |
-| `government`                      | `Address` or `null` (default type: `affiliation`)   | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
-| `market`                          | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                                                   |
-| `borders`                         | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here                                    |
-| `routes`                          | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                                                        |
-| `world.equatorialCircumferenceKm` | `number`                                            | The distance round the body at its equator, in kilometres                                                 |
-| `world.surfaceGravityG`           | `number`                                            | Surface gravity, as a multiple of Earth's                                                                 |
-| `world.axialTiltDegrees`          | `number`                                            | The tilt of the axis, in degrees                                                                          |
-| `year.days`                       | `number`                                            | How many days the body's year holds                                                                       |
-| `year.hoursPerDay`                | `number`                                            | How many hours the day divides into                                                                       |
-| `year.minutesPerHour`             | `number`                                            | How many minutes the hour divides into                                                                    |
-| `year.secondsPerMinute`           | `number`                                            | How many seconds the minute divides into                                                                  |
-| `present`                         | `date`                                              | The day the setting stops and play begins                                                                 |
-| `body.diameterKm`                 | `number`                                            | The body's diameter, in kilometres                                                                        |
-| `body.orbitalRadiusKm`            | `number`                                            | How far it orbits from the body it circles, in kilometres                                                 |
-| `body.orbit`                      | `string`                                            | The orbit's shape — `circular` means the cycle never varies                                               |
-| `body.inclined`                   | `boolean`                                           | Whether the orbit is inclined to the plane the world orbits in                                            |
-| `moon.cycle`                      | `number`                                            | How many days it takes to return to the same phase                                                        |
-| `moon.newOn`                      | day-precision `date`                                | A day it was new, written in the reference calendar                                                       |
-| `moon.eclipses`                   | `string`                                            | `never`, `rare`, `occasional` or `frequent`                                                               |
+| `data` property                   | Values                                                                           | Description                                                                                               |
+| --------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `events`                          | event entries — see [Events](#events)                                            | What happened to or at this subject: dated, attributed events                                             |
+| `calendar`                        | `Address`                                                                        | Calendar note used to print this place's dates                                                            |
+| `demonym`                         | `string`                                                                         | What a person from this place is called — a Vylarian                                                      |
+| `purpose`                         | `placeCharacter` tag                                                             | The reason a settlement, site, or structure exists                                                        |
+| `lore`                            | `Address[]`                                                                      | Lore concerning this place — its peoples, its law, its calendar, its history                              |
+| `parents`                         | `Address[]`                                                                      | Enclosing places within which this place is located                                                       |
+| `population`                      | `number`                                                                         | Approximate population (precision 2 significant digits)                                                   |
+| `government`                      | `Address` or `null` (default type: `affiliation`)                                | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
+| `market`                          | `number`                                                                         | Market class, 1 to 6 — what trade a settlement supports                                                   |
+| `borders`                         | `{ to, bearing }[]`                                                              | Places sharing a frontier with this one, and where each lies from here                                    |
+| `borders[].to`                    | `Address`, required                                                              | The other place; the type defaults to `place`                                                             |
+| `borders[].bearing`               | `N`, `NE`, `E`, `SE`, `S`, `SW`, `W` or `NW`, required                           | Where the other place lies from here                                                                      |
+| `routes`                          | `{ to, bearing, mode, days, terrain?, leagues? }[]`                              | Journeys from this place's centre to another place                                                        |
+| `routes[].to`                     | `Address`, required                                                              | The other place; the type defaults to `place`                                                             |
+| `routes[].bearing`                | `N`, `NE`, `E`, `SE`, `S`, `SW`, `W` or `NW`, required                           | Where the destination lies from here                                                                      |
+| `routes[].mode`                   | `land`, `boat` or `ship`, required                                               | How the journey is travelled                                                                              |
+| `routes[].days`                   | `1`, `2`, `3`, `5`, `10`, `20`, `30`, `45`, `60`, `90`, `180` or `360`, required | About how many days the journey takes, under normal conditions                                            |
+| `routes[].terrain`                | terrain names, in travel order                                                   | The terrains crossed, each crossable by the mode                                                          |
+| `routes[].leagues`                | `number`                                                                         | The distance, in leagues                                                                                  |
+| `world.equatorialCircumferenceKm` | `number`                                                                         | The distance round the body at its equator, in kilometres                                                 |
+| `world.surfaceGravityG`           | `number`                                                                         | Surface gravity, as a multiple of Earth's                                                                 |
+| `world.axialTiltDegrees`          | `number`                                                                         | The tilt of the axis, in degrees                                                                          |
+| `year.days`                       | `number`                                                                         | How many days the body's year holds                                                                       |
+| `year.hoursPerDay`                | `number`                                                                         | How many hours the day divides into                                                                       |
+| `year.minutesPerHour`             | `number`                                                                         | How many minutes the hour divides into                                                                    |
+| `year.secondsPerMinute`           | `number`                                                                         | How many seconds the minute divides into                                                                  |
+| `present`                         | `date`                                                                           | The day the setting stops and play begins                                                                 |
+| `body.diameterKm`                 | `number`                                                                         | The body's diameter, in kilometres                                                                        |
+| `body.orbitalRadiusKm`            | `number`                                                                         | How far it orbits from the body it circles, in kilometres                                                 |
+| `body.orbit`                      | `string`                                                                         | The orbit's shape — `circular` means the cycle never varies                                               |
+| `body.inclined`                   | `boolean`                                                                        | Whether the orbit is inclined to the plane the world orbits in                                            |
+| `moon.cycle`                      | `number`                                                                         | How many days it takes to return to the same phase                                                        |
+| `moon.newOn`                      | day-precision `date`                                                             | A day it was new, written in the reference calendar                                                       |
+| `moon.eclipses`                   | `string`                                                                         | `never`, `rare`, `occasional` or `frequent`                                                               |
 
 #### Why a place exists
 
@@ -4904,7 +5040,7 @@ Write `government: null` for **complete anarchy**. Omitting the key leaves gover
 | Any                   | Explicit `null`     | None; complete anarchy           |
 | Any                   | Affiliation Address | None; the reference must resolve |
 
-These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `domains`, `parents`, containment and capitals do not supply a government. Legacy affiliation `data.domains` is accepted temporarily but ignored. Preserve ownership and influence facts in prose; see [government migration](../guides/government-migration.md).
+These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government.
 
 #### Population figures
 

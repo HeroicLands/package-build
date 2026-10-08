@@ -57,7 +57,7 @@ function place(
     ].join("\n");
 }
 
-/** An affiliation note; legacy domains are accepted but never inverted. */
+/** An affiliation note. */
 function affiliation(
     shortcode: string,
     name: string,
