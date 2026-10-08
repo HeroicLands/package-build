@@ -1,7 +1,11 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
+import { parseContentFormat } from "../engine/content-format.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY, SHARED_DATA_FIELDS } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -36,6 +40,7 @@ const EXEMPT: Record<string, string> = {
 type Spec = {
     name?: string;
     kind?: string;
+    keyKind?: string;
     entryKind?: string;
     fields?: readonly Spec[];
     entries?: Spec;
@@ -257,5 +262,86 @@ describe("an undeclared inner key is a finding at its own position", () => {
                 ),
             }),
         );
+    });
+});
+
+/**
+ * What the format reference writes in the row of a field whose inner keys this
+ * vocabulary does not declare — one of {@link EXEMPT} — before saying what the
+ * keys are instead and what is checked. A reader finds every such field by
+ * searching for it, and the guard below finds them the same way.
+ */
+const OPEN_MARKER = "**Keys not declared here:**";
+
+/** The heading of the one place the reference says what checks the system blocks. */
+const SYSTEM_BLOCK_HEADING = "#### What checks a system block";
+
+const REFERENCE = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../docs/reference/format-details.md",
+);
+
+/**
+ * The placeholder a reference row writes for a keyed map's key: `<Address>`,
+ * `<Shortcode>`, or `<name>` for a key that is a name the note chooses.
+ */
+function placeholder(spec: Spec): string {
+    if (spec.keyKind === "address") return "<Address>";
+    if (spec.keyKind === "shortcode") return "<Shortcode>";
+    return "<name>";
+}
+
+/**
+ * Every inner key a declaration states, at every depth, as the path a
+ * reference row writes it under `data:` — `routes[].terrain`,
+ * `affiliations.<Address>.rank`, `governance.offices.<name>.holders[].being`.
+ */
+function innerKeyPaths(spec: Spec, at: string): string[] {
+    const out: string[] = [];
+    for (const inner of spec.fields ?? []) {
+        out.push(`${at}.${inner.name}`, ...innerKeyPaths(inner, `${at}.${inner.name}`));
+    }
+    if (spec.entries) out.push(...innerKeyPaths(spec.entries, `${at}[]`));
+    if (spec.values) out.push(...innerKeyPaths(spec.values, `${at}.${placeholder(spec)}`));
+    return out;
+}
+
+describe("the format reference documents every data field", () => {
+    const text = fs.readFileSync(REFERENCE, "utf8");
+    const reference = parseContentFormat(text, { file: REFERENCE });
+    const rowsOf = (key: string) => {
+        const [type] = key.split(".");
+        return type === "*" ? reference.sharedDataRows : reference.types.get(type)?.dataRows;
+    };
+
+    it("tabulates every field and every inner key, each with its shape", () => {
+        const missing: string[] = [];
+        for (const [key, spec] of everyField()) {
+            const rows = rowsOf(key);
+            const name = key.slice(key.indexOf(".") + 1);
+            for (const documented of [name, ...innerKeyPaths(spec, name)]) {
+                const row = rows?.get(documented);
+                if (!row) missing.push(`${key.split(".")[0]}: \`${documented}\` has no row`);
+                else if (!row.shape.trim())
+                    missing.push(`${key.split(".")[0]}: \`${documented}\` states no shape`);
+            }
+        }
+        expect(missing).toEqual([]);
+    });
+
+    it("says so wherever a field's keys are not declared here, and nowhere else", () => {
+        const wrong: string[] = [];
+        for (const [key] of everyField()) {
+            const name = key.slice(key.indexOf(".") + 1);
+            const marked = rowsOf(key)?.get(name)?.text.includes(OPEN_MARKER) ?? false;
+            const exempt = Object.hasOwn(EXEMPT, key);
+            if (exempt && !marked) wrong.push(`${key}: exempt, and its row does not say so`);
+            if (!exempt && marked) wrong.push(`${key}: marked open, and its keys are declared`);
+        }
+        expect(wrong).toEqual([]);
+    });
+
+    it("says in one place what checks a system block", () => {
+        expect(text.split("\n").filter((line) => line === SYSTEM_BLOCK_HEADING)).toHaveLength(1);
     });
 });
