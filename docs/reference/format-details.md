@@ -2298,7 +2298,9 @@ The contraband is behind the false wall.
 ```
 
 The section runs from the heading to the next heading that opens a page, which
-is the span Foundry makes one page of.
+is the span Foundry makes one page of. A captioned item inside the section is
+withheld with it in Foundry: its own page and the page that resumes the section
+after it are visible to the GM alone.
 
 | Surface | What a reader meets                                                                                               |
 | ------- | ----------------------------------------------------------------------------------------------------------------- |
