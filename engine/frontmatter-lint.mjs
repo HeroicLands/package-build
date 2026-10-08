@@ -90,7 +90,6 @@ import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import {
     BEING_ARCHETYPES,
     dataFields,
-    isLegacyDataField,
     declaredTags,
     subTypeCharsetMessage,
     typeCharsetMessage,
@@ -439,7 +438,7 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
     }
 
     for (const key of Object.keys(entries)) {
-        if (declared.has(key) || isLegacyDataField(type, key)) continue;
+        if (declared.has(key)) continue;
         const current = renamed.get(key);
         if (current) {
             findings.push({

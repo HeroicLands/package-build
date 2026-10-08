@@ -106,7 +106,7 @@ import { RETIRED_FIELD_ALIASES } from "./retired-fields.mjs";
 import { authoredKey } from "./system-block.mjs";
 // The top-level vocabulary, read rather than restated — a second list of the
 // keys a note's own identity uses is one more thing to drift.
-import { NOTE_TOP_LEVEL_KEY_SET, isLegacyDataField } from "./note-vocabulary.mjs";
+import { NOTE_TOP_LEVEL_KEY_SET } from "./note-vocabulary.mjs";
 
 /**
  * Every field path any subtype of a published schema declares.
@@ -371,8 +371,7 @@ export function measureNote(note, format, { severity = "warning" } = {}) {
         [...spec.dataKeys].map((key) => RETIRED_FIELD_ALIASES[key]).filter(Boolean),
     );
     for (const key of Object.keys(data ?? {})) {
-        if (spec.dataKeys.has(key) || renamedDataKeys.has(key) || isLegacyDataField(type, key))
-            continue;
+        if (spec.dataKeys.has(key) || renamedDataKeys.has(key)) continue;
         const guess = nearest(key, spec.dataKeys);
         add(
             "unknown-data-key",
