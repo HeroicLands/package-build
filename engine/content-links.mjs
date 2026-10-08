@@ -995,7 +995,11 @@ export function auditLinks(index) {
             if (!labelled) {
                 unlabelledLinks.push({
                     note,
-                    target: rawTarget || (anchor ? `#${anchor}` : ""),
+                    // Quoted as written, anchor included — the literal between
+                    // the brackets, as the site build quotes it.
+                    target:
+                        /^!?\[\[([\s\S]*)\]\]$/.exec(text ?? "")?.[1] ??
+                        `${rawTarget ?? ""}${anchor ? `#${anchor}` : ""}`,
                     text,
                     occurrence,
                     // Carried like every other finding's, so a reporter reads

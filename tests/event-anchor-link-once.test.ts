@@ -20,10 +20,12 @@ import { defineConfig } from "../index.mjs";
 import { positionOfLiteral } from "../engine/diagnostics.mjs";
 import { buildSite } from "../engine/site-build.mjs";
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
+import { auditLinks, buildLinkIndex } from "../engine/content-links.mjs";
 
 let root: string;
 let result: any;
 let lines: string[];
+let audit: any;
 
 beforeAll(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "event-anchor-once-"));
@@ -39,6 +41,9 @@ beforeAll(() => {
         "Chronicle.md":
             "---\nshortcode: chronicle\nname: { full: Chronicle }\ntype: lore\nsubType: history\n---\n\n" +
             "Recall [[place-ironfells#sack|the sack]] well.\n",
+        "Bare.md":
+            "---\nshortcode: bare\nname: { full: Bare }\ntype: lore\nsubType: history\n---\n\n" +
+            "Link [[place-ironfells#sack]] here, and [[#here]] there.\n\n# Here {#here}\n\nText.\n",
         "homepage.md": "---\ntype: homepage\nshortcode: root\nname:\n  full: Demo\n---\n\nHome.\n",
     };
     for (const [rel, text] of Object.entries(notes)) {
@@ -60,6 +65,9 @@ beforeAll(() => {
     console.error = (...args: unknown[]) => void errors.push(args.map(String).join(" "));
     try {
         result = buildSite({ config });
+        audit = auditLinks(
+            buildLinkIndex(path.join(root, "assets/content"), { skipDirectories: [], config }),
+        );
     } finally {
         console.error = original;
     }
@@ -93,5 +101,20 @@ describe("a labelled wikilink to an event's id", () => {
             }));
         expect(located).toEqual([{ line: 8, column: 8, reason: "event-anchor" }]);
         expect(lines).toEqual([]);
+    });
+});
+
+describe("an unlabelled wikilink with an anchor", () => {
+    it("is quoted as written, anchor included, by the link check and the site build alike", () => {
+        const fromSite = (result.wikiErrors as any[])
+            .filter((error) => String(error.file).endsWith("Bare.md"))
+            .map((error) => error.message ?? linkFindingMessage(error));
+        const fromLinks = (audit.unlabelledLinks as any[])
+            .filter((finding) => String(finding.note.file).endsWith("Bare.md"))
+            .map((finding) => finding.message ?? linkFindingMessage(finding));
+        expect(fromSite).toHaveLength(2);
+        expect(fromSite[0]).toContain("wikilink [[place-ironfells#sack]] carries no label");
+        expect(fromSite[1]).toContain("wikilink [[#here]] carries no label");
+        expect(fromLinks).toEqual(fromSite);
     });
 });
