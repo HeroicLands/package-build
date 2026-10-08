@@ -295,7 +295,7 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     bgImage: Object.freeze({ withheld: "an image, which the box never carries" }),
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
-    "lore.events": Object.freeze({ withheld: "chronology machinery, not a summary row" }),
+    events: Object.freeze({ withheld: "chronology machinery, not a summary row" }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),
@@ -987,7 +987,7 @@ function noteBox(
     // `events` itself stays withheld — the family's shape is chronology
     // machinery, not a summary row — but a reader meets each occurrence's
     // own next date, the way a being's computed `age` reaches the box.
-    if (fm?.type === "lore" && Array.isArray(data.events) && data.events.length && dates) {
+    if (Array.isArray(data.events) && data.events.length && dates) {
         const resolved = resolvedDateFields(fm, dates);
         for (const eventEntry of resolved.events ?? []) {
             if (!eventEntry.next) continue;

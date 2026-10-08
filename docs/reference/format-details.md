@@ -2792,6 +2792,337 @@ All item types, including affiliation, affliction, armor, armorlocation, attribu
 
 An Item can mark its readable description with `# ... {#description}`. That heading starts a JournalEntryPage even when other pages precede it. Its Address is `<package>-note-<type>-<shortcode>#description`; the compiler resolves it to one `@UUID[...]` pointer. SoHL stores that pointer in `system.docHtml`, and HM3 stores the same pointer in `system.description` for Item subtypes that declare the field. An Item without this anchor points to its first page. Other pages remain addressable by their own anchors.
 
+### Events
+
+An **event** is one dated, attributed record of something that happened in the setting — a founding, a war, a fall, a plague, a birth. It is an entry in `data.events`, and three types carry that list: `lore`, `place` and `affiliation`. There is no event note type. A note holds the events that belong to it: a history note holds the event it describes, a place holds its raising and its ruin, an affiliation its founding and its dissolution. The schema is the same on all three types and on every subType.
+
+Every key of an entry is closed, and so is every key of each map nested in one. A key this section does not list is an error at that key, and a value outside a key's closed list is an error at that value. Every Address an entry writes resolves in this package or a declared dependency, or it is an error at that Address.
+
+An event appears on its note's page and in its Foundry journal as prose the note's body writes; the list itself does not reach a system field and is not an infobox row. A recurring event's next occurrence is the one exception: it is computed and shown in the infobox.
+
+#### The keys of an event
+
+| event key    | shape                                | required  | what it records                                                            |
+| ------------ | ------------------------------------ | --------- | -------------------------------------------------------------------------- |
+| `id`         | address segment                      | see below | The event's name within its note — lowercase letters and digits            |
+| `kind`       | one `eventKind` value                | no        | What sort of thing happened                                                |
+| `depth`      | one `depth` value                    | no        | How far the event's history reaches                                        |
+| `when`       | a date, or `"0.<day>"`               | yes       | When it happened, or the anchor and first instance of an event that recurs |
+| `until`      | a date                               | no        | When a continuous event ended, or where a recurring series stopped         |
+| `recurs`     | `{ every }` or `{ on }`              | no        | How further occurrences are found; absent for an event that happened once  |
+| `summary`    | string                               | yes       | What happened, stated plainly                                              |
+| `standing`   | one `standing` value                 | no        | What the world's evidence supports                                         |
+| `names`      | `{ name, by, gloss? }[]`             | no        | The event's names in the world, each with who uses it                      |
+| `where`      | `{ locus?, reach? }`                 | no        | Where it happened, and where it was felt                                   |
+| `who`        | `{ ref, role }[]`                    | no        | Who took part, and as what                                                 |
+| `follows`    | `{ event, how, note? }[]`            | no        | The earlier events this one follows from                                   |
+| `accounts`   | `{ by, says, agrees, withholds? }[]` | no        | What each people, polity, faith or place says about it                     |
+| `unresolved` | string list                          | no        | What the world itself has not settled                                      |
+| `sources`    | Address list                         | no        | The notes that state or support the event; each resolves                   |
+| `stated`     | `{ calendar, text }`                 | no        | The date as one tradition writes it in its own reckoning                   |
+
+The nested entries, each closed the same way:
+
+| nested key                   | shape                                                      | required | what it records                                                                           |
+| ---------------------------- | ---------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
+| `names[].name`               | string                                                     | yes      | One name the event goes by in the world                                                   |
+| `names[].by`                 | Address                                                    | yes      | Who uses that name — a people, a polity, a faith, a place; resolves                       |
+| `names[].gloss`              | string                                                     | no       | What the name means, or how it is used                                                    |
+| `where.locus`                | Address list                                               | no       | Where the event physically happened; each resolves                                        |
+| `where.reach[].place`        | Address                                                    | yes      | A place where the event was felt; resolves                                                |
+| `where.reach[].how`          | string                                                     | yes      | One clause: a consequence someone in that place could notice                              |
+| `where.reach[].knowledge`    | one `knowledge` value                                      | yes      | Whether that place connects what it felt to this event                                    |
+| `where.reach[].attributedTo` | event or note Address                                      | no       | Only beside `knowledge: misattributed` — the cause that place names instead; resolves     |
+| `who[].ref`                  | Address                                                    | yes      | A participant — a being, a people, an affiliation, a place; resolves                      |
+| `who[].role`                 | one `role` value                                           | yes      | What the participant was to the event                                                     |
+| `follows[].event`            | event Address                                              | yes      | The earlier event; resolves to exactly one event                                          |
+| `follows[].how`              | one `followsHow` value                                     | yes      | How this event follows from it                                                            |
+| `follows[].note`             | string                                                     | no       | One clause saying what connects the two                                                   |
+| `accounts[].by`              | Address                                                    | yes      | Who holds the account; resolves                                                           |
+| `accounts[].says`            | string                                                     | yes      | What they say happened, in their terms                                                    |
+| `accounts[].agrees`          | one `agrees` value                                         | yes      | How far their account agrees with `summary`                                               |
+| `accounts[].withholds`       | string                                                     | no       | What they decline to say                                                                  |
+| `stated.calendar`            | Address, or a lore shortcode                               | yes      | The calendar that tradition reckons in — a `lore` note with `subType: calendar`; resolves |
+| `stated.text`                | string                                                     | yes      | The date as that tradition writes it                                                      |
+| `recurs.every`               | whole number of years, 1 or more                           | —        | A period counted on the canonical axis from `when`                                        |
+| `recurs.on`                  | list of dates, strictly increasing, each later than `when` | —        | Recorded occurrences beyond the first, in place of a period                               |
+
+Every Address but `stated.calendar` states its type: `place-vale`, never `vale`, and never a bare name such as `The Vale`. `where.locus` in particular is never filled in from the note the event sits on — an event on a place is not assumed to have happened there, so a `locus` is written or absent.
+
+#### Identity, and how an event is addressed
+
+An event is addressed as its note's address when the note holds one event, and as `<note address>#<id>` when it holds several: `lore-thebargain`, `place-ironfells#sack`, `affiliation-crown#founding`.
+
+- `id` is an address segment — lowercase ASCII letters and digits, nothing else.
+- `id` is unique within its note.
+- `id` is **required on every entry of a note holding two or more events**, and optional on a note holding one.
+
+A `follows[].event` resolves to exactly one event: a note holding one event, or `note#id`. Naming a note that holds several events without an `id` is an error, and so is naming an `id` the note does not hold. An Address into another package resolves to its note; a dependency's published index carries no events, so the entry it names and that entry's date are not checked.
+
+#### What sort of event: `kind`
+
+`kind` is closed. The groups are for reading; the list is one list.
+
+| `eventKind` value | the event is                                                                         |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| `arrival`         | A people or group comes to live in a land it did not hold                            |
+| `departure`       | A people or group leaves a land it held                                              |
+| `migration`       | A people moves over a long span, through or across several lands                     |
+| `contact`         | Two peoples meet for the first time, or after all memory of each other is lost       |
+| `displacement`    | A people is driven from its land by force or by catastrophe                          |
+| `founding`        | A polity, order, settlement or other body comes into being                           |
+| `charter`         | A body's rights, bounds or constitution are granted or written                       |
+| `accession`       | A ruler or a ruling house takes power                                                |
+| `secession`       | A part breaks away from the body that held it                                        |
+| `conquest`        | One power takes and holds another's land or people by force                          |
+| `treaty`          | Powers bind themselves by agreement — a peace, a league, a lease, a bargain          |
+| `dissolution`     | A body ceases to exist, by decision, absorption or decay                             |
+| `battle`          | One engagement between armed forces                                                  |
+| `war`             | A sustained armed conflict, spanning engagements                                     |
+| `siege`           | A fortified place is invested and held under attack                                  |
+| `revolt`          | Subjects rise against the power that rules them                                      |
+| `fall`            | A city, people or power is destroyed or overthrown                                   |
+| `catastrophe`     | A natural or magical disaster — a flood, an eruption, a working that escapes control |
+| `plague`          | A sickness spreads through a population                                              |
+| `famine`          | Food fails across a land                                                             |
+| `raising`         | A structure or settlement is built — a city, a wall, a temple, a road                |
+| `ruin`            | A structure or settlement falls into ruin or is razed                                |
+| `making`          | An object, work or artefact is made                                                  |
+| `loss`            | An object, work or body of knowledge is lost                                         |
+| `discovery`       | Something is found or first learned — a land, a route, a secret, a working           |
+| `schism`          | A faith, order or school divides                                                     |
+| `law`             | A law, code or decree is made or abolished                                           |
+| `council`         | An assembly meets and decides                                                        |
+| `birth`           | A person is born                                                                     |
+| `death`           | A person dies                                                                        |
+
+A place's raising and its ruin are `raising` and `ruin` events on that place; an affiliation's founding and dissolution are `founding` and `dissolution` events on that affiliation.
+
+#### How far it reaches: `depth`
+
+| `depth` value | the event                                                 |
+| ------------- | --------------------------------------------------------- |
+| `world`       | Has to be accounted for by more than one region's history |
+| `region`      | Is held by one region's history                           |
+| `local`       | Belongs to one place, one being or one legend             |
+
+`depth` is set by hand and never derived. The test for `world` is not importance but reach of accounting: an event is `world` when more than one region's history has to account for it, and anything a single region can hold is that region's. A `local` event is met on the page of the place, being or legend it belongs to.
+
+#### What happened, and how sure the world is: `summary` and `standing`
+
+`summary` states the event plainly, in one or two sentences, with no hedging — not "it is said that", not "may have", not "legend holds". Doubt does not go in the summary. It goes in `standing`, in `accounts` and in `unresolved`.
+
+| `standing` value | the world's evidence                                                        |
+| ---------------- | --------------------------------------------------------------------------- |
+| `attested`       | More than one independent tradition records it                              |
+| `single-source`  | One tradition records it, and nothing contradicts it                        |
+| `reconstructed`  | No tradition states it; it is worked out from other records                 |
+| `disputed`       | Traditions disagree that it happened, or on a particular the event turns on |
+| `legendary`      | What is established is that a story exists, not that the thing happened     |
+
+`legendary` changes what `summary` describes: on a `legendary` event the summary describes the story, truthfully, because the story existing is the fact.
+
+`standing` is independent of how precisely the date is written. A well-attested event can carry an approximate century, and a reconstructed one can carry an exact year because the arithmetic that places it is exact. The date's grain is in how it is written — `280` is the year, `280.25` the twenty-fifth day, `~280` around 280.
+
+#### Where: `where.locus` and `where.reach`
+
+`locus` is where the event physically happened — usually one place, occasionally a few, such as a battle on a border or a treaty signed in two cities. It is not the region that owns the event; no region owns one.
+
+`reach` is where the event was felt, and each entry has to earn its place. **A reach entry exists only when its `how` clause can state a consequence someone in that place could notice.** "It mattered there" is not a reach entry; "the holds lost half their smiths within a generation" is. A place that felt nothing has no entry — there is no value for "unaffected", because an absent row already says so.
+
+| `knowledge` value | in that place                                                                                          |
+| ----------------- | ------------------------------------------------------------------------------------------------------ |
+| `named`           | Its own record names this event as the cause of what it felt                                           |
+| `misattributed`   | Its record names a different cause, given in `attributedTo` — the people there are wrong, not ignorant |
+| `unlinked`        | The consequence is felt, and no tradition there connects it to anything                                |
+
+`attributedTo` is written only beside `misattributed`, and names the event or note that place blames instead.
+
+#### Who: `who`
+
+`who` lives on the event, never on the participant, so a being's or a people's part in events is found by reading the events that name it rather than by listing them on its own note. A people is a legitimate participant: much of a deep past happens to peoples rather than to named individuals. An unnamed participant is not a row — a person the record cannot name is a clause in `summary` and, where who they were is open, a line in `unresolved`.
+
+| `role` value | the participant                                                                                |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| `actor`      | Did it                                                                                         |
+| `victim`     | Had it done to them                                                                            |
+| `instrument` | Was the means by which it was done, without being its author — a host driven, a weapon wielded |
+| `witness`    | Saw it, and is a source of what is known                                                       |
+| `founder`    | Brought into being what the event founds                                                       |
+| `ruler`      | Held the authority under which it happened, or the authority it confers                        |
+| `author`     | Wrote or composed what the event makes — a law, a charter, a work                              |
+| `signatory`  | Is a party bound by the agreement it records                                                   |
+
+#### Names: one event, several names
+
+An event known by several names in the world is one event with several names, never several events. The note's own `name` is the neutral name the chronology sorts by; `names` carries every in-world name with the people, polity, faith or place that uses it.
+
+`names` and `accounts` vary independently, which is why they are two keys: a people can share an event's name and dispute what happened, or use a name of its own and agree entirely. A defeat in one chronicle and a deliverance in another is one event whose `names` differ and whose `accounts` differ.
+
+#### What is believed: `accounts`, `withholds` and `unresolved`
+
+Each `accounts` entry attributes one reading of the event: who holds it (`by`), what they say (`says`), how far they agree with `summary` (`agrees`), and what they decline to say (`withholds`).
+
+| `agrees` value | the account                                                                      |
+| -------------- | -------------------------------------------------------------------------------- |
+| `full`         | Agrees with the summary                                                          |
+| `partly`       | Agrees in substance and differs in particulars                                   |
+| `disputes`     | Holds that it happened, and otherwise than the summary says                      |
+| `denies`       | Holds that it did not happen                                                     |
+| `silent`       | Says nothing of it where it could — a silence stated as a fact, not an ignorance |
+
+**`withholds` and `unresolved` record different things.** `withholds` is a people declining to say, which is a fact about that people and sits on that people's account. `unresolved` is the world not having settled the question, which is a fact about the world and sits on the event. Who made a weapon is `unresolved`; that the people who used it will not discuss it is `withholds`. Each `unresolved` line is a plain statement of something open, not a hedge.
+
+#### Consequence: `follows`
+
+`follows` is written on the later event only, and names the earlier one. Whoever writes the later event is the one who knows what it follows from, and what followed from an event is found by reading the edges that name it, so nothing is lost by writing each edge once.
+
+| `followsHow` value | this event                                      |
+| ------------------ | ----------------------------------------------- |
+| `caused`           | Would not have happened without the earlier one |
+| `enabled`          | Was made possible by it, not inevitable         |
+| `ended`            | Terminates a state the earlier one began        |
+| `answered`         | Is a deliberate response to it                  |
+
+Two rules hold the graph together, and both are errors when broken:
+
+- **An edge points backward in time.** The event an edge names is no later than the event writing it, comparing the two `when` dates. Two dates that both state a day compare by day; otherwise they compare by year, so a year and a day inside it are never out of order. An edge touching a `when` with no position on the axis — `unknown`, or a year-`0` date — is not ordered.
+- **The graph has no cycle.** No chain of edges leads from an event back to itself, across notes or within one.
+
+A consequence is an edge, not a second event. A consequence with no date of its own is a `reach` entry, if it is felt somewhere, or a `follows` edge, if it is a later event's cause — never a new event recording the same thing twice.
+
+#### Dates: `when`, `until` and `recurs`
+
+An entry reads by what it authors beside `when`:
+
+| authored                          | reads as                                        |
+| --------------------------------- | ----------------------------------------------- |
+| `when`                            | happened once                                   |
+| `when` + `until`                  | ran continuously from then to then              |
+| `when` + `recurs`                 | happened then and happens still                 |
+| `when` + `until` + `recurs.every` | happened then, again on the period, and stopped |
+
+`recurs.every` and `recurs.on` are exclusive — a period with named exceptions is written as an enumeration instead. `recurs` is refused beside a `when` of year `0`, and a being's `born` and `died` take no `recurs`. `until` is refused beside `recurs.on`, whose own last entry already bounds it.
+
+**The period advances the canonical year, never the era-relative year.** There is no year `0` in era-relative numbering — era year `-1` sits immediately before era year `1` — but canonical year `0` is an ordinary integer on the continuous axis `canonicalYear` builds, so a period of whole years steps on it with no special case at an epoch crossing. Precision and approximation carry through untouched: a year-precision anchor yields year-precision occurrences, an approximate anchor's occurrences are approximate too, and an anchor inside a short intercalary month recurs on that same day in every occurrence, with no special case for the month being short. Each occurrence selects its own era by testing its position against the anchor's calendar, so a later occurrence may print in a different era than its anchor, or print bare where no count was proclaimed for that year — neither is ever a finding, since nobody authored the occurrence.
+
+**Year `0` means any year.** An entry whose `when` states year `0` recurs on that day of every year — `when: "0.5"` is the fifth day of the year, in every year. The value must be quoted, for the reason every canonical date stating a day must be: an unquoted `<year>.<day>` reaches the check as a float, and a day's trailing zero is lost before a date is read. Beside a year-`0` entry, `recurs` is refused (the entry is already annual), `until` is allowed and bounds the series, and the entry carries no `canonicalYear`, era or `sort` — it cannot date its own note. A note's date is its first entry stating a real year.
+
+```yaml
+data:
+  events:
+    - id: anniversary
+      when: "412.1"
+      recurs: { every: 1 }
+      summary: The city keeps the day of its founding.
+    - id: harvestrite
+      when: "0.286"
+      until: "940.1"
+      summary: The harvest rite is kept on the two-hundred-eighty-sixth day of the year.
+```
+
+The first entry is an anniversary counted from canonical day `412.1`, recurring every year with no end. The second is an autumn rite — the two-hundred-eighty-sixth day of every year — kept until canonical year 940.
+
+`stated` records the date as one tradition writes it, beside the canonical `when` every event carries: `when` is what sorts and compares, and `stated.text` is what that tradition's own records say, in the calendar `stated.calendar` names.
+
+#### A complete event
+
+One `lore` note, `lore-fallkhazturn`, holding one event with every key written:
+
+```yaml
+shortcode: fallkhazturn
+name: { full: The Fall of Khazarturn }
+type: lore
+subType: history
+data:
+  events:
+    - kind: fall
+      depth: world
+      when: ~-2427
+      summary: >-
+        An outlaw takes up the Second Voice and drives the Grukar against
+        Khazarturn. Every inhabitant is killed, and the Khazari seal the city as
+        a tomb.
+      standing: attested
+      names:
+        - name: The Sealing
+          by: lore-khazarfolk
+          gloss: what the Khazari call it
+        - name: the Outlaw's Work
+          by: lore-sinalefolk
+      where:
+        locus: [place-khazarturnvale]
+        reach:
+          - place: place-ironfells
+            how: the holds lose half their smiths within a generation
+            knowledge: named
+          - place: place-grukarholm
+            how: tribes arrive on the coast driven off ground they will not name
+            knowledge: unlinked
+          - place: place-aelwyth
+            how: the joint kingdom's two peoples stop speaking
+            knowledge: misattributed
+            attributedTo: lore-oldcompact
+      who:
+        - { ref: lore-khazarfolk, role: victim }
+        - { ref: lore-sinalefolk, role: actor }
+        - { ref: lore-grukarfolk, role: instrument }
+      follows:
+        - event: place-khazarturn#raising
+          how: ended
+          note: the city stands two and a half millennia before it falls
+      accounts:
+        - by: lore-khazarfolk
+          says: The Sinale did this; one of theirs held the Voice, and they never said it existed.
+          agrees: partly
+          withholds: whether anyone tends the city since it was sealed
+        - by: lore-sinalefolk
+          says: One of ours did it, and we hunted him down ourselves.
+          agrees: partly
+          withholds: the outlaw's name and his fate
+        - by: lore-worldthalorna
+          says: Something shattered the old peace in an age before memory.
+          agrees: silent
+      unresolved:
+        - who made the Second Voice, and why neither people ever said it existed
+        - what remains inside the sealed city
+      sources: [lore-khazarfolk, lore-sinalefolk]
+      stated: { calendar: khazarcal, text: "the 900th year of the Delving" }
+```
+
+#### A note holding two events
+
+A place holds its own raising and its own fall, so each needs an `id`, and an event elsewhere names one of them by `note#id`:
+
+```yaml
+shortcode: khazarturn
+name: { full: Khazarturn }
+type: place
+subType: settlement
+data:
+  events:
+    - id: raising
+      kind: raising
+      depth: region
+      when: ~-4900
+      summary: The Khazari cut the first halls of Khazarturn into the valley wall.
+      where: { locus: [place-khazarturn] }
+    - id: sealing
+      kind: ruin
+      depth: local
+      when: ~-2427
+      summary: The Khazari seal the gates of the dead city.
+      where: { locus: [place-khazarturn] }
+      follows:
+        - event: place-khazarturn#raising
+          how: ended
+        - event: lore-fallkhazturn
+          how: caused
+          note: the dead are laid in their own chambers before the gates are closed
+```
+
+`place-khazarturn#sealing` follows both the city's own raising, inside the same note, and `lore-fallkhazturn`, a note holding one event and so addressed by the note alone. Both edges point backward: the raising is millennia earlier, and the fall shares the sealing's year.
+
 ### type: being
 
 Generates a living (or undead, or spirit) being.
@@ -3338,6 +3669,7 @@ rank names the standing, and the standing says.
 | `data` property      | Values                                             | Description                                                                                    |
 | -------------------- | -------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `templatePriority`   | `number`                                           | Template priority, _null_ = not a template                                                     |
+| `events`             | event entries — see [Events](#events)              | What happened to or at this subject: dated, attributed events                                  |
 | `demonym`            | `string`                                           | What a member of this affiliation is called (a Vylarian)                                       |
 | `epithet`            | `string`                                           | The by-name it is known by — a god's, an order's, a company's                                  |
 | `symbol`             | `string`                                           | Its emblem in words: a feather atop a golden scale, a chisel carving a star                    |
@@ -3951,53 +4283,22 @@ Calendar fields are written only on a `calendar` note, and `culture`, `form`, `s
 `language` only on a `literature` note; written on any other lore subType, each is an error at
 its own key.
 
-| `data` property         | Values                                                                        | Description                                                                                                       |
-| ----------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
-| `epoch`                 | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                              |
-| `months`                | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                |
-| `weekdays`              | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                      |
-| `seasons`               | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                        |
-| `namedDays`             | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                          |
-| `eras`                  | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                             |
-| `formats`               | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                |
-| `culture`               | `Address`                                                                     | `literature` only: the people whose work it is, naming a lore note with `subType: culture`                        |
-| `form`                  | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text |
-| `subjects`              | `Address[]`                                                                   | `literature` only: the beings, places, gods, events and other notes the work concerns                             |
-| `language`              | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                     |
-| `events`                | `{ when, until?, recurs? }[]`                                                 | This note's dated occurrences, each with its own relationships and chronicle fields                               |
-| `events[].when`         | a date, or `"0.<day>"`                                                        | The occurrence's anchor and first instance — required                                                             |
-| `events[].until`        | a date                                                                        | Where the occurrence ran to, or where a recurring series stopped                                                  |
-| `events[].recurs`       | `{ every }` or `{ on }`                                                       | How further occurrences are found, absent for a one-time occurrence                                               |
-| `events[].recurs.every` | whole number of years, 1 or more                                              | A period counted on the canonical axis from `when`                                                                |
-| `events[].recurs.on`    | list of dates, strictly increasing, each later than `when`                    | Recorded occurrences beyond the first, in place of a period                                                       |
+| `data` property | Values                                                                        | Description                                                                                                       |
+| --------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `epoch`         | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                              |
+| `months`        | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                |
+| `weekdays`      | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                      |
+| `seasons`       | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                        |
+| `namedDays`     | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                          |
+| `eras`          | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                             |
+| `formats`       | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                |
+| `culture`       | `Address`                                                                     | `literature` only: the people whose work it is, naming a lore note with `subType: culture`                        |
+| `form`          | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text |
+| `subjects`      | `Address[]`                                                                   | `literature` only: the beings, places, gods, events and other notes the work concerns                             |
+| `language`      | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                     |
+| `events`        | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                     |
 
-`data.events` is available on every `lore` subType. Each entry's `kind`, `depth`, `summary`, `sources`, `standing`, `accounts`, `who`, `where`, `unresolved`, `follows` and `names` hold its chronicle detail; their shapes belong to whatever design governs chronicle records, and this format only asks that they sit inside an entry. The shared format checks `when`, `until` and `recurs`; a content package can check the rest. `events` itself does not appear as an infobox row, but a recurring entry's computed next occurrence does.
-
-An entry reads by what it authors beside `when`:
-
-| authored                          | reads as                                        |
-| --------------------------------- | ----------------------------------------------- |
-| `when`                            | happened once                                   |
-| `when` + `until`                  | ran continuously from then to then              |
-| `when` + `recurs`                 | happened then and happens still                 |
-| `when` + `until` + `recurs.every` | happened then, again on the period, and stopped |
-
-`recurs.every` and `recurs.on` are exclusive — a period with named exceptions is written as an enumeration instead. `recurs` is refused beside `born` or `died`, and beside a `when` of year `0`. `until` is refused beside `recurs.on`, whose own last entry already bounds it.
-
-**The period advances the canonical year, never the era-relative year.** There is no year `0` in era-relative numbering — era year `-1` sits immediately before era year `1` — but canonical year `0` is an ordinary integer on the continuous axis `canonicalYear` builds, so a period of whole years steps on it with no special case at an epoch crossing. Precision and approximation carry through untouched: a year-precision anchor yields year-precision occurrences, an approximate anchor's occurrences are approximate too, and an anchor inside a short intercalary month recurs on that same day in every occurrence, with no special case for the month being short. Each occurrence selects its own era by testing its position against the anchor's calendar, so a later occurrence may print in a different era than its anchor, or print bare where no count was proclaimed for that year — neither is ever a finding, since nobody authored the occurrence.
-
-**Year `0` means any year.** An entry whose `when` states year `0` recurs on that day of every year — `when: "0.5"` is the fifth day of the year, in every year. The value must be quoted, for the reason every canonical date stating a day must be: an unquoted `<year>.<day>` reaches the check as a float, and a day's trailing zero is lost before a date is read. Beside a year-`0` entry, `recurs` is refused (the entry is already annual), `until` is allowed and bounds the series, and the entry carries no `canonicalYear`, era or `sort` — it cannot date its own note. A note's date is its first entry stating a real year.
-
-```yaml
-data:
-  events:
-    - when: 412.1
-      recurs: { every: 1 }
-    - when: "0.286"
-      until: 940.1
-```
-
-The first entry is an anniversary counted from canonical day `412.1`, recurring every year with no end. The second is an autumn rite — the two-hundred-eighty-sixth day of every year — that was kept until canonical year 940 and no longer is.
+`data.events` is available on every `lore` subType, and is described in full under [Events](#events).
 
 #### Calendar note structure
 
@@ -4205,6 +4506,7 @@ map's prose.
 
 | `data` property                   | Values                                              | Description                                                                                               |
 | --------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `events`                          | event entries — see [Events](#events)               | What happened to or at this subject: dated, attributed events                                             |
 | `calendar`                        | `Address`                                           | Calendar note used to print this place's dates                                                            |
 | `demonym`                         | `string`                                            | What a person from this place is called — a Vylarian                                                      |
 | `purpose`                         | `placeCharacter` tag                                | The reason a settlement, site, or structure exists                                                        |

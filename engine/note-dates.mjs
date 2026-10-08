@@ -955,11 +955,13 @@ function resolveEventEntry(entry, context) {
 
 /** Normalize a note's declared dates for indexes and generated pages. */
 export function resolvedDateFields(fm, context) {
-    if (fm?.type === "lore") {
-        const events = Array.isArray(fm.data?.events) ? fm.data.events : [];
-        const resolved = events.map((entry) => resolveEventEntry(entry, context));
+    // A note carrying `data.events` — a lore, place or affiliation note — is
+    // dated by them.
+    if (Array.isArray(fm?.data?.events)) {
+        const resolved = fm.data.events.map((entry) => resolveEventEntry(entry, context));
         return resolved.length ? { events: resolved } : {};
     }
+    if (fm?.type === "lore") return {};
     const fields =
         fm?.type === "being" ?
             [
