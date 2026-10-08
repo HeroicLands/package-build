@@ -20,12 +20,15 @@
  * spreads that one object into all three types, so the schema cannot differ
  * between them.
  *
- * The generic `data:` container check knows only that `events` is a list; this
- * module checks everything inside it. Every key of an entry, and of each map
- * nested in one, is closed: a key the schema does not declare is a finding at
- * that key. Every closed value is one of the lists exported here, which the
- * format reference documents as its vocabulary tables. Every Address resolves
- * through the index the way a `data:` Address field does.
+ * **What an entry holds is declared once, in
+ * {@link module:engine/note-event-terms}**, as an inner-key declaration the
+ * field carries. The frontmatter lint's inner-key check reads it like every
+ * other `data:` field's: every key of an entry, and of each map nested in one,
+ * is closed, a required key is stated, and each value has its declared kind.
+ * This module walks the same declaration for what the values mean: every
+ * closed value is one of the lists the format reference documents as its
+ * vocabulary tables, text is not blank, and every Address resolves through the
+ * index the way a `data:` Address field does.
  *
  * **Identity.** An entry may carry `id`, an address segment, unique within its
  * note and required when the note holds two or more events. The `id` is an
@@ -64,225 +67,41 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 
-/** What an event is, grouped for reading and closed for validation. */
-export const EVENT_KINDS = Object.freeze([
-    // peoples
-    "arrival",
-    "departure",
-    "migration",
-    "contact",
-    "displacement",
-    // polities
-    "founding",
-    "charter",
-    "accession",
-    "secession",
-    "conquest",
-    "treaty",
-    "dissolution",
-    // conflict
-    "battle",
-    "war",
-    "siege",
-    "revolt",
-    // ruin
-    "fall",
-    "catastrophe",
-    "plague",
-    "famine",
-    // works
-    "raising",
-    "ruin",
-    "making",
-    "loss",
-    "discovery",
-    // institutions and belief
-    "schism",
-    "law",
-    "council",
-    // persons
-    "birth",
-    "death",
-]);
+import {
+    ACCOUNT_AGREES,
+    EVENT_DEPTHS,
+    EVENT_ENTRY,
+    EVENT_ENTRY_KEYS,
+    EVENT_KINDS,
+    EVENT_STANDINGS,
+    EVENT_VOCABULARIES,
+    FOLLOWS_HOW,
+    PARTICIPANT_ROLES,
+    REACH_KNOWLEDGE,
+} from "./note-event-terms.mjs";
 
-/** How far an event's history reaches. Set by hand. */
-export const EVENT_DEPTHS = Object.freeze(["world", "region", "local"]);
+export {
+    ACCOUNT_AGREES,
+    EVENT_DEPTHS,
+    EVENT_ENTRY,
+    EVENT_ENTRY_KEYS,
+    EVENT_KINDS,
+    EVENT_STANDINGS,
+    EVENT_VOCABULARIES,
+    FOLLOWS_HOW,
+    PARTICIPANT_ROLES,
+    REACH_KNOWLEDGE,
+};
 
-/** What the world's evidence supports about an event. */
-export const EVENT_STANDINGS = Object.freeze([
-    "attested",
-    "single-source",
-    "reconstructed",
-    "disputed",
-    "legendary",
-]);
-
-/** Whether a place that felt an event knows what caused it. */
-export const REACH_KNOWLEDGE = Object.freeze(["named", "misattributed", "unlinked"]);
-
-/** What a participant was to an event. */
-export const PARTICIPANT_ROLES = Object.freeze([
-    "actor",
-    "victim",
-    "instrument",
-    "witness",
-    "founder",
-    "ruler",
-    "author",
-    "signatory",
-]);
-
-/** How a later event follows from an earlier one. */
-export const FOLLOWS_HOW = Object.freeze(["caused", "enabled", "ended", "answered"]);
-
-/** How far an account agrees with the event's summary. */
-export const ACCOUNT_AGREES = Object.freeze(["full", "partly", "disputes", "denies", "silent"]);
-
-/**
- * Every closed list, by the name of the vocabulary table the format reference
- * and `engine/content-format.yaml` state it under. `eventKind` is not `kind`
- * because the infobox's row kinds already hold that name.
- */
-export const EVENT_VOCABULARIES = Object.freeze({
-    eventKind: EVENT_KINDS,
-    depth: EVENT_DEPTHS,
-    standing: EVENT_STANDINGS,
-    knowledge: REACH_KNOWLEDGE,
-    role: PARTICIPANT_ROLES,
-    followsHow: FOLLOWS_HOW,
-    agrees: ACCOUNT_AGREES,
-});
-
-/*
- * The schema, as data. Each node is one of:
- *
- * - `text` — a string;
- * - `closed` — one of `values`, named `name` in a message;
- * - `address` — an Address. `ref` is the default type of a bare shortcode
- *   and `accepts` the types the resolved Address may have, as on a typed
- *   `data:` Address field; `calendar` holds the target to a calendar note;
- *   `anchors` lists the anchor kinds a `#<anchor>` may name, and a node
- *   without it refuses one; `single` requires the Address to name exactly one
- *   event; `eventOrLore` requires it to name an event or a `lore` note;
- * - `list` — a list of `of`;
- * - `map` — a closed map of `keys`, `required` naming those that must be
- *   written;
- * - `own` — checked by this module's own code, never by the walker.
- */
-
-const TEXT = Object.freeze({ kind: "text" });
-const ADDRESS = Object.freeze({ kind: "address" });
-/** An Address naming a place; a bare shortcode is read as one. */
-const PLACE = Object.freeze({ kind: "address", ref: "place", accepts: Object.freeze(["place"]) });
-/** An Address naming a note of one of `types`, written with its type. */
-const ONE_OF = (...types) => Object.freeze({ kind: "address", accepts: Object.freeze(types) });
-const closed = (name, values) => Object.freeze({ kind: "closed", name, values });
-const list = (of) => Object.freeze({ kind: "list", of });
-const map = (label, keys, required = []) => Object.freeze({ kind: "map", label, keys, required });
-const OWN = Object.freeze({ kind: "own" });
-
-/** One event entry. */
-const ENTRY = map(
-    "an event",
-    {
-        id: OWN,
-        kind: closed("kind", EVENT_KINDS),
-        depth: closed("depth", EVENT_DEPTHS),
-        when: OWN,
-        until: OWN,
-        recurs: OWN,
-        summary: TEXT,
-        standing: closed("standing", EVENT_STANDINGS),
-        names: list(
-            map(
-                "a `names` entry",
-                {
-                    name: TEXT,
-                    by: ONE_OF("affiliation", "lore", "place", "being", "skill"),
-                    gloss: TEXT,
-                },
-                ["name", "by"],
-            ),
-        ),
-        where: map("`where`", {
-            locus: list(PLACE),
-            reach: list(
-                map(
-                    "a `reach` entry",
-                    {
-                        place: PLACE,
-                        how: TEXT,
-                        knowledge: closed("knowledge", REACH_KNOWLEDGE),
-                        attributedTo: Object.freeze({
-                            kind: "address",
-                            ref: "lore",
-                            anchors: Object.freeze(["event"]),
-                            eventOrLore: true,
-                        }),
-                    },
-                    ["place", "how", "knowledge"],
-                ),
-            ),
-        }),
-        who: list(
-            map(
-                "a `who` entry",
-                {
-                    ref: ONE_OF("being", "affiliation", "lore"),
-                    role: closed("role", PARTICIPANT_ROLES),
-                },
-                ["ref", "role"],
-            ),
-        ),
-        follows: list(
-            map(
-                "a `follows` entry",
-                {
-                    event: Object.freeze({
-                        kind: "address",
-                        ref: "lore",
-                        anchors: Object.freeze(["event"]),
-                        single: true,
-                    }),
-                    how: closed("how", FOLLOWS_HOW),
-                    note: TEXT,
-                },
-                ["event", "how"],
-            ),
-        ),
-        accounts: list(
-            map(
-                "an `accounts` entry",
-                {
-                    by: ONE_OF("affiliation", "lore", "place", "being"),
-                    says: TEXT,
-                    agrees: closed("agrees", ACCOUNT_AGREES),
-                    withholds: TEXT,
-                },
-                ["by", "says", "agrees"],
-            ),
-        ),
-        unresolved: list(TEXT),
-        sources: list(ADDRESS),
-        stated: map(
-            "`stated`",
-            {
-                calendar: Object.freeze({
-                    kind: "address",
-                    ref: "lore",
-                    accepts: Object.freeze(["lore"]),
-                    calendar: true,
-                }),
-                text: TEXT,
-            },
-            ["calendar", "text"],
-        ),
-    },
-    ["when", "summary"],
-);
-
-/** Every key an event entry admits, in the order the reference documents them. */
-export const EVENT_ENTRY_KEYS = Object.freeze(Object.keys(ENTRY.keys));
+/** The declaration of one inner key of an entry, by its path of key names. */
+function keyAt(...names) {
+    let spec = EVENT_ENTRY;
+    for (const name of names) {
+        const inner = spec.entries ?? spec;
+        spec = inner.fields.find((field) => field.name === name);
+    }
+    return spec;
+}
 
 /**
  * Every Address position inside one event entry, derived from the schema
@@ -296,6 +115,7 @@ export const EVENT_ENTRY_KEYS = Object.freeze(Object.keys(ENTRY.keys));
  */
 export const EVENT_ADDRESS_POSITIONS = Object.freeze(
     (function positions(spec, at) {
+        if (spec.own) return [];
         if (spec.kind === "address")
             return [
                 Object.freeze({
@@ -306,19 +126,17 @@ export const EVENT_ADDRESS_POSITIONS = Object.freeze(
                     ...(spec.anchors ? { anchors: spec.anchors } : {}),
                 }),
             ];
-        if (spec.kind === "list") {
-            if (spec.of.kind === "address")
-                return positions(spec.of, at).map((one) =>
+        if (spec.kind === "list" && spec.entries) {
+            if (spec.entries.kind === "address")
+                return positions(spec.entries, at).map((one) =>
                     Object.freeze({ ...one, shape: "list" }),
                 );
-            return positions(spec.of, [...at, "*"]);
+            return positions(spec.entries, [...at, "*"]);
         }
-        if (spec.kind === "map")
-            return Object.entries(spec.keys).flatMap(([key, node]) =>
-                positions(node, [...at, key]),
-            );
+        if (spec.fields)
+            return spec.fields.flatMap((field) => positions(field, [...at, field.name]));
         return [];
-    })(ENTRY, []),
+    })(EVENT_ENTRY, []),
 );
 
 /**
@@ -350,11 +168,18 @@ function mapping(value) {
 const dotted = (path) => path.map(String).join(".");
 
 /**
- * Walk one value against its schema node, collecting findings and the
- * Addresses to resolve once the shape is known.
+ * Walk one value against its declaration for what it means, collecting
+ * findings and the Addresses to resolve.
+ *
+ * Shape is not asked here. An undeclared key, a required key left out and a
+ * value of the wrong kind are the inner-key check's findings, made from the
+ * same declaration, so a value of the wrong shape is passed over rather than
+ * reported twice. What is asked is what only the event schema can say: a
+ * closed value is one of its list, text holds something, and an Address is
+ * collected for resolution.
  *
  * @param {unknown} value - The authored value.
- * @param {object} spec - Its schema node.
+ * @param {object} spec - Its declaration.
  * @param {Array<string|number>} path - Its frontmatter path.
  * @param {{at: Function, refs: object[]}} sink - Where findings and Addresses go.
  * @returns {object[]} Findings.
@@ -362,72 +187,43 @@ const dotted = (path) => path.map(String).join(".");
 function walk(value, spec, path, sink) {
     const findings = [];
     const name = dotted(path);
-    if (spec.kind === "own") return findings;
-    if (spec.kind === "text") {
-        if (typeof value !== "string" || !value.trim())
-            findings.push(
-                sink.at(path, `\`${name}\` is a string, but reads ${JSON.stringify(value)}`),
-            );
-        return findings;
-    }
-    if (spec.kind === "closed") {
-        if (!spec.values.includes(value))
+    if (spec.own || value === undefined || value === null) return findings;
+    if (spec.oneOf) {
+        if (typeof value === "string" && !spec.oneOf.values.includes(value))
             findings.push(
                 sink.at(
                     path,
-                    `\`${name}\` reads ${JSON.stringify(value)}, which \`${spec.name}\` does not ` +
-                        `admit — it takes ${spec.values.join(", ")}`,
+                    `\`${name}\` reads ${JSON.stringify(value)}, which \`${spec.name}\` does ` +
+                        `not admit — it takes ${spec.oneOf.values.join(", ")}`,
                 ),
             );
+        return findings;
+    }
+    if (spec.kind === "string") {
+        // A required key left blank is the inner-key check's finding.
+        if (typeof value === "string" && !value.trim() && !spec.required)
+            findings.push(sink.at(path, `\`${name}\` is a string, but reads ""`));
         return findings;
     }
     if (spec.kind === "address") {
         const written = writtenOf(value);
-        if (typeof written !== "string") {
+        if (typeof written === "string") sink.refs.push({ value: written, path, spec });
+        else if (typeof value !== "object")
             findings.push(
                 sink.at(path, `\`${name}\` is an Address, but reads ${JSON.stringify(value)}`),
             );
-            return findings;
-        }
-        sink.refs.push({ value: written, path, spec });
         return findings;
     }
-    if (spec.kind === "list") {
-        if (!Array.isArray(value)) {
-            findings.push(
-                sink.at(path, `\`${name}\` is a list, but reads ${JSON.stringify(value)}`),
+    if (Array.isArray(value)) {
+        if (spec.entries)
+            value.forEach((entry, position) =>
+                findings.push(...walk(entry, spec.entries, [...path, position], sink)),
             );
-            return findings;
-        }
-        value.forEach((entry, position) =>
-            findings.push(...walk(entry, spec.of, [...path, position], sink)),
-        );
         return findings;
     }
-    // A map.
-    if (!mapping(value)) {
-        findings.push(sink.at(path, `\`${name}\` is a map, but reads ${JSON.stringify(value)}`));
-        return findings;
-    }
-    const declared = Object.keys(spec.keys);
-    for (const key of Object.keys(value)) {
-        if (!Object.hasOwn(spec.keys, key)) {
-            findings.push(
-                sink.at(
-                    [...path, key],
-                    `\`${name}.${key}\`: \`${key}\` is not a key ${spec.label} declares — ` +
-                        `it takes ${declared.join(", ")}`,
-                    { key: true },
-                ),
-            );
-            continue;
-        }
-        if (value[key] === undefined || value[key] === null) continue;
-        findings.push(...walk(value[key], spec.keys[key], [...path, key], sink));
-    }
-    for (const key of spec.required) {
-        if (value[key] === undefined || value[key] === null)
-            findings.push(sink.at(path, `\`${name}\` needs \`${key}\``));
+    if (spec.fields && mapping(value)) {
+        for (const field of spec.fields)
+            findings.push(...walk(value[field.name], field, [...path, field.name], sink));
     }
     return findings;
 }
@@ -652,7 +448,7 @@ function cyclicEdges(index) {
                 if (!mapping(edge)) return;
                 const resolved = resolveRef(
                     writtenOf(edge.event),
-                    ENTRY.keys.follows.of.keys.event,
+                    keyAt("follows", "event"),
                     index,
                     reckoningContext(index),
                 );
@@ -757,15 +553,11 @@ export function checkNoteEvents(note, { index } = {}) {
 
     events.forEach((entry, position) => {
         const base = ["data", "events", position];
-        if (!mapping(entry)) {
-            findings.push(
-                at(base, `\`${dotted(base)}\` is an event map, but reads ${JSON.stringify(entry)}`),
-            );
-            return;
-        }
+        // An entry that is not a map is the inner-key check's finding.
+        if (!mapping(entry)) return;
 
         const sink = { at, refs: [] };
-        findings.push(...walk(entry, ENTRY, base, sink));
+        findings.push(...walk(entry, EVENT_ENTRY, base, sink));
 
         // Identity.
         if (entry.id === undefined || entry.id === null) {
@@ -916,24 +708,12 @@ function checkDates(row, base, note, dates, at) {
         );
         return findings;
     }
-    if (!mapping(recurs)) {
-        findings.push(at([...base, "recurs"], "`recurs` is a map of `every` or `on`"));
-        return findings;
-    }
+    // A `recurs` that is not a map, and a key it does not declare, are the
+    // inner-key check's findings.
+    if (!mapping(recurs)) return findings;
 
     const hasEvery = Object.hasOwn(recurs, "every");
     const hasOn = Object.hasOwn(recurs, "on");
-    for (const key of Object.keys(recurs)) {
-        if (key === "every" || key === "on") continue;
-        findings.push(
-            at(
-                [...base, "recurs", key],
-                `\`${dotted([...base, "recurs", key])}\`: \`${key}\` is not a key \`recurs\` ` +
-                    "declares — it takes every, on",
-                { key: true },
-            ),
-        );
-    }
     if (hasEvery && hasOn) {
         findings.push(
             at(
@@ -957,7 +737,8 @@ function checkDates(row, base, note, dates, at) {
 
     if (hasEvery) {
         const { every } = recurs;
-        if (!(Number.isInteger(every) && every >= 1)) {
+        // Not a number at all is the inner-key check's finding.
+        if (typeof every === "number" && !(Number.isInteger(every) && every >= 1)) {
             findings.push(
                 at(
                     [...base, "recurs", "every"],
@@ -980,7 +761,9 @@ function checkDates(row, base, note, dates, at) {
     }
 
     const onList = recurs.on;
-    if (!Array.isArray(onList) || onList.length === 0) {
+    // Not a list is the inner-key check's finding; an empty one is this one's.
+    if (!Array.isArray(onList)) return findings;
+    if (onList.length === 0) {
         findings.push(at([...base, "recurs", "on"], "`recurs.on` needs a list of dates"));
         return findings;
     }

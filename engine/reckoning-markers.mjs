@@ -131,6 +131,8 @@ export function resolveReckoningMarkers(index, daysPerYear) {
             );
         const byStart = new Map();
         for (const row of declared) {
+            // A fractional start is the inner-key check's one finding.
+            if (typeof row.start === "number" && !Number.isInteger(row.start)) continue;
             if (row.start !== null && (!Number.isSafeInteger(row.start) || row.start < 1)) {
                 error(
                     note,

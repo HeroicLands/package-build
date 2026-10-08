@@ -182,7 +182,6 @@ beforeAll(() => {
             "    full: House Stone",
             "data:",
             "    parents: []",
-            "    domains: [place-rgn]",
         ]),
     );
 
@@ -237,7 +236,6 @@ beforeAll(() => {
         const data = matter(fs.readFileSync(file, "utf8")).data;
         for (const key of Object.keys(data)) emitted.add(key);
         if (file.includes("place-rgn")) regionPage = data;
-        if (file.includes("affiliation-house")) expect(data.data).not.toHaveProperty("domains");
     }
 
     // `writeHugoConfig` reads the navigation a `deps fetch` caches. The

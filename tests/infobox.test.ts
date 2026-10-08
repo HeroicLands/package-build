@@ -61,6 +61,7 @@ import { infoboxesToHtml, infoboxesToTypst, sectionHasContent } from "../engine/
 import { compilesSystemDocument, noteInfoboxes } from "../engine/infobox-registry.mjs";
 import { createPackRouter } from "../engine/pack-router.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
+import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
 import { authoredKey } from "../engine/system-block.mjs";
 import { parseAddress } from "../engine/address.mjs";
@@ -115,6 +116,127 @@ function sampleFor(field: {
     if (field.kind === "number") return 7;
     if (field.kind === "list") return ["one", "two"];
     return "something";
+}
+
+/** Whether a declaration's value holds maps — a map, or a list or keyed map of them. */
+function holdsMaps(spec: any): boolean {
+    return (
+        ["map", "list-or-map", "scalar-or-map"].includes(spec.kind) ||
+        Boolean(spec.fields) ||
+        Boolean(spec.entries?.fields) ||
+        Boolean(spec.values)
+    );
+}
+
+/** A data map holding one value at a field's dotted path. */
+function nested(name: string, value: unknown): Record<string, unknown> {
+    const parts = name.split(".");
+    const out: Record<string, unknown> = {};
+    let cursor = out;
+    for (const part of parts.slice(0, -1)) cursor = cursor[part] = {} as Record<string, unknown>;
+    cursor[parts[parts.length - 1]] = value;
+    return out;
+}
+
+/** The key a keyed map's sample is written under, as its declaration says. */
+function sampleKey(spec: any): string {
+    if (spec.keyKind === "address") return `${spec.accepts?.[0] ?? spec.ref ?? "lore"}-someref`;
+    if (spec.keyKind === "shortcode") return "someskill";
+    if (spec.keys === "pack") return "default";
+    return "Somename";
+}
+
+/**
+ * A fully stated value built from a declaration, every scalar distinct, so a
+ * row labelled with one of them is a value standing where a key belongs.
+ */
+function sampleOf(spec: any, key: string): unknown {
+    if (spec.fields) {
+        return Object.fromEntries(
+            spec.fields.map((inner: any) => [inner.name, sampleOf(inner, inner.name)]),
+        );
+    }
+    if (spec.kind === "list" || spec.kind === "string-or-list") {
+        if (spec.entries) return [sampleOf(spec.entries, key)];
+        if (spec.entryKind === "address") return [addressSample(spec)];
+        return [`entry-${key}`];
+    }
+    if (spec.values || spec.kind === "map" || spec.kind === "list-or-map") {
+        const value =
+            spec.terms ? spec.terms[0].term
+            : spec.keyKind === "address" && spec.values?.kind === "string" ?
+                AFFILIATION_STANDINGS[0]
+            : spec.values ? sampleOf(spec.values, key)
+            : `value-${key}`;
+        return { [sampleKey(spec)]: value };
+    }
+    if (spec.kind === "scalar-or-map") return { [sampleKey(spec)]: addressSample(spec) };
+    if (spec.kind === "number") return 7;
+    if (spec.kind === "boolean") return true;
+    if (spec.kind === "address") return addressSample(spec);
+    if (spec.kind === "date") return "720.1";
+    return `value-${key}`;
+}
+
+/** A value with the shape a declaration describes and nothing stated in it. */
+function emptyOf(spec: any): unknown {
+    if (spec.fields)
+        return Object.fromEntries(
+            spec.fields.map((inner: any) => [inner.name, inner.kind === "list" ? [] : null]),
+        );
+    if (spec.kind === "list" || spec.kind === "string-or-list")
+        return spec.entries?.fields ? [emptyOf(spec.entries)] : [];
+    return {};
+}
+
+/** Every scalar a sample holds, at any depth. */
+function scalarsOf(value: unknown): Array<string | number> {
+    if (typeof value === "string" || typeof value === "number") return [value];
+    if (Array.isArray(value)) return value.flatMap(scalarsOf);
+    if (value && typeof value === "object" && !("shortcode" in value))
+        return Object.values(value).flatMap(scalarsOf);
+    return [];
+}
+
+/** Every map key a sample holds, at any depth, as a label reads it. */
+function sampleKeys(value: unknown): string[] {
+    if (Array.isArray(value)) return value.flatMap(sampleKeys);
+    if (value && typeof value === "object" && !("shortcode" in value))
+        return Object.entries(value).flatMap(([key, inner]) => [
+            key,
+            humanizeFieldName(key),
+            ...sampleKeys(inner),
+        ]);
+    return [];
+}
+
+/** Every inner key a declaration states, at any depth, as a label reads it. */
+function declaredKeyLabels(spec: any): string[] {
+    const own = (spec.fields ?? []).flatMap((inner: any) => [
+        inner.label ?? humanizeFieldName(inner.name),
+        ...declaredKeyLabels(inner),
+    ]);
+    return [
+        ...own,
+        ...(spec.entries ? declaredKeyLabels(spec.entries) : []),
+        ...(spec.values ? declaredKeyLabels(spec.values) : []),
+    ];
+}
+
+/** Every row label and section label a box draws. */
+function drawnLabels(box: any): string[] {
+    return box.sections.flatMap((section: any) => [
+        ...(section.label ? [section.label] : []),
+        ...(section.rows ?? []).map((row: { label: string }) => row.label),
+    ]);
+}
+
+/** Every value a box draws, as text. */
+function drawnValues(box: any): string[] {
+    return box.sections.flatMap((section: any) => [
+        ...(section.rows ?? []).map((row: any) => JSON.stringify(row.value)),
+        ...(section.entries ?? []).map((entry: any) => JSON.stringify(entry)),
+    ]);
 }
 
 /** A note of `type` with every `data:` key its vocabulary declares filled in. */
@@ -276,7 +398,10 @@ describe("the note box's fields are the type's own vocabulary", () => {
         const missing: Record<string, string[]> = {};
         for (const type of Object.keys(NOTE_VOCABULARY)) {
             const box = noteInfobox(fullyStated(type), { contentPackage: "test" });
-            const labels = new Set(box.sections[0].rows.map((row: { label: string }) => row.label));
+            const labels = new Set([
+                ...box.sections[0].rows.map((row: { label: string }) => row.label),
+                ...box.sections.slice(1).map((section: { label: string }) => section.label),
+            ]);
             for (const field of NOTE_VOCABULARY[type].data) {
                 const overlay = overlayFor(NOTE_FIELD_PRESENTATION, type, field.name);
                 if (overlay.withheld) continue;
@@ -290,6 +415,189 @@ describe("the note box's fields are the type's own vocabulary", () => {
             }
         }
         expect(missing).toEqual({});
+    });
+
+    it("labels a map-valued field's rows from its declared keys, never its values, and draws nothing for an empty one", () => {
+        const failures: string[] = [];
+        for (const type of Object.keys(NOTE_VOCABULARY)) {
+            const baseline = noteInfobox(
+                { type, name: { full: "A Note" }, data: {} },
+                { contentPackage: "test" },
+            );
+            for (const field of dataFields(type) ?? []) {
+                if (!holdsMaps(field)) continue;
+                const where = `${type}.${field.name}`;
+                const sample = sampleOf(field, field.name);
+                const box = noteInfobox(
+                    { type, name: { full: "A Note" }, data: nested(field.name, sample) },
+                    { contentPackage: "test" },
+                );
+                const overlay = overlayFor(NOTE_FIELD_PRESENTATION, type, field.name);
+                const drawn = drawnLabels(box);
+                const added = drawn.filter((label) => !drawnLabels(baseline).includes(label));
+                if (overlay.withheld) {
+                    if (added.length) failures.push(`${where}: withheld, yet draws ${added}`);
+                    continue;
+                }
+                const allowed = new Set([
+                    overlay.label ?? humanizeFieldName(field.name),
+                    ...declaredKeyLabels(field),
+                    ...sampleKeys(sample),
+                    ...(field.terms ?? []).map(({ term }: { term: string }) => presentValue(term)),
+                    ...(field.ranks ? scalarsOf(sample).map(String) : []),
+                    ...(field.keyKind === "address" && !field.terms ?
+                        AFFILIATION_STANDINGS.map((term: string) => presentValue(term))
+                    :   []),
+                ]);
+                const forbidden = new Set(
+                    field.ranks ?
+                        []
+                    :   scalarsOf(sample).flatMap((value) => [String(value), presentValue(value)]),
+                );
+                for (const label of added) {
+                    if (forbidden.has(label) && !(field.terms || field.keyKind === "address"))
+                        failures.push(
+                            `${where}: labels a row with the value ${JSON.stringify(label)}`,
+                        );
+                    else if (!allowed.has(label))
+                        failures.push(`${where}: draws a row labelled ${JSON.stringify(label)}`);
+                }
+                for (const value of drawnValues(box))
+                    if (/\[object Object\]/.test(value))
+                        failures.push(`${where}: draws ${JSON.stringify(value)}`);
+
+                const empty = noteInfobox(
+                    { type, name: { full: "A Note" }, data: nested(field.name, emptyOf(field)) },
+                    { contentPackage: "test" },
+                );
+                if (JSON.stringify(empty) !== JSON.stringify(baseline))
+                    failures.push(
+                        `${where}: an empty value draws ${JSON.stringify(empty.sections)}`,
+                    );
+            }
+        }
+        expect(failures).toEqual([]);
+    });
+
+    it("draws a declared-key map one row per present key, labelled by the key", () => {
+        const box = noteInfobox(
+            {
+                type: "lore",
+                name: { full: "The Survey" },
+                data: { survey: { realm: "Kaldor", ritual: ["Larani", "Peoni"], empty: [] } },
+            },
+            {
+                vocabulary: {
+                    lore: {
+                        data: [
+                            {
+                                name: "survey",
+                                kind: "map",
+                                shape: "a map",
+                                describe: "A fixture field.",
+                                fields: [
+                                    { name: "realm", kind: "string", shape: "a string" },
+                                    {
+                                        name: "ritual",
+                                        kind: "list",
+                                        shape: "list of strings",
+                                        entries: { kind: "string", shape: "a string" },
+                                    },
+                                    { name: "empty", kind: "list", shape: "list of strings" },
+                                ],
+                            },
+                        ],
+                    },
+                } as any,
+            },
+        );
+        expect(box.sections[0].rows).toEqual([
+            { label: "Name", kind: "text", value: "The Survey" },
+            { label: "Realm", kind: "text", value: "Kaldor" },
+            { label: "Ritual", kind: "list", value: ["Larani", "Peoni"] },
+        ]);
+        expect(infoboxesToHtml([box])).toContain("<dt>Ritual</dt><dd>Larani, Peoni</dd>");
+    });
+
+    it("shows a unit exactly as written", () => {
+        for (const unit of ["km", "mi", "ft", "m"]) {
+            const box = noteInfobox(
+                {
+                    type: "lore",
+                    name: { full: "The March" },
+                    data: { survey: { distance: 5, unit } },
+                },
+                {
+                    vocabulary: {
+                        lore: {
+                            data: [
+                                {
+                                    name: "survey",
+                                    kind: "map",
+                                    shape: "a map",
+                                    describe: "A fixture field.",
+                                    fields: [
+                                        { name: "distance", kind: "number", shape: "a number" },
+                                        {
+                                            name: "unit",
+                                            kind: "string",
+                                            verbatim: true,
+                                            shape: "a string",
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    },
+                } as any,
+            );
+            expect(box.sections[0].rows, unit).toContainEqual({
+                label: "Unit",
+                kind: "text",
+                value: unit,
+            });
+        }
+    });
+
+    it("draws no row for a declared key holding a map", () => {
+        const box = noteInfobox(
+            {
+                type: "lore",
+                name: { full: "The Survey" },
+                data: { survey: { realm: "Kaldor", nested: { a: 1 } } },
+            },
+            {
+                vocabulary: {
+                    lore: {
+                        data: [
+                            {
+                                name: "survey",
+                                kind: "map",
+                                shape: "a map",
+                                describe: "A fixture field.",
+                                fields: [
+                                    { name: "realm", kind: "string", shape: "a string" },
+                                    { name: "nested", shape: "as authored" },
+                                ],
+                            },
+                        ],
+                    },
+                } as any,
+            },
+        );
+        expect(box.sections[0].rows).toEqual([
+            { label: "Name", kind: "text", value: "The Survey" },
+            { label: "Realm", kind: "text", value: "Kaldor" },
+        ]);
+    });
+
+    it("never shows a being's HârnWorld source details", () => {
+        const box = noteInfobox({
+            type: "being",
+            name: { full: "Aran" },
+            data: { harnworld: { realm: "Kaldor", ritual: ["Larani", "Peoni"] } },
+        });
+        expect(box.sections[0].rows).toEqual([{ label: "Name", kind: "text", value: "Aran" }]);
     });
 
     it("renders a rank ladder beside its offices, in level order, and a plain address list beside them", () => {
@@ -365,11 +673,11 @@ describe("the note box's fields are the type's own vocabulary", () => {
         ]);
     });
 
-    it("withholds nothing but machinery and images", () => {
+    it("withholds nothing but machinery, images and a source system's own detail", () => {
         for (const [name, overlay] of Object.entries(NOTE_FIELD_PRESENTATION)) {
             if (!overlay.withheld) continue;
-            expect(overlay.withheld, `\`${name}\` withheld for a third reason`).toMatch(
-                /image|machinery/,
+            expect(overlay.withheld, `\`${name}\` withheld for a fourth reason`).toMatch(
+                /image|machinery|source detail/,
             );
         }
     });

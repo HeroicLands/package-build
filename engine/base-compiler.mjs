@@ -91,7 +91,7 @@ import {
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { reduceAddressFields } from "./address-fields.mjs";
 import { artPathname, artSlot, unacceptedArtMessage, unresolvedArtMessage } from "./art-fields.mjs";
-import { emitDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
+import { emitDiagnostic, positionOfFrontmatterPath, positionOfLiteral } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoDeclaredFolder } from "./folder-notes.mjs";
 import {
@@ -1366,7 +1366,9 @@ export class BasePackCompiler {
                 );
                 const position =
                     err.position ??
-                    (repeatedAnchor ?
+                    (err.keyPath ?
+                        positionOfFrontmatterPath(fs.readFileSync(absPath, "utf8"), err.keyPath)
+                    : repeatedAnchor ?
                         positionOfLiteral(
                             fs.readFileSync(absPath, "utf8"),
                             `{#${repeatedAnchor[1]}}`,

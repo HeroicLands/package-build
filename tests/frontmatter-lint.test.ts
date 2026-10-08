@@ -703,15 +703,20 @@ describe("two embedded items denoting one entity", () => {
     });
 });
 
-describe("retired affiliation domains during migration", () => {
-    it("accepts ignored legacy input without publishing it in the vocabulary", () => {
-        const legacy = note(
-            "affiliation",
-            {},
-            { subType: "polity", data: { domains: ["unresolved-old-place"] } },
-        );
-        const findings = lintNote(legacy, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });
-        expect(messages(findings)).not.toContain("domains");
+describe("affiliation domains", () => {
+    it("is an undeclared data key, reported at the key's own line", () => {
+        const affiliation = {
+            file: "/tree/affiliation.md",
+            type: "affiliation",
+            raw: "---\ntype: affiliation\ndata:\n  domains: [old-place]\n---\n",
+            fm: { type: "affiliation", subType: "polity", data: { domains: ["old-place"] } },
+        };
+        const findings = lintNote(affiliation, {
+            schemas: NOTE_SCHEMAS,
+            vocabulary: NOTE_VOCABULARY,
+        });
+        const hit = findings.find((f: any) => f.message.includes('"domains" is not'));
+        expect(hit).toMatchObject({ severity: "error", line: 4 });
         expect(dataFields("affiliation")?.some((field) => field.name === "domains")).toBe(false);
     });
     it("does not admit domains on a place", () => {

@@ -112,6 +112,122 @@ export const CALENDAR_DATE_FORMAT_KEYS = Object.freeze([
 /** Bare date tokens Calendaria substitutes inside authored format strings. */
 export { CALENDAR_FORMAT_TOKENS };
 
+/** An entry's `name`, which every calendar list states. */
+const NAME = Object.freeze({
+    name: "name",
+    kind: "string",
+    required: true,
+    shape: "a string",
+    describe: "What it is called.",
+});
+/** An entry's short form, which every calendar list may state. */
+const ABBREVIATION = Object.freeze({
+    name: "abbreviation",
+    kind: "string",
+    shape: "a string",
+    describe: "Its short form, for a compact date.",
+});
+
+/**
+ * The keys of one entry in each of a calendar's lists, as inner-key
+ * declarations.
+ *
+ * @type {Readonly<Record<string, readonly import("./data-keys.mjs").InnerKeySpec[]>>}
+ */
+export const CALENDAR_ENTRY_FIELDS = Object.freeze({
+    months: Object.freeze([
+        NAME,
+        ABBREVIATION,
+        Object.freeze({
+            name: "days",
+            kind: "integer",
+            required: true,
+            shape: "a whole number of days",
+            describe: "How many days the month holds.",
+        }),
+    ]),
+    weekdays: Object.freeze([NAME, ABBREVIATION]),
+    seasons: Object.freeze([
+        NAME,
+        ABBREVIATION,
+        Object.freeze({
+            name: "start",
+            kind: "integer",
+            required: true,
+            shape: "a one-based day of the year, as a whole number",
+            describe: "The day of the year the season begins.",
+        }),
+    ]),
+    namedDays: Object.freeze([
+        NAME,
+        ABBREVIATION,
+        Object.freeze({
+            name: "day",
+            kind: "integer",
+            required: true,
+            shape: "a one-based day of the year, as a whole number",
+            describe: "The day of the year it names.",
+        }),
+    ]),
+    eras: Object.freeze([
+        Object.freeze({
+            name: "shortcode",
+            kind: "string",
+            required: true,
+            shape:
+                "the era's own shortcode, unique within the calendar — an era is " +
+                "addressed `<calendar shortcode>.<era shortcode>`",
+            describe: "The era's own segment of `<calendar>.<era>`.",
+        }),
+        NAME,
+        Object.freeze({
+            name: "marker",
+            kind: "string",
+            shape: "uppercase letters and digits, beginning with a letter",
+            describe: "The marker an authored date names the era by, unique across the corpus.",
+        }),
+        ABBREVIATION,
+        Object.freeze({
+            name: "proclaimedBy",
+            kind: "address",
+            shape: "an Address",
+            describe: "The body that began the reckoning.",
+        }),
+        Object.freeze({
+            name: "start",
+            kind: "integer",
+            required: true,
+            nullable: true,
+            shape: "`null`, or the calendar year the era begins, as a whole number",
+            describe: "The calendar year the era begins; `null` for the era before year 1.",
+        }),
+        Object.freeze({
+            name: "label",
+            kind: "scalar-or-map",
+            shape: "a string, or an `{ after, before }` map",
+            fields: Object.freeze([
+                Object.freeze({
+                    name: "after",
+                    kind: "string",
+                    shape: "a string with one `{date}` slot",
+                    describe: "How a date in the era reads.",
+                }),
+                Object.freeze({
+                    name: "before",
+                    kind: "string",
+                    shape: "a string with one `{date}` slot",
+                    describe: "How a date before the era's start reads.",
+                }),
+            ]),
+            describe: "How a date in the era reads, around one `{date}` slot.",
+        }),
+    ]),
+});
+
+/** One list entry of a calendar field, as a map of its declared keys. */
+const entriesOf = (field, shape) =>
+    Object.freeze({ kind: "map", shape, fields: CALENDAR_ENTRY_FIELDS[field] });
+
 /**
  * The `data:` keys a calendar note may write — the closed list, in authored
  * order.
@@ -133,6 +249,7 @@ export const CALENDAR_FIELDS = Object.freeze([
         name: "months",
         shape: "list of `{ name, abbreviation?, days }`",
         kind: "list",
+        entries: entriesOf("months", "a map — `{ name, abbreviation?, days }`"),
         describe:
             "The months this calendar keeps, in order — position in the list is " +
             "position in the year, and the day counts sum to the world's year.",
@@ -141,6 +258,7 @@ export const CALENDAR_FIELDS = Object.freeze([
         name: "weekdays",
         shape: "list of `{ name, abbreviation? }`",
         kind: "list",
+        entries: entriesOf("weekdays", "a map — `{ name, abbreviation? }`"),
         describe:
             "The days of the week this calendar names, in order. A calendar with " +
             "no week writes none.",
@@ -149,18 +267,24 @@ export const CALENDAR_FIELDS = Object.freeze([
         name: "seasons",
         shape: "list of `{ name, abbreviation?, start }`",
         kind: "list",
+        entries: entriesOf("seasons", "a map — `{ name, abbreviation?, start }`"),
         describe: "The seasons this calendar marks, starting on numbered days of the year.",
     },
     {
         name: "namedDays",
         shape: "list of `{ name, abbreviation?, day }`",
         kind: "list",
+        entries: entriesOf("namedDays", "a map — `{ name, abbreviation?, day }`"),
         describe: "Names assigned to particular days of the year.",
     },
     {
         name: "eras",
         shape: "list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, label? }`",
         kind: "list",
+        entries: entriesOf(
+            "eras",
+            "a map — `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, label? }`",
+        ),
         describe:
             "The year-counts kept in this calendar. A marker names one era and uses these months.",
     },
@@ -168,6 +292,7 @@ export const CALENDAR_FIELDS = Object.freeze([
         name: "formats",
         shape: "map of named Calendaria format strings",
         kind: "map",
+        values: Object.freeze({ kind: "string", shape: "a Calendaria format string" }),
         describe: "Named patterns for reading and writing this calendar's dates.",
     },
 ]);
@@ -367,6 +492,22 @@ function notesCarrying(index, key) {
     return carrying.sort((a, b) => String(a.rel ?? a.file).localeCompare(String(b.rel ?? b.file)));
 }
 
+/**
+ * A whole number however YAML spelled it, or `undefined` — the shape the
+ * inner-key check holds a `start` or a `day` to. A value that is not one is
+ * that check's single finding, and the order of the year is not asked of it.
+ *
+ * @param {unknown} value - The authored value.
+ * @returns {number|undefined} The whole number it states.
+ */
+function whole(value) {
+    const read =
+        typeof value === "number" ? value
+        : typeof value === "string" && value.trim() !== "" ? Number(value)
+        : NaN;
+    return Number.isSafeInteger(read) ? read : undefined;
+}
+
 /** A finding positioned at a `data:` key of a note. */
 function atData(note, keyPath, severity, message) {
     return {
@@ -381,7 +522,9 @@ function atData(note, keyPath, severity, message) {
 export function checkCalendarDateFormats(note) {
     const formats = dataOf(note).formats;
     if (formats === undefined) return [];
-    if (typeof formats !== "object" || Array.isArray(formats) || !Object.keys(formats).length)
+    // A value that is not a map is the container's shape finding.
+    if (!formats || typeof formats !== "object" || Array.isArray(formats)) return [];
+    if (!Object.keys(formats).length)
         return [
             atData(note, ["formats"], "error", "data.formats needs at least one named pattern"),
         ];
@@ -398,12 +541,8 @@ export function checkCalendarDateFormats(note) {
             );
             continue;
         }
-        if (typeof value !== "string") {
-            findings.push(
-                atData(note, ["formats", slot], "error", `data.formats.${slot} must be a string`),
-            );
-            continue;
-        }
+        // A pattern that is not a string is the inner-key check's finding.
+        if (typeof value !== "string") continue;
         const syntaxError = calendarFormatSyntaxError(value);
         if (syntaxError) findings.push(atData(note, ["formats", slot], "error", syntaxError));
     }
@@ -419,22 +558,16 @@ export function checkCalendarDateFormats(note) {
 function checkCalendarDayNames(note, daysPerYear) {
     const data = dataOf(note);
     const findings = [];
+    // A list's shape, an entry's keys and an absent or mistyped name, start or
+    // day are the inner-key check's findings, made from
+    // `CALENDAR_ENTRY_FIELDS`. What is checked here is the order of the year.
     const seasons = data.seasons;
-    if (seasons !== undefined && !Array.isArray(seasons))
-        findings.push(atData(note, ["seasons"], "error", "data.seasons must be a list"));
     if (Array.isArray(seasons)) {
         let prior = 0;
         for (const [position, season] of seasons.entries()) {
-            const start = season?.start;
-            if (typeof season?.name !== "string" || !season.name.trim())
-                findings.push(
-                    atData(note, ["seasons", position, "name"], "error", "a season needs a name"),
-                );
-            if (
-                !Number.isSafeInteger(start) ||
-                start <= prior ||
-                (Number.isSafeInteger(daysPerYear) && start > daysPerYear)
-            )
+            const start = whole(season?.start);
+            if (start === undefined) continue;
+            if (start <= prior || (Number.isSafeInteger(daysPerYear) && start > daysPerYear))
                 findings.push(
                     atData(
                         note,
@@ -443,40 +576,16 @@ function checkCalendarDayNames(note, daysPerYear) {
                         "season starts must increase within the year",
                     ),
                 );
-            if (
-                Object.keys(season ?? {}).some(
-                    (key) => !["name", "abbreviation", "start"].includes(key),
-                )
-            )
-                findings.push(
-                    atData(
-                        note,
-                        ["seasons", position],
-                        "error",
-                        "a season uses only name, abbreviation, and start",
-                    ),
-                );
             prior = start;
         }
     }
     const namedDays = data.namedDays;
-    if (namedDays !== undefined && !Array.isArray(namedDays))
-        findings.push(atData(note, ["namedDays"], "error", "data.namedDays must be a list"));
     if (Array.isArray(namedDays)) {
         const seen = new Set();
         for (const [position, namedDay] of namedDays.entries()) {
-            if (typeof namedDay?.name !== "string" || !namedDay.name.trim())
-                findings.push(
-                    atData(
-                        note,
-                        ["namedDays", position, "name"],
-                        "error",
-                        "a named day needs a name",
-                    ),
-                );
-            const day = namedDay?.day;
+            const day = whole(namedDay?.day);
+            if (day === undefined) continue;
             if (
-                !Number.isSafeInteger(day) ||
                 day < 1 ||
                 (Number.isSafeInteger(daysPerYear) && day > daysPerYear) ||
                 seen.has(day)
@@ -487,19 +596,6 @@ function checkCalendarDayNames(note, daysPerYear) {
                         ["namedDays", position, "day"],
                         "error",
                         "named days need distinct days within the year",
-                    ),
-                );
-            if (
-                Object.keys(namedDay ?? {}).some(
-                    (key) => !["name", "abbreviation", "day"].includes(key),
-                )
-            )
-                findings.push(
-                    atData(
-                        note,
-                        ["namedDays", position],
-                        "error",
-                        "a named day uses only name, abbreviation, and day",
                     ),
                 );
             seen.add(day);
@@ -713,20 +809,6 @@ export function checkCalendarNote(note, { index } = {}) {
     findings.push(...checkMonthSum(note, index));
     findings.push(...checkCalendarDayNames(note, worldInvariants(index).year?.days));
     findings.push(...checkEraShortcodes(note));
-    for (const [position, day] of (Array.isArray(dataOf(note).weekdays) ?
-        dataOf(note).weekdays
-    :   []
-    ).entries()) {
-        if (day?.ordinal !== undefined)
-            findings.push(
-                atData(
-                    note,
-                    ["weekdays", position, "ordinal"],
-                    "error",
-                    "weekday order is its array position, starting at zero; omit ordinal",
-                ),
-            );
-    }
     findings.push(
         ...reckoningContext(index).findings.filter((finding) => finding.file === note.file),
     );
@@ -752,6 +834,9 @@ export function checkCalendarNote(note, { index } = {}) {
 function checkMonthSum(note, index) {
     const months = dataOf(note).months;
     if (!Array.isArray(months) || months.length === 0) return [];
+    // A month whose `days` is not a whole number is the inner-key check's
+    // finding, and a sum over it would restate that finding as a second one.
+    if (months.some((month) => whole(month?.days) === undefined)) return [];
     const days = worldInvariants(index).year?.days;
     if (typeof days !== "number") return [];
     const sum = daysInYear(months);
@@ -786,18 +871,8 @@ function checkEraShortcodes(note) {
     const findings = [];
     eras.forEach((era, position) => {
         const shortcode = String(era?.shortcode ?? "");
-        if (!shortcode) {
-            findings.push(
-                atData(
-                    note,
-                    ["eras", position],
-                    "error",
-                    "an era is addressed `<calendar shortcode>.<era shortcode>`, so " +
-                        "every row states a `shortcode` of its own",
-                ),
-            );
-            return;
-        }
+        // Absent: the inner-key check's finding.
+        if (!shortcode) return;
         if (seen.has(shortcode)) {
             findings.push(
                 atData(
@@ -810,26 +885,15 @@ function checkEraShortcodes(note) {
             );
         }
         seen.add(shortcode);
-        if (era.label === undefined) return;
+        // A label's shape and keys are the inner-key check's; its `{date}`
+        // slot is this one's.
         const label = era.label;
-        const forms = typeof label === "string" ? { after: label } : label;
-        if (!forms || typeof forms !== "object" || Array.isArray(forms)) {
-            findings.push(
-                atData(
-                    note,
-                    ["eras", position, "label"],
-                    "error",
-                    "an era label is a string or an {after, before} map",
-                ),
-            );
-            return;
-        }
+        const forms =
+            typeof label === "string" ? { after: label }
+            : label && typeof label === "object" && !Array.isArray(label) ? label
+            : {};
         for (const [key, value] of Object.entries(forms)) {
-            if (
-                !["after", "before"].includes(key) ||
-                typeof value !== "string" ||
-                value.split("{date}").length !== 2
-            )
+            if (typeof value === "string" && value.split("{date}").length !== 2)
                 findings.push(
                     atData(
                         note,

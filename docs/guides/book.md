@@ -93,9 +93,8 @@ after its introduction. A wide table inside one may float to the page top, and
 its label stays with it. A table too tall for one page takes pages of its own.
 A figure's number runs through the whole book in reading order, counted within
 its own kind. Maps attached
-to selected places use landscape pages after those entries. Regional, theatre
-of the mind, battle, and local map backgrounds also print on landscape pages.
-Battle and local maps print each Scene level's background on its own page.
+to selected places use landscape pages after those entries. A map note prints
+each of its exported Scene's level backgrounds on its own landscape page.
 The
 [content format](../content-format.md) describes image sizes, floats, and
 links as they are authored in notes.
