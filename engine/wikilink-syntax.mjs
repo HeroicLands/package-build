@@ -364,10 +364,13 @@ export function linkFindingMessage({ reason, target, packages, anchor, type, stu
                 `is published for it`
             );
         case "event-anchor":
-            return (
-                `address [[${target}#${anchor ?? ""}]] names an event, and prose links to ` +
-                `the note, not to an event — write [[${target}|…]]`
-            );
+            // A link on the event's own note has no note to link to instead,
+            // so it names nothing to write in its place.
+            return target ?
+                    `address [[${target}#${anchor ?? ""}]] names an event, and prose links to ` +
+                        `the note, not to an event — write [[${target}|…]]`
+                :   `address [[#${anchor ?? ""}]] names an event of this note, and prose ` +
+                        "links to sections, not to events — write the words without a link";
         case "unresolved":
             return unresolvedAddressMessage(target);
         case "stub":
