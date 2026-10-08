@@ -210,7 +210,8 @@ const REF_BOTH_FAULT = "ref takes form= for a figure or field= for an event, not
  *
  * @param {unknown} address - The reference's address.
  * @param {unknown} field - The field to print, one of {@link EVENT_REFERENCE_FIELDS}.
- * @param {{events?: {note: (written: string) => object|undefined}, fm?: object,
+ * @param {{events?: {note: (written: string) => object|undefined,
+ *   own?: (fm: object) => object|undefined}, fm?: object,
  *   dates?: object}} context - Every note's events, this note's frontmatter,
  *   and the reckoning context.
  * @returns {{text: string}|{problem: string}} The text, with any link reduced to
@@ -224,11 +225,14 @@ function eventReference(address, field, { events, fm, dates } = {}) {
     if (!events?.note)
         return { problem: `ref "${address}" names an event, and this build resolves none` };
     const parsed = parseWikilink(address);
-    const target = isSamePage(parsed) ? `${fm?.type}-${fm?.shortcode}` : parsed.target;
-    const note = events.note(target);
+    const same = isSamePage(parsed);
+    const note = same ? events.own?.(fm) : events.note(parsed.target);
     if (!note)
         return {
-            problem: `ref "${address}" addresses "${target}", which names no note this build resolves`,
+            problem:
+                same ?
+                    `ref "${address}" names an event of this note, which this build does not resolve`
+                :   `ref "${address}" addresses "${parsed.target}", which names no note this build resolves`,
         };
     let event;
     if (parsed.anchor) {
@@ -546,7 +550,8 @@ function positionAt(body, offset, bodyLine) {
  *   figures?: {get: (id: string) => {label: string, caption: string,
  *   hasCaption: boolean}|undefined, note?: (address: string) =>
  *   {url: string|null, figures: Map<string, object>}|undefined,
- *   link?: Function}, events?: {note: (written: string) => object|undefined},
+ *   link?: Function}, events?: {note: (written: string) => object|undefined,
+ *   own?: (fm: object) => object|undefined},
  *   file?: string, bodyLine?: number}} [options] -
  *   `figures` is the `ref` helper's own view of the corpus: `get` reads this
  *   note's captioned items by id, and `note` resolves another note's the

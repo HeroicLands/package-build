@@ -56,8 +56,10 @@ export const EVENT_REFERENCE_FIELDS = Object.freeze(["when", "until", "kind", "s
  *   indexes, as `loadForeignIndexes` returns them.
  * @param {object} [options.dates] - The reckoning context, for a record that
  *   carries no resolved dates.
- * @returns {{note: (written: string) => EventNote|undefined}} The lookup: a
- *   written Address, anchor already removed, to the note it names.
+ * @returns {{note: (written: string) => EventNote|undefined,
+ *   own: (fm: object) => EventNote|undefined}} The lookup: `note` from a
+ *   written Address, anchor already removed, to the note it names, and `own`
+ *   from a note of this package's frontmatter to that note.
  */
 export function eventNoteIndex(records, { contentPackage, foreignIndex, dates } = {}) {
     /** @type {Map<string, EventNote>} */
@@ -125,6 +127,17 @@ export function eventNoteIndex(records, { contentPackage, foreignIndex, dates } 
             );
             if (tuple.reason) return undefined;
             return byKey.get(renderAddress({ ...tuple, system: "note" }));
+        },
+        own(fm) {
+            if (!fm?.type || !fm?.shortcode) return undefined;
+            return byKey.get(
+                renderAddress({
+                    package: contentPackage ?? "local",
+                    system: "note",
+                    type: String(fm.type),
+                    shortcode: String(fm.shortcode),
+                }),
+            );
         },
     };
 }
