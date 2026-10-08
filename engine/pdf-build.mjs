@@ -983,6 +983,7 @@ export async function buildPdf({
             anchorPrefix,
             captions: numberedFigures,
             url: site,
+            indexMentions: true,
             findings,
             file: page.file,
             bodyLine: page.bodyLine,
@@ -1053,6 +1054,7 @@ export async function buildPdf({
                     anchorPrefix: entry.anchor,
                     captions: prepared.get(entry.anchor).numberedFigures,
                     url: site,
+                    indexMentions: true,
                     findings,
                     file,
                 }),
@@ -1082,6 +1084,7 @@ export async function buildPdf({
                 footnotePrefix: `footnote-front-${index + 1}`,
                 captions: frontFigures.get(file),
                 url: site,
+                indexMentions: true,
                 findings,
                 file,
             });
