@@ -43,10 +43,10 @@
  * position supplies the type. {@link splitAnchor} is the one reader of that
  * suffix — a Wikilink's anchor and a frontmatter field's are read by it alike —
  * and it hands back the Address part, which {@link parseAddress} reads as it
- * reads any other. The anchor is never part of the tuple: it names a heading, a
- * caption, a block, an alert, a poem, a span or an event *within* the note the
- * tuple names, and every anchor a note declares carries that kind
- * ({@link module:engine/anchors}).
+ * reads any other. The anchor is never part of the tuple: it names a place
+ * *within* the note the tuple names, and every anchor a note declares has one
+ * of two kinds — `prose` for one its body declares, `event` for an event's `id`
+ * ({@link module:engine/anchors}). A wikilink names a `prose` anchor only.
  *
  * **A frontmatter field accepts an anchor only where it declares the kinds it
  * takes** (`anchors: ["event"]`). Every other Address field refuses one with

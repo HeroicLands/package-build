@@ -92,7 +92,9 @@ import {
     decodeIndexAddresses,
     noteAddressContext,
     encodeAddresses,
+    publishAddresses,
 } from "./note-addresses.mjs";
+import { AddressLink } from "./address-values.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -102,7 +104,7 @@ import { metadataFileName } from "./metadata-index.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
-import { ownDocumentSystem } from "./address.mjs";
+import { ownDocumentSystem, readCanonicalKey } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
@@ -530,7 +532,14 @@ export function buildIndexRecord({
                             .sort((a, b) => (a.line ?? 0) - (b.line ?? 0))
                             .map((a) => ({
                                 ...a,
-                                link: address ? `${address.slug}#${a.slug}` : null,
+                                link:
+                                    address ?
+                                        new AddressLink(
+                                            readCanonicalKey(address.canonical),
+                                            a.slug,
+                                            a.kind,
+                                        )
+                                    :   null,
                             }))
                     ),
                 foundry: foundryBlock(entries?.own, ownDocumentSystem(frontmatter?.type)),
@@ -867,7 +876,7 @@ export function collectContentIndex(
  */
 export function serializeContentIndex(records) {
     if (records.length === 0) return "";
-    return `${records.map((r) => JSON.stringify(sortKeysDeep(encodeAddresses(r)))).join("\n")}\n`;
+    return `${records.map((r) => JSON.stringify(sortKeysDeep(publishAddresses(r)))).join("\n")}\n`;
 }
 
 /**

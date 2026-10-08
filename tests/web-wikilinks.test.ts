@@ -464,6 +464,32 @@ describe("a `#section` the target does not declare", () => {
         expect(ctx.errors).toEqual([]);
     });
 
+    it("refuses an anchor naming one of the target's events, local or foreign", () => {
+        const ctx = makeCtx();
+        (ctx.index.get("skill/climb") as { eventAnchors?: Set<string> }).eventAnchors = new Set([
+            "founding",
+        ]);
+        expect(resolveWebWikilinks("[[skill/climb#founding|Text]]", ctx)).toBe(
+            unresolved("Text", "skill/climb"),
+        );
+        expect(ctx.errors[0]).toMatchObject({ reason: "event-anchor", anchor: "founding" });
+
+        const foreign = new Map<string, object>([
+            [
+                "thalorna-sohl-creature-grkrahk",
+                {
+                    url: "/thalorna/creature/grukar-ahk/",
+                    name: "Grukar-ahk",
+                    anchors: {},
+                    noteAnchors: [{ slug: "founding", kind: "event" }],
+                },
+            ],
+        ]);
+        const other = makeCtx({ foreign });
+        resolveWebWikilinks("[[thalorna-sohl-creature-grkrahk#founding|X]]", other);
+        expect(other.errors[0]).toMatchObject({ reason: "event-anchor" });
+    });
+
     it("reports a cross-page anchor against a foreign manifest's anchor map", () => {
         // A fetched manifest publishes `{slug: uuid}`, not a `Set` — the same
         // shape the pack build reads to resolve a cross-package `@UUID`.

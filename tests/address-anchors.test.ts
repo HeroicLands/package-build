@@ -78,7 +78,9 @@ describe("every Address field that declares no anchor kind refuses one", () => {
         let count = 0;
         for (const type of Object.keys(NOTE_VOCABULARY)) {
             for (const p of addressPositions({ type }, context)) {
-                if ((p as any).anchors) continue;
+                // An event's keys are read leniently and refused by the event
+                // check, which `note-events.test.ts` holds to the same rule.
+                if ((p as any).anchors || (p as any).lenient) continue;
                 const shapes = p.shape === "keys-or-list" ? ["keys", "list"] : [p.shape as string];
                 for (const shape of shapes) {
                     const fm: any = { type };
@@ -155,9 +157,10 @@ describe("every anchor has a kind, and a note has one namespace", () => {
         ":::",
     ].join("\n");
 
-    it("records the kind of each body anchor", () => {
+    it("has exactly two kinds, and every body anchor is prose", () => {
+        expect([...ANCHOR_KINDS]).toEqual(["prose", "event"]);
         const kinds = Object.fromEntries(collectAnchors(body).map((a) => [a.slug, a.kind]));
-        expect(kinds).toMatchObject({ overview: "heading", note1: "block" });
+        expect(kinds).toEqual({ overview: "prose", note1: "prose" });
     });
 
     it("records each event id as an event anchor at its own line", () => {
@@ -229,7 +232,7 @@ describe("the published index carries every anchor with its kind", () => {
             expect(anchors.map((a: any) => [a.slug, a.kind])).toEqual([
                 ["raise", "event"],
                 ["sack", "event"],
-                ["holds", "heading"],
+                ["holds", "prose"],
             ]);
             expect(anchors[1].line).toBeGreaterThan(anchors[0].line);
         } finally {

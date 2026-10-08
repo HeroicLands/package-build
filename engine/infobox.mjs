@@ -119,12 +119,7 @@ import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { readAliasedField } from "./retired-fields.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
-import {
-    formatDateInCalendar,
-    formatNoteDate,
-    parseNoteDate,
-    resolvedDateFields,
-} from "./note-dates.mjs";
+import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
 import { displayBeingHeight, displayBeingWeight } from "./being-measurements.mjs";
 import {
     officeAnchor,
@@ -295,7 +290,7 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     bgImage: Object.freeze({ withheld: "an image, which the box never carries" }),
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
-    events: Object.freeze({ withheld: "chronology machinery, not a summary row" }),
+    events: Object.freeze({ withheld: "chronology machinery, which no infobox row draws on" }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),
@@ -982,22 +977,6 @@ function noteBox(
         const { kind, value } = applyUnit(declaredKind, built, overlay.unit);
         rows.push({ label: overlay.label ?? humanizeFieldName(field.name), kind, value });
         shown.add(field.name);
-    }
-
-    // `events` itself stays withheld — the family's shape is chronology
-    // machinery, not a summary row — but a reader meets each occurrence's
-    // own next date, the way a being's computed `age` reaches the box.
-    if (Array.isArray(data.events) && data.events.length && dates) {
-        const resolved = resolvedDateFields(fm, dates);
-        for (const eventEntry of resolved.events ?? []) {
-            if (!eventEntry.next) continue;
-            rows.push({
-                label: "Next occurrence",
-                kind: "text",
-                value: eventEntry.next.prose ?? eventEntry.next.text,
-            });
-            shown.add("events");
-        }
     }
 
     return {

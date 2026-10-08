@@ -14,6 +14,7 @@ import { calendariaEnvelope, compileCalendars } from "./calendar-notes.mjs";
 import { formatDiagnostic, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { metadataFileName } from "./packages.mjs";
+import { flattenPublishedAddresses } from "./address-values.mjs";
 
 // The import envelope requires an ISO instant. A fixed value keeps an export
 // reproducible from its source rather than stamping the build machine's clock.
@@ -43,7 +44,9 @@ function readIndex(file) {
         .filter(Boolean)
         .map((line, index) => {
             try {
-                return JSON.parse(line);
+                // Each published Address is an object; the calendar compiler
+                // reads the string an author writes.
+                return flattenPublishedAddresses(JSON.parse(line));
             } catch (cause) {
                 const error = new Error(
                     `${display}:${index + 1}: error: invalid content index record`,

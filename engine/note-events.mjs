@@ -58,6 +58,7 @@ import {
     splitAnchor,
 } from "./address.mjs";
 import { collectAnchors, eventAnchors, noteAnchorFindings } from "./anchors.mjs";
+import { AddressLink } from "./address-values.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
@@ -162,7 +163,7 @@ export const EVENT_VOCABULARIES = Object.freeze({
  *   `data:` Address field; `calendar` holds the target to a calendar note;
  *   `anchors` lists the anchor kinds a `#<anchor>` may name, and a node
  *   without it refuses one; `single` requires the Address to name exactly one
- *   event;
+ *   event; `eventOrLore` requires it to name an event or a `lore` note;
  * - `list` — a list of `of`;
  * - `map` — a closed map of `keys`, `required` naming those that must be
  *   written;
@@ -173,6 +174,8 @@ const TEXT = Object.freeze({ kind: "text" });
 const ADDRESS = Object.freeze({ kind: "address" });
 /** An Address naming a place; a bare shortcode is read as one. */
 const PLACE = Object.freeze({ kind: "address", ref: "place", accepts: Object.freeze(["place"]) });
+/** An Address naming a note of one of `types`, written with its type. */
+const ONE_OF = (...types) => Object.freeze({ kind: "address", accepts: Object.freeze(types) });
 const closed = (name, values) => Object.freeze({ kind: "closed", name, values });
 const list = (of) => Object.freeze({ kind: "list", of });
 const map = (label, keys, required = []) => Object.freeze({ kind: "map", label, keys, required });
@@ -191,7 +194,15 @@ const ENTRY = map(
         summary: TEXT,
         standing: closed("standing", EVENT_STANDINGS),
         names: list(
-            map("a `names` entry", { name: TEXT, by: ADDRESS, gloss: TEXT }, ["name", "by"]),
+            map(
+                "a `names` entry",
+                {
+                    name: TEXT,
+                    by: ONE_OF("affiliation", "lore", "place", "being", "skill"),
+                    gloss: TEXT,
+                },
+                ["name", "by"],
+            ),
         ),
         where: map("`where`", {
             locus: list(PLACE),
@@ -204,7 +215,9 @@ const ENTRY = map(
                         knowledge: closed("knowledge", REACH_KNOWLEDGE),
                         attributedTo: Object.freeze({
                             kind: "address",
+                            ref: "lore",
                             anchors: Object.freeze(["event"]),
+                            eventOrLore: true,
                         }),
                     },
                     ["place", "how", "knowledge"],
@@ -212,10 +225,14 @@ const ENTRY = map(
             ),
         }),
         who: list(
-            map("a `who` entry", { ref: ADDRESS, role: closed("role", PARTICIPANT_ROLES) }, [
-                "ref",
-                "role",
-            ]),
+            map(
+                "a `who` entry",
+                {
+                    ref: ONE_OF("being", "affiliation", "lore"),
+                    role: closed("role", PARTICIPANT_ROLES),
+                },
+                ["ref", "role"],
+            ),
         ),
         follows: list(
             map(
@@ -223,6 +240,7 @@ const ENTRY = map(
                 {
                     event: Object.freeze({
                         kind: "address",
+                        ref: "lore",
                         anchors: Object.freeze(["event"]),
                         single: true,
                     }),
@@ -236,7 +254,7 @@ const ENTRY = map(
             map(
                 "an `accounts` entry",
                 {
-                    by: ADDRESS,
+                    by: ONE_OF("affiliation", "lore", "place", "being"),
                     says: TEXT,
                     agrees: closed("agrees", ACCOUNT_AGREES),
                     withholds: TEXT,
@@ -265,6 +283,58 @@ const ENTRY = map(
 
 /** Every key an event entry admits, in the order the reference documents them. */
 export const EVENT_ENTRY_KEYS = Object.freeze(Object.keys(ENTRY.keys));
+
+/**
+ * Every Address position inside one event entry, derived from the schema
+ * above: its path from the entry (`*` for each list item), whether it holds one
+ * Address or a list of them, and its default type, accepted types and anchor
+ * kinds. The note boundary reads these Addresses into tuples, so the published
+ * index writes them as it writes every other Address.
+ *
+ * @type {ReadonlyArray<{path: readonly string[], shape: "value"|"list",
+ *   type?: string, accepts?: readonly string[], anchors?: readonly string[]}>}
+ */
+export const EVENT_ADDRESS_POSITIONS = Object.freeze(
+    (function positions(spec, at) {
+        if (spec.kind === "address")
+            return [
+                Object.freeze({
+                    path: Object.freeze(at),
+                    shape: "value",
+                    ...(spec.ref ? { type: spec.ref } : {}),
+                    ...(spec.accepts ? { accepts: spec.accepts } : {}),
+                    ...(spec.anchors ? { anchors: spec.anchors } : {}),
+                }),
+            ];
+        if (spec.kind === "list") {
+            if (spec.of.kind === "address")
+                return positions(spec.of, at).map((one) =>
+                    Object.freeze({ ...one, shape: "list" }),
+                );
+            return positions(spec.of, [...at, "*"]);
+        }
+        if (spec.kind === "map")
+            return Object.entries(spec.keys).flatMap(([key, node]) =>
+                positions(node, [...at, key]),
+            );
+        return [];
+    })(ENTRY, []),
+);
+
+/**
+ * An Address as text: the note boundary reads an event's Addresses into tuples,
+ * and an anchored one into an {@link AddressLink}, while a value it could not
+ * read stays as written. Every one is checked in its written form.
+ *
+ * @param {unknown} value - The value at an Address key.
+ * @returns {unknown} The canonical Address, with `#<anchor>` where it has one,
+ *   or the value unchanged.
+ */
+function writtenOf(value) {
+    if (isAddressTuple(value)) return renderAddress(value);
+    if (value instanceof AddressLink) return `${renderAddress(value.target)}#${value.anchor}`;
+    return value;
+}
 
 /** Whether a value is a plain map — not `null`, not an array, not a parsed Address. */
 function mapping(value) {
@@ -312,13 +382,14 @@ function walk(value, spec, path, sink) {
         return findings;
     }
     if (spec.kind === "address") {
-        if (typeof value !== "string" && !isAddressTuple(value)) {
+        const written = writtenOf(value);
+        if (typeof written !== "string") {
             findings.push(
                 sink.at(path, `\`${name}\` is an Address, but reads ${JSON.stringify(value)}`),
             );
             return findings;
         }
-        sink.refs.push({ value, path, spec });
+        sink.refs.push({ value: written, path, spec });
         return findings;
     }
     if (spec.kind === "list") {
@@ -417,6 +488,20 @@ function datedEventsOf(hit, dates) {
     }));
 }
 
+/**
+ * The types a key accepts, as a message names them: `a place note`, `a being,
+ * affiliation or lore note`.
+ *
+ * @param {readonly string[]} types - The accepted types.
+ * @returns {string} The phrase.
+ */
+function typeList(types) {
+    const article = /^[aeiou]/.test(types[0]) ? "an" : "a";
+    const named =
+        types.length === 1 ? types[0] : `${types.slice(0, -1).join(", ")} or ${types.at(-1)}`;
+    return `${article} ${named} note`;
+}
+
 /** What a reference says of an anchor its key does not accept. */
 const NO_ANCHOR = "takes no anchor — it names a whole note, so write the Address without `#…`";
 
@@ -458,8 +543,8 @@ function resolveRef(value, spec, index, dates) {
     if (spec.accepts && !acceptsType(tuple, spec.accepts))
         return {
             problem:
-                `names ${target}, which is a ${tuple.type} — it must name a ` +
-                (spec.calendar ? "calendar note" : spec.accepts.join(" or ")),
+                `names ${target}, which is a ${tuple.type} — it must name ` +
+                (spec.calendar ? "a calendar note" : typeList(spec.accepts)),
         };
     const hit = index.addressHit(target);
     if (!hit)
@@ -480,11 +565,17 @@ function resolveRef(value, spec, index, dates) {
             };
         if (!spec.anchors.includes(found.kind))
             return {
-                problem: `names ${target}#${anchor}, which is a ${found.kind ?? "anchor of no kind"}, not an ${spec.anchors.join(" or ")}`,
+                problem: `names ${target}#${anchor}, which is a ${found.kind ?? "no-kind"} anchor, not an ${spec.anchors.join(" or ")} anchor`,
             };
         const events = datedEventsOf(hit, dates);
         const position = events.findIndex((event) => event.id === anchor);
         return { hit, target, position, date: events[position]?.date ?? null };
+    }
+    if (spec.eventOrLore) {
+        if (tuple.type === "lore" || datedEventsOf(hit, dates).length === 1) return { hit, target };
+        return {
+            problem: `names ${target}, which must name an event or a lore note — it is a ${tuple.type} note holding no single event`,
+        };
     }
     if (!spec.single) return { hit, target };
     const events = datedEventsOf(hit, dates);
@@ -560,7 +651,7 @@ function cyclicEdges(index) {
             follows.forEach((edge, k) => {
                 if (!mapping(edge)) return;
                 const resolved = resolveRef(
-                    edge.event,
+                    writtenOf(edge.event),
                     ENTRY.keys.follows.of.keys.event,
                     index,
                     reckoningContext(index),

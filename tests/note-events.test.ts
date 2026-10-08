@@ -32,7 +32,7 @@ const REFERENCE = path.resolve(
 );
 
 const PACKAGE = "thalorna";
-const TYPES = new Set(["lore", "place", "affiliation", "being"]);
+const TYPES = new Set(["lore", "place", "affiliation", "being", "skill", "doc"]);
 
 /** A note as the link index hands one over, with a real frontmatter fence. */
 function note(fm: Record<string, any>, file = `${fm.type}-${fm.shortcode}.md`, body = "Prose.\n") {
@@ -76,6 +76,15 @@ const WORLD = [
     note({ type: "lore", shortcode: "folk", subType: "culture" }),
     note({ type: "lore", shortcode: "cal", subType: "calendar" }),
     note({ type: "affiliation", shortcode: "crown", subType: "polity" }),
+    note({ type: "being", shortcode: "aran", subType: "npc" }),
+    note({ type: "skill", shortcode: "tongue", subType: "language" }),
+    note({ type: "doc", shortcode: "guide" }),
+    note({
+        type: "place",
+        shortcode: "ford",
+        subType: "site",
+        data: { events: [{ when: "-300", summary: "The ford is forded." }] },
+    }),
 ];
 
 /** A complete, valid event entry, every key written. */
@@ -283,23 +292,97 @@ describe("every address-bearing key resolves", () => {
         }
     });
 
-    it("keeps requiring an explicit type in attributedTo", () => {
-        const found = findingsFor([
-            fullEvent({
-                where: {
-                    locus: ["vale"],
-                    reach: [
-                        {
-                            place: "fells",
-                            how: "x",
-                            knowledge: "misattributed",
-                            attributedTo: "folk",
+    it("reads a bare attributedTo as lore, and takes an event or a lore note", () => {
+        expect(
+            messages(
+                findingsFor([
+                    fullEvent({
+                        where: {
+                            locus: ["vale"],
+                            reach: [
+                                {
+                                    place: "fells",
+                                    how: "x",
+                                    knowledge: "misattributed",
+                                    attributedTo: "folk",
+                                },
+                            ],
                         },
-                    ],
-                },
-            }),
-        ]);
-        expect(messages(found).join("\n")).toContain("states its type");
+                    }),
+                ]),
+            ),
+        ).toEqual([]);
+        expect(
+            messages(
+                findingsFor([
+                    fullEvent({
+                        where: {
+                            locus: ["vale"],
+                            reach: [
+                                {
+                                    place: "fells",
+                                    how: "x",
+                                    knowledge: "misattributed",
+                                    attributedTo: "place-ford",
+                                },
+                            ],
+                        },
+                    }),
+                ]),
+            ),
+        ).toEqual([]);
+        const notEvent = messages(
+            findingsFor([
+                fullEvent({
+                    where: {
+                        locus: ["vale"],
+                        reach: [
+                            {
+                                place: "fells",
+                                how: "x",
+                                knowledge: "misattributed",
+                                attributedTo: "place-fells",
+                            },
+                        ],
+                    },
+                }),
+            ]),
+        ).join("\n");
+        expect(notEvent).toContain("must name an event or a lore note");
+    });
+
+    it("reads a bare follows.event as lore", () => {
+        const earlier = note({
+            type: "lore",
+            shortcode: "earlier",
+            subType: "history",
+            data: { events: [fullEvent({ when: "-900" })] },
+        });
+        expect(
+            messages(
+                findingsFor([fullEvent({ follows: [{ event: "earlier", how: "caused" }] })], {
+                    extra: [earlier],
+                }),
+            ),
+        ).toEqual([]);
+    });
+
+    it("holds who.ref, accounts.by and names.by to the types each accepts", () => {
+        const refused = (override: Record<string, unknown>) =>
+            messages(findingsFor([fullEvent(override)])).join("\n");
+        expect(refused({ who: [{ ref: "being-aran", role: "actor" }] })).toBe("");
+        expect(refused({ who: [{ ref: "place-vale", role: "actor" }] })).toContain(
+            "must name a being, affiliation or lore note",
+        );
+        expect(refused({ accounts: [{ by: "being-aran", says: "x", agrees: "full" }] })).toBe("");
+        expect(
+            refused({ accounts: [{ by: "skill-tongue", says: "x", agrees: "full" }] }),
+        ).toContain("must name an affiliation, lore, place or being note");
+        expect(refused({ names: [{ name: "X", by: "skill-tongue" }] })).toBe("");
+        expect(refused({ names: [{ name: "X", by: "doc-guide" }] })).toContain(
+            "must name an affiliation, lore, place, being or skill note",
+        );
+        expect(refused({ sources: ["doc-guide"] })).toBe("");
     });
 
     it("refuses a stated calendar that is not a calendar note", () => {
@@ -401,7 +484,7 @@ describe("an event's identity", () => {
             { extra: [withHeading] },
         );
         expect(heading).toHaveLength(1);
-        expect(heading[0].message).toContain("is a heading, not an event");
+        expect(heading[0].message).toContain("is a prose anchor, not an event anchor");
         const event = findingsFor(
             [fullEvent({ follows: [{ event: "place-ironfells#sack", how: "caused" }] })],
             { extra: [withHeading] },
@@ -445,7 +528,7 @@ describe("a follows edge into another package", () => {
             package: "dep",
             type: "lore",
             noteAnchors: [
-                { slug: "holds", kind: "heading" },
+                { slug: "holds", kind: "prose" },
                 { slug: "rise", kind: "event" },
                 { slug: "sack", kind: "event" },
             ],
@@ -499,7 +582,7 @@ describe("a follows edge into another package", () => {
                 }),
             ]),
         ).join("\n");
-        expect(found).toContain("is a heading, not an event");
+        expect(found).toContain("is a prose anchor, not an event anchor");
         expect(found).toContain("declares no anchor burn");
         expect(found).toContain("holds 2 events");
     });

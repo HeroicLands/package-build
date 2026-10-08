@@ -28,7 +28,7 @@
 
 import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
-import { encodeAddresses } from "./address-values.mjs";
+import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -220,7 +220,22 @@ export async function openNotesDatabase(
         if (!dep?.id || !dep?.file || !fs.existsSync(dep.file)) continue;
         const schema = `"${String(dep.id).replace(/"/g, '""')}"`;
         await connection.run(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
-        await createRelations(connection, dep.file, `${schema}.`, audience);
+        // A published index writes each Address as an object; a fence compares
+        // the string an author writes, so each is flattened to it on load.
+        const flat = path.join(
+            base,
+            `dependency-${String(dep.id).replace(/[^a-z0-9]/gi, "_")}.jsonl`,
+        );
+        fs.writeFileSync(
+            flat,
+            fs
+                .readFileSync(dep.file, "utf8")
+                .split("\n")
+                .filter((line) => line.trim())
+                .map((line) => JSON.stringify(flattenPublishedAddresses(JSON.parse(line))))
+                .join("\n"),
+        );
+        await createRelations(connection, flat, `${schema}.`, audience);
     }
 
     // The market scale as a relation, so a table prints `village` beside the

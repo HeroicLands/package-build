@@ -17,7 +17,7 @@
  *
  * **Every anchor has a kind** — one of {@link ANCHOR_KINDS} — so a position
  * that accepts an anchor can say which kinds it takes: a `follows` edge names
- * an `event`, never a heading. **A note has one namespace**: its event `id`s
+ * an `event`, and a wikilink a `prose` anchor. **A note has one namespace**: its event `id`s
  * sit beside its body anchors, and a slug two of them share is a finding.
  *
  * **A leaf, deliberately.** This is asked by the link checker, by the content
@@ -46,18 +46,11 @@ import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 /**
- * What an anchor marks: a heading, a figure's caption, a div or disclosure
- * block, an alert, a poem, an inline span, or an entry of `data.events`.
+ * What an anchor marks. `prose` is every anchor the body declares — a heading,
+ * a caption, a block, an alert, a poem or a span — and `event` is the `id` of
+ * an entry in `data.events`.
  */
-export const ANCHOR_KINDS = Object.freeze([
-    "heading",
-    "caption",
-    "block",
-    "alert",
-    "poem",
-    "span",
-    "event",
-]);
+export const ANCHOR_KINDS = Object.freeze(["prose", "event"]);
 
 /**
  * The identifiers a note declares on headings, captions, divs, poems and spans.
@@ -97,7 +90,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
             name: attributes.text,
             level: heading[1].length,
             line: bodyLine + i,
-            kind: "heading",
+            kind: "prose",
         });
     }
     for (const figure of scanFigures(body, { resolveRole }).figures) {
@@ -107,7 +100,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
             name: figure.label || figure.caption,
             level: 1,
             line: bodyLine + figure.line - 1,
-            kind: "caption",
+            kind: "prose",
         });
     }
     const blockAnchors = (source, firstLine) => {
@@ -119,7 +112,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
                     name: block.title || block.id,
                     level: 0,
                     line: firstLine + block.start,
-                    kind: "block",
+                    kind: "prose",
                 });
             blockAnchors(
                 sourceLines.slice(block.start + 1, block.end).join("\n"),
@@ -135,7 +128,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
                 name: alert.title,
                 level: 0,
                 line: bodyLine + alert.start,
-                kind: "alert",
+                kind: "prose",
             });
     }
     for (const poem of scanPoetry(body).blocks) {
@@ -145,7 +138,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
                 name: poem.id,
                 level: 0,
                 line: bodyLine + poem.start,
-                kind: "poem",
+                kind: "prose",
             });
     }
     for (const span of scanSpans(body).spans) {
@@ -155,7 +148,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
                 name: span.text,
                 level: 0,
                 line: bodyLine + span.line - 1,
-                kind: "span",
+                kind: "prose",
             });
     }
     return anchors.sort((a, b) => a.line - b.line);
@@ -258,9 +251,9 @@ export function noteAnchorFindings(note) {
             ...positionOfFrontmatterPath(note.raw ?? "", ["data", "events", position, "id"]),
             severity: "error",
             message:
-                `\`data.events.${position}.id\` ${event.slug} is already the anchor of a ` +
-                `${other.kind} in this note — a note's anchors are one namespace, so an ` +
-                "event's `id` differs from every heading, caption and block slug",
+                `\`data.events.${position}.id\` ${event.slug} is already a prose anchor ` +
+                "in this note — a note's anchors are one namespace, so an event's `id` " +
+                "differs from every heading, caption and block slug",
         });
     }
     return findings;

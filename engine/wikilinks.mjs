@@ -56,6 +56,7 @@ import { replaceOutsideCode } from "./code-fences.mjs";
 import {
     authoredLabel,
     WIKILINK,
+    isEventAnchor,
     parseWikilink,
     unlabelledLinkMessage,
 } from "./wikilink-syntax.mjs";
@@ -486,6 +487,17 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
                 return unresolvedLink(text || target, target);
             }
             const hit = hits[0] ?? null;
+            if (hit && slug && isEventAnchor(hit, slug)) {
+                unresolved.push({
+                    link: all,
+                    target,
+                    offset,
+                    reason: "event-anchor",
+                    anchor: slug,
+                    addressed: true,
+                });
+                return unresolvedLink(text || target, target);
+            }
             if (hit) {
                 const uuid = slug ? hit.anchors?.[slug] : hit.uuid;
                 if (uuid) {
@@ -553,11 +565,20 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
         // the manifest carries the map — and a local one now is too, from the
         // anchor set the index carries.
         const anchorUuids = itemDoc ? addresses.docAnchors : addresses.anchors;
-        // An event is an anchor of the note with no page of its own, so a link
-        // to it opens the note's journal at its first page.
-        const eventAnchor = Boolean(slug && !itemDoc && doc.eventAnchors?.has(slug));
+        // A wikilink names a prose anchor; an event's id is refused here, before
+        // any surface renders a link to it.
+        if (slug && isEventAnchor(doc, slug)) {
+            unresolved.push({
+                link: all,
+                target,
+                offset,
+                reason: "event-anchor",
+                anchor: slug,
+                addressed: true,
+            });
+            return unresolvedLink(text || doc.name || target, target);
+        }
         if (
-            !eventAnchor &&
             slug &&
             isJournal &&
             ((doc.anchors && !doc.anchors.has(slug)) ||
@@ -574,7 +595,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
             return unresolvedLink(text || doc.name || target, target);
         }
         const uuid =
-            slug && isJournal && !eventAnchor ?
+            slug && isJournal ?
                 (anchorUuids?.[slug] ?? pageUuid(entryUuid, anchorPageId(entryId, slug)))
             :   entryUuid;
         const link = `@UUID[${uuid}]{${text}}`;

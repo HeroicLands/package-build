@@ -169,6 +169,7 @@ describe("one vocabulary of link findings", () => {
     it("is a closed set the three resolvers draw from", () => {
         expect([...LINK_FINDING_REASONS].sort()).toEqual([
             "ambiguous",
+            "event-anchor",
             "gm",
             "no-content-index",
             "not-an-address",

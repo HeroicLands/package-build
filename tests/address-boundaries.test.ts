@@ -472,6 +472,9 @@ describe("Address read and write boundaries", () => {
         let count = 0;
         for (const type of Object.keys(NOTE_VOCABULARY)) {
             for (const position of addressPositions({ type }, context)) {
+                // An event entry is read leniently; its malformed containers
+                // are refused by the event check at their own key.
+                if ((position as any).lenient) continue;
                 const wildcard = position.path.indexOf("*");
                 if (wildcard < 0) continue;
                 const containerPath = position.path.slice(0, wildcard);

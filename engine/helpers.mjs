@@ -920,9 +920,13 @@ export function buildContentLinkIndex(
             // discarded here — the walk yields the body and nothing read it.
             // Read from the record rather than from a second reading of the
             // note's headings — the one-anchor-reader rule.
-            anchors: new Set((record.anchors ?? []).map((anchor) => anchor.slug)),
-            // An event's anchor marks no journal page, so a link to one opens
-            // the note's journal.
+            anchors: new Set(
+                (record.anchors ?? [])
+                    .filter((anchor) => anchor.kind === "prose")
+                    .map((anchor) => anchor.slug),
+            ),
+            // The note's event ids, which a wikilink may not name: a link to
+            // one is refused with its own message rather than as unknown.
             eventAnchors: new Set(
                 (record.anchors ?? [])
                     .filter((anchor) => anchor.kind === "event")
