@@ -235,13 +235,15 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape  | Meaning                                                    |
-| ----------------------- | ------ | ---------------------------------------------------------- |
-| `data.templatePriority` | number | Template priority; unset means the note is not a template. |
-| `data.weight`           | number | What the thing weighs.                                     |
-| `data.value`            | number | What the thing is worth.                                   |
-| `data.quality`          | number | How well it is made.                                       |
-| `data.durability`       | number | How much wear it takes before it fails.                    |
+| Field                   | Shape                   | Meaning                                                                                                      |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
+| `data.weight`           | number                  | What the thing weighs.                                                                                       |
+| `data.value`            | number                  | What the thing is worth.                                                                                     |
+| `data.quality`          | number                  | How well it is made.                                                                                         |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
 
 **System mappings**
 
@@ -274,16 +276,18 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `mundane`, `exotic`, `elixir`.
 
-| Field                   | Shape  | Meaning                                                    |
-| ----------------------- | ------ | ---------------------------------------------------------- |
-| `data.templatePriority` | number | Template priority; unset means the note is not a template. |
-| `data.weight`           | number | What the thing weighs.                                     |
-| `data.value`            | number | What the thing is worth.                                   |
-| `data.quality`          | number | How well it is made.                                       |
-| `data.durability`       | number | How much wear it takes before it fails.                    |
-| `data.quantity`         | number | How many of the thing there are; one when unstated.        |
-| `data.potency`          | string | Potency — `na`, `mild`, `strong` or `great`.               |
-| `data.strength`         | number | Strength; the higher, the stronger.                        |
+| Field                   | Shape                   | Meaning                                                                                                      |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
+| `data.weight`           | number                  | What the thing weighs.                                                                                       |
+| `data.value`            | number                  | What the thing is worth.                                                                                     |
+| `data.quality`          | number                  | How well it is made.                                                                                         |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
+| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                          |
+| `data.potency`          | string                  | Potency — `na`, `mild`, `strong` or `great`.                                                                 |
+| `data.strength`         | number                  | Strength; the higher, the stronger.                                                                          |
 
 **System mappings**
 
@@ -299,14 +303,16 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape  | Meaning                                                    |
-| ----------------------- | ------ | ---------------------------------------------------------- |
-| `data.templatePriority` | number | Template priority; unset means the note is not a template. |
-| `data.weight`           | number | What the thing weighs.                                     |
-| `data.value`            | number | What the thing is worth.                                   |
-| `data.quality`          | number | How well it is made.                                       |
-| `data.durability`       | number | How much wear it takes before it fails.                    |
-| `data.capacity`         | number | How much it holds.                                         |
+| Field                   | Shape                   | Meaning                                                                                                      |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
+| `data.weight`           | number                  | What the thing weighs.                                                                                       |
+| `data.value`            | number                  | What the thing is worth.                                                                                     |
+| `data.quality`          | number                  | How well it is made.                                                                                         |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
+| `data.capacity`         | number                  | How much it holds.                                                                                           |
 
 **System mappings**
 
@@ -324,14 +330,16 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape  | Meaning                                                    |
-| ----------------------- | ------ | ---------------------------------------------------------- |
-| `data.templatePriority` | number | Template priority; unset means the note is not a template. |
-| `data.weight`           | number | What the thing weighs.                                     |
-| `data.value`            | number | What the thing is worth.                                   |
-| `data.quality`          | number | How well it is made.                                       |
-| `data.durability`       | number | How much wear it takes before it fails.                    |
-| `data.quantity`         | number | How many of the thing there are; one when unstated.        |
+| Field                   | Shape                   | Meaning                                                                                                      |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
+| `data.weight`           | number                  | What the thing weighs.                                                                                       |
+| `data.value`            | number                  | What the thing is worth.                                                                                     |
+| `data.quality`          | number                  | How well it is made.                                                                                         |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
+| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                          |
 
 **System mappings**
 
@@ -394,14 +402,16 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `none`, `arrow`, `bolt`, `bullet`, `dart`, `other`.
 
-| Field                   | Shape  | Meaning                                                    |
-| ----------------------- | ------ | ---------------------------------------------------------- |
-| `data.templatePriority` | number | Template priority; unset means the note is not a template. |
-| `data.weight`           | number | What the thing weighs.                                     |
-| `data.value`            | number | What the thing is worth.                                   |
-| `data.quality`          | number | How well it is made.                                       |
-| `data.durability`       | number | How much wear it takes before it fails.                    |
-| `data.quantity`         | number | How many of the thing there are; one when unstated.        |
+| Field                   | Shape                   | Meaning                                                                                                      |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
+| `data.weight`           | number                  | What the thing weighs.                                                                                       |
+| `data.value`            | number                  | What the thing is worth.                                                                                     |
+| `data.quality`          | number                  | How well it is made.                                                                                         |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
+| `data.quantity`         | number                  | How many of the thing there are; one when unstated.                                                          |
 
 **System mappings**
 
@@ -463,13 +473,15 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** None.
 
-| Field                   | Shape  | Meaning                                                    |
-| ----------------------- | ------ | ---------------------------------------------------------- |
-| `data.templatePriority` | number | Template priority; unset means the note is not a template. |
-| `data.weight`           | number | What the thing weighs.                                     |
-| `data.value`            | number | What the thing is worth.                                   |
-| `data.quality`          | number | How well it is made.                                       |
-| `data.durability`       | number | How much wear it takes before it fails.                    |
+| Field                   | Shape                   | Meaning                                                                                                      |
+| ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
+| `data.weight`           | number                  | What the thing weighs.                                                                                       |
+| `data.value`            | number                  | What the thing is worth.                                                                                     |
+| `data.quality`          | number                  | How well it is made.                                                                                         |
+| `data.durability`       | number                  | How much wear it takes before it fails.                                                                      |
+| `data.made`             | an Address of one event | The event in which the thing was made — `lore-forging`, or one event of a note as `place-ironfells#raising`. |
+| `data.lost`             | an Address of one event | The event in which the thing was lost — `lore-flood`, or one event of a note as `place-ironfells#sack`.      |
 
 **System mappings**
 
@@ -499,7 +511,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.formats`   | map of named Calendaria format strings                                              | Named patterns for reading and writing this calendar's dates.                                                                        |
 | `data.culture`   | an Address                                                                          | The people whose work this is, as a culture lore note.                                                                               |
 | `data.form`      | string                                                                              | The kind of work in its people's own terms — an epic, a saga, a praise-song, an elegy. Free text.                                    |
-| `data.subjects`  | list of Addresses                                                                   | The beings, places, gods, events and other notes the work concerns.                                                                  |
+| `data.subjects`  | list of Addresses                                                                   | The beings, places, gods and other notes the work concerns, and each event it concerns, named as `place-ironfells#sack`.             |
 | `data.language`  | an Address                                                                          | The tongue the work is composed in, as a language skill note.                                                                        |
 | `data.events`    | list of event entries                                                               | What happened to or at this subject — each entry one dated, attributed event: a founding, a war, a fall, or an occasion that recurs. |
 

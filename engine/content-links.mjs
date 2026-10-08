@@ -260,10 +260,11 @@ export function buildLinkIndex(
             // filed where a link cannot reach it and a reference still can.
             const into = record.address ? byKey : byStub;
             into.set(canonical, note);
-            if (hasDocEntry(type)) {
-                // The prose has one `note` Address across all system blocks.
+            // The prose has one `note` Address across all system blocks, and
+            // every note answers to it — whether or not a system compiles the
+            // type into a document of its own, as the site index keys it.
+            if (hasDocEntry(type) || ownDocumentSystem(type) !== NOTE_SYSTEM)
                 into.set(canonicalKey(pkg, NOTE_SYSTEM, type, fm.shortcode), note);
-            }
         }
     }
 
@@ -994,7 +995,11 @@ export function auditLinks(index) {
             if (!labelled) {
                 unlabelledLinks.push({
                     note,
-                    target: rawTarget || (anchor ? `#${anchor}` : ""),
+                    // Quoted as written, anchor included — the literal between
+                    // the brackets, as the site build quotes it.
+                    target:
+                        /^!?\[\[([\s\S]*)\]\]$/.exec(text ?? "")?.[1] ??
+                        `${rawTarget ?? ""}${anchor ? `#${anchor}` : ""}`,
                     text,
                     occurrence,
                     // Carried like every other finding's, so a reporter reads

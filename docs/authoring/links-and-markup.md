@@ -59,7 +59,7 @@ The section runs from that heading to the next heading that opens a page. In Fou
 
 **On the website this is a spoiler, not access control.** The withheld section is in the published page, so anyone who opens the element or reads the page source reads it. Foundry is the only surface that withholds anything. Write nothing in a `.secret` section that would matter if a player read it on the web.
 
-A `:::secret` block inside the section is legal and renders as it does anywhere else. `.secret` on a heading that opens no page — a lower-level heading with no anchor — covers no page, and is reported at its own line: give that heading an anchor, or raise it to the top level.
+A captioned item inside the section is withheld with it: in Foundry the item's own page, and the page that resumes the section after it, are the GM's alone. A `:::secret` block inside the section is legal and renders as it does anywhere else. `.secret` on a heading that opens no page — a lower-level heading with no anchor — covers no page, and is reported at its own line: give that heading an anchor, or raise it to the top level.
 
 The special Actor anchors `{#appearance}` and `{#dossier}` feed the same authored sections to each system's Actor fields, and take an H1 only — not the lower-level heading a journal page may otherwise start from. The section runs to the next H1, nested headings included. An anchor declared on a lower heading is still found, and is a build error rather than a quietly empty field: move the heading to the top level, or drop the anchor if the section is meant to stay unaddressed prose.
 
@@ -100,7 +100,7 @@ Each numbered type has its own counter. Websites and Foundry number within a not
 
 Foundry gives a captioned item a JournalEntryPage holding the item alone, named for its number or, unnumbered, for the caption's visible text — links and emphasis reduced to the words a reader sees. A solitary image with a plain caption can use an image page; captions with inline markup and other items use text pages. The body after the item resumes on a continuation page carrying the interrupted section's name, level and classes, with its title hidden; nothing is emitted when the next page begins straight after the item. On the website and in the book the item stays in the flow of the surrounding page.
 
-**Migration:** `:::figure` is no longer supported. Move the former `///` caption before the item as `:@ Caption {#id}` and remove the figure wrapper. To caption a group or passage, put it inside a generic fenced div and caption that div with an explicit type if needed. `///` is no longer a caption delimiter.
+To caption a group or passage, put it inside a generic fenced div and caption that div, with an explicit type where the inferred one does not fit.
 
 ## Images and protected content
 
@@ -167,8 +167,6 @@ Attributes follow the marker and apply to the alert:
 ```
 
 Use `#id`, `.class` and named attributes in the shared braced grammar. The marker determines the default label, icon and color. An authored `title` replaces the default **Note**, **Tip**, **Important** or **Warning** heading while preserving the alert type’s icon and color. Event-handler attributes, malformed attributes, unknown alert types and empty alert bodies are errors. Ordinary blockquotes and alert examples inside literal code remain unchanged. A leading caption can describe an alert as a quote block, normally with the `prose` type or an explicit `example` type.
-
-Migrate former info blocks to `[!NOTE]` alerts and warn blocks to `[!WARNING]` alerts. The old named fences are errors. `:::secret` remains supported.
 
 ### Secret blocks
 
@@ -244,7 +242,7 @@ The lantern marks the shore.
 ```
 ````
 
-This uses the **Poem** counter, so `{{ref "#watch-song"}}` reads **Poem 1**. Use `:` for a caption without a number. `:::poetry` is no longer supported.
+This uses the **Poem** counter, so `{{ref "#watch-song"}}` reads **Poem 1**. Use `:` for a caption without a number.
 
 ## Footnotes and definition lists
 
@@ -311,14 +309,88 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 
 ### What a query can read
 
-| Relation          | What it holds                                                                                                                 |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `notes`           | Every note except a stub. This is the one to use unless a stub is wanted.                                                     |
-| `entries`         | Every note, stubs included.                                                                                                   |
-| `market`          | The market scale as three columns — `value`, `name`, `trade` — so a table can print `village` beside the number a note wrote. |
-| `<package>.notes` | The same two relations for each package this one declares a dependency on, in a schema named for it.                          |
+| Relation          | What it holds                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `notes`           | Every note except a stub. This is the one to use unless a stub is wanted.                                                            |
+| `entries`         | Every note, stubs included.                                                                                                          |
+| `events`          | One row per event a `lore`, `place` or `affiliation` note writes in `data.events`, with `whenSort` to order them by date.            |
+| `market`          | The market scale as three columns — `value`, `name`, `trade` — so a table can print `village` beside the number a note wrote.        |
+| `<package>.notes` | The same relations — `notes`, `entries` and `events` — for each package this one declares a dependency on, in a schema named for it. |
 
 Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.weight`, `data.born`. Every Address is a string — the full canonical Address, as in `list_contains(data.parents, 'thalorna-note-place-xerathia')` — whichever package published it. Every note carries a computed `state` column of `full`, `draft` or `stub`. Notes tagged `gm` are absent from the relations on public surfaces.
+
+### Sections the build adds about events
+
+A note's events are listed for you on the notes they concern: a place gets a **Chronology** of what happened there and below it, with every `depth: world` event as context, a being, affiliation or people the **Events** it took part in, an affiliation, place or people the **Accounts** it gives, and a note holding events **What followed** them. Each is a section appended after everything you wrote, with a fixed anchor — `chronology`, `events`, `accounts`, `followed` — and it appears only where it has something to list.
+
+To replace one, write the section yourself with the same anchor. The build then adds nothing for it and leaves yours exactly as written:
+
+````markdown
+# Chronology {#chronology}
+
+The fells keep no reckoning before the raising.
+
+```sql
+SELECT summary AS "What happened", "when" AS "When"
+FROM events
+WHERE list_contains("where".locus, 'thalorna-note-place-ironfells')
+ORDER BY whenSort
+```
+````
+
+The [format reference](../reference/format-details.md#event-views) lists what each view selects.
+
+### A century view
+
+A view of what happened in one century is a fence an author writes, on whatever note should carry it. Filter `events` on `whenYear`, leave out events of local reach, and order by `whenSort`:
+
+````markdown
+# The Third Century {#third-century}
+
+```sql
+SELECT note                                   AS _ref,
+       summary                                AS "What happened",
+       "when"                                 AS "When",
+       array_to_string("where".locus, ', ')   AS "Where"
+FROM events
+WHERE whenYear BETWEEN 200 AND 299
+  AND depth <> 'local'
+ORDER BY whenSort, address
+```
+````
+
+Each row is one event, linked to the note that records it, with its date as the note wrote it and the Addresses of the places it happened at:
+
+| What happened                                      | When | Where                                              |
+| -------------------------------------------------- | ---- | -------------------------------------------------- |
+| [Ironfells is sacked.](/thalorna/place-ironfells/) | ~280 | thalorna-note-place-ironfells                      |
+| [The fords are bridged.](/thalorna/lore-fords/)    | ~291 | thalorna-note-place-east, thalorna-note-place-west |
+
+`depth <> 'local'` also leaves out an event that states no `depth`; write `depth IS DISTINCT FROM 'local'` to keep those. `whenYear` is the year on the canonical axis, which counts a year `0` that written dates skip: a year written after zero keeps its number, and one written before zero sits one higher. So `whenYear BETWEEN -299 AND -200` selects the events written `-300` to `-201`.
+
+To print each place by its name rather than its Address, join `notes` on the place's Address. The `GROUP BY` keeps one row per event when it happened in several places:
+
+````markdown
+```sql
+SELECT e.note                          AS _ref,
+       e.summary                       AS "What happened",
+       e."when"                        AS "When",
+       string_agg(p.name.full, ', ')   AS "Where"
+FROM events e
+LEFT JOIN notes p ON list_contains(e."where".locus, p.address.canonical)
+WHERE e.whenYear BETWEEN 200 AND 299
+  AND e.depth <> 'local'
+GROUP BY e.note, e.address, e.summary, e."when", e.whenSort
+ORDER BY e.whenSort, e.address
+```
+````
+
+| What happened                                      | When | Where      |
+| -------------------------------------------------- | ---- | ---------- |
+| [Ironfells is sacked.](/thalorna/place-ironfells/) | ~280 | Ironfells  |
+| [The fords are bridged.](/thalorna/lore-fords/)    | ~291 | East, West |
+
+An event with no `where.locus` keeps its row with an empty **Where** cell.
 
 ### Fence attributes
 
@@ -418,24 +490,48 @@ There are {{words (sql "SELECT COUNT(*) FROM notes WHERE type = 'being'")}} bein
 
 <!-- expression-helpers:start -->
 
-| Helper       | Parameters                                 | What it gives you                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------ | ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `eq`         | `a b`                                      | True when both are the same value. Compares exactly, so 1 and "1" differ.                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `gt`         | `a b`                                      | True when a is greater than b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `gte`        | `a b`                                      | True when a is greater than or equal to b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `lt`         | `a b`                                      | True when a is less than b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                                                                                                                                           |
-| `lte`        | `a b`                                      | True when a is less than or equal to b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `not`        | `value`                                    | True when the value is false, zero, empty or absent.                                                                                                                                                                                                                                                                                                                                                                                                                               |
-| `and`        | `value …`                                  | True when every value given is true. Takes two or more.                                                                                                                                                                                                                                                                                                                                                                                                                            |
-| `or`         | `value …`                                  | True when any value given is true. Takes two or more.                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `words`      | `number`                                   | The number spelled out for running prose — `1200` becomes one thousand two hundred. Whole numbers only; a decimal is a finding, and `digits` takes one.                                                                                                                                                                                                                                                                                                                            |
-| `digits`     | `number`                                   | The number as a grouped numeral — `1200` becomes 1,200, and a fractional part is kept.                                                                                                                                                                                                                                                                                                                                                                                             |
-| `sql`        | `"query"`                                  | The single value a query returns, for use inside a sentence. The query is a quoted string, the same SQL a table fence takes.                                                                                                                                                                                                                                                                                                                                                       |
-| `dateformat` | `calendar date ["format"]`                 | A date written in a calendar. The calendar is an Address or its shortcode, the date is the value a note carries, and the optional third argument names an output pattern.                                                                                                                                                                                                                                                                                                          |
-| `ref`        | `address [form="number"\|"full"\|"title"]` | A link to a captioned item, by its anchor — `"#thorn"` on this note, `"note-address#thorn"` on another. `form` is `number` (the default, and admitted explicitly), rendering "Figure 13"; `full`, the number and the caption; or `title`, the caption alone. Always renders as a link to the figure, and a link inside the caption contributes only its label text. The number rendered is the one the figure carries on the surface doing the rendering, whichever note names it. |
+| Helper       | Parameters                                                                                             | What it gives you                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `eq`         | `a b`                                                                                                  | True when both are the same value. Compares exactly, so 1 and "1" differ.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `gt`         | `a b`                                                                                                  | True when a is greater than b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `gte`        | `a b`                                                                                                  | True when a is greater than or equal to b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `lt`         | `a b`                                                                                                  | True when a is less than b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `lte`        | `a b`                                                                                                  | True when a is less than or equal to b. Both must be finite numbers.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `not`        | `value`                                                                                                | True when the value is false, zero, empty or absent.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `and`        | `value …`                                                                                              | True when every value given is true. Takes two or more.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `or`         | `value …`                                                                                              | True when any value given is true. Takes two or more.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `words`      | `number`                                                                                               | The number spelled out for running prose — `1200` becomes one thousand two hundred. Whole numbers only; a decimal is a finding, and `digits` takes one.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `digits`     | `number`                                                                                               | The number as a grouped numeral — `1200` becomes 1,200, and a fractional part is kept.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `sql`        | `"query"`                                                                                              | The single value a query returns, for use inside a sentence. The query is a quoted string, the same SQL a table fence takes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| `dateformat` | `calendar date ["format"]`                                                                             | A date written in a calendar. The calendar is an Address or its shortcode, the date is the value a note carries, and the optional third argument names an output pattern.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| `ref`        | `address [form="number"\|"full"\|"title"] \| address field="when"\|"until"\|"kind"\|"summary"\|"name"` | A link to a captioned item, by its anchor — `"#thorn"` on this note, `"note-address#thorn"` on another. `form` is `number` (the default, and admitted explicitly), rendering "Figure 13"; `full`, the number and the caption; or `title`, the caption alone. Always renders as a link to the figure, and a link inside the caption contributes only its label text. The number rendered is the one the figure carries on the surface doing the rendering, whichever note names it. With `field` in place of `form`, the address names an event — `"place-ironfells#sack"`, `"#sack"` on this note, or `"lore-founding"` for a note holding one event — and the reference prints that event's `when`, `until`, `kind`, `summary` or `name` as plain text, never a link; a date prints as the note format prints any date. |
 
 <!-- expression-helpers:end -->
 
 A helper that is given the wrong kind of value reports it rather than printing something wrong: `words` refuses a decimal, the four comparisons refuse anything that is not a finite number, and `dateformat` refuses a date it cannot resolve in the calendar it was given.
 
 See [date rules](dates-and-calendars.md) for what `dateformat` accepts and the patterns its third argument names.
+
+### An event's date, inline
+
+`ref` with `field` in place of `form` prints one field of an [event](../reference/format-details.md#events) as plain text, so a sentence states a date from the one place the event records it rather than typing it a second time:
+
+```markdown
+Ironfells fell in {{ref "place-ironfells#sack" field="when"}}, in what the fells call {{ref "place-ironfells#sack" field="name"}}.
+The chronicle records the founding in one line: {{ref "lore-founding" field="summary"}}
+Our own sack was a {{ref "#sack" field="kind"}}.
+```
+
+The address names one event: `"<note>#<id>"` for an event of another note, `"#<id>"` for one of this note, or a note's Address alone when that note holds exactly one event. An event a declared dependency publishes is named by its full Address, as any cross-package link is.
+
+| `field`   | What prints                                                        |
+| --------- | ------------------------------------------------------------------ |
+| `when`    | The event's date, as the note format prints any date — `~` is kept |
+| `until`   | The date it ended, printed the same way                            |
+| `kind`    | Its `kind`, such as `siege`                                        |
+| `summary` | Its `summary`; a link written inside it prints as its label        |
+| `name`    | The first name its `names` list gives                              |
+
+The value is text and never a link, on the website, in the Foundry journal and in the book alike. `field` is a quoted string, like `form`, and a reference takes one or the other.
+
+Each of these is an error at the reference's own line and column, and the reference's text stays in the page: an address naming no note, an anchor the note does not declare, an anchor that is a heading or another `prose` anchor rather than an event, a note holding several events or none named without an `#id`, a `field` outside the five above, and a field the event does not state — `field="until"` on an event with no `until`, or `field="name"` on one with no `names`.

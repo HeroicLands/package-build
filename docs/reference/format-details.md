@@ -1698,6 +1698,8 @@ plain Address. The fields that take one:
 | ------------------------------------- | ------------ | ------------------------------------------------------ |
 | `events[].follows[].event`            | `event`      | names a note holding exactly one event                 |
 | `events[].where.reach[].attributedTo` | `event`      | names a lore note, or a note holding exactly one event |
+| `made`, `lost` (every gear type)      | `event`      | names a note holding exactly one event                 |
+| `subjects` (a `literature` note)      | `event`      | names a note of any type, as every subject does        |
 
 An anchored Address resolves when its note resolves, declares that anchor, and
 the anchor's kind is one the field takes. Each failure has its own message: the
@@ -2646,6 +2648,41 @@ The ladder is what makes "how finished is this?" a query:
 SELECT state, count(*) AS n FROM entries GROUP BY state ORDER BY state
 ```
 
+**`events`** is one row per event — per entry of `data.events` on every
+`lore`, `place` and `affiliation` note, stubs included — so a chronology is a
+query rather than a list kept by hand:
+
+````markdown
+```sql
+SELECT note AS _ref, "when" AS "When", summary AS "What happened"
+FROM events
+WHERE kind IN ('war', 'siege', 'battle')
+ORDER BY whenSort
+```
+````
+
+| Column                   | What it holds                                                                                                                                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `note`                   | The canonical Address of the note the event is written on.                                                                                                                                                                  |
+| `address`                | The event's own Address: `note#id` where the event has an `id`, the note's Address alone where it has none.                                                                                                                 |
+| `id`, `kind`, `depth`, … | Every key of an event, each its own column under its own name — `id`, `kind`, `depth`, `when`, `until`, `recurs`, `summary`, `standing`, `names`, `where`, `who`, `follows`, `accounts`, `unresolved`, `sources`, `stated`. |
+| `whenSort`, `untilSort`  | The date's position on the canonical axis: the canonical year, with a day as its fraction of the year where the calendar states the year's length. `ORDER BY whenSort` is date order.                                       |
+| `whenYear`, `untilYear`  | The canonical year alone, for a filter such as `whenYear BETWEEN 200 AND 299`.                                                                                                                                              |
+
+`when` and `until` read as the text the note wrote, `~` included. The sort
+keys and years are positions on the canonical axis, which counts a year `0`
+that written dates do not: a year written after zero keeps its number, and one
+written before zero sits one higher, so `when: -250` has a `whenYear` of
+`-249`. `_ref` takes a note's Address, never an anchored one, so a table links
+each row through `note` rather than `address`. A key no
+event writes is still a column, `NULL` in every row, and so is a sort key for
+a date with no position on the axis — `unknown`, or a year-`0` day that recurs
+every year. Every Address is a string, as in every other relation, and a list
+stays a list: `list_contains("where".locus, 'thalorna-note-place-ironfells')`.
+`when` and `where` are SQL keywords, so a query names those columns in double
+quotes, `"when"` and `"where"`. A note tagged `gm` contributes no row on a
+public surface.
+
 **`market`** is the six-step market scale as a relation — `value`, `name`,
 `trade` — so a table prints `village` beside the number a note wrote without a
 second copy of the scale living in authored content.
@@ -2683,6 +2720,7 @@ ORDER BY name.full
 ```
 ````
 
+Its events are `sohl.events`, read exactly as this package's own `events`.
 This package's own notes stay at the unqualified `notes`, and a query may read
 both at once — joining your beings against the skills they cite is one `FROM`
 clause. It needs no fetch and no configuration: a dependency's published index
@@ -2806,7 +2844,7 @@ Each numbered type has its own counter. Websites and Foundry number within a not
 
 Foundry gives a captioned item a JournalEntryPage holding the item alone, named for its number or, unnumbered, for the caption's visible text — links and emphasis reduced to the words a reader sees. A solitary image with a plain caption can use an image page; captions with inline markup and other items use text pages. The body after the item resumes on a continuation page carrying the interrupted section's name, level and classes, with its title hidden; nothing is emitted when the next page begins straight after the item. On the website and in the book the item stays in the flow of the surrounding page.
 
-**Migration:** `:::figure` is no longer supported. Move the former `///` caption before the item as `:@ Caption {#id}` and remove the figure wrapper. To caption a group or passage, put it inside a generic fenced div and caption that div with an explicit type if needed. `///` is no longer a caption delimiter.
+To caption a group or passage, put it inside a generic fenced div and caption that div, with an explicit type where the inferred one does not fit.
 
 ##### Fenced divs
 
@@ -2869,8 +2907,6 @@ Attributes follow the marker and apply to the alert:
 ```
 
 Use `#id`, `.class` and named attributes in the shared braced grammar. The marker determines the default label, icon and color. An authored `title` replaces the default **Note**, **Tip**, **Important** or **Warning** heading while preserving the alert type’s icon and color. Event-handler attributes, malformed attributes, unknown alert types and empty alert bodies are errors. Ordinary blockquotes and alert examples inside literal code remain unchanged. A leading caption can describe an alert as a quote block, normally with the `prose` type or an explicit `example` type.
-
-Migrate former info blocks to `[!NOTE]` alerts and warn blocks to `[!WARNING]` alerts. The old named fences are errors. `:::secret` remains supported.
 
 ##### Secret blocks
 
@@ -2935,7 +2971,7 @@ An **event** is one dated, attributed record of something that happened in the s
 
 Every key of an entry is closed, and so is every key of each map nested in one. A key this section does not list is an error at that key, and a value outside a key's closed list is an error at that value. Every Address an entry writes resolves in this package or a declared dependency, or it is an error at that Address.
 
-An event appears on its note's page and in its Foundry journal as prose the note's body writes. Nothing derived from the list is displayed: it reaches no system field, no infobox row and no page's front matter. The content index carries each entry's resolved dates under `resolvedDates.events`.
+An event appears on its note's page and in its Foundry journal as prose the note's body writes, and in the [event views](#event-views) the build appends to the notes it concerns. Nothing derived from it reaches a system field, an infobox row or a page's front matter, which carries `data.events` only as the note wrote it. The content index carries each entry's resolved dates under `resolvedDates.events`, and the [`events`](#content-tables) relation holds one row per entry.
 
 #### The keys of an event
 
@@ -2995,7 +3031,26 @@ An event's `id` is an [anchor](#anchors) of kind `event`, in the one namespace t
 - `id` is unique within its note, and differs from every heading, caption and block anchor the note declares.
 - `id` is **required on every entry of a note holding two or more events**, and optional on a note holding one.
 
+A note's prose prints one field of an event with an inline reference, `{{ref "place-ironfells#sack" field="when"}}`: the event's `when` or `until` as the note format prints a date, its `kind`, its `summary`, or the first of its `names`, as text and never a link, identically on every surface. The address names one event as a `follows[].event` does, or `"#<id>"` for one of the note's own. An address naming no event, a `prose` anchor, a `field` outside those five, or a field the event does not state is an error at the reference's position. The [authoring guide](../authoring/links-and-markup.md#an-events-date-inline) has examples.
+
 A `follows[].event` resolves to exactly one event: a note holding one event, or `note#id`. Naming a note that holds several events without an `id` is an error, and so is naming an anchor the note does not declare or one that is not an event. An Address into another package is checked the same way against that package's published index, which carries each note's anchors with their kinds and each event's date.
+
+#### Event views
+
+The build appends sections to the end of a note's body that list the events concerning it — a region's chronology, the events a being took part in, the accounts a people gives, what followed an event. Each is an H1 with a fixed anchor holding a `sql` fence over the `events` relation, the same Markdown an author could write, so every surface sets it as it sets an authored section: a page of the Foundry journal, a section of the website page in its table of contents, a section of the book.
+
+| View          | Anchor       | On                                                               | Rows                                                                                                                                                                              | Columns                            |
+| ------------- | ------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Chronology    | `chronology` | a `place`                                                        | events whose `where.locus` names the place or a place below it in `parents`; events whose `where.reach` names one, with that entry's `how`; every `depth: world` event as context | What happened, When, Felt here     |
+| Events        | `events`     | a `being`, an `affiliation`, a `lore` note of `subType: culture` | events whose `who[].ref` names the note, with the role it played                                                                                                                  | What happened, When, Role          |
+| Accounts      | `accounts`   | an `affiliation`, a `place`, a `lore` note of `subType: culture` | each `accounts[]` entry the note gives, with the event it concerns                                                                                                                | Event, When, What they say, Agrees |
+| What followed | `followed`   | a note holding events                                            | events whose `follows[].event` names one of this note's events, with how                                                                                                          | What followed, When, How           |
+
+- **The views follow everything the author wrote**, in the order of the table.
+- **A view with no rows is not generated.** A chronology is generated only where the place has rows of its own; the world events beside them are context and make no chronology by themselves.
+- **An author's own section replaces a view.** A note whose body declares a prose anchor with the view's slug — `# Chronology {#chronology}`, or a block or span with that `id` — gets no generated section for it, and its own section is left exactly as written. This is the one way to turn a view off, and the way to choose a different table: write the section and its own `sql` fence.
+- Places below a place are found by walking `parents` down from it, so an event felt in towns under two continents is in each continent's chronology and each region's.
+- A stub publishes no page and gets no view. The views read this package's own events; a dependency's are read with a fence over `<package>.events`.
 
 #### What sort of event: `kind`
 
@@ -4036,13 +4091,15 @@ for traumas produced by the affliction's outcome. The optional
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
 
 If a `sohl` property is present, a SoHL item of type "armorgear" is created.
 
@@ -4054,6 +4111,16 @@ The note type is `armorgear` in both systems.
 | `data.value`      | `system.valueBase`      | `system.value`  |
 | `data.quality`    | `system.qualityBase`    | NA              |
 | `data.durability` | `system.durabilityBase` | NA              |
+
+Every gear type — `armorgear`, `concoctiongear`, `containergear`, `miscgear`,
+`projectilegear` and `weapongear` — may name the events of the thing's history:
+`made`, the event in which it was made, and `lost`, the event in which it was
+lost. Each is an Address of exactly one [event](#events): `note#id`, or a note
+holding one event. A bare shortcode is read as a `lore` note, so
+`made: forging` is `lore-forging`. Naming a note that holds several events
+without an `id`, a note holding none, an anchor the note does not declare, or
+a `prose` anchor is an error at that key. Neither reaches a system field, an
+infobox row or a page: each is a fact a content table can read.
 
 ### type: armorlocation
 
@@ -4086,16 +4153,18 @@ if a `sohl` property is present, a SoHL item of type "attribute" is created.
 - exotic: A complex and valuable concoction, often a mixture of different herbs and/or chemicals, with medicinal or other unique properties or effects, but not magical in nature.
 - elixir: An arcane alchemical concoction of great power.
 
-| `data` property    | Values                          | Description                                       |
-| ------------------ | ------------------------------- | ------------------------------------------------- |
-| `templatePriority` | `number`                        | Template priority, _null_ = not a template        |
-| `weight`           | `number`                        | Gear weight                                       |
-| `value`            | `number`                        | Gear value                                        |
-| `quality`          | `number`                        | Gear quality                                      |
-| `durability`       | `number`                        | Gear durability                                   |
-| `quantity`         | `number`                        | Gear quantity (default: 1)                        |
-| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)   |
-| `strength`         | `number`                        | Strength: higher the number, greater the strength |
+| `data` property    | Values                          | Description                                                                   |
+| ------------------ | ------------------------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`                        | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`                        | Gear weight                                                                   |
+| `value`            | `number`                        | Gear value                                                                    |
+| `quality`          | `number`                        | Gear quality                                                                  |
+| `durability`       | `number`                        | Gear durability                                                               |
+| `made`             | an event Address                | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address                | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `quantity`         | `number`                        | Gear quantity (default: 1)                                                    |
+| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)                               |
+| `strength`         | `number`                        | Strength: higher the number, greater the strength                             |
 
 if a `sohl` property is present, a SoHL item of type "concoctiongear" is created.
 
@@ -4114,14 +4183,16 @@ if a `sohl` property is present, a SoHL item of type "concoctiongear" is created
 
 Note: `data.quantity` may not be specified; quantity is always set to 1.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
-| `capacity`         | `number` | HM3 container capacity (in lbs)            |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `capacity`         | `number`         | HM3 container capacity (in lbs)                                               |
 
 if a `sohl` property is present, a SoHL item of type "containergear" is created.
 
@@ -4139,14 +4210,16 @@ SoHL reads a container’s capacity in pounds from `sohl.maxCapacity`.
 
 ### type: miscgear
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
-| `quantity`         | `number` | HM3 gear quantity (default: 1)             |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `quantity`         | `number`         | HM3 gear quantity (default: 1)                                                |
 
 if a `sohl` property is present, a SoHL item of type "miscgear" is created.
 
@@ -4256,14 +4329,16 @@ the item’s base mastery and level from `sohl.masteryLevelBase` and
 - dart
 - other
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
-| `quantity`         | `number` | HM3 gear quantity (default: 1)             |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `quantity`         | `number`         | HM3 gear quantity (default: 1)                                                |
 
 if a `sohl` property is present, a SoHL item of type "projectilegear" is created.
 
@@ -4379,13 +4454,15 @@ build.
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
 
 if a `sohl` property is present, a SoHL item of type "weapongear" is created,
 carrying every strike mode the weapon has — melee and missile alike — on
@@ -4436,8 +4513,25 @@ the setting itself, rather than instructions or other apparatus for the GM.
 
 Each note a work names in `data.subjects` lists that work on its own site page, under **In
 song and story**, with the work's `form` beside its title; the subject note writes nothing.
+Each subject may name one event, as `place-ironfells#sack`: the anchor must be an `event` anchor
+the note declares, and the work lists on the page of the note that holds the event.
 A work in a fetched index lists on this package's pages when that index carries its
 `subjects`.
+
+```yaml
+shortcode: burningsaga
+name: { full: The Saga of the Burning }
+type: lore
+subType: literature
+data:
+  culture: lore-ironfolk
+  form: saga
+  subjects: [place-ironfells#sack, place-east, lore-fords]
+  language: skill-ironspeech
+```
+
+The saga lists under **In song and story** on `place-ironfells`, which holds the
+sack, on `place-east` and on `lore-fords`.
 
 Calendar fields are written only on a `calendar` note, and `culture`, `form`, `subjects` and
 `language` only on a `literature` note; written on any other lore subType, each is an error at
@@ -4474,7 +4568,7 @@ its own key.
 | `formats`                  | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                    |
 | `culture`                  | `Address`                                                                     | `literature` only: the people whose work it is, naming a lore note with `subType: culture`                            |
 | `form`                     | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text     |
-| `subjects`                 | `Address[]`                                                                   | `literature` only: the beings, places, gods, events and other notes the work concerns                                 |
+| `subjects`                 | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`            |
 | `language`                 | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                         |
 | `events`                   | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                         |
 

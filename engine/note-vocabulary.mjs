@@ -164,6 +164,10 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *   so each takes a row labelled and anchored by the post's own name.
  * @property {"subType"} [keySelector] - An alternative `subType:<skill-subtype>` key.
  * @property {readonly string[]} [accepts] - Allowed Address types, separate from `ref`.
+ * @property {readonly ("prose"|"event")[]} [anchors] - The anchor kinds an
+ *   Address here may name with `#<anchor>`. Absent, an anchor is refused.
+ * @property {boolean} [single] - The Address names exactly one event: an
+ *   anchor of kind `event`, or a note holding one event and no more.
  * @property {string} [nullText] - Infobox text for an explicitly authored null with a declared meaning.
  * @property {string} [shape] - Human-readable shape, for a finding and for
  *   documentation.
@@ -548,7 +552,20 @@ export const SHARED_DATA_FIELDS = Object.freeze([
 ]);
 
 /**
- * The four gear values every carried thing declares.
+ * An Address naming one event: `place-ironfells#sack`, or a note holding
+ * exactly one event, with a bare shortcode read as a `lore` note.
+ */
+const EVENT_ADDRESS = Object.freeze({
+    kind: "address",
+    ref: "lore",
+    anchors: Object.freeze(["event"]),
+    single: true,
+    shape: "an Address of one event",
+});
+
+/**
+ * The values every carried thing declares: the four a game reads, and the two
+ * events of its history.
  *
  * @type {readonly DataFieldSpec[]}
  */
@@ -557,6 +574,20 @@ const GEAR = Object.freeze([
     { name: "value", ...NUM, describe: "What the thing is worth." },
     { name: "quality", ...NUM, describe: "How well it is made." },
     { name: "durability", ...NUM, describe: "How much wear it takes before it fails." },
+    {
+        name: "made",
+        ...EVENT_ADDRESS,
+        describe:
+            "The event in which the thing was made — `lore-forging`, or one event of a " +
+            "note as `place-ironfells#raising`.",
+    },
+    {
+        name: "lost",
+        ...EVENT_ADDRESS,
+        describe:
+            "The event in which the thing was lost — `lore-flood`, or one event of a note " +
+            "as `place-ironfells#sack`.",
+    },
 ]);
 
 /** Gear that is counted rather than carried singly. */

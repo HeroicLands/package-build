@@ -112,3 +112,19 @@ publishes the version, and the workflow creates its version tag and GitHub
 Release. The workflow's manual dispatch can retry publishing a version already
 merged to `main`. The [npm package page](https://www.npmjs.com/package/@heroiclands/package-build)
 shows the published version and README.
+
+Two scripts in this repository's own `package.json` run the same steps at a
+desk:
+
+- **`npm run build`** runs `package-build ci`: the Build & Test workflow's
+  `run:` steps in a `linux/amd64` container over a clean export of `HEAD`.
+  `npm run build -- --native` runs them on the host in the working tree instead.
+  Off Linux, the Typst, GraphViz and Hugo steps install nothing; each uses the
+  tool already on `PATH` and stops with `<tool> is not on PATH` when it is
+  missing, so a Mac running `--native` needs `typst`, `dot` and Hugo extended
+  installed first.
+- **`npm run deploy:npm`** runs `npm publish`. Provenance is attested only on a
+  CI runner that can mint a Sigstore identity — GitHub Actions with an OIDC
+  token, or GitLab CI with `SIGSTORE_ID_TOKEN` — and anywhere else the publish
+  goes ahead without it. Arguments after `--` reach `npm publish`, so
+  `npm run deploy:npm -- --dry-run` lists the tarball without publishing.

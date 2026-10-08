@@ -17,12 +17,19 @@ import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { cachedMetadataIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { buildSiteIndex } from "./site-index.mjs";
-import { openNotesDatabase, prepareSqlTables, findSqlBlocks } from "./sql-tables.mjs";
+import {
+    attachEventViews,
+    findSqlBlocks,
+    joinEventViews,
+    openNotesDatabase,
+    prepareSqlTables,
+} from "./sql-tables.mjs";
 import { findPageListBlocks } from "./page-lists.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { relatedPages } from "./related-pages.mjs";
 import { holdingsNode, holdingsPages, foreignHoldingsNodes } from "./holdings.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
+import { eventNoteIndex } from "./event-fields.mjs";
 import { frontmatterWikilinks } from "./web-wikilinks.mjs";
 import { positionOfLiteral } from "./diagnostics.mjs";
 import { addressSlug } from "./content-address.mjs";
@@ -97,7 +104,9 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                 )
                 .map((page) => ({ source: page.file, markdown: page.body }));
             const publicRecords = records.filter((record) => !isGmNote(record));
+            const views = await joinEventViews(db, publicRecords, contentBase, sources);
             const sqlTables = await prepareSqlTables(db, sources, { records: publicRecords });
+            attachEventViews(sqlTables, views);
             const rendered = renderPages(pages, {
                 index: gates.index,
                 foreign: gates.foreign,
@@ -219,11 +228,17 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                         },
                     );
                 }
-                const sqlTables = await prepareSqlTables(
+                const publicRecords = records.filter((record) => !isGmNote(record));
+                const sources = [{ source: absolute, markdown: body }];
+                const views = await joinEventViews(
                     db,
-                    [{ source: absolute, markdown: body }],
-                    { records: records.filter((record) => !isGmNote(record)) },
+                    publicRecords,
+                    contentBase,
+                    sources,
+                    absolute,
                 );
+                const sqlTables = await prepareSqlTables(db, sources, { records: publicRecords });
+                attachEventViews(sqlTables, views);
                 const allPages = snapshot.pages.map((item) =>
                     item.file === absolute ? page : item,
                 );
@@ -239,6 +254,11 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                         config,
                         foreign: snapshot.gates.foreign,
                         types: index.contentTypes,
+                    }),
+                    events: eventNoteIndex(records, {
+                        contentPackage: index.contentPackage,
+                        foreignIndex: snapshot.gates.foreign?.index,
+                        dates: index.dateContext,
                     }),
                 });
                 for (const error of result.tableErrors)

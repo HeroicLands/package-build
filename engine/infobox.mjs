@@ -299,6 +299,12 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     tokenIcon: Object.freeze({ withheld: "an image, which the box never carries" }),
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     events: Object.freeze({ withheld: "chronology machinery, which no infobox row draws on" }),
+    made: Object.freeze({
+        withheld: "chronology machinery — an event, which no infobox row draws on",
+    }),
+    lost: Object.freeze({
+        withheld: "chronology machinery — an event, which no infobox row draws on",
+    }),
     // A calendar's definition is what dates are read through, not a fact a
     // summary row can carry: a list of months or eras is the calendar itself.
     "lore.months": Object.freeze({ withheld: "calendar machinery, not a summary row" }),

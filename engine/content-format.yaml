@@ -94,6 +94,8 @@ types:
             - value
             - quality
             - durability
+            - made
+            - lost
         subTypes: []
     armorlocation:
         data:
@@ -110,6 +112,8 @@ types:
             - value
             - quality
             - durability
+            - made
+            - lost
             - quantity
             - potency
             - strength
@@ -124,6 +128,8 @@ types:
             - value
             - quality
             - durability
+            - made
+            - lost
             - capacity
         subTypes: []
     miscgear:
@@ -133,6 +139,8 @@ types:
             - value
             - quality
             - durability
+            - made
+            - lost
             - quantity
         subTypes: []
     mystery:
@@ -179,6 +187,8 @@ types:
             - value
             - quality
             - durability
+            - made
+            - lost
             - quantity
         subTypes:
             - none
@@ -231,6 +241,8 @@ types:
             - value
             - quality
             - durability
+            - made
+            - lost
         subTypes: []
     lore:
         data:

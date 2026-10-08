@@ -378,6 +378,34 @@ export function yamlKeyPath(field) {
 }
 
 /**
+ * The scalar a note's frontmatter states at a path, **as the author wrote it**.
+ *
+ * A check reads a note whose Addresses are already resolved to their canonical
+ * form, so a finding quoting the value it holds would quote text the file does
+ * not contain. This reads the file instead, through the same parse
+ * {@link positionOfYamlPath} uses.
+ *
+ * @param {string} raw - The note's full contents, frontmatter included.
+ * @param {ReadonlyArray<string|number>} keyPath - Path to the node, from the
+ *   top of the frontmatter.
+ * @returns {string|number|boolean|undefined} The scalar, or `undefined` where
+ *   the path names no scalar.
+ */
+export function frontmatterValueAt(raw, keyPath) {
+    if (typeof raw !== "string" || !Array.isArray(keyPath) || keyPath.length === 0)
+        return undefined;
+    const fence = raw.match(/^---\n([\s\S]*?)\n---/);
+    if (!fence) return undefined;
+    try {
+        const node = YAML.parseDocument(fence[1]).getIn(keyPath, true);
+        const value = node?.value;
+        return ["string", "number", "boolean"].includes(typeof value) ? value : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
  * Where a key sits **inside a note's frontmatter fence**, addressed by path.
  *
  * {@link positionInFrontmatter} searches the fence for a key by name, which is
