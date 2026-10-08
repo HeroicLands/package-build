@@ -249,6 +249,59 @@ describe("every address-bearing key resolves", () => {
         expect(messages(found).join("\n")).toContain("data.events.0.where.locus.0");
     });
 
+    it("reads a bare shortcode in where.locus and where.reach.place as a place", () => {
+        for (const locus of ["vale", "place-vale", "thalorna-note-place-vale"]) {
+            const found = findingsFor([
+                fullEvent({
+                    where: {
+                        locus: [locus],
+                        reach: [{ place: "fells", how: "the holds empty", knowledge: "named" }],
+                    },
+                }),
+            ]);
+            expect(messages(found), locus).toEqual([]);
+        }
+    });
+
+    it("refuses a where.locus or where.reach.place that resolves to anything but a place", () => {
+        for (const other of ["affiliation-crown", "lore-folk"]) {
+            const locus = findingsFor([fullEvent({ where: { locus: [other] } })]);
+            expect(locus, other).toHaveLength(1);
+            expect(locus[0].message).toContain("data.events.0.where.locus.0");
+            expect(locus[0].message).toContain("must name a place");
+            const reach = findingsFor([
+                fullEvent({
+                    where: {
+                        locus: ["vale"],
+                        reach: [{ place: other, how: "x", knowledge: "named" }],
+                    },
+                }),
+            ]);
+            expect(reach, other).toHaveLength(1);
+            expect(reach[0].message).toContain("data.events.0.where.reach.0.place");
+            expect(reach[0].message).toContain("must name a place");
+        }
+    });
+
+    it("keeps requiring an explicit type in attributedTo", () => {
+        const found = findingsFor([
+            fullEvent({
+                where: {
+                    locus: ["vale"],
+                    reach: [
+                        {
+                            place: "fells",
+                            how: "x",
+                            knowledge: "misattributed",
+                            attributedTo: "folk",
+                        },
+                    ],
+                },
+            }),
+        ]);
+        expect(messages(found).join("\n")).toContain("states its type");
+    });
+
     it("refuses a stated calendar that is not a calendar note", () => {
         const found = findingsFor([fullEvent({ stated: { calendar: "folk", text: "1 ST" } })]);
         expect(messages(found).join("\n")).toContain("subType is not calendar");

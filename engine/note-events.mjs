@@ -46,7 +46,7 @@
  * @module
  */
 
-import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
+import { acceptsType, isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
@@ -146,9 +146,10 @@ export const EVENT_VOCABULARIES = Object.freeze({
  *
  * - `text` — a string;
  * - `closed` — one of `values`, named `name` in a message;
- * - `address` — an Address; `type` is the default type of a bare shortcode,
- *   `calendar` holds the target to a calendar note, and `event` reads a
- *   `#<id>` suffix naming one entry of the target note;
+ * - `address` — an Address. `ref` is the default type of a bare shortcode
+ *   and `accepts` the types the resolved Address may have, as on a typed
+ *   `data:` Address field; `calendar` holds the target to a calendar note, and
+ *   `event` reads a `#<id>` suffix naming one entry of the target note;
  * - `list` — a list of `of`;
  * - `map` — a closed map of `keys`, `required` naming those that must be
  *   written;
@@ -157,6 +158,8 @@ export const EVENT_VOCABULARIES = Object.freeze({
 
 const TEXT = Object.freeze({ kind: "text" });
 const ADDRESS = Object.freeze({ kind: "address" });
+/** An Address naming a place; a bare shortcode is read as one. */
+const PLACE = Object.freeze({ kind: "address", ref: "place", accepts: Object.freeze(["place"]) });
 const closed = (name, values) => Object.freeze({ kind: "closed", name, values });
 const list = (of) => Object.freeze({ kind: "list", of });
 const map = (label, keys, required = []) => Object.freeze({ kind: "map", label, keys, required });
@@ -178,12 +181,12 @@ const ENTRY = map(
             map("a `names` entry", { name: TEXT, by: ADDRESS, gloss: TEXT }, ["name", "by"]),
         ),
         where: map("`where`", {
-            locus: list(ADDRESS),
+            locus: list(PLACE),
             reach: list(
                 map(
                     "a `reach` entry",
                     {
-                        place: ADDRESS,
+                        place: PLACE,
                         how: TEXT,
                         knowledge: closed("knowledge", REACH_KNOWLEDGE),
                         attributedTo: Object.freeze({ kind: "address", event: true }),
@@ -226,7 +229,12 @@ const ENTRY = map(
         stated: map(
             "`stated`",
             {
-                calendar: Object.freeze({ kind: "address", type: "lore", calendar: true }),
+                calendar: Object.freeze({
+                    kind: "address",
+                    ref: "lore",
+                    accepts: Object.freeze(["lore"]),
+                    calendar: true,
+                }),
                 text: TEXT,
             },
             ["calendar", "text"],
@@ -375,7 +383,7 @@ function resolveRef(value, spec, index) {
         {
             package: index.contentPackage,
             system: "note",
-            ...(spec.type ? { type: spec.type } : {}),
+            ...(spec.ref ? { type: spec.ref } : {}),
             types: index.types,
             packages: index.packages,
         },
@@ -385,11 +393,15 @@ function resolveRef(value, spec, index) {
         return {
             problem:
                 "should be an Address that states its type" +
-                (spec.type ? ` or a ${spec.type} shortcode` : ""),
+                (spec.ref ? ` or a ${spec.ref} shortcode` : ""),
         };
     const target = renderAddress(tuple);
-    if (spec.calendar && tuple.type !== "lore")
-        return { problem: `names ${target}, which is not a calendar note` };
+    if (spec.accepts && !acceptsType(tuple, spec.accepts))
+        return {
+            problem:
+                `names ${target}, which is a ${tuple.type} — it must name a ` +
+                (spec.calendar ? "calendar note" : spec.accepts.join(" or ")),
+        };
     const hit = index.addressHit(target);
     if (!hit)
         return {

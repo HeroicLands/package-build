@@ -2828,8 +2828,8 @@ The nested entries, each closed the same way:
 | `names[].name`               | string                                                     | yes      | One name the event goes by in the world                                                   |
 | `names[].by`                 | Address                                                    | yes      | Who uses that name — a people, a polity, a faith, a place; resolves                       |
 | `names[].gloss`              | string                                                     | no       | What the name means, or how it is used                                                    |
-| `where.locus`                | Address list                                               | no       | Where the event physically happened; each resolves                                        |
-| `where.reach[].place`        | Address                                                    | yes      | A place where the event was felt; resolves                                                |
+| `where.locus`                | list of Addresses, each defaulting to `place`              | no       | Where the event physically happened; each must resolve to a place                         |
+| `where.reach[].place`        | an Address, defaulting to `place`                          | yes      | A place where the event was felt; must resolve to a place                                 |
 | `where.reach[].how`          | string                                                     | yes      | One clause: a consequence someone in that place could notice                              |
 | `where.reach[].knowledge`    | one `knowledge` value                                      | yes      | Whether that place connects what it felt to this event                                    |
 | `where.reach[].attributedTo` | event or note Address                                      | no       | Only beside `knowledge: misattributed` — the cause that place names instead; resolves     |
@@ -2847,7 +2847,7 @@ The nested entries, each closed the same way:
 | `recurs.every`               | whole number of years, 1 or more                           | —        | A period counted on the canonical axis from `when`                                        |
 | `recurs.on`                  | list of dates, strictly increasing, each later than `when` | —        | Recorded occurrences beyond the first, in place of a period                               |
 
-Every Address but `stated.calendar` states its type: `place-vale`, never `vale`, and never a bare name such as `The Vale`. `where.locus` in particular is never filled in from the note the event sits on — an event on a place is not assumed to have happened there, so a `locus` is written or absent.
+`where.locus` and `where.reach[].place` default to `place`, so a bare shortcode there is read as one — `vale` is `place-vale` — and whatever the written form, the Address must resolve to a place note; one resolving to an affiliation, a lore note or anything else is an error at that key. `stated.calendar` defaults to `lore` in the same way. Every other Address states its type: `lore-khazarfolk`, never `khazarfolk`. No Address is a bare name such as `The Vale`. `where.locus` in particular is never filled in from the note the event sits on — an event on a place is not assumed to have happened there, so a `locus` is written or absent.
 
 #### Identity, and how an event is addressed
 
@@ -3051,9 +3051,9 @@ data:
         - name: the Outlaw's Work
           by: lore-sinalefolk
       where:
-        locus: [place-khazarturnvale]
+        locus: [khazarturnvale]
         reach:
-          - place: place-ironfells
+          - place: ironfells
             how: the holds lose half their smiths within a generation
             knowledge: named
           - place: place-grukarholm
