@@ -50,6 +50,7 @@ import { fileURLToPath } from "node:url";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { recordPath, sortKeysDeep } from "./index-records.mjs";
 import { PACKAGEBUILD_PACKAGE, metadataFileName } from "./packages.mjs";
+import { decodeIndexAddresses, publishAddresses } from "./note-addresses.mjs";
 
 /**
  * This package's own root, wherever it is installed.
@@ -117,7 +118,21 @@ export function packageBuildRecords(assetsBase = PACKAGEBUILD_ASSETS) {
  */
 export function emitPackageBuildIndex({ assetsBase, file = PACKAGEBUILD_INDEX_FILE } = {}) {
     const records = packageBuildRecords(assetsBase);
-    const text = records.length ? `${records.map((r) => JSON.stringify(r)).join("\n")}\n` : "";
+    // Written the way every published index is: each Address an object.
+    const text =
+        records.length ?
+            `${records
+                .map((record) =>
+                    JSON.stringify(
+                        sortKeysDeep(
+                            publishAddresses(
+                                decodeIndexAddresses(record, { package: PACKAGEBUILD_PACKAGE }),
+                            ),
+                        ),
+                    ),
+                )
+                .join("\n")}\n`
+        :   "";
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, text);
     return { file, assets: records.length, bytes: Buffer.byteLength(text) };

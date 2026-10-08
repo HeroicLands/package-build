@@ -107,7 +107,7 @@ import { STANDING_BODY_TYPES } from "./standing-terms.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
 import { checkAffiliationRankFloor, checkRankLadder } from "./rank-ladder.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
-import { checkLoreEvents } from "./lore-events.mjs";
+import { checkNoteEvents } from "./note-events.mjs";
 import { checkCultureChoice } from "./culture-choice.mjs";
 import { LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
@@ -319,6 +319,28 @@ const TOKEN_ICON = Object.freeze({
     ref: "icon",
     accepts: ART_SLOTS.find((slot) => slot.key === "tokenIcon").accepts,
     describe: "What a token on the canvas wears — an `icon` address; unset, it follows `icon`.",
+});
+
+/**
+ * What happened to or at a subject — the `events` key, declared once and spread
+ * into every type that carries events, so the schema cannot differ between
+ * them. The entry's own schema and its check live in
+ * {@link module:engine/note-events}.
+ *
+ * Declared here rather than in that module because its imports reach back to
+ * this one: a function declaration is bound before either module runs, and an
+ * object is not.
+ *
+ * @type {DataFieldSpec}
+ */
+export const EVENTS_FIELD = Object.freeze({
+    name: "events",
+    kind: "list",
+    shape: "list of event entries",
+    check: checkNoteEvents,
+    describe:
+        "What happened to or at this subject — each entry one dated, attributed event: " +
+        "a founding, a war, a fall, or an occasion that recurs.",
 });
 
 /**
@@ -1031,6 +1053,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
+            EVENTS_FIELD,
             {
                 name: "demonym",
                 ...TEXT,
@@ -1492,19 +1515,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             ...checkCalendarNote(note, context),
             ...checkLiteratureNote(note),
         ],
-        data: Object.freeze([
-            ...CALENDAR_FIELDS,
-            ...LITERATURE_FIELDS,
-            {
-                name: "events",
-                kind: "list",
-                shape: "list of `{ when, until?, recurs? }`",
-                check: checkLoreEvents,
-                describe:
-                    "This note's dated occurrences — a founding once, an anniversary " +
-                    "that recurs, or a list of recorded happenings.",
-            },
-        ]),
+        data: Object.freeze([...CALENDAR_FIELDS, ...LITERATURE_FIELDS, EVENTS_FIELD]),
     }),
 
     place: Object.freeze({
@@ -1520,6 +1531,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
         check: checkPlace,
         data: Object.freeze([
+            EVENTS_FIELD,
             {
                 name: "calendar",
                 ...LINK,

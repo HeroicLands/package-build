@@ -22,6 +22,7 @@
  *   lookup failure, since Foundry installs no package for this one.
  */
 
+import { flattenPublishedAddresses } from "../engine/address-values.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -91,7 +92,9 @@ describe("the published index is the walk, written down", () => {
             .split("\n")
             .filter(Boolean)
             .map((line) => JSON.parse(line));
-        expect(lines).toEqual(packageBuildRecords());
+        expect(lines.map(flattenPublishedAddresses)).toEqual(packageBuildRecords());
+        for (const line of lines)
+            expect(line.address.canonical).toMatchObject({ anchor: null, anchorKind: null });
         expect(result.assets).toBe(lines.length);
         fs.rmSync(dir, { recursive: true, force: true });
     });

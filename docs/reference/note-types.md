@@ -104,22 +104,23 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `guild`, `order`, `polity`, `faithtradition`, `arcanetradition`, `spirittradition`, `lineage`, `venture`, `criminal`, `governmental`, `fellowship`.
 
-| Field                     | Shape                  | Meaning                                                                                         |
-| ------------------------- | ---------------------- | ----------------------------------------------------------------------------------------------- |
-| `data.templatePriority`   | number                 | Template priority; unset means the note is not a template.                                      |
-| `data.demonym`            | string                 | What one member is called — a Vylarian.                                                         |
-| `data.epithet`            | string                 | The by-name it is known by — a god's, an order's, a company's.                                  |
-| `data.symbol`             | string                 | Its emblem in words: a feather atop a golden scale, a chisel carving a star.                    |
-| `data.governance.model`   | string                 | How the affiliation is governed, where it is.                                                   |
-| `data.governance.summary` | string                 | A sentence on how the governance actually works.                                                |
-| `data.governance.ranks`   | list                   | The ladder of ranks the body confers — level, title, description.                               |
-| `data.governance.offices` | as authored            | Named offices, each with a description and optional dated holders.                              |
-| `data.seat`               | an Address             | Where the affiliation's authority sits.                                                         |
-| `data.population`         | number                 | How many people it counts.                                                                      |
-| `data.economy`            | list of Addresses      | What its economic life runs on — currencies, banking bodies, goods.                             |
-| `data.lore`               | list of Addresses      | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar. |
-| `data.parents`            | list of Addresses      | Affiliations it is subordinate to.                                                              |
-| `data.relations`          | a map keyed by Address | Standing with other affiliations — aligned, unaligned, rival, nemesis.                          |
+| Field                     | Shape                  | Meaning                                                                                                                              |
+| ------------------------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.templatePriority`   | number                 | Template priority; unset means the note is not a template.                                                                           |
+| `data.events`             | list of event entries  | What happened to or at this subject — each entry one dated, attributed event: a founding, a war, a fall, or an occasion that recurs. |
+| `data.demonym`            | string                 | What one member is called — a Vylarian.                                                                                              |
+| `data.epithet`            | string                 | The by-name it is known by — a god's, an order's, a company's.                                                                       |
+| `data.symbol`             | string                 | Its emblem in words: a feather atop a golden scale, a chisel carving a star.                                                         |
+| `data.governance.model`   | string                 | How the affiliation is governed, where it is.                                                                                        |
+| `data.governance.summary` | string                 | A sentence on how the governance actually works.                                                                                     |
+| `data.governance.ranks`   | list                   | The ladder of ranks the body confers — level, title, description.                                                                    |
+| `data.governance.offices` | as authored            | Named offices, each with a description and optional dated holders.                                                                   |
+| `data.seat`               | an Address             | Where the affiliation's authority sits.                                                                                              |
+| `data.population`         | number                 | How many people it counts.                                                                                                           |
+| `data.economy`            | list of Addresses      | What its economic life runs on — currencies, banking bodies, goods.                                                                  |
+| `data.lore`               | list of Addresses      | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar.                                      |
+| `data.parents`            | list of Addresses      | Affiliations it is subordinate to.                                                                                                   |
+| `data.relations`          | a map keyed by Address | Standing with other affiliations — aligned, unaligned, rival, nemesis.                                                               |
 
 **System mappings**
 
@@ -434,7 +435,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.form`      | string                                                                              | The kind of work in its people's own terms — an epic, a saga, a praise-song, an elegy. Free text.                                    |
 | `data.subjects`  | list of Addresses                                                                   | The beings, places, gods, events and other notes the work concerns.                                                                  |
 | `data.language`  | an Address                                                                          | The tongue the work is composed in, as a language skill note.                                                                        |
-| `data.events`    | list of `{ when, until?, recurs? }`                                                 | This note's dated occurrences — a founding once, an anniversary that recurs, or a list of recorded happenings.                       |
+| `data.events`    | list of event entries                                                               | What happened to or at this subject — each entry one dated, attributed event: a founding, a war, a fall, or an occasion that recurs. |
 
 ### map
 
@@ -467,6 +468,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 | Field                                  | Shape                                                             | Meaning                                                                                                                                                                             |
 | -------------------------------------- | ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data.events`                          | list of event entries                                             | What happened to or at this subject — each entry one dated, attributed event: a founding, a war, a fall, or an occasion that recurs.                                                |
 | `data.calendar`                        | an Address                                                        | Calendar used to display this place's dates.                                                                                                                                        |
 | `data.demonym`                         | string                                                            | What a person from this place is called — a Vylarian.                                                                                                                               |
 | `data.purpose`                         | string                                                            | The reason this settlement, site, or structure exists, selected from its placeCharacter tags.                                                                                       |

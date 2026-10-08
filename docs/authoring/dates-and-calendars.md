@@ -88,16 +88,20 @@ In prose, `{{dateformat "commoncal" data.born}}` prints a date in the chosen cal
 
 ## Write a recurring date
 
-A `lore` note states its dated occurrences under `data.events`, a list — a note may record a founding once and an annual festival beside it. Each entry is `{ when, until?, recurs? }`, with `when` the occurrence's anchor and first instance:
+A `lore`, `place` or `affiliation` note states its dated occurrences under `data.events`, a list — a note may record a founding once and an annual festival beside it. Each entry carries `when`, the occurrence's anchor and first instance, and optionally `until` and `recurs`; it also states a `summary`, and a note holding several gives each an `id`. The [Events reference](../reference/format-details.md#events) lists every key an entry takes.
 
 ```yaml
 data:
   events:
-    - when: 412.1
+    - id: founders
+      when: "412.1"
       recurs: { every: 1 }
-    - when: 689.5
-      until: 1203.9
+      summary: The city keeps the day of its founding.
+    - id: conjunction
+      when: "689.5"
+      until: "1203.9"
       recurs: { every: 514 }
+      summary: The great conjunction is observed from the temple roof.
 ```
 
 The first entry is annual, with no end. The second recurs every five hundred fourteen years and stopped after canonical year 1203; `recurs.every` always counts whole years on the canonical axis. In place of a period, `recurs.on` lists the dates somebody actually recorded, strictly increasing and each later than `when`:
@@ -105,12 +109,13 @@ The first entry is annual, with no end. The second recurs every five hundred fou
 ```yaml
 data:
   events:
-    - when: 326.1
+    - when: "326.1"
       recurs:
         on: ["412.1", "689.5"]
+      summary: The comet is recorded over the harbor.
 ```
 
-A build computes the next occurrence against the world's declared present the way it computes a being's age against it, and publishes it on the web page, in the content index, and in the infobox.
+A build resolves each occurrence on the canonical axis, and the content index carries the result under `resolvedDates.events`.
 
 **A day that recurs every year, with no founding date of its own, writes year `0`** — quoted, since every canonical date stating a day must be:
 
@@ -118,6 +123,7 @@ A build computes the next occurrence against the world's declared present the wa
 data:
   events:
     - when: "0.286"
+      summary: The harvest rite is kept.
 ```
 
 `when: "0.286"` is the two-hundred-eighty-sixth day of the year, every year — a harvest rite nobody dates to a founding. `recurs` is refused beside it, since the entry is already annual; `until` is allowed, and bounds how long the rite was kept.

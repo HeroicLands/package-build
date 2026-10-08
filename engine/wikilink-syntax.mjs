@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { parseAddress, isAddressTuple } from "./address.mjs";
+import { parseAddress, isAddressTuple, splitAnchor } from "./address.mjs";
 
 /**
  * What a `[[…]]` **is**, before anything decides where it points.
@@ -104,9 +104,9 @@ export function parseWikilink(rawInner) {
     const linkPart = (labelled ? inner.slice(0, bar) : inner).trim();
     const display = labelled ? inner.slice(bar + 1).trim() : null;
 
-    const hash = linkPart.indexOf("#");
-    const target = (hash === -1 ? linkPart : linkPart.slice(0, hash)).trim();
-    const anchor = hash === -1 ? "" : linkPart.slice(hash + 1).trim();
+    // The anchor is read by the one reader a frontmatter Address uses, so a
+    // link and a field cannot disagree about where the anchor starts.
+    const { address: target, anchor = "" } = splitAnchor(linkPart);
 
     return { inner: inner.trim(), target, anchor, display, labelled };
 }
@@ -206,9 +206,31 @@ export const LINK_FINDING_REASONS = Object.freeze(
         "gm",
         "ambiguous",
         "unknown-anchor",
+        "event-anchor",
         "no-content-index",
     ]),
 );
+
+/**
+ * Whether an anchor a link names is one of its target's events.
+ *
+ * A wikilink names a `prose` anchor; an `event` anchor is named only by the
+ * frontmatter keys that accept one. A local target carries its event ids as
+ * `eventAnchors`, a target another package publishes carries its kinded
+ * anchors as `noteAnchors`.
+ *
+ * @param {{eventAnchors?: Set<string>, noteAnchors?: Array<{slug: string,
+ *   kind?: string}>}|undefined} hit - The link's resolved target.
+ * @param {string} anchor - The anchor the link names.
+ * @returns {boolean} Whether it is an event.
+ */
+export function isEventAnchor(hit, anchor) {
+    if (!hit || !anchor) return false;
+    if (hit.eventAnchors?.has?.(anchor)) return true;
+    return Array.isArray(hit.noteAnchors) ?
+            hit.noteAnchors.some((one) => one?.slug === anchor && one.kind === "event")
+        :   false;
+}
 
 /**
  * What an author writing an address that resolves to nothing is told.
@@ -340,6 +362,11 @@ export function linkFindingMessage({ reason, target, packages, anchor, type, stu
             return (
                 `address [[${target}]] resolves, but no section "#${anchor ?? ""}" ` +
                 `is published for it`
+            );
+        case "event-anchor":
+            return (
+                `address [[${target}#${anchor ?? ""}]] names an event, and prose links to ` +
+                `the note, not to an event — write [[${target}|…]]`
             );
         case "unresolved":
             return unresolvedAddressMessage(target);

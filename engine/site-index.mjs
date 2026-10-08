@@ -53,7 +53,7 @@ import { buildReferenceTargets } from "./reference-targets.mjs";
 import { standingsDigest } from "./standings.mjs";
 // The leaf reader, shared with the content index and the link checker, so a
 // page's anchors are read once rather than re-derived a third way here.
-import { collectAnchors } from "./anchors.mjs";
+import { collectAnchors, eventAnchors } from "./anchors.mjs";
 
 import { resolveShortcodeReference } from "./shortcode-references.mjs";
 
@@ -247,6 +247,8 @@ export function buildSiteIndex(
             // URL unverified. A Set even when empty: a page that declares no
             // anchor still has a definite answer for one an author names.
             anchors: new Set(collectAnchors(e.body ?? "").map((anchor) => anchor.slug)),
+            // The note's event ids, which a wikilink may not name.
+            eventAnchors: new Set(eventAnchors(e.fm).map((anchor) => anchor.slug)),
         };
 
         const shortcode = e.fm.shortcode;

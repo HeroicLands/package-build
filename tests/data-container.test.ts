@@ -47,20 +47,22 @@ const messages = (findings: Array<{ message: string }>) =>
 const opts = { schemas: NOTE_SCHEMAS as any, vocabulary: NOTE_VOCABULARY };
 
 describe("the `data:` container is closed", () => {
-    it("accepts a dated occurrence on every lore subtype", () => {
+    it("accepts an event on every lore subtype, and on a place and an affiliation", () => {
+        const event = { when: "412.1", summary: "The town is founded." };
         for (const subType of subTypes("lore") ?? []) {
-            const findings = lintNote(
-                note("lore", { subType, data: { events: [{ when: "412.1" }] } }),
-                opts,
-            );
+            const findings = lintNote(note("lore", { subType, data: { events: [event] } }), opts);
             expect(messages(findings), subType).not.toContain("data.events");
+        }
+        for (const type of ["place", "affiliation"]) {
+            const findings = lintNote(note(type, { data: { events: [event] } }), opts);
+            expect(messages(findings), type).not.toContain("data.events");
         }
     });
 
-    it("rejects dated occurrences outside lore and requires a list", () => {
+    it("rejects events on a type that does not carry them, and requires a list", () => {
         expect(
-            messages(lintNote(note("place", { data: { events: [{ when: "412.1" }] } }), opts)),
-        ).toContain("`data:` property declared by place");
+            messages(lintNote(note("being", { data: { events: [{ when: "412.1" }] } }), opts)),
+        ).toContain("`data:` property declared by being");
         expect(messages(lintNote(note("lore", { data: { events: "founding" } }), opts))).toContain(
             "`data.events` should",
         );

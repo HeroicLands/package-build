@@ -68,7 +68,7 @@ import { renderBlocks, renderWithheldSections, scanBlocks } from "./content-bloc
 import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
 import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
-import { collectAnchors, markupAnchorFindings } from "./anchors.mjs";
+import { collectAnchors, eventAnchors, markupAnchorFindings } from "./anchors.mjs";
 import { checkImages, renderImageFigures } from "./content-images.mjs";
 import { assetPathnameKey, pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import {
@@ -818,6 +818,7 @@ export function renderSitePage(
     // This page's own anchors, so a `[[#slug]]` self-link is checked against
     // what the page actually declares rather than trusted unconditionally.
     ctx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
+    ctx.eventAnchors = new Set(eventAnchors(page.fm).map((anchor) => anchor.slug));
     const expressions = renderMarkdownExpressions(markdown, {
         fm: page.fm,
         dates: index.dateContext,
@@ -1181,7 +1182,11 @@ export function resolveSitePass(name, options) {
 export function sitePageDecorator(config, index) {
     const router = routerFor(config);
     return (data, page) => {
-        const resolvedDates = resolvedDateFields(page.fm, index.dateContext);
+        // A being's dates reach the page; a note's events reach no page.
+        const { events: _events, ...resolvedDates } = resolvedDateFields(
+            page.fm,
+            index.dateContext,
+        );
         if (Object.keys(resolvedDates).length) data.resolvedDates = resolvedDates;
         data.infoboxes = noteInfoboxes(page.fm, {
             resolve: (ref, hint) => resolveInfoboxRef(index, ref, hint),

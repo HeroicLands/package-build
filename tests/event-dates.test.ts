@@ -16,7 +16,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 import { canonicalYear, eraYear } from "../engine/calendars.mjs";
 import { occurrencesOf, parseNoteDate, resolvedDateFields } from "../engine/note-dates.mjs";
-import { checkLoreEvents } from "../engine/lore-events.mjs";
+import { checkNoteEvents } from "../engine/note-events.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -167,84 +167,102 @@ describe("occurrencesOf", () => {
     });
 });
 
-describe("checkLoreEvents", () => {
+describe("checkNoteEvents", () => {
     const calendar = { type: "lore", subType: "history", shortcode: "found" };
 
     it("recurs present with no when", () => {
-        const n = note({ ...calendar, data: { events: [{ recurs: { every: 1 } }] } });
-        const findings = checkLoreEvents(n, {});
-        expect(findings).toHaveLength(1);
-        expect(findings[0].severity).toBe("error");
-        expect(findings[0].message).toContain("needs a `when`");
+        const n = note({ ...calendar, data: { events: [{ summary: "S", recurs: { every: 1 } }] } });
+        const findings = checkNoteEvents(n, {});
+        const recurs = findings.filter((f) => f.message.includes("needs a `when` of its own"));
+        expect(recurs).toHaveLength(1);
+        expect(recurs[0].severity).toBe("error");
     });
 
     it("recurs declaring neither every nor on", () => {
-        const n = note({ ...calendar, data: { events: [{ when: "412.1", recurs: {} }] } });
-        expect(messages(checkLoreEvents(n, {}))[0]).toContain("needs `every` or `on`");
+        const n = note({
+            ...calendar,
+            data: { events: [{ summary: "S", when: "412.1", recurs: {} }] },
+        });
+        expect(messages(checkNoteEvents(n, {}))[0]).toContain("needs `every` or `on`");
     });
 
     it("recurs declaring both every and on", () => {
         const n = note({
             ...calendar,
-            data: { events: [{ when: "412.1", recurs: { every: 1, on: ["413.1"] } }] },
+            data: {
+                events: [{ summary: "S", when: "412.1", recurs: { every: 1, on: ["413.1"] } }],
+            },
         });
-        expect(messages(checkLoreEvents(n, {}))[0]).toContain("exactly one of `every` or `on`");
+        expect(messages(checkNoteEvents(n, {}))[0]).toContain("exactly one of `every` or `on`");
     });
 
     it("recurs.every not a whole number >= 1", () => {
         for (const bad of [0, -1, 1.5, "annual"]) {
             const n = note({
                 ...calendar,
-                data: { events: [{ when: "412.1", recurs: { every: bad } }] },
+                data: { events: [{ summary: "S", when: "412.1", recurs: { every: bad } }] },
             });
-            expect(messages(checkLoreEvents(n, {}))[0], String(bad)).toContain("`recurs.every`");
+            expect(messages(checkNoteEvents(n, {}))[0], String(bad)).toContain("`recurs.every`");
         }
     });
 
     it("an on entry at or before when", () => {
         const n = note({
             ...calendar,
-            data: { events: [{ when: "412.1", recurs: { on: ["412.1"] } }] },
+            data: { events: [{ summary: "S", when: "412.1", recurs: { on: ["412.1"] } }] },
         });
-        expect(messages(checkLoreEvents(n, {}))[0]).toContain("at or before `when`");
+        expect(messages(checkNoteEvents(n, {}))[0]).toContain("at or before `when`");
     });
 
     it("on entries out of order", () => {
         const n = note({
             ...calendar,
-            data: { events: [{ when: "412.1", recurs: { on: ["413.1", "412.5"] } }] },
+            data: { events: [{ summary: "S", when: "412.1", recurs: { on: ["413.1", "412.5"] } }] },
         });
-        const found = messages(checkLoreEvents(n, {}));
+        const found = messages(checkNoteEvents(n, {}));
         expect(found.some((m) => m.includes("not strictly increasing"))).toBe(true);
     });
 
     it("until present beside recurs.on", () => {
         const n = note({
             ...calendar,
-            data: { events: [{ when: "412.1", until: "999.1", recurs: { on: ["413.1"] } }] },
+            data: {
+                events: [
+                    { summary: "S", when: "412.1", until: "999.1", recurs: { on: ["413.1"] } },
+                ],
+            },
         });
-        const found = messages(checkLoreEvents(n, {}));
+        const found = messages(checkNoteEvents(n, {}));
         expect(found.some((m) => m.includes("refused beside `recurs.on`"))).toBe(true);
     });
 
     it("recurs beside a when of year 0", () => {
-        const n = note({ ...calendar, data: { events: [{ when: "0.5", recurs: { every: 1 } }] } });
-        expect(messages(checkLoreEvents(n, {}))[0]).toContain("year 0");
+        const n = note({
+            ...calendar,
+            data: { events: [{ summary: "S", when: "0.5", recurs: { every: 1 } }] },
+        });
+        expect(messages(checkNoteEvents(n, {}))[0]).toContain("year 0");
     });
 
     it("until is allowed beside a when of year 0", () => {
-        const n = note({ ...calendar, data: { events: [{ when: "0.5", until: "999.1" }] } });
-        expect(checkLoreEvents(n, {})).toEqual([]);
+        const n = note({
+            ...calendar,
+            data: { events: [{ summary: "S", when: "0.5", until: "999.1" }] },
+        });
+        expect(checkNoteEvents(n, {})).toEqual([]);
     });
 
     it("positions a finding at the entry that carries the fault", () => {
         const n = note({
             ...calendar,
             data: {
-                events: [{ when: "412.1" }, { when: "413.1", recurs: { every: 0 } }],
+                events: [
+                    { id: "a", summary: "S", when: "412.1" },
+                    { id: "b", summary: "S", when: "413.1", recurs: { every: 0 } },
+                ],
             },
         });
-        const [finding] = checkLoreEvents(n, {});
+        const [finding] = checkNoteEvents(n, {});
         expect(finding.line).toBeGreaterThan(0);
         // The second entry's fault, not the first's — a position on the list
         // would land on the same line for either.

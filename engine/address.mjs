@@ -34,9 +34,23 @@
  *   this module and nothing here qualifies one. A field the corpus writes at
  *   both lengths is an Address; a field never written qualified is a shortcode.
  * - A **Wikilink** is `[[<Address>[#<anchor>]|<text>]]` — a different thing that
- *   *contains* an Address. The anchor and the label belong to the Wikilink and
- *   are stripped before anything here sees the value; a frontmatter field holds
- *   the same tuple with no Wikilink around it.
+ *   *contains* an Address. The label belongs to the Wikilink.
+ *
+ * ## An anchor names a place inside what an Address names
+ *
+ * Any written form may end in `#<anchor>`: `place-ironfells#sack`,
+ * `thalorna-note-place-ironfells#sack`, or `ironfells#sack` where the
+ * position supplies the type. {@link splitAnchor} is the one reader of that
+ * suffix — a Wikilink's anchor and a frontmatter field's are read by it alike —
+ * and it hands back the Address part, which {@link parseAddress} reads as it
+ * reads any other. The anchor is never part of the tuple: it names a place
+ * *within* the note the tuple names, and every anchor a note declares has one
+ * of two kinds — `prose` for one its body declares, `event` for an event's `id`
+ * ({@link module:engine/anchors}). A wikilink names a `prose` anchor only.
+ *
+ * **A frontmatter field accepts an anchor only where it declares the kinds it
+ * takes** (`anchors: ["event"]`). Every other Address field refuses one with
+ * a finding at that value.
  *
  * **How an author writes an Address is any suffix of the tuple. At the code
  * level there is one shape.**
@@ -313,6 +327,33 @@ export function parseAddress(
     if (declared && !isAddressSegment(tuple.package)) return { reason: "no-package" };
     if (declared && !isSystemSegment(tuple.system)) return { reason: "invalid-system" };
     return tuple;
+}
+
+/**
+ * Split a written value at its anchor.
+ *
+ * The anchor is everything after the first `#`, and the Address everything
+ * before it; both are trimmed. A value with no `#` has no `anchor` key at
+ * all, which is how a caller tells "no anchor" from `place-x#`, an empty one.
+ *
+ * @param {string} written - The value as authored, any Wikilink label removed.
+ * @returns {{address: string, anchor?: string}} The two parts.
+ */
+export function splitAnchor(written) {
+    const text = String(written ?? "");
+    const hash = text.indexOf("#");
+    if (hash === -1) return { address: text.trim() };
+    return { address: text.slice(0, hash).trim(), anchor: text.slice(hash + 1).trim() };
+}
+
+/**
+ * Whether a written value carries an anchor.
+ *
+ * @param {unknown} written - The value as authored.
+ * @returns {boolean} Whether it is a string holding a `#`.
+ */
+export function hasAnchor(written) {
+    return typeof written === "string" && written.includes("#");
 }
 
 /** The values created by the Address reader, distinct from authored mappings. */

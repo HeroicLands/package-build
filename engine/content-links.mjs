@@ -197,6 +197,8 @@ export function buildLinkIndex(
     /** Canonical address to asset record, for the files this package ships. */
     const byAssetKey = new Map();
     const anchors = new Map();
+    /** Each note to the ids of its events, which a wikilink may not name. */
+    const eventAnchorsOf = new Map();
 
     for (const record of indexRecords) {
         // An asset's record addresses a file rather than a note: there is no
@@ -231,7 +233,14 @@ export function buildLinkIndex(
 
         // The anchors the index recorded, rather than a second reading of the
         // same headings — the disagreement the anchor half removes.
-        anchors.set(note, new Set((record.anchors ?? []).map((a) => a.slug)));
+        anchors.set(
+            note,
+            new Set((record.anchors ?? []).filter((a) => a.kind === "prose").map((a) => a.slug)),
+        );
+        eventAnchorsOf.set(
+            note,
+            new Set((record.anchors ?? []).filter((a) => a.kind === "event").map((a) => a.slug)),
+        );
 
         if (typeof fm.shortcode === "string" && fm.shortcode) {
             // Canonical addresses only. Every written target expands to one
@@ -599,6 +608,7 @@ export function buildLinkIndex(
         notes,
         frontmatterLinks,
         anchors,
+        eventAnchorsOf,
         types,
         packages,
         /** Packages declared `contentIndex: false`, a Foundry dependency only. */
@@ -953,6 +963,10 @@ export function auditLinks(index) {
             if (!dest) continue;
             if (!(anchors.get(dest) ?? new Set()).has(slugify(anchor))) {
                 deadAnchors.push({
+                    reason:
+                        (index.eventAnchorsOf?.get(dest) ?? new Set()).has(anchor) ?
+                            "event-anchor"
+                        :   "unknown-anchor",
                     note,
                     link: `${rawTarget}#${anchor}`,
                     // The two the shared `unknown-anchor` wording reads, in the

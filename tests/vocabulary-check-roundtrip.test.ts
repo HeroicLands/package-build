@@ -99,13 +99,22 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     place: {
-        covers: ["calendar", "purpose", "population", "market", "borders", "routes"],
+        covers: ["events", "calendar", "purpose", "population", "market", "borders", "routes"],
         fm: () => ({
             type: "place",
             subType: "settlement",
             shortcode: "vylar",
             tags: ["market"],
             data: {
+                events: [
+                    {
+                        kind: "founding",
+                        when: "412.1",
+                        summary: "The town is founded.",
+                        where: { locus: ["place-korrath"] },
+                        who: [{ ref: "affiliation-vrystwldtrbs", role: "founder" }],
+                    },
+                ],
                 calendar: "calendarone",
                 purpose: "market",
                 population: 1200,
@@ -116,11 +125,20 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     affiliation: {
-        covers: ["governance.ranks"],
+        covers: ["events", "governance.ranks"],
         fm: () => ({
             type: "affiliation",
             shortcode: "someaffiliation",
             data: {
+                events: [
+                    {
+                        kind: "founding",
+                        when: "412.1",
+                        summary: "The town is founded.",
+                        where: { locus: ["place-korrath"] },
+                        who: [{ ref: "affiliation-vrystwldtrbs", role: "founder" }],
+                    },
+                ],
                 governance: {
                     ranks: [{ level: 1, title: "Member", description: "An ordinary member." }],
                 },
@@ -136,7 +154,14 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             data: {
                 culture: "cultureone",
                 language: "languageone",
-                events: [{ when: "412.1", until: "612.1", recurs: { every: 1 } }],
+                events: [
+                    {
+                        when: "412.1",
+                        until: "612.1",
+                        recurs: { every: 1 },
+                        summary: "The saga is recited every year.",
+                    },
+                ],
             },
         }),
     },

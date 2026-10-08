@@ -136,7 +136,27 @@ The index is disposable build output; regenerate it from the authored tree
 when the content changes.
 
 The record's `address.canonical` is the full Address. Its `address.slug` is a
-local web link target. A stub has `address: null` and `anchors: null`; its
+local web link target. Each entry of `anchors` carries its `slug`, `name`, `line`,
+`link` and `kind` — `prose` for an anchor the body declares, `event` for an
+event's `id` — so a note's events are listed there beside its body anchors. A
+dependency's events are resolved through this list and through each event's
+resolved date under `resolvedDates.events`.
+
+**Every Address in the file is an object**, wherever it appears — `address.canonical`,
+`documentation`, an anchor's `link`, and every Address a note writes:
+
+```json
+{ "address": "thalorna-note-place-xerathia", "anchor": null, "anchorKind": null }
+{ "address": "thalorna-note-lore-crown", "anchor": "founding", "anchorKind": "event" }
+```
+
+`address` is the full canonical Address, `anchor` the anchor's slug or `null`,
+and `anchorKind` its kind, `prose` or `event`, or `null`. A map keyed by
+Address, such as a being's `affiliations`, keeps string keys: JSON keys are
+strings, and no Address-keyed field takes an anchor. A package and every
+package it depends on build with the same index format, since each reads the
+others' published files. The SQL tables present each Address as a plain
+string. A stub has `address: null` and `anchors: null`; its
 frontmatter remains queryable. An Item or Actor note can have both a readable
 `note` record and a game-system document destination. A generated
 `documentation` pointer connects a system document to its readable note.

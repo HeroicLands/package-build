@@ -30,6 +30,7 @@ import {
     emitContentIndex,
 } from "../engine/content-index.mjs";
 import { addressSlug, canonicalKey } from "../engine/content-address.mjs";
+import { flattenPublishedAddresses } from "../engine/address-values.mjs";
 import { systemOf } from "../engine/document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/note-claims.mjs";
 import { splitPages } from "../engine/journals.mjs";
@@ -45,13 +46,17 @@ function note(rel: string, frontmatter: string): void {
     fs.writeFileSync(full, `---\n${frontmatter}\n---\n\nBody.\n`);
 }
 
-/** Read the emitted file back as parsed records. */
+/**
+ * Read the emitted file back as parsed records, each published Address as the
+ * string it names — what these cases assert. The published object form is
+ * asserted on its own, in `address-anchors.test.ts`.
+ */
 function readIndex(file: string): Array<Record<string, any>> {
     const text = fs.readFileSync(file, "utf8");
     return text
         .split("\n")
         .filter((l) => l !== "")
-        .map((l) => JSON.parse(l));
+        .map((l) => flattenPublishedAddresses(JSON.parse(l)));
 }
 
 beforeEach(() => {
@@ -682,7 +687,11 @@ describe("emitContentIndex", () => {
         expect(result.notes).toBe(0);
         const lines = fs.readFileSync(result.file, "utf8").trim().split("\n");
         expect(lines).toHaveLength(1);
-        expect(JSON.parse(lines[0]).address.canonical).toBe("sohl-none-icon-anvil");
+        expect(JSON.parse(lines[0]).address.canonical).toEqual({
+            address: "sohl-none-icon-anvil",
+            anchor: null,
+            anchorKind: null,
+        });
     });
 
     it("refuses to state that a package has no content", () => {
@@ -1033,8 +1042,8 @@ describe("published place government", () => {
         expect(
             published.find((record) => record.shortcode === "anarchy").data.government,
         ).toBeNull();
-        expect(published.find((record) => record.shortcode === "governed").data.government).toBe(
-            "demo-note-affiliation-council",
+        expect(published.find((record) => record.shortcode === "governed").data.government).toEqual(
+            { address: "demo-note-affiliation-council", anchor: null, anchorKind: null },
         );
     });
 });

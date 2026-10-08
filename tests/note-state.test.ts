@@ -152,6 +152,7 @@ describe("a stub's index record", () => {
                 name: "Overview",
                 level: 2,
                 line: 1,
+                kind: "prose",
                 link: {
                     target: {
                         package: "thalorna",
@@ -160,6 +161,7 @@ describe("a stub's index record", () => {
                         shortcode: "weyshott",
                     },
                     anchor: "overview",
+                    kind: "prose",
                 },
             },
         ]);

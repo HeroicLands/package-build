@@ -413,7 +413,7 @@ describe("what the pipeline does with one", () => {
                 .readFileSync(index, "utf8")
                 .trim()
                 .split("\n")
-                .map((line) => JSON.parse(line).address?.canonical);
+                .map((line) => JSON.parse(line).address?.canonical?.address);
             expect(addresses).toContain("toolkit-note-doc-commands");
         },
         SUBPROCESS_TEST_TIMEOUT,

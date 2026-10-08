@@ -190,6 +190,29 @@ describe("auditLinks", () => {
         expect(r.deadAnchors[0].link).toBe("skill-clmb#nosuch");
     });
 
+    it("reports an anchor naming one of the target's events as an event, not a section", () => {
+        const r = audit({
+            "Lore/Crown.md": [
+                "---",
+                "type: lore",
+                "shortcode: crown",
+                "subType: history",
+                "data:",
+                "  events:",
+                "    - id: founding",
+                '      when: "1"',
+                "      summary: The crown is founded.",
+                "---",
+                "",
+                "Prose.",
+                "",
+            ].join("\n"),
+            "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[lore-crown#founding|]]."),
+        });
+        expect(r.deadAnchors).toHaveLength(1);
+        expect(r.deadAnchors[0].reason).toBe("event-anchor");
+    });
+
     it("reports a same-page anchor no heading declares", () => {
         const r = audit({
             "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[#gone|there]]."),
