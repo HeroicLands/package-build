@@ -305,9 +305,11 @@ export function withheldSections(source, bodyLine = 1) {
         sections.push({ start: index, end: starts[at + 1] ?? lines.length, heading });
     }
     // A heading that opens no page is not among the openings at all, so the
-    // class is looked for again across every heading the body states.
+    // class is looked for again across every heading the body states. The
+    // openings are keyed by body line index and a heading carries its file
+    // line, so the body's first line is subtracted to compare the two.
     for (const heading of scanHeadingAttributes(source, bodyLine).headings) {
-        if (openings.has(heading.line - 1)) continue;
+        if (openings.has(heading.line - bodyLine)) continue;
         if (!heading.classes.includes(WITHHELD_CLASS)) continue;
         errors.push({
             line: heading.line,
