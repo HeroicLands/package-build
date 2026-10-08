@@ -195,6 +195,70 @@ describe("a captioned item in the middle of a section", () => {
         expect(secret[0].ownership).toBeDefined();
         expect(continuation.ownership).toEqual(secret[0].ownership);
     });
+
+    it("withholds an item inside a withheld section, and the continuation after it", () => {
+        const pages = entryFor(
+            [
+                "# Rites {.secret}",
+                "",
+                "Hidden.",
+                "",
+                ": Verse {#verse}",
+                "",
+                POEM,
+                "",
+                "Still hidden.",
+            ].join("\n"),
+        ).pages;
+        expect(pages.map((page: any) => page.name)).toEqual(["Rites", "Verse", "Rites"]);
+        expect(pages[0].ownership).toBeDefined();
+        expect(pages[1].ownership).toEqual(pages[0].ownership);
+        expect(pages[2].ownership).toEqual(pages[0].ownership);
+    });
+
+    it("states no ownership for an item in an ordinary section or the lead region", () => {
+        const pages = entryFor(
+            [
+                "Lead.",
+                "",
+                ": First {#first}",
+                "",
+                POEM,
+                "",
+                "# Open",
+                "",
+                ": Second {#second}",
+                "",
+                POEM,
+            ].join("\n"),
+        ).pages;
+        expect(pages.length).toBeGreaterThan(2);
+        for (const page of pages) expect(page.ownership).toBeUndefined();
+    });
+
+    it("does not carry a withheld section's withholding into the next section", () => {
+        const pages = entryFor(
+            [
+                "# Rites {.secret}",
+                "",
+                ": Verse {#verse}",
+                "",
+                POEM,
+                "",
+                "# Open",
+                "",
+                "Plain.",
+                "",
+                ": Other {#other}",
+                "",
+                POEM,
+            ].join("\n"),
+        ).pages;
+        const open = pages.filter((page: any) => page.name !== "Rites" && page.name !== "Verse");
+        expect(open.length).toBeGreaterThan(1);
+        for (const page of open) expect(page.ownership).toBeUndefined();
+        expect(pages.find((page: any) => page.name === "Verse").ownership).toBeDefined();
+    });
 });
 
 describe("a caption carrying a link", () => {
