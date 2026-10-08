@@ -75,7 +75,11 @@ import {
     SYSTEM_BLOCK_KEYS,
     unknownBlockKeys,
 } from "./system-block.mjs";
-import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
+import {
+    frontmatterValueAt,
+    positionInFrontmatter,
+    positionOfFrontmatterPath,
+} from "./diagnostics.mjs";
 import { pathnameProblem } from "./pathnames.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from "./ids.mjs";
@@ -729,7 +733,11 @@ function checkDataReferences(note, field, value, segments, context, index) {
             file: note.file,
             ...positionOfFrontmatterPath(note.raw ?? "", path, { key: check.key || check.atKey }),
             severity: "error",
-            message: `\`${path.join(".")}\` ${reason}, but reads ${JSON.stringify(writtenForm(check.value))}`,
+            // The value as the file states it: the note's own Addresses are
+            // already canonical, and a key is quoted as the key it is.
+            message: `\`${path.join(".")}\` ${reason}, but reads ${JSON.stringify(
+                (!check.key && frontmatterValueAt(note.raw, path)) || writtenForm(check.value),
+            )}`,
         });
     }
     return findings;

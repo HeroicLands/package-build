@@ -60,7 +60,7 @@ import {
 import { collectAnchors, eventAnchors, noteAnchorFindings } from "./anchors.mjs";
 import { AddressLink } from "./address-values.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
-import { positionOfFrontmatterPath } from "./diagnostics.mjs";
+import { frontmatterValueAt, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 
@@ -850,9 +850,7 @@ export function checkNoteEvents(note, { index } = {}) {
                     at(
                         ref.path,
                         `\`${dotted(ref.path)}\` ${resolved.problem}, but reads ` +
-                            JSON.stringify(
-                                isAddressTuple(ref.value) ? renderAddress(ref.value) : ref.value,
-                            ),
+                            JSON.stringify(frontmatterValueAt(note.raw, ref.path) ?? ref.value),
                     ),
                 );
                 continue;
