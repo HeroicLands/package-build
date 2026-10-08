@@ -532,11 +532,12 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
  * @param {Array<object>} rawPages - From {@link splitPages}.
  * @param {string} entryId - The owning JournalEntry's `_id`.
  * @param {string} noteName - The note, for error messages.
- * A page whose heading carries `.secret` is given to the GM alone, by the one
- * ownership value Foundry reads as "nobody but a GM". Every other page states
- * no ownership and inherits the journal's. A figure-started page states none
- * either: {@link scanFigures} validates a figure's classes against its own
- * closed vocabulary, which carries no `.secret`.
+ * A page whose opening heading carries `.secret` is given to the GM alone, by
+ * the one ownership value Foundry reads as "nobody but a GM"; so is a captioned
+ * item's page and a continuation page inside such a section. Every other page
+ * states no ownership and inherits the journal's. A caption's own classes carry
+ * no `.secret`, because {@link scanFigures} validates them against a closed
+ * vocabulary without it.
  *
  * @param {Array<object>} figures - From {@link scanFigures}, numbered across
  *   the whole note. Read by a page a heading started; a page a figure started
