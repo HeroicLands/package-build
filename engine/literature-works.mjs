@@ -18,14 +18,16 @@
  * a hero's, a place's or a god's page reaches the epics and legends about it.
  * The subject note writes nothing.
  *
- * A work in a fetched index lists on this package's subject pages when that
- * index carries its `subjects`. A subject in another package has no page here,
+ * A subject naming an event lists the work on the page of the note holding
+ * that event. A work in a fetched index lists on this package's subject pages
+ * when that index carries its `subjects`. A subject in another package has no page here,
  * so a local work naming one lists nowhere.
  *
  * @module
  */
 
-import { parseAddress, renderAddress } from "./address.mjs";
+import { parseAddress, renderAddress, splitAnchor } from "./address.mjs";
+import { AddressLink } from "./address-values.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
 import { LITERATURE_SUBTYPE } from "./literature-notes.mjs";
 
@@ -43,10 +45,18 @@ export const WORKS_KEY = "works";
  * @property {unknown[]} subjects A work's `data.subjects`; empty for any other note.
  */
 
-/** The note-system key of one Address, or "" where it names nothing. */
+/**
+ * The note-system key of one Address, or "" where it names nothing. A subject
+ * naming an event — `place-ironfells#sack`, or an {@link AddressLink} read
+ * from one — keys the note that holds the event.
+ */
 function addressKey(value, pkg, types) {
     if (value == null) return "";
-    const tuple = parseAddress(value, { package: pkg ?? "local", system: "note", types });
+    const note =
+        value instanceof AddressLink ? value.target
+        : typeof value === "string" ? splitAnchor(value).address
+        : value;
+    const tuple = parseAddress(note, { package: pkg ?? "local", system: "note", types });
     if (tuple.reason) return "";
     return renderAddress({ ...tuple, system: "note" }).toLowerCase();
 }

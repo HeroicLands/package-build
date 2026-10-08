@@ -590,6 +590,31 @@ function resolveRef(value, spec, index, dates) {
 }
 
 /**
+ * Resolve an Address a field outside an event writes to name one — a gear
+ * note's `made` or a literature note's `subjects` entry — by the rules an
+ * event's own `follows` is resolved by.
+ *
+ * @param {unknown} value - The authored value: a string, a tuple, or an
+ *   {@link AddressLink}.
+ * @param {{ref?: string, accepts?: readonly string[], anchors?: readonly string[],
+ *   single?: boolean}} spec - The field's declaration: `ref` the default type of
+ *   a bare shortcode, `accepts` the types the Address may name, `anchors` the
+ *   anchor kinds `#<anchor>` may name, and `single` whether it must name exactly
+ *   one event.
+ * @param {object} index - The link index.
+ * @returns {{problem?: string, hit?: object, position?: number, target?: string}}
+ *   What it names, or why it names nothing.
+ */
+export function resolveEventReference(value, spec, index) {
+    return resolveRef(
+        writtenOf(value),
+        { kind: "address", ...spec },
+        index,
+        reckoningContext(index),
+    );
+}
+
+/**
  * Where an event sits on the canonical axis, or `null` when it has no
  * position: `unknown`, a year-`0` date that recurs in every year, or a `when`
  * that does not parse.

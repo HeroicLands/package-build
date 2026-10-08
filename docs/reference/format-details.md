@@ -1614,6 +1614,8 @@ plain Address. The fields that take one:
 | ------------------------------------- | ------------ | ------------------------------------------------------ |
 | `events[].follows[].event`            | `event`      | names a note holding exactly one event                 |
 | `events[].where.reach[].attributedTo` | `event`      | names a lore note, or a note holding exactly one event |
+| `made`, `lost` (every gear type)      | `event`      | names a note holding exactly one event                 |
+| `subjects` (a `literature` note)      | `event`      | names a note of any type, as every subject does        |
 
 An anchored Address resolves when its note resolves, declares that anchor, and
 the anchor's kind is one the field takes. Each failure has its own message: the
@@ -3957,13 +3959,15 @@ for traumas produced by the affliction's outcome. The optional
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
 
 If a `sohl` property is present, a SoHL item of type "armorgear" is created.
 
@@ -3975,6 +3979,16 @@ The note type is `armorgear` in both systems.
 | `data.value`      | `system.valueBase`      | `system.value`  |
 | `data.quality`    | `system.qualityBase`    | NA              |
 | `data.durability` | `system.durabilityBase` | NA              |
+
+Every gear type — `armorgear`, `concoctiongear`, `containergear`, `miscgear`,
+`projectilegear` and `weapongear` — may name the events of the thing's history:
+`made`, the event in which it was made, and `lost`, the event in which it was
+lost. Each is an Address of exactly one [event](#events): `note#id`, or a note
+holding one event. A bare shortcode is read as a `lore` note, so
+`made: forging` is `lore-forging`. Naming a note that holds several events
+without an `id`, a note holding none, an anchor the note does not declare, or
+a `prose` anchor is an error at that key. Neither reaches a system field, an
+infobox row or a page: each is a fact a content table can read.
 
 ### type: armorlocation
 
@@ -4007,16 +4021,18 @@ if a `sohl` property is present, a SoHL item of type "attribute" is created.
 - exotic: A complex and valuable concoction, often a mixture of different herbs and/or chemicals, with medicinal or other unique properties or effects, but not magical in nature.
 - elixir: An arcane alchemical concoction of great power.
 
-| `data` property    | Values                          | Description                                       |
-| ------------------ | ------------------------------- | ------------------------------------------------- |
-| `templatePriority` | `number`                        | Template priority, _null_ = not a template        |
-| `weight`           | `number`                        | Gear weight                                       |
-| `value`            | `number`                        | Gear value                                        |
-| `quality`          | `number`                        | Gear quality                                      |
-| `durability`       | `number`                        | Gear durability                                   |
-| `quantity`         | `number`                        | Gear quantity (default: 1)                        |
-| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)   |
-| `strength`         | `number`                        | Strength: higher the number, greater the strength |
+| `data` property    | Values                          | Description                                                                   |
+| ------------------ | ------------------------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`                        | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`                        | Gear weight                                                                   |
+| `value`            | `number`                        | Gear value                                                                    |
+| `quality`          | `number`                        | Gear quality                                                                  |
+| `durability`       | `number`                        | Gear durability                                                               |
+| `made`             | an event Address                | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address                | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `quantity`         | `number`                        | Gear quantity (default: 1)                                                    |
+| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)                               |
+| `strength`         | `number`                        | Strength: higher the number, greater the strength                             |
 
 if a `sohl` property is present, a SoHL item of type "concoctiongear" is created.
 
@@ -4035,14 +4051,16 @@ if a `sohl` property is present, a SoHL item of type "concoctiongear" is created
 
 Note: `data.quantity` may not be specified; quantity is always set to 1.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
-| `capacity`         | `number` | HM3 container capacity (in lbs)            |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `capacity`         | `number`         | HM3 container capacity (in lbs)                                               |
 
 if a `sohl` property is present, a SoHL item of type "containergear" is created.
 
@@ -4060,14 +4078,16 @@ SoHL reads a container’s capacity in pounds from `sohl.maxCapacity`.
 
 ### type: miscgear
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
-| `quantity`         | `number` | HM3 gear quantity (default: 1)             |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `quantity`         | `number`         | HM3 gear quantity (default: 1)                                                |
 
 if a `sohl` property is present, a SoHL item of type "miscgear" is created.
 
@@ -4177,14 +4197,16 @@ the item’s base mastery and level from `sohl.masteryLevelBase` and
 - dart
 - other
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
-| `quantity`         | `number` | HM3 gear quantity (default: 1)             |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
+| `quantity`         | `number`         | HM3 gear quantity (default: 1)                                                |
 
 if a `sohl` property is present, a SoHL item of type "projectilegear" is created.
 
@@ -4300,13 +4322,15 @@ build.
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
+| `data` property    | Values           | Description                                                                   |
+| ------------------ | ---------------- | ----------------------------------------------------------------------------- |
+| `templatePriority` | `number`         | Template priority, _null_ = not a template                                    |
+| `weight`           | `number`         | Gear weight                                                                   |
+| `value`            | `number`         | Gear value                                                                    |
+| `quality`          | `number`         | Gear quality                                                                  |
+| `durability`       | `number`         | Gear durability                                                               |
+| `made`             | an event Address | The event in which it was made — `lore-forging`, or `place-ironfells#raising` |
+| `lost`             | an event Address | The event in which it was lost — `lore-flood`, or `place-ironfells#sack`      |
 
 if a `sohl` property is present, a SoHL item of type "weapongear" is created,
 carrying every strike mode the weapon has — melee and missile alike — on
@@ -4357,6 +4381,8 @@ the setting itself, rather than instructions or other apparatus for the GM.
 
 Each note a work names in `data.subjects` lists that work on its own site page, under **In
 song and story**, with the work's `form` beside its title; the subject note writes nothing.
+A subject may name one event, as `place-ironfells#sack`: the anchor must be an `event` anchor
+the note declares, and the work lists on the page of the note that holds the event.
 A work in a fetched index lists on this package's pages when that index carries its
 `subjects`.
 
@@ -4375,7 +4401,7 @@ its own key.
 | `formats`       | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                |
 | `culture`       | `Address`                                                                     | `literature` only: the people whose work it is, naming a lore note with `subType: culture`                        |
 | `form`          | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text |
-| `subjects`      | `Address[]`                                                                   | `literature` only: the beings, places, gods, events and other notes the work concerns                             |
+| `subjects`      | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`        |
 | `language`      | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                     |
 | `events`        | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                     |
 

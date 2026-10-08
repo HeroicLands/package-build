@@ -291,6 +291,12 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
     events: Object.freeze({ withheld: "chronology machinery, which no infobox row draws on" }),
+    made: Object.freeze({
+        withheld: "chronology machinery — an event, which no infobox row draws on",
+    }),
+    lost: Object.freeze({
+        withheld: "chronology machinery — an event, which no infobox row draws on",
+    }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),

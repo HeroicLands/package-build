@@ -93,7 +93,10 @@ export const LITERATURE_FIELDS = Object.freeze([
         shape: "list of Addresses",
         kind: "list",
         entryKind: "address",
-        describe: "The beings, places, gods, events and other notes the work concerns.",
+        anchors: Object.freeze(["event"]),
+        describe:
+            "The beings, places, gods and other notes the work concerns, and any one " +
+            "event it concerns, named as `place-ironfells#sack`.",
     },
     {
         name: "language",

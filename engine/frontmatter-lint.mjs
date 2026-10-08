@@ -62,7 +62,8 @@ import {
     NOTE_TOP_LEVEL_KEY_SET,
     NOTE_TOP_LEVEL_KEYS,
 } from "./note-frontmatter.mjs";
-import { AddressEntries } from "./address-values.mjs";
+import { AddressEntries, AddressLink } from "./address-values.mjs";
+import { resolveEventReference } from "./note-events.mjs";
 import { addressPositions } from "./note-addresses.mjs";
 import { authoredFields, readsLegacyKey, readsRetiredTopLevel } from "./field-spec.mjs";
 import {
@@ -555,7 +556,10 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
             });
             continue;
         }
-        if (!matchesKind(value, field.kind, { ...addressContext, type: field.ref })) {
+        if (
+            !(field.kind === "address" && field.anchors && anchored(value)) &&
+            !matchesKind(value, field.kind, { ...addressContext, type: field.ref })
+        ) {
             findings.push({
                 file: note.file,
                 ...positionOfFrontmatterPath(raw, ["data", ...segments]),
@@ -584,6 +588,65 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
 
 /** What a finding says of an anchor on a field that declares no anchor kind. */
 const NO_ANCHOR = "takes no anchor — it names a whole note, so write the Address without `#…`";
+
+/**
+ * Whether an Address value names an anchor: written with `#<anchor>`, or read
+ * into an {@link AddressLink}.
+ *
+ * @param {unknown} value - The value as the note holds it.
+ * @returns {boolean} Whether it carries an anchor.
+ */
+function anchored(value) {
+    return value instanceof AddressLink || hasAnchor(value);
+}
+
+/**
+ * The value as an author wrote it, for a message: a read Address back to its
+ * canonical text, with `#<anchor>` where it has one.
+ *
+ * @param {unknown} value - The value as the note holds it.
+ * @returns {unknown} Its written form.
+ */
+function writtenForm(value) {
+    if (value instanceof AddressLink) return `${renderAddress(value.target)}#${value.anchor}`;
+    if (isAddressTuple(value)) return renderAddress(value);
+    return value;
+}
+
+/**
+ * Why an Address on a field declaring anchor kinds names nothing it accepts, or
+ * `undefined` when it does.
+ *
+ * With an index, the Address is resolved as an event's own `follows` is —
+ * the anchor must exist and be of a kind the field declares, and a field
+ * declaring `single` must name exactly one event. Without one, only its form is
+ * checked.
+ *
+ * @param {unknown} value - The value as the note holds it.
+ * @param {object} field - The field's declaration.
+ * @param {object} defaults - The Address context, with the field's default type.
+ * @param {object} [index] - The link index.
+ * @returns {string|undefined} The reason.
+ */
+function eventReferenceProblem(value, field, defaults, index) {
+    if (index?.addressHit)
+        return resolveEventReference(
+            value,
+            {
+                ...(field.ref ? { ref: field.ref } : {}),
+                ...(field.accepts ? { accepts: field.accepts } : {}),
+                anchors: field.anchors,
+                ...(field.single ? { single: true } : {}),
+            },
+            index,
+        ).problem;
+    const written = writtenForm(value);
+    if (typeof written !== "string") return "should be an Address";
+    const { address, anchor } = splitAnchor(written);
+    if (anchor !== undefined && !isAddressSegment(anchor))
+        return `names the anchor \`${anchor}\`, which is not an address segment`;
+    return matchesKind(address, "address", defaults) ? undefined : "should be an Address";
+}
 
 /**
  * Validate typed entries and resolve declared non-art Address targets.
@@ -643,7 +706,9 @@ function checkDataReferences(note, field, value, segments, context, index) {
         )
             continue;
         let reason;
-        if (check.kind === "address" && hasAnchor(check.value) && !field.anchors)
+        if (check.kind === "address" && field.anchors && (field.single || anchored(check.value)))
+            reason = eventReferenceProblem(check.value, field, defaults, index);
+        else if (check.kind === "address" && hasAnchor(check.value) && !field.anchors)
             reason = NO_ANCHOR;
         else if (!matchesKind(check.value, check.kind, defaults))
             reason = `should be ${check.kind === "address" ? "an Address" : "a Shortcode"}`;
@@ -664,7 +729,7 @@ function checkDataReferences(note, field, value, segments, context, index) {
             file: note.file,
             ...positionOfFrontmatterPath(note.raw ?? "", path, { key: check.key || check.atKey }),
             severity: "error",
-            message: `\`${path.join(".")}\` ${reason}, but reads ${JSON.stringify(check.value)}`,
+            message: `\`${path.join(".")}\` ${reason}, but reads ${JSON.stringify(writtenForm(check.value))}`,
         });
     }
     return findings;
