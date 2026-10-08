@@ -95,7 +95,7 @@ export const LITERATURE_FIELDS = Object.freeze([
         entryKind: "address",
         anchors: Object.freeze(["event"]),
         describe:
-            "The beings, places, gods and other notes the work concerns, and any one " +
+            "The beings, places, gods and other notes the work concerns, and each " +
             "event it concerns, named as `place-ironfells#sack`.",
     },
     {

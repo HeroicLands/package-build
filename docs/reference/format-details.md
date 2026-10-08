@@ -2570,7 +2570,7 @@ query rather than a list kept by hand:
 
 ````markdown
 ```sql
-SELECT address AS _ref, "when" AS "When", summary AS "What happened"
+SELECT note AS _ref, "when" AS "When", summary AS "What happened"
 FROM events
 WHERE kind IN ('war', 'siege', 'battle')
 ORDER BY whenSort
@@ -2585,7 +2585,12 @@ ORDER BY whenSort
 | `whenSort`, `untilSort`  | The date's position on the canonical axis: the canonical year, with a day as its fraction of the year where the calendar states the year's length. `ORDER BY whenSort` is date order.                                       |
 | `whenYear`, `untilYear`  | The canonical year alone, for a filter such as `whenYear BETWEEN 200 AND 299`.                                                                                                                                              |
 
-`when` and `until` read as the text the note wrote, `~` included. A key no
+`when` and `until` read as the text the note wrote, `~` included. The sort
+keys and years are positions on the canonical axis, which counts a year `0`
+that written dates do not: a year written after zero keeps its number, and one
+written before zero sits one higher, so `when: -250` has a `whenYear` of
+`-249`. `_ref` takes a note's Address, never an anchored one, so a table links
+each row through `note` rather than `address`. A key no
 event writes is still a column, `NULL` in every row, and so is a sort key for
 a date with no position on the axis — `unknown`, or a year-`0` day that recurs
 every year. Every Address is a string, as in every other relation, and a list
@@ -2755,7 +2760,7 @@ Each numbered type has its own counter. Websites and Foundry number within a not
 
 Foundry gives a captioned item a JournalEntryPage holding the item alone, named for its number or, unnumbered, for the caption's visible text — links and emphasis reduced to the words a reader sees. A solitary image with a plain caption can use an image page; captions with inline markup and other items use text pages. The body after the item resumes on a continuation page carrying the interrupted section's name, level and classes, with its title hidden; nothing is emitted when the next page begins straight after the item. On the website and in the book the item stays in the flow of the surrounding page.
 
-**Migration:** `:::figure` is no longer supported. Move the former `///` caption before the item as `:@ Caption {#id}` and remove the figure wrapper. To caption a group or passage, put it inside a generic fenced div and caption that div with an explicit type if needed. `///` is no longer a caption delimiter.
+To caption a group or passage, put it inside a generic fenced div and caption that div, with an explicit type where the inferred one does not fit.
 
 ##### Fenced divs
 
@@ -2818,8 +2823,6 @@ Attributes follow the marker and apply to the alert:
 ```
 
 Use `#id`, `.class` and named attributes in the shared braced grammar. The marker determines the default label, icon and color. An authored `title` replaces the default **Note**, **Tip**, **Important** or **Warning** heading while preserving the alert type’s icon and color. Event-handler attributes, malformed attributes, unknown alert types and empty alert bodies are errors. Ordinary blockquotes and alert examples inside literal code remain unchanged. A leading caption can describe an alert as a quote block, normally with the `prose` type or an explicit `example` type.
-
-Migrate former info blocks to `[!NOTE]` alerts and warn blocks to `[!WARNING]` alerts. The old named fences are errors. `:::secret` remains supported.
 
 ##### Secret blocks
 
@@ -2884,7 +2887,7 @@ An **event** is one dated, attributed record of something that happened in the s
 
 Every key of an entry is closed, and so is every key of each map nested in one. A key this section does not list is an error at that key, and a value outside a key's closed list is an error at that value. Every Address an entry writes resolves in this package or a declared dependency, or it is an error at that Address.
 
-An event appears on its note's page and in its Foundry journal as prose the note's body writes, and in the [event views](#event-views) the build appends to the notes it concerns. It reaches no system field, no infobox row and no page's front matter. The content index carries each entry's resolved dates under `resolvedDates.events`, and the [`events`](#content-tables) relation holds one row per entry.
+An event appears on its note's page and in its Foundry journal as prose the note's body writes, and in the [event views](#event-views) the build appends to the notes it concerns. Nothing derived from it reaches a system field, an infobox row or a page's front matter, which carries `data.events` only as the note wrote it. The content index carries each entry's resolved dates under `resolvedDates.events`, and the [`events`](#content-tables) relation holds one row per entry.
 
 #### The keys of an event
 
@@ -4403,10 +4406,25 @@ the setting itself, rather than instructions or other apparatus for the GM.
 
 Each note a work names in `data.subjects` lists that work on its own site page, under **In
 song and story**, with the work's `form` beside its title; the subject note writes nothing.
-A subject may name one event, as `place-ironfells#sack`: the anchor must be an `event` anchor
+Each subject may name one event, as `place-ironfells#sack`: the anchor must be an `event` anchor
 the note declares, and the work lists on the page of the note that holds the event.
 A work in a fetched index lists on this package's pages when that index carries its
 `subjects`.
+
+```yaml
+shortcode: burningsaga
+name: { full: The Saga of the Burning }
+type: lore
+subType: literature
+data:
+  culture: lore-ironfolk
+  form: saga
+  subjects: [place-ironfells#sack, place-east, lore-fords]
+  language: skill-ironspeech
+```
+
+The saga lists under **In song and story** on `place-ironfells`, which holds the
+sack, on `place-east` and on `lore-fords`.
 
 Calendar fields are written only on a `calendar` note, and `culture`, `form`, `subjects` and
 `language` only on a `literature` note; written on any other lore subType, each is an error at

@@ -29,7 +29,7 @@ A nonempty note body creates one system-agnostic Foundry JournalEntry. Content b
 
 Leading `:` captions describe the next supported block; `:@` captions also number it. The optional type accepts `figure`, `table`, `poetry`, `code`, `prose`, and `example`. Captions support identifiers, classes and named attributes; unsupported following blocks are errors. See [captions and numbered references](authoring/links-and-markup.md#captions-and-numbered-references).
 
-A code fence with language `poetry` keeps verse lines, stanza breaks and relative indentation. Its numbered caption uses the **Poem** label. Generic `:::` divs and `[inline spans]{.class}` accept attributes. The former `:::figure` and `:::poetry` forms are removed. See [poetry](authoring/links-and-markup.md#poetry), [fenced divs](authoring/links-and-markup.md#fenced-divs) and [inline spans](authoring/links-and-markup.md#inline-spans).
+A code fence with language `poetry` keeps verse lines, stanza breaks and relative indentation. Its numbered caption uses the **Poem** label. Generic `:::` divs and `[inline spans]{.class}` accept attributes. See [poetry](authoring/links-and-markup.md#poetry), [fenced divs](authoring/links-and-markup.md#fenced-divs) and [inline spans](authoring/links-and-markup.md#inline-spans).
 
 Body extensions use braces with space-separated `key=value` attributes:
 `![[icon-harbor|Harbor]]{float=top-left size=medium}` and an SQL fence with
