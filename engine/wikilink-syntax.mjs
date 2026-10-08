@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { parseAddress, isAddressTuple } from "./address.mjs";
+import { parseAddress, isAddressTuple, splitAnchor } from "./address.mjs";
 
 /**
  * What a `[[…]]` **is**, before anything decides where it points.
@@ -104,9 +104,9 @@ export function parseWikilink(rawInner) {
     const linkPart = (labelled ? inner.slice(0, bar) : inner).trim();
     const display = labelled ? inner.slice(bar + 1).trim() : null;
 
-    const hash = linkPart.indexOf("#");
-    const target = (hash === -1 ? linkPart : linkPart.slice(0, hash)).trim();
-    const anchor = hash === -1 ? "" : linkPart.slice(hash + 1).trim();
+    // The anchor is read by the one reader a frontmatter Address uses, so a
+    // link and a field cannot disagree about where the anchor starts.
+    const { address: target, anchor = "" } = splitAnchor(linkPart);
 
     return { inner: inner.trim(), target, anchor, display, labelled };
 }

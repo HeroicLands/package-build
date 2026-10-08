@@ -94,4 +94,24 @@ describe("Foundry containing-page anchors", () => {
             convertWikilinks("[[doc-example#part|Read]]", { type: "doc", id, index }).markdown,
         ).toContain("JournalEntryPage.");
     });
+    it("opens the note's journal for an event anchor, which marks no page", () => {
+        const uuid = compendiumUuid("demo", "doc", id);
+        const doc = {
+            type: "doc",
+            id,
+            shortcode: "example",
+            name: "Example",
+            anchorUuids: anchorsOf(uuid, id, body, "Example"),
+            anchors: new Set([...collectAnchors(body).map((a) => a.slug), "sack"]),
+            eventAnchors: new Set(["sack"]),
+        };
+        const index = buildWikilinkIndex([doc], "demo");
+        const result = convertWikilinks("[[doc-example#sack|Read]]", {
+            type: "doc",
+            id: "x",
+            index,
+        });
+        expect(result.unresolved).toEqual([]);
+        expect(result.markdown).toBe(`@UUID[${uuid}]{Read}`);
+    });
 });

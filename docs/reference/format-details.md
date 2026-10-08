@@ -1514,8 +1514,9 @@ information, because the field already said what kind of thing it points at.
 
 The frontmatter lint checks scalar Addresses, entries in Address lists, and
 Address map keys at the entry's own location. Segments contain lowercase ASCII
-letters and digits; wikilink brackets, labels, anchors, and spaces do not belong
-in these fields. Optional null values and empty lists or maps express no
+letters and digits; wikilink brackets, labels and spaces do not belong in these
+fields, and an anchor belongs only in a field that accepts one — see _Anchors_
+below. Optional null values and empty lists or maps express no
 reference. Grammar and accepted types are checked independently of whether a
 target exists.
 
@@ -1578,6 +1579,53 @@ frontmatter_ is part of what `package-build links` reports when it passes.
 Brackets belong in prose, where a link sits inside a sentence and needs marking
 off from the words around it. A frontmatter value has nothing to be marked off
 from.
+
+#### Anchors
+
+An Address may end in `#<anchor>`, naming a place inside the note it addresses —
+a heading, a block, an event. Every written form takes one:
+
+```text
+thalorna-note-place-ironfells#sack   the full Address, anchored
+place-ironfells#sack                 type and shortcode, anchored
+ironfells#sack                       a bare shortcode, where the field supplies the type
+```
+
+The anchor is read the same way in a frontmatter field and in a wikilink: it is
+everything after the first `#`, and what precedes it is an ordinary Address.
+
+**Every anchor has a kind**, from what declares it:
+
+| anchor kind | declared by                                                   |
+| ----------- | ------------------------------------------------------------- |
+| `heading`   | a heading's `{#slug}`                                         |
+| `caption`   | a caption's `{#slug}`                                         |
+| `block`     | a `:::` div or disclosure block's `{#slug}`                   |
+| `alert`     | an alert's `{#slug}`                                          |
+| `poem`      | a poetry fence's `{#slug}`                                    |
+| `span`      | an inline span's `{#slug}`                                    |
+| `event`     | the `id` of an entry in `data.events` — see [Events](#events) |
+
+**A note's anchors are one namespace.** An event's `id` that equals any other
+anchor slug in the same note is an error at the `id`, as two equal headings
+already are.
+
+**A frontmatter field accepts an anchor only where it declares the kinds it
+takes.** Every other Address field refuses `#<anchor>` with an error at that
+value. A field keyed by Address takes none, so an Address map key is always a
+plain Address. The fields that take one:
+
+| field                                 | anchor kinds | without an anchor                      |
+| ------------------------------------- | ------------ | -------------------------------------- |
+| `events[].follows[].event`            | `event`      | names a note holding exactly one event |
+| `events[].where.reach[].attributedTo` | `event`      | names the note itself                  |
+
+An anchored Address resolves when its note resolves, declares that anchor, and
+the anchor's kind is one the field takes. Each failure has its own message: the
+note does not resolve; the note declares no such anchor; or the anchor is a
+`heading` (or another kind), not an `event`. A wikilink in prose takes an anchor
+of any kind. A link to an event's anchor opens the note's Foundry journal at its
+first page, since an event marks no page of its own.
 
 ### Wikilinks
 
@@ -2823,41 +2871,41 @@ An event appears on its note's page and in its Foundry journal as prose the note
 
 The nested entries, each closed the same way:
 
-| nested key                   | shape                                                      | required | what it records                                                                           |
-| ---------------------------- | ---------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------- |
-| `names[].name`               | string                                                     | yes      | One name the event goes by in the world                                                   |
-| `names[].by`                 | Address                                                    | yes      | Who uses that name — a people, a polity, a faith, a place; resolves                       |
-| `names[].gloss`              | string                                                     | no       | What the name means, or how it is used                                                    |
-| `where.locus`                | list of Addresses, each defaulting to `place`              | no       | Where the event physically happened; each must resolve to a place                         |
-| `where.reach[].place`        | an Address, defaulting to `place`                          | yes      | A place where the event was felt; must resolve to a place                                 |
-| `where.reach[].how`          | string                                                     | yes      | One clause: a consequence someone in that place could notice                              |
-| `where.reach[].knowledge`    | one `knowledge` value                                      | yes      | Whether that place connects what it felt to this event                                    |
-| `where.reach[].attributedTo` | event or note Address                                      | no       | Only beside `knowledge: misattributed` — the cause that place names instead; resolves     |
-| `who[].ref`                  | Address                                                    | yes      | A participant — a being, a people, an affiliation, a place; resolves                      |
-| `who[].role`                 | one `role` value                                           | yes      | What the participant was to the event                                                     |
-| `follows[].event`            | event Address                                              | yes      | The earlier event; resolves to exactly one event                                          |
-| `follows[].how`              | one `followsHow` value                                     | yes      | How this event follows from it                                                            |
-| `follows[].note`             | string                                                     | no       | One clause saying what connects the two                                                   |
-| `accounts[].by`              | Address                                                    | yes      | Who holds the account; resolves                                                           |
-| `accounts[].says`            | string                                                     | yes      | What they say happened, in their terms                                                    |
-| `accounts[].agrees`          | one `agrees` value                                         | yes      | How far their account agrees with `summary`                                               |
-| `accounts[].withholds`       | string                                                     | no       | What they decline to say                                                                  |
-| `stated.calendar`            | Address, or a lore shortcode                               | yes      | The calendar that tradition reckons in — a `lore` note with `subType: calendar`; resolves |
-| `stated.text`                | string                                                     | yes      | The date as that tradition writes it                                                      |
-| `recurs.every`               | whole number of years, 1 or more                           | —        | A period counted on the canonical axis from `when`                                        |
-| `recurs.on`                  | list of dates, strictly increasing, each later than `when` | —        | Recorded occurrences beyond the first, in place of a period                               |
+| nested key                   | shape                                                        | required | what it records                                                                           |
+| ---------------------------- | ------------------------------------------------------------ | -------- | ----------------------------------------------------------------------------------------- |
+| `names[].name`               | string                                                       | yes      | One name the event goes by in the world                                                   |
+| `names[].by`                 | Address                                                      | yes      | Who uses that name — a people, a polity, a faith, a place; resolves                       |
+| `names[].gloss`              | string                                                       | no       | What the name means, or how it is used                                                    |
+| `where.locus`                | list of Addresses, each defaulting to `place`                | no       | Where the event physically happened; each must resolve to a place                         |
+| `where.reach[].place`        | an Address, defaulting to `place`                            | yes      | A place where the event was felt; must resolve to a place                                 |
+| `where.reach[].how`          | string                                                       | yes      | One clause: a consequence someone in that place could notice                              |
+| `where.reach[].knowledge`    | one `knowledge` value                                        | yes      | Whether that place connects what it felt to this event                                    |
+| `where.reach[].attributedTo` | Address, anchored to an `event` or not                       | no       | Only beside `knowledge: misattributed` — the cause that place names instead; resolves     |
+| `who[].ref`                  | Address                                                      | yes      | A participant — a being, a people, an affiliation, a place; resolves                      |
+| `who[].role`                 | one `role` value                                             | yes      | What the participant was to the event                                                     |
+| `follows[].event`            | Address, anchored to an `event` where its note holds several | yes      | The earlier event; resolves to exactly one event                                          |
+| `follows[].how`              | one `followsHow` value                                       | yes      | How this event follows from it                                                            |
+| `follows[].note`             | string                                                       | no       | One clause saying what connects the two                                                   |
+| `accounts[].by`              | Address                                                      | yes      | Who holds the account; resolves                                                           |
+| `accounts[].says`            | string                                                       | yes      | What they say happened, in their terms                                                    |
+| `accounts[].agrees`          | one `agrees` value                                           | yes      | How far their account agrees with `summary`                                               |
+| `accounts[].withholds`       | string                                                       | no       | What they decline to say                                                                  |
+| `stated.calendar`            | Address, or a lore shortcode                                 | yes      | The calendar that tradition reckons in — a `lore` note with `subType: calendar`; resolves |
+| `stated.text`                | string                                                       | yes      | The date as that tradition writes it                                                      |
+| `recurs.every`               | whole number of years, 1 or more                             | —        | A period counted on the canonical axis from `when`                                        |
+| `recurs.on`                  | list of dates, strictly increasing, each later than `when`   | —        | Recorded occurrences beyond the first, in place of a period                               |
 
 `where.locus` and `where.reach[].place` default to `place`, so a bare shortcode there is read as one — `vale` is `place-vale` — and whatever the written form, the Address must resolve to a place note; one resolving to an affiliation, a lore note or anything else is an error at that key. `stated.calendar` defaults to `lore` in the same way. Every other Address states its type: `lore-khazarfolk`, never `khazarfolk`. No Address is a bare name such as `The Vale`. `where.locus` in particular is never filled in from the note the event sits on — an event on a place is not assumed to have happened there, so a `locus` is written or absent.
 
 #### Identity, and how an event is addressed
 
-An event is addressed as its note's address when the note holds one event, and as `<note address>#<id>` when it holds several: `lore-thebargain`, `place-ironfells#sack`, `affiliation-crown#founding`.
+An event's `id` is an [anchor](#anchors) of kind `event`, in the one namespace the note's headings and blocks share. An event is addressed as its note's address when the note holds one event, and as `<note address>#<id>` when it holds several: `lore-thebargain`, `place-ironfells#sack`, `affiliation-crown#founding`.
 
 - `id` is an address segment — lowercase ASCII letters and digits, nothing else.
-- `id` is unique within its note.
+- `id` is unique within its note, and differs from every heading, caption and block anchor the note declares.
 - `id` is **required on every entry of a note holding two or more events**, and optional on a note holding one.
 
-A `follows[].event` resolves to exactly one event: a note holding one event, or `note#id`. Naming a note that holds several events without an `id` is an error, and so is naming an `id` the note does not hold. An Address into another package resolves to its note; a dependency's published index carries no events, so the entry it names and that entry's date are not checked.
+A `follows[].event` resolves to exactly one event: a note holding one event, or `note#id`. Naming a note that holds several events without an `id` is an error, and so is naming an anchor the note does not declare or one that is not an event. An Address into another package is checked the same way against that package's published index, which carries each note's anchors with their kinds and each event's date.
 
 #### What sort of event: `kind`
 

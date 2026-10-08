@@ -152,6 +152,7 @@ describe("a stub's index record", () => {
                 name: "Overview",
                 level: 2,
                 line: 1,
+                kind: "heading",
                 link: {
                     target: {
                         package: "thalorna",

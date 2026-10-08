@@ -109,7 +109,7 @@ import { embedRole } from "./content-embeds.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
 // builds that emit a link. Re-exported because this is where callers
 // have always addressed it.
-import { collectAnchors } from "./anchors.mjs";
+import { collectAnchors, eventAnchors } from "./anchors.mjs";
 import { NO_SYSTEM } from "./document-subtypes.mjs";
 
 /**
@@ -517,14 +517,21 @@ export function buildIndexRecord({
                 aliasesAscii: asciiAliases(frontmatter?.name?.aliases),
                 // Each anchor carries the link that reaches it, so a section is
                 // addressable from the index without anyone re-deriving how an
-                // anchor is spelled — and its file line, so an editor can jump
-                // there rather than search for the heading.
+                // anchor is spelled — its file line, so an editor can jump
+                // there rather than search for the heading — and its kind, so
+                // a field accepting only an event can tell one from a heading.
+                // The note's events join the body's anchors: one namespace.
                 anchors:
                     stub ? null : (
-                        collectAnchors(body, bodyLine, resolveRole).map((a) => ({
-                            ...a,
-                            link: address ? `${address.slug}#${a.slug}` : null,
-                        }))
+                        [
+                            ...collectAnchors(body, bodyLine, resolveRole),
+                            ...eventAnchors(frontmatter, rawNote(absPath)),
+                        ]
+                            .sort((a, b) => (a.line ?? 0) - (b.line ?? 0))
+                            .map((a) => ({
+                                ...a,
+                                link: address ? `${address.slug}#${a.slug}` : null,
+                            }))
                     ),
                 foundry: foundryBlock(entries?.own, ownDocumentSystem(frontmatter?.type)),
                 // Forward link to the note's documentation journal, which is its
@@ -548,6 +555,18 @@ export function buildIndexRecord({
             addressContext ?? { package: contentPackage },
         )
     );
+}
+
+/**
+ * A note's full text, for the line an event's `id` sits on; `undefined` when
+ * there is no file to read, so the line is dropped rather than guessed.
+ *
+ * @param {string} [absPath] - The note's file.
+ * @returns {string|undefined} Its contents.
+ */
+function rawNote(absPath) {
+    if (!absPath || !fs.existsSync(absPath)) return undefined;
+    return fs.readFileSync(absPath, "utf8");
 }
 
 /**

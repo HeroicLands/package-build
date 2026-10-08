@@ -78,7 +78,7 @@ import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.
 import { pathnameProblem } from "./pathnames.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from "./ids.mjs";
-import { parseAddress, acceptsType, renderAddress } from "./address.mjs";
+import { parseAddress, acceptsType, renderAddress, hasAnchor } from "./address.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 // The one place the "every pack not named" key is spelled. Imported rather
@@ -546,6 +546,15 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
             value = value && typeof value === "object" ? value[segment] : undefined;
         }
         if (value === undefined || value === null) continue;
+        if (field.kind === "address" && hasAnchor(value) && !field.anchors) {
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw, ["data", ...segments]),
+                severity: "error",
+                message: `\`data.${field.name}\` ${NO_ANCHOR}, but reads ${JSON.stringify(value)}`,
+            });
+            continue;
+        }
         if (!matchesKind(value, field.kind, { ...addressContext, type: field.ref })) {
             findings.push({
                 file: note.file,
@@ -572,6 +581,9 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
 
     return findings;
 }
+
+/** What a finding says of an anchor on a field that declares no anchor kind. */
+const NO_ANCHOR = "takes no anchor — it names a whole note, so write the Address without `#…`";
 
 /**
  * Validate typed entries and resolve declared non-art Address targets.
@@ -631,7 +643,9 @@ function checkDataReferences(note, field, value, segments, context, index) {
         )
             continue;
         let reason;
-        if (!matchesKind(check.value, check.kind, defaults))
+        if (check.kind === "address" && hasAnchor(check.value) && !field.anchors)
+            reason = NO_ANCHOR;
+        else if (!matchesKind(check.value, check.kind, defaults))
             reason = `should be ${check.kind === "address" ? "an Address" : "a Shortcode"}`;
         else if (check.kind === "address") {
             const tuple = parseAddress(check.value, defaults, { declared: true });

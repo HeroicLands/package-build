@@ -28,17 +28,20 @@
  * through the index the way a `data:` Address field does.
  *
  * **Identity.** An entry may carry `id`, an address segment, unique within its
- * note and required when the note holds two or more events. An event is
- * addressed as its note's address when the note holds one, or as
- * `<note address>#<id>`.
+ * note and required when the note holds two or more events. The `id` is an
+ * anchor of kind `event` ({@link module:engine/anchors}), in the one namespace
+ * the note's headings and blocks share, so an event is addressed as
+ * `<note address>#<id>` — or as its note's address alone when the note holds
+ * one. `follows[].event` and `where.reach[].attributedTo` are the keys that
+ * accept an anchor, and only of kind `event`.
  *
  * **Consequence.** A `follows` edge is written on the later event and names an
  * earlier one, so an edge pointing at a later `when` is a finding, and the
  * graph of every edge in the corpus has no cycle. An edge touching a `when`
  * that has no position on the axis — `unknown`, or a year-`0` date that recurs
- * in every year — is not ordered. An edge into another package resolves to its
- * note; the published index of a dependency carries no events, so the entry it
- * names and its date are not checked there.
+ * in every year — is not ordered. An edge into another package is resolved and
+ * ordered against that package's published index, which carries each note's
+ * anchors with their kinds and each event's resolved date.
  *
  * Every finding is positioned at the key or value that earned it, under
  * `["data", "events", position, ...]`.
@@ -46,7 +49,15 @@
  * @module
  */
 
-import { acceptsType, isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
+import {
+    acceptsType,
+    hasAnchor,
+    isAddressTuple,
+    parseAddress,
+    renderAddress,
+    splitAnchor,
+} from "./address.mjs";
+import { collectAnchors, eventAnchors, noteAnchorFindings } from "./anchors.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
@@ -148,8 +159,10 @@ export const EVENT_VOCABULARIES = Object.freeze({
  * - `closed` — one of `values`, named `name` in a message;
  * - `address` — an Address. `ref` is the default type of a bare shortcode
  *   and `accepts` the types the resolved Address may have, as on a typed
- *   `data:` Address field; `calendar` holds the target to a calendar note, and
- *   `event` reads a `#<id>` suffix naming one entry of the target note;
+ *   `data:` Address field; `calendar` holds the target to a calendar note;
+ *   `anchors` lists the anchor kinds a `#<anchor>` may name, and a node
+ *   without it refuses one; `single` requires the Address to name exactly one
+ *   event;
  * - `list` — a list of `of`;
  * - `map` — a closed map of `keys`, `required` naming those that must be
  *   written;
@@ -189,7 +202,10 @@ const ENTRY = map(
                         place: PLACE,
                         how: TEXT,
                         knowledge: closed("knowledge", REACH_KNOWLEDGE),
-                        attributedTo: Object.freeze({ kind: "address", event: true }),
+                        attributedTo: Object.freeze({
+                            kind: "address",
+                            anchors: Object.freeze(["event"]),
+                        }),
                     },
                     ["place", "how", "knowledge"],
                 ),
@@ -205,7 +221,11 @@ const ENTRY = map(
             map(
                 "a `follows` entry",
                 {
-                    event: Object.freeze({ kind: "address", event: true, single: true }),
+                    event: Object.freeze({
+                        kind: "address",
+                        anchors: Object.freeze(["event"]),
+                        single: true,
+                    }),
                     how: closed("how", FOLLOWS_HOW),
                     note: TEXT,
                 },
@@ -341,18 +361,6 @@ function walk(value, spec, path, sink) {
     return findings;
 }
 
-/**
- * Split an event Address into its note Address and the `#<id>` naming one entry.
- *
- * @param {unknown} value - The authored value.
- * @returns {{note: unknown, id?: string}} The two halves.
- */
-function splitEventAddress(value) {
-    if (typeof value !== "string") return { note: value };
-    const hash = value.indexOf("#");
-    return hash < 0 ? { note: value } : { note: value.slice(0, hash), id: value.slice(hash + 1) };
-}
-
 /** Whether an index entry is a note of this tree, whose frontmatter is readable. */
 function localNote(hit) {
     return Boolean(hit && typeof hit === "object" && hit.fm && typeof hit.file === "string");
@@ -364,20 +372,71 @@ function eventsOf(note) {
     return Array.isArray(events) ? events : [];
 }
 
+/** Each local note's anchors, read once. */
+const noteAnchorCache = new WeakMap();
+
+/**
+ * Every anchor the note an index entry names declares, each with its kind.
+ *
+ * A local note is read directly — its body's anchors and its events'. A note
+ * another package publishes is read from that package's index record.
+ *
+ * @param {object} hit - The index entry.
+ * @returns {Array<{slug: string, kind?: string}>} The anchors.
+ */
+function anchorsOf(hit) {
+    if (!localNote(hit)) return Array.isArray(hit?.noteAnchors) ? hit.noteAnchors : [];
+    const cached = noteAnchorCache.get(hit);
+    if (cached) return cached;
+    const body =
+        typeof hit.body === "string" ?
+            hit.body
+        :   String(hit.raw ?? "").replace(/^---\n[\s\S]*?\n---\n?/, "");
+    const anchors = [...collectAnchors(body), ...eventAnchors(hit.fm, hit.raw)];
+    noteAnchorCache.set(hit, anchors);
+    return anchors;
+}
+
+/**
+ * The events of the note an index entry names, each with its `id` and its
+ * place on the canonical axis.
+ *
+ * @param {object} hit - The index entry.
+ * @param {object} dates - The corpus's reckoning context, for a local note.
+ * @returns {Array<{id?: string, date: object|null}>} In entry order.
+ */
+function datedEventsOf(hit, dates) {
+    if (localNote(hit))
+        return eventsOf(hit).map((entry) => ({
+            id: mapping(entry) && typeof entry.id === "string" ? entry.id : undefined,
+            date: mapping(entry) ? placeOnAxis(entry.when, dates) : null,
+        }));
+    return (Array.isArray(hit?.events) ? hit.events : []).map((event) => ({
+        id: event?.id ?? undefined,
+        date: Number.isFinite(event?.when?.canonicalYear) ? event.when : null,
+    }));
+}
+
+/** What a reference says of an anchor its key does not accept. */
+const NO_ANCHOR = "takes no anchor — it names a whole note, so write the Address without `#…`";
+
 /**
  * Resolve one Address an event writes.
  *
  * @param {unknown} value - The authored value.
  * @param {object} spec - Its schema node.
  * @param {object} index - The link index.
- * @returns {{problem?: string, hit?: object, position?: number, target?: string}}
- *   What it names: the index entry, and for a local event Address the entry's
- *   position in its note; or why it names nothing.
+ * @param {object} dates - The corpus's reckoning context.
+ * @returns {{problem?: string, hit?: object, position?: number, target?: string,
+ *   date?: object|null}} What it names: the index entry, and for an event the
+ *   entry's position in its note and its date; or why it names nothing.
  */
-function resolveRef(value, spec, index) {
-    const { note: written, id } = spec.event ? splitEventAddress(value) : { note: value };
-    if (id !== undefined && !isAddressSegment(id))
-        return { problem: `names the event \`${id}\`, which is not an address segment` };
+function resolveRef(value, spec, index, dates) {
+    const anchored = hasAnchor(value);
+    if (anchored && !spec.anchors) return { problem: NO_ANCHOR };
+    const { address: written, anchor } = anchored ? splitAnchor(value) : { address: value };
+    if (anchor !== undefined && !isAddressSegment(anchor))
+        return { problem: `names the anchor \`${anchor}\`, which is not an address segment` };
     const tuple = parseAddress(
         written,
         {
@@ -412,16 +471,23 @@ function resolveRef(value, spec, index) {
         if (subType !== "calendar")
             return { problem: `names ${target}, a lore note whose subType is not calendar` };
     }
-    if (!spec.event || !localNote(hit)) return { hit, target };
 
-    const events = eventsOf(hit);
-    if (id !== undefined) {
-        const position = events.findIndex((entry) => mapping(entry) && entry.id === id);
-        if (position < 0)
-            return { problem: `names ${target}, which holds no event with \`id\` ${id}` };
-        return { hit, target, position };
+    if (anchor !== undefined) {
+        const found = anchorsOf(hit).find((one) => one?.slug === anchor);
+        if (!found)
+            return {
+                problem: `names ${target}#${anchor}, which does not resolve — that note declares no anchor ${anchor}`,
+            };
+        if (!spec.anchors.includes(found.kind))
+            return {
+                problem: `names ${target}#${anchor}, which is a ${found.kind ?? "anchor of no kind"}, not an ${spec.anchors.join(" or ")}`,
+            };
+        const events = datedEventsOf(hit, dates);
+        const position = events.findIndex((event) => event.id === anchor);
+        return { hit, target, position, date: events[position]?.date ?? null };
     }
     if (!spec.single) return { hit, target };
+    const events = datedEventsOf(hit, dates);
     if (events.length === 0) return { problem: `names ${target}, which holds no events` };
     if (events.length > 1)
         return {
@@ -429,7 +495,7 @@ function resolveRef(value, spec, index) {
                 `names ${target}, which holds ${events.length} events — name one as ` +
                 `${tuple.type}-${tuple.shortcode}#<id>`,
         };
-    return { hit, target, position: 0 };
+    return { hit, target, position: 0, date: events[0].date };
 }
 
 /**
@@ -493,7 +559,12 @@ function cyclicEdges(index) {
             const follows = mapping(entry) && Array.isArray(entry.follows) ? entry.follows : [];
             follows.forEach((edge, k) => {
                 if (!mapping(edge)) return;
-                const resolved = resolveRef(edge.event, ENTRY.keys.follows.of.keys.event, index);
+                const resolved = resolveRef(
+                    edge.event,
+                    ENTRY.keys.follows.of.keys.event,
+                    index,
+                    reckoningContext(index),
+                );
                 if (resolved.position === undefined || !localNote(resolved.hit)) return;
                 out.get(from).push({
                     to: nodeOf(resolved.hit, resolved.position),
@@ -591,6 +662,7 @@ export function checkNoteEvents(note, { index } = {}) {
     const resolving = Boolean(index?.addressHit);
     const cyclic = resolving && Array.isArray(index.notes) ? cyclicEdges(index) : new Set();
     const ids = new Map();
+    findings.push(...noteAnchorFindings(note));
 
     events.forEach((entry, position) => {
         const base = ["data", "events", position];
@@ -656,7 +728,7 @@ export function checkNoteEvents(note, { index } = {}) {
         if (!resolving) return;
         const own = placeOnAxis(entry.when, dates);
         for (const ref of sink.refs) {
-            const resolved = resolveRef(ref.value, ref.spec, index);
+            const resolved = resolveRef(ref.value, ref.spec, index, dates);
             if (resolved.problem) {
                 findings.push(
                     at(
@@ -681,8 +753,7 @@ export function checkNoteEvents(note, { index } = {}) {
                 );
                 continue;
             }
-            if (!localNote(resolved.hit)) continue;
-            const named = placeOnAxis(eventsOf(resolved.hit)[resolved.position]?.when, dates);
+            const named = resolved.date;
             if (own && named && pointsForward(named, own)) {
                 findings.push(
                     at(

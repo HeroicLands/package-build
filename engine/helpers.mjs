@@ -921,6 +921,13 @@ export function buildContentLinkIndex(
             // Read from the record rather than from a second reading of the
             // note's headings — the one-anchor-reader rule.
             anchors: new Set((record.anchors ?? []).map((anchor) => anchor.slug)),
+            // An event's anchor marks no journal page, so a link to one opens
+            // the note's journal.
+            eventAnchors: new Set(
+                (record.anchors ?? [])
+                    .filter((anchor) => anchor.kind === "event")
+                    .map((anchor) => anchor.slug),
+            ),
             anchorUuids: record.foundry?.note?.anchors,
             docAnchorUuids: documentation?.foundry?.note?.anchors,
         });

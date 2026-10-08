@@ -136,7 +136,11 @@ The index is disposable build output; regenerate it from the authored tree
 when the content changes.
 
 The record's `address.canonical` is the full Address. Its `address.slug` is a
-local web link target. A stub has `address: null` and `anchors: null`; its
+local web link target. Each entry of `anchors` carries its `slug`, `name`, `line`,
+`link` and `kind` — `heading`, `caption`, `block`, `alert`, `poem`, `span` or
+`event` — and a note's event `id`s are listed there beside its body anchors. A
+dependency's events are resolved through this list and through each event's
+resolved date under `resolvedDates.events`. A stub has `address: null` and `anchors: null`; its
 frontmatter remains queryable. An Item or Actor note can have both a readable
 `note` record and a game-system document destination. A generated
 `documentation` pointer connects a system document to its readable note.

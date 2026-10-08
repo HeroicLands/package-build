@@ -100,8 +100,8 @@ export function anchorPageId(noteId, anchorSlug) {
  *
  * @param {Array<{type: string, id: string, shortcode?: string|null,
  *   name?: string, pack?: string, docPack?: string, none?: boolean,
- *   draft?: boolean, anchors?: Set<string>, anchorUuids?: Record<string,string>,
- *   docAnchorUuids?: Record<string,string>}>} docs -
+ *   draft?: boolean, anchors?: Set<string>, eventAnchors?: Set<string>,
+ *   anchorUuids?: Record<string,string>, docAnchorUuids?: Record<string,string>}>} docs -
  *   One entry per content note. `pack` / `docPack` name the packs the note's
  *   document and its documentation entry landed in; omitted, the conventional
  *   one-pack-per-type names stand in. `none` says the note declares
@@ -553,7 +553,11 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
         // the manifest carries the map — and a local one now is too, from the
         // anchor set the index carries.
         const anchorUuids = itemDoc ? addresses.docAnchors : addresses.anchors;
+        // An event is an anchor of the note with no page of its own, so a link
+        // to it opens the note's journal at its first page.
+        const eventAnchor = Boolean(slug && !itemDoc && doc.eventAnchors?.has(slug));
         if (
+            !eventAnchor &&
             slug &&
             isJournal &&
             ((doc.anchors && !doc.anchors.has(slug)) ||
@@ -570,7 +574,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
             return unresolvedLink(text || doc.name || target, target);
         }
         const uuid =
-            slug && isJournal ?
+            slug && isJournal && !eventAnchor ?
                 (anchorUuids?.[slug] ?? pageUuid(entryUuid, anchorPageId(entryId, slug)))
             :   entryUuid;
         const link = `@UUID[${uuid}]{${text}}`;

@@ -12,7 +12,9 @@ import {
     parseAddress,
     renderAddress,
     acceptsType,
+    hasAnchor,
     readCanonicalKey,
+    splitAnchor,
 } from "./address.mjs";
 import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
@@ -77,6 +79,7 @@ export function addressPositions(fm, context = {}) {
                 shape,
                 type: field.ref,
                 accepts: field.accepts,
+                ...(field.anchors ? { anchors: field.anchors } : {}),
                 ...(ASSET_TYPE_NAMES.has(field.ref) || field.ref === "folder" ?
                     { system: "none" }
                 :   {}),
@@ -206,7 +209,18 @@ export function decodeNoteAddresses(fm, context) {
         };
         const read = (value, path) => {
             if (value == null || value === "") return value;
-            const tuple = parseAddress(value, defaults, {
+            // An anchor is admitted only where the position declares the kinds
+            // it takes; the anchor's existence and kind are a resolution
+            // question, asked where the index is.
+            const anchored = hasAnchor(value);
+            if (anchored && !position.anchors)
+                fail(
+                    value,
+                    path,
+                    "takes no anchor — it names a whole note, so write the Address without `#…`",
+                );
+            const { address: written, anchor } = anchored ? splitAnchor(value) : { address: value };
+            const tuple = parseAddress(written, defaults, {
                 declared: true,
                 legacyShortcodeCase: position.legacyShortcodeCase,
             });
@@ -217,7 +231,7 @@ export function decodeNoteAddresses(fm, context) {
                     path,
                     `must name a ${position.accepts.join(" or ")} Address, but names ${tuple.type}`,
                 );
-            return tuple;
+            return anchored ? new AddressLink(tuple, anchor) : tuple;
         };
         const convert = (value, path) => {
             if (value == null || value === "") return value;

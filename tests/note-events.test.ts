@@ -35,9 +35,9 @@ const PACKAGE = "thalorna";
 const TYPES = new Set(["lore", "place", "affiliation", "being"]);
 
 /** A note as the link index hands one over, with a real frontmatter fence. */
-function note(fm: Record<string, any>, file = `${fm.type}-${fm.shortcode}.md`) {
-    const raw = `---\n${YAML.stringify(fm)}---\n\nProse.\n`;
-    return { file, raw, fm, type: String(fm.type) };
+function note(fm: Record<string, any>, file = `${fm.type}-${fm.shortcode}.md`, body = "Prose.\n") {
+    const raw = `---\n${YAML.stringify(fm)}---\n\n${body}`;
+    return { file, raw, fm, body: `\n${body}`, type: String(fm.type) };
 }
 
 /** An index over the given notes, resolving addresses the way the real one does. */
@@ -382,7 +382,126 @@ describe("an event's identity", () => {
             [fullEvent({ follows: [{ event: "place-ironfells#burn", how: "caused" }] })],
             { extra: [earlier] },
         );
-        expect(messages(missing).join("\n")).toContain("no event with `id` burn");
+        expect(messages(missing).join("\n")).toContain("declares no anchor burn");
+    });
+
+    it("refuses an anchored follows naming a heading, with the kind it names", () => {
+        const withHeading = note(
+            {
+                type: "place",
+                shortcode: "ironfells",
+                subType: "region",
+                data: { events: [fullEvent({ id: "sack", when: "-500" })] },
+            },
+            "place-ironfells.md",
+            "# The Holds {#holds}\n\nProse.\n",
+        );
+        const heading = findingsFor(
+            [fullEvent({ follows: [{ event: "place-ironfells#holds", how: "caused" }] })],
+            { extra: [withHeading] },
+        );
+        expect(heading).toHaveLength(1);
+        expect(heading[0].message).toContain("is a heading, not an event");
+        const event = findingsFor(
+            [fullEvent({ follows: [{ event: "place-ironfells#sack", how: "caused" }] })],
+            { extra: [withHeading] },
+        );
+        expect(messages(event)).toEqual([]);
+    });
+
+    it("refuses an anchor on a key that accepts none", () => {
+        const found = findingsFor([fullEvent({ sources: ["place-vale#north"] })]);
+        expect(found).toHaveLength(1);
+        expect(found[0].message).toContain("takes no anchor");
+    });
+
+    it("refuses an event id that repeats a heading slug in its note", () => {
+        const subject = note(
+            {
+                type: "lore",
+                shortcode: "subject",
+                subType: "history",
+                data: { events: [fullEvent({ id: "overview" })] },
+            },
+            "lore-subject.md",
+            "# Overview {#overview}\n\nProse.\n",
+        );
+        const found = checkNoteEvents(subject, { index: indexOf([...WORLD, subject]) });
+        expect(messages(found).join("\n")).toContain("one namespace");
+    });
+});
+
+describe("a follows edge into another package", () => {
+    /** The subject's index, with one note another package publishes. */
+    function withDependency(events: unknown[]) {
+        const subject = note({
+            type: "lore",
+            shortcode: "subject",
+            subType: "history",
+            data: { events },
+        });
+        const local = indexOf([...WORLD, subject]);
+        const foreign = {
+            package: "dep",
+            type: "lore",
+            noteAnchors: [
+                { slug: "holds", kind: "heading" },
+                { slug: "rise", kind: "event" },
+                { slug: "sack", kind: "event" },
+            ],
+            events: [
+                { id: "rise", when: { canonicalYear: -900, sort: -900 } },
+                { id: "sack", when: { canonicalYear: 500, sort: 500 } },
+            ],
+        };
+        const index = {
+            ...local,
+            types: TYPES,
+            packages: new Set([PACKAGE, "dep"]),
+            addressHit: (target: string) =>
+                target === "dep-note-lore-hold" ? foreign : local.addressHit(target),
+        };
+        return checkNoteEvents(subject, { index });
+    }
+
+    it("resolves an event the dependency publishes and orders it by its published date", () => {
+        expect(
+            messages(
+                withDependency([
+                    fullEvent({
+                        when: "-100",
+                        follows: [{ event: "dep-note-lore-hold#rise", how: "caused" }],
+                    }),
+                ]),
+            ),
+        ).toEqual([]);
+        const forward = messages(
+            withDependency([
+                fullEvent({
+                    when: "-100",
+                    follows: [{ event: "dep-note-lore-hold#sack", how: "caused" }],
+                }),
+            ]),
+        ).join("\n");
+        expect(forward).toContain("later than this event");
+    });
+
+    it("refuses a dependency's heading, an unknown anchor, and an ambiguous note", () => {
+        const found = messages(
+            withDependency([
+                fullEvent({
+                    when: "-100",
+                    follows: [
+                        { event: "dep-note-lore-hold#holds", how: "caused" },
+                        { event: "dep-note-lore-hold#burn", how: "caused" },
+                        { event: "dep-note-lore-hold", how: "caused" },
+                    ],
+                }),
+            ]),
+        ).join("\n");
+        expect(found).toContain("is a heading, not an event");
+        expect(found).toContain("declares no anchor burn");
+        expect(found).toContain("holds 2 events");
     });
 });
 
