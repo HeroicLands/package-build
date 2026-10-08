@@ -71,6 +71,7 @@ import { scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
 import { checkImages } from "./content-images.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
+import { eventNoteIndex } from "./event-fields.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { cloneAddressState } from "./address-values.mjs";
 import fs from "fs";
@@ -786,6 +787,7 @@ export class BasePackCompiler {
             file: absPath,
             bodyLine,
             figures: { get: (id) => figuresById.get(id), link: foundryRefLink },
+            events: this.eventNotes(),
         });
         for (const finding of expressions.findings) {
             findings.push({ message: finding.message, line: finding.line, column: finding.column });
@@ -810,6 +812,23 @@ export class BasePackCompiler {
         });
         this.unresolvedLinks += unresolved.length;
         return markdown;
+    }
+
+    /**
+     * Every note's events by Address, for an inline reference to an event's
+     * field — built once per compile from the corpus's records and the fetched
+     * dependency indexes, the same inputs the website and the book build it
+     * from, so a reference prints the same text on all three.
+     *
+     * @returns {{note: (written: string) => object|undefined}} The lookup.
+     */
+    eventNotes() {
+        this.eventNoteLookup ??= eventNoteIndex(this.corpus?.records ?? [], {
+            contentPackage: this.linkIndex?.contentPackage,
+            foreignIndex: this.linkIndex?.foreign,
+            dates: reckoningContext(this.linkIndex),
+        });
+        return this.eventNoteLookup;
     }
 
     /**

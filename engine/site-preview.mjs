@@ -23,6 +23,7 @@ import { isGmNote } from "./note-vocabulary.mjs";
 import { relatedPages } from "./related-pages.mjs";
 import { holdingsNode, holdingsPages, foreignHoldingsNodes } from "./holdings.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
+import { eventNoteIndex } from "./event-fields.mjs";
 import { frontmatterWikilinks } from "./web-wikilinks.mjs";
 import { positionOfLiteral } from "./diagnostics.mjs";
 import { addressSlug } from "./content-address.mjs";
@@ -239,6 +240,11 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                         config,
                         foreign: snapshot.gates.foreign,
                         types: index.contentTypes,
+                    }),
+                    events: eventNoteIndex(records, {
+                        contentPackage: index.contentPackage,
+                        foreignIndex: snapshot.gates.foreign?.index,
+                        dates: index.dateContext,
                     }),
                 });
                 for (const error of result.tableErrors)

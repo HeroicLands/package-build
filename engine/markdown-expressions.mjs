@@ -8,6 +8,7 @@ import { formatDateInCalendar, parseNoteDate } from "./note-dates.mjs";
 import { numberWords, numberDigits } from "./number-words.mjs";
 import { slugify } from "./content-slug.mjs";
 import { WIKILINK, authoredLabel, isSamePage, parseWikilink } from "./wikilink-syntax.mjs";
+import { EVENT_REFERENCE_FIELDS, eventFieldText } from "./event-fields.mjs";
 
 /**
  * An inline expression, as an author writes one.
@@ -152,7 +153,9 @@ const HELPERS = Object.freeze([
     }),
     Object.freeze({
         name: "ref",
-        params: 'address [form="number"|"full"|"title"]',
+        params:
+            'address [form="number"|"full"|"title"] ' +
+            '| address field="when"|"until"|"kind"|"summary"|"name"',
         summary:
             'A link to a captioned item, by its anchor — `"#thorn"` on this note, ' +
             '`"note-address#thorn"` on another. `form` is `number` (the default, and ' +
@@ -160,11 +163,21 @@ const HELPERS = Object.freeze([
             "caption; or `title`, the caption alone. Always renders as a link to the " +
             "figure, and a link inside the caption contributes only its label text. " +
             "The number rendered is the one the figure carries on the surface doing " +
-            "the rendering, whichever note names it.",
+            "the rendering, whichever note names it. With `field` in place of `form`, " +
+            'the address names an event — `"place-ironfells#sack"`, `"#sack"` on this ' +
+            'note, or `"lore-founding"` for a note holding one event — and the reference ' +
+            "prints that event's `when`, `until`, `kind`, `summary` or `name` as plain " +
+            "text, never a link; a date prints as the note format prints any date.",
         make:
-            ({ figures }) =>
+            ({ figures, events, fm, dates }) =>
             (address, options) => {
                 const hash = options?.hash ?? {};
+                if (Object.hasOwn(hash, "field")) {
+                    if (Object.hasOwn(hash, "form")) throw new RangeError(REF_BOTH_FAULT);
+                    const result = eventReference(address, hash.field, { events, fm, dates });
+                    if (result.problem) throw new RangeError(result.problem);
+                    return result.text;
+                }
                 const form = Object.hasOwn(hash, "form") ? hash.form : "number";
                 const formFault = refFormFault(form);
                 if (formFault) throw new RangeError(formFault);
@@ -183,6 +196,70 @@ const HELPERS = Object.freeze([
             },
     }),
 ]);
+
+/** What a reference writing both `form` and `field` is told. */
+const REF_BOTH_FAULT = "ref takes form= for a figure or field= for an event, not both";
+
+/**
+ * The text one event reference prints, or why it prints nothing.
+ *
+ * The address is read through the wikilink grammar, as a figure reference's
+ * is: `"#sack"` names an event of this note, `"place-ironfells#sack"` one of
+ * another, and `"lore-founding"` a note holding exactly one event. The anchor
+ * must be one the note declares, and an `event` one.
+ *
+ * @param {unknown} address - The reference's address.
+ * @param {unknown} field - The field to print, one of {@link EVENT_REFERENCE_FIELDS}.
+ * @param {{events?: {note: (written: string) => object|undefined}, fm?: object,
+ *   dates?: object}} context - Every note's events, this note's frontmatter,
+ *   and the reckoning context.
+ * @returns {{text: string}|{problem: string}} The text, with any link reduced to
+ *   its label, or the finding's message.
+ */
+function eventReference(address, field, { events, fm, dates } = {}) {
+    if (!EVENT_REFERENCE_FIELDS.includes(field))
+        return { problem: `ref's field must be one of ${EVENT_REFERENCE_FIELDS.join(", ")}` };
+    if (typeof address !== "string" || !address.trim())
+        return { problem: "ref needs an address naming an event" };
+    if (!events?.note)
+        return { problem: `ref "${address}" names an event, and this build resolves none` };
+    const parsed = parseWikilink(address);
+    const target = isSamePage(parsed) ? `${fm?.type}-${fm?.shortcode}` : parsed.target;
+    const note = events.note(target);
+    if (!note)
+        return {
+            problem: `ref "${address}" addresses "${target}", which names no note this build resolves`,
+        };
+    let event;
+    if (parsed.anchor) {
+        const anchor = note.anchors.find((one) => one?.slug === parsed.anchor);
+        event = note.events.find((one) => one.id === parsed.anchor);
+        if (anchor && anchor.kind !== "event")
+            return {
+                problem:
+                    `ref "${address}" names "#${parsed.anchor}", a ${anchor.kind ?? "prose"} ` +
+                    "anchor — field= reads an event",
+            };
+        if (!event)
+            return {
+                problem: `ref "${address}" names no anchor "#${parsed.anchor}" in "${note.target}"`,
+            };
+    } else {
+        if (note.events.length !== 1)
+            return {
+                problem:
+                    note.events.length === 0 ?
+                        `ref "${address}" names "${note.target}", which holds no events`
+                    :   `ref "${address}" names "${note.target}", which holds ` +
+                        `${note.events.length} events — name one as "${parsed.target}#<id>"`,
+            };
+        event = note.events[0];
+    }
+    const value = eventFieldText(event, field, dates);
+    if (value.missing)
+        return { problem: `ref "${address}" field="${field}": that event states no ${field}` };
+    return { text: flattenCaptionLinks(value.text) };
+}
 
 /** The closed set of forms a figure reference may render as; `number` is the default. */
 const REF_FORMS = Object.freeze(["number", "full", "title"]);
@@ -382,10 +459,25 @@ export function sqlQueriesInMarkdown(body, fm = {}) {
  * @param {object} node - A `MustacheStatement`/`SubExpression` AST node.
  * @param {object} [figures] - This note's figures, and how to reach another
  *   note's — see {@link refFigure}.
+ * @param {object} [eventContext] - What an event reference reads — see
+ *   {@link eventReference}.
  * @returns {string|null} A finding message, or `null` when the call is sound.
  */
-function refCallFault(node, figures) {
+function refCallFault(node, figures, eventContext) {
     const pair = node.hash?.pairs?.find((entry) => entry.key === "form");
+    const fieldPair = node.hash?.pairs?.find((entry) => entry.key === "field");
+    if (fieldPair) {
+        if (fieldPair.value.type !== "StringLiteral")
+            return (
+                "ref's field must be a quoted string — one of " + EVENT_REFERENCE_FIELDS.join(", ")
+            );
+        if (pair) return REF_BOTH_FAULT;
+        const addressParam = node.params?.[0];
+        if (addressParam?.type !== "StringLiteral") return null;
+        return (
+            eventReference(addressParam.value, fieldPair.value.value, eventContext).problem ?? null
+        );
+    }
     if (pair && pair.value.type !== "StringLiteral")
         return `ref's form must be a quoted string — one of ${REF_FORMS.join(", ")}`;
     const form = pair ? pair.value.value : "number";
@@ -413,10 +505,12 @@ function refCallFault(node, figures) {
  * @param {string} body
  * @param {object} [figures] - This note's figures, and how to reach another
  *   note's — see {@link refFigure}.
+ * @param {object} [eventContext] - What an event reference reads — see
+ *   {@link eventReference}.
  * @returns {Array<{offset: number, message: string}>} One entry per faulty
  *   `{{...}}` expression, `offset` into `body`.
  */
-function refFaults(body, figures) {
+function refFaults(body, figures, eventContext) {
     const faults = [];
     for (const match of matchAllOutsideCode(body, EXPRESSION)) {
         let program;
@@ -428,7 +522,7 @@ function refFaults(body, figures) {
         const visit = (node) => {
             if (!node || typeof node !== "object") return;
             if (node.path?.original === "ref") {
-                const message = refCallFault(node, figures);
+                const message = refCallFault(node, figures, eventContext);
                 if (message) faults.push({ offset: match.index, message });
             }
             for (const parameter of node.params ?? []) visit(parameter);
@@ -452,22 +546,28 @@ function positionAt(body, offset, bodyLine) {
  *   figures?: {get: (id: string) => {label: string, caption: string,
  *   hasCaption: boolean}|undefined, note?: (address: string) =>
  *   {url: string|null, figures: Map<string, object>}|undefined,
- *   link?: Function}, file?: string, bodyLine?: number}} [options] -
+ *   link?: Function}, events?: {note: (written: string) => object|undefined},
+ *   file?: string, bodyLine?: number}} [options] -
  *   `figures` is the `ref` helper's own view of the corpus: `get` reads this
  *   note's captioned items by id, and `note` resolves another note's the
  *   way a wikilink would — omitted, a cross-note address is refused rather
  *   than looked up. `link` overrides how a resolved reference renders; the
- *   default is a Markdown link to the target's own anchor.
+ *   default is a Markdown link to the target's own anchor. `events` is what an
+ *   event reference reads: every note's events by Address, from
+ *   {@link module:engine/event-fields.eventNoteIndex}; omitted, an event
+ *   reference is refused.
  */
 export function renderMarkdownExpressions(
     body,
-    { fm, dates, sqlResults, figures, file, bodyLine = 1 } = {},
+    { fm, dates, sqlResults, figures, events, file, bodyLine = 1 } = {},
 ) {
     const findings = [];
     const engine = Handlebars.create();
     for (const helper of HELPERS)
-        engine.registerHelper(helper.name, helper.make({ sqlResults, dates, figures }));
-    const staticFaults = new Map(refFaults(body, figures).map((f) => [f.offset, f.message]));
+        engine.registerHelper(helper.name, helper.make({ sqlResults, dates, figures, events, fm }));
+    const staticFaults = new Map(
+        refFaults(body, figures, { events, fm, dates }).map((f) => [f.offset, f.message]),
+    );
     const markdown = replaceOutsideCode(body, EXPRESSION, (source, _inside, offset) => {
         const fault = staticFaults.get(offset);
         if (fault) {

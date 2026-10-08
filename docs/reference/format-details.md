@@ -2940,6 +2940,8 @@ An event's `id` is an [anchor](#anchors) of kind `event`, in the one namespace t
 - `id` is unique within its note, and differs from every heading, caption and block anchor the note declares.
 - `id` is **required on every entry of a note holding two or more events**, and optional on a note holding one.
 
+A note's prose prints one field of an event with an inline reference, `{{ref "place-ironfells#sack" field="when"}}`: the event's `when` or `until` as the note format prints a date, its `kind`, its `summary`, or the first of its `names`, as text and never a link, identically on every surface. The address names one event as a `follows[].event` does, or `"#<id>"` for one of the note's own. An address naming no event, a `prose` anchor, a `field` outside those five, or a field the event does not state is an error at the reference's position. The [authoring guide](../authoring/links-and-markup.md#an-events-date-inline) has examples.
+
 A `follows[].event` resolves to exactly one event: a note holding one event, or `note#id`. Naming a note that holds several events without an `id` is an error, and so is naming an anchor the note does not declare or one that is not an event. An Address into another package is checked the same way against that package's published index, which carries each note's anchors with their kinds and each event's date.
 
 #### What sort of event: `kind`

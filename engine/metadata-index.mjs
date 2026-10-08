@@ -308,12 +308,13 @@ function newestIndex(dirs) {
 }
 
 /**
- * A published record's events, each with its `id` and the date the publishing
- * package resolved for it.
+ * A published record's events, each with its `id`, the dates the publishing
+ * package resolved for it, and the entry as published, which an inline
+ * reference to one of its fields reads.
  *
  * @param {Record<string, any>} record - An index record.
- * @returns {Array<{id?: string, when?: object}>|undefined} In entry order, or
- *   `undefined` for a note with none.
+ * @returns {Array<{id?: string, when?: object, until?: object, entry: object}>|undefined}
+ *   In entry order, or `undefined` for a note with none.
  */
 function publishedEvents(record) {
     const events = record.data?.events;
@@ -322,6 +323,8 @@ function publishedEvents(record) {
     return events.map((entry, position) => ({
         ...(typeof entry?.id === "string" ? { id: entry.id } : {}),
         ...(resolved[position]?.when ? { when: resolved[position].when } : {}),
+        ...(resolved[position]?.until ? { until: resolved[position].until } : {}),
+        entry,
     }));
 }
 

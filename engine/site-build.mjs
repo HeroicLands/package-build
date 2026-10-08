@@ -62,6 +62,7 @@ import matter from "gray-matter";
 import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
+import { eventNoteIndex } from "./event-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderSpans, scanSpans } from "./content-spans.mjs";
 import { renderBlocks, renderWithheldSections, scanBlocks } from "./content-blocks.mjs";
@@ -712,6 +713,7 @@ export function renderSitePage(
         config,
         artIndex,
         figuresByAddress = new Map(),
+        events,
     },
 ) {
     const tableErrors = [];
@@ -825,6 +827,7 @@ export function renderSitePage(
         file: page.file,
         bodyLine: page.bodyLine,
         sqlResults: sqlTables?.inline?.get(page.file),
+        events,
         figures: {
             get: (id) => figuresById.get(id),
             // A cross-note `ref` resolves the written address exactly as a
@@ -1010,6 +1013,14 @@ export function renderPages(pages, options) {
             figuresByAddress.set(key, byId);
     }
 
+    // Every note's events by Address, for an inline reference to an event's
+    // field — the same lookup the Foundry compile and the book build.
+    const events = eventNoteIndex(records, {
+        contentPackage: index?.contentPackage,
+        foreignIndex: foreign?.index,
+        dates: index?.dateContext,
+    });
+
     const tableErrors = [];
     const expressionErrors = [];
     const secretErrors = [];
@@ -1056,6 +1067,7 @@ export function renderPages(pages, options) {
             config,
             artIndex,
             figuresByAddress,
+            events,
         });
         tableErrors.push(...result.tableErrors);
         expressionErrors.push(...result.expressionErrors);

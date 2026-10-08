@@ -107,6 +107,7 @@ import { artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs"
 import { embedRole } from "./content-embeds.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
+import { eventNoteIndex } from "./event-fields.mjs";
 import { numberFigures, scanFigures } from "./content-figures.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { protectCode } from "./code-fences.mjs";
@@ -786,6 +787,13 @@ export async function buildPdf({
      *   lineMap?: object[], numberedFigures: object[]}>}
      */
     const prepared = new Map();
+    // Every note's events by Address, for an inline reference to an event's
+    // field — the same lookup the website and the Foundry compile build.
+    const events = eventNoteIndex(records, {
+        contentPackage: gates.index.contentPackage,
+        foreignIndex: gates.foreign?.index,
+        dates: gates.index.dateContext,
+    });
     // Every note's figures, by the address a `ref` crossing into it would
     // write — see `engine/site-index.mjs`'s `figureIndexKeys`.
     const figuresByAddress = new Map();
@@ -905,6 +913,7 @@ export async function buildPdf({
             sqlResults: sqlTables?.inline?.get(page.file),
             file: page.file,
             bodyLine: page.bodyLine,
+            events,
             figures: {
                 get: (id) => figuresById.get(id),
                 // A cross-note `ref` resolves the written address exactly as
