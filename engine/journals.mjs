@@ -231,7 +231,7 @@ export function splitPages(body, leadName = "Introduction", resolveRole) {
                 name: figure.label || captionPageName(figure.caption),
                 anchorSlug: figure.id || null,
                 level: 1,
-                classes: [],
+                classes: section.classes.includes(WITHHELD_CLASS) ? [WITHHELD_CLASS] : [],
                 figure,
                 lines: [line],
             };
