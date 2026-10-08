@@ -61,7 +61,13 @@ import { slugify } from "./content-slug.mjs";
 // resolution: the same rule that names a page also names an anchor within it.
 /** KB heading/anchor slug: lowercase, non-alphanumerics to single hyphens. */
 export { slugify };
-import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-syntax.mjs";
+import {
+    authoredLabel,
+    WIKILINK,
+    isEventAnchor,
+    isSamePage,
+    parseWikilink,
+} from "./wikilink-syntax.mjs";
 import { resolveEmbeds } from "./content-embeds.mjs";
 
 /**
@@ -424,6 +430,13 @@ export function resolveWebWikilinks(body, ctx) {
             // Checked against this page's own anchors, exactly as a link into
             // another page is: a self-link naming a section the page does not
             // declare is as dead as one naming a section nowhere does.
+            if (isEventAnchor(ctx, anchor)) {
+                return report(
+                    all,
+                    { target, reason: "event-anchor", anchor, addressed: true },
+                    label ?? anchor,
+                );
+            }
             if (!hasAnchor(ctx.anchors, anchor)) {
                 return report(
                     all,
@@ -459,6 +472,13 @@ export function resolveWebWikilinks(body, ctx) {
             // hash any slug into something that resolves, so an undeclared
             // one otherwise joins onto the URL unchecked and dead-ends for
             // the reader.
+            if (anchor && isEventAnchor(hit, anchor)) {
+                return report(
+                    all,
+                    { target, reason: "event-anchor", anchor, addressed: true },
+                    label ?? hit.name ?? target,
+                );
+            }
             if (anchor && hit.url && !hasAnchor(hit.anchors, anchor)) {
                 return report(
                     all,

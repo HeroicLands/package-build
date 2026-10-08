@@ -1559,7 +1559,7 @@ function linksCommand() {
                         ...positionOfLiteral(d.note.raw, d.text, d.occurrence),
                         severity: "error",
                         message: linkFindingMessage({
-                            reason: "unknown-anchor",
+                            reason: d.reason,
                             target: d.target,
                             anchor: d.anchor,
                         }),

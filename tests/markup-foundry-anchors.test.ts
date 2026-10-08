@@ -6,6 +6,7 @@ import { splitPages, journalPageId } from "../engine/journals.mjs";
 import { compendiumUuid, pageUuid } from "../engine/ids.mjs";
 import { itemDocEntryId } from "../engine/item-docs.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "../engine/wikilinks.mjs";
+import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 const id = "abcdefghijklmnop";
 const body = [
     "# First {#first}",
@@ -93,5 +94,28 @@ describe("Foundry containing-page anchors", () => {
         expect(
             convertWikilinks("[[doc-example#part|Read]]", { type: "doc", id, index }).markdown,
         ).toContain("JournalEntryPage.");
+    });
+    it("refuses a wikilink naming an event anchor, before any surface renders it", () => {
+        const uuid = compendiumUuid("demo", "doc", id);
+        const doc = {
+            type: "doc",
+            id,
+            shortcode: "example",
+            name: "Example",
+            anchorUuids: anchorsOf(uuid, id, body, "Example"),
+            anchors: new Set([...collectAnchors(body).map((a) => a.slug), "sack"]),
+            eventAnchors: new Set(["sack"]),
+        };
+        const index = buildWikilinkIndex([doc], "demo");
+        const result = convertWikilinks("[[doc-example#sack|Read]]", {
+            type: "doc",
+            id: "x",
+            index,
+        });
+        expect(result.unresolved.map((u: any) => u.reason)).toEqual(["event-anchor"]);
+        expect(result.markdown).not.toContain(uuid);
+        expect(
+            linkFindingMessage({ reason: "event-anchor", target: "doc-example", anchor: "sack" }),
+        ).toContain("prose links to the note, not to an event");
     });
 });

@@ -110,6 +110,9 @@ export const CONTENT_FORMAT_PATH = path.join(
  * @property {Map<string, DataRow>} [sharedDataRows] - The rows of the shared
  *   `data` property table — the keys every type accepts — by path. Read from a
  *   Markdown specification only.
+ * @property {Map<string, DataRow>} [eventRows] - The rows of the event key
+ *   tables, by path from one event entry (`names[].by`). Read from a Markdown
+ *   specification only.
  */
 
 /**
@@ -262,6 +265,8 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
     const vocabularies = new Map();
     /** @type {Map<string, DataRow>} */
     const sharedDataRows = new Map();
+    /** @type {Map<string, DataRow>} */
+    const eventRows = new Map();
 
     const lines = String(text ?? "").split("\n");
     /** @type {TypeSpec|undefined} */
@@ -321,6 +326,10 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
             table = { kind: "shared-data", systems: [] };
             continue;
         }
+        if (cells[0] === "event key" || cells[0] === "nested key") {
+            table = { kind: "event", systems: [] };
+            continue;
+        }
         if (cells[0] === "shared source") {
             table = {
                 kind: "mapping",
@@ -369,10 +378,14 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
             continue;
         }
 
-        if (table.kind === "shared-data") {
+        if (table.kind === "shared-data" || table.kind === "event") {
             const declared = code(cells[0]);
             if (declared)
-                sharedDataRows.set(declared, { shape: cells[1] ?? "", text: line, line: i + 1 });
+                (table.kind === "event" ? eventRows : sharedDataRows).set(declared, {
+                    shape: cells[1] ?? "",
+                    text: line,
+                    line: i + 1,
+                });
             continue;
         }
 
@@ -395,7 +408,7 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
         }
     }
 
-    return { file, types, claims, vocabularies, sharedDataRows };
+    return { file, types, claims, vocabularies, sharedDataRows, eventRows };
 }
 
 /**

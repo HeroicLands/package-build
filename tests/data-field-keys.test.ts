@@ -20,9 +20,6 @@ const SCALAR_KINDS = new Set(["string", "date", "number", "boolean", "address", 
  * decision to be made in review rather than a way to make this guard pass.
  */
 const EXEMPT: Record<string, string> = {
-    // An occurrence's keys are closed by the event schema's own check, which
-    // brings `events` under the field-declaration mechanism when it lands.
-    "lore.events": "closed by the event schema",
     // An exported Foundry Scene: Foundry owns its schema and the build preserves
     // its fields, so its keys stay open, as a system block's do.
     "map.scene": "Foundry's Scene schema",
@@ -320,7 +317,12 @@ describe("the format reference documents every data field", () => {
             const rows = rowsOf(key);
             const name = key.slice(key.indexOf(".") + 1);
             for (const documented of [name, ...innerKeyPaths(spec, name)]) {
-                const row = rows?.get(documented);
+                // An event's keys are documented once, in the Events section's
+                // tables, by their path from one entry.
+                const row =
+                    documented.startsWith("events[].") ?
+                        reference.eventRows?.get(documented.slice("events[].".length))
+                    :   rows?.get(documented);
                 if (!row) missing.push(`${key.split(".")[0]}: \`${documented}\` has no row`);
                 else if (!row.shape.trim())
                     missing.push(`${key.split(".")[0]}: \`${documented}\` states no shape`);

@@ -308,6 +308,24 @@ function newestIndex(dirs) {
 }
 
 /**
+ * A published record's events, each with its `id` and the date the publishing
+ * package resolved for it.
+ *
+ * @param {Record<string, any>} record - An index record.
+ * @returns {Array<{id?: string, when?: object}>|undefined} In entry order, or
+ *   `undefined` for a note with none.
+ */
+function publishedEvents(record) {
+    const events = record.data?.events;
+    if (!Array.isArray(events) || events.length === 0) return undefined;
+    const resolved = record.resolvedDates?.events ?? [];
+    return events.map((entry, position) => ({
+        ...(typeof entry?.id === "string" ? { id: entry.id } : {}),
+        ...(resolved[position]?.when ? { when: resolved[position].when } : {}),
+    }));
+}
+
+/**
  * Resolve every foreign address this build can cite, from the fetched indexes.
  *
  * The replacement for the vendored link manifest, and deliberately the same
@@ -437,6 +455,11 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 ...(Object.hasOwn(record.data ?? {}, "government") ?
                     { government: record.data.government }
                 :   {}),
+                // Every anchor the note declares, with its kind, and each of its
+                // events with its id and resolved date, so a consumer's
+                // `follows` edge into this package is resolved and ordered here.
+                noteAnchors: record.anchors ?? undefined,
+                events: publishedEvents(record),
                 // What a work of literature concerns and what kind of work it
                 // is, so a consumer's subject pages list a dependency's works.
                 ...(parts.type === "lore" && record.subType === "literature" ?

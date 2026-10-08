@@ -43,6 +43,7 @@ types:
     affiliation:
         data:
             - templatePriority
+            - events
             - demonym
             - epithet
             - symbol
@@ -289,6 +290,7 @@ types:
             - totm
     place:
         data:
+            - events
             - calendar
             - demonym
             - purpose
@@ -744,3 +746,68 @@ vocabularies:
         - open-sea
         - river
         - lake
+    eventKind:
+        - arrival
+        - departure
+        - migration
+        - contact
+        - displacement
+        - founding
+        - charter
+        - accession
+        - secession
+        - conquest
+        - treaty
+        - dissolution
+        - battle
+        - war
+        - siege
+        - revolt
+        - fall
+        - catastrophe
+        - plague
+        - famine
+        - raising
+        - ruin
+        - making
+        - loss
+        - discovery
+        - schism
+        - law
+        - council
+        - birth
+        - death
+    depth:
+        - world
+        - region
+        - local
+    standing:
+        - attested
+        - single-source
+        - reconstructed
+        - disputed
+        - legendary
+    knowledge:
+        - named
+        - misattributed
+        - unlinked
+    role:
+        - actor
+        - victim
+        - instrument
+        - witness
+        - founder
+        - ruler
+        - author
+        - signatory
+    followsHow:
+        - caused
+        - enabled
+        - ended
+        - answered
+    agrees:
+        - full
+        - partly
+        - disputes
+        - denies
+        - silent

@@ -12,15 +12,25 @@ import {
     parseAddress,
     renderAddress,
     acceptsType,
+    hasAnchor,
     readCanonicalKey,
+    splitAnchor,
 } from "./address.mjs";
 import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { ART_SLOTS } from "./art-slots.mjs";
 import { SHIPPED_SYSTEMS } from "./subtype-registry.mjs";
+import { EVENT_ADDRESS_POSITIONS } from "./note-events.mjs";
 
-import { AddressEntries, AddressLink } from "./address-values.mjs";
-export { AddressEntries, encodeAddresses, cloneAddressState } from "./address-values.mjs";
+import { AddressEntries, AddressLink, readPublishedAddresses } from "./address-values.mjs";
+export {
+    AddressEntries,
+    encodeAddresses,
+    cloneAddressState,
+    publishAddresses,
+    readPublishedAddresses,
+    flattenPublishedAddresses,
+} from "./address-values.mjs";
 
 /** Structured positions whose Address is nested inside a declared container. */
 export const STRUCTURED_ADDRESSES = Object.freeze([
@@ -77,12 +87,24 @@ export function addressPositions(fm, context = {}) {
                 shape,
                 type: field.ref,
                 accepts: field.accepts,
+                ...(field.anchors ? { anchors: field.anchors } : {}),
                 ...(ASSET_TYPE_NAMES.has(field.ref) || field.ref === "folder" ?
                     { system: "none" }
                 :   {}),
             });
     }
     out.push(...STRUCTURED_ADDRESSES.filter((p) => !p.noteType || p.noteType === fm.type));
+    // An event's Addresses, on every type that carries events. Read leniently:
+    // a value that is no accepted Address stays as written, for the event
+    // check to refuse at its own key with the message its key earns, rather
+    // than taking the whole note out of the index.
+    if ((dataFields(fm.type) ?? []).some((field) => field.name === "events"))
+        for (const position of EVENT_ADDRESS_POSITIONS)
+            out.push({
+                ...position,
+                path: ["data", "events", "*", ...position.path],
+                lenient: true,
+            });
     for (const system of new Set([
         ...SHIPPED_SYSTEMS,
         ...Object.keys(context.systemBlocks ?? {}),
@@ -206,7 +228,27 @@ export function decodeNoteAddresses(fm, context) {
         };
         const read = (value, path) => {
             if (value == null || value === "") return value;
-            const tuple = parseAddress(value, defaults, {
+            if (value instanceof AddressLink) {
+                if (!position.anchors)
+                    fail(
+                        value,
+                        path,
+                        "takes no anchor — it names a whole note, so write the Address without `#…`",
+                    );
+                return value;
+            }
+            // An anchor is admitted only where the position declares the kinds
+            // it takes; the anchor's existence and kind are a resolution
+            // question, asked where the index is.
+            const anchored = hasAnchor(value);
+            if (anchored && !position.anchors)
+                fail(
+                    value,
+                    path,
+                    "takes no anchor — it names a whole note, so write the Address without `#…`",
+                );
+            const { address: written, anchor } = anchored ? splitAnchor(value) : { address: value };
+            const tuple = parseAddress(written, defaults, {
                 declared: true,
                 legacyShortcodeCase: position.legacyShortcodeCase,
             });
@@ -217,7 +259,13 @@ export function decodeNoteAddresses(fm, context) {
                     path,
                     `must name a ${position.accepts.join(" or ")} Address, but names ${tuple.type}`,
                 );
-            return tuple;
+            return anchored ?
+                    new AddressLink(
+                        tuple,
+                        anchor,
+                        position.anchors.length === 1 ? position.anchors[0] : null,
+                    )
+                :   tuple;
         };
         const convert = (value, path) => {
             if (value == null || value === "") return value;
@@ -258,12 +306,24 @@ export function decodeNoteAddresses(fm, context) {
             }
             return read(value, path);
         };
+        // A lenient position keeps a value it cannot read, as written.
+        const settle = (value, path) => {
+            if (!position.lenient) return convert(value, path);
+            try {
+                return convert(value, path);
+            } catch {
+                return value;
+            }
+        };
         // Copy each traversed owner so YAML aliases retain their own read context.
         const visit = (owner, path, offset = 0, actual = []) => {
             if (owner == null || owner === "") return owner;
             const key = path[offset];
             if (key === "*") {
-                if (!Array.isArray(owner)) fail(owner, actual, "must be a list of entries");
+                if (!Array.isArray(owner)) {
+                    if (position.lenient) return owner;
+                    fail(owner, actual, "must be a list of entries");
+                }
                 return owner.map((value, i) => visit(value, path, offset + 1, [...actual, i]));
             }
             if (typeof owner !== "object") return owner;
@@ -271,7 +331,7 @@ export function decodeNoteAddresses(fm, context) {
             const copy = Array.isArray(owner) ? [...owner] : { ...owner };
             copy[key] =
                 offset === path.length - 1 ?
-                    convert(owner[key], [...actual, key])
+                    settle(owner[key], [...actual, key])
                 :   visit(owner[key], path, offset + 1, [...actual, key]);
             return copy;
         };
@@ -312,11 +372,18 @@ export function noteAddressContext(config) {
 
 /**
  * Decode Address properties contributed by an index record.
+ *
+ * A record read from a published index writes every Address as
+ * `{ address, anchor, anchorKind }`; each becomes a tuple, or an
+ * {@link AddressLink} where it carries an anchor, before the declared
+ * positions are read.
+ *
  * @param {object} record - The record.
  * @param {object} context - Builder defaults.
  * @returns {object} The typed record.
  */
 export function decodeIndexAddresses(record, context) {
+    Object.assign(record, readPublishedAddresses(record));
     decodeNoteAddresses(record, context);
     const canonical = (value, keyPath) => {
         const target = readCanonicalKey(value);
@@ -335,19 +402,8 @@ export function decodeIndexAddresses(record, context) {
     if (record.address?.canonical != null)
         record.address.canonical = canonical(record.address.canonical, ["address", "canonical"]);
     for (const anchor of record.anchors ?? []) {
-        if (!anchor.link || anchor.link instanceof AddressLink) continue;
-        const [written, section] = anchor.link.split("#");
-        const target = parseAddress(
-            written,
-            {
-                ...context,
-                system: "note",
-                types: new Set([...Object.keys(NOTE_VOCABULARY), ...ASSET_TYPE_NAMES]),
-            },
-            { declared: true },
-        );
-        if (target.reason) throw new Error(`Index anchor link is not an Address: ${anchor.link}`);
-        anchor.link = new AddressLink(target, section);
+        if (anchor.link != null && !(anchor.link instanceof AddressLink))
+            throw new Error(`Index anchor link is not an Address: ${JSON.stringify(anchor.link)}`);
     }
     return record;
 }

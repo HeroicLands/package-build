@@ -305,19 +305,32 @@ describe("the note box's fields are the type's own vocabulary", () => {
         ]);
     });
 
-    it("shows a recurring event's next occurrence, and nothing else of the family", () => {
-        const box = noteInfobox(
-            {
-                type: "lore",
+    it("draws no row from data.events on any type carrying them, recurring or not", () => {
+        const carrying = Object.entries(NOTE_VOCABULARY)
+            .filter(([, entry]) => entry.data.some((field: any) => field.name === "events"))
+            .map(([type]) => type);
+        expect(carrying.length).toBeGreaterThan(0);
+        for (const type of carrying) {
+            const fm = {
+                type,
+                shortcode: "subject",
                 name: { full: "Founders' Day" },
-                data: { events: [{ when: "412.1", recurs: { every: 10 } }] },
-            },
-            { dates: { daysPerYear: 365, present: "707.1" } },
-        );
-        expect(box.sections[0].rows).toEqual([
-            { label: "Name", kind: "text", value: "Founders' Day" },
-            { label: "Next occurrence", kind: "text", value: "712.1" },
-        ]);
+                data: {
+                    events: [
+                        { when: "412.1", recurs: { every: 10 }, summary: "The day is kept." },
+                        { when: "0.5", summary: "The rite is kept." },
+                    ],
+                },
+            };
+            const boxes = noteInfoboxes(fm, {
+                dates: { daysPerYear: 365, present: "707.1" },
+                resolve: () => undefined,
+            });
+            const rows = boxes.flatMap((box: any) =>
+                box.sections.flatMap((section: any) => section.rows ?? []),
+            );
+            expect(rows, type).toEqual([{ label: "Name", kind: "text", value: "Founders' Day" }]);
+        }
     });
 
     it("gives every declared type a box, and every box a name", () => {
@@ -1437,5 +1450,38 @@ describe("decodeItem — what one `sohl.items` entry names", () => {
 
     it("names nothing for an entry with neither an explicit type nor a `model`", () => {
         expect(decodeItem({ shortcode: "dgr" })).toBeUndefined();
+    });
+});
+
+describe("a site page carries nothing derived from data.events", () => {
+    it("writes a being's resolved dates and no event's", async () => {
+        const { sitePageDecorator } = await import("../engine/site-build.mjs");
+        const decorate = sitePageDecorator(
+            { packs: [] } as any,
+            {
+                dateContext: { daysPerYear: 365, present: "707.1" },
+                contentPackage: "demo",
+            } as any,
+        );
+        const lore: any = {};
+        decorate(lore, {
+            fm: {
+                type: "lore",
+                shortcode: "day",
+                name: { full: "Founders' Day" },
+                data: { events: [{ when: "412.1", recurs: { every: 10 }, summary: "Kept." }] },
+            },
+        });
+        expect(lore).not.toHaveProperty("resolvedDates");
+        const being: any = {};
+        decorate(being, {
+            fm: {
+                type: "being",
+                shortcode: "aran",
+                name: { full: "Aran" },
+                data: { born: "680.1" },
+            },
+        });
+        expect(being.resolvedDates).toHaveProperty("born");
     });
 });

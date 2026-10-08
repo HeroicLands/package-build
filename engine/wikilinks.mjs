@@ -56,6 +56,7 @@ import { replaceOutsideCode } from "./code-fences.mjs";
 import {
     authoredLabel,
     WIKILINK,
+    isEventAnchor,
     parseWikilink,
     unlabelledLinkMessage,
 } from "./wikilink-syntax.mjs";
@@ -100,8 +101,8 @@ export function anchorPageId(noteId, anchorSlug) {
  *
  * @param {Array<{type: string, id: string, shortcode?: string|null,
  *   name?: string, pack?: string, docPack?: string, none?: boolean,
- *   draft?: boolean, anchors?: Set<string>, anchorUuids?: Record<string,string>,
- *   docAnchorUuids?: Record<string,string>}>} docs -
+ *   draft?: boolean, anchors?: Set<string>, eventAnchors?: Set<string>,
+ *   anchorUuids?: Record<string,string>, docAnchorUuids?: Record<string,string>}>} docs -
  *   One entry per content note. `pack` / `docPack` name the packs the note's
  *   document and its documentation entry landed in; omitted, the conventional
  *   one-pack-per-type names stand in. `none` says the note declares
@@ -486,6 +487,17 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
                 return unresolvedLink(text || target, target);
             }
             const hit = hits[0] ?? null;
+            if (hit && slug && isEventAnchor(hit, slug)) {
+                unresolved.push({
+                    link: all,
+                    target,
+                    offset,
+                    reason: "event-anchor",
+                    anchor: slug,
+                    addressed: true,
+                });
+                return unresolvedLink(text || target, target);
+            }
             if (hit) {
                 const uuid = slug ? hit.anchors?.[slug] : hit.uuid;
                 if (uuid) {
@@ -553,6 +565,19 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
         // the manifest carries the map — and a local one now is too, from the
         // anchor set the index carries.
         const anchorUuids = itemDoc ? addresses.docAnchors : addresses.anchors;
+        // A wikilink names a prose anchor; an event's id is refused here, before
+        // any surface renders a link to it.
+        if (slug && isEventAnchor(doc, slug)) {
+            unresolved.push({
+                link: all,
+                target,
+                offset,
+                reason: "event-anchor",
+                anchor: slug,
+                addressed: true,
+            });
+            return unresolvedLink(text || doc.name || target, target);
+        }
         if (
             slug &&
             isJournal &&
