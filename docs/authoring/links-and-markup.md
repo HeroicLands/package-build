@@ -311,12 +311,13 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 
 ### What a query can read
 
-| Relation          | What it holds                                                                                                                 |
-| ----------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `notes`           | Every note except a stub. This is the one to use unless a stub is wanted.                                                     |
-| `entries`         | Every note, stubs included.                                                                                                   |
-| `market`          | The market scale as three columns — `value`, `name`, `trade` — so a table can print `village` beside the number a note wrote. |
-| `<package>.notes` | The same two relations for each package this one declares a dependency on, in a schema named for it.                          |
+| Relation          | What it holds                                                                                                                        |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `notes`           | Every note except a stub. This is the one to use unless a stub is wanted.                                                            |
+| `entries`         | Every note, stubs included.                                                                                                          |
+| `events`          | One row per event a `lore`, `place` or `affiliation` note writes in `data.events`, with `whenSort` to order them by date.            |
+| `market`          | The market scale as three columns — `value`, `name`, `trade` — so a table can print `village` beside the number a note wrote.        |
+| `<package>.notes` | The same relations — `notes`, `entries` and `events` — for each package this one declares a dependency on, in a schema named for it. |
 
 Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.weight`, `data.born`. Every Address is a string — the full canonical Address, as in `list_contains(data.parents, 'thalorna-note-place-xerathia')` — whichever package published it. Every note carries a computed `state` column of `full`, `draft` or `stub`. Notes tagged `gm` are absent from the relations on public surfaces.
 

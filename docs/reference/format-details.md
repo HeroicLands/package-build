@@ -2560,6 +2560,35 @@ The ladder is what makes "how finished is this?" a query:
 SELECT state, count(*) AS n FROM entries GROUP BY state ORDER BY state
 ```
 
+**`events`** is one row per event — per entry of `data.events` on every
+`lore`, `place` and `affiliation` note, stubs included — so a chronology is a
+query rather than a list kept by hand:
+
+````markdown
+```sql
+SELECT address AS _ref, "when" AS "When", summary AS "What happened"
+FROM events
+WHERE kind IN ('war', 'siege', 'battle')
+ORDER BY whenSort
+```
+````
+
+| Column                   | What it holds                                                                                                                                                                                                               |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `note`                   | The canonical Address of the note the event is written on.                                                                                                                                                                  |
+| `address`                | The event's own Address: `note#id` where the event has an `id`, the note's Address alone where it has none.                                                                                                                 |
+| `id`, `kind`, `depth`, … | Every key of an event, each its own column under its own name — `id`, `kind`, `depth`, `when`, `until`, `recurs`, `summary`, `standing`, `names`, `where`, `who`, `follows`, `accounts`, `unresolved`, `sources`, `stated`. |
+| `whenSort`, `untilSort`  | The date's position on the canonical axis: the canonical year, with a day as its fraction of the year where the calendar states the year's length. `ORDER BY whenSort` is date order.                                       |
+| `whenYear`, `untilYear`  | The canonical year alone, for a filter such as `whenYear BETWEEN 200 AND 299`.                                                                                                                                              |
+
+`when` and `until` read as the text the note wrote, `~` included. A key no
+event writes is still a column, `NULL` in every row, and so is a sort key for
+a date with no position on the axis — `unknown`, or a year-`0` day that recurs
+every year. Every Address is a string, as in every other relation, and a list
+stays a list: `list_contains(where.locus, 'thalorna-note-place-ironfells')`.
+`when` is an SQL keyword, so a query names that column in double quotes,
+`"when"`. A note tagged `gm` contributes no row on a public surface.
+
 **`market`** is the six-step market scale as a relation — `value`, `name`,
 `trade` — so a table prints `village` beside the number a note wrote without a
 second copy of the scale living in authored content.
@@ -2597,6 +2626,7 @@ ORDER BY name.full
 ```
 ````
 
+Its events are `sohl.events`, read exactly as this package's own `events`.
 This package's own notes stay at the unqualified `notes`, and a query may read
 both at once — joining your beings against the skills they cite is one `FROM`
 clause. It needs no fetch and no configuration: a dependency's published index

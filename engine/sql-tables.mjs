@@ -29,6 +29,7 @@
 import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
+import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventRows } from "./event-rows.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -211,6 +212,13 @@ export async function openNotesDatabase(
     const connection = await instance.connect();
     await connection.run("SET threads=1");
     await createRelations(connection, jsonl, "", audience);
+    await createEventRelation(
+        connection,
+        path.join(base, "events.jsonl"),
+        records.map((record) => encodeAddresses(record)),
+        "",
+        audience,
+    );
 
     // One schema per declared dependency, so `FROM sohl.notes` reads the notes
     // that package published. Quoted, because a package id may carry a hyphen
@@ -226,16 +234,20 @@ export async function openNotesDatabase(
             base,
             `dependency-${String(dep.id).replace(/[^a-z0-9]/gi, "_")}.jsonl`,
         );
-        fs.writeFileSync(
-            flat,
-            fs
-                .readFileSync(dep.file, "utf8")
-                .split("\n")
-                .filter((line) => line.trim())
-                .map((line) => JSON.stringify(flattenPublishedAddresses(JSON.parse(line))))
-                .join("\n"),
-        );
+        const depRecords = fs
+            .readFileSync(dep.file, "utf8")
+            .split("\n")
+            .filter((line) => line.trim())
+            .map((line) => flattenPublishedAddresses(JSON.parse(line)));
+        fs.writeFileSync(flat, depRecords.map((record) => JSON.stringify(record)).join("\n"));
         await createRelations(connection, flat, `${schema}.`, audience);
+        await createEventRelation(
+            connection,
+            flat.replace(/\.jsonl$/, "-events.jsonl"),
+            depRecords,
+            `${schema}.`,
+            audience,
+        );
     }
 
     // The market scale as a relation, so a table prints `village` beside the
@@ -260,6 +272,7 @@ export async function openNotesDatabase(
     // {@link prepareSqlTables}.
     await connection.run(`CREATE SCHEMA IF NOT EXISTS ${WITH_STUBS_SCHEMA}`);
     await connection.run(`CREATE VIEW ${WITH_STUBS_SCHEMA}.notes AS SELECT * FROM entries`);
+    await connection.run(`CREATE VIEW ${WITH_STUBS_SCHEMA}.events AS SELECT * FROM main.events`);
 
     // Whether this index holds a stub at all, asked once. A corpus with none
     // pays nothing for the comparison above, which is every package that has
@@ -407,6 +420,42 @@ async function createRelations(connection, file, prefix = "", audience = "all") 
     await connection.run(
         `CREATE VIEW ${prefix}notes AS SELECT * FROM ${prefix}entries WHERE state <> 'stub'`,
     );
+}
+
+/**
+ * Create the `events` relation: one row per `data.events` entry, across every
+ * note type that carries events, with the columns
+ * {@link module:engine/event-rows.EVENT_COLUMNS} names.
+ *
+ * Its rows are derived from the same records `entries` reads, stubs included —
+ * an event a stub states is still an event — and a GM note's events are left
+ * out on a public surface exactly as the note is. A corpus with no event at all
+ * still has the relation, empty, so a fence over it reports no rows rather than
+ * a missing table.
+ *
+ * @param {object} connection - An open DuckDB connection.
+ * @param {string} file - Where to write the rows.
+ * @param {object[]} records - Index records, every Address a string.
+ * @param {string} prefix - A schema to qualify the view name with.
+ * @param {"all"|"public"} audience - Whether to leave out GM notes.
+ * @returns {Promise<void>}
+ */
+async function createEventRelation(connection, file, records, prefix, audience) {
+    const rows = eventRows(
+        audience === "public" ? records.filter((record) => !isGmNote(record)) : records,
+    );
+    if (!rows.length) {
+        const columns = EVENT_COLUMNS.map((column) => {
+            const type = EVENT_SORT_COLUMNS.includes(column) ? "DOUBLE" : "VARCHAR";
+            return `NULL::${type} AS "${column}"`;
+        });
+        await connection.run(
+            `CREATE VIEW ${prefix}events AS SELECT ${columns.join(", ")} WHERE false`,
+        );
+        return;
+    }
+    fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
+    await connection.run(`CREATE VIEW ${prefix}events AS ${readJsonAuto(file)}`);
 }
 
 /**
