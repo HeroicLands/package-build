@@ -140,7 +140,7 @@ export const CALENDAR_ENTRY_FIELDS = Object.freeze({
         ABBREVIATION,
         Object.freeze({
             name: "days",
-            kind: "number",
+            kind: "integer",
             required: true,
             shape: "a whole number of days",
             describe: "How many days the month holds.",
@@ -152,9 +152,9 @@ export const CALENDAR_ENTRY_FIELDS = Object.freeze({
         ABBREVIATION,
         Object.freeze({
             name: "start",
-            kind: "number",
+            kind: "integer",
             required: true,
-            shape: "a one-based day of the year",
+            shape: "a one-based day of the year, as a whole number",
             describe: "The day of the year the season begins.",
         }),
     ]),
@@ -163,9 +163,9 @@ export const CALENDAR_ENTRY_FIELDS = Object.freeze({
         ABBREVIATION,
         Object.freeze({
             name: "day",
-            kind: "number",
+            kind: "integer",
             required: true,
-            shape: "a one-based day of the year",
+            shape: "a one-based day of the year, as a whole number",
             describe: "The day of the year it names.",
         }),
     ]),
@@ -195,10 +195,10 @@ export const CALENDAR_ENTRY_FIELDS = Object.freeze({
         }),
         Object.freeze({
             name: "start",
-            kind: "number",
+            kind: "integer",
             required: true,
             nullable: true,
-            shape: "`null`, or the calendar year the era begins",
+            shape: "`null`, or the calendar year the era begins, as a whole number",
             describe: "The calendar year the era begins; `null` for the era before year 1.",
         }),
         Object.freeze({
@@ -493,16 +493,19 @@ function notesCarrying(index, key) {
 }
 
 /**
- * Whether a value is a number however YAML spelled it — the shape the
+ * A whole number however YAML spelled it, or `undefined` — the shape the
  * inner-key check holds a `start` or a `day` to. A value that is not one is
- * that check's finding, and the order of the year is not asked of it.
+ * that check's single finding, and the order of the year is not asked of it.
  *
  * @param {unknown} value - The authored value.
- * @returns {boolean} Whether it reads as a number.
+ * @returns {number|undefined} The whole number it states.
  */
-function numeric(value) {
-    if (typeof value === "number") return Number.isFinite(value);
-    return typeof value === "string" && value.trim() !== "" && Number.isFinite(Number(value));
+function whole(value) {
+    const read =
+        typeof value === "number" ? value
+        : typeof value === "string" && value.trim() !== "" ? Number(value)
+        : NaN;
+    return Number.isSafeInteger(read) ? read : undefined;
 }
 
 /** A finding positioned at a `data:` key of a note. */
@@ -562,13 +565,9 @@ function checkCalendarDayNames(note, daysPerYear) {
     if (Array.isArray(seasons)) {
         let prior = 0;
         for (const [position, season] of seasons.entries()) {
-            const start = season?.start;
-            if (!numeric(start)) continue;
-            if (
-                !Number.isSafeInteger(start) ||
-                start <= prior ||
-                (Number.isSafeInteger(daysPerYear) && start > daysPerYear)
-            )
+            const start = whole(season?.start);
+            if (start === undefined) continue;
+            if (start <= prior || (Number.isSafeInteger(daysPerYear) && start > daysPerYear))
                 findings.push(
                     atData(
                         note,
@@ -584,10 +583,9 @@ function checkCalendarDayNames(note, daysPerYear) {
     if (Array.isArray(namedDays)) {
         const seen = new Set();
         for (const [position, namedDay] of namedDays.entries()) {
-            const day = namedDay?.day;
-            if (!numeric(day)) continue;
+            const day = whole(namedDay?.day);
+            if (day === undefined) continue;
             if (
-                !Number.isSafeInteger(day) ||
                 day < 1 ||
                 (Number.isSafeInteger(daysPerYear) && day > daysPerYear) ||
                 seen.has(day)
@@ -836,6 +834,9 @@ export function checkCalendarNote(note, { index } = {}) {
 function checkMonthSum(note, index) {
     const months = dataOf(note).months;
     if (!Array.isArray(months) || months.length === 0) return [];
+    // A month whose `days` is not a whole number is the inner-key check's
+    // finding, and a sum over it would restate that finding as a second one.
+    if (months.some((month) => whole(month?.days) === undefined)) return [];
     const days = worldInvariants(index).year?.days;
     if (typeof days !== "number") return [];
     const sum = daysInYear(months);

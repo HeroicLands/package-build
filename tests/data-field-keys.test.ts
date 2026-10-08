@@ -9,9 +9,18 @@ import { parseContentFormat } from "../engine/content-format.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY, SHARED_DATA_FIELDS } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
+import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 
 /** Value shapes that hold no map, so they have no inner keys to declare. */
-const SCALAR_KINDS = new Set(["string", "date", "number", "boolean", "address", "shortcode"]);
+const SCALAR_KINDS = new Set([
+    "string",
+    "date",
+    "number",
+    "integer",
+    "boolean",
+    "address",
+    "shortcode",
+]);
 
 /**
  * Fields whose inner keys this vocabulary does not state, each with the reason.
@@ -23,15 +32,6 @@ const EXEMPT: Record<string, string> = {
     // An exported Foundry Scene: Foundry owns its schema and the build preserves
     // its fields, so its keys stay open, as a system block's do.
     "map.scene": "Foundry's Scene schema",
-    // Regional-map geometry, whose conventions are the SoHL map authoring
-    // guide's; declaring their keys is tracked as its own piece of work.
-    "map.walls": "map-note geometry",
-    "map.doors": "map-note geometry",
-    "map.lights": "map-note geometry",
-    "map.tiles": "map-note geometry",
-    "map.sounds": "map-note geometry",
-    "map.regions": "map-note geometry",
-    "map.notes": "map-note geometry",
 };
 
 type Spec = {
@@ -120,6 +120,147 @@ function lint(type: string, raw: string, fm: Record<string, unknown>) {
         vocabulary: NOTE_VOCABULARY,
     });
 }
+
+/** A YAML fence from its lines, as a note's raw text. */
+const fence = (...lines: string[]) => ["---", ...lines, "---", ""].join("\n");
+
+describe("a declared whole number, closed word or positive number is checked at the value", () => {
+    const calendar = (key: string, entry: Record<string, unknown>, line: string) => ({
+        raw: fence("type: lore", "subType: calendar", "data:", `    ${key}:`, line),
+        fm: { subType: "calendar", data: { [key]: [entry] } },
+    });
+
+    for (const [key, entry, line, field, column] of [
+        [
+            "months",
+            { name: "Ilvin", days: 30.5 },
+            "        - { name: Ilvin, days: 30.5 }",
+            "days",
+            32,
+        ],
+        [
+            "seasons",
+            { name: "Spring", start: 1.5 },
+            "        - { name: Spring, start: 1.5 }",
+            "start",
+            34,
+        ],
+        [
+            "namedDays",
+            { name: "Feast", day: 2.5 },
+            "        - { name: Feast, day: 2.5 }",
+            "day",
+            31,
+        ],
+        [
+            "eras",
+            { shortcode: "ar", name: "AR", start: 1.5 },
+            "        - { shortcode: ar, name: AR, start: 1.5 }",
+            "start",
+            45,
+        ],
+    ] as const) {
+        it(`refuses a fractional ${key}[].${field} once, at the value`, () => {
+            const { raw, fm } = calendar(key, entry, line);
+            const about = lint("lore", raw, fm).filter(
+                (f: any) =>
+                    f.message.includes(`data.${key}`) ||
+                    /season|named day|era start/.test(f.message),
+            );
+            expect(about).toEqual([
+                expect.objectContaining({
+                    line: 6,
+                    column,
+                    severity: "error",
+                    message: expect.stringMatching(
+                        new RegExp(
+                            `^\`data\\.${key}\\[0\\]\\.${field}\` should be .*whole number.*but reads`,
+                        ),
+                    ),
+                }),
+            ]);
+        });
+    }
+
+    it("refuses an affiliation's relation outside the standings, at the value", () => {
+        const raw = fence(
+            "type: affiliation",
+            "data:",
+            "    relations: { test-note-affiliation-foes: nemsis }",
+        );
+        const findings = lint("affiliation", raw, {
+            data: { relations: { "test-note-affiliation-foes": "nemsis" } },
+        });
+        expect(findings).toContainEqual(
+            expect.objectContaining({
+                line: 4,
+                column: 46,
+                severity: "error",
+                message:
+                    "`data.relations.test-note-affiliation-foes` should be `aligned` or `unaligned` or " +
+                    '`rival` or `nemesis`, but reads "nemsis". Did you mean "nemesis"?',
+            }),
+        );
+    });
+
+    it("accepts every standing as a relation", () => {
+        for (const standing of AFFILIATION_STANDINGS) {
+            const raw = fence(
+                "type: affiliation",
+                "data:",
+                `    relations: { test-note-affiliation-foes: ${standing} }`,
+            );
+            const findings = lint("affiliation", raw, {
+                data: { relations: { "test-note-affiliation-foes": standing } },
+            });
+            expect(
+                findings.filter((f: any) => f.message.includes("relations")),
+                standing,
+            ).toEqual([]);
+        }
+    });
+
+    it("refuses a scale distance that is not positive, at the value", () => {
+        const raw = fence(
+            "type: map",
+            "subType: regionalmap",
+            "data:",
+            "    scale: { distance: -5, unit: km }",
+        );
+        const findings = lint("map", raw, {
+            subType: "regionalmap",
+            data: { scale: { distance: -5, unit: "km" } },
+        });
+        expect(findings).toContainEqual(
+            expect.objectContaining({
+                line: 5,
+                column: 24,
+                message: "`data.scale.distance` should be a positive number, but reads -5",
+            }),
+        );
+    });
+
+    it("refuses a fixup type other than address, at the value", () => {
+        const raw = fence(
+            "type: map",
+            "subType: battlemap",
+            "data:",
+            "    fixup:",
+            "        - { path: '.notes[0].texture.src', type: path, value: icon-book }",
+        );
+        const findings = lint("map", raw, {
+            subType: "battlemap",
+            data: { fixup: [{ path: ".notes[0].texture.src", type: "path", value: "icon-book" }] },
+        });
+        expect(findings).toContainEqual(
+            expect.objectContaining({
+                line: 6,
+                column: 50,
+                message: '`data.fixup[0].type` should be `address`, but reads "path"',
+            }),
+        );
+    });
+});
 
 describe("an undeclared inner key is a finding at its own position", () => {
     it("refuses a key one level in", () => {
@@ -239,6 +380,29 @@ describe("an undeclared inner key is a finding at its own position", () => {
         );
     });
 
+    it("refuses map geometry under data, where the compiler reads none", () => {
+        const raw = [
+            "---",
+            "type: map",
+            "subType: regionalmap",
+            "data:",
+            "    walls: {}",
+            "---",
+            "",
+        ].join("\n");
+        const findings = lint("map", raw, { subType: "regionalmap", data: { walls: {} } });
+        expect(findings).toContainEqual(
+            expect.objectContaining({
+                line: 5,
+                column: 5,
+                severity: "error",
+                message: expect.stringContaining(
+                    '"walls" is not a `data:` property declared by map',
+                ),
+            }),
+        );
+    });
+
     it("refuses a being's social block as an undeclared key", () => {
         const raw = [
             "---",
@@ -294,13 +458,50 @@ function placeholder(spec: Spec): string {
  * `affiliations.<Address>.rank`, `governance.offices.<name>.holders[].being`.
  */
 function innerKeyPaths(spec: Spec, at: string): string[] {
-    const out: string[] = [];
+    return innerKeys(spec, at).map(([path]) => path);
+}
+
+/** As {@link innerKeyPaths}, each with the declaration it names. */
+function innerKeys(spec: Spec, at: string): Array<[string, Spec]> {
+    const out: Array<[string, Spec]> = [];
     for (const inner of spec.fields ?? []) {
-        out.push(`${at}.${inner.name}`, ...innerKeyPaths(inner, `${at}.${inner.name}`));
+        out.push([`${at}.${inner.name}`, inner], ...innerKeys(inner, `${at}.${inner.name}`));
     }
-    if (spec.entries) out.push(...innerKeyPaths(spec.entries, `${at}[]`));
-    if (spec.values) out.push(...innerKeyPaths(spec.values, `${at}.${placeholder(spec)}`));
+    if (spec.entries) out.push(...innerKeys(spec.entries, `${at}[]`));
+    if (spec.values) out.push(...innerKeys(spec.values, `${at}.${placeholder(spec)}`));
     return out;
+}
+
+/**
+ * Every path a reference row may document, with its declaration, by table:
+ * `*` for the shared table, a type name for its own, and `events` for the
+ * Events section's tables, whose paths start from one entry. A keyed map's
+ * value is a path too — `governance.offices.<name>` — because a row may say
+ * what one value is.
+ */
+function documentable(): Map<string, Map<string, Spec>> {
+    const tables = new Map<string, Map<string, Spec>>();
+    const table = (name: string) => tables.get(name) ?? tables.set(name, new Map()).get(name)!;
+    const valuePaths = (spec: Spec, at: string): Array<[string, Spec]> => {
+        const out: Array<[string, Spec]> = [];
+        if (spec.values) out.push([`${at}.${placeholder(spec)}`, spec.values]);
+        for (const inner of spec.fields ?? [])
+            out.push(...valuePaths(inner, `${at}.${inner.name}`));
+        if (spec.entries) out.push(...valuePaths(spec.entries, `${at}[]`));
+        if (spec.values) out.push(...valuePaths(spec.values, `${at}.${placeholder(spec)}`));
+        return out;
+    };
+    for (const [key, spec] of everyField()) {
+        const type = key.slice(0, key.indexOf("."));
+        const name = key.slice(key.indexOf(".") + 1);
+        table(type).set(name, spec);
+        for (const [path, inner] of [...innerKeys(spec, name), ...valuePaths(spec, name)]) {
+            if (path.startsWith("events[]."))
+                table("events").set(path.slice("events[].".length), inner);
+            else table(type).set(path, inner);
+        }
+    }
+    return tables;
 }
 
 describe("the format reference documents every data field", () => {
@@ -340,6 +541,45 @@ describe("the format reference documents every data field", () => {
             if (exempt && !marked) wrong.push(`${key}: exempt, and its row does not say so`);
             if (!exempt && marked) wrong.push(`${key}: marked open, and its keys are declared`);
         }
+        expect(wrong).toEqual([]);
+    });
+
+    it("documents no field or inner key the vocabulary does not declare", () => {
+        const declared = documentable();
+        const stray: string[] = [];
+        const check = (table: string, rows: Map<string, { line: number }> | undefined) => {
+            for (const [path, row] of rows ?? [])
+                if (!declared.get(table)?.has(path))
+                    stray.push(`${table}: \`${path}\` at line ${row.line} is not declared`);
+        };
+        check("*", reference.sharedDataRows);
+        check("events", reference.eventRows);
+        for (const [type, spec] of reference.types) check(type, spec.dataRows);
+        expect(stray).toEqual([]);
+    });
+
+    it("documents a key as an integer exactly where it is declared as one", () => {
+        const declared = documentable();
+        const wrong: string[] = [];
+        const check = (table: string, rows: Map<string, { shape: string }> | undefined) => {
+            for (const [path, row] of rows ?? []) {
+                const spec = declared.get(table)?.get(path);
+                if (!spec) continue;
+                const documented = row.shape.includes("`integer`");
+                const integer = spec.kind === "integer";
+                if (documented && !integer)
+                    wrong.push(
+                        `${table}: \`${path}\` is documented as an integer, declared ${spec.kind}`,
+                    );
+                if (integer && !documented && !/whole number/.test(row.shape))
+                    wrong.push(
+                        `${table}: \`${path}\` is declared an integer, documented ${row.shape}`,
+                    );
+            }
+        };
+        check("*", reference.sharedDataRows);
+        check("events", reference.eventRows);
+        for (const [type, spec] of reference.types) check(type, spec.dataRows);
         expect(wrong).toEqual([]);
     });
 

@@ -3,8 +3,7 @@
 /**
  * A rung states its level, its title and its description, or it is a finding.
  * What a rung holds is checked by the inner-key check from the declaration;
- * the ladder's own rules — a whole-number level, held by one rung — by
- * `checkRankLadder`.
+ * the ladder's own rule — a level held by one rung — by `checkRankLadder`.
  *
  * Every case below is driven from an authored YAML fixture rather than from a
  * hand-built object, because half of what is being checked is the position: a
@@ -142,7 +141,9 @@ describe("an incomplete rung", () => {
     it("reports a level that is not a whole number", () => {
         expect(
             allMessages(ladder("            - { level: 2.5, title: Hárár, description: First. }")),
-        ).toEqual(["rank 1 of the ladder has a level that is not a whole number"]);
+        ).toEqual([
+            "`data.governance.ranks[0].level` should be a whole number — the rung's position on this body's own ladder, but reads 2.5",
+        ]);
     });
 
     it("reports a level that is not a number at all, once", () => {

@@ -9,7 +9,7 @@ import {
     officeRoster,
     rankLadder,
     readStandings,
-    standingPhrase,
+    standingLead,
     standingsDigest,
 } from "../engine/standings.mjs";
 import { STANDING_KEYS } from "../engine/standing-terms.mjs";
@@ -287,22 +287,16 @@ describe("the body is the single source for what a rung is called", () => {
         expect(standingsDigest(wardens)).toBeUndefined();
     });
 
-    it("reads a standing as a phrase closing on its body", () => {
+    it("reads a standing as the words before its body", () => {
         const digest = standingsDigest(tribes);
-        expect(standingPhrase({ rank: 4 }, "Vrystwald Tribes", digest)).toBe(
-            "Fródrád (4), of Vrystwald Tribes",
+        expect(standingLead({ rank: 4 }, digest)).toBe("Fródrád (4), of ");
+        expect(standingLead({ office: "War Chief" }, digest)).toBe("War Chief, of ");
+        expect(standingLead({ rank: 5, office: "War Chief" }, digest)).toBe(
+            "War Chief, Hárár (5), of ",
         );
-        expect(standingPhrase({ office: "War Chief" }, "Vrystwald Tribes", digest)).toBe(
-            "War Chief, of Vrystwald Tribes",
-        );
-        expect(standingPhrase({ rank: 5, office: "War Chief" }, "Vrystwald Tribes", digest)).toBe(
-            "War Chief, Hárár (5), of Vrystwald Tribes",
-        );
-        expect(standingPhrase({}, "Vrystwald Tribes", digest)).toBe("Vrystwald Tribes");
+        expect(standingLead({}, digest)).toBe("");
         // A rung the body has not named still reads as the standing it is.
-        expect(standingPhrase({ rank: 2 }, "Vrystwald Tribes", digest)).toBe(
-            "Rank 2, of Vrystwald Tribes",
-        );
+        expect(standingLead({ rank: 2 }, digest)).toBe("Rank 2, of ");
     });
 });
 

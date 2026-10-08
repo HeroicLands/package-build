@@ -519,6 +519,54 @@ describe("the note box's fields are the type's own vocabulary", () => {
         expect(infoboxesToHtml([box])).toContain("<dt>Ritual</dt><dd>Larani, Peoni</dd>");
     });
 
+    it("shows a unit exactly as written", () => {
+        for (const unit of ["km", "mi", "ft", "m"]) {
+            const box = noteInfobox({
+                type: "map",
+                subType: "regionalmap",
+                name: { full: "The March" },
+                data: { scale: { distance: 5, unit } },
+            });
+            expect(box.sections[0].rows, unit).toContainEqual({
+                label: "Unit",
+                kind: "text",
+                value: unit,
+            });
+        }
+    });
+
+    it("draws no row for a declared key holding a map", () => {
+        const box = noteInfobox(
+            {
+                type: "lore",
+                name: { full: "The Survey" },
+                data: { survey: { realm: "Kaldor", nested: { a: 1 } } },
+            },
+            {
+                vocabulary: {
+                    lore: {
+                        data: [
+                            {
+                                name: "survey",
+                                kind: "map",
+                                shape: "a map",
+                                describe: "A fixture field.",
+                                fields: [
+                                    { name: "realm", kind: "string", shape: "a string" },
+                                    { name: "nested", shape: "as authored" },
+                                ],
+                            },
+                        ],
+                    },
+                } as any,
+            },
+        );
+        expect(box.sections[0].rows).toEqual([
+            { label: "Name", kind: "text", value: "The Survey" },
+            { label: "Realm", kind: "text", value: "Kaldor" },
+        ]);
+    });
+
     it("never shows a being's HârnWorld source details", () => {
         const box = noteInfobox({
             type: "being",

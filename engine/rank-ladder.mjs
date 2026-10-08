@@ -33,15 +33,14 @@
  * What a rung *holds* is declared in {@link RUNG_FIELDS} and checked by the
  * inner-key check: that `ranks` is a list of maps, that a rung carries no key
  * beyond the four, that `level`, `title` and `description` are stated, and that
- * each is the kind it is declared. What is checked here is what only a ladder
- * can say — that a level is a whole number, held by one rung — and nothing is
+ * each is the kind it is declared — a `level` a whole number. What is checked
+ * here is what only a ladder can say — that a level is held by one rung — and nothing is
  * reported twice, because a finding reported twice is a finding read once and
  * fixed neither time. That `lore` resolves is the reference checker's.
  *
  * @module
  */
 
-import { fitsKind } from "./data-keys.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 import { RUNG_FIELDS } from "./standing-terms.mjs";
@@ -178,14 +177,8 @@ export function checkRankLadder(note) {
         // `title` or `description` are the inner-key check's findings.
         if (!mapping(rung)) return;
 
-        if (!integer(rung.level)) {
-            // A value that is no number at all is the inner-key check's.
-            if (fitsKind(rung.level ?? null, "number"))
-                at(
-                    [[...rungPath, "level"], rungPath],
-                    `${which} has a level that is not a whole number`,
-                );
-        } else {
+        // A level that is not a whole number is the inner-key check's finding.
+        if (integer(rung.level)) {
             // A level belongs to one rung. Two rungs claiming it leave a
             // member's `rank` answering to the one written first, so the
             // ladder's own order decides what the standing is called and

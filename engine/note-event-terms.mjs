@@ -206,7 +206,7 @@ export const EVENT_ENTRY = Object.freeze({
             fields: Object.freeze([
                 Object.freeze({
                     name: "every",
-                    kind: "number",
+                    kind: "integer",
                     shape: "a whole number of years, 1 or more",
                     describe: "A period counted on the canonical axis from `when`.",
                 }),

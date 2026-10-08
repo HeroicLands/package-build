@@ -309,17 +309,10 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     "lore.namedDays": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
     "lore.eras": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
     "lore.formats": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
-    // A map's canvas — the exported Scene, its asset fixups and the geometry
-    // a regional map draws — is what the Scene is built from.
+    // A map's canvas — the exported Scene and its asset fixups — is what the
+    // Scene is built from.
     "map.scene": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
     "map.fixup": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
-    "map.walls": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
-    "map.doors": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
-    "map.lights": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
-    "map.tiles": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
-    "map.sounds": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
-    "map.regions": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
-    "map.notes": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),
@@ -593,20 +586,23 @@ export function valueKindOf(field, value) {
  * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
  *   medium's resolver.
  * @param {object} [hint] - What the reference is expected to name.
+ * @param {boolean} [verbatim] - The value is a symbol, shown exactly as written.
  * @returns {unknown} The row value, shaped for the kind.
  */
-function rowValue(kind, raw, resolve, hint) {
+function rowValue(kind, raw, resolve, hint, verbatim = false) {
     if (kind === "link") return linkValue(raw, resolve, hint);
     if (kind === "links") {
         return (Array.isArray(raw) ? raw : [raw])
             .filter(hasValue)
             .map((r) => linkValue(r, resolve, hint));
     }
+    // A symbol such as a unit is shown as written, never recased.
+    const shown = (value) => (verbatim ? String(value) : presentValue(value));
     if (kind === "list") {
-        return (Array.isArray(raw) ? raw : [raw]).filter(hasValue).map((v) => presentValue(v));
+        return (Array.isArray(raw) ? raw : [raw]).filter(hasValue).map((v) => shown(v));
     }
     if (kind === "number") return raw;
-    return presentValue(raw);
+    return shown(raw);
 }
 
 /**
@@ -878,15 +874,24 @@ function declaredKeyRows(fields, raw) {
     const rows = [];
     for (const inner of fields) {
         const value = raw[inner.name];
+        if (isMapping(value) && !isAddressTuple(value)) continue;
         if (!hasValue(value)) continue;
         const label = inner.label ?? humanizeFieldName(inner.name);
+        // A symbol such as a unit is shown as written: `km` recased is a
+        // different unit, or none.
+        const shown = (entry) => (inner.verbatim ? String(entry) : presentValue(entry));
         if (Array.isArray(value)) {
-            const words = value.filter(hasValue).map((entry) => presentValue(entry));
+            const words = value
+                .filter((entry) => hasValue(entry) && !isMapping(entry))
+                .map((entry) => shown(entry));
             if (words.length) rows.push({ label, kind: "list", value: words });
-        } else if (inner.kind === "number" && Number.isFinite(Number(value))) {
+        } else if (
+            (inner.kind === "number" || inner.kind === "integer") &&
+            Number.isFinite(Number(value))
+        ) {
             rows.push({ label, kind: "number", value: Number(value) });
         } else {
-            rows.push({ label, kind: "text", value: presentValue(value) });
+            rows.push({ label, kind: "text", value: shown(value) });
         }
     }
     return rows;
@@ -1097,7 +1102,7 @@ function noteBox(
         }
 
         const declaredKind = valueKindOf(field, raw);
-        const built = rowValue(declaredKind, raw, resolve);
+        const built = rowValue(declaredKind, raw, resolve, undefined, field.verbatim);
         if (!hasRenderableValue(declaredKind, built)) continue;
         const { kind, value } = applyUnit(declaredKind, built, overlay.unit);
         rows.push({ label: overlay.label ?? humanizeFieldName(field.name), kind, value });

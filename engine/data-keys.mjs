@@ -56,9 +56,14 @@ import { nearest } from "./near-miss.mjs";
  * @typedef {object} InnerKeySpec
  * @property {string} name - The key as an author writes it.
  * @property {string} [kind] - Its value's shape: `string`, `date`, `number`,
- *   `boolean`, `address`, `list`, `map`, `scalar-or-map`, `list-or-map` or
- *   `string-or-list` — see {@link fitsKind}. Absent, the check makes no claim
- *   about the value.
+ *   `integer`, `boolean`, `address`, `list`, `map`, `scalar-or-map`,
+ *   `list-or-map` or `string-or-list` — see {@link fitsKind}. Absent, the check
+ *   makes no claim about the value.
+ * @property {readonly string[]} [allowed] - The closed set a present value is
+ *   one of, where the key takes a fixed word.
+ * @property {boolean} [positive] - A present number is greater than zero.
+ * @property {boolean} [verbatim] - The value is a symbol, such as a unit, and
+ *   every surface shows it exactly as written, never recased.
  * @property {string} shape - The shape in words, for a finding and the reference.
  * @property {boolean} [required] - The key must be stated, with a value.
  * @property {boolean} [nullable] - An explicit `null` states the key, for a
@@ -125,6 +130,8 @@ export function fitsKind(value, kind) {
                 :   typeof value === "string" &&
                         value.trim() !== "" &&
                         Number.isFinite(Number(value));
+        case "integer":
+            return fitsKind(value, "number") && Number.isInteger(Number(value));
         case "boolean":
             return typeof value === "boolean";
         case "list":
@@ -276,6 +283,28 @@ export function checkDataKeys(note, fields) {
                 finding(
                     path,
                     `\`${pathLabel(path)}\` should be ${spec.shape ?? spec.kind}, but reads ` +
+                        JSON.stringify(value),
+                ),
+            );
+            return;
+        }
+        if (spec.allowed && !spec.allowed.includes(value)) {
+            const guess = typeof value === "string" ? nearest(value, spec.allowed) : undefined;
+            findings.push(
+                finding(
+                    path,
+                    `\`${pathLabel(path)}\` should be ${spec.allowed.map((word) => `\`${word}\``).join(" or ")}, ` +
+                        `but reads ${JSON.stringify(value)}` +
+                        (guess ? `. Did you mean "${guess}"?` : ""),
+                ),
+            );
+            return;
+        }
+        if (spec.positive && !(Number(value) > 0)) {
+            findings.push(
+                finding(
+                    path,
+                    `\`${pathLabel(path)}\` should be ${spec.shape ?? "a positive number"}, but reads ` +
                         JSON.stringify(value),
                 ),
             );

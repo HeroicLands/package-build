@@ -265,19 +265,6 @@ export function standingLead(standing, digest) {
 }
 
 /**
- * How a standing reads beside the body that confers it: {@link standingLead}
- * and the body's name — `War Chief, Hárár (5), of Vrystwald Tribes`.
- *
- * @param {object} standing - `{rank, office}`, either or both absent.
- * @param {string} body - What the body is called.
- * @param {{ranks?: Record<string, string>}} [digest] - The body's ladder.
- * @returns {string} The phrase, or the body's name where no standing is held.
- */
-export function standingPhrase(standing, body, digest) {
-    return `${standingLead(standing, digest)}${body}`;
-}
-
-/**
  * Validate a being's memberships and the standing it holds in each.
  *
  * Five questions, and the last three are what keying the entry by its body
@@ -465,8 +452,8 @@ function absentRankFindings(note, body, path) {
 
 /** Whether a `rank` is a rung the named body confers. */
 function rankFindings(note, standing, body, path, resolved) {
-    // Absent, or not a number at all: the inner-key check's finding.
-    if (!fitsKind(standing.rank ?? null, "number")) return [];
+    // Absent, or not a whole number: the inner-key check's finding.
+    if (!fitsKind(standing.rank ?? null, "integer")) return [];
     const at = position(note, [...path, "rank"]);
     const level = typeof standing.rank === "number" ? standing.rank : Number(standing.rank);
     if (typeof standing.rank !== "number" || !Number.isInteger(level))

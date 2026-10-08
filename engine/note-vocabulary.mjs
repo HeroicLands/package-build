@@ -114,6 +114,9 @@ import { checkDatedOffices } from "./office-holders.mjs";
 import { checkAffiliationRankFloor, checkRankLadder } from "./rank-ladder.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
 import { checkNoteEvents } from "./note-events.mjs";
+// The closed set of standings one body holds toward another, read from the one
+// list the compiled Item is held to, so the lint and the compile cannot differ.
+import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 import { EVENT_ENTRY } from "./note-event-terms.mjs";
 import { checkCultureChoice } from "./culture-choice.mjs";
 import { LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
@@ -1206,7 +1209,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                 shape: "a map keyed by Address",
                 values: Object.freeze({
                     kind: "string",
-                    shape: "a standing — aligned, unaligned, rival or nemesis",
+                    allowed: AFFILIATION_STANDINGS,
+                    shape: `a standing — ${AFFILIATION_STANDINGS.join(", ")}`,
                 }),
                 describe: "Standing with other affiliations — aligned, unaligned, rival, nemesis.",
             },
@@ -1783,6 +1787,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                             name: "type",
                             kind: "string",
                             required: true,
+                            allowed: Object.freeze(["address"]),
                             shape: "`address`",
                             describe: "What `value` is: `address`.",
                         }),
@@ -1815,6 +1820,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                         name: "distance",
                         kind: "number",
                         required: true,
+                        positive: true,
                         shape: "a positive number",
                         describe: "The distance one grid unit covers.",
                     }),
@@ -1822,6 +1828,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                         name: "unit",
                         kind: "string",
                         required: true,
+                        verbatim: true,
                         shape: "a non-empty string",
                         describe: "What the distance is measured in.",
                     }),
@@ -1831,7 +1838,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "dimensions",
                 ...LIST,
-                entries: Object.freeze({ kind: "number", shape: "a whole number of pixels" }),
+                entries: Object.freeze({ kind: "integer", shape: "a whole number of pixels" }),
                 describe: "`[width, height]` in whole pixels — the art's own size.",
             },
             {
@@ -1847,21 +1854,10 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe: "Colour shown where the art does not reach.",
             },
             { name: "overlay", ...TEXT, describe: "Path to the foreground art." },
-            // Geometry carries no `kind`. The specification lists each
-            // as a sequence while the notes authoring them today write
-            // a map keyed by name, and a lint has no business picking
-            // the winner of a disagreement the format has not settled.
-            { name: "walls", ...ANY, describe: "Wall segments." },
-            { name: "doors", ...ANY, describe: "Doors." },
-            { name: "lights", ...ANY, describe: "Light sources." },
-            { name: "tiles", ...ANY, describe: "Tiles." },
-            { name: "sounds", ...ANY, describe: "Ambient sounds." },
-            { name: "regions", ...ANY, describe: "Regions and their behaviours." },
-            {
-                name: "notes",
-                ...ANY,
-                describe: "Map pins, each a grid location and an anchor in this note's own body.",
-            },
+            // A regional map's geometry and pins are not `data:` keys: they are
+            // written in the note's `sohl:` block, which the Scene compiler
+            // reads — `sohl.walls`, `sohl.doors`, `sohl.lights`, `sohl.tiles`,
+            // `sohl.sounds`, `sohl.regions` and `sohl.locations`.
             {
                 name: "place",
                 ...LINK,

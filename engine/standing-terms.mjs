@@ -43,7 +43,7 @@ export const STANDING_BODY_TYPES = Object.freeze(["affiliation"]);
 export const STANDING_FIELDS = Object.freeze([
     Object.freeze({
         name: "rank",
-        kind: "number",
+        kind: "integer",
         required: true,
         shape:
             "the level on that body's own ladder, as a whole number — an ordinary " +
@@ -69,7 +69,7 @@ export const STANDING_KEYS = Object.freeze(STANDING_FIELDS.map((field) => field.
 export const RUNG_FIELDS = Object.freeze([
     Object.freeze({
         name: "level",
-        kind: "number",
+        kind: "integer",
         required: true,
         shape: "a whole number — the rung's position on this body's own ladder",
         describe: "The rung's position on the ladder; a member's `rank` names it.",
