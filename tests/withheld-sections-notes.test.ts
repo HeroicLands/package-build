@@ -46,7 +46,7 @@ const REFERENCE = example(
 
 const POEM = ["```poetry {form=epic lang=en}", "Hear now, hearth keepers.", "```"].join("\n");
 
-/** The note #1079 reports, with a captioned item inside the withheld section. */
+/** A place with a withheld section holding a captioned item. */
 const INN = `---
 shortcode: inn
 name: { full: The Inn }
