@@ -570,29 +570,19 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 **Subtypes:** `battlemap`, `localmap`, `regionalmap`, `totm`.
 
-| Field                  | Shape                           | Meaning                                                                                                                    |
-| ---------------------- | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| `data.scene`           | as authored                     | A Foundry Scene export with all its authored fields.                                                                       |
-| `data.fixup`           | list of `{ path, type, value }` | Asset address replacements in an exported Scene.                                                                           |
-| `data.bgImage`         | an Address                      | The map's background art — an `image` address.                                                                             |
-| `data.scale`           | `{ distance, unit }`            | Regional map distance per grid unit: {distance, unit}.                                                                     |
-| `data.dimensions`      | list                            | `[width, height]` in whole pixels — the art's own size.                                                                    |
-| `data.pxPerGrid`       | number                          | Whole pixels per grid square; must match the art.                                                                          |
-| `data.navName`         | string                          | Short name for the navigation bar.                                                                                         |
-| `data.levelName`       | string                          | Name of the embedded level.                                                                                                |
-| `data.backgroundColor` | string                          | Colour shown where the art does not reach.                                                                                 |
-| `data.overlay`         | string                          | Path to the foreground art.                                                                                                |
-| `data.place`           | an Address                      | The place this map depicts. Named here and not on the place, because a place has several maps and a map depicts one place. |
+| Field        | Shape                                            | Meaning                                                                                                                                                                                     |
+| ------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data.scene` | an object — a Foundry Scene document as exported | The Foundry Scene as exported, passed through unchanged apart from `data.fixup` and its pins marked `#anchor`. Nothing inside it is checked; the book prints its levels' background images. |
+| `data.fixup` | list of `{ path, type, value }`                  | Asset address replacements in an exported Scene.                                                                                                                                            |
+| `data.place` | an Address                                       | The place this map depicts. Named here and not on the place, because a place has several maps and a map depicts one place.                                                                  |
 
 **Inner keys** — a key a field's value does not declare is an error at its own line and column.
 
-| Key                   | Shape                             | Required | Meaning                                                 |
-| --------------------- | --------------------------------- | -------- | ------------------------------------------------------- |
-| `data.fixup[].path`   | a property path into `data.scene` | yes      | The exported field to replace, from `data.scene`.       |
-| `data.fixup[].type`   | `address`                         | yes      | What `value` is: `address`.                             |
-| `data.fixup[].value`  | an asset Address                  | yes      | The asset Address whose path replaces the exported one. |
-| `data.scale.distance` | a positive number                 | yes      | The distance one grid unit covers.                      |
-| `data.scale.unit`     | a non-empty string                | yes      | What the distance is measured in.                       |
+| Key                  | Shape                             | Required | Meaning                                                 |
+| -------------------- | --------------------------------- | -------- | ------------------------------------------------------- |
+| `data.fixup[].path`  | a property path into `data.scene` | yes      | The exported field to replace, from `data.scene`.       |
+| `data.fixup[].type`  | `address`                         | yes      | What `value` is: `address`.                             |
+| `data.fixup[].value` | an asset Address                  | yes      | The asset Address whose path replaces the exported one. |
 
 ### place
 

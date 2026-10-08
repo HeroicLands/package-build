@@ -39,15 +39,14 @@ data:
 Here `data.icon` resolves an `icon` asset and `data.tokenIcon` resolves an
 `image` asset. A full address, such as `sohl-none-image-smith-token`, names
 another package when that package is available to the build. `data.icon` and
-`data.tokenIcon` default to the `icon` type; `data.bgImage` and `data.banner`
-default to `image`. An explicit `image-` or `icon-` type works in any of the
-four slots. A pathname with slashes or an extension is not an art-slot address.
+`data.tokenIcon` default to the `icon` type; `data.banner` defaults to
+`image`. An explicit `image-` or `icon-` type works in any of the three
+slots. A pathname with slashes or an extension is not an art-slot address.
 
 | Art slot         | Its use                                         |
 | ---------------- | ----------------------------------------------- |
 | `data.icon`      | Profile art on a compiled Actor or Item         |
 | `data.tokenIcon` | Actor token art; follows `data.icon` when unset |
-| `data.bgImage`   | Background of a map Scene                       |
 | `data.banner`    | Page hero image for the site                    |
 
 An Item without `data.icon` uses its builder's configured default art. An
@@ -55,7 +54,7 @@ Actor without `data.icon` uses its compiled default art. Write `data.icon`
 when the note needs a particular image. A portrait within the prose is an
 image embed, for example `![[image-smith-portrait|The smith]]{size=medium}`;
 it does not set a document's profile art. The
-[art-slot reference](../reference/format-details.md#the-four-art-slots) gives each
+[art-slot reference](../reference/format-details.md#the-art-slots) gives each
 slot's type and document destination.
 
 A being's `subType` selects its compiled default art: `character` and `npc`

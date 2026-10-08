@@ -266,7 +266,13 @@ function makeFixture() {
             "subType: regionalmap\n" +
             "shortcode: realm\n" +
             "name:\n  full: Realm Map\n" +
-            "data:\n  bgImage: thalornaaltart-none-icon-anvil\n" +
+            "data:\n" +
+            "  fixup:\n" +
+            "    - { path: '.levels[0].background.src', type: address, value: thalornaaltart-none-icon-anvil }\n" +
+            "  scene:\n" +
+            "    name: Realm Map\n" +
+            "    levels:\n" +
+            "      - { _id: level0000000000, background: { src: modules/realm/anvil.svg } }\n" +
             "---\n\nA map.\n",
     );
     fs.writeFileSync(

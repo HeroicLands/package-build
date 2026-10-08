@@ -40,25 +40,31 @@ export function makeId(namespace, value) {
 }
 
 /**
- * Every content type that compiles into a Foundry `Scene` — a **map note**.
- * The three differ only in derived canvas defaults, which is the map
- * compiler's business; everything else treats them alike.
+ * Every content type that compiles into a Foundry `Scene` — a **map note**,
+ * which carries its Scene as exported from Foundry.
  *
- * Declared in this leaf module because several passes that must not depend on
- * the map compiler need it: the pack router below, and the doc-carrying type
- * set in `item-docs.mjs` (a map note's prose becomes a JournalEntry, exactly as
- * an item's or a macro's does).
+ * Declared in this leaf module because several passes need it: the pack router
+ * below, the scenes pass, and the doc-carrying type set in `item-docs.mjs` (a
+ * map note's prose becomes a JournalEntry, exactly as an item's or a macro's
+ * does).
  *
  * @type {ReadonlySet<string>}
  */
 export const MAP_TYPES = Object.freeze(new Set(["map"]));
 
 /**
- * The map subTypes, which differ only in the canvas defaults derived for them.
+ * Whether a content note's type compiles into a Scene.
  *
- * As three *types* they would cost three entries in the pack
- * router, three in the claims set and three in every consumer's section config
- * — for one idea that the specification had always described as one type.
+ * @param {string} [type] - The note's `type` frontmatter.
+ * @returns {boolean} True for a map type.
+ */
+export function isMapType(type) {
+    return MAP_TYPES.has(String(type));
+}
+
+/**
+ * The map subTypes. A subType says what kind of map a note is; every one
+ * carries its Scene as exported from Foundry.
  *
  * @type {readonly string[]}
  */

@@ -1084,8 +1084,9 @@ determined by the authored content tree: a tree containing only a homepage has
 no content pages for a book.
 
 Each selected place with a border or route receives a dedicated full-page
-vector itinerary after its entry. A selected authored regional SVG map also
-prints on its own page. The npm-installed Graphviz runtime draws itineraries.
+vector itinerary after its entry. A selected map note prints each of its
+exported Scene's level backgrounds on its own page. The npm-installed Graphviz
+runtime draws itineraries.
 
 ```yaml
 pdf:

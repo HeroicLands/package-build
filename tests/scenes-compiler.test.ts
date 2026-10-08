@@ -22,10 +22,8 @@ id: AAAAAAAAAAAAAAAA
 shortcode: testground
 type: map
 subType: battlemap
-sohl:
-  place: testplace
-  placeName: Test Place
 data:
+  place: place-testplace
   scene:
     name: Test Ground Floor
     width: 512
@@ -62,9 +60,8 @@ id: BBBBBBBBBBBBBBBB
 shortcode: testloft
 type: map
 subType: battlemap
-sohl:
-  place: testplace
 data:
+  place: place-testplace
   scene:
     name: Test Loft
     width: 512
@@ -165,9 +162,9 @@ describe("the scenes pass", () => {
         ]);
     });
 
-    it("bundles the place's scenes and journals into one Adventure", () => {
+    it("bundles the place's scenes and journals into one Adventure, named for its first map", () => {
         const adventures = read(adventureDir);
-        const adventure = adventures["Test Place"];
+        const adventure = adventures["Test Ground Floor"];
         expect(adventure._key).toMatch(/^!adventures!/);
         expect(adventure.scenes.map((s: any) => s._id).sort()).toEqual([
             "AAAAAAAAAAAAAAAA",
@@ -181,7 +178,7 @@ describe("the scenes pass", () => {
 
     it("points each pin at a page the bundled journal actually holds", () => {
         const ground = read(sceneDir)["Test Ground Floor"];
-        const adventure = read(adventureDir)["Test Place"];
+        const adventure = read(adventureDir)["Test Ground Floor"];
         const entry = adventure.journal.find((j: any) => j._id === ground.notes[0].entryId);
         const pageIds = entry.pages.map((p: any) => p._id);
         expect(ground.notes).toHaveLength(1);

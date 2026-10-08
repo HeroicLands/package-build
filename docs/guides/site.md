@@ -153,7 +153,7 @@ An authored `aliases`, `related`, `contains`, `governed_by`, `governed_places`, 
 the build replaces whatever a note wrote.
 
 Artwork addresses are rewritten in place under `data`. A page's `data.icon`,
-`data.bgImage` and `data.banner` carry the URLs the site serves rather than the
+`data.tokenIcon` and `data.banner` carry the URLs the site serves rather than the
 addresses the note authored, and there are four cases to tell apart:
 
 | The note writes              | The page carries |

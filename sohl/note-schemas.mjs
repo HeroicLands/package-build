@@ -20,7 +20,7 @@
  * builder cannot disagree — they are one object. The linter simply reads it.
  *
  * **The other types are declared, because their compilers are hand-written.**
- * A being, a macro, a journal note and the three map types are built by code
+ * A being, a macro, a journal note and a map are built by code
  * that reads frontmatter directly rather than from a field list, so their
  * vocabulary has to be *stated* to be checkable. These entries carry no `to`:
  * nothing here builds anything, and claiming an emitted path they do not
@@ -37,7 +37,7 @@
  * @module
  */
 
-import { AS_AUTHORED, NUMBER, STRING } from "../engine/field-spec.mjs";
+import { AS_AUTHORED, STRING } from "../engine/field-spec.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { ITEM_FIELDS } from "./item-fields.mjs";
 
@@ -128,81 +128,16 @@ const BEING_FIELDS = Object.freeze([
 ]);
 
 /**
- * A map note — one type whose `battlemap` / `localmap` / `regionalmap`
- * subType decides the derived canvas. Compiled into a
- * Foundry Scene.
+ * A `map` note — an exported Foundry Scene under `data.scene`.
  *
- * The three differ only in derived canvas defaults, which is the map compiler's
- * business; their authored vocabulary is the same, so they share one
- * declaration rather than three copies that could drift.
- *
- * `data.bgImage` is the one required piece of art — the compiler refuses a map
- * note without it, since a scene with no background is not a map. It is
- * declared in the note vocabulary rather than here, because it is an art slot
- * like every other and a Scene has no `img` for the shared key to reach.
+ * Empty on purpose: everything a map note says is a `data:` field, and the
+ * Scene's walls, lights, sounds, regions and pins are the exported Scene's own.
+ * Declaring the type with no fields is what makes every `sohl:` key on a map
+ * note a finding rather than a note of an unknown type.
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
-const MAP_FIELDS = Object.freeze([
-    {
-        name: "dimensions",
-        ...LIST,
-        required: true,
-        describe: "`[width, height]` in whole pixels — the map art's own size.",
-    },
-    {
-        name: "pxPerGrid",
-        ...NUMBER,
-        required: true,
-        describe:
-            "Whole pixels per grid square. Must match the art, so the compiler refuses a map note without it.",
-    },
-    {
-        name: "navName",
-        ...STRING,
-        describe: "The scene's short name in Foundry's navigation bar.",
-    },
-    {
-        name: "levelName",
-        ...STRING,
-        describe: "Name of the ground level.",
-    },
-    {
-        name: "backgroundColor",
-        ...STRING,
-        describe: "Colour shown beyond the background image.",
-    },
-    {
-        name: "overlay",
-        ...STRING,
-        describe: "Foreground image drawn over the scene.",
-    },
-    { name: "walls", ...MAP, describe: "Wall segments, by key." },
-    { name: "doors", ...MAP, describe: "Doors, by key." },
-    { name: "lights", ...MAP, describe: "Light sources, by key." },
-    { name: "tiles", ...MAP, describe: "Tiles, by key." },
-    { name: "sounds", ...MAP, describe: "Ambient sounds, by key." },
-    {
-        name: "locations",
-        ...MAP,
-        describe: "Map notes pinned to the scene, by key.",
-    },
-    {
-        name: "regions",
-        ...MAP,
-        describe: "Regions and their behaviours, by key.",
-    },
-    {
-        name: "place",
-        ...AS_AUTHORED,
-        describe: "The place this map depicts.",
-    },
-    {
-        name: "placeName",
-        ...STRING,
-        describe: "Display name of the place this map depicts.",
-    },
-]);
+const MAP_FIELDS = Object.freeze([]);
 
 /**
  * Authored, but not compiled — vocabulary the *presentation* surfaces read.

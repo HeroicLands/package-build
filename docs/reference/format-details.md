@@ -135,14 +135,13 @@ or it is a **source system's own detail**, which no surface's box shows:
 | a calendar's `months`, `weekdays`, `seasons`, `namedDays`, `eras`, `formats` | calendar machinery, not a summary row                      |
 | a map's `scene`, `fixup`                                                     | canvas machinery, not a summary row                        |
 | `harnworld`                                                                  | HârnWorld source detail, which no surface's box shows      |
-| the art slots, `overlay`                                                     | an image, which rule 2 keeps out of the box                |
+| the art slots                                                                | an image, which rule 2 keeps out of the box                |
 
 **A field whose value holds maps is drawn by what its declaration says the
 maps are**, and a map is never set as text:
 
-- **A map with declared keys** — a regional map's `scale` — takes one row per
-  key that holds a value, in declared order, labelled by the key and carrying
-  its value: `Distance 5`, `Unit km`. A list of words under a key is one row of
+- **A map with declared keys** takes one row per key that holds a value, in
+  declared order, labelled by the key and carrying its value. A list of words under a key is one row of
   them, comma-joined. A key holding nothing — `null`, `""`, `[]` — takes no
   row, and a map with nothing to show takes none at all.
 - **A map keyed by Address** relates the note to others: `socialTies` and an
@@ -767,10 +766,10 @@ the art it writes (`emitsArt`). A second table of iconless types would be a tabl
 free to drift from what is actually emitted, which is the defect rather than the
 check.
 
-#### The four art slots
+#### The art slots
 
 A note declares the art its document needs, and every other image in it is
-inline. All four slots are ordinary `Address` fields declaring a default type,
+inline. Every slot is an ordinary `Address` field declaring a default type,
 exactly as `seat` declares `place` — a bare shortcode takes its type from the
 declaration, and qualification climbs the same short-form ladder every other
 link uses.
@@ -779,10 +778,9 @@ link uses.
 | ----------- | ------------ | --------------- | ----------------------------- | ----------------------------------------- |
 | `icon`      | `icon`       | `icon`, `image` | `document.img`                | every Actor/Item type, and embedded items |
 | `tokenIcon` | `icon`       | `icon`, `image` | `prototypeToken.texture.src`  | Actor types                               |
-| `bgImage`   | `image`      | `icon`, `image` | `background.src`              | map types                                 |
 | `banner`    | `image`      | `icon`, `image` | the site hero image, 1792×768 | any note; not a Foundry field             |
 
-All four are authored under `data:`:
+Every slot is authored under `data:`:
 
 ```yaml
 data:
@@ -792,8 +790,8 @@ data:
 
 **Every slot accepts a second type beyond the one it defaults to**, and the two
 defaults pair with the same accepted set: `icon` and `tokenIcon` default to
-`icon`, `bgImage` and `banner` default to `image`, and all four accept `icon`
-**and** `image` regardless of which one they default to. A bare shortcode still
+`icon`, `banner` defaults to `image`, and every slot accepts `icon` **and**
+`image` regardless of which one it defaults to. A bare shortcode still
 takes the slot's default — `icon: anvil` above names an `icon`, not an `image`
 — and it is a **qualified** value, one that states its own type, that the
 accepted set governs. `sohl-kethira-basic` writes an `icon` slot this way
@@ -807,7 +805,7 @@ data:
 
 That value is accepted because `image` is in the slot's accepted set, not
 because it matches the default — `icon` still defaults to `icon`. `audio` is
-refused at all four slots: a sound is not art, and a value naming one — `icon:
+refused at every slot: a sound is not art, and a value naming one — `icon:
 audio-thunder`, say — is an error naming the set the slot accepts, never a
 silent fall back to the note's default art.
 
@@ -844,8 +842,8 @@ carries one; where a type's passes emit none, the lint says so and the value is
 left alone, because a page template may still read it. `banner` reaches no
 compiled document at all, and a page is what every note publishes.
 
-The other two are narrower, and each type's own table names them: `tokenIcon`
-on the Actor types, `bgImage` on a map.
+`tokenIcon` is narrower, and the Actor types' own tables name it. A map takes
+no art slot: its Scene is exported from Foundry and names its own art.
 
 **A portrait is not one of them.** A picture of the subject is a picture, so it
 is authored in the prose that describes the subject, as an ordinary embedded
@@ -1024,8 +1022,8 @@ whole `assets/` tree and the directory names inside it are its own business:
 is that package's by the same rule that claims `icons/…` and `images/…`.
 
 **Where a pathname is still authored, it follows this rule.** That is the
-address of an image in a note's body, and a map note's `overlay`. The art
-fields do not: `icon`, `tokenIcon`, `bgImage` and `banner` name
+address of an image in a note's body. The art fields do not: `icon`,
+`tokenIcon` and `banner` name
 addresses, and the path comes from the record the resolved address points at —
 which already carries the owning package, so there is nothing for a first
 segment to state.
@@ -1045,9 +1043,8 @@ exists.
 
 No other art slot states a size, and none of them asks anything of a picture's
 dimensions. An `icon` is drawn at a nominal size per medium whatever its file
-holds; a map's `bgImage` sets its own scene's dimensions, so it is whatever size
-the map is; and a picture written in prose is fitted to the room it has. Those
-three accept whatever they are given.
+holds, and a picture written in prose is fitted to the room it has. Both accept
+whatever they are given.
 
 It is an `Address` all the same, defaulting to type `image`, so a section note
 writes `banner: skillbnr` and a note borrowing another package's plate writes
@@ -1643,7 +1640,7 @@ a candidate to weigh — it takes the default outright, every time — and the
 accepted set is what a value that states its own type is checked against
 instead: naming any member of the set is as valid as naming the default
 itself, and naming a type outside it is an error against the set, never
-against the default alone. [The four art slots](#the-four-art-slots) are
+against the default alone. [The art slots](#the-art-slots) are
 declared exactly this way — each one accepts a second type beyond the one a
 bare shortcode takes.
 
@@ -2032,7 +2029,7 @@ replacement is consulted **before** the local address; a foreign lookup only
 
 **An asset type exists so a note can name a file and a package can substitute
 it.** Nothing about a font answers to either half. No note names a typeface —
-the art slots are `icon`, `tokenIcon`, `bgImage` and `banner` — and substituting
+the art slots are `icon`, `tokenIcon` and `banner` — and substituting
 one package's font for another's is not something anyone wants.
 
 **Neither consumer of a font can use an address.** A stylesheet names a file
@@ -3568,7 +3565,7 @@ An embedded custom item writes its identity in `system.shortcode`; a top-level `
 #### An entry's art
 
 An entry is an item in every respect but where it is written, so it carries art
-by the two rules [an item note](#the-four-art-slots) does. It names an `icon`
+by the two rules [an item note](#the-art-slots) does. It names an `icon`
 address under its own `data:`, and that resolves into the embedded document's
 `img`:
 
@@ -4584,37 +4581,40 @@ Braced custom forms such as `{era}` are equivalent to bracketed custom forms. A 
 
 ### type: map
 
-A map note has its own prose and a Foundry Scene. A map can depict a place or an encounter. Several maps can depict the same place; the map names that place with `sohl.place`, while the place note does not list its maps.
+A map note has its own prose and a Foundry Scene. A map can depict a place or an encounter. Several maps can depict the same place; the map names that place with `data.place`, while the place note does not list its maps.
+
+**The Scene is made in Foundry.** Walls, lights, sounds, regions, levels and pins are drawn in Foundry's Scene editor, exported, and carried by the note at `data.scene`. The build passes the Scene through: it applies `data.fixup`, binds pins marked `#anchor` to this note's pages, and checks nothing else inside it.
 
 **subType**:
 
-- `battlemap`: A tactical Scene built in Foundry.
-- `localmap`: A settlement or local-area Scene built in Foundry.
-- `regionalmap`: A large-scale chart with an authored image and scale.
-- `totm`: A gridless image Scene for theatre-of-the-mind play.
+- `battlemap`: A tactical encounter map.
+- `localmap`: A settlement or local-area map.
+- `regionalmap`: A large-scale chart.
+- `totm`: A single picture for theatre-of-the-mind play.
 
-| `data` property   | Values                       | Description                                                                                                                                                                                                                                                                                   |
-| ----------------- | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `scene`           | object                       | **Keys not declared here:** an exported Foundry Scene for a battle or local map. Its keys are Foundry's Scene schema and are not checked key by key; the build checks its `width`, `height`, Levels, `initialLevel` and embedded `_id`s — see [Battle and local maps](#battle-and-local-maps) |
-| `fixup`           | `{ path, type, value }[]`    | Asset address replacements in an exported Scene                                                                                                                                                                                                                                               |
-| `fixup[].path`    | `string`, required           | The exported field to replace, as a property path from `data.scene`                                                                                                                                                                                                                           |
-| `fixup[].type`    | `address`, required          | What `value` is                                                                                                                                                                                                                                                                               |
-| `fixup[].value`   | `Address`, required          | The asset Address whose path replaces the exported one                                                                                                                                                                                                                                        |
-| `bgImage`         | Address                      | Background image for regional and theatre-of-the-mind maps                                                                                                                                                                                                                                    |
-| `scale`           | `{ distance, unit }`         | Regional distance and unit per grid unit                                                                                                                                                                                                                                                      |
-| `scale.distance`  | `number`, positive, required | The distance one grid unit covers                                                                                                                                                                                                                                                             |
-| `scale.unit`      | `string`, nonempty, required | What the distance is measured in                                                                                                                                                                                                                                                              |
-| `dimensions`      | `[int, int]`                 | Optional shared dimensions metadata                                                                                                                                                                                                                                                           |
-| `pxPerGrid`       | number                       | Optional shared grid size metadata                                                                                                                                                                                                                                                            |
-| `navName`         | string                       | Short Scene navigation name                                                                                                                                                                                                                                                                   |
-| `levelName`       | string                       | Embedded Level name                                                                                                                                                                                                                                                                           |
-| `backgroundColor` | string                       | Colour outside the art                                                                                                                                                                                                                                                                        |
-| `overlay`         | string                       | Foreground art path                                                                                                                                                                                                                                                                           |
-| `place`           | Address                      | Depicted place, when one exists                                                                                                                                                                                                                                                               |
+A subtype says what kind of map the note is. Every subtype carries an exported Scene.
 
-#### Battle and local maps
+| `data` property | Values                    | Description                                                                                                                                                                                                                                                          |
+| --------------- | ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scene`         | object                    | **Keys not declared here:** the Foundry Scene document, as exported. Its keys are Foundry's Scene schema and are not checked; the build passes the Scene through, and the book reads its levels' background images — see [Exporting the Scene](#exporting-the-scene) |
+| `fixup`         | `{ path, type, value }[]` | Asset address replacements in the exported Scene                                                                                                                                                                                                                     |
+| `fixup[].path`  | `string`, required        | The exported field to replace, as a property path from `data.scene`                                                                                                                                                                                                  |
+| `fixup[].type`  | `address`, required       | What `value` is                                                                                                                                                                                                                                                      |
+| `fixup[].value` | `Address`, required       | The asset Address whose path replaces the exported one                                                                                                                                                                                                               |
+| `place`         | Address                   | Depicted place, when one exists                                                                                                                                                                                                                                      |
 
-Author the Scene in Foundry, export it, convert the export to YAML, and put the resulting object at `data.scene`. Preserve its walls, lights, tiles, regions, levels, environment, flags, and canvas settings. The export can name art from another Foundry package; that path is used as authored in Foundry. The Scene needs positive whole-number `width` and `height`, at least one Level, a valid `initialLevel` when present, and a unique 16-character `_id` on each embedded document. The build derives the top-level Scene `_id` from the map note, adds compendium keys and build metadata, and otherwise preserves the exported fields.
+`data.scene` must be an object, and that is the only check made of it: its keys
+are Foundry's Scene schema. A map note declares nothing under its system block.
+
+#### Exporting the Scene
+
+Build the Scene in Foundry, export it, convert the export to YAML, and put the
+resulting object at `data.scene`. Its walls, lights, tiles, sounds, regions,
+levels, environment, flags and canvas settings are preserved as exported. The
+export can name art from another Foundry package; that path is used as authored
+in Foundry. The build derives the top-level Scene `_id` from the map note, adds
+compendium keys to each embedded document that carries an `_id`, adds build
+metadata, and otherwise preserves the exported fields.
 
 A pin's `text` can contain `#anchor`, where the map note has a heading such as `# Big Bad Wolf {#myanchor1}`. With `text: '#myanchor1'`, the compiled pin opens the JournalEntry and page generated from this map note and displays **Big Bad Wolf**. Its position, icon, other settings, and embedded `_id` remain as exported. A missing anchor is a build error. Pins whose text does not use `#anchor` retain their exported text and references.
 
@@ -4658,20 +4658,15 @@ data:
 # Big Bad Wolf {#myanchor1}
 ```
 
-When the Scene has pins, its Adventure bundle carries the Scene and the JournalEntry generated from its Markdown. Importing that bundle preserves the IDs the pins address.
+When the Scene has pins, its Adventure bundle carries the Scene and the JournalEntry generated from its Markdown. Importing that bundle preserves the IDs the pins address. The maps naming one `data.place` share one Adventure.
 
-#### Regional maps
+#### A map in the book
 
-A `regionalmap` uses `data.bgImage`, an image Address, and `sohl.dimensions: [width, height]` plus `sohl.pxPerGrid` to build a gridless Scene. `data.scale: {distance: positive number, unit: nonempty string}` sets the distance per grid unit. Its shared `data` fields can also name `overlay`, `backgroundColor`, `levelName`, and `navName`. Its geometry is written in the note's `sohl:` block, which is where the Scene compiler reads it: `sohl.walls`, `sohl.doors`, `sohl.lights`, `sohl.tiles`, `sohl.sounds` and `sohl.regions`, with pins in `sohl.locations`, following the map-note conventions described in the SoHL map authoring guide. `data.scene` is not used for a regional map.
-
-An SVG `data.bgImage` remains vector art on the site and in the book. The Foundry build stages a PNG at the note's stated dimensions with the installed SVG renderer; the source SVG is unchanged. Its aspect ratio must match the stated dimensions. A selected regional SVG map takes a full page in the PDF.
-
-#### Theatre-of-the-mind maps
-
-A `totm` map names its background with `data.bgImage` and its canvas size with
-`sohl.dimensions: [width, height]`. It builds a gridless Scene with token vision
-off. It needs no `sohl.pxPerGrid` or `data.scale`. The Markdown body remains the
-map's prose.
+A PDF book that selects a map note prints each of its Scene's level backgrounds
+on a landscape page after the entry, titled with the map's name and the level's
+name. The picture is the level's `background.src` with `data.fixup` applied, so
+a level whose background is fixed up to a local asset prints that asset. A
+level with no background prints nothing.
 
 ### type: place
 
@@ -4859,9 +4854,7 @@ a package boundary uses the same terrain and mode rules at both ends.
 For every place that participates in a border or route, the map builder draws
 an itinerary from that place. A site page carries it as a linked SVG. A PDF
 book that includes the place gives its map a separate full page after the
-entry. A configured Foundry Scene pack carries a gridless map backed by a
-generated PNG, with Notes linked to importable place journals. Places with no
-relations create no itinerary output.
+entry. Places with no relations create no itinerary output.
 
 **A relation that crosses a package boundary is written in full at both ends.**
 An omitted `<package>` segment is the package being built, in whatever note the

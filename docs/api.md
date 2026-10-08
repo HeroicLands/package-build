@@ -104,7 +104,8 @@ Deterministic document ids, derived by hashing rather than stored, so compile pa
 | ---------------------- | ----------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
 | `makeId`               | `makeId(namespace, value)`                      | `string` — a 16-character hexadecimal Foundry id               | deriving a stable id from a namespace and a value, e.g. a heading id when none is supplied |
 | `MAP_TYPES`            | `const MAP_TYPES`                               | —                                                              | enumerating the content types that compile into a Foundry `Scene`                          |
-| `MAP_SUBTYPES`         | `const MAP_SUBTYPES`                            | —                                                              | reading the map subTypes, which differ only in derived canvas defaults                     |
+| `isMapType`            | `isMapType(type)`                               | `boolean`                                                      | asking whether a content note's type compiles into a Scene                                 |
+| `MAP_SUBTYPES`         | `const MAP_SUBTYPES`                            | —                                                              | reading the map subTypes, each of which carries an exported Scene                          |
 | `JOURNAL_TYPES`        | `const JOURNAL_TYPES`                           | —                                                              | enumerating content types whose whole document _is_ a JournalEntry                         |
 | `NO_PACK`              | `const NO_PACK`                                 | —                                                              | spelling the `pack:` value (`none`) that routes a note's document into no compendium       |
 | `PACK_BY_TYPE`         | `const PACK_BY_TYPE`                            | —                                                              | looking up the conventional pack name and document type for a content type                 |
@@ -591,12 +592,12 @@ The drawings of `package-build map` as DOT text, sharing one style table: shape,
 
 ### `engine.mapGraphviz`
 
-The npm-installed Graphviz runtime draws SVG maps and supplies the plain positions used by Foundry itinerary pins. PNG backgrounds are rasterized from the same SVG layout. The `.dot` source stays beside each rendering.
+The npm-installed Graphviz runtime draws SVG maps. The `.dot` source stays beside each rendering.
 
-| Export             | Signature                                                   | Returns             | Use it when                                            |
-| ------------------ | ----------------------------------------------------------- | ------------------- | ------------------------------------------------------ |
-| `GRAPHVIZ_ENGINES` | `const GRAPHVIZ_ENGINES`                                    | `readonly string[]` | choosing `dot`, `twopi`, or `neato`                    |
-| `renderDot`        | `renderDot(dotPath, outPath, { engine, format, nop, dpi })` | `{warnings}`        | rendering a DOT source to SVG, plain positions, or PNG |
+| Export             | Signature                                      | Returns             | Use it when                         |
+| ------------------ | ---------------------------------------------- | ------------------- | ----------------------------------- |
+| `GRAPHVIZ_ENGINES` | `const GRAPHVIZ_ENGINES`                       | `readonly string[]` | choosing `dot`, `twopi`, or `neato` |
+| `renderDot`        | `renderDot(dotPath, outPath, { engine, nop })` | `{warnings}`        | rendering a DOT source to SVG       |
 
 ### `engine.mapBuild`
 
@@ -1353,42 +1354,21 @@ Macros pack compiler — produces JSON pack files for the "macros" Foundry compe
 | `buildMacroEntry`     | `function buildMacroEntry(fm,`          | {MacroDocument} The Macro document.                                                                               | The compendium envelope for one Macro.                                                                                                   |
 | `Macros`              | `class Macros extends BasePackCompiler` | —                                                                                                                 | Macros pack compiler.                                                                                                                    |
 
-### `engine.mapNotes`
+### `engine.exportedScene`
 
-**Map notes** — the markdown → Foundry `Scene` translation. A map note carries an _essence_: a curated, hand-owned subset of what a Scene record holds, exactly as a weapon note carries a weapon's essence rather than an Item's schema. Everything a Scene needs and nobody should have to author — the canvas defaults, the embedded `Level`, every derived region field — is synthesised here.
+An exported Foundry Scene's compile. A map note carries its Scene as exported from Foundry at `data.scene`; this passes it through, applying `data.fixup`, keying each embedded document that carries an `_id`, and binding pins marked `#anchor` to the note's own journal pages. Nothing else inside the Scene is checked.
 
-| Export                         | Signature                                       | Returns                                                                                      | Use it when                                                                                  |
-| ------------------------------ | ----------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
-| `isMapType`                    | `function isMapType(type)`                      | {boolean} True for a map type.                                                               | Whether a content note's type compiles into a Scene.                                         |
-| `MAP_SUBTYPE_PROFILES`         | `const MAP_SUBTYPE_PROFILES`                    | —                                                                                            | Per-subtype canvas defaults, emitted **explicitly** on every scene.                          |
-| `mapProfile`                   | `function mapProfile(subType)`                  | {object} The profile from {@link MAP_SUBTYPE_PROFILES}.                                      | The canvas profile for a map subType.                                                        |
-| `DEFAULT_LEVEL_ID`             | `const DEFAULT_LEVEL_ID`                        | —                                                                                            | Foundry's own id for the level a scene is created with (`Scene.metadata.defaultLevelId`).    |
-| `regionDocId`                  | `function regionDocId(sceneId, key, pinned)`    | {string} A 16-character Foundry id.                                                          | The id of one region within its scene.                                                       |
-| `behaviorDocId`                | `function behaviorDocId(regionId, key, pinned)` | {string} A 16-character Foundry id.                                                          | The id of one behaviour within its region.                                                   |
-| `regionColor`                  | `function regionColor(key)`                     | {string} A CSS hex colour.                                                                   | A region's highlight colour, derived from its key.                                           |
-| `assertPixelGeometry`          | `function assertPixelGeometry(coords, geom)`    | —                                                                                            | Reject geometry authored in grid squares where pixels belong.                                |
-| `assertGridLocation`           | `function assertGridLocation(at, geom)`         | —                                                                                            | Reject a map pin authored in pixels where grid squares belong.                               |
-| `wallRestrictions`             | `function wallRestrictions(spec, label)`        | `{{move: number, sight: number, light: number, sound: number}}` The Wall restriction fields. | Compile a wall's `blocks:` / `limits:` lists into Foundry's four numeric restriction fields. |
-| `buildShape`                   | `function buildShape(spec, geom)`               | {object} The Foundry shape record.                                                           | Compile one authored shape into a Foundry shape record.                                      |
-| `REGION_BEHAVIOR_TYPES`        | `const REGION_BEHAVIOR_TYPES`                   | —                                                                                            | The behaviour types a map note may carry (v1).                                               |
-| `BANNED_REGION_BEHAVIOR_TYPES` | `const BANNED_REGION_BEHAVIOR_TYPES`            | —                                                                                            | Behaviour types a map note may **never** carry, and why.                                     |
-| `buildScene`                   | `function buildScene(fm, ctx)`                  | {object} The Scene document, keyed for the pack.                                             | Compile a map note into a Scene document, embedded documents and all.                        |
-| `buildLevel`                   | `function buildLevel(sohl, sceneId, img`        | {object} The Level document, keyed for the pack.                                             | Synthesise the scene's single embedded Level from `img:` / `overlay:`.                       |
-| `buildWalls`                   | `function buildWalls(sohl, geom, ctx)`          | {object[]} The Wall documents.                                                               | Compile the `walls:` and `doors:` blocks into Wall documents.                                |
-| `buildLights`                  | `function buildLights(sohl, geom, ctx)`         | {object[]} The AmbientLight documents.                                                       | Compile the `lights:` block into AmbientLight documents.                                     |
-| `buildTiles`                   | `function buildTiles(sohl, geom, ctx)`          | {object[]} The Tile documents.                                                               | Compile the `tiles:` block into Tile documents.                                              |
-| `buildSounds`                  | `function buildSounds(sohl, geom, ctx)`         | {object[]} The AmbientSound documents.                                                       | Compile the `sounds:` block into AmbientSound documents.                                     |
-| `buildLocations`               | `function buildLocations(sohl, geom, ctx)`      | {object[]} The Note documents.                                                               | Compile the `locations:` block into Note documents — the map pins.                           |
-| `buildRegions`                 | `function buildRegions(sohl, geom, ctx)`        | {object[]} The Region documents.                                                             | Compile the `regions:` block into Region documents with their behaviours.                    |
+| Export               | Signature                                                                              | Returns                            | Use it when                                          |
+| -------------------- | -------------------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------- |
+| `buildExportedScene` | `function buildExportedScene(fm, markdown, { journalEntryId, stats, resolveAddress })` | {object} The keyed Scene document. | Compile a Foundry Scene export into a pack document. |
 
 ### `engine.scenes`
 
-Scenes pack compiler — map notes in `assets/content/` → Foundry `Scene` documents, and the `Adventure` bundles that make their references resolve. The translation itself lives in the framework-free `map-notes.mjs`; this module is the pass that walks the tree, resolves what one note says about another, and writes the JSON the compendium CLI compiles.
+Scenes pack compiler — map notes in `assets/content/` → Foundry `Scene` documents, and the `Adventure` bundles that make their pins resolve. Each map note's Scene is the one it exports from Foundry, compiled by `engine.exportedScene`; the build never constructs a Scene.
 
-| Export                    | Signature                                    | Returns                               | Use it when                                                                                                                                                                                        |
-| ------------------------- | -------------------------------------------- | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `collectKnownActionNames` | `function collectKnownActionNames(repoRoot)` | {Set<string>} The known action names. | Every SoHL action name this build knows about, for the `action:` warning on a region trigger.                                                                                                      |
-| `Scenes`                  | `class Scenes extends BasePackCompiler`      | —                                     | not called directly — imported and driven by `engine/generate.mjs` as the "scenes" pack compiler; walks the tree, resolves cross-scene references, and writes the JSON the compendium CLI compiles |
+| Export   | Signature                               | Returns | Use it when                                                                                                                                              |
+| -------- | --------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Scenes` | `class Scenes extends BasePackCompiler` | —       | not called directly — imported and driven by `engine/generate.mjs` as the "scenes" pack compiler; compiles each exported Scene and bundles pinned places |
 
 ### `engine.bundleNotes`
 

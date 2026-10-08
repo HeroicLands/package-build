@@ -2451,16 +2451,14 @@ not change its viewpoint.
 
 Site builds put a linked SVG in each eligible place page. PDF builds put a
 vector map on its own page immediately after each selected place entry with
-relations. A configured Scene pack stages PNG backgrounds and emits gridless
-itinerary Scenes and an Adventure containing the journals their pins open.
-The installed SVG renderer also stages PNG backgrounds for authored regional SVG maps.
+relations. The drawings are pictures for a reader; no Foundry Scene is made
+from them.
 
-Battle and local map notes can carry a Foundry Scene export under `data.scene`.
-The pack compiler preserves its fields and binds pins marked `#anchor` to pages
-from the map note's Markdown. A `totm` map uses an image Address and canvas
-dimensions to make a gridless Scene.
-`data.fixup` resolves asset Addresses into selected fields of an exported Scene;
-a missing path or asset is a build error.
+A map note is a different thing: it carries a Scene exported from Foundry under
+`data.scene`, on every map subtype. The pack compiler passes it through, binds
+pins marked `#anchor` to pages from the map note's Markdown, and applies
+`data.fixup`, which resolves asset Addresses into selected fields of the
+exported Scene; a missing path or asset is a build error.
 
 The four drawings, any of which may be asked for in one run:
 

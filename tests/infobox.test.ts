@@ -521,12 +521,36 @@ describe("the note box's fields are the type's own vocabulary", () => {
 
     it("shows a unit exactly as written", () => {
         for (const unit of ["km", "mi", "ft", "m"]) {
-            const box = noteInfobox({
-                type: "map",
-                subType: "regionalmap",
-                name: { full: "The March" },
-                data: { scale: { distance: 5, unit } },
-            });
+            const box = noteInfobox(
+                {
+                    type: "lore",
+                    name: { full: "The March" },
+                    data: { survey: { distance: 5, unit } },
+                },
+                {
+                    vocabulary: {
+                        lore: {
+                            data: [
+                                {
+                                    name: "survey",
+                                    kind: "map",
+                                    shape: "a map",
+                                    describe: "A fixture field.",
+                                    fields: [
+                                        { name: "distance", kind: "number", shape: "a number" },
+                                        {
+                                            name: "unit",
+                                            kind: "string",
+                                            verbatim: true,
+                                            shape: "a string",
+                                        },
+                                    ],
+                                },
+                            ],
+                        },
+                    },
+                } as any,
+            );
             expect(box.sections[0].rows, unit).toContainEqual({
                 label: "Unit",
                 kind: "text",

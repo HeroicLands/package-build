@@ -124,7 +124,7 @@ function lint(type: string, raw: string, fm: Record<string, unknown>) {
 /** A YAML fence from its lines, as a note's raw text. */
 const fence = (...lines: string[]) => ["---", ...lines, "---", ""].join("\n");
 
-describe("a declared whole number, closed word or positive number is checked at the value", () => {
+describe("a declared whole number or closed word is checked at the value", () => {
     const calendar = (key: string, entry: Record<string, unknown>, line: string) => ({
         raw: fence("type: lore", "subType: calendar", "data:", `    ${key}:`, line),
         fm: { subType: "calendar", data: { [key]: [entry] } },
@@ -218,26 +218,6 @@ describe("a declared whole number, closed word or positive number is checked at 
                 standing,
             ).toEqual([]);
         }
-    });
-
-    it("refuses a scale distance that is not positive, at the value", () => {
-        const raw = fence(
-            "type: map",
-            "subType: regionalmap",
-            "data:",
-            "    scale: { distance: -5, unit: km }",
-        );
-        const findings = lint("map", raw, {
-            subType: "regionalmap",
-            data: { scale: { distance: -5, unit: "km" } },
-        });
-        expect(findings).toContainEqual(
-            expect.objectContaining({
-                line: 5,
-                column: 24,
-                message: "`data.scale.distance` should be a positive number, but reads -5",
-            }),
-        );
     });
 
     it("refuses a fixup type other than address, at the value", () => {

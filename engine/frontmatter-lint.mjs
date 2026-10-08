@@ -934,10 +934,10 @@ function checkTags(note, { type }) {
  *
  * {@link module:engine/art-fields.ART_SLOTS} is the declaration; this is that
  * list in the shape the checks below read, so the linter states no art key of
- * its own and a slot added there is checked here with no second edit. All four
- * are authored under `data:`, which is what `inData` records.
+ * its own and a slot added there is checked here with no second edit. Every
+ * slot is authored under `data:`, which is what `inData` records.
  *
- * `document` separates the three that reach a compiled document from `banner`,
+ * `document` separates the slots that reach a compiled document from `banner`,
  * which reaches none by design. The inert-art check reads it: a key that is
  * *meant* to reach no document is not an inert key, and reporting every note
  * that names a hero image would bury the finding that matters.

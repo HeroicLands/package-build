@@ -15,19 +15,13 @@
  * The curated Foundry region-event vocabulary, as plain data.
  *
  * Deliberately **plain ESM** — no TypeScript, no `@src` aliases, no Foundry —
- * for the same reason `../sohl/default-item-art.mjs` is: the map-note pack
- * compiler runs under bare `node`, outside the bundler that resolves `@src` and
- * strips types, and it must reject an authored region event that the runtime
- * would silently drop. One list here is what keeps the build-time lint and the
- * runtime bridge from drifting apart.
+ * so the Foundry runtime and any build-time consumer read one list, and the
+ * events a region trigger forwards cannot drift between them.
  *
- * It sits in this package rather than in the system's `src/` tree because the
- * map-note compiler that reads it is installed as a dependency, and a
- * relative path out of the package would resolve to garbage from
- * `node_modules`. The runtime reaches it back through the package's
- * `./engine/region-events` entry point. It is engine-side, not
- * SoHL-side, because any content module that authors a scene region — an
- * adventure module included — needs this vocabulary.
+ * The runtime reaches it through the package's `./engine/region-events` entry
+ * point. It is engine-side, not SoHL-side, because a Scene region exported
+ * from any content module — an adventure module included — names its events
+ * from this vocabulary.
  *
  * The prose explaining *why* each event is curated or excluded lives with the
  * typed re-exports in `src/entity/event/region-triggers.ts`, which is the

@@ -217,7 +217,7 @@ describe("emittedArtFor answers from the routing the compile follows", () => {
 
     it("gives a macro, a map and a bundle their art", () => {
         expect(emittedArtFor("macro")).toEqual({ document: "Macro", art: ["icon"] });
-        expect(emittedArtFor("map")).toEqual({ document: "Scene", art: ["bgImage"] });
+        expect(emittedArtFor("map")).toEqual({ document: "Scene", art: [] });
         expect(emittedArtFor("bundle")).toEqual({ document: "Adventure", art: ["icon"] });
     });
 

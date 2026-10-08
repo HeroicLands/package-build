@@ -267,14 +267,6 @@ types:
         data:
             - scene
             - fixup
-            - bgImage
-            - scale
-            - dimensions
-            - pxPerGrid
-            - navName
-            - levelName
-            - backgroundColor
-            - overlay
             - place
         subTypes:
             - battlemap

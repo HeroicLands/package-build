@@ -515,7 +515,7 @@ describe('an authored `icon: ""`', () => {
     it("is warned about for every slot, since the rule belongs to the resolution", () => {
         // A check keyed on one slot would call a tree clean that loses its
         // default art through another.
-        for (const key of ["tokenIcon", "bgImage", "banner"]) {
+        for (const key of ["tokenIcon", "banner"]) {
             const findings = lintNote(note("skill", {}, { data: { [key]: "" } }), { schemas });
             const art = findings.filter((f) => new RegExp(`\`${key}: ""\``).test(f.message));
 

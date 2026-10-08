@@ -56,7 +56,7 @@
  *    a side rail on wide screens and inline boxes on narrow screens.
  * 2. **It contains no image.** A picture is authored in the text with its own
  *    directive, and its position governs. {@link NOTE_FIELD_PRESENTATION}
- *    withholds the art slots and `overlay` for that reason and no other.
+ *    withholds the art slots for that reason and no other.
  * 3. **A section is the unit that flows.** Sections are whole and unbreakable;
  *    the panel breaks between them. This is what lets a long box cross a
  *    column or page boundary without splitting a stat grid.
@@ -297,9 +297,7 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     }),
     icon: Object.freeze({ withheld: "an image, which the box never carries" }),
     tokenIcon: Object.freeze({ withheld: "an image, which the box never carries" }),
-    bgImage: Object.freeze({ withheld: "an image, which the box never carries" }),
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
-    overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
     events: Object.freeze({ withheld: "chronology machinery, which no infobox row draws on" }),
     // A calendar's definition is what dates are read through, not a fact a
     // summary row can carry: a list of months or eras is the calendar itself.
@@ -309,8 +307,8 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     "lore.namedDays": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
     "lore.eras": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
     "lore.formats": Object.freeze({ withheld: "calendar machinery, not a summary row" }),
-    // A map's canvas — the exported Scene and its asset fixups — is what the
-    // Scene is built from.
+    // A map's canvas — the exported Scene and its asset fixups — is the
+    // Scene itself, not a fact a summary row can carry.
     "map.scene": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
     "map.fixup": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
 

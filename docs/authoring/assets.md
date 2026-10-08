@@ -36,7 +36,7 @@ license: CC-BY-SA-4.0
 role: portrait
 ```
 
-**A hero image is 1792×768.** `data.banner` fills one fixed strip wherever it is drawn, so every banner is cut to that size and a picture of any other size is a finding naming both sizes — resize the picture to match. That is the one size any art field requires. A map's `bgImage` sets its own scene's dimensions, so that asks nothing of a picture's dimensions either.
+**A hero image is 1792×768.** `data.banner` fills one fixed strip wherever it is drawn, so every banner is cut to that size and a picture of any other size is a finding naming both sizes — resize the picture to match. That is the one size any art field requires.
 
 `data.banner` reads in one of three states:
 

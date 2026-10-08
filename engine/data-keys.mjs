@@ -61,7 +61,6 @@ import { nearest } from "./near-miss.mjs";
  *   makes no claim about the value.
  * @property {readonly string[]} [allowed] - The closed set a present value is
  *   one of, where the key takes a fixed word.
- * @property {boolean} [positive] - A present number is greater than zero.
  * @property {boolean} [verbatim] - The value is a symbol, such as a unit, and
  *   every surface shows it exactly as written, never recased.
  * @property {string} shape - The shape in words, for a finding and the reference.
@@ -296,16 +295,6 @@ export function checkDataKeys(note, fields) {
                     `\`${pathLabel(path)}\` should be ${spec.allowed.map((word) => `\`${word}\``).join(" or ")}, ` +
                         `but reads ${JSON.stringify(value)}` +
                         (guess ? `. Did you mean "${guess}"?` : ""),
-                ),
-            );
-            return;
-        }
-        if (spec.positive && !(Number(value) > 0)) {
-            findings.push(
-                finding(
-                    path,
-                    `\`${pathLabel(path)}\` should be ${spec.shape ?? "a positive number"}, but reads ` +
-                        JSON.stringify(value),
                 ),
             );
             return;

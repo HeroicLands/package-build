@@ -172,8 +172,7 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *   quoting the whole map back, so the string an author has to correct is the
  *   one the message holds.
  * @property {string} [ref] - The Address's default type, an art slot declares
- *   one — `icon` for `icon` and `tokenIcon`, `image` for `bgImage` and
- *   `banner` — so `icon: anvil` names `icon-anvil` while a value carrying the
+ *   one — `icon` for `icon` and `tokenIcon`, `image` for `banner` — so `icon: anvil` names `icon-anvil` while a value carrying the
  *   separator states its own address. Distinct from a `FieldSpec`'s `code`
  *   ({@link module:engine/field-spec}), which names a **Shortcode** instead.
  * @property {"pack"} [keys] - For a `scalar-or-map` field, what its keys name.
@@ -1760,13 +1759,17 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     map: Object.freeze({
         stubbable: true,
-        // The subType classifies the map; `data.scene` carries its canvas.
+        // The subType classifies the map; `data.scene` is its Foundry Scene.
         subTypes: Object.freeze(["battlemap", "localmap", "regionalmap", "totm"]),
         data: Object.freeze([
             {
                 name: "scene",
-                ...ANY,
-                describe: "A Foundry Scene export with all its authored fields.",
+                kind: "map",
+                shape: "an object — a Foundry Scene document as exported",
+                describe:
+                    "The Foundry Scene as exported, passed through unchanged apart " +
+                    "from `data.fixup` and its pins marked `#anchor`. Nothing inside it is checked; " +
+                    "the book prints its levels' background images.",
             },
             {
                 name: "fixup",
@@ -1802,62 +1805,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                 }),
                 describe: "Asset address replacements in an exported Scene.",
             },
-            // A Scene has no `img`, so the shared art key reaches nothing here:
-            // a map's background is its own slot, and an `image` address.
-            {
-                name: "bgImage",
-                ...LINK,
-                ref: "image",
-                accepts: ART_SLOTS.find((slot) => slot.key === "bgImage").accepts,
-                describe: "The map's background art — an `image` address.",
-            },
-            {
-                name: "scale",
-                kind: "map",
-                shape: "`{ distance, unit }`",
-                fields: Object.freeze([
-                    Object.freeze({
-                        name: "distance",
-                        kind: "number",
-                        required: true,
-                        positive: true,
-                        shape: "a positive number",
-                        describe: "The distance one grid unit covers.",
-                    }),
-                    Object.freeze({
-                        name: "unit",
-                        kind: "string",
-                        required: true,
-                        verbatim: true,
-                        shape: "a non-empty string",
-                        describe: "What the distance is measured in.",
-                    }),
-                ]),
-                describe: "Regional map distance per grid unit: {distance, unit}.",
-            },
-            {
-                name: "dimensions",
-                ...LIST,
-                entries: Object.freeze({ kind: "integer", shape: "a whole number of pixels" }),
-                describe: "`[width, height]` in whole pixels — the art's own size.",
-            },
-            {
-                name: "pxPerGrid",
-                ...NUM,
-                describe: "Whole pixels per grid square; must match the art.",
-            },
-            { name: "navName", ...TEXT, describe: "Short name for the navigation bar." },
-            { name: "levelName", ...TEXT, describe: "Name of the embedded level." },
-            {
-                name: "backgroundColor",
-                ...TEXT,
-                describe: "Colour shown where the art does not reach.",
-            },
-            { name: "overlay", ...TEXT, describe: "Path to the foreground art." },
-            // A regional map's geometry and pins are not `data:` keys: they are
-            // written in the note's `sohl:` block, which the Scene compiler
-            // reads — `sohl.walls`, `sohl.doors`, `sohl.lights`, `sohl.tiles`,
-            // `sohl.sounds`, `sohl.regions` and `sohl.locations`.
             {
                 name: "place",
                 ...LINK,

@@ -141,18 +141,25 @@ describe("exported Foundry Scene", () => {
         ).toThrow(/does not resolve to an asset/);
     });
 
-    it("refuses missing embedded IDs and invalid level references", () => {
+    it("passes an embedded document without an _id through unkeyed", () => {
         const fm = mapNote() as any;
         delete fm.data.scene.walls[0]._id;
-        expect(() => buildExportedScene(fm, "", {})).toThrow(/walls needs a 16-character _id/);
-        fm.data.scene.walls = [];
+        fm.data.scene.walls.push(fm.data.scene.walls[0]);
         fm.data.scene.initialLevel = "missing";
-        expect(() => buildExportedScene(fm, "", {})).toThrow(/names no Level/);
+        const scene = buildExportedScene(fm, "# Big Bad Wolf {#myanchor1}", {
+            journalEntryId: ENTRY_ID,
+        }) as any;
+        expect(scene.walls).toHaveLength(2);
+        expect(scene.walls[0]._key).toBeUndefined();
+        expect(scene.initialLevel).toBe("missing");
     });
 
-    it("limits exported Scenes to battle and local maps", () => {
+    it("compiles an exported Scene on a regional map", () => {
         const fm = { ...mapNote(), subType: "regionalmap" };
-        expect(() => buildExportedScene(fm, "", {})).toThrow(/battlemap and localmap/);
+        const scene = buildExportedScene(fm, "# Big Bad Wolf {#myanchor1}", {
+            journalEntryId: ENTRY_ID,
+        }) as any;
+        expect(scene.name).toBe("Wolf Den Scene");
     });
 
     it("compiles an exported Scene from a map note without rewriting its canvas", async () => {
