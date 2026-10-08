@@ -1879,15 +1879,3 @@ export function subTypes(type, vocabulary = NOTE_VOCABULARY) {
     if (!entry || !Object.hasOwn(entry, "subTypes")) return undefined;
     return entry.subTypes;
 }
-
-/**
- * Accepted migration input with no canonical field or emitted value.
- *
- * Legacy affiliation domains are ignored. They never supply a government.
- * @param {string} type - The note type.
- * @param {string} key - An authored data key.
- * @returns {boolean} Whether the obsolete key is accepted during migration.
- */
-export function isLegacyDataField(type, key) {
-    return currentType(type) === "affiliation" && key === "domains";
-}

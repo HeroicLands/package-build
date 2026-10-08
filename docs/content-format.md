@@ -88,6 +88,6 @@ The note's readable Address is `<package>-note-lore-harbor`. In prose, link to i
 
 The [first-note guide](authoring/first-note.md) shows the build commands and how to add a system document. Use the [command reference](commands.md) for exact flags and the [diagnostics guide](diagnostics.md) for located errors.
 
-Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](authoring/frontmatter.md#place-governments) and [government migration](guides/government-migration.md).
+Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](authoring/frontmatter.md#place-governments).
 
 Blockquote alerts use `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, or `[!]`, with optional attributes after the marker. They replace the former info and warn div fences; secret blocks remain supported. See [alerts](authoring/links-and-markup.md#alerts).

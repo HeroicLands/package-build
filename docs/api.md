@@ -373,7 +373,6 @@ An addressed content note accepts exactly these top-level keys, in this order: `
 | `subTypeCharsetMessage`   | `subTypeCharsetMessage(value)`               | `string`                                 | building the message for a `subType` outside the address charset                                  |
 | `typeCharsetMessage`      | `typeCharsetMessage(type)`                   | `string`                                 | building the message for a `type` outside the address charset                                     |
 | `assertVocabularyCharset` | `assertVocabularyCharset(vocabulary, where)` | throws                                   | refusing a vocabulary declaration whose type or subType breaks the address charset                |
-| `isLegacyDataField`       | `isLegacyDataField(type, key)`               | `boolean`                                | testing accepted but ignored transitional affiliation `data.domains` input                        |
 | `dataFields`              | `dataFields(type, vocabulary)`               | `readonly DataFieldSpec[] \| undefined`  | looking up the `data:` keys a note type may carry                                                 |
 | `subTypes`                | `subTypes(type, vocabulary)`                 | `readonly string[] \| null \| undefined` | looking up the closed `subType` values a note type declares                                       |
 
