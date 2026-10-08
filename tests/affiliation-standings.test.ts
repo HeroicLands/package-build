@@ -14,9 +14,10 @@ import {
 } from "../engine/standings.mjs";
 import { STANDING_KEYS } from "../engine/standing-terms.mjs";
 import { decodeNoteAddresses } from "../engine/note-addresses.mjs";
-import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
+import { checkDataKeys } from "../engine/data-keys.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
-import { infoboxesToHtml } from "../engine/infobox-render.mjs";
+import { infoboxesToHtml, infoboxesToTypst } from "../engine/infobox-render.mjs";
 import { buildReferenceTargets } from "../engine/reference-targets.mjs";
 import { catalogueKey } from "../engine/actor-compiler.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
@@ -75,6 +76,16 @@ const note = (affiliations: unknown) => ({
     file: "subject.md",
     raw,
 });
+
+/**
+ * Every finding a being's memberships earn: what a standing holds is the
+ * inner-key check's, read from the declaration; what it means is
+ * `checkStandings`'.
+ */
+const standingFindings = (affiliations: unknown) => [
+    ...checkDataKeys(note(affiliations), dataFields("being")),
+    ...checkStandings(note(affiliations), { index }),
+];
 
 describe("a being's standing names the body that confers it", () => {
     it("declares the map form, with the list form still accepted", () => {
@@ -136,10 +147,10 @@ describe("a being's standing names the body that confers it", () => {
         // `{}`, a key with nothing after it, and the `[]` an emptied map
         // arrives from the property editor as all say one thing.
         for (const nothing of [{}, null, []]) {
-            const findings = checkStandings(note({ vrystwldtrbs: nothing }), { index });
+            const findings = standingFindings({ vrystwldtrbs: nothing });
             expect(findings.map((f) => f.severity)).toEqual(["error"]);
-            expect(findings[0].message).toMatch(/thalorna-note-affiliation-vrystwldtrbs/);
-            expect(findings[0].message).toMatch(/states no `rank`/);
+            expect(findings[0].message).toMatch(/vrystwldtrbs/);
+            expect(findings[0].message).toMatch(/states no `rank`|must state `rank`/);
             expect(findings[0].message).toMatch(/ordinary member is `1`/);
             expect(findings[0].message).toMatch(/`0` is the rung for someone cast out/);
             expect(findings[0].file).toBe("subject.md");
@@ -147,25 +158,19 @@ describe("a being's standing names the body that confers it", () => {
         }
     });
 
-    it("refuses an office with no rung once, naming the body and the post", () => {
-        // The same fault, not a second one — so one finding, on the entry, with
-        // the office named as the reason it looked complete.
-        const findings = checkStandings(note({ vrystwldtrbs: { office: "War Chief" } }), { index });
+    it("refuses an office with no rung once, on the entry", () => {
+        // The same fault, not a second one — so one finding, on the entry.
+        const findings = standingFindings({ vrystwldtrbs: { office: "War Chief" } });
         expect(findings.map((f) => f.severity)).toEqual(["error"]);
-        expect(findings[0].message).toMatch(/thalorna-note-affiliation-vrystwldtrbs/);
-        expect(findings[0].message).toMatch(
-            /states no `rank`, and the office "War Chief" is not one/,
-        );
+        expect(findings[0].message).toMatch(/`data\.affiliations\.vrystwldtrbs` must state `rank`/);
         expect(findings[0].message).toMatch(/ordinary member is `1`/);
         expect(findings[0].line).toBeGreaterThan(0);
         expect(findings[0].column).toBeGreaterThan(0);
     });
 
     it("keeps a rank with no office valid, because `office` is the optional half", () => {
-        expect(checkStandings(note({ vrystwldtrbs: { rank: 4 } }), { index })).toEqual([]);
-        expect(
-            checkStandings(note({ greenwardens: {} }), { index }).map((f) => f.severity),
-        ).toEqual(["error"]);
+        expect(standingFindings({ vrystwldtrbs: { rank: 4 } })).toEqual([]);
+        expect(standingFindings({ greenwardens: {} }).map((f) => f.severity)).toEqual(["error"]);
     });
 
     it("leaves a rung of 0 alone, because being cast out is a standing", () => {
@@ -206,17 +211,21 @@ describe("a being's standing names the body that confers it", () => {
                 .map((f: any) => f.message)
                 .join(" "),
         ).toMatch(/declares no `data.governance.offices`/);
-        expect(
-            checkStandings(note({ vrystwldtrbs: { rank: 4, office: 7 } }), { index })[0].message,
-        ).toMatch(/must name a post/);
+        expect(standingFindings({ vrystwldtrbs: { rank: 4, office: 7 } })[0].message).toMatch(
+            /`data\.affiliations\.vrystwldtrbs\.office` should be a post/,
+        );
     });
 
     it("refuses an unknown standing key, a non-map standing, and a body named twice", () => {
-        expect(checkStandings(note({ vrystwldtrbs: { grade: 4 } }), { index })[0].message).toMatch(
-            /unknown key `grade`/,
+        expect(
+            standingFindings({ vrystwldtrbs: { grade: 4 } })
+                .map((f) => f.message)
+                .join("\n"),
+        ).toMatch(
+            /"grade" is not a key of `data\.affiliations\.vrystwldtrbs`; it takes only `rank`, `office`/,
         );
-        expect(checkStandings(note({ vrystwldtrbs: "Hárár" }), { index })[0].message).toMatch(
-            /must hold that body's standing as a map/,
+        expect(standingFindings({ vrystwldtrbs: "Hárár" })[0].message).toMatch(
+            /`data\.affiliations\.vrystwldtrbs` should be a map — `\{ rank, office\? \}`/,
         );
         expect(
             checkStandings(
@@ -281,13 +290,13 @@ describe("the body is the single source for what a rung is called", () => {
     it("reads a standing as a phrase closing on its body", () => {
         const digest = standingsDigest(tribes);
         expect(standingPhrase({ rank: 4 }, "Vrystwald Tribes", digest)).toBe(
-            "Fródrád, of Vrystwald Tribes",
+            "Fródrád (4), of Vrystwald Tribes",
         );
         expect(standingPhrase({ office: "War Chief" }, "Vrystwald Tribes", digest)).toBe(
             "War Chief, of Vrystwald Tribes",
         );
         expect(standingPhrase({ rank: 5, office: "War Chief" }, "Vrystwald Tribes", digest)).toBe(
-            "War Chief, Hárár, of Vrystwald Tribes",
+            "War Chief, Hárár (5), of Vrystwald Tribes",
         );
         expect(standingPhrase({}, "Vrystwald Tribes", digest)).toBe("Vrystwald Tribes");
         // A rung the body has not named still reads as the standing it is.
@@ -297,52 +306,110 @@ describe("the body is the single source for what a rung is called", () => {
     });
 });
 
-describe("the box prints a standing beside its body", () => {
-    const resolve = (ref: unknown) => ({
-        name: "Vrystwald Tribes",
-        url: "/thalorna/affiliation-vrystwldtrbs/",
-        standings: standingsDigest(tribes),
-        address: ref,
-    });
+describe("the box prints one line per membership", () => {
+    const pages: Record<string, { name: string; url: string; fm: object }> = {
+        vrystwldtrbs: {
+            name: "Vrystwald Tribes",
+            url: "/thalorna/affiliation-vrystwldtrbs/",
+            fm: tribes,
+        },
+        greenwardens: {
+            name: "Green Wardens",
+            url: "/thalorna/affiliation-greenwardens/",
+            fm: wardens,
+        },
+    };
+    const resolve = (ref: unknown) => {
+        const shortcode = (ref as { shortcode?: string })?.shortcode ?? String(ref);
+        const page = pages[shortcode.replace(/^affiliation-/, "")];
+        return page && { name: page.name, url: page.url, standings: standingsDigest(page.fm) };
+    };
 
-    const being = (affiliations: unknown) =>
+    const box = (affiliations: unknown) =>
         noteInfobox(
             { type: "being", name: { full: "A Person" }, data: { affiliations } },
             { resolve },
         );
 
-    const row = (affiliations: unknown) =>
-        being(affiliations).sections[0].rows.find(
-            (entry: { label: string }) => entry.label === "Affiliations",
+    const section = (affiliations: unknown) =>
+        box(affiliations).sections.find((entry: { id: string }) => entry.id === "affiliations");
+
+    /** Each membership as the line a reader meets: the lead, then the linked name. */
+    const lines = (affiliations: unknown) =>
+        (section(affiliations)?.entries ?? []).map(
+            (entry: { lead?: string; text: string }) => `${entry.lead ?? ""}${entry.text}`,
         );
 
-    it("names the rung and the post inside the entry", () => {
-        expect(row({ vrystwldtrbs: { rank: 4 } }).value[0].text).toBe(
-            "Fródrád, of Vrystwald Tribes",
-        );
-        expect(row({ vrystwldtrbs: { rank: 5, office: "War Chief" } }).value[0].text).toBe(
-            "War Chief, Hárár, of Vrystwald Tribes",
-        );
+    it("writes office, named rung with its level, and the body — one line each, in order", () => {
+        expect(
+            lines({
+                vrystwldtrbs: { rank: 5, office: "War Chief" },
+                greenwardens: { rank: 2 },
+            }),
+        ).toEqual(["War Chief, Hárár (5), of Vrystwald Tribes", "Rank 2, of Green Wardens"]);
     });
 
-    it("links a post to the description the body already declares", () => {
-        expect(row({ vrystwldtrbs: { office: "War Chief" } }).value[0].url).toBe(
-            "/thalorna/affiliation-vrystwldtrbs/#office-war-chief",
-        );
-        // A post the body does not name earns no anchor, so the entry keeps
-        // the body's own page rather than pointing at nothing.
-        expect(row({ vrystwldtrbs: { office: "Nothing" } }).value[0].url).toBe(
-            "/thalorna/affiliation-vrystwldtrbs/",
-        );
+    it("covers the other two combinations of office and named rung", () => {
+        expect(
+            lines({
+                greenwardens: { rank: 1, office: "Speaker" },
+                vrystwldtrbs: { rank: 4 },
+            }),
+        ).toEqual(["Speaker, Rank 1, of Green Wardens", "Fródrád (4), of Vrystwald Tribes"]);
     });
 
-    it("still draws the list form as links while a tree converts", () => {
-        expect(row(["vrystwldtrbs"])).toMatchObject({
-            kind: "links",
-            value: [{ text: "Vrystwald Tribes", url: "/thalorna/affiliation-vrystwldtrbs/" }],
+    it("links the body's name alone, to its page", () => {
+        const [entry] = section({ vrystwldtrbs: { rank: 5, office: "War Chief" } }).entries;
+        expect(entry).toMatchObject({
+            lead: "War Chief, Hárár (5), of ",
+            text: "Vrystwald Tribes",
+            url: "/thalorna/affiliation-vrystwldtrbs/",
         });
-        expect(row([])).toBeUndefined();
-        expect(row({})).toBeUndefined();
+        const html = infoboxesToHtml([box({ vrystwldtrbs: { rank: 5, office: "War Chief" } })]);
+        expect(html).toContain(
+            '<li>War Chief, Hárár (5), of <a href="/thalorna/affiliation-vrystwldtrbs/">Vrystwald Tribes</a></li>',
+        );
+        // The book sets the same line, the lead as text and the name as the link.
+        const typst = infoboxesToTypst([box({ vrystwldtrbs: { rank: 5, office: "War Chief" } })], {
+            link: (value: { text: string }) => `#link[${value.text}]`,
+        });
+        expect(typst).toContain(
+            '#infobox-runin("")[War Chief, Hárár (5), of #link[Vrystwald Tribes]]',
+        );
+    });
+
+    it("sets a body that publishes no page as plain text", () => {
+        // Decoded as every build decodes it, so the key reaches the box as an
+        // Address and an unresolved one keeps its own shortcode.
+        const decoded = (
+            decodeNoteAddresses(
+                {
+                    type: "being",
+                    data: { affiliations: { "affiliation-nosuchbody": { rank: 3 } } },
+                },
+                { package: "thalorna", system: "note" },
+            ) as any
+        ).data.affiliations;
+        expect(lines(decoded)).toEqual(["Rank 3, of nosuchbody"]);
+        expect(section(decoded).entries[0].url).toBeUndefined();
+    });
+
+    it("titles the lines as their own section, and leaves the profile rows without them", () => {
+        const drawn = box({ vrystwldtrbs: { rank: 4 } });
+        expect(section({ vrystwldtrbs: { rank: 4 } })).toMatchObject({
+            id: "affiliations",
+            label: "Affiliations",
+            layout: "list",
+        });
+        expect(drawn.sections[0].rows.map((row: { label: string }) => row.label)).not.toContain(
+            "Affiliations",
+        );
+    });
+
+    it("writes a list-form membership as the body's name alone", () => {
+        expect(lines(["vrystwldtrbs"])).toEqual(["Vrystwald Tribes"]);
+        expect(section([])).toBeUndefined();
+        expect(section({})).toBeUndefined();
     });
 
     it("gives every office its own row, labelled and anchored by its name", () => {

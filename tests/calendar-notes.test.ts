@@ -41,6 +41,8 @@ import {
     worldInvariants,
 } from "../engine/calendar-notes.mjs";
 import { daysInYear, monthStarts } from "../engine/calendars.mjs";
+import { checkDataKeys } from "../engine/data-keys.mjs";
+import { dataFields } from "../engine/note-vocabulary.mjs";
 
 /**
  * The core fields a calendar definition must carry.
@@ -297,9 +299,17 @@ describe("the family belongs to a calendar note and to no other lore note", () =
     });
 
     it("refuses an era row that states no shortcode to address it by", () => {
+        // The absence is the inner-key check's, made from the declaration; the
+        // calendar's own check does not repeat it.
         const unnamed = calendarNote({ eras: [{ name: "After the Founding", start: 1 }] });
-        const findings = checkCalendarNote(unnamed, { index: index(worldNote(), unnamed) });
+        const findings = checkDataKeys(unnamed, dataFields("lore"));
+        expect(findings[0].message).toContain("`data.eras[0]` must state `shortcode`");
         expect(findings[0].message).toContain("`<calendar shortcode>.<era shortcode>`");
+        expect(
+            checkCalendarNote(unnamed, { index: index(worldNote(), unnamed) })
+                .map((f) => f.message)
+                .join("\n"),
+        ).not.toContain("shortcode");
     });
 
     it("checks an era's optional printable label", () => {
@@ -324,10 +334,12 @@ describe("the family belongs to a calendar note and to no other lore note", () =
             checkCalendarNote(invalid, { index: index(worldNote(), invalid) }).map(
                 (f) => f.message,
             ),
-        ).toEqual([
-            expect.stringContaining("exactly one {date}"),
-            expect.stringContaining("after or before"),
-        ]);
+        ).toEqual([expect.stringContaining("exactly one {date}")]);
+        expect(checkDataKeys(invalid, dataFields("lore")).map((f) => f.message)).toContainEqual(
+            expect.stringContaining(
+                '"other" is not a key of `data.eras[1].label`; it takes only `after`, `before`',
+            ),
+        );
     });
 });
 
@@ -632,9 +644,14 @@ describe("authored calendar display formats", () => {
 
     it("accepts arbitrary names and refuses invalid names or non-string values", () => {
         const bad = calendarNote({ formats: { "bad slot": "h:mm a", short: 12 } });
-        const findings = checkCalendarNote(bad, { index: index(worldNote(), bad) });
+        const findings = [
+            ...checkDataKeys(bad, dataFields("lore")),
+            ...checkCalendarNote(bad, { index: index(worldNote(), bad) }),
+        ];
         expect(findings.map((finding) => finding.message).join(" ")).toContain("bad slot");
-        expect(findings.map((finding) => finding.message).join(" ")).toContain("must be a string");
+        expect(findings.map((finding) => finding.message).join(" ")).toContain(
+            "`data.formats.short` should be a Calendaria format string",
+        );
     });
 });
 

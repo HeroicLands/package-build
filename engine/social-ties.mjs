@@ -127,7 +127,8 @@ export function checkSocialTies(note, { index } = {}) {
                 });
             }
         }
-        if (!TERMS.has(term))
+        // A term that is not text is the inner-key check's finding.
+        if ((typeof term === "string" || term === null || term === undefined) && !TERMS.has(term))
             findings.push({
                 ...at(sourceKey),
                 message: `data.socialTies value ${JSON.stringify(term)} must be one of ${SOCIAL_TIES.map(({ term: value }) => value).join(", ")}`,

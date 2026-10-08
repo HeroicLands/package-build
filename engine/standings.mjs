@@ -55,9 +55,10 @@ import { acceptsType, isAddressTuple, parseAddress, renderAddress } from "./addr
 import { AddressEntries } from "./address-values.mjs";
 import { slugify } from "./content-slug.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
-import { STANDING_BODY_TYPES, STANDING_KEYS } from "./standing-terms.mjs";
+import { fitsKind } from "./data-keys.mjs";
+import { STANDING_BODY_TYPES, STANDING_FIELDS, STANDING_KEYS } from "./standing-terms.mjs";
 
-export { STANDING_BODY_TYPES, STANDING_KEYS };
+export { STANDING_BODY_TYPES, STANDING_FIELDS, STANDING_KEYS };
 
 /** Whether a value is a plain mapping. */
 function mapping(value) {
@@ -232,15 +233,40 @@ export function standingsDigest(fm) {
 }
 
 /**
- * How a standing reads beside the body that confers it.
+ * What a standing says before the body that confers it — `War Chief, Hárár
+ * (5), of ` — or `""` where no standing is held.
  *
  * The office leads, because it is the more particular of the two: a reader
- * meeting "War Chief" has been told the rung as well. The body closes the
- * phrase, which is the whole point of keying the entry by it — a standing with
- * no body named is the lossy form.
+ * meeting "War Chief" has been told the rung as well. The rung follows as its
+ * title with its level in parentheses, read from the body's own ladder; where
+ * the ladder names no rung at that level, or none is available, it reads as
+ * `Rank 5` and the number is not repeated. The body closes the phrase, which is
+ * the whole point of keying the entry by it — a standing with no body named is
+ * the lossy form.
  *
  * No article is supplied. One body's name reads with a "the" in front of it and
  * the next does not, and inventing one is this build editing the corpus.
+ *
+ * @param {object} standing - `{rank, office}`, either or both absent.
+ * @param {{ranks?: Record<string, string>}} [digest] - The body's ladder.
+ * @returns {string} The words before the body's name, ending `of `.
+ */
+export function standingLead(standing, digest) {
+    const parts = [];
+    if (typeof standing?.office === "string" && standing.office.trim())
+        parts.push(standing.office.trim());
+    const rank = standing?.rank;
+    const level = typeof rank === "number" || typeof rank === "string" ? Number(rank) : NaN;
+    if (rank !== "" && Number.isFinite(level)) {
+        const title = digest?.ranks?.[String(level)];
+        parts.push(title ? `${title} (${level})` : `Rank ${level}`);
+    }
+    return parts.length ? `${parts.join(", ")}, of ` : "";
+}
+
+/**
+ * How a standing reads beside the body that confers it: {@link standingLead}
+ * and the body's name — `War Chief, Hárár (5), of Vrystwald Tribes`.
  *
  * @param {object} standing - `{rank, office}`, either or both absent.
  * @param {string} body - What the body is called.
@@ -248,15 +274,7 @@ export function standingsDigest(fm) {
  * @returns {string} The phrase, or the body's name where no standing is held.
  */
 export function standingPhrase(standing, body, digest) {
-    const parts = [];
-    if (typeof standing?.office === "string" && standing.office.trim())
-        parts.push(standing.office.trim());
-    const level = Number(standing?.rank);
-    if (Number.isFinite(level)) {
-        const title = digest?.ranks?.[String(level)];
-        parts.push(title ? title : `Rank ${level}`);
-    }
-    return parts.length ? `${parts.join(", ")}, of ${body}` : body;
+    return `${standingLead(standing, digest)}${body}`;
 }
 
 /**
@@ -267,7 +285,8 @@ export function standingPhrase(standing, body, digest) {
  *
  * 1. the value is a map keyed by Address (or the list this window still takes);
  * 2. every key names an affiliation that resolves, once;
- * 3. the entry states a `rank`;
+ * 3. the entry states a standing at all — what a stated standing holds is the
+ *    inner-key check's, read from {@link STANDING_FIELDS};
  * 4. a `rank` is a level the named body's `governance.ranks` declares;
  * 5. an `office` is a key of that body's `governance.offices`.
  *
@@ -320,35 +339,20 @@ export function checkStandings(note, { index } = {}) {
         const named = resolved.address ?? String(body);
         // An entry with nothing after its key, and an emptied map arriving from
         // the property editor as `[]`, say exactly what an authored `{}` says:
-        // this being belongs to this body, and no standing in it is stated.
+        // this being belongs to this body, and no standing in it is stated. The
+        // inner-key check reads a map and has nothing to walk in either, so the
+        // absence is reported here.
         if (
             standing === undefined ||
             standing === null ||
             (Array.isArray(standing) && standing.length === 0)
         ) {
-            findings.push(...absentRankFindings(note, {}, named, path));
+            findings.push(...absentRankFindings(note, named, path));
             continue;
         }
-        if (!mapping(standing)) {
-            findings.push({
-                ...position(note, path),
-                message:
-                    `\`data.affiliations\` entry for ${named} must hold that body's standing ` +
-                    "as a map of `rank` and `office`, but reads " +
-                    JSON.stringify(standing),
-            });
-            continue;
-        }
-        for (const key of Object.keys(standing)) {
-            if (STANDING_KEYS.includes(key)) continue;
-            findings.push({
-                ...position(note, [...path, key], true),
-                message:
-                    `\`data.affiliations\` entry for ${named} has unknown key \`${key}\`; a ` +
-                    `standing holds ${STANDING_KEYS.map((name) => `\`${name}\``).join(" and ")}`,
-            });
-        }
-        findings.push(...absentRankFindings(note, standing, named, path));
+        // A standing of the wrong shape, an undeclared key and a missing `rank`
+        // are the inner-key check's findings, made from `STANDING_FIELDS`.
+        if (!mapping(standing)) continue;
         findings.push(...rankFindings(note, standing, named, path, resolved));
         findings.push(...officeFindings(note, standing, named, path, resolved));
     }
@@ -447,27 +451,22 @@ function bodyFindings(note, body, path, isKey, found) {
  * @param {Array<string|number>} path - The entry's frontmatter path.
  * @returns {object[]} The finding, or nothing.
  */
-function absentRankFindings(note, standing, body, path) {
-    if (standing.rank !== undefined && standing.rank !== null) return [];
-    const office = typeof standing.office === "string" ? standing.office.trim() : "";
+function absentRankFindings(note, body, path) {
     return [
         {
             ...position(note, path, true),
             message:
-                `\`data.affiliations\` entry for ${body} states no \`rank\`` +
-                (office ?
-                    `, and the office ${JSON.stringify(office)} is not one — an office ` +
-                    `distinguishes a person within a standing rather than standing in ` +
-                    `for one`
-                :   " — a being that belongs to a body holds some standing in it") +
-                ". An ordinary member is `1`, and `0` is the rung for someone cast out",
+                `\`data.affiliations\` entry for ${body} states no \`rank\` — a being ` +
+                "that belongs to a body holds some standing in it. An ordinary member " +
+                "is `1`, and `0` is the rung for someone cast out",
         },
     ];
 }
 
 /** Whether a `rank` is a rung the named body confers. */
 function rankFindings(note, standing, body, path, resolved) {
-    if (standing.rank === undefined || standing.rank === null) return [];
+    // Absent, or not a number at all: the inner-key check's finding.
+    if (!fitsKind(standing.rank ?? null, "number")) return [];
     const at = position(note, [...path, "rank"]);
     const level = typeof standing.rank === "number" ? standing.rank : Number(standing.rank);
     if (typeof standing.rank !== "number" || !Number.isInteger(level))
@@ -504,9 +503,11 @@ function rankFindings(note, standing, body, path, resolved) {
 
 /** Whether an `office` is a post the named body names. */
 function officeFindings(note, standing, body, path, resolved) {
-    if (standing.office === undefined || standing.office === null) return [];
+    // Absent is a membership with no post; a value that is not text is the
+    // inner-key check's finding.
+    if (typeof standing.office !== "string") return [];
     const at = position(note, [...path, "office"]);
-    if (typeof standing.office !== "string" || !standing.office.trim())
+    if (!standing.office.trim())
         return [
             {
                 ...at,

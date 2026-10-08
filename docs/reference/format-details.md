@@ -120,20 +120,46 @@ in a compendium journal with no further edit. A `Name` row stands first on
 every note, because every note has one. An `Aliases` row follows it when the
 note names any aliases, preserving their authored order.
 
-A few keys carry no row, and the reason in each case is one of exactly two —
+A few keys carry no row, and the reason in each case is one of exactly three —
 the key is **machinery**, steering a build or an interface rather than
-describing the subject, or it is an **image**, which rule 2 keeps out of the
-box:
+describing the subject; it is an **image**, which rule 2 keeps out of the box;
+or it is a **source system's own detail**, which no surface's box shows:
 
-| key                      | why it carries no row                            |
-| ------------------------ | ------------------------------------------------ |
-| `templatePriority`       | template machinery, not a fact about the subject |
-| `color`                  | sidebar machinery, not a fact about the subject  |
-| the art slots, `overlay` | an image, which rule 2 keeps out of the box      |
+| key                                                                                         | why it carries no row                                      |
+| ------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| `templatePriority`                                                                          | template machinery, not a fact about the subject           |
+| `color`                                                                                     | sidebar machinery, not a fact about the subject            |
+| `id`                                                                                        | document identity machinery, not a fact about the subject  |
+| `pack`, `packFolder`                                                                        | compendium routing machinery, not a fact about the subject |
+| a lore note's `events`                                                                      | chronology machinery, not a summary row                    |
+| a calendar's `months`, `weekdays`, `seasons`, `namedDays`, `eras`, `formats`                | calendar machinery, not a summary row                      |
+| a map's `scene`, `fixup`, `walls`, `doors`, `lights`, `tiles`, `sounds`, `regions`, `notes` | canvas machinery, not a summary row                        |
+| `harnworld`                                                                                 | HârnWorld source detail, which no surface's box shows      |
+| the art slots, `overlay`                                                                    | an image, which rule 2 keeps out of the box                |
 
-A field whose value is a **mapping** carries no row either — a governance
-ladder or a wall layout has no summary shape — and neither does one the note
-left empty.
+**A field whose value holds maps is drawn by what its declaration says the
+maps are**, and a map is never set as text:
+
+- **A map with declared keys** — a regional map's `scale` — takes one row per
+  key that holds a value, in declared order, labelled by the key and carrying
+  its value: `Distance 5`, `Unit km`. A list of words under a key is one row of
+  them, comma-joined. A key holding nothing — `null`, `""`, `[]` — takes no
+  row, and a map with nothing to show takes none at all.
+- **A map keyed by Address** relates the note to others: `socialTies` and an
+  affiliation's `relations` take one row per term — `Patron`, `Rival`,
+  `Aligned` — whose value is the targets, each linked.
+- **A map keyed by Shortcode** weighs each thing it names: a mystery's
+  `skillAptitudes` is one row, each skill linked with its weight beside it —
+  `Sword (+5)`, `Combat skills (-2)`.
+- **A list of maps** keeps the rendering its field was built for — a place's
+  `borders` and `routes` as linked places with their bearings, an affiliation's
+  `governance.ranks` and `governance.offices` as one row per rung or post — or
+  is withheld above as machinery.
+
+**A being's memberships are a section of their own**, titled
+**Affiliations**, after the profile rows: one line per membership, in the
+order the note writes them — `War Chief, Hárár (5), of Vrystwald Tribes`. See
+[the bodies a being belongs to](#the-bodies-a-being-belongs-to-and-its-standing-in-each).
 
 A being's `age`, `height`, `weight` and `appearance.*` compose into a single
 **Appearance** clause rather than taking six rows of their own: _Age 34, 6′ 1″,
@@ -408,11 +434,30 @@ subject — a weapon's weight, an affliction's transmission, a being's species �
 and every note type declares which keys it may carry. A misspelled key is a
 finding in either region.
 
+**So is every map inside it, at every depth.** A field whose value holds maps
+— a map such as `harnworld`, a list of maps such as `borders` or `months`, a map
+keyed by Address whose values are maps such as `affiliations` — declares the
+keys those maps take, which of them are required, and what each holds. A key a
+field does not declare is an error at that key's own line and column, however
+deeply it is nested: `data.governance.offices.Chancellor.holders[0].stat` is
+refused at `stat`, with the declared key it was probably meant to be. A
+required key left out is an error at the map that should carry it, and a value
+of the wrong kind is an error at the value. A dotted property such as
+`appearance.eye_color` closes its container the same way, so `appearance`
+takes only the keys the type's table lists. The
+[note-type reference](note-types.md) tabulates every inner key, generated from
+the same declarations the lint reads. Four things are outside this rule. The
+system blocks are checked against their own system's published schema. A map
+note's `data.scene` is an exported Foundry Scene and keeps Foundry's own keys.
+A regional map's geometry fields (`walls`, `doors`, `lights`, `tiles`,
+`sounds`, `regions` and `notes`) follow the SoHL map authoring guide and declare
+no inner keys here. An occurrence in `data.events` is held to its own schema,
+described with the lore type.
+
 Every note type may put a pinned document id in `data.id`, a shared compendium
-route in `data.pack`, a shared folder Address in `data.packFolder`, and source
-details in `data.harnworld`. A system block's `pack` or `packFolder` overrides
-the shared value for that system. A `being` may also describe its social profile
-in `data.social`.
+route in `data.pack`, a shared folder Address in `data.packFolder`, and its
+HârnWorld source details in `data.harnworld`. A system block's `pack` or
+`packFolder` overrides the shared value for that system.
 
 **Tags are open, except the ones that classify.** A tag naming a theme or a region — `underworld`,
 `byzaria`, `riverlands` — is the author's own and this build has no opinion about it.
@@ -743,14 +788,25 @@ are, so a key legal everywhere is stated once here rather than repeated in
 twenty-five tables where the one that was mistyped would be the one nobody
 noticed:
 
-| shared `data` property | Values                 | Description                                                          |
-| ---------------------- | ---------------------- | -------------------------------------------------------------------- |
-| `id`                   | `string`               | A pinned document identity.                                          |
-| `pack`                 | `string`               | The shared compendium route.                                         |
-| `packFolder`           | `Address` or pack map  | The shared compendium folder Address.                                |
-| `harnworld`            | `Map<string, unknown>` | HârnWorld source details.                                            |
-| `icon`                 | `Address`              | The document's profile art — an `icon` address, resolved into `img`. |
-| `banner`               | `Address`              | The page's hero image — an `image` address, cut to 1792×768.         |
+| shared `data` property | Values                | Description                                                          |
+| ---------------------- | --------------------- | -------------------------------------------------------------------- |
+| `id`                   | `string`              | A pinned document identity.                                          |
+| `pack`                 | `string`              | The shared compendium route.                                         |
+| `packFolder`           | `Address` or pack map | The shared compendium folder Address.                                |
+| `harnworld`            | `{ realm?, ritual? }` | HârnWorld source details.                                            |
+| `icon`                 | `Address`             | The document's profile art — an `icon` address, resolved into `img`. |
+| `banner`               | `Address`             | The page's hero image — an `image` address, cut to 1792×768.         |
+
+`data.harnworld` takes two keys and nothing else: `realm`, a string naming the
+HârnWorld realm the subject belongs to, and `ritual`, a list of strings naming
+the religions it observes. Both are optional. The infobox does not show either.
+
+```yaml
+data:
+  harnworld:
+    realm: Kaldor
+    ritual: [Larani, Peoni]
+```
 
 `icon` is legal everywhere because most types compile into a document that
 carries one; where a type's passes emit none, the lint says so and the value is
@@ -2811,7 +2867,6 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                                                                            |
 | `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — character and npc require at least one; creature may omit it or write `[]`; `null` is an error. |
 | `occupation`                | `string`                                       | Name of the character's occupation                                                                                                                    |
-| `social`                    | `Map<string, unknown>`                         | The being's social profile                                                                                                                            |
 | `stations`                  | `Address[]`                                    | Name of the stations the character belongs to                                                                                                         |
 | `lore`                      | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                                                                      |
 | `culture`                   | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
@@ -2901,9 +2956,18 @@ each an error naming the file, line and column — so a renamed rung or a rename
 post fails on every being pointing at it. Naming one body twice, by its short
 and full Address, still names one body and is an error.
 
-The infobox prints the standing closing on its body — `War Chief, Hárár, of
-Vrystwald Tribes` — and links an office to the description the body itself
-declares, so recording the post needs no note about the post.
+The infobox prints one line per membership, in the order the note writes them,
+in a section of its own titled **Affiliations**: the office where one is held, then the rung's
+title with its level in parentheses, then the body — `War Chief, Hárár (5), of
+Vrystwald Tribes`, or `Hárár (5), of Vrystwald Tribes` with no office. The title
+is read from the body's own `governance.ranks`; where the body declares no rung
+at that level, or its ladder is not available, the rung reads as `Rank 5` —
+`Rank 5, of Vrystwald Tribes`. The body's name links to its page, and is plain
+text where it publishes none. A membership written in the list form, with no
+standing, is the body's name alone. The lines are the same on the website, in
+a Foundry journal and in the book. On the body's own page each office is a row
+anchored by its name, so the post a being holds is described where the body
+declares it.
 
 For SoHL, a being embeds one affiliation item per entry: `rank` **is** that
 item's `system.level` and `office` its `system.office`. A standing is a fact
@@ -4109,26 +4173,26 @@ A map note has its own prose and a Foundry Scene. A map can depict a place or an
 - `regionalmap`: A large-scale chart with an authored image and scale.
 - `totm`: A gridless image Scene for theatre-of-the-mind play.
 
-| `data` property   | Values       | Description                                                |
-| ----------------- | ------------ | ---------------------------------------------------------- |
-| `scene`           | object       | Exported Foundry Scene for battle and local maps           |
-| `fixup`           | object[]     | Asset address replacements in an exported Scene            |
-| `bgImage`         | Address      | Background image for regional and theatre-of-the-mind maps |
-| `scale`           | object       | Regional distance and unit per grid unit                   |
-| `dimensions`      | `[int, int]` | Optional shared dimensions metadata                        |
-| `pxPerGrid`       | number       | Optional shared grid size metadata                         |
-| `navName`         | string       | Short Scene navigation name                                |
-| `levelName`       | string       | Embedded Level name                                        |
-| `backgroundColor` | string       | Colour outside the art                                     |
-| `overlay`         | string       | Foreground art path                                        |
-| `walls`           | object       | Regional wall geometry                                     |
-| `doors`           | object       | Regional door geometry                                     |
-| `lights`          | object       | Regional light geometry                                    |
-| `tiles`           | object       | Regional tile geometry                                     |
-| `sounds`          | object       | Regional sound geometry                                    |
-| `regions`         | object       | Regional region geometry                                   |
-| `notes`           | object       | Regional pin geometry                                      |
-| `place`           | Address      | Depicted place, when one exists                            |
+| `data` property   | Values                    | Description                                                |
+| ----------------- | ------------------------- | ---------------------------------------------------------- |
+| `scene`           | object                    | Exported Foundry Scene for battle and local maps           |
+| `fixup`           | `{ path, type, value }[]` | Asset address replacements in an exported Scene            |
+| `bgImage`         | Address                   | Background image for regional and theatre-of-the-mind maps |
+| `scale`           | `{ distance, unit }`      | Regional distance and unit per grid unit                   |
+| `dimensions`      | `[int, int]`              | Optional shared dimensions metadata                        |
+| `pxPerGrid`       | number                    | Optional shared grid size metadata                         |
+| `navName`         | string                    | Short Scene navigation name                                |
+| `levelName`       | string                    | Embedded Level name                                        |
+| `backgroundColor` | string                    | Colour outside the art                                     |
+| `overlay`         | string                    | Foreground art path                                        |
+| `walls`           | object                    | Regional wall geometry                                     |
+| `doors`           | object                    | Regional door geometry                                     |
+| `lights`          | object                    | Regional light geometry                                    |
+| `tiles`           | object                    | Regional tile geometry                                     |
+| `sounds`          | object                    | Regional sound geometry                                    |
+| `regions`         | object                    | Regional region geometry                                   |
+| `notes`           | object                    | Regional pin geometry                                      |
+| `place`           | Address                   | Depicted place, when one exists                            |
 
 #### Battle and local maps
 

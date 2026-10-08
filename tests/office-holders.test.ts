@@ -3,7 +3,8 @@
 import { describe, expect, it } from "vitest";
 import { checkDatedOffices } from "../engine/office-holders.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
-import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
+import { checkDataKeys } from "../engine/data-keys.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 function roster(offices: unknown, people: Record<string, object> = {}) {
@@ -15,7 +16,12 @@ function roster(offices: unknown, people: Record<string, object> = {}) {
         notes: [{ fm: { type: "place", data: { year: { days: 365 } } } }],
         addressHit: (address: string) => people[address],
     };
-    return checkDatedOffices(note, { index });
+    // What a roster holds is the inner-key check's, read from the
+    // declaration; what its holders and dates mean is `checkDatedOffices`'.
+    return [
+        ...checkDataKeys(note, dataFields("affiliation")),
+        ...checkDatedOffices(note, { index }),
+    ];
 }
 
 describe("dated office holders", () => {
@@ -38,7 +44,9 @@ describe("dated office holders", () => {
             index: { notes: [], contentPackage: "thalorna" },
         });
         expect(findings.map((f) => f.message)).toContainEqual(
-            expect.stringContaining("unknown key holder"),
+            expect.stringContaining(
+                '"holder" is not a key of `data.governance.offices.Chancellor`; it takes only `description`, `holders`. Did you mean "holders"?',
+            ),
         );
     });
 
@@ -87,8 +95,16 @@ describe("dated office holders", () => {
             { "thalorna-note-being-aran": { fm: { data: {} } } },
         );
         const messages = findings.map((f) => f.message);
-        expect(messages).toContainEqual(expect.stringContaining("unknown key holder"));
-        expect(messages).toContainEqual(expect.stringContaining("unknown key unknown"));
+        expect(messages).toContainEqual(
+            expect.stringContaining(
+                '"holder" is not a key of `data.governance.offices.Chancellor`',
+            ),
+        );
+        expect(messages).toContainEqual(
+            expect.stringContaining(
+                '"unknown" is not a key of `data.governance.offices.Chancellor.holders[0]`',
+            ),
+        );
         expect(messages).toContainEqual(expect.stringContaining("does not resolve"));
         expect(messages).toContainEqual(expect.stringContaining("ends before its start"));
     });

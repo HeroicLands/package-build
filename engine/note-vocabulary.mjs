@@ -91,6 +91,7 @@ import { currentType } from "./ids.mjs";
 // What a place is next to and reachable from — the two relation lists and
 // the checks that hold them to their closed sets and to each other.
 import { checkBorders, checkRoutes } from "./place-relations.mjs";
+import { BORDER_FIELDS, ROUTE_FIELDS } from "./place-relation-terms.mjs";
 import {
     CALENDAR_FIELDS,
     INVARIANT_FIELDS,
@@ -103,7 +104,12 @@ import {
 import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
 import { checkStandings } from "./standings.mjs";
-import { STANDING_BODY_TYPES } from "./standing-terms.mjs";
+import {
+    OFFICE_FIELDS,
+    RUNG_FIELDS,
+    STANDING_BODY_TYPES,
+    STANDING_FIELDS,
+} from "./standing-terms.mjs";
 import { checkDatedOffices } from "./office-holders.mjs";
 import { checkAffiliationRankFloor, checkRankLadder } from "./rank-ladder.mjs";
 import { checkCalendarChoice } from "./calendar-choice.mjs";
@@ -176,6 +182,13 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *   it, and the linter calls whatever it is handed. A place's `borders` and
  *   `routes` carry one, because what they state is checked against the note
  *   at the other end.
+ * @property {readonly import("./data-keys.mjs").InnerKeySpec[]} [fields] - The
+ *   keys of a value that is a map, closed to them — see
+ *   {@link module:engine/data-keys}.
+ * @property {object} [entries] - What one entry of a list value is, where the
+ *   entries are not Addresses (`entryKind` says that).
+ * @property {object} [values] - What the value under each key of a keyed map
+ *   is, where the keys are data rather than declared names.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -226,6 +239,13 @@ const TEXT = Object.freeze({ shape: "string", kind: "string" });
 /** A list. */
 const LIST = Object.freeze({ shape: "list", kind: "list" });
 
+/** A list of strings. */
+const TEXT_LIST = Object.freeze({
+    shape: "list of strings",
+    kind: "list",
+    entries: Object.freeze({ kind: "string", shape: "a string" }),
+});
+
 /**
  * One value, or several.
  *
@@ -234,7 +254,11 @@ const LIST = Object.freeze({ shape: "list", kind: "list" });
  * That is what separates this from `list-or-map`, whose halves say different
  * things.
  */
-const TEXT_OR_LIST = Object.freeze({ shape: "string or list", kind: "string-or-list" });
+const TEXT_OR_LIST = Object.freeze({
+    shape: "string or list",
+    kind: "string-or-list",
+    entries: Object.freeze({ kind: "string", shape: "a string" }),
+});
 
 /** A single Address. */
 const LINK = Object.freeze({ shape: "an Address", kind: "address" });
@@ -259,6 +283,11 @@ const STANDINGS = Object.freeze({
     kind: "list-or-map",
     entryKind: "address",
     keyKind: "address",
+    values: Object.freeze({
+        kind: "map",
+        shape: "a map — `{ rank, office? }`",
+        fields: STANDING_FIELDS,
+    }),
     standings: true,
     ref: "affiliation",
     accepts: STANDING_BODY_TYPES,
@@ -455,9 +484,24 @@ export const SHARED_DATA_FIELDS = Object.freeze([
     }),
     Object.freeze({
         name: "harnworld",
-        shape: "map",
+        shape: "`{ realm?, ritual? }`",
         kind: "map",
-        describe: "HârnWorld source details shared by every system.",
+        fields: Object.freeze([
+            Object.freeze({
+                name: "realm",
+                kind: "string",
+                shape: "a string",
+                describe: "The HârnWorld realm the subject belongs to.",
+            }),
+            Object.freeze({
+                name: "ritual",
+                kind: "list",
+                shape: "list of strings",
+                entries: Object.freeze({ kind: "string", shape: "a string" }),
+                describe: "The HârnWorld religions the subject observes.",
+            }),
+        ]),
+        describe: "HârnWorld source details shared by every system — `realm` and `ritual`.",
     }),
     Object.freeze({
         name: "icon",
@@ -855,10 +899,9 @@ export const NOTE_VOCABULARY = Object.freeze({
         // package's declared present compute — see `engine/being-age.mjs`.
         check: checkBeingAge,
         data: Object.freeze([
-            { name: "social", shape: "map", kind: "map", describe: "The being's social profile." },
             TOKEN_ICON,
             TEMPLATE_PRIORITY,
-            { name: "archetypes", ...LIST, describe: "Archetypal behaviours the being fits." },
+            { name: "archetypes", ...TEXT_LIST, describe: "Archetypal behaviours the being fits." },
             { name: "occupation", ...TEXT, describe: "What the being does for a living." },
             {
                 name: "stations",
@@ -906,6 +949,10 @@ export const NOTE_VOCABULARY = Object.freeze({
                 accepts: SOCIAL_TIE_TARGET_TYPES,
                 terms: SOCIAL_TIES,
                 shape: "a map keyed by Address",
+                values: Object.freeze({
+                    kind: "string",
+                    shape: `a tie — ${SOCIAL_TIES.map(({ term }) => term).join(", ")}`,
+                }),
                 check: checkSocialTies,
                 describe: `Defining ties directed from this being to others: ${SOCIAL_TIES.map(({ term, meaning }) => `\`${term}\` (${meaning})`).join("; ")}`,
             },
@@ -999,7 +1046,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             {
                 name: "appearance.extra_features",
-                ...LIST,
+                ...TEXT_LIST,
                 describe: "Anything else a stranger would notice.",
             },
         ]),
@@ -1061,6 +1108,12 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "governance.ranks",
                 ...LIST,
+                shape: "list of `{ level, title, description, lore? }`",
+                entries: Object.freeze({
+                    kind: "map",
+                    shape: "a map — `{ level, title, description, lore? }`",
+                    fields: RUNG_FIELDS,
+                }),
                 // A rung is `{level, title, description}` with an optional
                 // `lore`. The shape check sees a list and stops there, so the
                 // rungs inside it are checked here — a ladder is what a being's
@@ -1075,7 +1128,13 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             {
                 name: "governance.offices",
-                ...ANY,
+                kind: "map",
+                shape: "a map of named offices",
+                values: Object.freeze({
+                    kind: "scalar-or-map",
+                    shape: "a description, or `{ description, holders }`",
+                    fields: OFFICE_FIELDS,
+                }),
                 // A map of named posts: each takes a row of its own, labelled
                 // by the post and anchored by it, so the description a body
                 // declares is a destination a being's `office` can link to.
@@ -1120,6 +1179,10 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "affiliation",
                 accepts: ["affiliation"],
                 shape: "a map keyed by Address",
+                values: Object.freeze({
+                    kind: "string",
+                    shape: "a standing — aligned, unaligned, rival or nemesis",
+                }),
                 describe: "Standing with other affiliations — aligned, unaligned, rival, nemesis.",
             },
         ]),
@@ -1249,6 +1312,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                 keyKind: "shortcode",
                 keySelector: "subType",
                 shape: "a map keyed by Shortcode or subType selector",
+                values: Object.freeze({ kind: "number", shape: "a number" }),
                 describe:
                     "Bonuses and penalties, each naming a skill or a `subType:<skill-subtype>`.",
             },
@@ -1586,6 +1650,11 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "borders",
                 ...LIST,
                 shape: "list of `{ to, bearing }` entries",
+                entries: Object.freeze({
+                    kind: "map",
+                    shape: "a map — `{ to, bearing }`",
+                    fields: BORDER_FIELDS,
+                }),
                 check: checkBorders,
                 describe:
                     "Places sharing a frontier with this one — each the other's shortcode " +
@@ -1595,6 +1664,11 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "routes",
                 ...LIST,
                 shape: "list of `{ to, bearing, mode, days, terrain?, leagues? }` entries",
+                entries: Object.freeze({
+                    kind: "map",
+                    shape: "a map — `{ to, bearing, mode, days, terrain?, leagues? }`",
+                    fields: ROUTE_FIELDS,
+                }),
                 check: checkRoutes,
                 describe:
                     "Journeys from this place's centre — where the destination lies, how " +
@@ -1658,7 +1732,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             {
                 name: "party.archetypes",
-                ...LIST,
+                ...TEXT_LIST,
                 describe: "Archetypes the scenario is written for.",
             },
         ]),
@@ -1679,6 +1753,34 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "fixup",
                 ...LIST,
+                shape: "list of `{ path, type, value }`",
+                entries: Object.freeze({
+                    kind: "map",
+                    shape: "a map — `{ path, type, value }`",
+                    fields: Object.freeze([
+                        Object.freeze({
+                            name: "path",
+                            kind: "string",
+                            required: true,
+                            shape: "a property path into `data.scene`",
+                            describe: "The exported field to replace, from `data.scene`.",
+                        }),
+                        Object.freeze({
+                            name: "type",
+                            kind: "string",
+                            required: true,
+                            shape: "`address`",
+                            describe: "What `value` is: `address`.",
+                        }),
+                        Object.freeze({
+                            name: "value",
+                            kind: "address",
+                            required: true,
+                            shape: "an asset Address",
+                            describe: "The asset Address whose path replaces the exported one.",
+                        }),
+                    ]),
+                }),
                 describe: "Asset address replacements in an exported Scene.",
             },
             // A Scene has no `img`, so the shared art key reaches nothing here:
@@ -1692,12 +1794,30 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             {
                 name: "scale",
-                ...ANY,
+                kind: "map",
+                shape: "`{ distance, unit }`",
+                fields: Object.freeze([
+                    Object.freeze({
+                        name: "distance",
+                        kind: "number",
+                        required: true,
+                        shape: "a positive number",
+                        describe: "The distance one grid unit covers.",
+                    }),
+                    Object.freeze({
+                        name: "unit",
+                        kind: "string",
+                        required: true,
+                        shape: "a non-empty string",
+                        describe: "What the distance is measured in.",
+                    }),
+                ]),
                 describe: "Regional map distance per grid unit: {distance, unit}.",
             },
             {
                 name: "dimensions",
                 ...LIST,
+                entries: Object.freeze({ kind: "number", shape: "a whole number of pixels" }),
                 describe: "`[width, height]` in whole pixels — the art's own size.",
             },
             {

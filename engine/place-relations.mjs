@@ -34,8 +34,8 @@
  * shortcode in different packages never answer for each other.
  *
  * **The value sets are closed and stated once.** The eight bearings, the three
- * travel modes, the days markers and the terrain registry are the constants
- * below, read by the lint, compared against the specification's tables by the
+ * travel modes, the days markers and the terrain registry are the constants of
+ * {@link module:engine/place-relation-terms}, re-exported here, read by the lint, compared against the specification's tables by the
  * test suite, and exported for a consumer drawing a map. A second copy of any
  * of them is one more list free to disagree.
  *
@@ -69,100 +69,31 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { acceptsType, parseAddress, renderAddress } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 
-/* --------------------------------------------------------------------- */
-/*  The closed sets                                                       */
-/* --------------------------------------------------------------------- */
+import {
+    RELATION_TYPE,
+    BEARINGS,
+    ROUTE_MODES,
+    TRAVEL_DAYS,
+    TERRAIN_MODES,
+    TERRAINS,
+    BORDER_FIELDS,
+    ROUTE_FIELDS,
+    BORDER_KEYS,
+    ROUTE_KEYS,
+} from "./place-relation-terms.mjs";
 
-/**
- * The type a border's or a route's `to` names.
- *
- * It is both the default its `<type>` segment takes when an author omits it and
- * the whole of the set the position accepts, which is what makes `vylar` and
- * `place-vylar` the same Address and a `to` naming a `lore` note an error rather
- * than a lookup that quietly finds nothing.
- *
- * @type {string}
- */
-export const RELATION_TYPE = "place";
-
-/**
- * The eight compass bearings, clockwise from north.
- *
- * Where a neighbour or a destination lies from the place stating it. The
- * order is load-bearing: {@link oppositeBearing} reads four steps around it.
- *
- * @type {readonly string[]}
- */
-export const BEARINGS = Object.freeze(["N", "NE", "E", "SE", "S", "SW", "W", "NW"]);
-
-/**
- * The modes a route is travelled by: `land`, `boat` on a river or a lake,
- * `ship` on open sea.
- *
- * @type {readonly string[]}
- */
-export const ROUTE_MODES = Object.freeze(["land", "boat", "ship"]);
-
-/**
- * The days markers a route may state.
- *
- * Each is "about this, under normal conditions": `10`, `20` and `30` are one,
- * two and three ten-day weeks, `180` is many months, `360` is "who knows".
- *
- * @type {readonly number[]}
- */
-export const TRAVEL_DAYS = Object.freeze([1, 2, 3, 5, 10, 20, 30, 45, 60, 90, 180, 360]);
-
-/**
- * The terrain registry, each terrain naming the modes that cross it.
- *
- * A land terrain is crossed by land alone; open sea by ship; a river or a lake
- * by boat; a coast by all three, because a coast road and a coasting voyage
- * are both journeys along it.
- *
- * @type {Readonly<Record<string, readonly string[]>>}
- */
-export const TERRAIN_MODES = Object.freeze({
-    road: Object.freeze(["land"]),
-    track: Object.freeze(["land"]),
-    plain: Object.freeze(["land"]),
-    steppe: Object.freeze(["land"]),
-    hills: Object.freeze(["land"]),
-    mountains: Object.freeze(["land"]),
-    forest: Object.freeze(["land"]),
-    jungle: Object.freeze(["land"]),
-    marsh: Object.freeze(["land"]),
-    dunes: Object.freeze(["land"]),
-    desert: Object.freeze(["land"]),
-    ice: Object.freeze(["land"]),
-    coast: Object.freeze(["land", "boat", "ship"]),
-    "open-sea": Object.freeze(["ship"]),
-    river: Object.freeze(["boat"]),
-    lake: Object.freeze(["boat"]),
-});
-
-/**
- * The terrain names, in registry order — the closed set a `terrain` list
- * draws from.
- *
- * @type {readonly string[]}
- */
-export const TERRAINS = Object.freeze(Object.keys(TERRAIN_MODES));
-
-/**
- * The keys a `borders` entry may carry. Both are required.
- *
- * @type {readonly string[]}
- */
-export const BORDER_KEYS = Object.freeze(["to", "bearing"]);
-
-/**
- * The keys a `routes` entry may carry. `to`, `bearing`, `mode` and `days` are
- * required; `terrain` and `leagues` are optional.
- *
- * @type {readonly string[]}
- */
-export const ROUTE_KEYS = Object.freeze(["to", "bearing", "mode", "days", "terrain", "leagues"]);
+export {
+    RELATION_TYPE,
+    BEARINGS,
+    ROUTE_MODES,
+    TRAVEL_DAYS,
+    TERRAIN_MODES,
+    TERRAINS,
+    BORDER_FIELDS,
+    ROUTE_FIELDS,
+    BORDER_KEYS,
+    ROUTE_KEYS,
+};
 
 /**
  * The bearing the other end of a relation states, or `undefined` for a value
@@ -362,7 +293,6 @@ function checkRelation(note, { field, index }) {
             })
         :   undefined;
     const isRoute = field === "routes";
-    const keys = isRoute ? ROUTE_KEYS : BORDER_KEYS;
     const at = (i, key) =>
         positionOfFrontmatterPath(raw, ["data", field, i, ...(key ? [key] : [])]);
     const label = (i, key) => `\`data.${field}[${i}]${key ? `.${key}` : ""}\``;
@@ -373,31 +303,20 @@ function checkRelation(note, { field, index }) {
         message,
     });
     const error = (i, key, message) => findings.push(finding(i, key, "error", message));
+    // Absent, or not one value: the inner-key check's finding, made from the
+    // declaration, so nothing here repeats it.
+    const unread = (value) =>
+        value === undefined || value === null || value === "" || typeof value === "object";
 
     /** `to` → the modes it has been listed with, for the once-per-pair rule. */
     const seen = new Map();
 
     list.forEach((entry, i) => {
-        if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
-            error(
-                i,
-                undefined,
-                `${label(i)} must be a map — \`{ to: <shortcode>, bearing: <bearing>` +
-                    `${isRoute ? ", mode: <mode>, days: <days>" : ""} }\` — but reads ` +
-                    JSON.stringify(entry),
-            );
-            return;
-        }
-
-        for (const key of Object.keys(entry)) {
-            if (keys.includes(key)) continue;
-            error(
-                i,
-                key,
-                `"${key}" is not a key of a ${field} entry; an entry carries ` +
-                    `${oneOf(keys.map((k) => `\`${k}\``))} and nothing else`,
-            );
-        }
+        // An entry that is not a map, an undeclared key, a required key left
+        // out and a value of the wrong kind are the inner-key check's
+        // findings, made from `BORDER_FIELDS` and `ROUTE_FIELDS`. What is
+        // checked here is what the values mean.
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
 
         // `to`: an Address naming a place, and one a place declares.
         const to = entry.to;
@@ -407,7 +326,7 @@ function checkRelation(note, { field, index }) {
         let toAddress;
         const read = parseAddress(to, here);
         if (to === undefined || to === null || to === "") {
-            error(i, undefined, `${label(i)} must name the other place in \`to\``);
+            toIsValid = false;
         } else if (
             read.reason === "no-content-index" ||
             (!read.reason && here.noIndexPackages?.has(read.package))
@@ -468,8 +387,8 @@ function checkRelation(note, { field, index }) {
         // `bearing`.
         const bearing = entry.bearing;
         let bearingIsValid = false;
-        if (bearing === undefined || bearing === null || bearing === "") {
-            error(i, undefined, `${label(i)} must state a \`bearing\` — ${oneOf(BEARINGS)}`);
+        if (unread(bearing)) {
+            bearingIsValid = false;
         } else if (!BEARINGS.includes(String(bearing))) {
             error(
                 i,
@@ -485,8 +404,8 @@ function checkRelation(note, { field, index }) {
         let mode;
         let days;
         if (isRoute) {
-            if (entry.mode === undefined || entry.mode === null || entry.mode === "") {
-                error(i, undefined, `${label(i)} must state a \`mode\` — ${oneOf(ROUTE_MODES)}`);
+            if (unread(entry.mode)) {
+                mode = undefined;
             } else if (!ROUTE_MODES.includes(String(entry.mode))) {
                 error(
                     i,
@@ -498,9 +417,7 @@ function checkRelation(note, { field, index }) {
                 mode = String(entry.mode);
             }
 
-            if (entry.days === undefined || entry.days === null || entry.days === "") {
-                error(i, undefined, `${label(i)} must state \`days\` — ${oneOf(TRAVEL_DAYS)}`);
-            } else {
+            if (!unread(entry.days)) {
                 const n = daysOf(entry.days);
                 if (n === undefined || !TRAVEL_DAYS.includes(n)) {
                     error(
@@ -515,44 +432,39 @@ function checkRelation(note, { field, index }) {
                 }
             }
 
-            if (entry.terrain !== undefined && entry.terrain !== null) {
-                if (!Array.isArray(entry.terrain)) {
-                    error(
-                        i,
-                        "terrain",
-                        `${label(i, "terrain")} must be a list of terrains in travel order, ` +
-                            `but reads ${JSON.stringify(entry.terrain)}`,
-                    );
-                } else {
-                    entry.terrain.forEach((terrain, j) => {
-                        const name = String(terrain);
-                        const modes = TERRAIN_MODES[name];
-                        if (!modes) {
-                            findings.push({
-                                file: note.file,
-                                ...positionOfFrontmatterPath(raw, ["data", field, i, "terrain", j]),
-                                severity: "error",
-                                message:
-                                    `${label(i, "terrain")} names "${name}", which is not a ` +
-                                    `terrain; the registry is ${oneOf(TERRAINS)}`,
-                            });
-                        } else if (mode && !modes.includes(mode)) {
-                            findings.push({
-                                file: note.file,
-                                ...positionOfFrontmatterPath(raw, ["data", field, i, "terrain", j]),
-                                severity: "error",
-                                message:
-                                    `${label(i, "terrain")} names "${name}", which is crossed ` +
-                                    `by ${oneOf(modes)}, but the route is by ${mode}`,
-                            });
-                        }
-                    });
-                }
+            // A `terrain` that is not a list is the inner-key check's finding.
+            if (Array.isArray(entry.terrain)) {
+                entry.terrain.forEach((terrain, j) => {
+                    if (unread(terrain)) return;
+                    const name = String(terrain);
+                    const modes = TERRAIN_MODES[name];
+                    if (!modes) {
+                        findings.push({
+                            file: note.file,
+                            ...positionOfFrontmatterPath(raw, ["data", field, i, "terrain", j]),
+                            severity: "error",
+                            message:
+                                `${label(i, "terrain")} names "${name}", which is not a ` +
+                                `terrain; the registry is ${oneOf(TERRAINS)}`,
+                        });
+                    } else if (mode && !modes.includes(mode)) {
+                        findings.push({
+                            file: note.file,
+                            ...positionOfFrontmatterPath(raw, ["data", field, i, "terrain", j]),
+                            severity: "error",
+                            message:
+                                `${label(i, "terrain")} names "${name}", which is crossed ` +
+                                `by ${oneOf(modes)}, but the route is by ${mode}`,
+                        });
+                    }
+                });
             }
 
-            if (entry.leagues !== undefined && entry.leagues !== null) {
+            // Not a number at all is the inner-key check's finding; a number
+            // that is no distance is this one's.
+            if (!unread(entry.leagues)) {
                 const n = daysOf(entry.leagues);
-                if (n === undefined || n <= 0) {
+                if (n !== undefined && n <= 0) {
                     error(
                         i,
                         "leagues",

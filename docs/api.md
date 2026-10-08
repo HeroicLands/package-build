@@ -392,7 +392,8 @@ The declared infobox: what a note's summary panel holds, decided once and render
 | `NOTHING_BEYOND_PROFILE`  | `const NOTHING_BEYOND_PROFILE`         | —                           | naming what a system holding nothing the note box has not shown says                   |
 | `NOTE_BOX_ID`             | `const NOTE_BOX_ID`                    | —                           | naming the note infobox, which is not a system id                                      |
 | `NOTE_BOX_TITLE`          | `const NOTE_BOX_TITLE`                 | —                           | naming the note infobox's heading                                                      |
-| `NOTE_SECTION_ID`         | `const NOTE_SECTION_ID`                | —                           | naming the note infobox's single section                                               |
+| `NOTE_SECTION_ID`         | `const NOTE_SECTION_ID`                | —                           | naming the note infobox's profile section                                              |
+| `MEMBERSHIPS_SECTION`     | `const MEMBERSHIPS_SECTION`            | —                           | naming the note infobox's `list` section of a being's memberships, one line each       |
 | `NOTE_FIELD_PRESENTATION` | `const NOTE_FIELD_PRESENTATION`        | —                           | looking up a `data:` key's label, the group it composes into, or why it carries no row |
 | `assertInfoboxSet`        | `assertInfoboxSet(boxes, fm, options)` | `readonly object[]`, throws | refusing a page that carries anything but the boxes its type maps to                   |
 | `buildInfoboxes`          | `buildInfoboxes(fm, options)`          | `object[]`                  | building every box a note carries, against a given set of maps and declarations        |
@@ -482,19 +483,21 @@ Every typed note must have a nonempty body. Empty and whitespace-only bodies are
 
 What a place is next to (`data.borders`) and reachable from (`data.routes`): the closed sets both draw from, stated once for the lint, the specification and a consumer drawing a map, and the checks that hold a note to them and to the note at the other end.
 
-| Export            | Signature                       | Returns             | Use it when                                                                                                          |
-| ----------------- | ------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| `RELATION_TYPE`   | `const RELATION_TYPE`           | `string`            | the type a `to` names — the default its `<type>` segment takes and the whole of its accepted set                     |
-| `BEARINGS`        | `const BEARINGS`                | `readonly string[]` | the eight compass bearings, clockwise from `N`                                                                       |
-| `ROUTE_MODES`     | `const ROUTE_MODES`             | `readonly string[]` | the modes a route is travelled by — `land`, `boat`, `ship`                                                           |
-| `TRAVEL_DAYS`     | `const TRAVEL_DAYS`             | `readonly number[]` | the days markers a route may state, each meaning "about this, under normal conditions"                               |
-| `TERRAIN_MODES`   | `const TERRAIN_MODES`           | —                   | the terrain registry, each terrain naming the modes that cross it                                                    |
-| `TERRAINS`        | `const TERRAINS`                | `readonly string[]` | the terrain names, in registry order                                                                                 |
-| `BORDER_KEYS`     | `const BORDER_KEYS`             | `readonly string[]` | the keys a `borders` entry carries                                                                                   |
-| `ROUTE_KEYS`      | `const ROUTE_KEYS`              | `readonly string[]` | the keys a `routes` entry carries                                                                                    |
-| `oppositeBearing` | `oppositeBearing(bearing)`      | `string\|undefined` | the bearing the other end of a relation states, or `undefined` for a value that is not a bearing                     |
-| `checkBorders`    | `checkBorders(note, { index })` | `object[]`          | linting a place's `borders` — targets, values, once per pair, no parent or child, and reciprocity with the other end |
-| `checkRoutes`     | `checkRoutes(note, { index })`  | `object[]`          | linting a place's `routes` — as `checkBorders`, plus `mode`, `days` and `terrain`, once per pair per mode            |
+| Export            | Signature                       | Returns             | Use it when                                                                                                                                                         |
+| ----------------- | ------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RELATION_TYPE`   | `const RELATION_TYPE`           | `string`            | the type a `to` names — the default its `<type>` segment takes and the whole of its accepted set                                                                    |
+| `BEARINGS`        | `const BEARINGS`                | `readonly string[]` | the eight compass bearings, clockwise from `N`                                                                                                                      |
+| `ROUTE_MODES`     | `const ROUTE_MODES`             | `readonly string[]` | the modes a route is travelled by — `land`, `boat`, `ship`                                                                                                          |
+| `TRAVEL_DAYS`     | `const TRAVEL_DAYS`             | `readonly number[]` | the days markers a route may state, each meaning "about this, under normal conditions"                                                                              |
+| `TERRAIN_MODES`   | `const TERRAIN_MODES`           | —                   | the terrain registry, each terrain naming the modes that cross it                                                                                                   |
+| `TERRAINS`        | `const TERRAINS`                | `readonly string[]` | the terrain names, in registry order                                                                                                                                |
+| `BORDER_FIELDS`   | `const BORDER_FIELDS`           | `readonly object[]` | the keys a `borders` entry carries, as inner-key declarations — name, kind, shape and whether it is required                                                        |
+| `ROUTE_FIELDS`    | `const ROUTE_FIELDS`            | `readonly object[]` | the keys a `routes` entry carries, as inner-key declarations                                                                                                        |
+| `BORDER_KEYS`     | `const BORDER_KEYS`             | `readonly string[]` | the keys a `borders` entry carries                                                                                                                                  |
+| `ROUTE_KEYS`      | `const ROUTE_KEYS`              | `readonly string[]` | the keys a `routes` entry carries                                                                                                                                   |
+| `oppositeBearing` | `oppositeBearing(bearing)`      | `string\|undefined` | the bearing the other end of a relation states, or `undefined` for a value that is not a bearing                                                                    |
+| `checkBorders`    | `checkBorders(note, { index })` | `object[]`          | linting what a place's `borders` mean — targets, bearings, once per pair, no parent or child, and reciprocity; an entry's keys and shape are the frontmatter lint's |
+| `checkRoutes`     | `checkRoutes(note, { index })`  | `object[]`          | linting what a place's `routes` mean — as `checkBorders`, plus `mode`, `days` and `terrain`, once per pair per mode                                                 |
 
 ### `engine.holdings`
 
@@ -725,22 +728,23 @@ The corpus registry anchors each calendar's year 1, day 1 to its canonical `data
 
 A calendar is a `lore` note with `subType: calendar`, declaring the months it keeps, the weekdays it names, the seasons it marks and the eras it counts years in. How long the year is, how the day divides and how the moon moves are facts about the **world**, written on its `place` note and its moon's, and no calendar may restate them — which is why the months summing to the world's year is the only arithmetic a calendar note is held to. One definition is emitted per calendar, in array shape: Foundry core prunes the keys outside its schema, and Calendaria converts the arrays to its own keyed collections.
 
-| Export                      | Signature                                             | Returns                                    | Use it when                                                                 |
-| --------------------------- | ----------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------- |
-| `CALENDAR_SUBTYPE`          | `const CALENDAR_SUBTYPE`                              | —                                          | naming the `lore` subType whose notes are calendars                         |
-| `INVARIANT_SUBTYPES`        | `const INVARIANT_SUBTYPES`                            | —                                          | naming the `place` subTypes a world fact may be written on                  |
-| `CALENDAR_FIELDS`           | `const CALENDAR_FIELDS`                               | —                                          | reading the closed list of what a calendar note may declare                 |
-| `CALENDAR_DATE_FORMAT_KEYS` | `const CALENDAR_DATE_FORMAT_KEYS`                     | —                                          | reading the supported Calendaria display slots                              |
-| `CALENDAR_FORMAT_TOKENS`    | `const CALENDAR_FORMAT_TOKENS`                        | —                                          | checking bare date tokens in a format string                                |
-| `INVARIANT_FIELDS`          | `const INVARIANT_FIELDS`                              | —                                          | reading the closed list of what a body may declare about itself             |
-| `checkCalendarNote`         | `checkCalendarNote(note, opts)`                       | `object[]` — findings                      | holding a `lore` note to the family and to the year the world keeps         |
-| `checkCalendarDateFormats`  | `checkCalendarDateFormats(note)`                      | `object[]` — findings                      | checking named patterns and the readable default                            |
-| `checkWorldFacts`           | `checkWorldFacts(note, opts)`                         | `object[]` — findings                      | holding a `place` note's world facts to one body, one year and one moon     |
-| `worldInvariants`           | `worldInvariants(index)`                              | `{year, present, moon, body, moonName, …}` | reading the year, the present and the moon a package's own notes state      |
-| `quarterDays`               | `quarterDays(daysPerYear)`                            | `number[]` — four days of the year         | asking which days the year turns on                                         |
-| `compileCalendar`           | `compileCalendar({note, invariants, contentPackage})` | `object` — the definition                  | building the one object both a core consumer and Calendaria read            |
-| `compileCalendars`          | `compileCalendars(index, opts)`                       | `{calendars, invariants}`                  | building every calendar a package declares, or none where it states no year |
-| `calendariaEnvelope`        | `calendariaEnvelope(definition, opts)`                | `object` — the import envelope             | wrapping a definition for a hand import through Calendaria's settings       |
+| Export                      | Signature                                             | Returns                                    | Use it when                                                                       |
+| --------------------------- | ----------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
+| `CALENDAR_SUBTYPE`          | `const CALENDAR_SUBTYPE`                              | —                                          | naming the `lore` subType whose notes are calendars                               |
+| `INVARIANT_SUBTYPES`        | `const INVARIANT_SUBTYPES`                            | —                                          | naming the `place` subTypes a world fact may be written on                        |
+| `CALENDAR_FIELDS`           | `const CALENDAR_FIELDS`                               | —                                          | reading the closed list of what a calendar note may declare                       |
+| `CALENDAR_ENTRY_FIELDS`     | `const CALENDAR_ENTRY_FIELDS`                         | —                                          | reading the keys one entry of each calendar list takes, as inner-key declarations |
+| `CALENDAR_DATE_FORMAT_KEYS` | `const CALENDAR_DATE_FORMAT_KEYS`                     | —                                          | reading the supported Calendaria display slots                                    |
+| `CALENDAR_FORMAT_TOKENS`    | `const CALENDAR_FORMAT_TOKENS`                        | —                                          | checking bare date tokens in a format string                                      |
+| `INVARIANT_FIELDS`          | `const INVARIANT_FIELDS`                              | —                                          | reading the closed list of what a body may declare about itself                   |
+| `checkCalendarNote`         | `checkCalendarNote(note, opts)`                       | `object[]` — findings                      | holding a `lore` note to the family and to the year the world keeps               |
+| `checkCalendarDateFormats`  | `checkCalendarDateFormats(note)`                      | `object[]` — findings                      | checking named patterns and the readable default                                  |
+| `checkWorldFacts`           | `checkWorldFacts(note, opts)`                         | `object[]` — findings                      | holding a `place` note's world facts to one body, one year and one moon           |
+| `worldInvariants`           | `worldInvariants(index)`                              | `{year, present, moon, body, moonName, …}` | reading the year, the present and the moon a package's own notes state            |
+| `quarterDays`               | `quarterDays(daysPerYear)`                            | `number[]` — four days of the year         | asking which days the year turns on                                               |
+| `compileCalendar`           | `compileCalendar({note, invariants, contentPackage})` | `object` — the definition                  | building the one object both a core consumer and Calendaria read                  |
+| `compileCalendars`          | `compileCalendars(index, opts)`                       | `{calendars, invariants}`                  | building every calendar a package declares, or none where it states no year       |
+| `calendariaEnvelope`        | `calendariaEnvelope(definition, opts)`                | `object` — the import envelope             | wrapping a definition for a hand import through Calendaria's settings             |
 
 ### `engine.calendarArtifacts`
 
