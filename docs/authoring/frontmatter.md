@@ -14,7 +14,7 @@ HeroicLands notes begin with YAML frontmatter. A file is recognized as a note wh
 shortcode: harbor
 name: { full: Harbor, aliases: [The Harbor] }
 type: lore
-subType: concept
+subType: economy
 description: A sheltered trading port.
 tags: [draft]
 data: {}
