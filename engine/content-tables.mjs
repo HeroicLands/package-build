@@ -2,7 +2,7 @@
 
 import { FENCE_LINE } from "./code-fences.mjs";
 import { PAGE_LIST_LANGUAGE } from "./page-lists.mjs";
-import { appendEventViews } from "./event-views.mjs";
+import { appendGeneratedSections } from "./generated-sections.mjs";
 
 /**
  * Replace prepared SQL fences and page lists with Markdown while retaining
@@ -16,12 +16,23 @@ import { appendEventViews } from "./event-views.mjs";
  * @param {string} markdown - The authored body.
  * @param {{source?: string, sqlTables?: object[], pageLists?: object[]}} [context] -
  *   Prepared results.
- * @returns {{markdown: string, errors: object[], warnings: object[], lineMap: object[]}}
+ * A note's generated sections — see {@link module:engine/generated-sections} —
+ * are appended to the body first, from the `generated` text the preparation
+ * set on its results, and expanded with it.
+ *
+ * @returns {{markdown: string, errors: object[], warnings: object[], lineMap: object[],
+ *   generatedFrom?: number}} `generatedFrom` is the 0-based line of the
+ *   expanded body the generated sections start on, where there are any — what
+ *   a surface reads to tell them from the author's text.
  */
 export function expandContentTables(markdown, { source = "", sqlTables, pageLists } = {}) {
-    // A note's event views follow its own text, joined exactly as the pass that
-    // answered their fences joined them — see `engine/event-views.mjs`.
-    const lines = String(appendEventViews(markdown ?? "", sqlTables?.eventViews)).split("\n");
+    // A note's generated sections follow its own text, joined exactly as the
+    // pass that answered their fences joined them.
+    const authored = String(markdown ?? "");
+    const lines = String(appendGeneratedSections(authored, sqlTables?.generated)).split("\n");
+    const sectionsStart =
+        sqlTables?.generated ? authored.replace(/\s+$/, "").split("\n").length + 1 : -1;
+    let generatedFrom;
     const out = [];
     const lineMap = [];
     const errors = [];
@@ -33,6 +44,7 @@ export function expandContentTables(markdown, { source = "", sqlTables, pageList
         lineMap.push({ line, generated });
     };
     for (let i = 0; i < lines.length; i++) {
+        if (i === sectionsStart) generatedFrom = out.length;
         const opening = FENCE_LINE.exec(lines[i]);
         if (!opening) {
             emit(lines[i], i);
@@ -124,5 +136,11 @@ export function expandContentTables(markdown, { source = "", sqlTables, pageList
         if (close + 1 < lines.length && lines[close + 1].trim()) emit("", i, true);
         i = close;
     }
-    return { markdown: out.join("\n"), errors, warnings, lineMap };
+    return {
+        markdown: out.join("\n"),
+        errors,
+        warnings,
+        lineMap,
+        ...(generatedFrom === undefined ? {} : { generatedFrom }),
+    };
 }

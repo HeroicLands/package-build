@@ -1002,15 +1002,16 @@ site:
 
 > ``package-build config: `site.search` must be a boolean.``
 
-`site.maps` is whether every place page carries the map from that place. On
-by default: `package-build site` draws the map `package-build map --from`
-draws — the place's borders and routes, each neighbour at its bearing — for
-every place that states a border or a route or is named in one, lays it beside
-the page as `from-<shortcode>.svg`, and names the file in the page's front
-matter as `map`, which the theme inlines so every place name on it is a link
-to that place's page. A place with no relation carries no map and no key.
-The Graphviz runtime installed with package-build draws the maps. `false`
-draws nothing.
+`site.maps` is whether a place carries the map from it. On by default: every
+place that states a border or a route, or is named in one, is given a
+**From here** [generated section](reference/format-details.md#generated-sections)
+holding the map `package-build map --from` draws — the place's borders and
+routes, each neighbour at its bearing. The section reaches every surface: the
+website sets the drawing inline so every place name on it is a link to that
+place's page, the Foundry compile stages it into the module, and the book
+prints it in the place's entry. A place with no relation carries no map. The
+Graphviz runtime installed with package-build draws the maps. `false` gives no
+place the section, on any surface, and draws nothing.
 
 ```yaml
 site:

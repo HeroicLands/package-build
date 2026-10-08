@@ -13,10 +13,10 @@
 
 /**
  * The works of literature that concern each page, derived from what the works
- * say. A `literature` lore note names its subjects in `data.subjects`; the site
- * build inverts that into a `works` list on every subject's page, so a reader on
- * a hero's, a place's or a god's page reaches the epics and legends about it.
- * The subject note writes nothing.
+ * say. A `literature` lore note names its subjects in `data.subjects`; the build
+ * inverts that into the **In song and story** section of every subject — see
+ * {@link module:engine/derived-sections} — so a reader of a hero, a place or a
+ * god reaches the epics and legends about it. The subject note writes nothing.
  *
  * A subject naming an event lists the work on the page of the note holding
  * that event. A work in a fetched index lists on this package's subject pages
@@ -31,10 +31,7 @@ import { AddressLink } from "./address-values.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
 import { LITERATURE_SUBTYPE } from "./literature-notes.mjs";
 
-/** The page front-matter key the site build writes. */
-export const WORKS_KEY = "works";
-
-/** @typedef {{title: string, url?: string, form?: string}} WorkEntry */
+/** @typedef {{title: string, url?: string, address: string, form?: string}} WorkEntry */
 /**
  * @typedef {object} WorksNode
  * @property {string} key Own Address, normalized to the `note` system.
@@ -153,6 +150,7 @@ export function worksPages(nodes, { types }) {
             block.works.push({
                 title: work.title,
                 ...(work.url ? { url: work.url } : {}),
+                address: work.key,
                 ...(work.form ? { form: work.form } : {}),
             });
         }

@@ -36,9 +36,9 @@
  * `/<package>/<type>-<shortcode>/`. Nothing is generated between them — no
  * section directory, no listing, no `_index.md` but the root's. An index of
  * what the package publishes is a `doc` note carrying a content table, and it
- * is authored where every other page is. The one file a page carries beside
- * itself is the map from a place — see `engine/site-maps.mjs` — and a page
- * that carries one is a leaf bundle at the same address.
+ * is authored where every other page is. Every page is one file; the map from a
+ * place is set inline in its **From here** section — see
+ * `engine/site-maps.mjs`.
  *
  * **Every gate reports; none exits.** The integrity checks a site build needs —
  * a wikilink authored in frontmatter, a name that yields no slug, an unusable
@@ -96,7 +96,7 @@ import { resolvedDateFields } from "./note-dates.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 // The one statement of what an empty body means, shared with the index.
 import { isStubNote } from "./note-state.mjs";
-import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { ART_SLOTS, artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
 import {
@@ -109,9 +109,9 @@ import {
 import { publishesContentPages } from "../content-config.mjs";
 import { HUGO_CONTENT } from "./site-config.mjs";
 import { homepageLinkTargets, relatedPages } from "./related-pages.mjs";
-import { HOLDINGS_KEYS, foreignHoldingsNodes, holdingsNode, holdingsPages } from "./holdings.mjs";
-import { WORKS_KEY, foreignWorksNodes, worksNode, worksPages } from "./literature-works.mjs";
-import { drawSiteMaps } from "./site-maps.mjs";
+import { drawSiteMaps, inlineDrawingFigure } from "./site-maps.mjs";
+import { generatedDrawing, markGenerated, splitGenerated } from "./generated-sections.mjs";
+import { IMAGE_PATTERN } from "./content-images.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -567,10 +567,7 @@ export function tableUniverse(pages) {
  * about every other page, known only once the whole tree has resolved — see
  * {@link module:engine/related-pages} — so an authored value is dropped the
  * way `aliases` is, and {@link renderPages} writes the derived block once it
- * holds the graph. Derived geographical and government lists are dropped for the
- * same reason — see {@link module:engine/holdings}. **So is `map`**: the
- * file a place page names is the one the build drew beside it — see
- * {@link module:engine/site-maps} — and a page with no drawing names none.
+ * holds the graph.
  *
  * @param {object} page - The page.
  * @param {object} options
@@ -607,9 +604,6 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
     if (decorate) decorate(data, page);
     delete data.aliases;
     delete data.related;
-    for (const key of HOLDINGS_KEYS) delete data[key];
-    delete data[WORKS_KEY];
-    delete data.map;
     if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;
 }
@@ -682,20 +676,11 @@ function isPlainObject(value) {
  * `doc` note's `subType` may be spelled the same as another note's `type`, and
  * `doc-gear.md` and `weapongear-gear.md` are distinct.
  *
- * **A page that carries a file beside itself is a leaf bundle**, `<slug>/index.md`,
- * because that is the one shape under which Hugo hands a page its own
- * resources — the map from a place, inlined by the theme through
- * `.Resources.Get`. The directory is the page, not a section: it holds no
- * `_index.md`, and the page's stated `url` keeps its address exactly where the
- * flat file's was.
- *
  * @param {{slug: string}} page - The page.
- * @param {object} [opts]
- * @param {boolean} [opts.bundle=false] - Whether the page carries a resource.
  * @returns {string} The file, relative to the mount.
  */
-export function pageDestination(page, { bundle = false } = {}) {
-    return bundle ? `${page.slug}/index.md` : `${page.slug}.md`;
+export function pageDestination(page) {
+    return `${page.slug}.md`;
 }
 
 /** Transform one content page without writing the site mount. */
@@ -713,6 +698,7 @@ export function renderSitePage(
         artIndex,
         figuresByAddress = new Map(),
         events,
+        drawings = new Map(),
     },
 ) {
     const tableErrors = [];
@@ -789,10 +775,21 @@ export function renderSitePage(
     const resolve = (text) => {
         let transformed = pass.beforeLinks ? pass.beforeLinks(text, page) : text;
         transformed = resolveWebWikilinks(transformed, ctx);
-        return renderImageFigures(transformed, webSrcWithRole, lookupAsset);
+        return renderImageFigures(inlineDrawings(transformed), webSrcWithRole, lookupAsset);
     };
+    // A generated **From here** section names the drawing the build made, which
+    // the asset host does not serve: it is set inline, so its place names stay
+    // links. A drawing this build did not make is left for the image pass,
+    // which reports it.
+    const inlineDrawings = (text) =>
+        text.replace(new RegExp(IMAGE_PATTERN.source, "g"), (whole, alt, src) => {
+            const name = generatedDrawing(src);
+            const drawing = name ? drawings.get(name) : undefined;
+            if (!drawing) return whole;
+            return inlineDrawingFigure(fs.readFileSync(drawing.file, "utf8"), alt);
+        });
 
-    const { markdown, errors, lineMap } = expandContentTables(page.body, {
+    const { markdown, errors, lineMap, generatedFrom } = expandContentTables(page.body, {
         docs: universe.get(page.pkg) ?? [],
         linkable,
         source: src,
@@ -820,7 +817,7 @@ export function renderSitePage(
     // what the page actually declares rather than trusted unconditionally.
     ctx.anchors = new Set(collectAnchors(markdown).map((anchor) => anchor.slug));
     ctx.eventAnchors = new Set(eventAnchors(page.fm).map((anchor) => anchor.slug));
-    const expressions = renderMarkdownExpressions(markdown, {
+    const expressions = renderMarkdownExpressions(markGenerated(markdown, generatedFrom), {
         fm: page.fm,
         dates: index.dateContext,
         file: page.file,
@@ -845,14 +842,17 @@ export function renderSitePage(
     });
     expressionErrors.push(...expressions.findings);
     const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
-    const figured = renderFigureBlocks(
-        protectCode(expressions.markdown, resolve),
-        undefined,
-        undefined,
-        {
-            resolveRole: (address) => roleByWebSrc.get(address),
-        },
-    );
+    // The author's text and the generated sections are resolved apart, so the
+    // links a generated section makes join no page's Related card: that card is
+    // what the authors link, and the sections already list what they derive.
+    const { authored, generated } = splitGenerated(expressions.markdown);
+    const authoredBody = protectCode(authored, resolve);
+    const authoredLinks = resolved.length;
+    const resolvedBody =
+        generated ? `${authoredBody}\n${protectCode(generated, resolve)}` : authoredBody;
+    const figured = renderFigureBlocks(resolvedBody, undefined, undefined, {
+        resolveRole: (address) => roleByWebSrc.get(address),
+    });
     for (const error of figureScan.errors)
         captionErrors.push({
             file: page.file,
@@ -899,7 +899,7 @@ export function renderSitePage(
                 .markdown,
         ),
         data,
-        resolved,
+        resolved: resolved.slice(0, authoredLinks),
         tableErrors,
         expressionErrors,
         secretErrors,
@@ -934,25 +934,23 @@ export function renderSitePage(
  * point the resolver answers, and inverted once between them. Nothing is
  * resolved twice.
  *
- * **A map is written with its page.** The drawing from a place is made before
+ * **A map is set inline in its page.** The drawing from a place is made before
  * this render — see {@link module:engine/site-maps} — and handed in keyed by
- * page URL; the page that owns one is written as a leaf bundle, the file is
- * copied beside it, and the front matter names it as `map`. Every other page
- * is written flat, and carries no such key.
+ * the file name the page's **From here** section names.
  *
  * @param {object[]} pages - Every page.
  * @param {object} options - Everything the render needs. `homepages` is the
  *   homepage as the index knows it — `{ fm, body, url, title }` — which takes
  *   no part in the render and every part in the graph: a content page links
  *   it by wikilink, and its own markdown links name content pages. `maps` is
- *   each drawing by the URL of the page that carries it.
+ *   each drawing by the file name a **From here** section names.
  * @returns {{written: number, byKind: Record<string, number>, tableErrors: object[],
  *   wikiErrors: object[], imageErrors: object[], embedErrors: object[],
  *   related: Map<string, import("./related-pages.mjs").Related>,
  *   maps: number}} `related`
  *   is keyed by page URL, and holds the homepage's block beside every content
  *   page's, so the caller can write it on the page this render does not.
- *   `maps` counts the pages written with one.
+ *   `maps` counts the pages carrying a map.
  */
 export function renderPages(pages, options) {
     const {
@@ -1067,6 +1065,7 @@ export function renderPages(pages, options) {
             artIndex,
             figuresByAddress,
             events,
+            drawings: maps,
         });
         tableErrors.push(...result.tableErrors);
         expressionErrors.push(...result.expressionErrors);
@@ -1082,55 +1081,16 @@ export function renderPages(pages, options) {
     }
 
     const related = relatedPages(edges, entries);
-    // Geography follows parents; governing-body lists follow explicit government
-    // references across this package and every fetched index.
-    const holdings = holdingsPages(
-        [
-            ...pages.map((page) =>
-                holdingsNode(page.fm, { title: pageTitle(page), url: page.url, package: page.pkg }),
-            ),
-            ...foreignHoldingsNodes(foreign?.index),
-        ],
-        {
-            governmentNodes: records
-                .filter((record) => !isGmNote(record))
-                .map((record) =>
-                    holdingsNode(record, {
-                        title: record.name?.full ?? record.shortcode,
-                        package: config?.contentPackage ?? pages[0]?.pkg,
-                    }),
-                ),
-        },
-    );
-
-    // Each work of literature lists on the pages of the subjects it names,
-    // including works a fetched index carries.
-    const works = worksPages(
-        [
-            ...pages.map((page) =>
-                worksNode(page.fm, { title: pageTitle(page), url: page.url, package: page.pkg }),
-            ),
-            ...foreignWorksNodes(foreign?.index),
-        ],
-        { types: new Set(Object.keys(NOTE_VOCABULARY)) },
-    );
 
     let withMap = 0;
     const outputs = capture === true ? new Map() : null;
     for (const { page, body, data } of rendered) {
         const block = related.get(page.url);
         if (block) data.related = block;
-        Object.assign(data, holdings.get(page.url));
-        Object.assign(data, works.get(page.url));
-        const map = maps.get(page.url);
-        if (map) {
-            data.map = map.name;
-            withMap += 1;
-        }
+        if (/\{#fromhere\}/.test(sqlTables?.get(page.file)?.generated ?? "")) withMap += 1;
         if (write) {
-            const dest = path.join(outRoot, pageDestination(page, { bundle: Boolean(map) }));
+            const dest = path.join(outRoot, pageDestination(page));
             fs.mkdirSync(path.dirname(dest), { recursive: true });
-            if (map) fs.copyFileSync(map.file, path.join(path.dirname(dest), map.name));
             fs.writeFileSync(dest, matter.stringify(body, encodeAddresses(data)));
         }
         if (outputs) outputs.set(page.file, { markdown: body, frontmatter: data });
@@ -1412,20 +1372,18 @@ export function buildSite({ config, sqlTables } = {}) {
         config: resolved,
     });
 
-    // The map from each related place, drawn now that every page is known to
-    // be addressable and before any is written, so the page writer lays each
-    // drawing beside its page. Drawn with `base`, which is what every name
-    // in a drawing links through — the same `<base><slug>/` every other href
-    // composes. Off, nothing is drawn and nothing is asked of GraphViz.
-    const drawn =
-        site.maps ?
-            drawSiteMaps({
-                records: ctx.records,
-                foreignIndex: gates.foreign.index,
-                config: resolved,
-                base,
-            })
-        :   { maps: new Map(), findings: [] };
+    // The map from each place given a From here section, drawn now that every
+    // page is known to be addressable and before any is written, so the page
+    // writer sets each drawing inline in its section. Drawn with `base`, which
+    // is what every name in a drawing links through — the same `<base><slug>/`
+    // every other href composes. With `site.maps: false` no place is given the
+    // section, nothing is drawn and nothing is asked of GraphViz.
+    const drawn = drawSiteMaps({
+        records: ctx.records,
+        foreignIndex: gates.foreign.index,
+        config: resolved,
+        base,
+    });
 
     const rendered = renderPages(pages, {
         outRoot: out,

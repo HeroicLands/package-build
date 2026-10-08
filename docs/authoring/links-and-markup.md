@@ -319,6 +319,26 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 
 Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.weight`, `data.born`. Every Address is a string — the full canonical Address, as in `list_contains(data.parents, 'thalorna-note-place-xerathia')` — whichever package published it. Every note carries a computed `state` column of `full`, `draft` or `stub`. Notes tagged `gm` are absent from the relations on public surfaces.
 
+### Sections the build adds
+
+The build adds sections to the end of a note, after everything you wrote, listing what other notes say about it. Each appears only where it has something to list, under a fixed anchor:
+
+| Section           | Anchor           | Lists                                                                |
+| ----------------- | ---------------- | -------------------------------------------------------------------- |
+| Within            | `within`         | on a place, the places whose `parents` name it, grouped by kind      |
+| Governed by       | `governedby`     | on a place, the affiliation its `government` names                   |
+| Governed places   | `governedplaces` | on an affiliation, the places naming it as their `government`        |
+| In song and story | `insongandstory` | the works of literature whose `subjects` name the note or its events |
+| From here         | `fromhere`       | on a place with borders or routes, the map drawn from it             |
+
+The event sections below sit among them, and the [format reference](../reference/format-details.md#generated-sections) gives the order. Each entry links to the note it names; a note with no page of its own is named in plain text. Replace a section the way you replace an event view, by writing your own with the same anchor:
+
+```markdown
+# Within {#within}
+
+The vale holds three villages, of which only [[place-ford|Ford]] is walled.
+```
+
 ### Sections the build adds about events
 
 A note's events are listed for you on the notes they concern: a place gets a **Chronology** of what happened there and below it, with every `depth: world` event as context, a being, affiliation or people the **Events** it took part in, an affiliation, place or people the **Accounts** it gives, and a note holding events **What followed** them. Each is a section appended after everything you wrote, with a fixed anchor — `chronology`, `events`, `accounts`, `followed` — and it appears only where it has something to list.

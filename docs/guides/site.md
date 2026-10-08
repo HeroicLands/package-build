@@ -115,15 +115,16 @@ notes is therefore a set of authored pages, each choosing its own contents.
 ## Use links, relations, and maps
 
 Wikilinks resolve through the address index. Each emitted page receives
-derived `related` entries for its outgoing links and backlinks. Place pages
-can receive `contains` from place parents and `governed_by` from their own explicit
-`data.government`; affiliation pages can receive `governed_places` from resolved government references. These values
-come from the content graph and should be read as generated page metadata.
+derived `related` entries for the links its author wrote and the backlinks
+other authors wrote to it.
 
-Place relationships can also produce a map alongside the page. The page
-links to that map as a local page resource; a place with no applicable
-relationship has no map. Set `site.maps: false` to omit these drawings. The
-[book guide](book.md) covers full-page maps in PDF, and the
+What lies within a place, who governs it, what an affiliation governs, the
+works naming a note and the map from a place reach the page as
+[generated sections](../reference/format-details.md#generated-sections): H1
+sections after the author's text, the same Markdown the Foundry journal and
+the book receive. The map from a place is set inline in its **From here**
+section, so its place names link to their pages; set `site.maps: false` to
+draw none. The [book guide](book.md) covers the book, and the
 [packs guide](packs.md) covers documents compiled for Foundry.
 
 A package with a named `site.pass` can apply its own body transformation
@@ -144,13 +145,11 @@ The build always writes `title`, `slug`, `url`, `kbfolder`, `package` and
 note. `infoboxes` is assembled from the note's own fields, so no note authors
 it and nothing in the note format accepts it.
 
-The build writes `resolvedDates`, `related`, `contains`, `governed_by`, `governed_places`,
-`works` and `map` only when it has something to write. A page with no links either way
-carries no `related`, and a place with no drawing carries no `map`.
+The build writes `resolvedDates` and `related` only when it has something to
+write. A page with no links either way carries no `related`.
 
-An authored `aliases`, `related`, `contains`, `governed_by`, `governed_places`, `works` or
-`map` is dropped. Each states a fact about the whole tree rather than about one note, so
-the build replaces whatever a note wrote.
+An authored `aliases` or `related` is dropped. Each states a fact about the whole
+tree rather than about one note, so the build replaces whatever a note wrote.
 
 Artwork addresses are rewritten in place under `data`. A page's `data.icon`,
 `data.tokenIcon` and `data.banner` carry the URLs the site serves rather than the
@@ -170,8 +169,8 @@ and both survive: `null` is a note naming no art, where a default may apply,
 and `""` is a note refusing art, where no default may replace it.
 
 The build writes these keys; [what the theme draws](../reference/theme-pages.md)
-describes the panel each one feeds — the infobox, the hero band, the government
-and related cards, the place map, and search.
+describes the panel each one feeds — the infobox, the hero band, the related
+card, and search — and the generated sections the theme draws as any other.
 
 ## Build and serve
 

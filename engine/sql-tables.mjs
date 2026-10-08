@@ -30,7 +30,8 @@ import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
 import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventRows } from "./event-rows.mjs";
-import { appendEventViews, eventViewSections } from "./event-views.mjs";
+import { eventViewSections } from "./event-views.mjs";
+import { appendGeneratedSections, joinSections } from "./generated-sections.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -747,54 +748,102 @@ export async function prepareInlineSqlExpressions(db, sources) {
 }
 
 /**
- * Join each note's event views to its body among the sources a preparation
- * answers, so the fences the views hold are answered with the author's own, in
- * order after them. A note given views and holding no directive of its own
- * joins the sources, its body read as {@link prepareTreeSqlTables} reads one.
+ * Each note's generated sections — the derived lists and the event views — see
+ * {@link module:engine/generated-sections}.
  *
- * The expansion every surface runs appends the same text again, from the
- * `eventViews` {@link attachEventViews} sets on the note's results — see
- * {@link module:engine/content-tables.expandContentTables}.
- *
- * @param {object} db - From {@link openNotesDatabase}, over `records`.
- * @param {object[]} records - Content-index records.
+ * @param {object|undefined} db - From {@link openNotesDatabase}, over
+ *   `records`; absent, no event view is asked for.
+ * @param {object[]} records - Content-index records, of the audience the
+ *   surface publishes to.
  * @param {string} contentBase - Root of the content tree.
- * @param {Array<{source: string, markdown: string, frontmatter?: object}>} sources -
- *   The bodies to answer, extended in place.
- * @param {string} [only] - One note file to give views to; absent, every note.
- * @returns {Promise<Map<string, string>>} Note file to its views.
+ * @param {object} [opts]
+ * @param {string} [opts.only] - One note file to give sections to; absent,
+ *   every note.
+ * @param {Map<string, object>} [opts.foreignIndex] - The fetched indexes, whose
+ *   places, affiliations and works the lists take in.
+ * @param {object} [opts.config] - The resolved configuration.
+ * @param {Map<string, Map<string, string>>} [opts.derived] - The derived
+ *   lists, from an earlier call over the same records, which are not derived
+ *   again.
+ * @returns {Promise<{sections: Map<string, string>, views: Set<string>,
+ *   derived: Map<string, Map<string, string>>}>} Note file to its sections,
+ *   joined in order; the files whose sections hold an event view's fence; and
+ *   the derived lists alone.
  */
-export async function joinEventViews(db, records, contentBase, sources, only) {
-    const views = await eventViewSections(
-        db,
-        records.filter((record) => isNoteRecord(record)),
-        (record) => noteFile(contentBase, record),
-        only,
-    );
-    for (const [absPath, text] of views) {
-        const source = sources.find((one) => one.source === absPath);
-        if (source) {
-            source.markdown = appendEventViews(source.markdown, text);
-            continue;
-        }
-        const { body, frontmatter } = parseMarkdownFile(absPath);
-        sources.push({ source: absPath, markdown: appendEventViews(body, text), frontmatter });
-    }
-    return views;
+export async function generatedSectionsFor(
+    db,
+    records,
+    contentBase,
+    { only, foreignIndex, config, derived: given } = {},
+) {
+    const notes = records.filter((record) => isNoteRecord(record));
+    const fileOf = (record) => noteFile(contentBase, record);
+    // Imported here for the cycle reason the index is: the derivations read
+    // the map world, which reaches the content index.
+    const derived =
+        given ??
+        (await import("./derived-sections.mjs")).derivedSections(notes, {
+            fileOf,
+            foreignIndex,
+            config,
+            only,
+        });
+    const views = db ? await eventViewSections(db, notes, fileOf, only) : new Map();
+    const sections = new Map();
+    for (const file of new Set([...derived.keys(), ...views.keys()]))
+        sections.set(file, joinSections([derived.get(file), views.get(file)]));
+    return { sections, views: new Set(views.keys()), derived };
 }
 
 /**
- * Record each note's event views on its prepared results, where the table
- * expansion reads them.
+ * Join each note's generated sections to its body among the sources a
+ * preparation answers, so the fences the event views hold are answered with
+ * the author's own, in order after them. A note whose sections hold a fence
+ * and whose body holds no directive of its own joins the sources, its body
+ * read as {@link prepareTreeSqlTables} reads one.
  *
- * @param {Map<string, object[]>} prepared - From {@link prepareSqlTables}.
- * @param {Map<string, string>} views - From {@link joinEventViews}.
+ * The expansion every surface runs appends the same text again, from the
+ * `generated` {@link attachGeneratedSections} sets on the note's results —
+ * see {@link module:engine/content-tables.expandContentTables}.
+ *
+ * @param {{sections: Map<string, string>, views: Set<string>}} generated -
+ *   From {@link generatedSectionsFor}.
+ * @param {Array<{source: string, markdown: string, frontmatter?: object}>} sources -
+ *   The bodies to answer, extended in place.
  * @returns {void}
  */
-export function attachEventViews(prepared, views) {
-    for (const [absPath, text] of views) {
-        const results = prepared.get(absPath);
-        if (results) results.eventViews = text;
+export function joinGeneratedSections(generated, sources) {
+    for (const [absPath, text] of generated.sections) {
+        const source = sources.find((one) => one.source === absPath);
+        if (source) {
+            source.markdown = appendGeneratedSections(source.markdown, text);
+            continue;
+        }
+        if (!generated.views.has(absPath)) continue;
+        const { body, frontmatter } = parseMarkdownFile(absPath);
+        sources.push({
+            source: absPath,
+            markdown: appendGeneratedSections(body, text),
+            frontmatter,
+        });
+    }
+}
+
+/**
+ * Record each note's generated sections on its prepared results, where the
+ * table expansion reads them. A note with no results of its own is given an
+ * empty set carrying them.
+ *
+ * @param {Map<string, object[]>} prepared - From {@link prepareSqlTables}.
+ * @param {{sections: Map<string, string>}} generated - From
+ *   {@link generatedSectionsFor}.
+ * @returns {void}
+ */
+export function attachGeneratedSections(prepared, generated) {
+    for (const [absPath, text] of generated.sections) {
+        let results = prepared.get(absPath);
+        if (!results) prepared.set(absPath, (results = []));
+        results.generated = text;
     }
 }
 
@@ -823,13 +872,16 @@ export function attachEventViews(prepared, views) {
  *   A command that also builds a link index holds them already, and deriving
  *   them twice is the duplicated-corpus failure this closes.
  * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes.
+ * @param {Map<string, object>} [opts.foreignIndex] - The fetched indexes the
+ *   generated sections take in, where the caller holds them already; absent,
+ *   they are read from the cache.
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path,
  *   carrying `inline` and `pageLists` beside them, or nothing when the tree
- *   holds no such directive.
+ *   holds no such directive and no note is given a generated section.
  */
 export async function prepareTreeSqlTables(
     contentBase,
-    { config, skipDirectories, records, audience = "all" } = {},
+    { config, skipDirectories, records, audience = "all", foreignIndex } = {},
 ) {
     // Imported here rather than at module scope: the index reaches the pack
     // compilers through `manifest-emit` → `journals`, so a static import from a
@@ -870,7 +922,23 @@ export async function prepareTreeSqlTables(
             Array.isArray(record.data?.events) &&
             record.data.events.length > 0,
     );
-    if (!sources.length && !hasEvents) return undefined;
+    // The derived lists read no database, so they are found before one is
+    // opened, and a tree whose notes are given only those opens none.
+    let foreign = foreignIndex;
+    if (!foreign) {
+        try {
+            const { loadForeignIndexes } = await import("./metadata-index.mjs");
+            foreign =
+                config ? loadForeignIndexes(config, [config.contentPackage]).index : new Map();
+        } catch {
+            foreign = new Map();
+        }
+    }
+    const derivedOnly = await generatedSectionsFor(undefined, indexRecords, contentBase, {
+        foreignIndex: foreign,
+        config,
+    });
+    if (!sources.length && !hasEvents && !derivedOnly.sections.size) return undefined;
 
     // A page list is a filter over the records, so it needs no database. A tree
     // whose only corpus-reading directive is one therefore opens none — which
@@ -885,8 +953,10 @@ export async function prepareTreeSqlTables(
         );
     if (!needsDatabase) {
         const pageOnly = new Map();
+        joinGeneratedSections(derivedOnly, sources);
         pageOnly.inline = new Map();
         pageOnly.pageLists = preparePageLists(indexRecords, sources);
+        attachGeneratedSections(pageOnly, derivedOnly);
         return pageOnly;
     }
     // A cell links only where the address it would emit resolves, so a table
@@ -918,13 +988,16 @@ export async function prepareTreeSqlTables(
     }
     const db = await openNotesDatabase(indexRecords, { dependencies, audience });
     try {
-        const views = await joinEventViews(db, indexRecords, contentBase, sources);
+        const generated = await generatedSectionsFor(db, indexRecords, contentBase, {
+            derived: derivedOnly.derived,
+        });
+        joinGeneratedSections(generated, sources);
         const prepared = await prepareSqlTables(db, sources, {
             linkable: (ref) => addresses.has(renderAddress(ref)),
             records: indexRecords,
         });
         prepared.inline = await prepareInlineSqlExpressions(db, sources);
-        attachEventViews(prepared, views);
+        attachGeneratedSections(prepared, generated);
         return prepared;
     } finally {
         await db.close();

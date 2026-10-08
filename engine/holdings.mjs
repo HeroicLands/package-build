@@ -16,29 +16,15 @@
  * only from `data.parents`; government comes only from `data.government`.
  * Neither graph expands through geographic or affiliation ancestors. Government identity preserves the Address package, type and shortcode.
  * Its system normalizes to `note` because Item and journal documents share one page.
- * Historical holdings API names remain for callers migrating their imports.
+ * The lists become a note's generated **Within**, **Governed by** and
+ * **Governed places** sections — see {@link module:engine/derived-sections}.
  * @module
  */
 import { isAddressTuple, ownDocumentSystem, parseAddress, renderAddress } from "./address.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
 
-/** Derived keys, including retired keys removed from generated pages.
- * @type {readonly string[]}
- */
-export const HOLDINGS_KEYS = Object.freeze([
-    "contains",
-    "governed_by",
-    "governed_places",
-    "held_by",
-    "holdings",
-]);
-/** @deprecated Government advisories apply to every inhabited place subtype.
- * @type {readonly string[]}
- */
-export const HELD_SUBTYPES = Object.freeze(["settlement", "site", "structure"]);
-
-/** @typedef {{title:string,url?:string,type:string,subType?:string}} HoldingsEntry */
+/** @typedef {{title:string,url?:string,address:string,type:string,subType?:string}} HoldingsEntry */
 /**
  * @typedef {object} HoldingsNode
  * @property {string} shortcode
@@ -55,7 +41,7 @@ export const HELD_SUBTYPES = Object.freeze(["settlement", "site", "structure"]);
  */
 /** @typedef {{contains?:HoldingsEntry[],governed_by?:HoldingsEntry[],governed_places?:HoldingsEntry[]}} Holdings */
 
-/** Historical shortcode projection for callers that explicitly need one.
+/** The shortcodes a `parents` value names, bare or qualified.
  * @param {unknown} value
  * @returns {string[]}
  */
@@ -123,6 +109,7 @@ function entryOf(node) {
     return {
         title: node.title,
         ...(listed(node) ? { url: node.url } : {}),
+        address: ownKey(node),
         type: node.type,
         ...(node.subType === undefined ? {} : { subType: node.subType }),
     };
@@ -137,10 +124,13 @@ function bySubTypeThenTitle(a, b) {
 
 /** Read local facts without converting government omission into anarchy.
  * @param {object} fm
- * @param {{title:string,url?:string,package?:string,system?:string,governmentSystem?:string}} page
+ * @param {{title:string,url?:string,package?:string,system?:string,canonical?:string,governmentSystem?:string}} page
  * @returns {HoldingsNode|null}
  */
-export function holdingsNode(fm, { title, url, package: pkg, system, governmentSystem }) {
+export function holdingsNode(
+    fm,
+    { title, url, package: pkg, system, canonical, governmentSystem },
+) {
     const type = String(fm?.type ?? "");
     if (type !== "place" && type !== "affiliation") return null;
     const shortcode = String(fm?.shortcode ?? "").toLowerCase();
@@ -154,6 +144,7 @@ export function holdingsNode(fm, { title, url, package: pkg, system, governmentS
         url,
         ...(pkg ? { package: pkg } : {}),
         ...(system ? { system } : {}),
+        ...(canonical ? { canonical } : {}),
         ...(governmentSystem ? { governmentSystem } : {}),
         parents:
             type === "place" ?
@@ -292,15 +283,4 @@ export function checkGovernment(note) {
                 "but no `data.government`; name an affiliation or write null for complete anarchy",
         },
     ];
-}
-
-/**
- * The historical API name for the government advisory. Tenure is no longer checked.
- * @deprecated Use checkGovernment.
- * @param {object} note - The place note.
- * @param {object} [_opts] - Historical options, no longer needed.
- * @returns {object[]} Government advisory findings.
- */
-export function checkHeld(note, _opts = {}) {
-    return checkGovernment(note);
 }

@@ -13,12 +13,8 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
-import {
-    HOLDINGS_KEYS,
-    foreignHoldingsNodes,
-    holdingsNode,
-    holdingsPages,
-} from "../engine/holdings.mjs";
+import { foreignHoldingsNodes, holdingsNode, holdingsPages } from "../engine/holdings.mjs";
+import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
@@ -135,10 +131,11 @@ function writeTree(root: string, files: Record<string, string>): string {
     return base;
 }
 
-/** An entry as the page lists it. */
+/** An entry as the derivation lists it. */
 const entry = (title: string, url: string, type: string, subType: string) => ({
     title,
     url,
+    address: `${url.split("/")[1]}-note-${url.split("/").at(-2)}`,
     type,
     subType,
 });
@@ -153,17 +150,27 @@ const house = entry("The House", "/demo/affiliation-house/", "affiliation", "lin
 const crown = entry("The Crown", "/demo/affiliation-crown/", "affiliation", "polity");
 
 /* ---------------------------------------------------------------------- */
-/*  The site build writes containment and government lists                                 */
+/*  The site build sets the lists as generated sections                   */
 /* ---------------------------------------------------------------------- */
 
-describe("the site build writes `contains`, `governed_by` and `governed_places`", () => {
+describe("the site build sets Within, Governed by and Governed places in the page body", () => {
     let root: string;
 
-    /** The published front matter of one page under the content mount. */
-    const published = (rel: string): Record<string, unknown> =>
-        matter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8")).data;
+    /** One published page under the content mount. */
+    const published = (rel: string) =>
+        matter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8"));
 
-    beforeAll(() => {
+    /** One generated section of a published page, heading to the next heading. */
+    const section = (rel: string, slug: string): string => {
+        const body = published(rel).content;
+        const start = body.indexOf(`{#${slug}}`);
+        if (start < 0) return "";
+        const from = body.lastIndexOf("\n# ", start) + 1;
+        const next = body.indexOf("\n# ", start);
+        return body.slice(from, next < 0 ? undefined : next).trim();
+    };
+
+    beforeAll(async () => {
         root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-holdings-"));
         fs.writeFileSync(
             path.join(root, "package.json"),
@@ -195,67 +202,77 @@ describe("the site build writes `contains`, `governed_by` and `governed_places`"
             ],
             publish: { address: { prefix: "kb/" } },
         });
-        const result = buildSite({ config });
+        const sqlTables = await prepareTreeSqlTables(config.paths.content, {
+            config,
+            skipDirectories: config.skipDirectories,
+            audience: "public",
+        });
+        const result = buildSite({ config, sqlTables });
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.wikiErrors).toEqual([]);
-    });
+    }, 60_000);
 
     afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
     it("preserves explicit anarchy, linked government and omitted government on site pages", () => {
-        expect((published("kb/place-mill.md").data as any).government).toBeNull();
-        expect((published("kb/place-ham.md").data as any).government).toBe(
+        expect((published("kb/place-mill.md").data.data as any).government).toBeNull();
+        expect((published("kb/place-ham.md").data.data as any).government).toBe(
             "demo-note-affiliation-house",
         );
-        expect(published("kb/place-river.md").data).not.toHaveProperty("government");
+        expect(published("kb/place-river.md").data.data).not.toHaveProperty("government");
     });
 
-    it("lists on a region every place whose `parents` names it, by subType then title", () => {
-        expect(published("kb/place-rgn.md").contains).toEqual([river, ham, mill]);
-        expect(published("kb/place-far.md").contains).toEqual([manor]);
+    it("lists on a region every place whose `parents` names it, grouped by kind", () => {
+        expect(section("kb/place-rgn.md", "within")).toBe(
+            "# Within {#within}\n\n" +
+                "**Settlements:** [Ham](/demo/place-ham/), [Mill](/demo/place-mill/)\n\n" +
+                "**Features:** [The River](/demo/place-river/)",
+        );
+        expect(section("kb/place-far.md", "within")).toBe(
+            "# Within {#within}\n\n**Structures:** [The Manor](/demo/place-manor/)",
+        );
     });
 
     it("lists on a house every place naming it as government, across two regions", () => {
-        expect(published("kb/affiliation-house.md").governed_places).toEqual([ham, manor]);
+        expect(section("kb/affiliation-house.md", "governedplaces")).toBe(
+            "# Governed places {#governedplaces}\n\n" +
+                "**Settlements:** [Ham](/demo/place-ham/)\n\n" +
+                "**Structures:** [The Manor](/demo/place-manor/)",
+        );
     });
 
     it("names on a manor its stated governing house", () => {
-        expect(published("kb/place-manor.md").governed_by).toEqual([house]);
-        expect(published("kb/place-ham.md").governed_by).toEqual([house]);
+        const governedBy =
+            "# Governed by {#governedby}\n\n- [The House](/demo/affiliation-house/) (lineage)";
+        expect(section("kb/place-manor.md", "governedby")).toBe(governedBy);
+        expect(section("kb/place-ham.md", "governedby")).toBe(governedBy);
     });
 
     it("never inherits government from a region or affiliation hierarchy", () => {
-        expect(published("kb/affiliation-crown.md").governed_places).toEqual([rgn]);
-        expect(published("kb/place-rgn.md").governed_by).toEqual([crown]);
-        expect(published("kb/place-ham.md").governed_by).toEqual([house]);
-        expect(published("kb/place-mill.md")).not.toHaveProperty("governed_by");
+        expect(section("kb/affiliation-crown.md", "governedplaces")).toBe(
+            "# Governed places {#governedplaces}\n\n**Regions:** [The Region](/demo/place-rgn/)",
+        );
+        expect(section("kb/place-rgn.md", "governedby")).toContain("The Crown");
+        expect(section("kb/place-mill.md", "governedby")).toBe("");
+        expect(section("kb/affiliation-duchy.md", "governedplaces")).toBe("");
     });
 
-    it("shapes every entry as `{ title, url, type, subType }`", () => {
-        const page = published("kb/affiliation-house.md") as { governed_places: object[] };
-        for (const e of page.governed_places) {
-            expect(Object.keys(e).sort()).toEqual(["subType", "title", "type", "url"]);
-        }
+    it("writes no section on a page with nothing to say", () => {
+        for (const rel of ["kb/place-mill.md", "kb/lore-silence.md", "kb/affiliation-duchy.md"])
+            expect(published(rel).content, rel).not.toMatch(/^# /m);
+        expect(section("kb/place-manor.md", "within")).toBe("");
+        expect(section("kb/affiliation-house.md", "governedby")).toBe("");
     });
 
-    it("writes no key on a page with nothing to say, and replaces an authored one", () => {
-        for (const key of HOLDINGS_KEYS) {
-            expect(published("kb/place-mill.md")).not.toHaveProperty(key);
-            expect(published("kb/lore-silence.md")).not.toHaveProperty(key);
-            expect(published("kb/affiliation-duchy.md")).not.toHaveProperty(key);
-        }
-        // A place holding nothing within it and held by nobody carries only
-        // the key it has something for.
-        expect(published("kb/place-manor.md")).not.toHaveProperty("contains");
-        expect(published("kb/place-manor.md")).not.toHaveProperty("governed_places");
-        expect(published("kb/affiliation-house.md")).not.toHaveProperty("contains");
-        expect(published("kb/affiliation-house.md")).not.toHaveProperty("governed_by");
+    it("writes none of the lists into the front matter", () => {
+        for (const rel of ["kb/place-rgn.md", "kb/place-manor.md", "kb/affiliation-house.md"])
+            for (const key of ["contains", "governed_by", "governed_places"])
+                expect(published(rel).data, `${rel} ${key}`).not.toHaveProperty(key);
     });
 
-    it("composes `<base><slug>/` on every entry, where the page itself states `/<slug>/`", () => {
-        const page = published("kb/place-rgn.md") as { url: string; contains: { url: string }[] };
-        expect(page.url).toBe("/place-rgn/");
-        for (const e of page.contains) expect(e.url).toMatch(/^\/demo\/place-[a-z]+\/$/);
+    it("joins none of a generated section's links to the Related card", () => {
+        expect(published("kb/place-rgn.md").data).not.toHaveProperty("related");
+        expect(published("kb/affiliation-house.md").data).not.toHaveProperty("related");
     });
 });
 
@@ -386,10 +403,15 @@ describe("holdingsPages", () => {
             node("b", "place", { government: "house" }),
         ]);
         expect(pages.get("/demo/affiliation-crown/")?.governed_places).toEqual([
-            { title: "a", type: "place", subType: "settlement" },
+            { title: "a", address: "demo-note-place-a", type: "place", subType: "settlement" },
         ]);
         expect(pages.get("/demo/place-b/")?.governed_by).toEqual([
-            { title: "house", type: "affiliation", subType: "polity" },
+            {
+                title: "house",
+                address: "demo-note-affiliation-house",
+                type: "affiliation",
+                subType: "polity",
+            },
         ]);
         expect(pages.has("")).toBe(false);
     });
@@ -425,14 +447,25 @@ describe("holdingsPages", () => {
         expect(pages.get("/demo/affiliation-crown/")?.governed_places).toEqual([
             {
                 title: "Published",
+                address: "demo-note-place-published",
                 type: "place",
                 subType: "settlement",
                 url: "/demo/place-published/",
             },
-            { title: "Stub place", type: "place", subType: "settlement" },
+            {
+                title: "Stub place",
+                address: "demo-note-place-stub",
+                type: "place",
+                subType: "settlement",
+            },
         ]);
         expect(pages.get("/demo/place-understub/")?.governed_by).toEqual([
-            { title: "Stub house", type: "affiliation", subType: "polity" },
+            {
+                title: "Stub house",
+                address: "demo-note-affiliation-stubhouse",
+                type: "affiliation",
+                subType: "polity",
+            },
         ]);
         expect(pages.get("/demo/place-region/")?.contains?.map((e) => e.title)).toEqual([
             "Published",
@@ -449,7 +482,7 @@ describe("holdingsPages", () => {
             node("a", "place", { government: "crown", subType: undefined }),
         ]);
         expect(pages.get("/demo/affiliation-crown/")?.governed_places).toEqual([
-            { title: "a", url: "/demo/place-a/", type: "place" },
+            { title: "a", url: "/demo/place-a/", address: "demo-note-place-a", type: "place" },
         ]);
     });
 });
@@ -620,7 +653,7 @@ describe("a dependency's places and affiliations take part", () => {
             const pages = holdingsPages([
                 holdingsNode(
                     { type: "place", subType: "region", shortcode: "rgn", data: {} },
-                    { title: "The Region", url: rgn.url },
+                    { title: "The Region", url: rgn.url, package: "demo" },
                 )!,
                 holdingsNode(
                     {
@@ -629,7 +662,7 @@ describe("a dependency's places and affiliations take part", () => {
                         shortcode: "mill",
                         data: { parents: ["rgn"], government: "thalorna-sohl-affiliation-empire" },
                     },
-                    { title: "Mill", url: mill.url },
+                    { title: "Mill", url: mill.url, package: "demo" },
                 )!,
                 ...foreignHoldingsNodes(index),
             ]);

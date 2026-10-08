@@ -84,6 +84,7 @@ import { positionInBody } from "./diagnostics.mjs";
 import { FOOTNOTE_REFERENCE } from "./content-footnotes.mjs";
 import { foundryAddressProblem, pathnameProblem, servesFoundry } from "./pathnames.mjs";
 import { ASSET_ROLES } from "./asset-index.mjs";
+import { generatedDirectoryProblem } from "./generated-sections.mjs";
 
 /**
  * The width classes an image may carry, and what each means to a renderer.
@@ -503,11 +504,18 @@ export function imageSourcesIn(body) {
  *   without any other pass noticing — see the Foundry address below. Omitted,
  *   the config-free checks run alone, which is what lets a caller with no
  *   repository to resolve still read a body.
+ * @param {boolean} [opts.generated] - Whether `body` is a note's generated
+ *   sections, which name the build's own drawings under `generated/`; an
+ *   author's text may not.
  * @returns {Array<{file: string, line: number, column: number|undefined,
  *   severity: "error", message: string}>} One finding per defect, in source
  *   order.
  */
-export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, lineMap, config } = {}) {
+export function checkImages(
+    body,
+    file,
+    { bodyLine = 1, bodyColumn = 1, lineMap, config, generated = false } = {},
+) {
     const text = String(body ?? "");
     if (!text) return [];
 
@@ -532,6 +540,7 @@ export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, lineMap,
         const problem =
             imageSourceProblem(image.src) ||
             pathnameProblem(image.src) ||
+            (generated ? "" : generatedDirectoryProblem(image.src)) ||
             (foundry ? foundryAddressProblem(image.src, config) : "");
         if (problem) report(image.index, problem);
         if (image.title) {

@@ -92,8 +92,8 @@ columns; a wide table outside a figure fence starts on a new page so it stays
 after its introduction. A wide table inside one may float to the page top, and
 its label stays with it. A table too tall for one page takes pages of its own.
 A figure's number runs through the whole book in reading order, counted within
-its own kind. Maps attached
-to selected places use landscape pages after those entries. A map note prints
+its own kind. A place on a border or a route prints the map drawn from it in
+its **From here** section, inside its own entry and nowhere else. A map note prints
 each of its exported Scene's level backgrounds on its own landscape page.
 The
 [content format](../content-format.md) describes image sizes, floats, and
@@ -151,3 +151,16 @@ a note outside the selection or another package remains a web address.
 Anchors on headings are scoped to their entries, so two entries can use the
 same heading anchor. The build reports an unresolved destination while
 keeping the source available for inspection.
+
+The [generated sections](../reference/format-details.md#generated-sections)
+an entry carries — **Within**, **Governed by**, **In song and story**, the
+event views and the rest — name notes the build chose rather than the author,
+so their links follow their own rule, because a book is often a selection:
+
+- A name whose note is in the book is an internal link followed by the page
+  that note's entry starts on, printed as the contents prints it:
+  `Ford (p. 12)`. The number is Typst's own, read after layout.
+- A name whose note is not in the book is printed as plain text, with no link,
+  no page and no finding.
+
+Links an author wrote keep the rules above and carry no page number.
