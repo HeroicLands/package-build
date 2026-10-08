@@ -131,7 +131,7 @@ or it is a **source system's own detail**, which no surface's box shows:
 | `color`                                                                                     | sidebar machinery, not a fact about the subject            |
 | `id`                                                                                        | document identity machinery, not a fact about the subject  |
 | `pack`, `packFolder`                                                                        | compendium routing machinery, not a fact about the subject |
-| a lore note's `events`                                                                      | chronology machinery, not a summary row                    |
+| `events`                                                                                    | chronology machinery, not a summary row                    |
 | a calendar's `months`, `weekdays`, `seasons`, `namedDays`, `eras`, `formats`                | calendar machinery, not a summary row                      |
 | a map's `scene`, `fixup`, `walls`, `doors`, `lights`, `tiles`, `sounds`, `regions`, `notes` | canvas machinery, not a summary row                        |
 | `harnworld`                                                                                 | HârnWorld source detail, which no surface's box shows      |
@@ -256,12 +256,12 @@ A section says how it is arranged, and a renderer switches on that and on a
 value's `kind` — never on a field name, which is what keeps a field list from
 leaking back into a template.
 
-| `layout` value | shape                           | what carries it | where it is used           |
-| -------------- | ------------------------------- | --------------- | -------------------------- |
-| `rows`         | label/value pairs, one per line | `rows`          | a profile                  |
-| `grid`         | short label/value cells         | `cells`         | attributes, armour aspects |
-| `runin`        | groups of comma-joined entries  | `groups`        | skills, equipment          |
-| `list`         | one entry per line              | `entries`       | mystical abilities         |
+| `layout` value | shape                           | what carries it | where it is used                          |
+| -------------- | ------------------------------- | --------------- | ----------------------------------------- |
+| `rows`         | label/value pairs, one per line | `rows`          | a profile                                 |
+| `grid`         | short label/value cells         | `cells`         | attributes, armour aspects                |
+| `runin`        | groups of comma-joined entries  | `groups`        | skills, equipment                         |
+| `list`         | one entry per line              | `entries`       | mystical abilities, a being's memberships |
 
 | `kind` value | the value is                    |
 | ------------ | ------------------------------- |
@@ -274,6 +274,9 @@ leaking back into a template.
 A website renders a link by its `url`, a compendium journal by its `uuid`, and
 the book by the `address`, which is the entry's own label in the volume. A
 reference the index could not reach keeps its words rather than being dropped.
+An entry of a `runin` group or a `list` section is a link, and may carry a
+`lead`: plain text set before it, so a membership line — `Captain, Blade (4), of
+The Silent Talon Company` — links the body's name and nothing else.
 
 **Emitted shape**, as a page's front matter carries it:
 
@@ -289,11 +292,18 @@ infoboxes:
           - label: Name
             kind: text
             value: Brànwâal Dôrgaar
-          - label: Affiliations
+          - label: Homes
             kind: links
             value:
-              - text: The Silent Talon Company
-                url: /thalorna/affiliation-slntlncmpny/
+              - text: Vylar
+                url: /thalorna/place-vylar/
+      - id: affiliations
+        label: Affiliations
+        layout: list
+        entries:
+          - lead: "Captain, Blade (4), of "
+            text: The Silent Talon Company
+            url: /thalorna/affiliation-slntlncmpny/
   - id: sohl
     kind: system
     system: sohl
@@ -382,7 +392,20 @@ A system block — `sohl:` or `hm3:` — is checked against that system's own
 field schema: the fields the system declares for each document type, with
 their shapes. None of the `data:` vocabulary applies inside it, the inner-key
 rule included, and a key the system's schema does not declare is an error at
-its own line. A `dnd5e:` block has no field schema, so nothing checks it.
+its own line.
+
+A block is checked only where both of these hold:
+
+- **The package declares the system** — under `systems:`, as a pack's
+  `system:`, or as the system the package is or requires. A block for a system
+  the package does not declare is not checked.
+- **The system's fields are known.** The `sohl:` block is held to the note
+  schemas the build carries; any other system's block is held to the
+  `itemBuilders` registry that declares it. Where a declared system has
+  neither, the lint says that system's block is unchecked, and a key inside it
+  is discarded at compile.
+
+A `dnd5e:` block has no field schema, so nothing checks it.
 
 #### Dates and calendars
 
@@ -803,8 +826,8 @@ noticed:
 | `pack`                 | `string`              | The shared compendium route.                                         |
 | `packFolder`           | `Address` or pack map | The shared compendium folder Address.                                |
 | `harnworld`            | `{ realm?, ritual? }` | HârnWorld source details.                                            |
-| `harnworld.realm`      | `string`              | The HârnWorld realm the subject belongs to                           |
-| `harnworld.ritual`     | `string[]`            | The HârnWorld religions the subject observes                         |
+| `harnworld.realm`      | `string`              | The HârnWorld realm the subject belongs to.                          |
+| `harnworld.ritual`     | `string[]`            | The HârnWorld religions the subject observes.                        |
 | `icon`                 | `Address`             | The document's profile art — an `icon` address, resolved into `img`. |
 | `banner`               | `Address`             | The page's hero image — an `image` address, cut to 1792×768.         |
 
@@ -4634,7 +4657,7 @@ data:
     name: Wolf Den Scene
     width: 1900
     height: 2600
-    grid: { type: 1 size=100 distance: 5 units: ft }
+    grid: { type: 1, size: 100, distance: 5, units: ft }
     initialLevel: defaultLevel0000
     levels:
       - { _id: defaultLevel0000, background: { src: modules/maps/den.webp } }
