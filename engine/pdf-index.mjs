@@ -94,14 +94,30 @@ function letterOf(key) {
  */
 export function indexTerms(entries) {
     const terms = [];
-    const mainBySlug = new Map();
+    const info = new Map();
+    const nameByCanonical = new Map();
+    for (const entry of entries ?? []) {
+        if (entry?.kind !== "note") continue;
+        const canonical = entry.record?.address?.canonical;
+        const name = String(entry.record?.name?.full ?? "").trim();
+        if (canonical && name) nameByCanonical.set(String(canonical), name);
+    }
     for (const entry of entries ?? []) {
         if (entry?.kind !== "note") continue;
         const slug = slugOf(entry.record);
         const name = String(entry.record?.name?.full ?? "").trim();
-        if (!slug || !name || mainBySlug.has(slug)) continue;
-        mainBySlug.set(slug, name);
-        terms.push({ name, slug });
+        if (!slug || !name || info.has(slug)) continue;
+        const parents = Array.isArray(entry.record?.data?.parents) ? entry.record.data.parents : [];
+        const parent = parents
+            .map((one) =>
+                nameByCanonical.get(String(typeof one === "string" ? one : one?.canonical)),
+            )
+            .find(Boolean);
+        info.set(slug, {
+            kind: String(entry.record?.subType || entry.record?.type || ""),
+            parent: parent ?? "",
+        });
+        terms.push({ name, slug, main: true });
         const taken = new Set([sortKey(name)]);
         const names = [
             ...(Array.isArray(entry.record?.name?.aliases) ? entry.record.name.aliases : []),
@@ -114,10 +130,42 @@ export function indexTerms(entries) {
             const key = sortKey(other.trim());
             if (taken.has(key)) continue;
             taken.add(key);
-            terms.push({ name: other.trim(), slug, see: name });
+            terms.push({ name: other.trim(), slug, main: false });
         }
     }
-    const keyed = terms.map((term) => ({ ...term, key: sortKey(term.name) }));
+    // Terms printing one name for different notes are told apart: first by the
+    // note's subtype (or its type), then, where that still collides, by the
+    // place the note is within.
+    const clashing = (shown) => {
+        const owners = new Map();
+        terms.forEach((term, i) => {
+            const key = sortKey(shown[i]);
+            if (!owners.has(key)) owners.set(key, new Set());
+            owners.get(key).add(term.slug);
+        });
+        return terms.map((_, i) => owners.get(sortKey(shown[i])).size > 1);
+    };
+    const qualified = (term, withParent) => {
+        const { kind, parent } = info.get(term.slug);
+        const qualifier = withParent && parent ? `${kind}, ${parent}` : kind;
+        return qualifier ? `${term.name} (${qualifier})` : term.name;
+    };
+    let shown = terms.map((term) => term.name);
+    for (const withParent of [false, true]) {
+        const clash = clashing(shown);
+        if (!clash.some(Boolean)) break;
+        shown = terms.map((term, i) => (clash[i] ? qualified(term, withParent) : shown[i]));
+    }
+    const mainShown = new Map();
+    terms.forEach((term, i) => {
+        if (term.main) mainShown.set(term.slug, shown[i]);
+    });
+    const keyed = terms.map((term, i) => ({
+        name: shown[i],
+        slug: term.slug,
+        ...(term.main ? {} : { see: mainShown.get(term.slug) }),
+        key: sortKey(shown[i]),
+    }));
     keyed.sort((a, b) => {
         const la = letterOf(a.key);
         const lb = letterOf(b.key);

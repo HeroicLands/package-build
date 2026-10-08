@@ -71,6 +71,59 @@ describe("index terms", () => {
         expect(twice.filter((t: any) => t.name === "Apple Hill")).toHaveLength(1);
     });
 
+    it("qualifies two notes printing one name with their subtype, then their parent place", () => {
+        const withKind = (slug: string, name: string, type: string, subType: string, data = {}) =>
+            note(slug, name, {
+                type,
+                subType,
+                data,
+                address: { slug, canonical: `pkg-note-${slug}` },
+            });
+        const plain = indexTerms([
+            withKind("place-ashkabel", "Ashkabel", "place", "settlement"),
+            withKind("being-ashkabel", "Ashkabel", "being", "character"),
+            withKind("being-ashkabel-dwarf", "Ashkabel Dwarf", "being", "creature", {}),
+        ]);
+        expect(plain.map((t: any) => t.name)).toEqual([
+            "Ashkabel (character)",
+            "Ashkabel (settlement)",
+            "Ashkabel Dwarf",
+        ]);
+
+        const parents = indexTerms([
+            withKind("place-north", "North", "place", "region"),
+            withKind("place-south", "South", "place", "region"),
+            withKind("place-a", "Ashkabel", "place", "settlement", {
+                parents: ["pkg-note-place-north"],
+            }),
+            withKind("place-b", "Ashkabel", "place", "settlement", {
+                parents: ["pkg-note-place-south"],
+            }),
+        ]);
+        expect(
+            parents.filter((t: any) => t.name.startsWith("Ashkabel")).map((t: any) => t.name),
+        ).toEqual(["Ashkabel (settlement, North)", "Ashkabel (settlement, South)"]);
+    });
+
+    it("prints the qualifier in a cross-reference to a qualified name", () => {
+        const aliased = indexTerms([
+            note("a", "Ashkabel", {
+                type: "place",
+                subType: "settlement",
+                name: { full: "Ashkabel", aliases: ["The Hold"] },
+            }),
+            note("b", "Ashkabel", { type: "being", subType: "character" }),
+        ]);
+        expect(aliased.find((t: any) => t.name === "The Hold")).toMatchObject({
+            see: "Ashkabel (settlement)",
+        });
+    });
+
+    it("sets a main entry's page in bold and a mention's in regular weight", () => {
+        const out = renderBook({ plan: PLAN, title: "A Book" });
+        expect(out).toContain('weight: if p.main { "bold" } else { "regular" }');
+    });
+
     it("drops an alias that folds to the main name", () => {
         const same = indexTerms([
             note("a", "Eclair", { name: { full: "Eclair", aliases: ["Éclair", "eclair"] } }),

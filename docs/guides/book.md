@@ -136,6 +136,12 @@ matches the table of contents. A term that does not begin with a letter files
 first, under `#`. An alias or event name that folds to the same text as the
 note's own name is not listed again.
 
+Two notes that print the same name are told apart. Each is qualified with the
+note's subtype, or its type where it has none, as in `Ashkabel (settlement)` and
+`Ashkabel (character)`. Where that still collides, the name of the place the
+note is within is added: `Ashkabel (settlement, Harn)`. An alias or event name
+that points at a qualified name prints the qualifier too.
+
 Page numbers come from the typeset book, so they stay correct however the pages
 reflow, and each is a link to its page in the PDF. The Index is reached from the
 Contents and the bookmarks like any other chapter.
