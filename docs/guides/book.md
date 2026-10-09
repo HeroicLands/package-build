@@ -105,6 +105,49 @@ and map backgrounds fit the landscape map area. An image smaller than that
 target keeps its authored pixels and still fills its allotted space on the
 page. SVG art stays vector. The build never changes authored image files.
 
+## The index
+
+A book that prints at least one note ends with an **Index** chapter, grouped
+under letter headings. Nothing configures it: the build derives it from the
+notes the book prints.
+
+| Term                     | Source                | Shown as                                                                           |
+| ------------------------ | --------------------- | ---------------------------------------------------------------------------------- |
+| A note's name            | `name.full`           | the page of the note's entry in **bold**, then the pages of every authored mention |
+| An alias                 | `name.aliases`        | _see_ the note's name                                                              |
+| An event's in-world name | `data.events[].names` | _see_ the name of the note that holds the event                                    |
+
+To get a term into the index, give the note a `name.full`, add an alias or an
+event name, or link to the note from prose with a wikilink. A wikilink to a note
+the book prints adds the page it appears on. A term mentioned several times on
+one page lists that page once, and a note printed under more than one section
+is listed once, with every page it occupies.
+
+Two kinds of link add nothing:
+
+- **Links in generated sections** such as "Within" or "Governed by". They name
+  notes the build chose rather than the author, and would add a page to nearly
+  every place and bury the authored mentions. They print the page of the note's
+  entry beside the name instead, as
+  described under [Build and inspect](#build-and-inspect).
+- **Links to a note the book does not print.** There is no page to point to.
+
+Terms sort on the ASCII fold the content index derives for names (`nameAscii`),
+ignoring case, so an accented name files under its base letter and the order
+matches the table of contents. A term that does not begin with a letter files
+first, under `#`. An alias or event name that folds to the same text as the
+note's own name is not listed again.
+
+Two notes that print the same name are told apart. Each is qualified with the
+note's subtype, or its type where it has none, as in `Ashkabel (settlement)` and
+`Ashkabel (character)`. Where that still collides, the name of the place the
+note is within is added: `Ashkabel (settlement, Harn)`. An alias or event name
+that points at a qualified name prints the qualifier too.
+
+Page numbers come from the typeset book, so they stay correct however the pages
+reflow, and each is a link to its page in the PDF. The Index is reached from the
+Contents and the bookmarks like any other chapter.
+
 ## Set fonts and icon fonts
 
 The build supplies its default book fonts and searches its own font directory

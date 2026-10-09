@@ -86,6 +86,7 @@ export const BOOK_IMAGE_WIDTHS = Object.freeze({
     "full-width": '"full-width"',
 });
 import { markupAnchorFindings } from "./anchors.mjs";
+import { indexChapter, indexMarker, indexPreamble } from "./pdf-index.mjs";
 import { slugify } from "./content-slug.mjs";
 import { alertMarkdownPlugin, scanAlerts, ALERT_TYPES } from "./content-alerts.mjs";
 import { spanMarkdownPlugin, scanSpans } from "./content-spans.mjs";
@@ -517,6 +518,7 @@ export function markdownToTypst(markdown, opts = {}) {
         headingOffset,
         anchorPrefix,
         url: opts.url,
+        indexMentions: opts.indexMentions === true,
         generated: Boolean(opts.generated),
         seen: new Map(),
         footnoteState,
@@ -1387,7 +1389,11 @@ function renderLink(href, inner, ctx) {
         // same namespaced label the heading declared.
         const target = fragment ? sectionLabel(anchor, fragment) : labelFor(anchor);
         const link = `#link(<${target}>)[${inner}]`;
-        return ctx.generated && !fragment ? `${link}~(p.~${pageOfLabel(target)})` : link;
+        // Generated text prints its page and adds nothing to the index; only
+        // authored prose that sets `indexMentions` marks a mention.
+        if (ctx.generated) return fragment ? link : `${link}~(p.~${pageOfLabel(target)})`;
+        const marker = ctx.indexMentions && slug ? indexMarker(slug) : "";
+        return `${link}${marker}`;
     }
     if (!url || ctx.generated) return inner;
     return `#link("${escapeTypstString(absolutePageUrl(url, ctx.url))}")[${inner}]`;
@@ -1877,6 +1883,7 @@ export function renderBook({
     const out = [];
 
     out.push(bookTypstPreamble());
+    out.push(indexPreamble());
     out.push("");
     out.push(`#set document(title: "${escapeTypstString(title)}")`);
     // Cream stock and dark ink rather than a dark screen theme: 2,000 pages of
@@ -2007,6 +2014,9 @@ export function renderBook({
                 `#heading(level: ${Math.min(6, depth + 1)}, outlined: false, bookmarked: true)` +
                 `[${escapeTypst(name)}] <${label}>]`,
         );
+        out.push(
+            indexMarker(String(entry.record?.address?.slug ?? entry.record?.shortcode ?? ""), true),
+        );
         out.push("");
         const body = bodies.get(entry.anchor);
         if (body) {
@@ -2020,6 +2030,9 @@ export function renderBook({
             out.push("");
         }
     }
+
+    const index = indexChapter(plan?.entries, title);
+    if (index) out.push(index);
 
     return `${out.join("\n")}\n`;
 }
