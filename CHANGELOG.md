@@ -1,5 +1,75 @@
 # @heroiclands/package-build
 
+## 23.1.0
+
+### Minor Changes
+
+An affiliation's `data.domains` is now an error; government is stated on each place as `data.government`.
+
+**Notes**
+
+- A `data:` field now refuses keys it does not declare, however deep they are nested. The error points at the misspelled key and suggests the nearest real one.
+- Lint now catches a fraction in a month's length, a season or named day, an era's start or a rank, and an affiliation relation other than `aligned`, `unaligned`, `rival` or `nemesis`, each at the value.
+- `harnworld` takes only `realm` and `ritual`.
+- A being's `social` block is gone. Record a being's occupation as `data.occupation`; the block's other keys have no replacement.
+
+**Infobox**
+
+- A field whose value holds named keys shows each key as its row's label, units exactly as written, and nothing for an empty key. HârnWorld details, compendium routing and calendar definitions stay out of it.
+- Each of a being's affiliations is its own line under an _Affiliations_ heading, such as _War Chief, Hárár (5), of Vrystwald Tribes_.
+
+**Events**
+
+- Places, beings, peoples, affiliations and history notes now end with generated sections listing the events that concern them: a chronology, events taken part in, accounts given, and what followed.
+- Writing your own section with the same anchor, such as `{#chronology}`, replaces the generated one.
+- Content tables can read every note's events with `FROM events`, one row per event, ordered by date with `whenSort`.
+- A note can print an event's date, kind, summary or name inline: `{{ref "place-ironfells#sack" field="when"}}`.
+- Gear can name the event of its making and of its loss with `made` and `lost`, and a work of literature can name the event it concerns in `subjects`.
+- An event entry is checked in full: a key or value the format does not admit, a missing `summary`, or an address naming nothing is now an error at that line.
+- Each address in an event must name the kind of note it describes: a participant is a being, affiliation or lore note, and a place is a place.
+- A note holding several events gives each an `id`, and `follows` names an earlier event, never a later one or a loop back.
+- Places and affiliations can carry events too — a settlement's raising, an order's founding.
+- Recurring events no longer show their next occurrence in a note's infobox.
+
+**Fixes**
+
+- A heading marked `.secret` withholds its section in any note with frontmatter, rather than being refused as opening no page.
+
+**Anchors**
+
+- `follows` and `attributedTo` name one event in a note as `place-ironfells#sack`; every other address field refuses a `#` anchor.
+- A wikilink to an event's `id` is an error: link to the note instead. An event's `id` repeating a heading's anchor is an error too.
+
+**Published content index**
+
+- Every address in the published content index is now an object of `address`, `anchor` and `anchorKind`, so build a package and the packages it depends on with this version. SQL tables still show addresses as plain text.
+
+**Maps**
+
+- A map note carries a Scene exported from Foundry in `data.scene`, on every map subtype; draw walls, lights, sounds, regions and pins in Foundry's Scene editor.
+- A map note's `data` takes only `scene`, `fixup` and `place`. A background image, scale, dimensions, grid size or other map setting written in the note is an error, as is map geometry under the system block.
+- Nothing inside an exported Scene is checked; it must only be an object.
+- Itinerary Scenes are no longer produced in Foundry.
+- The book prints every map's picture from its exported Scene's level backgrounds, with `data.fixup` applied.
+
+**On every surface**
+
+- What lies within a place, who governs it, the places an affiliation governs, the works written about a page and the map from a place now appear in Foundry journals and in the book as well as on the website.
+- Each is a section after your own text — _Within_, _Governed by_, _Governed places_, _In song and story_, _From here_ — and writing your own section with the same anchor replaces it.
+- In the book, a name in one of these sections, or in an event list, links to its entry with the page it starts on, and a name the book leaves out is printed as plain text.
+
+**For site maintainers**
+
+- The government, literature and map cards are gone from the theme; these lists render as ordinary page sections, so a site that styled the former cards restyles them as sections.
+
+### Patch Changes
+
+The printed book ends with an Index of every note it prints. Each name lists its entry page in bold and the pages that mention it, and aliases and event names point to the main name.
+
+In Foundry, a captioned poem, table, quote or picture gets a journal page holding the item alone. The text after it continues on a page under its own section's name instead of under the caption. A caption containing a link names its page with the words a reader sees, not the link's markup.
+
+A captioned picture, poem, table or quote inside a GM-only section is now GM-only in Foundry as well, where players could open it before.
+
 ## 23.0.0
 
 ### Major Changes
