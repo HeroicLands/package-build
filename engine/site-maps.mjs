@@ -12,24 +12,22 @@
  */
 
 /**
- * The maps a site build writes into its place pages.
+ * The maps a site build draws for its place pages.
  *
- * A place that states, or is named in, a border or a route has a map from it
- * — the drawing `package-build map --from` makes — and the site build draws
- * that map for every such place of this package and hands each one to the
- * page writer, which lays it beside the page as `from-<shortcode>.svg` and
- * names it in the front matter as `map`. The theme inlines it, so its place
- * names are links to their pages: every drawing is made with the site's base,
- * and every `href` in it composes `<base><slug>/` the way every other href
- * the build renders does.
+ * A place that states, or is named in, a border or a route is given a
+ * **From here** section — see {@link module:engine/derived-sections} — naming
+ * the drawing `package-build map --from` makes. The site build draws that map
+ * for every such place and sets it inline in the section, so its place names
+ * are links to their pages: every drawing is made with the site's base, and
+ * every `href` in it composes `<base><slug>/` the way every other href the
+ * build renders does.
  *
- * The npm Graphviz runtime draws each map. `site.maps: false` says the site
- * carries none and skips map rendering.
+ * The npm Graphviz runtime draws each map. `site.maps: false` gives no place
+ * the section, and nothing is drawn.
  *
  * The drawings land under `build/map/site/` — beside the author's own
  * drawings under `build/map/`, and apart from them, because the site's
- * carry links and the author's may not — and are copied from there into the
- * content mount. A build never mutates its inputs.
+ * carry links and the author's may not. A build never mutates its inputs.
  *
  * @module
  */
@@ -37,7 +35,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { buildMaps, relatedPlaces } from "./map-build.mjs";
+import { placesWithMaps } from "./derived-sections.mjs";
+import { fromHereFile } from "./generated-sections.mjs";
+import { buildMaps } from "./map-build.mjs";
 import { mapWorld } from "./map-places.mjs";
 
 /**
@@ -51,8 +51,7 @@ export const SITE_MAP_DIR = "build/map/site";
  * A drawing as the page writer receives it.
  *
  * @typedef {object} SiteMap
- * @property {string} name - The file's name in the page's bundle, and the
- *   value of the page's `map` key: `from-<shortcode>.svg`.
+ * @property {string} name - The file's name: `from-<shortcode>.svg`.
  * @property {string} file - Where the drawing is, absolute.
  */
 
@@ -86,7 +85,7 @@ export function inlineSvg(svg) {
 }
 
 /**
- * Draw the map from every related place of this package.
+ * Draw the map from every place of this package that is given one.
  *
  * @param {object} opts
  * @param {Array<Record<string, any>>} opts.records - The package's index
@@ -98,8 +97,8 @@ export function inlineSvg(svg) {
  *   ending in a slash: what every name in a drawing links through.
  * @returns {{maps: Map<string, SiteMap>, findings: Array<{file: string,
  *   line?: number, column?: number, severity: "error"|"warning",
- *   message: string}>}} The drawings, keyed by the URL of the page each
- *   belongs to, and warnings for relations that name no place.
+ *   message: string}>}} The drawings, keyed by the file name a **From here**
+ *   section names, and warnings for relations that name no place.
  */
 export function drawSiteMaps({ records, foreignIndex, config, base }) {
     /** @type {Map<string, SiteMap>} */
@@ -109,6 +108,8 @@ export function drawSiteMaps({ records, foreignIndex, config, base }) {
     // the map an earlier run drew.
     fs.rmSync(outDir, { recursive: true, force: true });
 
+    const centres = placesWithMaps(records, { foreignIndex, config });
+    if (centres.length === 0) return { maps, findings: [] };
     const world = mapWorld({
         records,
         foreignIndex,
@@ -116,20 +117,33 @@ export function drawSiteMaps({ records, foreignIndex, config, base }) {
         base,
         config,
     });
-    // This package's related places, which are the ones with a page here to
-    // carry a map. A dependency's place is drawn on those maps and gets none
-    // of its own from this build.
-    const centres = relatedPlaces(world.places).filter((s) => world.places.get(s)?.local);
-    if (centres.length === 0) return { maps, findings: [] };
-
     const { findings } = buildMaps({ world, outDir, from: centres });
     for (const centre of centres) {
-        const place = world.places.get(centre);
-        if (!place?.url) continue;
-        const name = `from-${centre}.svg`;
+        const name = fromHereFile(centre);
         const file = path.join(outDir, name);
         fs.writeFileSync(file, inlineSvg(fs.readFileSync(file, "utf8")));
-        maps.set(place.url, { name, file });
+        maps.set(name, { name, file });
     }
     return { maps, findings };
+}
+
+/**
+ * The figure the website sets a drawing in: the SVG inline, so its place names
+ * stay links, with no blank line inside it — a blank line would end the HTML
+ * block and hand the rest of the drawing to the Markdown renderer.
+ *
+ * @param {string} svg - The drawing, as {@link inlineSvg} wrote it.
+ * @param {string} alt - What the drawing shows, for a screen reader.
+ * @returns {string} One HTML block.
+ */
+export function inlineDrawingFigure(svg, alt) {
+    const label = String(alt ?? "").replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+    const body = String(svg)
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .join("\n");
+    return (
+        `<figure class="note-image note-image-full-width" role="img" ` +
+        `aria-label="${label}">\n${body}\n</figure>`
+    );
 }

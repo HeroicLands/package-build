@@ -1,9 +1,0 @@
-{{- /* A page bundle's generated itinerary. The SVG carries its own place links. */ -}}
-{{- with .Params.map -}}
-  {{- with $.Resources.GetMatch . -}}
-    <section class="place-map" aria-labelledby="place-map-heading" data-pagefind-ignore>
-      <h2 id="place-map-heading" class="place-map-heading">From here</h2>
-      <div class="place-map-drawing">{{ .Content | safeHTML }}</div>
-    </section>
-  {{- end -}}
-{{- end -}}

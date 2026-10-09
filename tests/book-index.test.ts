@@ -9,6 +9,7 @@ import { spawnSync } from "node:child_process";
 import { markdownToTypst, renderBook } from "../engine/pdf-render.mjs";
 import { compileTypst } from "../engine/pdf-build.mjs";
 import { indexTerms } from "../engine/pdf-index.mjs";
+import { markGenerated, splitGenerated } from "../engine/generated-sections.mjs";
 
 const HAS_TYPST = spawnSync("typst", ["--version"], { encoding: "utf8" }).status === 0;
 const HAS_PDFTOTEXT = spawnSync("pdftotext", ["-v"], { encoding: "utf8" }).status === 0;
@@ -176,19 +177,59 @@ describe("index markers in the book source", () => {
     });
 });
 
+describe("a note body with generated sections", () => {
+    const body = markGenerated(
+        [
+            "Authored prose names [the keep](/p/place-zed/).",
+            "",
+            "## Within",
+            "",
+            "- [Apple Hill](/p/place-apple/)",
+        ].join("\n"),
+        2,
+    );
+    const { authored, generated } = splitGenerated(body);
+    const render = (text: string, options: Record<string, unknown>) =>
+        markdownToTypst(text, { links: PLAN.links, anchorPrefix: "a-eclair", ...options });
+
+    it("indexes the authored mention only", () => {
+        const typst = [
+            render(authored, { indexMentions: true }),
+            render(generated, { generated: true }),
+        ].join("\n");
+        expect(typst).toContain('#book-ix("place-zed")');
+        expect(typst).not.toContain('#book-ix("place-apple")');
+        expect(typst).toContain("(p.~");
+    });
+
+    it("emits no marker for a generated link even when the caller asks for mentions", () => {
+        const typst = render(generated, { generated: true, indexMentions: true });
+        expect(typst).not.toContain("book-ix");
+        expect(typst).toContain("(p.~");
+    });
+});
+
 describe.runIf(HAS_TYPST && HAS_PDFTOTEXT)("the compiled index", () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "book-index-"));
     const typ = path.join(dir, "book.typ");
     const pdf = path.join(dir, "book.pdf");
     const render = (text: string) =>
         markdownToTypst(text, { links: PLAN.links, indexMentions: true });
-    // A generated section is rendered without `indexMentions`.
-    const generated = markdownToTypst("Generated [apple](/p/place-apple/) [zed](/p/place-zed/)", {
-        links: PLAN.links,
-    });
+    // Rendered as the build renders a note: split at the generated boundary,
+    // the generated part with `generated: true` and no mention marking.
+    const eclair = splitGenerated(
+        markGenerated(
+            "Eclair prose sentence.\n\n[far](/x/place-far/)\n\nGenerated [apple](/p/place-apple/) [zed](/p/place-zed/)",
+            4,
+        ),
+    );
+    const eclairBody = [
+        render(eclair.authored),
+        markdownToTypst(eclair.generated, { links: PLAN.links, generated: true }),
+    ].join("\n");
     const bodies = new Map([
         ["a-zed", render("Zed prose sentence. See [the hill](/p/place-apple/).")],
-        ["a-eclair", `Eclair prose sentence.\n\n${generated}\n\n${render("[far](/x/place-far/)")}`],
+        ["a-eclair", eclairBody],
         ["a-apple", render("Apple prose sentence.")],
     ]);
     fs.writeFileSync(typ, renderBook({ plan: PLAN, title: "A Book", bodies }));

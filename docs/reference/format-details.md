@@ -2249,7 +2249,7 @@ so adding a type means answering the question rather than inheriting a default.
 relations rather than page links**: a border with a stub on the far side is a
 valid statement about the world and resolves. So does `parents` for the
 containment tree and `government` for governance — a stub appears in its region's
-`contains` and its governing body's `governed_places`, rendered as plain text. What a stub
+**Within** and its governing body's **Governed places**, as plain text. What a stub
 cannot be is the target of a wikilink, because a wikilink points at a page.
 
 ### What a note produces
@@ -3035,6 +3035,29 @@ A note's prose prints one field of an event with an inline reference, `{{ref "pl
 
 A `follows[].event` resolves to exactly one event: a note holding one event, or `note#id`. Naming a note that holds several events without an `id` is an error, and so is naming an anchor the note does not declare or one that is not an event. An Address into another package is checked the same way against that package's published index, which carries each note's anchors with their kinds and each event's date.
 
+#### Generated sections
+
+The build appends sections to the end of a note's body, after everything the author wrote, each an H1 with a fixed anchor holding Markdown an author could have written. Every surface sets one as it sets an authored section: a page of the Foundry journal, a section of the website page listed in its table of contents, a section of the book.
+
+| Section           | Anchor           | On                                                       | Content                                                                                                                               |
+| ----------------- | ---------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| Within            | `within`         | a `place`                                                | the places whose `data.parents` names it, one paragraph to each kind of place, in the order the place vocabulary lists its `subType`s |
+| Governed by       | `governedby`     | a `place`                                                | the affiliation its `data.government` names, as a list entry with the affiliation's kind                                              |
+| Governed places   | `governedplaces` | an `affiliation`                                         | the places whose `data.government` names it, grouped as **Within** groups them                                                        |
+| Chronology        | `chronology`     | a `place`                                                | an [event view](#event-views)                                                                                                         |
+| Events            | `events`         | a `being`, an `affiliation`, a `lore` note of `culture`  | an event view                                                                                                                         |
+| Accounts          | `accounts`       | an `affiliation`, a `place`, a `lore` note of `culture`  | an event view                                                                                                                         |
+| What followed     | `followed`       | a note holding events                                    | an event view                                                                                                                         |
+| In song and story | `insongandstory` | any note                                                 | the `literature` works whose `data.subjects` name the note or one of its events, as list entries with each work's `data.form`         |
+| From here         | `fromhere`       | a `place` that states, or is named in, a border or route | the map drawn from the place, as an image                                                                                             |
+
+- **Sections follow the author's text in the order of the table.**
+- **A section with nothing to show is not generated.**
+- **An author's own section replaces a generated one.** A note whose body declares a prose anchor with the section's slug — `# Within {#within}`, or a block or span with that `id` — gets no generated section for it, and its own section is left exactly as written. This is the one way to turn a section off, and the way to choose different contents for it.
+- **An entry is a link to the note it names**, written `[[<address>|]]` so each surface resolves it and shows the note's current name. An entry naming a stub, which publishes no page, is its name as plain text. The lists take in the places, affiliations and works a fetched index carries.
+- **The map is a drawing the build makes**, named `generated/from-<shortcode>.svg`. The website sets it inline so its place names are links, the Foundry compile stages it into the module at `assets/generated/`, and the book draws it beside its source. `generated/` is the build's: an authored image addressed there is an error. `site.maps: false` gives no place the section.
+- A stub publishes no page and is given no section.
+
 #### Event views
 
 The build appends sections to the end of a note's body that list the events concerning it — a region's chronology, the events a being took part in, the accounts a people gives, what followed an event. Each is an H1 with a fixed anchor holding a `sql` fence over the `events` relation, the same Markdown an author could write, so every surface sets it as it sets an authored section: a page of the Foundry journal, a section of the website page in its table of contents, a section of the book.
@@ -3046,7 +3069,7 @@ The build appends sections to the end of a note's body that list the events conc
 | Accounts      | `accounts`   | an `affiliation`, a `place`, a `lore` note of `subType: culture` | each `accounts[]` entry the note gives, with the event it concerns                                                                                                                | Event, When, What they say, Agrees |
 | What followed | `followed`   | a note holding events                                            | events whose `follows[].event` names one of this note's events, with how                                                                                                          | What followed, When, How           |
 
-- **The views follow everything the author wrote**, in the order of the table.
+- **The views follow everything the author wrote**, in the order of the [generated sections](#generated-sections).
 - **A view with no rows is not generated.** A chronology is generated only where the place has rows of its own; the world events beside them are context and make no chronology by themselves.
 - **An author's own section replaces a view.** A note whose body declares a prose anchor with the view's slug — `# Chronology {#chronology}`, or a block or span with that `id` — gets no generated section for it, and its own section is left exactly as written. This is the one way to turn a view off, and the way to choose a different table: write the section and its own `sql` fence.
 - Places below a place are found by walking `parents` down from it, so an event felt in towns under two continents is in each continent's chronology and each region's.
@@ -3952,7 +3975,7 @@ data:
           - { being: being-mara, start: "datefrom vrcal 2 Lusenar 725 VR" }
 ```
 
-**Governed places are derived from place notes.** Each place names one governing affiliation in `data.government`. The website writes the body's `governed_places` list by resolving those explicit references across local notes and fetched indexes. Each entry is `{ title, url, type, subType }`, sorted by `subType` then `title`; an empty list is omitted. No affiliation-side list supplies government, and neither geographic containment nor organizational parents expands it.
+**Governed places are derived from place notes.** Each place names one governing affiliation in `data.government`. The affiliation's **Governed places** [generated section](#generated-sections) lists the places whose explicit references resolve to it, across local notes and fetched indexes, grouped by kind; with none, it has no such section. No affiliation-side list supplies government, and neither geographic containment nor organizational parents expands it.
 
 If `sohl` is present, this becomes an `affiliation` item.
 

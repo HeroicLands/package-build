@@ -2862,20 +2862,14 @@ summary.info-sidebar-title::after {
   }
 }
 
-/* ---- Related and Holdings cards (bottom of article) ----
+/* ---- Related card (bottom of article) ----
 
-   Both are bordered, tinted cards holding one or more labelled groups, each
-   group's entries laid out as a CSS grid that reflows its own column count
-   from the available width — two or three columns on a desktop, one on a
-   phone — with no breakpoint needed. Related groups by the connected page's
-   `type`; Holdings groups `contains` and `governed_places` by place `subType`
-   (`.holdings-kind-group`, one level deeper, for the region/settlement/site
-   hierarchy) and leaves `governed_by` a flat grid with the kind printed beside
-   each name. */
+   A bordered, tinted card holding one or more labelled groups, each group's
+   entries laid out as a CSS grid that reflows its own column count from the
+   available width — two or three columns on a desktop, one on a phone — with
+   no breakpoint needed. Related groups by the connected page's `type`. */
 
-.related,
-.holdings,
-.place-map {
+.related {
   margin: 3rem 0 1rem;
   padding: 1.5rem 1.75rem;
   background: var(--bg-card);
@@ -2883,8 +2877,7 @@ summary.info-sidebar-title::after {
   border-radius: 0.5rem;
 }
 
-.related-heading,
-.place-map-heading {
+.related-heading {
   font-family: var(--font-display);
   font-size: 1.4rem;
   font-weight: 700;
@@ -2895,13 +2888,11 @@ summary.info-sidebar-title::after {
   border-bottom: 1px solid var(--border);
 }
 
-.related-group + .related-group,
-.holdings-table + .holdings-table {
+.related-group + .related-group {
   margin-top: 1.25rem;
 }
 
-.related-group-label,
-.holdings-table-label {
+.related-group-label {
   font-family: var(--font-display);
   font-size: 0.94rem;
   font-weight: 700;
@@ -2910,8 +2901,7 @@ summary.info-sidebar-title::after {
   margin: 0 0 0.5rem;
 }
 
-.related-group-grid,
-.holdings-table-grid {
+.related-group-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(14em, 1fr));
   gap: 0.4rem 1rem;
@@ -2920,49 +2910,27 @@ summary.info-sidebar-title::after {
   list-style: none;
 }
 
-.related-group-grid li,
-.holdings-table-grid li {
+.related-group-grid li {
   color: var(--text);
   font-size: 0.94rem;
   line-height: 1.5;
   overflow-wrap: break-word;
 }
 
-.related-group-grid a,
-.holdings-table-grid a {
+.related-group-grid a {
   color: var(--accent);
   border-bottom: 1px solid transparent;
 }
 
-.related-group-grid a:hover,
-.holdings-table-grid a:hover {
+.related-group-grid a:hover {
   color: var(--accent-hover);
   border-bottom-color: var(--accent-dim);
 }
 
-.holdings-kind-group + .holdings-kind-group {
-  margin-top: 0.75rem;
-}
-
-.holdings-kind-label {
-  font-weight: 700;
-  font-size: 0.76rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin: 0 0 0.35rem;
-}
-
-.holdings-entry-kind {
-  color: var(--text-muted);
-}
-
-.place-map-drawing {
-  max-width: 100%;
-  overflow-x: auto;
-}
-
-.place-map-drawing svg {
+/* A drawing the build sets inline — the map in a place's From here section —
+   scales to its figure, and scrolls rather than shrinking past legibility on
+   a phone. */
+.single-content figure.note-image > svg {
   display: block;
   width: 100%;
   max-width: 100%;
@@ -2970,13 +2938,15 @@ summary.info-sidebar-title::after {
 }
 
 @media (max-width: 640px) {
-  .place-map-drawing svg {
+  .single-content figure.note-image:has(> svg) {
+    overflow-x: auto;
+  }
+
+  .single-content figure.note-image > svg {
     min-width: 32rem;
   }
 
-  .related,
-  .holdings,
-  .place-map {
+  .related {
     padding: 1.25rem 1.25rem;
   }
 }

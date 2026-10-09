@@ -9,12 +9,12 @@ subType: reference
 
 `package-build site` writes a page's front matter; the shared Hugo theme reads
 it and draws the page around it. This reference describes that second half —
-the infobox rail, the hero band, the government and related cards, the place
-map, search, and the markup an image or a figure renders as — and names the
+the infobox rail, the hero band, the generated sections, the related card,
+search, and the markup an image or a figure renders as — and names the
 classes a consumer styles against.
 
 **None of the sections below is an authoring instruction.** `infoboxes`,
-`related`, `contains`, `governed_by`, `governed_places`, `works`, `map`, `package`, `slug`, `url`
+`related`, `package`, `slug`, `url`
 and `title` cannot be written by a note at all: a note's top-level region is
 closed and does not admit them, so each arrives already resolved by the time
 the theme sees it. Read this page when a panel is missing or a class needs
@@ -178,108 +178,46 @@ artwork where the considered answer was "none". See
 declines one; the spelling differs from the hand-authored page's, and the two
 are not interchangeable.
 
-## The containment and government card
+## Generated sections
 
-`partials/holdings.html` renders a bordered card below the body and above the
-Related card, holding up to three small tables. The build derives this front
-matter from what every _other_ page says, so the three keys are refused in a
-note and dropped if one carries them:
+The build appends sections to the end of a note's body before the page is
+written: what lies within a place, who governs it and what an affiliation
+governs, the events concerning the note, the works naming it, and the map
+from a place. Each is an H1 with a fixed anchor followed by ordinary
+Markdown, so the theme draws it as it draws any authored section — a heading
+in the page, an entry in the table of contents — and no partial, class or
+front-matter key is involved. The same Markdown is a page of the Foundry
+journal and a section of the book.
 
-```yaml
----
-contains: [{ title: …, url: …, type: place, subType: … }] # places within this one
-governed_by: [{ title: …, url: …, type: affiliation, subType: … }] # the governing affiliation of this place
-governed_places: [{ title: …, url: …, type: place, subType: … }] # places explicitly governed by this affiliation
----
-```
+They follow the author's text in this order, each only where it has
+something to show:
 
-A place page carries `contains` and/or `governed_by`; an affiliation page carries
-`governed_places`. Each key is tested for independently — a page carrying none of the
-three renders no card, and a page carrying one renders one table.
+| Section           | Anchor           | On                                                     | Shows                                                                                        |
+| ----------------- | ---------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Within            | `within`         | a place                                                | the places whose `data.parents` names it, a paragraph to each kind of place                  |
+| Governed by       | `governedby`     | a place                                                | the affiliation its `data.government` names, with that affiliation's kind                    |
+| Governed places   | `governedplaces` | an affiliation                                         | the places whose `data.government` names it, a paragraph to each kind of place               |
+| Chronology        | `chronology`     | a place                                                | the [event views](format-details.md#event-views)                                             |
+| Events            | `events`         | a being, an affiliation or a people                    | the event views                                                                              |
+| Accounts          | `accounts`       | an affiliation, a place or a people                    | the event views                                                                              |
+| What followed     | `followed`       | a note holding events                                  | the event views                                                                              |
+| In song and story | `insongandstory` | any note a work names                                  | the `literature` works whose `data.subjects` name the note or one of its events, with a form |
+| From here         | `fromhere`       | a place that states, or is named in, a border or route | the map drawn from the place                                                                 |
 
-**`url` is absent for an entry with no page of its own** — a stub note with an
-empty body, which still appears in the lists of the pages that name it. Such
-an entry's title renders as plain text; every other entry renders as a link.
-`partials/holdings/entry.html` carries the guard, the same one
-`partials/infobox/entry.html` already applies to its own `{text, url}` shape.
+An entry naming a note with a page links to it and shows the note's name; an
+entry naming a stub, which publishes no page, is its name as plain text.
 
-**Within** (`contains`) and **Governed places** (`governed_places`) list places, and each is
-broken into groups by `subType`, in the closed order region, settlement, site,
-structure, feature — a `subType` outside that order, or missing entirely,
-groups last, alphabetically by its rendered label. **Governed by** (`governed_by`)
-lists affiliations, whose kinds have no fixed hierarchy to group by, so it
-stays one flat grid with the kind printed beside each name.
+**The map is set inline.** The website places the drawing inside the **From
+here** section as an SVG within a `figure.note-image.note-image-full-width`,
+so its place names stay links to their pages. The drawing fits the content
+column and scrolls sideways on a narrow screen. `site.maps: false` in the
+configuration gives no place the section.
 
-Every grid is `repeat(auto-fill, minmax(14em, 1fr))`, the one the Related card
-uses, so a region with forty settlements stays scannable.
-
-| class                   | drawn as                                                                        |
-| ----------------------- | ------------------------------------------------------------------------------- |
-| `.holdings`             | the card                                                                        |
-| `.holdings-table`       | one of the three tables, label and body together                                |
-| `.holdings-table-label` | "Within" / "Governed by" / "Governed places"                                    |
-| `.holdings-table-grid`  | the grid of entries (Governed by; the innermost grid of Within/Governed places) |
-| `.holdings-kind-group`  | one kind's block within Within or Governed places                               |
-| `.holdings-kind-label`  | the kind label heading a group                                                  |
-| `.holdings-entry-name`  | an entry's title, linked or plain                                               |
-| `.holdings-entry-kind`  | the kind printed beside a Governed by entry                                     |
-
-A page whose front matter declares none of `contains`, `governed_by` or
-`governed_places` renders no card at all.
-
-## The "In song and story" card
-
-`partials/literature-works.html` renders a second card directly below the
-government card, listing the works of literature that name the page's subject.
-The build derives `works` from every `literature` lore note's `data.subjects`,
-including works a fetched index carries, so no note writes it:
-
-```yaml
----
-works: [{ title: …, url: …, form: … }] # works naming this page, sorted by title
----
-```
-
-`form` is the work's `data.form`, printed in parentheses beside its title, and is
-absent when the work states none. A work naming one subject twice lists once, and
-a work naming itself is not listed on its own page. An entry's `url` is absent
-for a work that publishes no page, which renders as plain text through
-`partials/holdings/entry.html`. A page no work names carries no `works` and
-renders no card.
-
-The card reuses the government card's classes, so a consumer styling one styles
-both; `.literature-works` on the `<section>` tells them apart.
-
-| class                   | drawn as                          |
-| ----------------------- | --------------------------------- |
-| `.literature-works`     | the card, beside `.holdings`      |
-| `.holdings-table-label` | "In song and story"               |
-| `.holdings-table-grid`  | the grid of works                 |
-| `.holdings-entry-name`  | a work's title, linked or plain   |
-| `.holdings-entry-kind`  | the work's form, beside its title |
-
-## Event views
-
-A note's event views — **Chronology**, **Events**, **Accounts** and **What
-followed** — reach the page as ordinary Markdown: an H1 with a fixed anchor
-followed by a table, appended after the author's text before the page is
-written. The theme draws them as it draws any authored section and table, and
-lists each in the table of contents; no partial and no front-matter key is
-involved, and the infobox carries nothing from a note's events. The views, their
-anchors and the rows each lists are in the
-[format reference](format-details.md#event-views).
-
-## The place map
-
-A place page with `map: from-<shortcode>.svg` displays a **From here** panel
-between Holdings and Related. The map is a page-bundle SVG the build draws
-from the place's authored borders and routes, and `map:` is not a key a note
-may write. Its place names link to their pages. A page with no `map` value or
-no matching bundle resource displays no panel.
-
-The drawing fits the content column and scrolls horizontally when the
-available width is narrow. The relevant classes are `.place-map`,
-`.place-map-heading`, and `.place-map-drawing`.
+**An author's own section replaces a generated one.** A note whose body
+declares a prose anchor with a section's slug — a heading such as
+`# Within {#within}`, or a block or span with that `id` — gets no generated
+section for it, and its own section is published exactly as written. This
+is the way to choose different contents for one, or to turn one off.
 
 ## The related card
 

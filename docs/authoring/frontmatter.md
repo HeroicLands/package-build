@@ -58,7 +58,7 @@ Write `government: null` for **complete anarchy**. Omitting the key leaves gover
 | Any                   | Explicit `null`     | None; complete anarchy           |
 | Any                   | Affiliation Address | None; the reference must resolve |
 
-These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government. The generated `governed_by` and `governed_places` lists use only explicit government references.
+These rules apply to every place subtype, including settlements, sites, structures, features, regions and worlds. Empty strings, numbers, lists, maps, references to another note type and unresolved references are errors. They do not declare anarchy. `parents`, containment and capitals do not supply a government. The generated **Governed by** and **Governed places** sections use only explicit government references.
 
 ## Publication and summaries
 

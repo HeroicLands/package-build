@@ -282,8 +282,12 @@ describe("a work naming an event", () => {
             worksPages([place, written, read], { types: TYPES }).get("/thalorna/place-ironfells/"),
         ).toEqual({
             works: [
-                { title: "The Dirge", url: "/thalorna/lore-dirge/" },
-                { title: "The Lay", url: "/thalorna/lore-lay/" },
+                {
+                    title: "The Dirge",
+                    url: "/thalorna/lore-dirge/",
+                    address: "thalorna-note-lore-dirge",
+                },
+                { title: "The Lay", url: "/thalorna/lore-lay/", address: "thalorna-note-lore-lay" },
             ],
         });
     });

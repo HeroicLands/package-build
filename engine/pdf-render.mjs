@@ -475,6 +475,10 @@ function reportUnrenderable(source, definitions, opts, original) {
  *   at. Every link the book sets as a URL is resolved against it, because a
  *   reader holding a PDF has no page to resolve a path against — see
  *   {@link renderLink}.
+ * @param {boolean} [opts.generated] - Whether the Markdown is a note's
+ *   generated sections rather than its author's text — see
+ *   {@link module:engine/generated-sections}. Their links follow the rules
+ *   {@link renderLink} states for generated links.
  * @returns {string} Typst markup.
  */
 export function markdownToTypst(markdown, opts = {}) {
@@ -515,6 +519,7 @@ export function markdownToTypst(markdown, opts = {}) {
         anchorPrefix,
         url: opts.url,
         indexMentions: opts.indexMentions === true,
+        generated: Boolean(opts.generated),
         seen: new Map(),
         footnoteState,
         footnotePrefix: opts.footnotePrefix ?? `footnote-${slugify(anchorPrefix || "body")}`,
@@ -1333,7 +1338,28 @@ export function absolutePageUrl(url, site) {
 }
 
 /**
+ * The page a label's element starts on, printed in that page's own numbering
+ * once the book is laid out — the number the contents prints for it.
+ *
+ * @param {string} label - A label the book declares.
+ * @returns {string} Typst markup.
+ */
+function pageOfLabel(label) {
+    return (
+        `#context { let here = locate(<${label}>); numbering(if here.page-numbering() == none ` +
+        `{ "1" } else { here.page-numbering() }, ..counter(page).at(here)) }`
+    );
+}
+
+/**
  * A link, internal when the book prints its destination and external otherwise.
+ *
+ * **A link in a generated section** — `ctx.generated` — names a note the build
+ * derived rather than one an author chose, and a book is often a selection of
+ * notes. So one whose target the book prints is an internal link followed by
+ * the page the target starts on, `Ford (p. 12)`, which keeps a printed copy
+ * usable; one whose target the book leaves out is its words alone, with no
+ * link and no finding.
  *
  * The address slug is read from the tail of the URL, which is where every
  * address this toolchain publishes puts it — `…/<type>-<shortcode>/`. A
@@ -1362,13 +1388,14 @@ function renderLink(href, inner, ctx) {
         // `[[note#appearance]]` reaches the section, not just the entry — the
         // same namespaced label the heading declared.
         const target = fragment ? sectionLabel(anchor, fragment) : labelFor(anchor);
-        // The one place an authored mention of a note in the book is marked for
-        // the index. Only a caller that sets `indexMentions` gets a marker, so
-        // text the build generates stays out of it.
+        const link = `#link(<${target}>)[${inner}]`;
+        // Generated text prints its page and adds nothing to the index; only
+        // authored prose that sets `indexMentions` marks a mention.
+        if (ctx.generated) return fragment ? link : `${link}~(p.~${pageOfLabel(target)})`;
         const marker = ctx.indexMentions && slug ? indexMarker(slug) : "";
-        return `#link(<${target}>)[${inner}]${marker}`;
+        return `${link}${marker}`;
     }
-    if (!url) return inner;
+    if (!url || ctx.generated) return inner;
     return `#link("${escapeTypstString(absolutePageUrl(url, ctx.url))}")[${inner}]`;
 }
 
@@ -2105,8 +2132,9 @@ function footerName(entry) {
  * that would have contained it, which is where a reader wants to end up anyway;
  * a link with no entry to fall back to becomes plain text. Both are reported.
  *
- * A declaration is a label not preceded by `#link(` — the only two places a
- * label appears are the heading that declares one and the link that uses one.
+ * A declaration is a label preceded by neither `#link(` nor `locate(` — a
+ * label appears in the heading that declares it, the link that uses it, and
+ * the page lookup a generated link prints after itself.
  *
  * @param {string} source - The assembled Typst document.
  * @param {object[]} [findings] - Collected here rather than thrown.
@@ -2115,7 +2143,8 @@ function footerName(entry) {
 export function resolveDanglingLabels(source, findings = []) {
     const text = String(source ?? "");
     const declared = new Set();
-    for (const match of text.matchAll(/(?<!#link\()<([A-Za-z0-9_-]+)>/g)) declared.add(match[1]);
+    for (const match of text.matchAll(/(?<!#link\(|locate\()<([A-Za-z0-9_-]+)>/g))
+        declared.add(match[1]);
 
     return text.replace(/#link\(<([A-Za-z0-9_-]+)>\)/g, (whole, label) => {
         if (declared.has(label)) return whole;

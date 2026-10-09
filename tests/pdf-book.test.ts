@@ -553,9 +553,9 @@ describe.runIf(HAS_TYPST)("the compiled PDF", () => {
     });
 });
 
-describe("full-page place maps", () => {
+describe("place maps and map notes", () => {
     it(
-        "stages vector itineraries for related places, and every map's exported Scene background",
+        "sets a related place's itinerary in its From here section, and every map's exported Scene background on a page of its own",
         () => {
             const dir = makeRepo("content");
             const placeDir = path.join(dir, "assets", "content", "Places");
@@ -623,8 +623,17 @@ describe("full-page place maps", () => {
             const dist = path.join(dir, "build", "dist");
             const typ = fs.readdirSync(dist).find((f) => f.endsWith(".typ"))!;
             const source = fs.readFileSync(path.join(dist, typ), "utf8");
-            expect(source).toContain('#book-place-map([From here: alpha], "maps/from-alpha.svg")');
-            expect(source).toContain('#book-place-map([From here: beta], "maps/from-beta.svg")');
+            for (const name of ["alpha", "beta"]) {
+                const entry = source.slice(source.indexOf(`)[${name}]`));
+                const section = entry.slice(entry.indexOf("From here"));
+                expect(section, name).toMatch(
+                    new RegExp(`^From here[\\s\\S]*?"maps/from-${name}\\.svg"`),
+                );
+                expect(source.match(new RegExp(`maps/from-${name}\\.svg`, "g")), name).toHaveLength(
+                    1,
+                );
+            }
+            expect(source).not.toContain("[From here: alpha]");
             expect(fs.readFileSync(path.join(dist, "maps", "from-alpha.svg"), "utf8")).toContain(
                 "<svg",
             );
@@ -646,14 +655,12 @@ describe("full-page place maps", () => {
                     })
                         .stdout.split("\f")
                         .filter((page: string) => page.trim());
-                    const alphaMap = pages.find((page: string) =>
-                        page.includes("From here: alpha"),
+                    // Each related place's map sits in its own entry, under
+                    // its From here section, and on no page of its own.
+                    expect(pages.filter((page: string) => page.includes("From here"))).toHaveLength(
+                        2,
                     );
-                    expect(alphaMap).toBeDefined();
-                    expect(alphaMap).not.toContain("A place.");
-                    expect(
-                        pages.filter((page: string) => page.includes("From here:")),
-                    ).toHaveLength(2);
+                    expect(pages.some((page: string) => page.includes("From here:"))).toBe(false);
                     expect(pages.some((page: string) => page.includes("Regional Chart"))).toBe(
                         true,
                     );

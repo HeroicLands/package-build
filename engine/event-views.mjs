@@ -12,9 +12,9 @@
  */
 
 /**
- * A note's **event views**: sections the build appends to the end of a note's
- * body, each an H1 with a fixed anchor holding a `sql` fence over the `events`
- * relation.
+ * A note's **event views**: generated sections — see
+ * {@link module:engine/generated-sections} — each an H1 with a fixed anchor
+ * holding a `sql` fence over the `events` relation.
  *
  * **Nothing here renders.** A view is Markdown an author could have written —
  * a heading and a fence — and it reaches every surface through the same table
@@ -40,6 +40,7 @@
  */
 
 import { ownDocumentSystem, renderAddress } from "./address.mjs";
+import { authoredSection, sectionHeading } from "./generated-sections.mjs";
 
 /** A literal SQL string. */
 const literal = (text) => `'${String(text).replace(/'/g, "''")}'`;
@@ -51,7 +52,8 @@ const literals = (texts) => texts.map(literal).join(", ");
 const BY_DATE = "ORDER BY e.whenSort NULLS LAST, e.address";
 
 /**
- * The views, in the order they follow the author's text.
+ * The views, in the order
+ * {@link module:engine/generated-sections.GENERATED_SECTIONS} sets them in.
  *
  * Each names its anchor `slug`, its `heading`, whether it `applies` to a note's
  * index record, and the `query` it writes for a note — given the note's
@@ -254,20 +256,6 @@ function selfForms(record) {
 }
 
 /**
- * Whether a note's own body declares a prose anchor with this slug.
- *
- * @param {object} record - The note's index record, whose `anchors` were read
- *   from the authored body.
- * @param {string} slug - The view's anchor.
- * @returns {boolean} Whether the author has written the section.
- */
-function authored(record, slug) {
-    return (record.anchors ?? []).some(
-        (anchor) => anchor?.kind === "prose" && anchor.slug === slug,
-    );
-}
-
-/**
  * The Markdown of one view: its heading, with its anchor, and its fence.
  *
  * @param {object} view - One of {@link EVENT_VIEWS}.
@@ -275,11 +263,11 @@ function authored(record, slug) {
  * @returns {string} The section.
  */
 function section(view, query) {
-    return `# ${view.heading} {#${view.slug}}\n\n\`\`\`sql\n${query}\n\`\`\`\n`;
+    return `${sectionHeading(view.slug)}\n\n\`\`\`sql\n${query}\n\`\`\`\n`;
 }
 
 /**
- * The views each note is given, as the Markdown appended to its body.
+ * The views each note is given, by section.
  *
  * @param {object} db - From {@link module:engine/sql-tables.openNotesDatabase},
  *   over the same records.
@@ -288,8 +276,8 @@ function section(view, query) {
  *   prepared results are keyed.
  * @param {string} [only] - One note file to give views to, every note's being
  *   read for them; absent, every note is given its views.
- * @returns {Promise<Map<string, string>>} Note file to its views, for every
- *   note given at least one.
+ * @returns {Promise<Map<string, Map<string, string>>>} Note file to its views,
+ *   each keyed by its slug, for every note given at least one.
  */
 export async function eventViewSections(db, records, fileOf, only) {
     const out = new Map();
@@ -301,31 +289,17 @@ export async function eventViewSections(db, records, fileOf, only) {
         if (!record?.address || record.documents || !record.shortcode) continue;
         if (only !== undefined && fileOf(record) !== only) continue;
         const self = selfForms(record);
-        const sections = [];
+        const sections = new Map();
         for (const view of EVENT_VIEWS) {
-            if (!view.applies(record) || authored(record, view.slug)) continue;
+            if (!view.applies(record) || authoredSection(record, view.slug)) continue;
             const query = view.query(self, shape);
             if (!query) continue;
             const { rows } = await db.query(
                 `SELECT count(*) AS n FROM (${query.own ?? query.fence})`,
             );
-            if (Number(rows[0]?.n ?? 0) > 0) sections.push(section(view, query.fence));
+            if (Number(rows[0]?.n ?? 0) > 0) sections.set(view.slug, section(view, query.fence));
         }
-        if (sections.length) out.set(fileOf(record), sections.join("\n"));
+        if (sections.size) out.set(fileOf(record), sections);
     }
     return out;
-}
-
-/**
- * A note's body with its views after it — the one way the two are joined, so
- * the pass that answers the fences and every pass that expands them read the
- * same text.
- *
- * @param {string} body - The authored body.
- * @param {string|undefined} views - Its views, from {@link eventViewSections}.
- * @returns {string} The body the surfaces receive.
- */
-export function appendEventViews(body, views) {
-    if (!views) return body;
-    return `${String(body ?? "").replace(/\s+$/, "")}\n\n${views}`;
 }
