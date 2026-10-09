@@ -157,6 +157,15 @@ describe("linting a standalone YAML file", () => {
         expect(await findingsFor(".github/workflows/ci.yml")).toEqual([]);
     });
 
+    it("exempts a Gitea workflow from the empty-value rule", async () => {
+        write(
+            ".gitea/workflows/ci.yml",
+            "name: CI\non:\n  push:\n  workflow_dispatch:\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n",
+        );
+
+        expect(await findingsFor(".gitea/workflows/ci.yml")).toEqual([]);
+    });
+
     it("still reports a real error inside a workflow", async () => {
         write(".github/workflows/dup.yml", "name: One\nname: Two\non:\n  push:\n");
         const findings = await findingsFor(".github/workflows/dup.yml");

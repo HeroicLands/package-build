@@ -17,9 +17,9 @@
  *
  * That makes Hugo a precondition of `npm test` under CI rather than a
  * nicety, and a workflow that runs the suite without it fails at that step.
- * Both halves of the gate run the suite — the pull-request build and the
- * publish job — so both need the install, and the publish job failing means no
- * release reaches the registry at all.
+ * Both halves of the gate run the suite — the pull-request build on each forge
+ * and the publish job — so all of them need the install, and the publish job
+ * failing means no release reaches the registry at all.
  *
  * The check is derived from the workflow files rather than from a list of
  * their names, so a third workflow that runs the suite is held to the same
@@ -32,14 +32,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const WORKFLOWS = path.join(ROOT, ".github", "workflows");
+/** Gitea's workflows and its GitHub mirror's; each forge reads one directory. */
+const WORKFLOWS = [".gitea/workflows", ".github/workflows"];
 
-/** Every workflow file, by its name. */
+/** Every workflow file on either forge, by its path. */
 function workflows(): Map<string, string> {
     const found = new Map<string, string>();
-    for (const entry of fs.readdirSync(WORKFLOWS)) {
-        if (entry.endsWith(".yml") || entry.endsWith(".yaml")) {
-            found.set(entry, fs.readFileSync(path.join(WORKFLOWS, entry), "utf8"));
+    for (const dir of WORKFLOWS) {
+        const abs = path.join(ROOT, dir);
+        if (!fs.existsSync(abs)) continue;
+        for (const entry of fs.readdirSync(abs)) {
+            if (entry.endsWith(".yml") || entry.endsWith(".yaml")) {
+                found.set(`${dir}/${entry}`, fs.readFileSync(path.join(abs, entry), "utf8"));
+            }
         }
     }
     return found;
@@ -60,7 +65,12 @@ describe("the workflows that run the suite", () => {
 
     it("are found at all, so the cases below are not vacuous", () => {
         expect(files.size).toBeGreaterThan(0);
-        expect([...files.values()].filter(runsTheSuite).length).toBeGreaterThan(0);
+        for (const dir of WORKFLOWS) {
+            const suites = [...files].filter(
+                ([name, source]) => name.startsWith(dir) && runsTheSuite(source),
+            );
+            expect(suites.length, `no workflow under ${dir} runs the suite`).toBeGreaterThan(0);
+        }
     });
 
     it("install the Hugo the render cases refuse to run without", () => {

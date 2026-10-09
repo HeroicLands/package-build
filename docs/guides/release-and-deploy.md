@@ -105,12 +105,28 @@ change is minor; an optional command, flag, or key is patch. A major bump
 requires the maintainer's direct decision. `package-build changelog check`
 checks the quality of any pending changeset.
 
-Merging a changeset to `main` makes the **Version Packages** pull request. Its
-generated changelog section is reviewed as the release note. Merging that
-pull request runs the **Publish to npm** workflow: npm Trusted Publishing
-publishes the version, and the workflow creates its version tag and GitHub
-Release. The workflow's manual dispatch can retry publishing a version already
-merged to `main`. The [npm package page](https://www.npmjs.com/package/@heroiclands/package-build)
+The repository's primary forge is Gitea, and GitHub is its push mirror. The
+release runs in two halves, one on each:
+
+1. **Version, on Gitea.** Merging a changeset to `main` runs
+   `.gitea/workflows/release.yml`, which opens or updates the **Version
+   Packages** pull request. Its generated changelog section is reviewed as the
+   release note. Merging that pull request runs the same workflow again, which
+   pushes the tag `v<version>` at the merged version commit. Releasing from
+   Gitea is switched on by the repository variable `HL_RELEASE_ENABLED`.
+2. **Publish, on GitHub.** The push mirror carries the tag to GitHub, where it
+   starts the **Publish to npm** workflow, `.github/workflows/release.yml`. It
+   refuses a tag that names a commit outside `main` or that is not
+   `v<version>` of the tagged `package.json`. When npm does not have the
+   version yet, it runs the tests and publishes through npm Trusted Publishing
+   with provenance. It then creates the GitHub Release from the version's
+   changelog section, unless one exists.
+
+Nothing on Gitea publishes to npm, and nothing on GitHub runs for a branch
+push. Every step of the GitHub half is safe to repeat: re-running it, or
+dispatching it with the tag as its ref, finishes a release whose publish or
+Release step failed and changes nothing for one that completed. The
+[npm package page](https://www.npmjs.com/package/@heroiclands/package-build)
 shows the published version and README.
 
 Two scripts in this repository's own `package.json` run the same steps at a

@@ -1,11 +1,12 @@
 name: Build and Test
 
-# On GitHub, the push mirror of the Gitea repository, this checks pull requests
-# from contributors and nothing else: a mirror push runs nothing here. Gitea
-# runs the same job from `.gitea/workflows/build.yml` on pull requests and on
-# `main`.
+# The Gitea copy of `.github/workflows/build.yml`: the same job, also run on
+# `main`. `tests/mirror-workflows.test.ts` fails when the two copies' steps
+# differ.
 on:
     pull_request:
+        branches: [main]
+    push:
         branches: [main]
 
 # A second push to the same branch supersedes the first; nothing here needs the
@@ -20,7 +21,10 @@ permissions:
 jobs:
     test-build:
         name: Build & Test
-        runs-on: ubuntu-latest
+        # A throwaway Ubuntu container with root: the Typst and Hugo steps
+        # install into /usr/local/bin and GraphViz installs with apt-get, which
+        # the host-mode runner's user cannot do.
+        runs-on: ubuntu-vm
         steps:
             - uses: actions/checkout@v7
             # Wants a checkout and nothing else, so it runs before the install

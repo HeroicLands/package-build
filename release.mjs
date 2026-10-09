@@ -45,6 +45,60 @@ import { ZipArchive } from "archiver";
 
 import { SCHEMA_ARTIFACT_FILE } from "./engine/foreign-catalog.mjs";
 
+/** The earliest instant a zip entry's date field can hold. */
+const ZIP_EPOCH_MS = Date.UTC(1980, 0, 1);
+
+/**
+ * The timestamp stamped on every archive entry: `SOURCE_DATE_EPOCH` (seconds)
+ * when set to a number, otherwise 1980-01-01T00:00:00Z. A value earlier than
+ * 1980 is raised to it, which is as early as a zip can record.
+ *
+ * @returns {Date}
+ */
+function archiveDate() {
+    const seconds = Number(process.env.SOURCE_DATE_EPOCH);
+    const ms =
+        process.env.SOURCE_DATE_EPOCH && Number.isFinite(seconds) ? seconds * 1000 : ZIP_EPOCH_MS;
+    return new Date(Math.max(ms, ZIP_EPOCH_MS));
+}
+
+/**
+ * Append a directory tree to an archive in path order, with a fixed date and
+ * fixed permissions (0755 directories, 0644 files) so the bytes depend only on
+ * the tree's names and contents.
+ *
+ * Entries are appended one at a time from buffers: archiver's own directory
+ * walk stats files concurrently, so its entry order and recorded mtimes follow
+ * the filesystem.
+ *
+ * @param {import("archiver").ZipArchive} archive
+ * @param {string} root - The directory whose contents become the archive.
+ * @param {Date} date - The date recorded on every entry.
+ * @returns {Promise<void>}
+ */
+async function appendTree(archive, root, date) {
+    /** @param {string} rel - Path relative to `root`, `/`-separated, or "". */
+    async function walk(rel) {
+        const entries = await fsp.readdir(path.join(root, rel), { withFileTypes: true });
+        entries.sort((a, b) =>
+            a.name < b.name ? -1
+            : a.name > b.name ? 1
+            : 0,
+        );
+        for (const entry of entries) {
+            const name = rel ? `${rel}/${entry.name}` : entry.name;
+            if (entry.isDirectory()) {
+                archive.append(Buffer.alloc(0), { name: `${name}/`, date, mode: 0o755 });
+                await walk(name);
+            } else {
+                const body = await fsp.readFile(path.join(root, name));
+                archive.append(body, { name, date, mode: 0o644 });
+            }
+        }
+    }
+    await walk("");
+}
+
 /**
  * Zip the staged tree and place the manifest beside the archive.
  *
@@ -54,6 +108,10 @@ import { SCHEMA_ARTIFACT_FILE } from "./engine/foreign-catalog.mjs";
  * there can hand a later step — an upload, a checksum — a truncated file. The
  * failure is timing-dependent, so it survives every run that happens to be
  * fast enough, which is what makes it worth being explicit about.
+ *
+ * **The archive is reproducible.** Entries are written in path order with one
+ * date (`SOURCE_DATE_EPOCH` when set, otherwise 1980-01-01) and fixed
+ * permissions, so a rebuild of one staged tree is byte-identical.
  *
  * @param {object} [opts]
  * @param {string} [opts.stageDir] - The staged package tree.
@@ -114,10 +172,10 @@ export async function packRelease({
     });
 
     archive.pipe(output);
-    // `false` — no top-level directory inside the zip. Foundry unpacks the
-    // archive *into* the package directory, so an extra level would nest the
-    // manifest one deeper than it looks for it.
-    archive.directory(stage, false);
+    // No top-level directory inside the zip: Foundry unpacks the archive
+    // *into* the package directory, so an extra level would nest the manifest
+    // one deeper than it looks for it.
+    await appendTree(archive, stage, archiveDate());
     await archive.finalize();
     await closed;
 

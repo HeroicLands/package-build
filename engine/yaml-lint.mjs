@@ -104,10 +104,11 @@ export const frontmatterProcessor = {
  * - `no-empty-key`, `no-empty-document` — a fence or a file that parses to
  *   nothing at all.
  *
- * **GitHub workflows are exempt from `no-empty-mapping-value`**, because an
- * empty value is the language there: `on:` `push:` and `workflow_dispatch:`
- * carry their meaning by being present, and writing `push: null` to satisfy a
- * linter would be worse YAML, not better.
+ * **Workflows are exempt from `no-empty-mapping-value`**, under
+ * `.github/workflows/` and Gitea's `.gitea/workflows/` alike, because an empty
+ * value is the language there: `on:` `push:` and `workflow_dispatch:` carry
+ * their meaning by being present, and writing `push: null` to satisfy a linter
+ * would be worse YAML, not better.
  *
  * @param {object} plugin - The `eslint-plugin-yml` module.
  * @returns {object[]} A complete flat config, for `overrideConfig`.
@@ -128,6 +129,8 @@ export function yamlLintConfig(plugin) {
             files: [
                 "**/.github/workflows/*.yml",
                 "**/.github/workflows/*.yaml",
+                "**/.gitea/workflows/*.yml",
+                "**/.gitea/workflows/*.yaml",
                 "**/action.yml",
                 "**/action.yaml",
             ],

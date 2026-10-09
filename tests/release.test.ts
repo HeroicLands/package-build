@@ -253,3 +253,56 @@ describe("packRelease's documented return shape", () => {
         }
     });
 });
+
+describe("packRelease reproducibility", () => {
+    it("writes byte-identical archives for one staged tree despite touched mtimes and a pause", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ id: "sohl", version: "0.8.2" }),
+            "sohl.js": "console.log(1)",
+            "lang/en.json": "{}",
+            "b/z.txt": "z",
+            "b/a.txt": "a",
+            "a/deep/file.txt": "deep",
+        });
+
+        const first = await packRelease({ stageDir, outDir, artifact: "system", pdf: false });
+        const firstBytes = fs.readFileSync(first.zip);
+
+        await new Promise((resolve) => setTimeout(resolve, 2200));
+        const later = new Date(Date.now() + 3_600_000);
+        fs.utimesSync(path.join(stageDir, "sohl.js"), later, later);
+        fs.utimesSync(path.join(stageDir, "b/a.txt"), later, later);
+        fs.chmodSync(path.join(stageDir, "lang/en.json"), 0o600);
+
+        const second = await packRelease({ stageDir, outDir, artifact: "system", pdf: false });
+        const secondBytes = fs.readFileSync(second.zip);
+
+        expect(secondBytes.equals(firstBytes)).toBe(true);
+        expect(zipEntries(second.zip)).toEqual([
+            "a/deep/file.txt",
+            "b/a.txt",
+            "b/z.txt",
+            "lang/en.json",
+            "sohl.js",
+            "system.json",
+        ]);
+    });
+
+    it("stamps every entry with SOURCE_DATE_EPOCH when it is set", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ id: "sohl", version: "0.8.2" }),
+            "sohl.js": "x",
+        });
+        const previous = process.env.SOURCE_DATE_EPOCH;
+        process.env.SOURCE_DATE_EPOCH = "1700000000";
+        try {
+            const { zip } = await packRelease({ stageDir, outDir, artifact: "system", pdf: false });
+            const listing = execFileSync("unzip", ["-Z", "-T", zip], { encoding: "utf8" });
+            expect(listing).toContain("20231114.221320");
+            expect(listing).not.toMatch(/\b(?!20231114)\d{8}\.\d{6}\b/);
+        } finally {
+            if (previous === undefined) delete process.env.SOURCE_DATE_EPOCH;
+            else process.env.SOURCE_DATE_EPOCH = previous;
+        }
+    });
+});
