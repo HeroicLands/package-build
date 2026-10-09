@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { describe, it, expect } from "vitest";
+import { beforeAll, describe, it, expect } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -210,35 +210,41 @@ describe("a note body with generated sections", () => {
 });
 
 describe.runIf(HAS_TYPST && HAS_PDFTOTEXT)("the compiled index", () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "book-index-"));
-    const typ = path.join(dir, "book.typ");
-    const pdf = path.join(dir, "book.pdf");
-    const render = (text: string) =>
-        markdownToTypst(text, { links: PLAN.links, indexMentions: true });
-    // Rendered as the build renders a note: split at the generated boundary,
-    // the generated part with `generated: true` and no mention marking.
-    const eclair = splitGenerated(
-        markGenerated(
-            "Eclair prose sentence.\n\n[far](/x/place-far/)\n\nGenerated [apple](/p/place-apple/) [zed](/p/place-zed/)",
-            4,
-        ),
-    );
-    const eclairBody = [
-        render(eclair.authored),
-        markdownToTypst(eclair.generated, { links: PLAN.links, generated: true }),
-    ].join("\n");
-    const bodies = new Map([
-        ["a-zed", render("Zed prose sentence. See [the hill](/p/place-apple/).")],
-        ["a-eclair", eclairBody],
-        ["a-apple", render("Apple prose sentence.")],
-    ]);
-    fs.writeFileSync(typ, renderBook({ plan: PLAN, title: "A Book", bodies }));
-    const compiled = compileTypst(typ, pdf);
-    const pages = spawnSync("pdftotext", ["-layout", pdf, "-"], { encoding: "utf8" }).stdout.split(
-        "\f",
-    );
+    // A skipped describe still runs its body to collect tests, so the compile
+    // happens in `beforeAll`, which runs only when the tests do.
+    let compiled: { ok: boolean; message?: string };
+    let pages: string[] = [];
+    let indexText = "";
     const pageOf = (needle: string) => pages.findIndex((p) => p.includes(needle)) + 1;
-    const indexText = pages.slice(pageOf("Apple prose sentence")).join("\n");
+    beforeAll(() => {
+        const render = (text: string) =>
+            markdownToTypst(text, { links: PLAN.links, indexMentions: true });
+        // Rendered as the build renders a note: split at the generated boundary,
+        // the generated part with `generated: true` and no mention marking.
+        const eclair = splitGenerated(
+            markGenerated(
+                "Eclair prose sentence.\n\n[far](/x/place-far/)\n\nGenerated [apple](/p/place-apple/) [zed](/p/place-zed/)",
+                4,
+            ),
+        );
+        const eclairBody = [
+            render(eclair.authored),
+            markdownToTypst(eclair.generated, { links: PLAN.links, generated: true }),
+        ].join("\n");
+        const bodies = new Map([
+            ["a-zed", render("Zed prose sentence. See [the hill](/p/place-apple/).")],
+            ["a-eclair", eclairBody],
+            ["a-apple", render("Apple prose sentence.")],
+        ]);
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "book-index-"));
+        const typ = path.join(dir, "book.typ");
+        const pdf = path.join(dir, "book.pdf");
+        fs.writeFileSync(typ, renderBook({ plan: PLAN, title: "A Book", bodies }));
+        compiled = compileTypst(typ, pdf);
+        const text = spawnSync("pdftotext", ["-layout", pdf, "-"], { encoding: "utf8" }).stdout;
+        pages = String(text ?? "").split("\f");
+        indexText = pages.slice(pageOf("Apple prose sentence")).join("\n");
+    });
 
     it("compiles", () => {
         expect(compiled.ok, compiled.message).toBe(true);
