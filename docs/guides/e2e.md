@@ -82,8 +82,10 @@ own `.env.local` because that ignored file is not copied with the branch.
 The test data path is a Foundry data root, beneath which the harness creates
 `Data/worlds/` and installs the package. Use an absolute path; `~` and shell
 variables are not expanded in `.env.local`. Set `FOUNDRYVTT_TEST_VERSION` to
-select a specific Foundry build for routine runs. With the local settings in
-place, seed the world:
+select a specific Foundry build for routine runs. Under rootless Docker, set
+`FOUNDRYVTT_CONTAINER_USER=0:0`: container root is then the host user, so every
+file under the data root belongs to them, where the image would otherwise run
+Foundry as user 1000. With the local settings in place, seed the world:
 
 ```bash
 package-build e2e seed

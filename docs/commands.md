@@ -1270,7 +1270,10 @@ floating `felddy/foundryvtt:release` tag when the package declares no
 `FOUNDRYVTT_<STAGE>_PORT`, `FOUNDRYVTT_<STAGE>_VERSION`,
 `FOUNDRYVTT_<STAGE>_WORLD`, `FOUNDRYVTT_<STAGE>_LICENSE_KEY`,
 `FOUNDRYVTT_CONTAINER_IMAGE`, `FOUNDRYVTT_CACHE` (a shared download-cache
-mount).
+mount), `FOUNDRYVTT_CONTAINER_USER` (passed to `docker run --user`; `0:0`
+under rootless Docker makes the data root's files belong to the host user,
+because the image otherwise runs Foundry as user 1000 and ignores
+`FOUNDRY_UID` and `FOUNDRY_GID`).
 
 **EXIT STATUS**
 
