@@ -142,8 +142,8 @@ import { isDraftNote, isGmNote } from "./note-vocabulary.mjs";
 import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
-import { buildMaps, relatedPlaces } from "./map-build.mjs";
-import { mapWorld } from "./map-places.mjs";
+import { drawMapsFrom } from "./derived-sections.mjs";
+import { generatedDrawing, markGenerated, splitGenerated } from "./generated-sections.mjs";
 import { resolveAssetReplacement } from "./asset-replacement.mjs";
 
 /**
@@ -340,6 +340,9 @@ function stagedReplacementPath(forms, config, { foreignIndex = new Map(), resolv
  * @type {string}
  */
 const STAGED_PLATES = "plates";
+
+/** Where the book draws the map from a place, beside its Typst source. */
+const BOOK_MAP_DIR = "maps";
 
 /**
  * Copy every banner the document tree names into the output directory.
@@ -658,6 +661,14 @@ export async function buildPdf({
     const stageImages = (body, file, columns = 2) => {
         for (const image of imagesIn(body)) {
             const src = image.src;
+            // A generated section's drawing is the one this build drew beside
+            // its source — see `drawn` below — and is vector, so nothing
+            // resamples it.
+            const drawing = generatedDrawing(src);
+            if (drawing) {
+                if (drawn.maps.has(drawing)) images.set(src, `${BOOK_MAP_DIR}/${drawing}`);
+                continue;
+            }
             const directive = parseImageDirective(image.directive);
             const wide =
                 directive.size === "full-width" || directive.classes.includes("full-width");
@@ -787,6 +798,18 @@ export async function buildPdf({
      *   lineMap?: object[], numberedFigures: object[]}>}
      */
     const prepared = new Map();
+    // The map from each selected place given a From here section, drawn before
+    // any body is rendered so the section's image names a file the book holds.
+    // A place's map is printed there, inside its entry, and nowhere else.
+    const drawn = drawMapsFrom(records, {
+        outDir: path.join(outDir, BOOK_MAP_DIR),
+        foreignIndex: gates.foreign.index,
+        config: resolved,
+        only: plan.entries
+            .filter((entry) => entry.kind === "note" && entry.record?.type === "place")
+            .map((entry) => String(entry.record.shortcode ?? "")),
+    });
+    findings.push(...drawn.findings);
     // Every note's events by Address, for an inline reference to an event's
     // field — the same lookup the website and the Foundry compile build.
     const events = eventNoteIndex(records, {
@@ -803,7 +826,7 @@ export async function buildPdf({
             const page = byFile.get(file);
             if (!page) continue; // reported as `missing` by the render loop below
             const src = page.relPath ?? page.base;
-            const { markdown, errors, lineMap } = expandContentTables(page.body, {
+            const { markdown, errors, lineMap, generatedFrom } = expandContentTables(page.body, {
                 docs: universe.get(page.pkg) ?? [],
                 linkable: (d) => Boolean(d.fm.shortcode),
                 source: src,
@@ -815,7 +838,13 @@ export async function buildPdf({
                 scanFigures(markdown, { resolveRole }).figures,
                 figureCounts,
             );
-            prepared.set(entry.anchor, { markdown, errors, lineMap, numberedFigures });
+            prepared.set(entry.anchor, {
+                markdown,
+                errors,
+                lineMap,
+                numberedFigures,
+                generatedFrom,
+            });
             const shortcode = page.fm.shortcode;
             if (typeof shortcode === "string" && shortcode) {
                 const byId = new Map(
@@ -856,7 +885,8 @@ export async function buildPdf({
     const renderPage = (page, headingOffset, anchorPrefix, columns) => {
         const src = page.relPath ?? page.base;
         const wikiErrors = [];
-        const { markdown, errors, lineMap, numberedFigures } = prepared.get(anchorPrefix);
+        const { markdown, errors, lineMap, numberedFigures, generatedFrom } =
+            prepared.get(anchorPrefix);
         // A content-table finding states its `reason`, its 0-based line within
         // the body and its column, exactly as the site build reports them.
         // Reading it as `message` yields `[object Object]` and discards the
@@ -907,7 +937,11 @@ export async function buildPdf({
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
         // wikilink, and resolving it would make the example impossible to write.
-        const expressions = renderMarkdownExpressions(markdown, {
+        // Where the generated sections begin is marked before any pass can move
+        // a line, and the body is split there once its links resolve: the
+        // sections are set by the rules for generated links — see
+        // `renderLink` in `engine/pdf-render.mjs`.
+        const expressions = renderMarkdownExpressions(markGenerated(markdown, generatedFrom), {
             fm: page.fm,
             dates: gates.index.dateContext,
             sqlResults: sqlTables?.inline?.get(page.file),
@@ -973,23 +1007,36 @@ export async function buildPdf({
             });
         }
         stageImages(resolvedBody, page.file, columns);
-        const prose = markdownToTypst(resolvedBody, {
-            md,
-            links: plan.links,
-            glyphs,
-            images,
-            assets: imageAssets,
-            headingOffset,
-            anchorPrefix,
-            captions: numberedFigures,
-            url: site,
-            findings,
-            file: page.file,
-            bodyLine: page.bodyLine,
-            lineMap,
-            prepared: true,
-            resolveRole: (pathname) => pathRoles.get(pathname),
-        });
+        const { authored, generated } = splitGenerated(resolvedBody);
+        const typst = (text, options) =>
+            markdownToTypst(text, {
+                md,
+                links: plan.links,
+                glyphs,
+                images,
+                assets: imageAssets,
+                headingOffset,
+                anchorPrefix,
+                url: site,
+                findings,
+                file: page.file,
+                bodyLine: page.bodyLine,
+                prepared: true,
+                resolveRole: (pathname) => pathRoles.get(pathname),
+                ...options,
+            });
+        const prose = [
+            typst(authored, { captions: numberedFigures, lineMap }),
+            ...(generated ?
+                [
+                    typst(generated, {
+                        captions: [],
+                        lineMap: lineMap.slice(generatedFrom),
+                        generated: true,
+                    }),
+                ]
+            :   []),
+        ].join("\n");
         // Infoboxes follow the authored body within this note's entry.
         const boxes = noteInfoboxes(page.fm, {
             resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
@@ -1149,32 +1196,6 @@ export async function buildPdf({
                 uses: [use],
             });
     };
-    const world = mapWorld({
-        records,
-        foreignIndex: gates.foreign.index,
-        contentBase,
-        config: resolved,
-    });
-    const related = new Set(relatedPlaces(world.places));
-    const mapDir = path.join(outDir, "maps");
-    fs.rmSync(mapDir, { recursive: true, force: true });
-    const mappedEntries = plan.entries.filter(
-        (entry) =>
-            entry.kind === "note" &&
-            entry.record?.type === "place" &&
-            related.has(String(entry.record.shortcode ?? "").toLowerCase()),
-    );
-    if (mappedEntries.length) {
-        const centres = [...new Set(mappedEntries.map((entry) => entry.record.shortcode))];
-        const drawn = buildMaps({ world, outDir: mapDir, from: centres });
-        findings.push(...drawn.findings);
-        for (const entry of mappedEntries) {
-            addMapPage(entry.anchor, {
-                path: `maps/from-${entry.record.shortcode}.svg`,
-                title: `From here: ${entry.record.name?.full ?? entry.record.shortcode}`,
-            });
-        }
-    }
     for (const entry of plan.entries) {
         if (entry.kind !== "note" || entry.record?.type !== "map") continue;
         const title = entry.record.name?.full ?? entry.record.shortcode;

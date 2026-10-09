@@ -40,6 +40,7 @@
  */
 
 import { noteAddressContext } from "./note-addresses.mjs";
+import { GENERATED_DRAWING_DIR } from "./generated-sections.mjs";
 import fs from "fs";
 import path from "path";
 import log from "loglevel";
@@ -679,6 +680,56 @@ export function emptyPassErrors(passes) {
 }
 
 /**
+ * Where the module ships the drawings its generated sections name, below the
+ * staged package root: `assets/generated/`, so a section's
+ * `generated/from-<shortcode>.svg` resolves inside the install as every other
+ * own-package pathname does — `modules/<id>/assets/generated/…`.
+ *
+ * The staged package root is the directory holding the compiled packs, which
+ * the manifest addresses as `packs/<name>`.
+ *
+ * @param {object} config - The resolved configuration.
+ * @returns {string} The directory, absolute.
+ */
+function stagedDrawingDir(config) {
+    return path.join(path.dirname(config.paths.stage), "assets", GENERATED_DRAWING_DIR);
+}
+
+/**
+ * Draw the map from each place given a **From here** section and stage it
+ * into the module, where the section's image resolves. Drawn under
+ * `build/map/foundry/` and copied, so the `.dot` each drawing is made from
+ * stays out of the module.
+ *
+ * @param {object[]} records - The corpus this compile derived.
+ * @param {object} config - The resolved configuration.
+ * @returns {Promise<object[]>} What drawing found, as diagnostics.
+ */
+async function stageGeneratedDrawings(records, config) {
+    // Imported here: the derivation reads the map world, which reaches the
+    // content index, and a static import from this module would close a cycle
+    // through the compilers.
+    const { drawMapsFrom } = await import("./derived-sections.mjs");
+    let foreignIndex = new Map();
+    try {
+        const { loadForeignIndexes } = await import("./metadata-index.mjs");
+        foreignIndex = loadForeignIndexes(config, [config.contentPackage]).index;
+    } catch {
+        foreignIndex = new Map();
+    }
+    const staged = stagedDrawingDir(config);
+    fs.rmSync(staged, { recursive: true, force: true });
+    const { maps, findings } = drawMapsFrom(records, {
+        outDir: path.join(config.rootDir, "build", "map", "foundry"),
+        foreignIndex,
+        config,
+    });
+    if (maps.size) fs.mkdirSync(staged, { recursive: true });
+    for (const [name, file] of maps) fs.copyFileSync(file, path.join(staged, name));
+    return findings;
+}
+
+/**
  * Generate the build-only JSON for every pack (or one, when `only` is given).
  *
  * @param {object} [opts]
@@ -744,6 +795,8 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
         problems: corpusProblems,
     });
     for (const problem of corpusProblems) emitDiagnostic(problem);
+    for (const finding of await stageGeneratedDrawings(corpus.records, config))
+        emitDiagnostic(finding);
 
     // A note whose `type:` no configured pack claims compiles into nothing, and
     // used to say nothing — no pass got far enough to reject it, so the

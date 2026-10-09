@@ -165,3 +165,9 @@ the needed output must already exist. The full compile orders those passes for
 you. `package-build package unpack` reads a built pack back into JSON for
 inspection. See the [command reference](../commands.md) for their arguments
 and output paths.
+
+A compile also draws the map from each place given a **From here**
+[generated section](../reference/format-details.md#generated-sections) and
+stages it into the module at `assets/generated/from-<shortcode>.svg`, beside
+the compiled packs, where the section's image resolves. Each generated section
+starts its own page of the note's journal, as any H1 does.

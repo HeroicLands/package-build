@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 import { Journals } from "../engine/journals.mjs";
-import { checkGovernment, checkHeld } from "../engine/holdings.mjs";
+import { checkGovernment } from "../engine/holdings.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
@@ -47,7 +47,6 @@ describe("explicit place government", () => {
             expect(NOTE_VOCABULARY.place.check?.(populated, {})).toEqual(
                 checkGovernment(populated),
             );
-            expect(checkHeld(populated)).toEqual(checkGovernment(populated));
         },
     );
 

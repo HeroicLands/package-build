@@ -44,6 +44,7 @@ import { fileURLToPath } from "node:url";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
+import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 import {
     HUGO_CONTENT,
     HUGO_SOURCE,
@@ -68,19 +69,14 @@ const HAS_HUGO = spawnSync("hugo", ["version"], { encoding: "utf8" }).status ===
  * and so does removing one the partials still read.
  */
 const CONTRACT = [
-    "contains",
     "data",
     "description",
-    "governed_by",
-    "governed_places",
     "infoboxes",
-    "map",
     "package",
     "related",
     "subType",
     "tags",
     "type",
-    "works",
 ] as const;
 
 /** Every `.Params.<name>` the shipped partials read. */
@@ -115,7 +111,7 @@ let emitted: Set<string>;
 /** The emitted page of the region, which carries the graph keys. */
 let regionPage: Record<string, unknown>;
 
-beforeAll(() => {
+beforeAll(async () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-theme-render-"));
     fs.writeFileSync(
         path.join(root, "package.json"),
@@ -150,7 +146,7 @@ beforeAll(() => {
                 "description: A wide region of moor and water.",
                 "data:",
                 "    parents: []",
-                // A stated border is what gives a place a drawing, and so a `map`.
+                // A stated border is what gives a place a From here section.
                 "    borders:",
                 "        - { to: ham, bearing: S }",
             ],
@@ -218,7 +214,12 @@ beforeAll(() => {
         },
     });
 
-    const result = buildSite({ config });
+    const sqlTables = await prepareTreeSqlTables(config.paths.content, {
+        config,
+        skipDirectories: config.skipDirectories,
+        audience: "public",
+    });
+    const result = buildSite({ config, sqlTables });
     expect(gatesFailed(result.gates)).toBe(false);
     expect(result.wikiErrors).toEqual([]);
 
@@ -249,7 +250,7 @@ beforeAll(() => {
     fs.writeFileSync(path.join(cache, ".complete"), "");
 
     writeHugoConfig(config);
-});
+}, 60_000);
 
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
@@ -340,40 +341,49 @@ describe("the theme renders a page the build emitted", () => {
         expect(body).toContain("Borders");
     });
 
-    it.runIf(HAS_HUGO)("draws the drawing the build made for the place", () => {
-        const page = [...html.keys()].find((k) => k.includes("place-rgn"))!;
-        expect(html.get(page)!).toMatch(/<svg|place-map/);
+    /** The rendered HTML of one generated section, from its heading to the next H1. */
+    const section = (key: string, slug: string): string => {
+        const page = html.get([...html.keys()].find((k) => k.includes(key))!)!;
+        const start = page.indexOf(`<h1 id="${slug}"`);
+        if (start < 0) return "";
+        const ends = ["<h1 ", '<section class="related"', '<nav class="single-nav"']
+            .map((marker) => page.indexOf(marker, start + 1))
+            .filter((at) => at > 0);
+        return page.slice(start, Math.min(...ends));
+    };
+
+    it.runIf(HAS_HUGO)("sets the drawing the build made in the place's From here section", () => {
+        expect(section("place-rgn", "fromhere")).toContain("From here");
+        expect(section("place-rgn", "fromhere")).toMatch(
+            /<figure class="note-image[^"]*"[^>]*>\s*<svg/,
+        );
     });
 
-    it.runIf(HAS_HUGO)("lists what the region contains", () => {
-        const page = [...html.keys()].find((k) => k.includes("place-rgn"))!;
-        const body = html.get(page)!;
-        expect(body).toContain("Little Ham");
-    });
-    it.runIf(HAS_HUGO)("renders the governing body and its reverse place list", () => {
-        const place = [...html.keys()].find((key) => key.includes("place-ham"))!;
-        const affiliation = [...html.keys()].find((key) => key.includes("affiliation-house"))!;
-        expect(html.get(place)).toContain("Governed by");
-        expect(html.get(place)).toContain("House Stone");
-        expect(html.get(affiliation)).toContain("Governed places");
-        expect(html.get(affiliation)).toContain("Little Ham");
-        expect(html.get(affiliation)).not.toContain("Held by");
-        const card = html
-            .get(affiliation)!
-            .match(/<section class="holdings"[\s\S]*?<\/section>/)?.[0];
-        expect(card).toContain("Little Ham");
-        expect(card).not.toContain("The Region");
+    it.runIf(HAS_HUGO)("lists what the region contains in its Within section", () => {
+        const within = section("place-rgn", "within");
+        expect(within).toContain("Within");
+        expect(within).toMatch(/<a href="[^"]*place-ham\/"[^>]*>Little Ham<\/a>/);
     });
 
-    it.runIf(HAS_HUGO)("lists the works that name a place on its page", () => {
-        const place = [...html.keys()].find((key) => key.includes("place-ham"))!;
-        const card = html
-            .get(place)!
-            .match(/<section class="holdings literature-works"[\s\S]*?<\/section>/)?.[0];
-        expect(card).toContain("In song and story");
-        expect(card).toMatch(/<a [^>]*href="[^"]*lore-hamlay\/"[^>]*>The Lay of Little Ham<\/a>/);
-        expect(card).toContain("(lay)");
-        const region = [...html.keys()].find((key) => key.includes("place-rgn"))!;
-        expect(html.get(region)).not.toContain("In song and story");
+    it.runIf(HAS_HUGO)("renders the governing body and its reverse place list as sections", () => {
+        expect(section("place-ham", "governedby")).toMatch(
+            /<a href="[^"]*affiliation-house\/"[^>]*>House Stone<\/a> \(house\)/,
+        );
+        const governed = section("affiliation-house", "governedplaces");
+        expect(governed).toContain("Little Ham");
+        expect(governed).not.toContain("The Region");
+    });
+
+    it.runIf(HAS_HUGO)("lists the works that name a place in its In song and story section", () => {
+        const works = section("place-ham", "insongandstory");
+        expect(works).toContain("In song and story");
+        expect(works).toMatch(/<a href="[^"]*lore-hamlay\/"[^>]*>The Lay of Little Ham<\/a>/);
+        expect(works).toContain("(lay)");
+        expect(section("place-rgn", "insongandstory")).toBe("");
+    });
+
+    it.runIf(HAS_HUGO)("draws none of the cards the sections replace", () => {
+        const page = html.get([...html.keys()].find((k) => k.includes("place-ham"))!)!;
+        expect(page).not.toMatch(/class="(holdings|literature-works|place-map)/);
     });
 });

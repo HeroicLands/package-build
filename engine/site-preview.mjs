@@ -18,16 +18,16 @@ import { reckoningContext } from "./reckoning-markers.mjs";
 import { cachedMetadataIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { buildSiteIndex } from "./site-index.mjs";
 import {
-    attachEventViews,
+    attachGeneratedSections,
     findSqlBlocks,
-    joinEventViews,
+    generatedSectionsFor,
+    joinGeneratedSections,
     openNotesDatabase,
     prepareSqlTables,
 } from "./sql-tables.mjs";
 import { findPageListBlocks } from "./page-lists.mjs";
 import { isGmNote } from "./note-vocabulary.mjs";
 import { relatedPages } from "./related-pages.mjs";
-import { holdingsNode, holdingsPages, foreignHoldingsNodes } from "./holdings.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
 import { eventNoteIndex } from "./event-fields.mjs";
 import { frontmatterWikilinks } from "./web-wikilinks.mjs";
@@ -35,6 +35,7 @@ import { positionOfLiteral } from "./diagnostics.mjs";
 import { addressSlug } from "./content-address.mjs";
 import { homepageTitle } from "./homepage.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { drawSiteMaps } from "./site-maps.mjs";
 import {
     collectContentPages,
     collectHomepages,
@@ -104,9 +105,19 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                 )
                 .map((page) => ({ source: page.file, markdown: page.body }));
             const publicRecords = records.filter((record) => !isGmNote(record));
-            const views = await joinEventViews(db, publicRecords, contentBase, sources);
+            const generated = await generatedSectionsFor(db, publicRecords, contentBase, {
+                foreignIndex: gates.foreign.index,
+                config,
+            });
+            joinGeneratedSections(generated, sources);
             const sqlTables = await prepareSqlTables(db, sources, { records: publicRecords });
-            attachEventViews(sqlTables, views);
+            attachGeneratedSections(sqlTables, generated);
+            const drawings = drawSiteMaps({
+                records,
+                foreignIndex: gates.foreign.index,
+                config,
+                base,
+            }).maps;
             const rendered = renderPages(pages, {
                 index: gates.index,
                 foreign: gates.foreign,
@@ -117,10 +128,11 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                 config,
                 records,
                 homepages: homeEntries,
+                maps: drawings,
                 write: false,
                 capture: "graph",
             });
-            return { records, pages, homeEntries, gates, db, rendered };
+            return { records, pages, homeEntries, gates, db, rendered, drawings };
         } catch (error) {
             await db.close();
             throw error;
@@ -230,15 +242,14 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                 }
                 const publicRecords = records.filter((record) => !isGmNote(record));
                 const sources = [{ source: absolute, markdown: body }];
-                const views = await joinEventViews(
-                    db,
-                    publicRecords,
-                    contentBase,
-                    sources,
-                    absolute,
-                );
+                const generated = await generatedSectionsFor(db, publicRecords, contentBase, {
+                    only: absolute,
+                    foreignIndex: snapshot.gates.foreign.index,
+                    config,
+                });
+                joinGeneratedSections(generated, sources);
                 const sqlTables = await prepareSqlTables(db, sources, { records: publicRecords });
-                attachEventViews(sqlTables, views);
+                attachGeneratedSections(sqlTables, generated);
                 const allPages = snapshot.pages.map((item) =>
                     item.file === absolute ? page : item,
                 );
@@ -260,6 +271,7 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                         foreignIndex: snapshot.gates.foreign?.index,
                         dates: index.dateContext,
                     }),
+                    drawings: snapshot.drawings,
                 });
                 for (const error of result.tableErrors)
                     findings.push({
@@ -304,29 +316,6 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                 });
                 const related = relatedPages(edges, entries).get(page.url);
                 if (related) result.data.related = related;
-                const holdings = holdingsPages(
-                    [
-                        ...allPages.map((item) =>
-                            holdingsNode(item.fm, {
-                                title: item.name,
-                                url: item.url,
-                                package: item.pkg ?? config.contentPackage,
-                            }),
-                        ),
-                        ...foreignHoldingsNodes(snapshot.gates.foreign.index),
-                    ],
-                    {
-                        governmentNodes: records
-                            .filter((record) => !isGmNote(record))
-                            .map((record) =>
-                                holdingsNode(record, {
-                                    title: record.name?.full ?? record.shortcode,
-                                    package: config.contentPackage,
-                                }),
-                            ),
-                    },
-                );
-                Object.assign(result.data, holdings.get(page.url));
                 return {
                     ok: true,
                     markdown: result.body,

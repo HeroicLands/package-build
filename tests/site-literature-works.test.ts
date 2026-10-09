@@ -14,12 +14,8 @@ import path from "node:path";
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
 import { loadForeignIndexes } from "../engine/metadata-index.mjs";
-import {
-    WORKS_KEY,
-    foreignWorksNodes,
-    worksNode,
-    worksPages,
-} from "../engine/literature-works.mjs";
+import { foreignWorksNodes, worksNode, worksPages } from "../engine/literature-works.mjs";
+import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 
 const TYPES = new Set(Object.keys(NOTE_VOCABULARY));
@@ -70,12 +66,22 @@ const FIXTURE: Record<string, string> = {
     "homepage.md": "---\ntype: homepage\nshortcode: root\ntitle: The Demo\n---\n\nHome.\n",
 };
 
-describe("the site build lists each work on its subjects' pages", () => {
+describe("the site build sets In song and story on each subject's page", () => {
     let root: string;
-    const published = (rel: string): Record<string, unknown> =>
-        matter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8")).data;
+    const published = (rel: string) =>
+        matter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8"));
 
-    beforeAll(() => {
+    /** A page's In song and story section, heading to the next heading. */
+    const section = (rel: string): string => {
+        const body = published(rel).content;
+        const start = body.indexOf("{#insongandstory}");
+        if (start < 0) return "";
+        const from = body.lastIndexOf("\n# ", start) + 1;
+        const next = body.indexOf("\n# ", start);
+        return body.slice(from, next < 0 ? undefined : next).trim();
+    };
+
+    beforeAll(async () => {
         root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-works-"));
         fs.writeFileSync(
             path.join(root, "package.json"),
@@ -101,28 +107,40 @@ describe("the site build lists each work on its subjects' pages", () => {
                 { name: "actors", type: "Actor" },
             ],
         });
-        const result = buildSite({ config });
+        const sqlTables = await prepareTreeSqlTables(config.paths.content, {
+            config,
+            skipDirectories: config.skipDirectories,
+            audience: "public",
+        });
+        const result = buildSite({ config, sqlTables });
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.wikiErrors).toEqual([]);
-    });
+    }, 60_000);
 
     afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
     it("lists every work naming a subject, once each, sorted by title, with its form", () => {
-        expect(published("being-hero.md")[WORKS_KEY]).toEqual([
-            { title: "An Elegy", url: "/demo/lore-elegy/" },
-            { title: "Saga of Skrildmyl", url: "/demo/lore-saga/", form: "epic" },
-        ]);
-        expect(published("place-mountain.md")[WORKS_KEY]).toEqual([
-            { title: "Annals of the Pass", url: "/demo/lore-chronicle/", form: "chronicle" },
-            { title: "Saga of Skrildmyl", url: "/demo/lore-saga/", form: "epic" },
-        ]);
+        expect(section("being-hero.md")).toBe(
+            "# In song and story {#insongandstory}\n\n" +
+                "- [An Elegy](/demo/lore-elegy/)\n" +
+                "- [Saga of Skrildmyl](/demo/lore-saga/) (epic)",
+        );
+        expect(section("place-mountain.md")).toBe(
+            "# In song and story {#insongandstory}\n\n" +
+                "- [Annals of the Pass](/demo/lore-chronicle/) (chronicle)\n" +
+                "- [Saga of Skrildmyl](/demo/lore-saga/) (epic)",
+        );
     });
 
     it("writes nothing on a page no work names, nor on a work naming itself", () => {
-        expect(published("being-quiet.md")).not.toHaveProperty(WORKS_KEY);
-        expect(published("lore-saga.md")).not.toHaveProperty(WORKS_KEY);
-        expect(published("lore-ballad.md")).not.toHaveProperty(WORKS_KEY);
+        expect(section("being-quiet.md")).toBe("");
+        expect(section("lore-saga.md")).toBe("");
+        expect(section("lore-ballad.md")).toBe("");
+    });
+
+    it("writes no list into the front matter", () => {
+        for (const rel of ["being-hero.md", "place-mountain.md"])
+            expect(published(rel).data, rel).not.toHaveProperty("works");
     });
 });
 
@@ -193,6 +211,7 @@ describe("a dependency's works list on this package's subject pages", () => {
                     {
                         title: "The Northern Lay",
                         url: expect.stringContaining("lore-lay"),
+                        address: "thalorna-note-lore-lay",
                         form: "lay",
                     },
                 ],
@@ -217,7 +236,7 @@ describe("a dependency's works list on this package's subject pages", () => {
             { title: "A Draft Lay", package: "demo" },
         );
         expect(worksPages([hero, stub], { types: TYPES }).get("/demo/being-hero/")).toEqual({
-            works: [{ title: "A Draft Lay" }],
+            works: [{ title: "A Draft Lay", address: "demo-note-lore-draft" }],
         });
     });
 });

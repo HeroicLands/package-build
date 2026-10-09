@@ -137,7 +137,7 @@ function expanded(file: string): string {
 
 /** The headings of the sections generated for a note. */
 const generated = (file: string) =>
-    String(prepared?.get(path.join(dir, file))?.eventViews ?? "")
+    String(prepared?.get(path.join(dir, file))?.generated ?? "")
         .split("\n")
         .filter((line) => line.startsWith("# "));
 
@@ -194,8 +194,8 @@ describe("a region's chronology", () => {
     });
 
     it("is generated after everything the author wrote, as an SQL fence", () => {
-        const views = String(prepared.get(path.join(dir, "Rha.md")).eventViews);
-        expect(views).toMatch(/^# Chronology \{#chronology\}\n\n```sql\n/);
+        const views = String(prepared.get(path.join(dir, "Rha.md")).generated);
+        expect(views).toMatch(/^# Chronology \{#chronology\}\n\n```sql\n/m);
         expect(views).toContain("FROM events");
         expect(views).toContain("WITH RECURSIVE");
         const rha = expanded("Rha.md");
