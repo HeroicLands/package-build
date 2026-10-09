@@ -1,5 +1,13 @@
 # @heroiclands/package-build
 
+## 23.1.1
+
+### Patch Changes
+
+`package-build yaml` accepts an empty trigger such as `workflow_dispatch:` in a Gitea workflow under `.gitea/workflows/`, as it already does under `.github/workflows/`.
+
+Rebuilding a release of the same commit produces an identical `module.zip` or `system.zip`, so a rebuilt archive can be compared with the one already published. Setting `SOURCE_DATE_EPOCH` stamps the archive's files with that time.
+
 ## 23.1.0
 
 ### Minor Changes
