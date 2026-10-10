@@ -454,6 +454,10 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 borders: record.data?.borders ?? undefined,
                 routes: record.data?.routes ?? undefined,
                 parents: record.data?.parents ?? undefined,
+                // The culture the publishing package resolved, so a consumer's
+                // place or affiliation inherits from a parent here without
+                // walking that parent's own chain.
+                culture: record.data?.culture ?? undefined,
                 population: record.data?.population ?? undefined,
                 ...(Object.hasOwn(record.data ?? {}, "government") ?
                     { government: record.data.government }

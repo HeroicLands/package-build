@@ -86,7 +86,7 @@
  */
 
 import { isAddressSegment } from "./address-charset.mjs";
-import { formatDiagnostic, positionOfYamlPath } from "./diagnostics.mjs";
+import { formatDiagnostic, positionOfFrontmatterPath, positionOfYamlPath } from "./diagnostics.mjs";
 import {
     decodeNoteAddresses,
     decodeIndexAddresses,
@@ -100,11 +100,11 @@ import path from "node:path";
 
 import unidecode from "unidecode";
 
-import { metadataFileName } from "./metadata-index.mjs";
+import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
-import { ownDocumentSystem, readCanonicalKey } from "./address.mjs";
+import { isAddressTuple, ownDocumentSystem, readCanonicalKey, renderAddress } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
@@ -142,6 +142,7 @@ import { loadPackConfig } from "./pack-config.mjs";
 import {
     authoredFrontmatter,
     DERIVED_KEYS,
+    deriveRecordData,
     isAssetRecord,
     isNoteRecord,
     isStub,
@@ -683,6 +684,304 @@ export function indexRecordsForNote({
     return records;
 }
 
+/** The `lore` subType that is a culture, and so is its own. */
+const CULTURE_SUBTYPE = "culture";
+
+/** The `doc` subType whose culture is its own value. */
+const SETTING_GUIDE_SUBTYPE = "settingguide";
+
+/** The `affiliation` subType that also takes the culture of the places it holds. */
+const POLITY_SUBTYPE = "polity";
+
+/** The types whose culture is their own value and nothing else. */
+const OWN_CULTURE_TYPES = new Set(["lore", "being", "doc"]);
+
+/** The types that inherit a culture through `data.parents`. */
+const INHERITING_TYPES = new Set(["place", "affiliation"]);
+
+/** A resolution that yields no culture. */
+const NO_CULTURE = Object.freeze({ culture: undefined, errored: false });
+
+/**
+ * The canonical key an Address names, without any anchor.
+ *
+ * @param {unknown} value - A tuple, an {@link AddressLink}, or anything else.
+ * @returns {string|undefined} The key, or `undefined` for a value that is not a
+ *   decoded Address.
+ */
+function addressKey(value) {
+    const tuple = value instanceof AddressLink ? value.target : value;
+    return isAddressTuple(tuple) ? renderAddress(tuple) : undefined;
+}
+
+/**
+ * The culture Address a value states, as a tuple.
+ *
+ * @param {unknown} value - A `data.culture` value.
+ * @returns {object|undefined} The tuple, or `undefined` when the value is not a
+ *   decoded Address.
+ */
+function cultureTuple(value) {
+    const tuple = value instanceof AddressLink ? value.target : value;
+    return isAddressTuple(tuple) ? tuple : undefined;
+}
+
+/**
+ * Write each note's resolved culture into its record, as `data.culture`.
+ *
+ * A note's culture is:
+ *
+ * - its own `data.culture`, when it states one;
+ * - for a `lore` note of `subType: culture`, its own canonical Address;
+ * - for a `place` or an `affiliation`, else the resolved cultures of its
+ *   `data.parents`;
+ * - for a `polity` affiliation, else the resolved cultures of its places: its
+ *   `data.seat` pooled with every place whose `data.government` names it, as
+ *   one set;
+ * - else nothing. A `being`, a `doc` and any other `lore` note have their own
+ *   value only; every other type has none.
+ *
+ * A parent's culture is its own resolved culture, found recursively; a parent
+ * resolving to nothing is ignored, as is one in another package that its index
+ * gives none. Sources that agree give that culture. Sources that differ, on a
+ * note with no value of its own, give it none and one error finding, at
+ * `data.parents`, or for a polity's places at `data.seat`, else at its `data:`
+ * line. A note whose parent raised that error treats the parent as resolving to
+ * nothing, so a disagreement is reported once, where it is. A cycle resolves to
+ * nothing.
+ *
+ * A parent in another package is read through `foreignRecord`, whose published
+ * entry already carries that parent's resolved culture, so a foreign chain is
+ * never walked.
+ *
+ * The record's `data` is replaced by a copy carrying the culture, never
+ * assigned into, because the compile steps read the frontmatter it was spread
+ * from; and the authored `data` stays what
+ * {@link module:engine/index-records.authoredFrontmatter} returns, so a lint or
+ * a compile reading the record reads no culture the note did not write. A note
+ * resolving to nothing gains no `culture` key.
+ *
+ * @param {Array<Record<string, any>>} records - Index records, every Address a
+ *   tuple. Records that are not notes are passed over.
+ * @param {object} options - Options.
+ * @param {string} options.contentPackage - The package the records belong to.
+ * @param {string} [options.contentBase] - The content tree, for opening a
+ *   conflicting note to locate the finding. Without it a finding names the
+ *   note's path within the tree and no position.
+ * @param {(key: string) => ({culture?: unknown}|undefined)} [options.foreignRecord] -
+ *   Another package's entry for a canonical address. Asked only for an
+ *   immediate parent whose package is not this one.
+ * @param {object[]} [options.problems] - Receives each conflict as a finding.
+ *   Omitted, every conflict is collected and one Error lists them all.
+ * @returns {Array<Record<string, any>>} The same records.
+ * @throws {Error} When `problems` is omitted and any note's sources disagree.
+ */
+export function resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems }) {
+    // Each note under every key a link may name it by: its record's canonical
+    // address, and its page address in the `note` system, which is what a
+    // `data.parents`, `data.seat` or `data.government` link names.
+    const notes = new Map();
+    const pageKey = new Map();
+    for (const record of records) {
+        if (!isNoteRecord(record) || !isAddressSegment(String(record.shortcode ?? ""))) continue;
+        const page = canonicalKey(contentPackage, NOTE_SYSTEM, record.type, record.shortcode);
+        const own =
+            record.address ?
+                addressKey(record.address.canonical)
+            :   noteAddress(record, contentPackage)?.canonical;
+        pageKey.set(record, page);
+        for (const key of [page, own]) if (key && !notes.has(key)) notes.set(key, record);
+    }
+    const recordOf = (value) => notes.get(addressKey(value));
+
+    // The places each polity governs, read once from the places that name it.
+    const governed = new Map();
+    for (const record of pageKey.keys()) {
+        if (record.type !== "place") continue;
+        const polity = recordOf(record.data?.government);
+        if (!polity) continue;
+        if (!governed.has(polity)) governed.set(polity, []);
+        governed.get(polity).push(record);
+    }
+
+    const memo = new Map();
+    const inProgress = new Set();
+    const findings = [];
+
+    /**
+     * A source Address's culture: a local note's resolved one, or the one a
+     * foreign entry publishes. A foreign item type is published under its
+     * system's address as well as its page's, so both are asked for.
+     *
+     * @param {unknown} value - The Address.
+     * @returns {object|undefined} The culture tuple.
+     */
+    const cultureThrough = (value) => {
+        const key = addressKey(value);
+        if (!key) return undefined;
+        const tuple = value instanceof AddressLink ? value.target : value;
+        if (tuple.package === contentPackage) {
+            const record = recordOf(tuple);
+            return record ? resolve(record).culture : undefined;
+        }
+        if (!foreignRecord) return undefined;
+        const entry =
+            foreignRecord(key) ??
+            foreignRecord(
+                canonicalKey(
+                    tuple.package,
+                    ownDocumentSystem(tuple.type),
+                    tuple.type,
+                    tuple.shortcode,
+                ),
+            );
+        return cultureTuple(entry?.culture);
+    };
+
+    /**
+     * Agree the cultures of a set of sources.
+     *
+     * @param {Array<unknown>} sources - Addresses, in the order they are named.
+     * @returns {{culture?: object, distinct: Array<{key: string, via: unknown}>}}
+     *   The one culture they agree on, or each distinct culture with the first
+     *   source it came through.
+     */
+    const agree = (sources) => {
+        const distinct = new Map();
+        for (const source of sources) {
+            const culture = cultureThrough(source);
+            const key = addressKey(culture);
+            if (key && !distinct.has(key)) distinct.set(key, { culture, via: source });
+        }
+        const list = [...distinct].map(([key, { culture, via }]) => ({ key, culture, via }));
+        return { culture: list.length === 1 ? list[0].culture : undefined, distinct: list };
+    };
+
+    /**
+     * Report a disagreement on one note.
+     *
+     * @param {Record<string, any>} record - The note.
+     * @param {string[]} keyPath - Where the disagreement is written.
+     * @param {string} subject - What disagrees, as the message opens.
+     * @param {Array<{key: string, via: unknown}>} distinct - The cultures and
+     *   their sources.
+     * @returns {{culture: undefined, errored: true}} The resolution.
+     */
+    const conflict = (record, keyPath, subject, distinct) => {
+        const file = contentBase ? noteFile(contentBase, record) : record.file?.path;
+        const raw = contentBase && fs.existsSync(file) ? fs.readFileSync(file, "utf8") : undefined;
+        let position = positionOfFrontmatterPath(raw, keyPath, { key: true });
+        if (position.line === undefined && keyPath.length > 1)
+            position = positionOfFrontmatterPath(raw, ["data"], { key: true });
+        const via = (value) => {
+            const tuple = value instanceof AddressLink ? value.target : value;
+            return tuple.package === contentPackage ? tuple.shortcode : addressKey(tuple);
+        };
+        const named = distinct.map(({ key, via: source }) => `${key} via ${via(source)}`);
+        findings.push({
+            file,
+            ...position,
+            severity: "error",
+            message:
+                `${subject} resolve to different cultures (${named.join(", ")}); ` +
+                `state data.culture`,
+        });
+        return { culture: undefined, errored: true };
+    };
+
+    /**
+     * One note's resolution, by the rules above.
+     *
+     * @param {Record<string, any>} record - The note's record.
+     * @returns {{culture?: object, errored: boolean}} Its culture, and whether
+     *   it raised a conflict.
+     */
+    const resolveRecord = (record) => {
+        const type = String(record.type ?? "");
+        const subType = String(record.subType ?? "").toLowerCase();
+        if (type === "lore" && subType === CULTURE_SUBTYPE)
+            return { culture: readCanonicalKey(pageKey.get(record)), errored: false };
+        if (!OWN_CULTURE_TYPES.has(type) && !INHERITING_TYPES.has(type)) return NO_CULTURE;
+        if (type === "doc" && subType !== SETTING_GUIDE_SUBTYPE) return NO_CULTURE;
+        const own = cultureTuple(record.data?.culture);
+        if (own) return { culture: own, errored: false };
+        if (!INHERITING_TYPES.has(type)) return NO_CULTURE;
+
+        const parents = Array.isArray(record.data?.parents) ? record.data.parents : [];
+        const fromParents = agree(parents);
+        if (fromParents.distinct.length > 1)
+            return conflict(record, ["data", "parents"], "data.parents", fromParents.distinct);
+        if (fromParents.culture) return { culture: fromParents.culture, errored: false };
+
+        if (type !== "affiliation" || subType !== POLITY_SUBTYPE) return NO_CULTURE;
+        const seat = addressKey(record.data?.seat) ? record.data.seat : undefined;
+        const seatRecord = seat ? recordOf(seat) : undefined;
+        const places = [
+            ...(seat ? [seat] : []),
+            ...(governed.get(record) ?? [])
+                .filter((place) => place !== seatRecord)
+                .map((place) => pageKey.get(place))
+                .sort()
+                .map((key) => readCanonicalKey(key)),
+        ];
+        const fromPlaces = agree(places);
+        if (fromPlaces.distinct.length > 1)
+            return conflict(
+                record,
+                seat ? ["data", "seat"] : ["data"],
+                seat ?
+                    "data.seat and the places this polity governs"
+                :   "the places this polity governs",
+                fromPlaces.distinct,
+            );
+        return fromPlaces.culture ? { culture: fromPlaces.culture, errored: false } : NO_CULTURE;
+    };
+
+    /**
+     * A local note's resolution, memoised; a note already being resolved is a
+     * cycle and resolves to nothing.
+     *
+     * @param {Record<string, any>} record - The note's record.
+     * @returns {{culture?: object, errored: boolean}} Its resolution.
+     */
+    const resolve = (record) => {
+        if (memo.has(record)) return memo.get(record);
+        if (inProgress.has(record)) return NO_CULTURE;
+        inProgress.add(record);
+        const result = resolveRecord(record);
+        inProgress.delete(record);
+        memo.set(record, result);
+        return result;
+    };
+
+    // Walked in address order, so which note of a cycle is met first is a fact
+    // about the content rather than about directory-read order.
+    const ordered = [...pageKey].sort(([, a], [, b]) =>
+        a < b ? -1
+        : a > b ? 1
+        : 0,
+    );
+    for (const [record] of ordered) {
+        const { culture } = resolve(record);
+        if (culture && addressKey(culture) !== addressKey(record.data?.culture))
+            deriveRecordData(record, { ...record.data, culture });
+    }
+
+    findings.sort(
+        (a, b) =>
+            String(a.file).localeCompare(String(b.file), "en") ||
+            (a.line ?? 0) - (b.line ?? 0) ||
+            (a.column ?? 0) - (b.column ?? 0),
+    );
+    if (problems) problems.push(...findings);
+    else if (findings.length)
+        // Each line already starts with its path, so it is printed unprefixed.
+        throw Object.assign(new Error(findings.map(formatDiagnostic).join("\n")), {
+            located: true,
+        });
+    return records;
+}
+
 /**
  * Read a content tree into index records, in the order they will be written.
  *
@@ -711,13 +1010,26 @@ export function indexRecordsForNote({
  * @param {object[]} [options.problems] - Supplied by a **reader**: a note that
  *   cannot be recorded is pushed here as a diagnostic and skipped. Omitted, the
  *   note throws — the contract the emitter needs, since an index missing a note
- *   asserts that it does not exist.
+ *   asserts that it does not exist. The same holds for a culture conflict: a
+ *   reader receives each as a finding, and the emitter throws once, listing
+ *   every one.
+ * @param {(key: string) => ({culture?: unknown}|undefined)} [options.foreignRecord] -
+ *   Another package's entry for a canonical address, read for a parent that
+ *   package publishes; see {@link resolveCultures}.
  * @returns {Array<Record<string, any>>} The records, in a total order that does
  *   not depend on directory-read order.
  */
 export function collectContentIndex(
     contentBase,
-    { contentPackage, skipDirectories, assetsBase, manifest, problems, addressContext },
+    {
+        contentPackage,
+        skipDirectories,
+        assetsBase,
+        manifest,
+        problems,
+        addressContext,
+        foreignRecord,
+    },
 ) {
     const records = [];
     // Passed through rather than defaulted away: an absent scope is the
@@ -831,6 +1143,11 @@ export function collectContentIndex(
         }
     }
 
+    // Every note record exists and every Address in it is a tuple, so a parent
+    // is found by its canonical address. Before the sort, which reads nothing
+    // the pass writes.
+    resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems });
+
     // Sorted at every depth like a note's record, and for the same reason: the
     // declaration order of the `asset` fields is a fact about the emitter, not
     // about the content, and the artifact is meant to be byte-identical across
@@ -933,6 +1250,13 @@ export function indexRecordsFor({
     if (!fs.existsSync(tree) && needsContentTree(resolved)) {
         throw new Error(`no content tree at ${tree}`);
     }
+    // Read on the first parent another package publishes, and not before, so
+    // a package whose parents are all its own reads no dependency index.
+    let foreign;
+    const foreignRecord = (key) => {
+        foreign ??= loadForeignIndexes(resolved, [resolved.contentPackage]).index;
+        return foreign.get(key);
+    };
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
         addressContext: noteAddressContext(resolved),
@@ -941,6 +1265,7 @@ export function indexRecordsFor({
         // Only the identities a UUID is a function of — see emitContentIndex.
         manifest: foundryIdentities(resolved),
         problems,
+        foreignRecord,
     });
 }
 
@@ -985,7 +1310,10 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     // state one.
     const records = indexRecordsFor({ contentBase: tree, config: resolved });
     const assetBindings = checkForeignAssetBindings(resolved);
-    if (assetBindings.length) throw new Error(assetBindings.map(formatDiagnostic).join("\n"));
+    if (assetBindings.length)
+        throw Object.assign(new Error(assetBindings.map(formatDiagnostic).join("\n")), {
+            located: true,
+        });
     if (records.length === 0) {
         throw new Error(
             `${tree} yielded no notes, so the index would state that this ` +

@@ -115,7 +115,9 @@ export function noteFile(contentBase, record) {
  * The inverse of the record's spread, and exact rather than best-effort: a
  * record is the note's frontmatter plus {@link DERIVED_KEYS}, and a note that
  * authors one of those keys fails the walk — so removing them cannot remove
- * anything the note wrote. That enforced pairing is what lets a pass read the
+ * anything the note wrote. A `data` that {@link deriveRecordData} replaced
+ * comes back as the note wrote it, so a resolved `data.culture` is not taken
+ * for an authored one. That enforced pairing is what lets a pass read the
  * corpus from the index and still lint, route or compile what the *author*
  * typed, rather than reasoning about `address:` and `anchors:` as though
  * someone had written them.
@@ -130,7 +132,43 @@ export function authoredFrontmatter(record) {
     for (const [key, value] of Object.entries(record ?? {})) {
         if (!DERIVED_KEYS.includes(key)) fm[key] = value;
     }
+    const authored = record && typeof record === "object" ? AUTHORED_DATA.get(record) : undefined;
+    if (authored?.written) fm.data = authored.data;
+    else if (authored) delete fm.data;
     return fm;
+}
+
+/**
+ * The `data` each record held as authored, where a pass replaced it with a
+ * derived one. Held beside the record rather than on it, so the index carries
+ * the derived value alone and {@link authoredFrontmatter} still returns what
+ * the author wrote.
+ *
+ * @type {WeakMap<object, {written: boolean, data?: unknown}>}
+ */
+const AUTHORED_DATA = new WeakMap();
+
+/**
+ * Replace a record's `data` with one carrying derived values.
+ *
+ * The authored `data` is kept for {@link authoredFrontmatter}, which returns it
+ * in place of the derived one, so a lint, a route or a compile reading the
+ * record reads only what the note wrote. A second replacement keeps the first
+ * authored value.
+ *
+ * @param {Record<string, any>} record - A note's index record.
+ * @param {Record<string, any>} data - The `data` the record carries from now on.
+ * @returns {void}
+ */
+export function deriveRecordData(record, data) {
+    if (!AUTHORED_DATA.has(record))
+        AUTHORED_DATA.set(
+            record,
+            Object.hasOwn(record, "data") ?
+                { written: true, data: record.data }
+            :   { written: false },
+        );
+    record.data = data;
 }
 
 /**
