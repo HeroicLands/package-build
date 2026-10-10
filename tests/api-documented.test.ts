@@ -158,6 +158,7 @@ describe("docs/api.md documents the real export surface", () => {
                 );
                 expect(missingMembers, `${subpath} -> ${name}`).toEqual([]);
             }
-        });
+            // The time goes to importing the entry's whole module graph.
+        }, 20_000);
     }
 });

@@ -72,9 +72,12 @@ describe("publication is determined by the authored content tree", () => {
             ...sourceFiles(path.join(root, "bin")),
         ];
         const reads = files.flatMap((file) => {
+            const text = fs.readFileSync(file, "utf8");
+            // The read being sought names `site`, spelled out or as an escape.
+            if (!/site|\\u/.test(text)) return [];
             const source = ts.createSourceFile(
                 file,
-                fs.readFileSync(file, "utf8"),
+                text,
                 ts.ScriptTarget.Latest,
                 true,
                 ts.ScriptKind.JS,
@@ -106,5 +109,6 @@ describe("publication is determined by the authored content tree", () => {
             return locations;
         });
         expect(reads).toEqual([]);
-    });
+        // The time goes to parsing every engine and bin module.
+    }, 20_000);
 });

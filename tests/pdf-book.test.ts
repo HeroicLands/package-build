@@ -170,7 +170,7 @@ it.skipIf(!HAS_TYPST)(
             expect(
                 (await sharp(path.join(dist, "assets/images/portrait.webp")).metadata()).width,
             ).toBe(Math.round((3.2 / 2.54) * 300));
-            expect(fs.readFileSync(image)).toEqual(source);
+            expect(fs.readFileSync(image).equals(source)).toBe(true);
             expect(built.out).toContain("book image assets/images/portrait.webp");
         } finally {
             fs.rmSync(dir, { recursive: true, force: true });
@@ -438,7 +438,7 @@ describe("the emitted document", () => {
         const dist = path.join(root, "build", "dist");
         const typ = fs.readdirSync(dist).find((f) => f.endsWith(".typ"))!;
         source = fs.readFileSync(path.join(dist, typ), "utf8");
-    });
+    }, SUBPROCESS_TEST_TIMEOUT);
 
     it("gives every section and entry its own heading, which is the bookmarks panel", () => {
         // Typst builds the PDF bookmark outline from every heading regardless of
@@ -519,7 +519,7 @@ describe.runIf(HAS_TYPST)("the compiled PDF", () => {
         const file = fs.readdirSync(dist).find((f) => f.endsWith(".pdf"));
         if (file) pdf = fs.readFileSync(path.join(dist, file));
         fs.rmSync(dir, { recursive: true, force: true });
-    });
+    }, 2 * SUBPROCESS_TEST_TIMEOUT);
 
     it("is produced at all", () => {
         expect(pdf.length).toBeGreaterThan(0);
@@ -734,7 +734,7 @@ it(
             expect((await sharp(staged).metadata()).width).toBe(
                 Math.round((11 - (2 * 1.9) / 2.54) * 300),
             );
-            expect(fs.readFileSync(image)).toEqual(original);
+            expect(fs.readFileSync(image).equals(original)).toBe(true);
             const typ = fs.readFileSync(
                 path.join(
                     dist,

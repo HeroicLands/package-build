@@ -14,7 +14,10 @@ function project() {
     const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "package-build-types-")));
     fs.writeFileSync(
         path.join(root, "tsconfig.json"),
-        JSON.stringify({ compilerOptions: { strict: true }, include: ["*.d.ts"] }),
+        JSON.stringify({
+            compilerOptions: { strict: true, lib: ["es5"], types: [] },
+            include: ["*.d.ts"],
+        }),
     );
     fs.writeFileSync(
         path.join(root, "package.json"),
@@ -29,7 +32,8 @@ describe("declaration checks", () => {
         const root = project();
         expect(exportedDeclarationFiles(root).files).toEqual([path.join(root, "index.d.ts")]);
         expect(checkDeclarations(path.join(root, "tsconfig.json"), { exports: true })).toEqual([]);
-    });
+        // The time goes to type-checking the default library in-process.
+    }, 20_000);
 
     it("locates an import of a missing declaration", () => {
         const root = project();

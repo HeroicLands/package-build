@@ -267,7 +267,10 @@ describe("BasePackCompiler's convertBody reports every finding in one run", () =
     // declare — the scanner returns both as `errors[0]` and `errors[1]`, and
     // what is under test is that the compiler reports both rather than only
     // the first.
-    const TWO_FIGURE_PROBLEMS = path.join(os.tmpdir(), "sohl-base-compiler-two-figure-problems");
+    const TWO_FIGURE_PROBLEMS = path.join(
+        os.tmpdir(),
+        `sohl-base-compiler-two-figure-problems-${process.pid}`,
+    );
 
     beforeAll(() => {
         fs.mkdirSync(TWO_FIGURE_PROBLEMS, { recursive: true });
@@ -326,7 +329,7 @@ describe("a {{ref}} resolves in a compiled journal entry", () => {
     // asset `figure-pages.test.ts` draws on.
     const THORN = "sohl/assets/images/other/thorn.webp";
     const SECOND_IMAGE = "sohl/assets/images/other/second.webp";
-    const REF_JOURNAL = path.join(os.tmpdir(), "sohl-base-compiler-ref-journal");
+    const REF_JOURNAL = path.join(os.tmpdir(), `sohl-base-compiler-ref-journal-${process.pid}`);
 
     beforeAll(() => {
         fs.mkdirSync(REF_JOURNAL, { recursive: true });
@@ -388,7 +391,10 @@ describe("a {{ref}} resolves in a compiled journal entry", () => {
     });
 
     it("refuses an anchor matching no figure, before anything compiles", async () => {
-        const broken = path.join(os.tmpdir(), "sohl-base-compiler-ref-journal-broken");
+        const broken = path.join(
+            os.tmpdir(),
+            `sohl-base-compiler-ref-journal-broken-${process.pid}`,
+        );
         fs.mkdirSync(broken, { recursive: true });
         try {
             fs.writeFileSync(
@@ -439,8 +445,8 @@ describe("BasePackCompiler's convertBody agrees with the lint about an image", (
     // `lintContentImages` already refuses this exact shape — an image sharing
     // its paragraph with prose — so the pack compile must refuse it too,
     // rather than compiling the directive as though it were absent.
-    const INLINE_IMAGE = path.join(os.tmpdir(), "sohl-base-compiler-inline-image");
-    const FENCED_IMAGE = path.join(os.tmpdir(), "sohl-base-compiler-fenced-image");
+    const INLINE_IMAGE = path.join(os.tmpdir(), `sohl-base-compiler-inline-image-${process.pid}`);
+    const FENCED_IMAGE = path.join(os.tmpdir(), `sohl-base-compiler-fenced-image-${process.pid}`);
 
     beforeAll(() => {
         fs.mkdirSync(INLINE_IMAGE, { recursive: true });

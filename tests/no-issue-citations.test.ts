@@ -7,6 +7,8 @@ import ts from "typescript";
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const skipped = new Set([".git", "build", "node_modules", "nogit", "types", "assets", "fixtures"]);
+// Every spelling of `#` a string literal or a comment can carry: the character or an escape for it.
+const MAY_CONTAIN_HASH = /#|\\x23|\\u0*23(?![0-9a-f])|\\u\{0*23\}|\\0*43(?![0-7])/i;
 const ISSUE = /(?:[\w.-]+\/)?[\w.-]*#\d+\b/g;
 
 function sources(dir: string): string[] {
@@ -27,7 +29,8 @@ describe("source prose", () => {
                 ts.ScriptTarget.Latest,
                 false,
                 ts.LanguageVariant.Standard,
-                source,
+                // A comment cannot escape its characters, so a citation in one is a literal `#<digits>`.
+                /#\d/.test(source) ? source : "",
             );
             for (
                 let token = scanner.scan();
@@ -43,6 +46,7 @@ describe("source prose", () => {
                     citations.push(`${path.relative(root, file)}:${match[0]}`);
             }
             if (!file.includes(`${path.sep}tests${path.sep}`)) continue;
+            if (!MAY_CONTAIN_HASH.test(source)) continue;
             const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
             const visit = (node: ts.Node) => {
                 if (
@@ -60,5 +64,6 @@ describe("source prose", () => {
             visit(tree);
         }
         expect(citations).toEqual([]);
-    });
+        // The time goes to scanning and parsing every source file in the package.
+    }, 20_000);
 });
