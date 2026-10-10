@@ -196,7 +196,8 @@ export function assetImageInfoByPathname(records = []) {
  *   slot's. Omitted, any asset type is taken, which is an embed's rule: it
  *   draws a file, and every asset type is a file.
  * @returns {{record: {package: string, asset: {path: string}}, pathname: string}
- *   |{record: null, reason: string, type?: string}} The asset and the pathname
+ *   |{record: null, reason: string, type?: string, shortcode?: string,
+ *   declared?: string}} The asset and the pathname
  *   it is at, or a reason from
  *   {@link module:engine/wikilink-syntax.LINK_FINDING_REASONS}, or `not-accepted`
  *   when `accepts` is given and the parsed type falls outside it.
@@ -213,6 +214,31 @@ export function readAssetAddress(index, value, defaultType, accepts) {
     });
     if (read.reason === "not-accepted") {
         return { record: null, reason: "not-accepted", type: read.type };
+    }
+    if (read.reason === "shortcode-not-lowercase") {
+        // Refused, never lowercased; the lowercase spelling is looked up only
+        // to name it in the finding.
+        const written = String(value);
+        const lower = artTarget(
+            `${written.slice(0, -read.shortcode.length)}${read.lowercase.shortcode}`,
+            defaultType,
+            accepts,
+            {
+                system: ASSET_SYSTEM,
+                package: index?.contentPackage ?? index?.packageId,
+                types: index?.types,
+                packages: index?.packages,
+            },
+        );
+        const canonical = lower.reason ? undefined : renderAddress(lower);
+        const declared =
+            canonical && (index?.assets?.get(canonical) ?? index?.foreign?.get(canonical));
+        return {
+            record: null,
+            reason: read.reason,
+            shortcode: read.shortcode,
+            ...(declared ? { declared: read.lowercase.shortcode } : {}),
+        };
     }
     if (read.reason) return { record: null, reason: read.reason, type: read.type };
     // **Asset types only**, where the position declares no narrower set. An

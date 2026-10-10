@@ -100,7 +100,7 @@ import path from "node:path";
 
 import unidecode from "unidecode";
 
-import { metadataFileName } from "./metadata-index.mjs";
+import { loadForeignIndexes, metadataFileName } from "./metadata-index.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
@@ -486,9 +486,15 @@ export function buildIndexRecord({
             const yamlText = fs
                 .readFileSync(absPath, "utf8")
                 .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
-            const position = positionOfYamlPath(yamlText, error.keyPath, { key: error.addressKey });
-            if (position.line) position.line++;
-            error.position = position;
+            const locate = (/** @type {any} */ found) => {
+                const position = positionOfYamlPath(yamlText, found.keyPath, {
+                    key: found.addressKey,
+                });
+                if (position.line) position.line++;
+                found.position = position;
+            };
+            locate(error);
+            for (const found of error.findings ?? []) if (found !== error) locate(found);
         }
         throw error;
     }
@@ -781,6 +787,11 @@ export function collectContentIndex(
         assetsBase ? collectAssetRecords(assetsBase, { contentPackage, problems }) : [];
     const assetIndex = assetAddressIndex(assetRecords, { config: { contentPackage } });
     const resolveRole = (address) => embedRole(assetIndex, address);
+    const decodeContext = withDeclaredAddresses(
+        addressContext ?? { package: contentPackage },
+        parsedNotes,
+        contentPackage,
+    );
 
     for (const { frontmatter, body, bodyLine, absPath } of parsedNotes) {
         const fm = frontmatter ?? {};
@@ -796,7 +807,7 @@ export function collectContentIndex(
                     body,
                     bodyLine,
                     manifest,
-                    addressContext,
+                    addressContext: decodeContext,
                     dateContext: dates,
                     resolveRole,
                 }),
@@ -819,7 +830,19 @@ export function collectContentIndex(
             // would state that the note does not exist.
             if (!problems) throw err;
             // A reader, by contrast, reports it and carries on: one malformed
-            // note must not take every other finding in the tree with it.
+            // note must not take every other finding in the tree with it. A
+            // decode that refused several values reports each at its own
+            // position.
+            if (err.findings?.length) {
+                for (const found of err.findings)
+                    problems.push({
+                        file: absPath,
+                        ...(found.position ?? {}),
+                        severity: "error",
+                        message: String(found.message),
+                    });
+                continue;
+            }
             problems.push({
                 file: absPath,
                 ...(err.position ?? {}),
@@ -894,6 +917,61 @@ function needsContentTree(resolved) {
 }
 
 /**
+ * An Address context that answers whether a complete Address is declared.
+ *
+ * A refused shortcode is reported with the lowercase spelling it means when
+ * that spelling names a note in this tree, or something the context's own
+ * `declaresAddress` answers for — a dependency's index. The package, type and
+ * shortcode decide it; the system does not, since one note answers under
+ * several.
+ *
+ * @param {object} context - The Address context the tree is decoded with.
+ * @param {Array<{frontmatter?: object}>} notes - The tree's parsed notes.
+ * @param {string} contentPackage - The package the tree compiles as.
+ * @returns {object} The context, with `declaresAddress`.
+ */
+function withDeclaredAddresses(context, notes, contentPackage) {
+    const local = new Set(
+        notes
+            .map(({ frontmatter }) => frontmatter)
+            .filter((fm) => typeof fm?.type === "string" && typeof fm?.shortcode === "string")
+            .map((fm) => `${fm.type}\0${fm.shortcode}`),
+    );
+    const beyond = context.declaresAddress;
+    return {
+        ...context,
+        declaresAddress: (tuple) =>
+            (tuple.package === contentPackage && local.has(`${tuple.type}\0${tuple.shortcode}`)) ||
+            Boolean(beyond?.(tuple)),
+    };
+}
+
+/**
+ * Whether a complete Address names something a fetched dependency index
+ * declares.
+ *
+ * Read on first use only: it answers for the message of a refused shortcode,
+ * and a tree with none never reads a dependency's index for it.
+ *
+ * @param {object} config - The resolved configuration.
+ * @returns {(tuple: {package: string, type: string, shortcode: string}) => boolean}
+ *   The predicate.
+ */
+function dependencyAddresses(config) {
+    /** @type {Set<string>|undefined} */
+    let known;
+    return (tuple) => {
+        known ??= new Set(
+            [...loadForeignIndexes(config, [config.contentPackage]).index.keys()]
+                .map((key) => readCanonicalKey(key))
+                .filter(Boolean)
+                .map((t) => `${t.package}\0${t.type}\0${t.shortcode}`),
+        );
+        return known.has(`${tuple.package}\0${tuple.type}\0${tuple.shortcode}`);
+    };
+}
+
+/**
  * The index records for a content tree, without writing anything.
  *
  * The half of {@link emitContentIndex} that derives rather than emits, so a
@@ -935,7 +1013,10 @@ export function indexRecordsFor({
     }
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
-        addressContext: noteAddressContext(resolved),
+        addressContext: {
+            ...noteAddressContext(resolved),
+            declaresAddress: dependencyAddresses(resolved),
+        },
         skipDirectories: skipDirectories ?? resolved.skipDirectories,
         assetsBase: assetsBase ?? resolved.paths.assets,
         // Only the identities a UUID is a function of — see emitContentIndex.

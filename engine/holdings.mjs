@@ -84,7 +84,7 @@ function referenceKey(value, node, type) {
             type,
             types: new Set([type]),
         },
-        { declared: true, legacyShortcodeCase: true },
+        { declared: true },
     );
     if (tuple.reason || tuple.type !== type) return "";
     return renderAddress({ ...tuple, system: "note" }).toLowerCase();

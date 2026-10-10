@@ -153,8 +153,8 @@ export function embedsIn(body, context) {
  * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex},
  *   or the equivalent the site and the book build.
  * @param {ParsedEmbed} embed - The embed.
- * @returns {{pathname: string}|{reason: string, target: string, type?: string}}
- *   The authored pathname the picture is at, or the finding.
+ * @returns {{pathname: string}|{reason: string, target: string, type?: string,
+ *   shortcode?: string, declared?: string}} The authored pathname the picture is at, or the finding.
  */
 export function resolveEmbed(index, embed) {
     // **Every link carries a label**, and an embed is a link. Without one there
@@ -170,7 +170,13 @@ export function resolveEmbed(index, embed) {
     if (read.record) {
         return { pathname: read.pathname };
     }
-    return { reason: read.reason, target: embed.written, type: read.type };
+    return {
+        reason: read.reason,
+        target: embed.written,
+        type: read.type,
+        ...(read.shortcode ? { shortcode: read.shortcode } : {}),
+        ...(read.declared ? { declared: read.declared } : {}),
+    };
 }
 
 /**
@@ -288,6 +294,8 @@ export function resolveEmbeds(body, { index }) {
                 offset: embed.index,
                 reason: resolved.reason,
                 ...(resolved.type ? { type: resolved.type } : {}),
+                ...(resolved.shortcode ? { shortcode: resolved.shortcode } : {}),
+                ...(resolved.declared ? { declared: resolved.declared } : {}),
             });
             continue;
         }

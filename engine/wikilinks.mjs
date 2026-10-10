@@ -274,7 +274,7 @@ function foreignHits(index, read) {
     if (!read || read.reason || !index.foreign?.size) return [];
     const tuple = completeAddress(read, { package: index.contentPackage, system: NOTE_SYSTEM });
     const wanted = norm(tuple.type);
-    const shortcode = norm(read.shortcode);
+    const shortcode = read.shortcode;
 
     // **An omitted package means this package**, so a short form
     // addresses nothing foreign and never reaches a dependency's index. A link
@@ -298,6 +298,26 @@ function foreignHits(index, read) {
         hits.push(entry);
     }
     return hits;
+}
+
+/**
+ * What a `shortcode-not-lowercase` finding carries: the shortcode as written,
+ * and the lowercase spelling when a local note or a fetched dependency declares
+ * it.
+ *
+ * @param {object} index - From {@link buildWikilinkIndex}.
+ * @param {{shortcode: string, lowercase: object}} problem - The reader's verdict.
+ * @returns {{shortcode: string, declared?: string}} The finding's fields.
+ */
+function shortcodeCase(index, problem) {
+    const read = problem.lowercase;
+    const local =
+        (read.package ?? index.contentPackage) === index.contentPackage &&
+        index.byShortcode?.has(
+            `${resolveItemDocType(read.type, index.types) ?? read.type}/${read.shortcode}`,
+        );
+    const declared = local || foreignHits(index, read).length > 0;
+    return { shortcode: problem.shortcode, ...(declared ? { declared: read.shortcode } : {}) };
 }
 
 /**
@@ -452,6 +472,9 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
                     target,
                     offset,
                     reason: qualified?.reason ?? "not-an-address",
+                    ...(qualified?.reason === "shortcode-not-lowercase" ?
+                        shortcodeCase(index, qualified)
+                    :   {}),
                     addressed: true,
                 });
                 return unresolvedLink(text || target, target);

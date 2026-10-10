@@ -379,6 +379,8 @@ export function buildLinkIndex(
                 target: u.target,
                 reason: u.reason,
                 ...(u.type ? { type: u.type } : {}),
+                ...(u.shortcode ? { shortcode: u.shortcode } : {}),
+                ...(u.declared ? { declared: u.declared } : {}),
             })),
             ...problems.map((problem) => ({
                 text: problem.link,
@@ -1013,6 +1015,25 @@ export function auditLinks(index) {
 
             if (!isAddress(target)) {
                 deadAddresses.push({ ...at, reason: "not-an-address" });
+                continue;
+            }
+            // A capital in the shortcode is refused, never lowercased. The
+            // lowercase spelling is looked up only to name it in the finding.
+            const cased = readQualifier(target, index.types, index.packages, index.noIndexPackages);
+            if (cased?.reason === "shortcode-not-lowercase") {
+                const lower = `${target.slice(0, -cased.shortcode.length)}${cased.lowercase.shortcode}`;
+                const declared =
+                    index.resolveAddress(lower) ?? index.stubAt?.(lower) ?? manifestHit(lower);
+                deadAddresses.push({
+                    ...at,
+                    reason: "shortcode-not-lowercase",
+                    shortcode: cased.shortcode,
+                    ...(declared ? { declared: cased.lowercase.shortcode } : {}),
+                });
+                continue;
+            }
+            if (cased?.reason === "not-lowercase") {
+                deadAddresses.push({ ...at, reason: "not-lowercase" });
                 continue;
             }
             const resolved = index.resolveAddress(target);

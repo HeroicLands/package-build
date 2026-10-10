@@ -221,12 +221,15 @@ describe("convertWikilinks", () => {
         expect(unresolved[0]).toMatchObject({ reason: "not-lowercase" });
     });
 
-    it("keeps a mixed-case SHORTCODE, which is case-sensitive", () => {
-        // A shortcode is written as the note declares it — `Clb`, `LtShoe`,
-        // `HsTunic` are all real — so only the three segments in front of it
-        // are held to lowercase.
+    it("refuses a capitalised SHORTCODE rather than lowercasing it", () => {
+        // A shortcode is lowercase, like every other segment, so a link
+        // spelling one with a capital is refused at the link.
         const { unresolved } = convert("[[sohl-skill-Climb|Climbing]]");
-        expect(unresolved).toEqual([]);
+        expect(unresolved).toHaveLength(1);
+        expect(unresolved[0]).toMatchObject({
+            reason: "shortcode-not-lowercase",
+            shortcode: "Climb",
+        });
     });
 
     it("converts a cross-page section link to a JournalEntryPage target", () => {

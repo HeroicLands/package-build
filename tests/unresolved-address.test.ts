@@ -175,6 +175,7 @@ describe("one vocabulary of link findings", () => {
             "not-an-address",
             "not-an-asset",
             "not-lowercase",
+            "shortcode-not-lowercase",
             "stub",
             "unknown-anchor",
             "unknown-type",

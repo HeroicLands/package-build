@@ -181,6 +181,8 @@ export function unlabelledLinkMessage(target) {
  * - `unlabelled` — no `|`, so the link addresses nothing.
  * - `not-an-address` — labelled, but the target does not parse as an address.
  * - `not-lowercase` — a package, system or type segment carries a capital.
+ * - `shortcode-not-lowercase` — the shortcode segment carries a capital. A
+ *   shortcode is lowercase, and the link is refused rather than lowercased.
  * - `unknown-type` — definitely qualified, but names no type this build knows.
  * - `not-an-asset` — a real address, embedded where only a file can be drawn.
  * - `unresolved` — parses as an address, and nothing publishes it.
@@ -199,6 +201,7 @@ export const LINK_FINDING_REASONS = Object.freeze(
         "unlabelled",
         "not-an-address",
         "not-lowercase",
+        "shortcode-not-lowercase",
         "unknown-type",
         "not-an-asset",
         "unresolved",
@@ -327,11 +330,24 @@ export function ambiguousAddressMessage(target, packages = []) {
  * @param {string} [finding.type] - For `not-an-asset`, the type the address
  *   named.
  * @param {string} [finding.stub] - For `stub`, where the stub is.
+ * @param {string} [finding.shortcode] - For `shortcode-not-lowercase`, the
+ *   shortcode as written.
+ * @param {string} [finding.declared] - For `shortcode-not-lowercase`, the
+ *   lowercase spelling, when it is a declared shortcode.
  * @returns {string} The message.
  * @throws {Error} On a reason outside the closed set — a resolver inventing one
  *   would otherwise report a link with no explanation at all.
  */
-export function linkFindingMessage({ reason, target, packages, anchor, type, stub }) {
+export function linkFindingMessage({
+    reason,
+    target,
+    packages,
+    anchor,
+    type,
+    stub,
+    shortcode,
+    declared,
+}) {
     switch (reason) {
         case "unlabelled":
             return unlabelledLinkMessage(target);
@@ -345,8 +361,12 @@ export function linkFindingMessage({ reason, target, packages, anchor, type, stu
         case "not-lowercase":
             return (
                 `address [[${target}]] capitalises a package, system or type ` +
-                `segment — those three are lowercase, and only the shortcode ` +
-                `keeps its case`
+                `segment — every segment of an address is lowercase`
+            );
+        case "shortcode-not-lowercase":
+            return (
+                `address [[${target}]] shortcode \`${shortcode ?? target}\` must be ` +
+                `lowercase${declared ? `; the declared shortcode is \`${declared}\`` : ""}`
             );
         case "unknown-type":
             return `address [[${target}]] names no known content type`;

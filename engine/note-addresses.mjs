@@ -127,7 +127,6 @@ export function addressPositions(fm, context = {}) {
             path: [system, "items", "*", "model"],
             shape: "value",
             system,
-            legacyShortcodeCase: true,
         });
         for (const slot of ART_SLOTS)
             out.push({
@@ -152,7 +151,7 @@ export function addressPositions(fm, context = {}) {
                             system,
                             types: new Set([...Object.keys(NOTE_VOCABULARY), ...ASSET_TYPE_NAMES]),
                         },
-                        { declared: true, legacyShortcodeCase: true },
+                        { declared: true },
                     );
             const type = model && !model.reason ? model.type : entry?.type;
             for (const field of spec?.fields?.[type] ?? []) {
@@ -206,13 +205,78 @@ export function addressPositions(fm, context = {}) {
 }
 
 /**
+ * The finding for a declared Address whose shortcode carries a capital.
+ *
+ * A shortcode is lowercase, and a declared Address is read as written, so the
+ * value is refused rather than folded. Where the lowercase spelling names
+ * something the context declares, the message names that shortcode.
+ *
+ * @param {import("./address.mjs").AddressProblem} problem - The parser's verdict.
+ * @param {Array<string|number>} path - The value's key path.
+ * @param {{shape?: string}} position - The Address position it sits in.
+ * @param {{declaresAddress?: (tuple: object) => boolean}} context - The
+ *   decode context; `declaresAddress` answers whether a complete Address names
+ *   a declared note or item.
+ * @returns {Error & {keyPath: Array<string|number>, addressKey: boolean}} The
+ *   located error.
+ */
+function shortcodeCaseError(problem, path, position, context) {
+    const declared =
+        context.declaresAddress?.(problem.lowercase) ?
+            `; the declared shortcode is \`${problem.lowercase.shortcode}\``
+        :   "";
+    const error = new Error(
+        `\`${path.join(".")}\` shortcode \`${problem.shortcode}\` must be lowercase${declared}`,
+    );
+    error.keyPath = path;
+    error.addressKey = position.shape === "keys" || position.shape === "keys-or-list";
+    return /** @type {any} */ (error);
+}
+
+/**
  * Decode declared properties at the note boundary. Raw mappings cannot impersonate tuples.
+ *
+ * A declared Address is read as written. A shortcode spelled with a capital is
+ * refused, and every such value in the note is collected before the decode
+ * throws, so each reference is reported at its own position: the thrown error
+ * describes the first, and its `findings` carry all of them.
+ *
  * @param {object} fm - Parsed YAML or an index record.
- * @param {object} context - The builder's package and known types.
+ * @param {object} context - The builder's package and known types, and
+ *   optionally `declaresAddress`, which names the lowercase spelling of a
+ *   refused shortcode when it is declared.
  * @returns {object} The same note carrying typed Address properties.
+ * @throws {Error} When a declared Address is refused; `keyPath` locates it, and
+ *   `findings`, where present, lists every refused shortcode.
  */
 export function decodeNoteAddresses(fm, context) {
     if (!fm || typeof fm !== "object") return fm;
+    /** @type {Array<Error & {keyPath: Array<string|number>}>} */
+    const refused = [];
+    try {
+        decodePositions(fm, context, refused);
+    } catch (error) {
+        if (refused.length && error?.keyPath) error.findings = [...refused, error];
+        throw error;
+    }
+    if (refused.length) {
+        const [first] = refused;
+        /** @type {any} */ (first).findings = refused;
+        throw first;
+    }
+    return fm;
+}
+
+/**
+ * The body of {@link decodeNoteAddresses}: every Address position, decoded in
+ * place.
+ *
+ * @param {object} fm - The note.
+ * @param {object} context - The decode context.
+ * @param {Error[]} refused - Collects each refused shortcode.
+ * @returns {void}
+ */
+function decodePositions(fm, context, refused) {
     const types = new Set([
         ...Object.keys(NOTE_VOCABULARY),
         ...ASSET_TYPE_NAMES,
@@ -255,10 +319,11 @@ export function decodeNoteAddresses(fm, context) {
                     "takes no anchor — it names a whole note, so write the Address without `#…`",
                 );
             const { address: written, anchor } = anchored ? splitAnchor(value) : { address: value };
-            const tuple = parseAddress(written, defaults, {
-                declared: true,
-                legacyShortcodeCase: position.legacyShortcodeCase,
-            });
+            const tuple = parseAddress(written, defaults, { declared: true });
+            if (tuple.reason === "shortcode-not-lowercase" && !position.lenient) {
+                refused.push(shortcodeCaseError(tuple, path, position, context));
+                return value;
+            }
             if (tuple.reason) fail(value, path, "is not an accepted Address");
             if (position.accepts && !acceptsType(tuple, position.accepts))
                 fail(
@@ -345,7 +410,6 @@ export function decodeNoteAddresses(fm, context) {
         const decoded = visit(fm, position.path);
         Object.assign(fm, decoded);
     }
-    return fm;
 }
 
 /**

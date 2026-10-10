@@ -258,18 +258,18 @@ describe("Address read and write boundaries", () => {
         ).toThrow("not a complete Address");
     });
 
-    it("preserves accepted model case folding without changing native Shortcodes", () => {
+    it("refuses a model shortcode spelled with a capital", () => {
+        expect(() =>
+            decodeNoteAddresses(
+                { type: "being", sohl: { items: [{ model: "armorgear-LLeg" }] } },
+                context,
+            ),
+        ).toThrow("`sohl.items.0.model` shortcode `LLeg` must be lowercase");
         const fm = decodeNoteAddresses(
-            {
-                type: "being",
-                sohl: { items: [{ model: "armorgear-LLeg", system: { shortcode: "LLeg" } }] },
-            },
+            { type: "being", sohl: { items: [{ model: "armorgear-lleg" }] } },
             context,
         );
-        expect(encodeAddresses(fm).sohl.items[0]).toEqual({
-            model: "world-sohl-armorgear-lleg",
-            system: { shortcode: "LLeg" },
-        });
+        expect(encodeAddresses(fm).sohl.items[0]).toEqual({ model: "world-sohl-armorgear-lleg" });
         expect(() =>
             decodeNoteAddresses({ type: "place", data: { parents: ["North"] } }, context),
         ).toThrow();

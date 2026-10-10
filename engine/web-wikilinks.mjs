@@ -531,6 +531,26 @@ export function resolveWebWikilinks(body, ctx) {
             read && !read.reason && read.package === ctx.contentPackage ?
                 `${read.type}/${read.shortcode}`.toLowerCase()
             :   rawKey;
+        // A capital in the shortcode is refused, never lowercased. The
+        // lowercase spelling is looked up only to name it in the finding.
+        if (read?.reason === "shortcode-not-lowercase") {
+            const lower = read.lowercase;
+            const declared =
+                lookupRead(ctx.index, lower, ctx.contentPackage) ??
+                (ctx.foreign && lower.package ?
+                    lookupRead(ctx.foreign, lower, ctx.contentPackage)
+                :   undefined);
+            return report(
+                all,
+                {
+                    target,
+                    reason: "shortcode-not-lowercase",
+                    shortcode: read.shortcode,
+                    ...(declared ? { declared: lower.shortcode } : {}),
+                },
+                label ?? target,
+            );
+        }
         const reason =
             ctx.collide?.has(collideKey) ? "ambiguous"
                 // "It parsed as an address" is a property of the parse, not of
@@ -538,6 +558,7 @@ export function resolveWebWikilinks(body, ctx) {
             : read && !read.reason ? "unresolved"
             : read?.reason === "unknown-type" ? "unknown-type"
             : read?.reason === "no-content-index" ? "no-content-index"
+            : read?.reason === "not-lowercase" ? "not-lowercase"
                 // Every link is an address, and this is not one. Distinct from
                 // a dead address, because the fix is different: a name has to
                 // become an address, not be corrected.

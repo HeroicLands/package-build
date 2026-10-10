@@ -205,7 +205,7 @@ function modelAddress(model) {
     const target = parseAddress(
         model,
         { package: contentPackage(), system: "sohl", types: MODEL_TYPES },
-        { declared: true, legacyShortcodeCase: true },
+        { declared: true },
     );
     return target.reason ? undefined : target;
 }

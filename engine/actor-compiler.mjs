@@ -742,13 +742,13 @@ export class SystemActorCompiler extends BasePackCompiler {
         const read = parseAddress(
             model,
             { types, packages, package: contentPackage(), system: this.system },
-            { declared: true, legacyShortcodeCase: true },
+            { declared: true },
         );
         if (!read || read.reason) {
             const why =
-                read?.reason === "not-lowercase" ?
-                    "capitalises a package, system or type segment — those three " +
-                    "are lowercase, and only the shortcode keeps its case"
+                read?.reason === "shortcode-not-lowercase" ?
+                    `spells its shortcode \`${read.shortcode}\` with a capital — ` +
+                    "a shortcode is lowercase"
                 : read?.reason === "unknown-type" ? "names no known content type"
                 : "is not an address — write `type-shortcode`, or " +
                     "`package-system-type-shortcode` for another package's item";

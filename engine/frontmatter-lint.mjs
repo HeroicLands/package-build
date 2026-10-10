@@ -767,10 +767,7 @@ export function systemAddressFindings(note, { index, schemas, systems } = {}) {
                 const address =
                     isAddressTuple(item.value) ? item.value
                     : typeof item.value === "string" ?
-                        parseAddress(item.value, context, {
-                            declared: true,
-                            legacyShortcodeCase: position.legacyShortcodeCase,
-                        })
+                        parseAddress(item.value, context, { declared: true })
                     :   null;
                 if (!address || address.reason) continue;
                 if (position.accepts && !acceptsType(address, position.accepts)) continue;

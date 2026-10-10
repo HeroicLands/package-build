@@ -167,7 +167,7 @@ export const CANONICAL_KEY_SEGMENTS = 4;
 /** The accepted `doc<type>` input prefix for readable note links. */
 export const ITEM_DOC_PREFIX = "doc";
 
-/** Package, system and type are one spelling each, so they fold to lowercase. */
+/** Package, system and type are read lowercased; a capital in one is refused as `not-lowercase`. */
 const norm = (s) => String(s).toLowerCase().trim();
 
 /**
@@ -194,11 +194,16 @@ const norm = (s) => String(s).toLowerCase().trim();
  * - `no-content-index` — the package named publishes no content index, so there
  *   is nothing to resolve the rest of the target against.
  * - `not-lowercase` — a package, system or type segment carries a capital.
+ * - `shortcode-not-lowercase` — the Address spells its shortcode with a
+ *   capital and is otherwise well formed. `shortcode` carries the segment as
+ *   written, and `lowercase` the reading of the lowercase spelling: complete
+ *   for a declared Address, and as partial as the written value otherwise.
  * - `invalid-segment` — a declared Address contains a malformed segment.
  * - `no-package` — a declared Address cannot supply its package.
  * - `invalid-system` — a declared Address cannot supply a registered system.
  *
- * @typedef {{reason: string, package?: string}} AddressProblem
+ * @typedef {{reason: string, package?: string, shortcode?: string,
+ *   lowercase?: AddressTuple}} AddressProblem
  */
 
 /**
@@ -294,32 +299,34 @@ export function resolveItemDocType(qualifier, types) {
  *   label already removed.
  * @param {AddressDefaults} [defaults] - The position's defaults and the tree's
  *   vocabularies.
- * @param {{declared?: boolean, legacyShortcodeCase?: boolean}} [options] - A declared Address validates every
- *   segment and requires complete defaults. Package membership is a separate
- *   resolution question in this mode; prose recognition keeps its vocabulary checks.
- *   `legacyShortcodeCase` accepts case-insensitive model Shortcodes while the
- *   completed tuple contains their canonical lowercase identity.
+ * @param {{declared?: boolean}} [options] - A declared Address is validated as
+ *   written: every segment, the shortcode included, is lowercase, and the
+ *   defaults must be complete. Package membership is a separate resolution
+ *   question in this mode; prose recognition keeps its vocabulary checks.
  * @returns {AddressTuple|AddressProblem} The complete Address, or why there is
  *   none.
  */
-export function parseAddress(
-    written,
-    defaults = {},
-    { declared = false, legacyShortcodeCase = false } = {},
-) {
+export function parseAddress(written, defaults = {}, { declared = false } = {}) {
     if (isAddressTuple(written)) return written;
     if (declared) {
         if (typeof written !== "string") return { reason: "not-an-address" };
-        const segments =
-            written.includes("/") ? written.split("/") : written.split(ADDRESS_SEPARATOR);
-        if (
-            !segments.every((segment, index) =>
-                isAddressSegment(
-                    legacyShortcodeCase && index === segments.length - 1 ? norm(segment) : segment,
-                ),
-            )
-        )
-            return { reason: "invalid-segment" };
+        const separator = written.includes("/") ? "/" : ADDRESS_SEPARATOR;
+        const segments = written.split(separator);
+        const shortcode = segments.at(-1);
+        if (!segments.slice(0, -1).every(isAddressSegment)) return { reason: "invalid-segment" };
+        if (!isAddressSegment(shortcode)) {
+            if (!/[A-Z]/.test(shortcode) || !isAddressSegment(shortcode.toLowerCase()))
+                return { reason: "invalid-segment" };
+            const lowercase = parseAddress(
+                [...segments.slice(0, -1), shortcode.toLowerCase()].join(separator),
+                defaults,
+                { declared },
+            );
+            // A value that is no Address even in lowercase is refused for that,
+            // the more basic fault, rather than for its case.
+            if (!isAddressTuple(lowercase)) return lowercase;
+            return { reason: "shortcode-not-lowercase", shortcode, lowercase };
+        }
     }
     const read = readWritten(written, defaults, declared);
     if (read.reason) return read;
@@ -565,15 +572,24 @@ function readWritten(written, vocabulary, declared = false) {
     const target = typeof written === "string" ? written : String(written ?? "");
     if (!target) return { reason: "not-an-address" };
     const read = readWrittenCased(target, vocabulary, declared);
-    if (!read.reason && qualifyingSegments(target).some((s) => /[A-Z]/.test(s))) {
+    if (read.reason) return read;
+    if (qualifyingSegments(target).some((s) => /[A-Z]/.test(s))) {
         return { reason: "not-lowercase" };
+    }
+    if (/[A-Z]/.test(read.shortcode)) {
+        return {
+            reason: "shortcode-not-lowercase",
+            shortcode: read.shortcode,
+            lowercase: { ...read, shortcode: read.shortcode.toLowerCase() },
+        };
     }
     return read;
 }
 
 /**
- * The segments of a written value that must be lowercase — everything but the
- * shortcode, which keeps whatever the note declares.
+ * The package, system and type segments of a written value, which carry the
+ * `not-lowercase` finding. The shortcode is checked on its own, so its finding
+ * can name the segment and the lowercase spelling.
  *
  * @param {string} target - The value as authored.
  * @returns {string[]} The package / system / type segments, as written.
@@ -666,7 +682,7 @@ function readWrittenCased(target, vocabulary, declared = false) {
  *   `null` when the segment names no known type, or the shortcode is empty.
  */
 function readTypeAndCode(rawType, rawCode, types) {
-    const shortcode = norm(rawCode);
+    const shortcode = String(rawCode).trim();
     if (!shortcode) return null;
 
     const type = norm(rawType);

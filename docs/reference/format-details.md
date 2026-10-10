@@ -1472,9 +1472,25 @@ note, while `[[none-macro-autoattack|Automated Attack]]` names the Foundry Macro
 
 **A complete Address is lowercase throughout.** Every segment — package,
 system, type and shortcode alike — contains only lowercase ASCII letters and
-digits (`^[a-z0-9]+$`). Declared Address fields reject uppercase segments.
-A model reference accepts mixed-case Shortcodes and resolves their lowercase
-Address identity; this does not change a native embedded item's Shortcode.
+digits (`^[a-z0-9]+$`). Every Address is validated as written, whether a field
+declares it or a wikilink or embed writes it, so a capital in any segment, the
+shortcode included, is an error at the value or at the link. Nothing is
+lowercased on the author's behalf. Where the lowercase spelling is a declared
+shortcode, the error names it:
+
+```text
+Beings/Guard.md:8:15: error: `sohl.items.0.model` shortcode `LLeg` must be lowercase; the declared shortcode is `lleg`
+```
+
+A link is reported the same way, at its own line and column:
+
+```text
+Skills/Jumping.md:10:5: error: address [[skill-Clmb]] shortcode `Clmb` must be lowercase; the declared shortcode is `clmb`
+```
+
+Each such reference in a note's frontmatter is reported at its own position,
+and the note is left out of the index, so the build fails rather than
+compiling without it.
 
 **Parsing is positional counting from the right, and nothing else.** Every
 segment is lowercase alphanumeric — shortcodes, **types** and **subTypes** are
@@ -1546,18 +1562,18 @@ A `draft` note exists, resolves, compiles and publishes; a link to it renders
 visibly marked. An Address landing nowhere is a typo or an omission and earns
 an error.
 
-There are six ways a link can fail, and each is one **error** with one message
-wherever it is met:
+Each way a link can fail is one **error** with one message wherever it is met:
 
-| finding          | what it means                                 | the fix                                                |
-| ---------------- | --------------------------------------------- | ------------------------------------------------------ |
-| `unlabelled`     | no `\|`, so the link addresses nothing        | write `[[type-shortcode\|Text]]`                       |
-| `not-an-address` | labelled, but the target is not an address    | write the address, not the name                        |
-| `not-lowercase`  | any segment of the address is capitalised     | lowercase it — every segment is lowercase              |
-| `unknown-type`   | qualified, but names no type this build knows | correct the type segment                               |
-| `unresolved`     | parses as an address; nothing publishes it    | fix the shortcode, or qualify to reach another package |
-| `ambiguous`      | _unreachable; kept for the manifest_          | —                                                      |
-| `unknown-anchor` | the address resolves; the `#section` does not | correct the anchor                                     |
+| finding                   | what it means                                                                                             | the fix                                                |
+| ------------------------- | --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `unlabelled`              | no `\|`, so the link addresses nothing                                                                    | write `[[type-shortcode\|Text]]`                       |
+| `not-an-address`          | labelled, but the target is not an address                                                                | write the address, not the name                        |
+| `not-lowercase`           | a package, system or type segment is capitalised                                                          | lowercase it — every segment is lowercase              |
+| `shortcode-not-lowercase` | the shortcode is capitalised; the message names the declared shortcode when the lowercase spelling is one | lowercase it — a shortcode is lowercase                |
+| `unknown-type`            | qualified, but names no type this build knows                                                             | correct the type segment                               |
+| `unresolved`              | parses as an address; nothing publishes it                                                                | fix the shortcode, or qualify to reach another package |
+| `ambiguous`               | _unreachable; kept for the manifest_                                                                      | —                                                      |
+| `unknown-anchor`          | the address resolves; the `#section` does not                                                             | correct the anchor                                     |
 
 `ambiguous` is a reserved reason in the result vocabulary. An omitted segment
 defaults rather than wildcarding, so each written target expands to one
