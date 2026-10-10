@@ -695,13 +695,20 @@ The exact-day conversion functions use the corpus reckoning context. `dateFromCa
 
 ### `engine.cultureChoice`
 
-`checkCultureChoice(note, { index })` checks that a being's `data.culture`
-Address resolves to a lore note with `subType: culture`. The being vocabulary
-invokes the check during frontmatter lint.
+`data.culture` names the people a note belongs to, as a lore note with
+`subType: culture`. `CULTURE_FIELD` is its one declaration, spread into the
+`being`, `place`, `affiliation`, `lore` and `doc` vocabularies.
+`checkCultureChoice(note, { index })` checks that the Address resolves to a
+culture note. `checkCultureSubType(note)` scopes the field by subtype: a `doc`
+of `subType: settingguide` must state it, any other `doc` subtype and a `lore`
+note of `subType: culture` must not. The vocabulary invokes both during
+frontmatter lint.
 
-| Export               | Signature                           | Returns  | Use it when                               |
-| -------------------- | ----------------------------------- | -------- | ----------------------------------------- |
-| `checkCultureChoice` | `checkCultureChoice(note, options)` | findings | validating a being's primary culture note |
+| Export                | Signature                           | Returns  | Use it when                                                |
+| --------------------- | ----------------------------------- | -------- | ---------------------------------------------------------- |
+| `CULTURE_FIELD`       | frozen field declaration            | object   | declaring `data.culture` on a type                         |
+| `checkCultureChoice`  | `checkCultureChoice(note, options)` | findings | validating that a note's culture names a culture note      |
+| `checkCultureSubType` | `checkCultureSubType(note)`         | findings | requiring or refusing `data.culture` by the note's subtype |
 
 ### `engine.markdownExpressions`
 

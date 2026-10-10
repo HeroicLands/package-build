@@ -118,7 +118,7 @@ import { checkNoteEvents } from "./note-events.mjs";
 // list the compiled Item is held to, so the lint and the compile cannot differ.
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 import { EVENT_ENTRY } from "./note-event-terms.mjs";
-import { checkCultureChoice } from "./culture-choice.mjs";
+import { CULTURE_FIELD, checkCultureSubType } from "./culture-choice.mjs";
 import { LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
@@ -977,11 +977,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "subject to, the traditions it was raised in.",
             },
             {
-                name: "culture",
-                ...LINK,
-                ref: "lore",
-                accepts: ["lore"],
-                check: checkCultureChoice,
+                ...CULTURE_FIELD,
                 describe: "The being's primary culture, as a culture lore note.",
             },
             {
@@ -1229,6 +1225,10 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "affiliation",
                 accepts: ["affiliation"],
                 describe: "Affiliations it is subordinate to.",
+            },
+            {
+                ...CULTURE_FIELD,
+                describe: "The people this affiliation belongs to, as a culture lore note.",
             },
             {
                 name: "relations",
@@ -1525,8 +1525,20 @@ export const NOTE_VOCABULARY = Object.freeze({
             "concept",
             "settingguide",
         ]),
-        check: checkCitedPopulations,
-        data: Object.freeze([]),
+        // A setting guide introduces one culture and names it; no other genre
+        // states one.
+        check: (note, context) => [
+            ...checkCitedPopulations(note, context),
+            ...checkCultureSubType(note),
+        ],
+        data: Object.freeze([
+            {
+                ...CULTURE_FIELD,
+                describe:
+                    "The culture a setting guide introduces, as a culture lore note. " +
+                    "Required on `settingguide`; no other subType states it.",
+            },
+        ]),
     }),
 
     macro: Object.freeze({ stubbable: true, data: Object.freeze([]) }),
@@ -1607,15 +1619,28 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
         // A lore note is prose, and what it *is* about is its subType — with
         // two exceptions. A calendar is a division of the year, and a division
-        // is data; a work of literature states whose it is, in what tongue and
-        // about what. The checks scope each family to the subType that means
-        // it, because `DataFieldSpec` declares the keys a type accepts and not
-        // the subType that may write them.
+        // is data; a work of literature states in what tongue it is and what it
+        // concerns. The checks scope each family to the subType that means it,
+        // because `DataFieldSpec` declares the keys a type accepts and not the
+        // subType that may write them. Any lore note but a culture note may
+        // name the people it belongs to.
         check: (note, context) => [
             ...checkCalendarNote(note, context),
             ...checkLiteratureNote(note),
+            ...checkCultureSubType(note),
         ],
-        data: Object.freeze([...CALENDAR_FIELDS, ...LITERATURE_FIELDS, EVENTS_FIELD]),
+        data: Object.freeze([
+            ...CALENDAR_FIELDS,
+            {
+                ...CULTURE_FIELD,
+                describe:
+                    "The people this lore belongs to — for a work of literature, the people " +
+                    "whose work it is — as a culture lore note. A culture note does not " +
+                    "state it: it is itself the culture.",
+            },
+            ...LITERATURE_FIELDS,
+            EVENTS_FIELD,
+        ]),
     }),
 
     place: Object.freeze({
@@ -1667,6 +1692,10 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "place",
                 accepts: ["place"],
                 describe: "Enclosing places this one sits within.",
+            },
+            {
+                ...CULTURE_FIELD,
+                describe: "The people this place belongs to, as a culture lore note.",
             },
             {
                 name: "population",

@@ -133,6 +133,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 | `data.economy`            | list of Addresses                              | What its economic life runs on — currencies, banking bodies, goods.                                                                  |
 | `data.lore`               | list of Addresses                              | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar.                                      |
 | `data.parents`            | list of Addresses                              | Affiliations it is subordinate to.                                                                                                   |
+| `data.culture`            | an Address                                     | The people this affiliation belongs to, as a culture lore note.                                                                      |
 | `data.relations`          | a map keyed by Address                         | Standing with other affiliations — aligned, unaligned, rival, nemesis.                                                               |
 
 **Inner keys** — a key a field's value does not declare is an error at its own line and column.
@@ -500,20 +501,20 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 Lore records in-world knowledge. A `culture` describes a people; a `custom` describes how they practice a rite, observance, or usage. A `material` describes a physical constituent and its qualities, which may vary by region. See the [lore subtype definitions](format-details.md#type-lore) for the complete vocabulary.
 
-| Field            | Shape                                                                               | Meaning                                                                                                                              |
-| ---------------- | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `data.epoch`     | a canonical `<year>.<day>`                                                          | Canonical day when calendar year 1, day 1 begins — `1.1`.                                                                            |
-| `data.months`    | list of `{ name, abbreviation?, days }`                                             | The months this calendar keeps, in order — position in the list is position in the year, and the day counts sum to the world's year. |
-| `data.weekdays`  | list of `{ name, abbreviation? }`                                                   | The days of the week this calendar names, in order. A calendar with no week writes none.                                             |
-| `data.seasons`   | list of `{ name, abbreviation?, start }`                                            | The seasons this calendar marks, starting on numbered days of the year.                                                              |
-| `data.namedDays` | list of `{ name, abbreviation?, day }`                                              | Names assigned to particular days of the year.                                                                                       |
-| `data.eras`      | list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, label? }` | The year-counts kept in this calendar. A marker names one era and uses these months.                                                 |
-| `data.formats`   | map of named Calendaria format strings                                              | Named patterns for reading and writing this calendar's dates.                                                                        |
-| `data.culture`   | an Address                                                                          | The people whose work this is, as a culture lore note.                                                                               |
-| `data.form`      | string                                                                              | The kind of work in its people's own terms — an epic, a saga, a praise-song, an elegy. Free text.                                    |
-| `data.subjects`  | list of Addresses                                                                   | The beings, places, gods and other notes the work concerns, and each event it concerns, named as `place-ironfells#sack`.             |
-| `data.language`  | an Address                                                                          | The tongue the work is composed in, as a language skill note.                                                                        |
-| `data.events`    | list of event entries                                                               | What happened to or at this subject — each entry one dated, attributed event: a founding, a war, a fall, or an occasion that recurs. |
+| Field            | Shape                                                                               | Meaning                                                                                                                                                                       |
+| ---------------- | ----------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data.epoch`     | a canonical `<year>.<day>`                                                          | Canonical day when calendar year 1, day 1 begins — `1.1`.                                                                                                                     |
+| `data.months`    | list of `{ name, abbreviation?, days }`                                             | The months this calendar keeps, in order — position in the list is position in the year, and the day counts sum to the world's year.                                          |
+| `data.weekdays`  | list of `{ name, abbreviation? }`                                                   | The days of the week this calendar names, in order. A calendar with no week writes none.                                                                                      |
+| `data.seasons`   | list of `{ name, abbreviation?, start }`                                            | The seasons this calendar marks, starting on numbered days of the year.                                                                                                       |
+| `data.namedDays` | list of `{ name, abbreviation?, day }`                                              | Names assigned to particular days of the year.                                                                                                                                |
+| `data.eras`      | list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, label? }` | The year-counts kept in this calendar. A marker names one era and uses these months.                                                                                          |
+| `data.formats`   | map of named Calendaria format strings                                              | Named patterns for reading and writing this calendar's dates.                                                                                                                 |
+| `data.culture`   | an Address                                                                          | The people this lore belongs to — for a work of literature, the people whose work it is — as a culture lore note. A culture note does not state it: it is itself the culture. |
+| `data.form`      | string                                                                              | The kind of work in its people's own terms — an epic, a saga, a praise-song, an elegy. Free text.                                                                             |
+| `data.subjects`  | list of Addresses                                                                   | The beings, places, gods and other notes the work concerns, and each event it concerns, named as `place-ironfells#sack`.                                                      |
+| `data.language`  | an Address                                                                          | The tongue the work is composed in, as a language skill note.                                                                                                                 |
+| `data.events`    | list of event entries                                                               | What happened to or at this subject — each entry one dated, attributed event: a founding, a war, a fall, or an occasion that recurs.                                          |
 
 **Inner keys** — a key a field's value does not declare is an error at its own line and column.
 
@@ -608,6 +609,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 | `data.purpose`                         | string                                                            | The reason this settlement, site, or structure exists, selected from its placeCharacter tags.                                                                                       |
 | `data.lore`                            | list of Addresses                                                 | Lore concerning this place — its peoples, its law, its calendar, its history.                                                                                                       |
 | `data.parents`                         | list of Addresses                                                 | Enclosing places this one sits within.                                                                                                                                              |
+| `data.culture`                         | an Address                                                        | The people this place belongs to, as a culture lore note.                                                                                                                           |
 | `data.population`                      | number                                                            | Approximate population, to two significant digits.                                                                                                                                  |
 | `data.government`                      | an Address or null                                                | The governing affiliation Address; the default target type is affiliation. Explicit null means complete anarchy. A positive population with no government key produces an advisory. |
 | `data.market`                          | number                                                            | What trade the settlement supports, on a scale of six: 1 hamlet, 2 village, 3 town, 4 market town, 5 city, 6 great city.                                                            |
@@ -699,9 +701,9 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 **Subtypes:** `rules`, `userguide`, `reference`, `howto`, `concept`, `settingguide`.
 
-| Field | Shape | Meaning                         |
-| ----- | ----- | ------------------------------- |
-| —     | —     | No type-specific `data` fields. |
+| Field          | Shape      | Meaning                                                                                                                 |
+| -------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `data.culture` | an Address | The culture a setting guide introduces, as a culture lore note. Required on `settingguide`; no other subType states it. |
 
 ### macro
 

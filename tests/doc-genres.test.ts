@@ -55,8 +55,26 @@ describe("a `doc` declares page genres", () => {
         expect(lintNote(note("doc", { subType: "concept" }), opts)).toEqual([]);
     });
 
-    it("accepts `settingguide` — an orientation to a setting", () => {
-        expect(lintNote(note("doc", { subType: "settingguide" }), opts)).toEqual([]);
+    it("accepts `settingguide` — a culture's guide to the setting, naming its culture", () => {
+        expect(
+            lintNote(
+                note("doc", { subType: "settingguide", data: { culture: "lore-vedyariclt" } }),
+                { ...opts, addressContext: { package: "thalorna", system: "note" } },
+            ),
+        ).toEqual([]);
+    });
+
+    it("refuses a `settingguide` that names no culture, at its `subType:` line", () => {
+        const findings = lintNote(note("doc", { subType: "settingguide" }), opts);
+        expect(findings).toEqual([
+            expect.objectContaining({
+                file: "/tree/doc.md",
+                line: 3,
+                column: 1,
+                severity: "error",
+                message: expect.stringContaining("must state `data.culture`"),
+            }),
+        ]);
     });
 
     it("keeps the genres already declared", () => {

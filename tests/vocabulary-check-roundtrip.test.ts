@@ -99,7 +99,16 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     place: {
-        covers: ["events", "calendar", "purpose", "population", "market", "borders", "routes"],
+        covers: [
+            "events",
+            "calendar",
+            "purpose",
+            "culture",
+            "population",
+            "market",
+            "borders",
+            "routes",
+        ],
         fm: () => ({
             type: "place",
             subType: "settlement",
@@ -117,6 +126,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                 ],
                 calendar: "calendarone",
                 purpose: "market",
+                culture: "cultureone",
                 population: 1200,
                 market: 3,
                 borders: [{ to: "korrath", bearing: "N" }],
@@ -125,7 +135,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     affiliation: {
-        covers: ["events", "governance.ranks", "governance.offices"],
+        covers: ["events", "governance.ranks", "governance.offices", "culture"],
         fm: () => ({
             type: "affiliation",
             shortcode: "someaffiliation",
@@ -146,6 +156,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                         Chancellor: { description: "Keeps the seal.", holders: [] },
                     },
                 },
+                culture: "cultureone",
             },
         }),
     },
@@ -167,6 +178,15 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     },
                 ],
             },
+        }),
+    },
+    doc: {
+        covers: ["culture"],
+        fm: () => ({
+            type: "doc",
+            subType: "settingguide",
+            shortcode: "someguide",
+            data: { culture: "cultureone" },
         }),
     },
 };

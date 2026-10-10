@@ -3919,6 +3919,7 @@ rank names the standing, and the standing says.
 | `economy`                                       | `Address[]`                                        | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default         |
 | `lore`                                          | `Address[]`                                        | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
 | `parents`                                       | `Address[]`                                        | Affiliations that this affiliation is subordinate to                                           |
+| `culture`                                       | `Address`                                          | The people this affiliation belongs to, naming a lore note with `subType: culture`             |
 | `relations`                                     | `Map<Address, Standing>`                           | Standing with other affiliations, keyed by the other body's Address                            |
 | `relations.<Address>`                           | `aligned`, `unaligned`, `rival` or `nemesis`       | The standing this body holds toward that one; any other value is an error at the value         |
 
@@ -4556,44 +4557,45 @@ data:
 The saga lists under **In song and story** on `place-ironfells`, which holds the
 sack, on `place-east` and on `lore-fords`.
 
-Calendar fields are written only on a `calendar` note, and `culture`, `form`, `subjects` and
-`language` only on a `literature` note; written on any other lore subType, each is an error at
-its own key.
+Calendar fields are written only on a `calendar` note, and `form`, `subjects` and `language`
+only on a `literature` note; written on any other lore subType, each is an error at its own key.
+`culture` is written on any lore subType but `culture`: a culture note is itself the culture,
+and `data.culture` on one is an error at its key.
 
-| `data` property            | Values                                                                        | Description                                                                                                           |
-| -------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `epoch`                    | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                                  |
-| `months`                   | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                    |
-| `months[].name`            | `string`, required                                                            | The month's name                                                                                                      |
-| `months[].abbreviation`    | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `months[].days`            | `integer`, required                                                           | How many days the month holds                                                                                         |
-| `weekdays`                 | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                          |
-| `weekdays[].name`          | `string`, required                                                            | The day's name                                                                                                        |
-| `weekdays[].abbreviation`  | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `seasons`                  | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                            |
-| `seasons[].name`           | `string`, required                                                            | The season's name                                                                                                     |
-| `seasons[].abbreviation`   | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `seasons[].start`          | `integer`, required                                                           | The one-based day of the year it begins; starts increase down the list                                                |
-| `namedDays`                | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                              |
-| `namedDays[].name`         | `string`, required                                                            | The day's name                                                                                                        |
-| `namedDays[].abbreviation` | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `namedDays[].day`          | `integer`, required                                                           | The one-based day of the year it names, distinct within the calendar                                                  |
-| `eras`                     | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                                 |
-| `eras[].shortcode`         | `string`, required                                                            | The era's own segment of `<calendar>.<era>`, unique within the calendar                                               |
-| `eras[].name`              | `string`, required                                                            | The era's name                                                                                                        |
-| `eras[].marker`            | `string`                                                                      | Uppercase letters and digits, beginning with a letter, unique across the corpus; an authored date names the era by it |
-| `eras[].abbreviation`      | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `eras[].proclaimedBy`      | `Address`                                                                     | The body that began the reckoning                                                                                     |
-| `eras[].start`             | `null` or `integer`, required                                                 | The calendar year the era begins; `null` for the era before year 1                                                    |
-| `eras[].label`             | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                            |
-| `eras[].label.after`       | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                      |
-| `eras[].label.before`      | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                    |
-| `formats`                  | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                    |
-| `culture`                  | `Address`                                                                     | `literature` only: the people whose work it is, naming a lore note with `subType: culture`                            |
-| `form`                     | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text     |
-| `subjects`                 | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`            |
-| `language`                 | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                         |
-| `events`                   | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                         |
+| `data` property            | Values                                                                        | Description                                                                                                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `epoch`                    | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                                                                         |
+| `months`                   | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                                                           |
+| `months[].name`            | `string`, required                                                            | The month's name                                                                                                                                             |
+| `months[].abbreviation`    | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `months[].days`            | `integer`, required                                                           | How many days the month holds                                                                                                                                |
+| `weekdays`                 | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                                                                 |
+| `weekdays[].name`          | `string`, required                                                            | The day's name                                                                                                                                               |
+| `weekdays[].abbreviation`  | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `seasons`                  | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                                                                   |
+| `seasons[].name`           | `string`, required                                                            | The season's name                                                                                                                                            |
+| `seasons[].abbreviation`   | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `seasons[].start`          | `integer`, required                                                           | The one-based day of the year it begins; starts increase down the list                                                                                       |
+| `namedDays`                | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                                                                     |
+| `namedDays[].name`         | `string`, required                                                            | The day's name                                                                                                                                               |
+| `namedDays[].abbreviation` | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `namedDays[].day`          | `integer`, required                                                           | The one-based day of the year it names, distinct within the calendar                                                                                         |
+| `eras`                     | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                                                                        |
+| `eras[].shortcode`         | `string`, required                                                            | The era's own segment of `<calendar>.<era>`, unique within the calendar                                                                                      |
+| `eras[].name`              | `string`, required                                                            | The era's name                                                                                                                                               |
+| `eras[].marker`            | `string`                                                                      | Uppercase letters and digits, beginning with a letter, unique across the corpus; an authored date names the era by it                                        |
+| `eras[].abbreviation`      | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `eras[].proclaimedBy`      | `Address`                                                                     | The body that began the reckoning                                                                                                                            |
+| `eras[].start`             | `null` or `integer`, required                                                 | The calendar year the era begins; `null` for the era before year 1                                                                                           |
+| `eras[].label`             | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                                                                   |
+| `eras[].label.after`       | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                                                             |
+| `eras[].label.before`      | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                                                           |
+| `formats`                  | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                                                           |
+| `culture`                  | `Address`                                                                     | The people this lore belongs to — for a `literature` note, the people whose work it is — naming a lore note with `subType: culture`; not on a `culture` note |
+| `form`                     | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text                                            |
+| `subjects`                 | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                   |
+| `language`                 | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                                                                |
+| `events`                   | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                |
 
 `data.events` is available on every `lore` subType, and is described in full under [Events](#events).
 
@@ -4805,6 +4807,7 @@ level with no background prints nothing.
 | `purpose`                         | `placeCharacter` tag                                                             | The reason a settlement, site, or structure exists                                                        |
 | `lore`                            | `Address[]`                                                                      | Lore concerning this place — its peoples, its law, its calendar, its history                              |
 | `parents`                         | `Address[]`                                                                      | Enclosing places within which this place is located                                                       |
+| `culture`                         | `Address`                                                                        | The people this place belongs to, naming a lore note with `subType: culture`                              |
 | `population`                      | `number`                                                                         | Approximate population (precision 2 significant digits)                                                   |
 | `government`                      | `Address` or `null` (default type: `affiliation`)                                | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
 | `market`                          | `number`                                                                         | Market class, 1 to 6 — what trade a settlement supports                                                   |
@@ -5138,7 +5141,12 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - concept: An explanation of how something works and why it is shaped that way, read to understand rather than to follow.
 - settingguide: An orientation to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
 
-A `doc` declares no properties of its own.
+| `data` property | Values    | Description                                                                                                           |
+| --------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
+| `culture`       | `Address` | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture` |
+
+A setting guide without `data.culture` is an error at its `subType:` line;
+`data.culture` on any other `doc` subType is an error at its key.
 
 Choose `settingguide` for an entry point that stands on its own while guiding
 players and GMs into a setting. A `concept` explains one subject, a `reference`
@@ -5154,6 +5162,8 @@ name: { full: The Reed Flats Guide }
 type: doc
 subType: settingguide
 description: A starting point for adventures in the Reed Flats.
+data:
+  culture: lore-reedfolk
 ---
 
 The Reed Flats are a network of marsh settlements linked by river trade.
