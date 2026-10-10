@@ -487,6 +487,93 @@ A page list names this package's own pages. A **stub** — a note with an empty 
 
 See [page-list details](../reference/format-details.md#page-lists) for the directive's full behaviour.
 
+## Theme shortcodes
+
+The Hugo theme that renders every site defines four shortcodes. An author writes one in a note body as `{{< name … >}}`, and only the website renders it. The shared note pipeline leaves a shortcode in the source untouched, so the compendium packs and the printed book carry the call as literal text. Use a shortcode only on a page whose purpose is the website. Where a construct must reach all three surfaces, use one of the constructs earlier on this page, which every surface resolves.
+
+A shortcode takes either positional arguments or named ones, and a single call cannot mix the two. `{{< glyph "anubis" >}}` and `{{< glyph slug="anubis" frame="tablet" >}}` are both valid; `{{< glyph "anubis" frame="tablet" >}}` is refused by Hugo. A call to a shortcode that has a required argument and omits it fails the site build with the note's position.
+
+### `cartouche`
+
+Renders a named SVG seal as an ornamental accent, as a block figure or inline with text. The image is read from `img/cartouches/<slug>.svg` in the consuming site's static files.
+
+| Parameter | Value              | Default            | What it does                                                                                          |
+| --------- | ------------------ | ------------------ | ----------------------------------------------------------------------------------------------------- |
+| `slug`    | the SVG's basename | required           | Names the file. May be given as the first positional argument when no other parameter is used.        |
+| `size`    | `inline`           | block              | `inline` flows the image with the surrounding text. Any other value adds a `cartouche-<value>` class. |
+| `align`   | `left` or `right`  | centered           | Floats the figure so prose wraps around it.                                                           |
+| `height`  | a CSS length       | set by the theme   | Sets the image's height, for example `10rem` or `160px`. The width follows the image's aspect ratio.  |
+| `alt`     | text               | the humanized slug | The image's text alternative.                                                                         |
+| `caption` | text               | none               | A caption under the image. Block mode only; an inline cartouche ignores it.                           |
+
+```markdown
+{{< cartouche "takheperu" >}}
+
+{{< cartouche slug="aukhelathu" height="10rem" align="right" >}}
+
+{{< cartouche slug="anubis" caption="Anpu" >}}
+
+The sign {{< cartouche slug="ra" size="inline" >}} stands for the sun.
+```
+
+The first call centers the `takheperu` seal as a block. The second floats the `aukhelathu` seal to the right at ten rem tall, with the following paragraph wrapping around it. The third adds a caption under the seal. The fourth sets the seal in the line of text.
+
+### `exturl`
+
+Renders a web address as a code-styled string followed by a button that copies it to the clipboard. It exists for an address a reader is meant to paste somewhere, such as a server address or a manifest URL, where a clickable link would be the wrong affordance. The address is the first positional argument and the shortcode takes no other.
+
+| Parameter          | Value                     | Default | What it does                                                           |
+| ------------------ | ------------------------- | ------- | ---------------------------------------------------------------------- |
+| first (positional) | the text to show and copy | none    | The string displayed in the code element and written to the clipboard. |
+
+```markdown
+Install from {{< exturl "https://example.org/module/manifest.json" >}} in the module browser.
+```
+
+The page shows the address in a code element with a copy icon beside it. Selecting the icon copies the address and briefly marks the button as copied. The text is not a link.
+
+### `glyph`
+
+Renders an icon-scale SVG, such as a deity-name cluster, a category icon or an ornamental mark, in the line of text or as a block. The image is `icons/<slug>.svg`, resolved against the consuming site's `params.cdnBaseURL`. This is an image drawn from the site's icon directory; it is a separate construct from the `:icon name:` font glyphs of the [icon guide](../guides/icons.md), which every surface renders from the package's declared `icons` registry.
+
+| Parameter | Value               | Default            | What it does                                                                                                  |
+| --------- | ------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `slug`    | the SVG's basename  | required           | Names the file. May be given as the first positional argument when no other parameter is used.                |
+| `frame`   | `tablet`            | none               | Sets the glyph inside a limestone rectangular frame, so rows of different intrinsic width line up in a table. |
+| `size`    | `inline` or `block` | 1.8em tall         | `inline` is small and flows with the text. `block` centers the glyph as a standalone line.                    |
+| `alt`     | text                | the humanized slug | The image's text alternative.                                                                                 |
+
+```markdown
+| God    | Glyph                                      |
+| ------ | ------------------------------------------ |
+| Anubis | {{< glyph slug="anubis" frame="tablet" >}} |
+
+The name {{< glyph "ra" >}} is written with one sign.
+
+{{< glyph slug="ra" size="block" alt="Sun god Ra" >}}
+```
+
+### `pagelist`
+
+Renders the pages carrying a tag as a list of links, ordered as asked. The group is expressed by intent: a page joins by being tagged and leaves by being untagged. The shortcode lists the site's own pages by the tags the site's taxonomy holds.
+
+The ` ```pagelist ` fence described under [Page lists](#page-lists) is a different construct with its own attributes. The fence is answered by the content pipeline and reaches Foundry and the book; the shortcode is the site's alone.
+
+| Parameter | Value                       | Default       | What it does                                                                                          |
+| --------- | --------------------------- | ------------- | ----------------------------------------------------------------------------------------------------- |
+| `tag`     | a tag                       | required      | The taxonomy term to list, matched case-insensitively. May be given as the first positional argument. |
+| `section` | a top-level section name    | every section | Restricts the list to one section of the site, such as `rules`.                                       |
+| `sort`    | `title`, `weight` or `date` | `title`       | The order of the list. `date` puts the newest first.                                                  |
+| `desc`    | `true`                      | off           | Shows each page's description beneath its link. Any other value leaves descriptions out.              |
+
+```markdown
+{{< pagelist tag="key-concept" >}}
+
+{{< pagelist tag="key-concept" section="rules" sort="weight" desc="true" >}}
+```
+
+The first call lists every page tagged `key-concept` alphabetically by title. The second lists only those in the `rules` section, in weight order, each followed by its description. A tag that no page carries produces a build warning naming the tag and the note's position, and the list is left out.
+
 ## Expressions
 
 An expression in `{{ }}` is replaced by a value, inline in a sentence. The note's own frontmatter is the context, so a field is read by the path a note writes it at.

@@ -369,6 +369,8 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
      *
      * @param {string} pkg - The package that published them.
      * @param {Array<Record<string, any>>} records - Its index records.
+     * @param {string} [sourceFile] - The cached file they were read from;
+     *   absent for records the toolchain generates itself.
      * @returns {void}
      */
     const ingest = (pkg, records, sourceFile) => {
@@ -384,18 +386,24 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
         const base = bases?.[pkg];
         const web = typeof base === "string" && base.length > 0;
 
+        // The file line of each record, so a decode finding lands on its own.
+        const recordLines = [];
+        if (sourceFile)
+            fs.readFileSync(sourceFile, "utf8")
+                .split("\n")
+                .forEach((text, at) => text.trim() && recordLines.push(at + 1));
+
         const pageAliases = [];
         for (const [recordIndex, record] of records.entries()) {
-            try {
-                decodeIndexAddresses(record, noteAddressContext(config));
-            } catch (error) {
-                error.file = sourceFile;
-                const lines = sourceFile ? fs.readFileSync(sourceFile, "utf8").split("\n") : [];
-                let nonempty = -1;
-                const line = lines.findIndex((text) => text.trim() && ++nonempty === recordIndex);
-                error.position = line >= 0 ? { line: line + 1 } : {};
-                throw error;
-            }
+            decodeIndexAddresses(
+                record,
+                noteAddressContext(config),
+                sourceFile && {
+                    package: pkg,
+                    file: sourceFile,
+                    ...(recordLines[recordIndex] ? { line: recordLines[recordIndex] } : {}),
+                },
+            );
             let key = encodeAddresses(record?.address?.canonical);
             if (!key) continue;
             let parts = readCanonicalKey(key);

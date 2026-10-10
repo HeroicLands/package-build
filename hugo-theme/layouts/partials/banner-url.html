@@ -13,8 +13,12 @@
     2. `banner` — a hand-authored page's value. `none` (or `false`) declines an
        image and returns "". A full URL is used as-is; anything else is a
        fragment under `images/`.
-    3. `images/banners/{subtype}.webp`, when neither is set and a `subtype` is
-       supplied. A caller that passes no subtype gets "" instead, which is
+    3. `images/banners/{name}.webp`, when neither is set. The name is the
+       `subtype` supplied, or, when the caller passes the page's `type`, the
+       banner `data/banner-kinds.yaml` maps that `type` and `subType` to — a
+       `category` for the types it lists as taking theirs from there. A type
+       absent from the mapping keeps its own name. A caller that supplies
+       neither gets "" instead, which is
        what a card wants: a section with no banner of its own renders as the
        text card it rendered before.
     4. `images/banners/{fallback}` — whenever the name picked by 2 or 3 is not
@@ -44,8 +48,13 @@
                the content build resolved. Omit for a page that carries none.
     banner   — the raw `banner:` value; may be unset, `none`/`false`, a
                fragment or an absolute URL.
-    subtype  — optional. The name to default to when `banner` is unset. Omit
-               for "no banner means no image".
+    subtype  — optional. The name to default to when `banner` is unset and no
+               `type` is given. Omit for "no banner means no image".
+    type     — optional. The page's note `type`; with `subType` and `category`
+               it selects the default name through `data/banner-kinds.yaml`.
+    subType  — optional. The page's note `subType`.
+    category — optional. The page's `category`, for the types that take their
+               banner name from it.
     context  — optional. A page address, named in the missing-banner warning so
                the report says where the want came from.
 */ -}}
@@ -53,6 +62,22 @@
 {{- $subtype := .subtype | default "" -}}
 {{- $context := .context | default "" -}}
 {{- $data := .data | default dict -}}
+
+{{- /* The default name for a page that states its `type`. A type maps to one
+       name or to a table keyed by subType; one that the mapping does not know
+       keeps its own name, so the missing-banner warning below still reports
+       it. */ -}}
+{{- with .type -}}
+  {{- $kinds := index (hugo.Data | default dict) "banner-kinds" | default dict -}}
+  {{- $entry := index ($kinds.kinds | default dict) . -}}
+  {{- if in ($kinds.categoryTypes | default slice) . -}}
+    {{- $subtype = $.category | default "default" -}}
+  {{- else if reflect.IsMap $entry -}}
+    {{- $subtype = (index $entry (lower ($.subType | default ""))) | default . -}}
+  {{- else -}}
+    {{- $subtype = $entry | default . -}}
+  {{- end -}}
+{{- end -}}
 
 {{- $banners := hugo.Data.banners | default dict -}}
 {{- $dir := $banners.dir | default "images/banners" -}}

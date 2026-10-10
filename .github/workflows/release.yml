@@ -162,13 +162,16 @@ jobs:
               if: steps.registry.outputs.published == 'false'
               run: npm run deploy:npm
 
-            # `dist-tags` is correct immediately; `npm view <pkg> version` can
-            # report the previous version for a minute or so after a publish.
+            # npm accepts a publish before it serves the version, so the
+            # publish alone proves nothing. Polls `npm view <name>@<version>`
+            # every 15 seconds for ten minutes and fails the job, naming the
+            # last registry answer, when the version never appears.
             - name: Confirm the published version
               if: steps.registry.outputs.published == 'false'
               env:
                   NAME: ${{ steps.tag.outputs.name }}
-              run: npm view "$NAME" dist-tags --json
+                  VERSION: ${{ steps.tag.outputs.version }}
+              run: node ci/confirm-npm-version.mjs "$NAME" "$VERSION"
 
             # The section of CHANGELOG.md under `## <version>`, without the
             # heading: the Release title already shows the version. The version

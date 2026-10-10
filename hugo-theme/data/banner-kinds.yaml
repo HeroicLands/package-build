@@ -1,0 +1,78 @@
+# Which banner a page of each kind opens with.
+#
+# `partials/banner-url.html` reads a page's note `type` and `subType` here and
+# resolves the result against `banners.yaml`. A type maps to one banner name for
+# every subType, or to a table keyed by every subType the note vocabulary
+# declares for it. `default` is a deliberate choice of the default banner; a
+# kind absent from this file resolves to its own name and warns when that name
+# is not declared.
+#
+# `npm run lint:banners` and the test suite fail on a mapped name that
+# `banners.yaml` does not declare, and on a type or subType missing here.
+
+# Types whose banner is named by the page's `category`.
+categoryTypes:
+    - doc
+
+kinds:
+    affiliation:
+        arcanetradition: organization
+        criminal: organization
+        fellowship: organization
+        faithtradition: faith
+        governmental: organization
+        guild: organization
+        lineage: organization
+        order: organization
+        polity: organization
+        spirittradition: organization
+        venture: organization
+    affliction: affliction
+    armorgear: armor-clothing
+    armorlocation: default
+    attribute: skills-attributes
+    being:
+        character: character
+        creature: creature
+        npc: character
+    bundle: default
+    concoctiongear: default
+    containergear: containers
+    folder: default
+    homepage: default
+    lore:
+        arcana: default
+        bestiary: default
+        calendar: default
+        cosmology: default
+        culture: people
+        custom: default
+        deity: default
+        economy: default
+        folk: default
+        gathering: default
+        history: default
+        law: default
+        literature: default
+        material: default
+        spirit: default
+        theology: default
+    macro: default
+    map: default
+    miscgear: misc-gear
+    mystery: default
+    mysticalability: mystical-abilities
+    place:
+        celestial: default
+        feature: default
+        region: region
+        settlement: settlement
+        site: default
+        structure: default
+        world: default
+    projectilegear: projectiles
+    scenario: default
+    skill: skills-attributes
+    trauma: trauma
+    vehicle: default
+    weapongear: weapons

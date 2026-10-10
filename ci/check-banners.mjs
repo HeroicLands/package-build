@@ -1,11 +1,11 @@
 /*
- * This file is part of the Heroic Lands shared Hugo theme.
+ * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
  * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
  *
  * This work is licensed under the GNU General Public License v3.0 (GPLv3).
  * You may copy, modify, and distribute it under the terms of that license.
  *
- * For full terms, see the LICENSE file in the project root or visit:
+ * For full terms, see the LICENSE.md file in the project root or visit:
  * https://www.gnu.org/licenses/gpl-3.0.html
  *
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -25,6 +25,10 @@
  * So this fetches every declared name and fails on any non-200. It is the test
  * the template cannot make, moved to the one place that can make it.
  *
+ * It also refuses a name in `data/banner-kinds.yaml` that `banners.yaml` does
+ * not declare, before any request is made: a mapping to undrawn art is a dead
+ * URL on every page of that kind.
+ *
  * Usage:
  *   node utils/check-banners.mjs [--base <url>] [--concurrency <n>]
  *
@@ -43,6 +47,7 @@ import { parse } from "yaml";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = resolve(HERE, "..", "hugo-theme", "data", "banners.yaml");
+const KINDS_FILE = resolve(HERE, "..", "hugo-theme", "data", "banner-kinds.yaml");
 const DEFAULT_BASE = "https://cdn.heroiclands.org";
 
 function parseArgs(argv) {
@@ -71,13 +76,13 @@ function parseArgs(argv) {
 }
 
 /** Diagnostics carry the fields they can know and drop the ones they cannot. */
-function diag(line, message) {
-    const where = line ? `${DATA_FILE}:${line}` : DATA_FILE;
+function diag(line, message, file = DATA_FILE) {
+    const where = line ? `${file}:${line}` : file;
     console.error(`${where}: error: ${message}`);
 }
 
-function fail(message, line) {
-    diag(line, message);
+function fail(message, line, file) {
+    diag(line, message, file);
     process.exit(1);
 }
 
@@ -123,6 +128,36 @@ function readInventory() {
     return { source, dir, available };
 }
 
+/** Every banner name `banner-kinds.yaml` maps a page kind to, with the kind that maps it. */
+function mappedNames() {
+    const source = readFileSync(KINDS_FILE, "utf8");
+    const kinds = parse(source)?.kinds;
+    if (!kinds || typeof kinds !== "object") fail("`kinds` must be a map", 0, KINDS_FILE);
+    const mapped = [];
+    for (const [type, value] of Object.entries(kinds)) {
+        if (typeof value === "string") mapped.push({ kind: type, name: value });
+        else
+            for (const [subType, name] of Object.entries(value ?? {}))
+                mapped.push({ kind: `${type}/${subType}`, name });
+    }
+    return { source, mapped };
+}
+
+/** Fail on a mapped name the inventory does not declare. */
+function checkMapping(available) {
+    const { source, mapped } = mappedNames();
+    const undeclared = mapped.filter(({ name }) => !available.includes(name));
+    for (const { kind, name } of undeclared) {
+        const line = source.split("\n").findIndex((l) => l.trim().endsWith(`: ${name}`));
+        diag(
+            line === -1 ? 0 : line + 1,
+            `${kind} maps to banner ${name}, which banners.yaml does not declare`,
+            KINDS_FILE,
+        );
+    }
+    if (undeclared.length) process.exit(1);
+}
+
 async function probe(url) {
     try {
         // HEAD first — it is what the question actually is. Some object stores
@@ -147,6 +182,7 @@ async function probe(url) {
 async function main() {
     const { base, concurrency } = parseArgs(process.argv.slice(2));
     const { source, dir, available } = readInventory();
+    checkMapping(available);
     const root = `${base.replace(/\/$/, "")}/${dir.replace(/^\//, "")}`;
 
     const failures = [];

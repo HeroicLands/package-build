@@ -23,9 +23,10 @@
                                      see "Declining" below. A full URL is used
                                      as-is; anything else is treated as a
                                      fragment under images/.
-    3. images/banners/{subtype}.webp — subtype-specific default, where
-                                     subtype = category for type=doc pages,
-                                     otherwise type
+    3. images/banners/{name}.webp  — the default for the page's kind: the
+                                     banner data/banner-kinds.yaml maps its
+                                     type and subType to, or its category for
+                                     type=doc pages
     4. images/banners/default.webp — used when the page has no type, *and*
                                      whenever the name picked by 2 or 3 is not
                                      in the declared inventory (see below).
@@ -58,22 +59,20 @@
   considered answer was "none", so declining has to be sayable.
 */ -}}
 
-{{- /* For narrative content (type=doc) the meaningful kind of page lives in
-       `category` — continent, region, polity, faith, lore, etc. — so prefer
-       that when picking a default banner. */ -}}
+{{- /* The order above, the `none` decision, the type-to-banner mapping in
+       `data/banner-kinds.yaml` and the declared-existence check all live in
+       `banner-url.html`, which a derived landing card calls too. A hero band
+       always wants the default for its page's kind; a card never does. A page
+       with no type gets `default`. */ -}}
 {{- $type := .Params.type | default "" -}}
-{{- $subtype := cond (eq $type "doc") (.Params.category | default "") $type -}}
-{{- if not $subtype }}{{ $subtype = "default" }}{{ end -}}
-
-{{- /* The order above, the `none` decision and the declared-existence check
-       all live in `banner-url.html`, which a derived landing card calls too
-       (issue #41). A hero band always wants the subtype default; a card never
-       does. */ -}}
 {{- $bannerURL := partial "banner-url.html" (dict
     "site" .Site
     "data" .Params.data
     "banner" .Params.banner
-    "subtype" $subtype
+    "type" $type
+    "subType" .Params.subType
+    "category" .Params.category
+    "subtype" (cond (eq $type "") "default" "")
     "context" .RelPermalink) -}}
 
 <section class="hero hero-with-image"{{ with $bannerURL }} style="background-image: url('{{ . }}');"{{ end }}>

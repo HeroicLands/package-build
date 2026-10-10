@@ -2,6 +2,12 @@
  * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
  * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
  *
+ * This work is licensed under the GNU General Public License v3.0 (GPLv3).
+ * You may copy, modify, and distribute it under the terms of that license.
+ *
+ * For full terms, see the LICENSE.md file in the project root or visit:
+ * https://www.gnu.org/licenses/gpl-3.0.html
+ *
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
@@ -23,6 +29,7 @@ import { SHIPPED_SYSTEMS } from "./subtype-registry.mjs";
 import { EVENT_ADDRESS_POSITIONS } from "./note-events.mjs";
 
 import { AddressEntries, AddressLink, readPublishedAddresses } from "./address-values.mjs";
+import { formatDiagnostic } from "./diagnostics.mjs";
 export {
     AddressEntries,
     encodeAddresses,
@@ -378,11 +385,56 @@ export function noteAddressContext(config) {
  * {@link AddressLink} where it carries an anchor, before the declared
  * positions are read.
  *
+ * With a `source`, the record is a dependency's, read from its cached index.
+ * Every decode failure then leaves as a located finding that names the
+ * dependency, the cached file, the record, the field and the remedy, because
+ * the shape of a published index is the dependency's to correct and no note in
+ * the reading tree is at fault.
+ *
+ * @param {object} record - The record.
+ * @param {object} context - Builder defaults.
+ * @param {{package: string, file: string, line?: number}} [source] - The
+ *   dependency and the cached index file the record was read from, with the
+ *   record's 1-based line when known.
+ * @returns {object} The typed record.
+ * @throws {Error} A located finding (`located: true`) when `source` is given
+ *   and the record cannot be decoded; otherwise the decode error itself.
+ */
+export function decodeIndexAddresses(record, context, source) {
+    if (!source) return decodeIndexRecord(record, context);
+    try {
+        return decodeIndexRecord(record, context);
+    } catch (error) {
+        const field = error.keyPath?.join(".") ?? error.indexField;
+        const named = [record?.type, record?.shortcode].filter(Boolean).join(" ");
+        const detail = error.message.replace(/^Index /, "");
+        const error_ = new Error(
+            formatDiagnostic({
+                file: source.file,
+                ...(Number.isInteger(source.line) ? { line: source.line } : {}),
+                severity: "error",
+                message:
+                    `${source.package} published an index this package-build does not read` +
+                    (named ? ` (record ${named}` : " (record") +
+                    (field ? `, field ${field}` : "") +
+                    `): ${detail}. Take a release of ${source.package} built with this ` +
+                    `package-build, then run \`package-build deps fetch\` again.`,
+            }),
+            { cause: error },
+        );
+        error_.located = true;
+        throw error_;
+    }
+}
+
+/**
+ * Decode one index record's Address properties.
+ *
  * @param {object} record - The record.
  * @param {object} context - Builder defaults.
  * @returns {object} The typed record.
  */
-export function decodeIndexAddresses(record, context) {
+function decodeIndexRecord(record, context) {
     Object.assign(record, readPublishedAddresses(record));
     decodeNoteAddresses(record, context);
     const canonical = (value, keyPath) => {
@@ -402,8 +454,13 @@ export function decodeIndexAddresses(record, context) {
     if (record.address?.canonical != null)
         record.address.canonical = canonical(record.address.canonical, ["address", "canonical"]);
     for (const anchor of record.anchors ?? []) {
-        if (anchor.link != null && !(anchor.link instanceof AddressLink))
-            throw new Error(`Index anchor link is not an Address: ${JSON.stringify(anchor.link)}`);
+        if (anchor.link != null && !(anchor.link instanceof AddressLink)) {
+            const error = new Error(
+                `Index anchor link is not an Address: ${JSON.stringify(anchor.link)}`,
+            );
+            error.indexField = "anchors[].link";
+            throw error;
+        }
     }
     return record;
 }

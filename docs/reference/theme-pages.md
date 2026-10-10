@@ -137,8 +137,9 @@ a top-level `banner:`, which the theme resolves against `params.cdnBaseURL`
    one; an unset or `null` value carries on to the next step.
 2. `banner:` at the top level. `none` (or `false`) declines a hero image; a
    full URL is used as-is; anything else is a fragment under `images/`.
-3. `images/banners/{subtype}.webp`, where the subtype is the page's `category`
-   for a `type: doc` page and its `type` otherwise.
+3. `images/banners/{name}.webp`, where the name comes from the kind mapping
+   described below: the banner the page's `type` and `subType` map to, or its
+   `category` for a `type: doc` page.
 4. `images/banners/default.webp` — when the page has no type, **and** whenever
    the name picked by 2 or 3 is not in the declared inventory.
 
@@ -157,9 +158,33 @@ either and must not second-guess an address it cannot know about. A step 1
 address is not checked for the same reason: the question has already been
 answered upstream.
 
+**The kind mapping.** `data/banner-kinds.yaml` declares, once, which banner a
+page of each note `type` opens with. A type maps to one banner name for all of
+its subTypes, or to a table that names a banner for every subType the note
+vocabulary declares for it:
+
+```yaml
+categoryTypes:
+  - doc
+kinds:
+  skill: skills-attributes
+  being:
+    character: character
+    creature: creature
+    npc: character
+```
+
+`default` names the default banner as a deliberate choice, and emits no
+warning. A type missing from the file resolves to its own name, so a kind with
+no declared art still produces the missing-banner warning. The lint check and
+the test suite fail on a mapped name that `banners.yaml` does not declare, and
+on a type or subType of the note vocabulary that the mapping omits. A consumer
+publishing its own artwork set ships its own `data/banner-kinds.yaml` beside
+its `data/banners.yaml`.
+
 **One resolver.** The order above lives in `partials/banner-url.html`, which
 returns a URL or an empty string; `hero-banner.html` calls it with the page's
-subtype, for step 2.
+`type`, `subType` and `category`, for step 3.
 
 **Keeping the inventory honest.** The lint check over `data/banners.yaml`
 fetches every declared name from the asset host and fails on any non-200
