@@ -214,6 +214,41 @@ and the summary carries no position because it has none.
 thalorna: 2572 notes — 2089 full, 464 draft, 19 stub.
 ```
 
+## A worked case: a note's culture
+
+`data.culture` has four findings, all errors. Three come from `package-build
+lint` reading what a note wrote, and each sits on the line that makes the note
+wrong. A setting guide with no culture is located at its `subType:` line, the key
+whose value made it a setting guide:
+
+```text
+assets/content/Guides/G1.md:5:1: error: a setting guide introduces one culture, so this note must state `data.culture`, naming a culture lore note
+```
+
+The field on a `doc` of any other subType, and on a `lore` note that is itself
+a culture, is located at the `culture:` key:
+
+```text
+assets/content/Guides/G2.md:8:3: error: `data.culture` is stated by a setting guide, and this note's `subType` is not `settingguide`
+assets/content/Lore/Hillfolk.md:8:3: error: `data.culture` names a note's culture, and this note is itself the culture — remove the field
+```
+
+The fourth comes from resolving cultures into the content index. A place or
+affiliation with no culture of its own whose `data.parents` resolve to different
+cultures is located at its `parents:` key, and names each culture with the
+parent it came through:
+
+```text
+assets/content/Places/Causeway.md:8:3: error: data.parents resolve to different cultures (reedflats-note-lore-reedfolk via reedflats, reedflats-note-lore-hillfolk via stonecrest); state data.culture
+```
+
+A polity whose seat and governed places disagree is located at `seat:`, or at
+`data:` when it states no seat. Because the index is read by every build, the
+conflict fails the index and each command that reads it without collecting
+problems, listing every conflict at once. Stating `data.culture` on the note
+resolves it. The rules are under
+[Culture in the index](reference/format-details.md#culture-in-the-index).
+
 ## Summary counts and prose are not findings
 
 A run's progress and summary lines — `42 address(es) across 10 note(s).`,

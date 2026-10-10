@@ -702,7 +702,10 @@ The exact-day conversion functions use the corpus reckoning context. `dateFromCa
 culture note. `checkCultureSubType(note)` scopes the field by subtype: a `doc`
 of `subType: settingguide` must state it, any other `doc` subtype and a `lore`
 note of `subType: culture` must not. The vocabulary invokes both during
-frontmatter lint.
+frontmatter lint. Both read what the note wrote. The resolved value, which a
+place or affiliation inherits through `data.parents`, is written into the
+content index by `resolveCultures`, documented under
+`engine.contentIndex`.
 
 | Export                | Signature                           | Returns  | Use it when                                                |
 | --------------------- | ----------------------------------- | -------- | ---------------------------------------------------------- |

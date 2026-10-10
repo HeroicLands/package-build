@@ -2611,7 +2611,9 @@ documentation entry, so `type = 'miscgear'` selects the items and never their
 journals. A nested field is addressed exactly as a note authors it —
 `sohl.weight`, `name.full`, `file.path` — because the index is read as JSON and
 every nested object is inferred as a struct. A field a note type does not carry
-reads `NULL` rather than failing.
+reads `NULL` rather than failing. `data.culture` is the one field that reads as
+a derived value: the note's own culture, or the one it inherits. See
+[Culture in the index](#culture-in-the-index).
 
 **`notes` leaves out stubs; `entries` does not.** Both carry a derived `state`
 column — `stub`, `draft` or `full` — and `notes` is exactly
@@ -2705,6 +2707,133 @@ table would otherwise need: the authored `ORDER BY` decides the section order to
 
 **Beware `packFolder`.** It is a note's _pack_ folder, not its directory — the
 directory is `file.folder`.
+
+##### Culture in the index
+
+`data.culture` in the index is the note's **resolved** culture, which is its
+authored value where it states one and a derived value where it does not. The
+resolved value is written into the index as a canonical Address string, such as
+`reedflats-note-lore-reedfolk`, so a table selects by it directly.
+
+The culture of a note, in order:
+
+1. Its own `data.culture`, when it states one.
+2. For a `lore` note of `subType: culture`: itself. A culture note never states
+   the field, and its resolved culture is its own Address.
+3. For a `place` or an `affiliation`: the resolved cultures of its
+   `data.parents` — places through their parent places, affiliations through
+   their parent affiliations — found recursively, so a culture stated three
+   levels up reaches the bottom.
+4. For an affiliation of `subType: polity` that still has none: the resolved
+   cultures of its places, pooled as one set — its `data.seat` and every place
+   whose `data.government` names the polity.
+5. Otherwise none. A parent or place that resolves to nothing contributes
+   nothing.
+
+A `being` and a `doc` of `subType: settingguide` read as the value they state and
+nothing more; every other `lore` note reads as its own value, and every other
+note type reads as none.
+
+Sources that agree give that culture. Sources that name different cultures, on a
+note that states none of its own, are an **error**, and that note gets no
+culture. The error is located at the `parents:` key; for the pooled places of a
+polity it is located at the `seat:` key, or at the `data:` line when the polity
+states no seat. Stating `data.culture` on the note settles the matter, because
+an own value is never compared with its sources. A note whose parent raised the
+error reads that parent as resolving to nothing, so one disagreement is reported
+once, at the note where the sources meet.
+
+Here a region states a culture and the places inside it carry it down:
+
+```markdown
+---
+shortcode: reedflats
+name: { full: Reed Flats }
+type: place
+subType: region
+description: A marsh region.
+data:
+  culture: lore-reedfolk
+---
+```
+
+```markdown
+---
+shortcode: saltmarsh
+name: { full: Saltmarsh }
+type: place
+subType: district
+description: A salt marsh.
+data:
+  parents: [place-reedflats]
+---
+```
+
+```markdown
+---
+shortcode: eelwick
+name: { full: Eelwick }
+type: place
+subType: settlement
+description: A fishing village.
+data:
+  parents: [place-saltmarsh]
+---
+```
+
+`saltmarsh` and `eelwick` state no culture and index as `reedflats-note-lore-reedfolk`.
+Because the index carries the resolved value, one query selects the region and
+everything beneath it, and `IS NULL` selects the notes that have no culture:
+
+````markdown
+```sql
+SELECT address.slug AS _ref, name.full AS "Name"
+FROM notes
+WHERE type = 'place' AND data.culture = 'reedflats-note-lore-reedfolk'
+ORDER BY name.full
+```
+````
+
+````markdown
+```sql
+SELECT address.slug AS _ref, name.full AS "Name"
+FROM notes
+WHERE type = 'place' AND data.culture IS NULL
+```
+````
+
+A place whose parents sit in different cultures must say which it belongs to.
+With a second region `stonecrest` that states `culture: lore-hillfolk`, a place
+on the border between the two:
+
+```markdown
+---
+shortcode: causeway
+name: { full: The Causeway }
+type: place
+subType: site
+description: A road between marsh and ridge.
+data:
+  parents: [place-reedflats, place-stonecrest]
+---
+```
+
+fails the content-index build with one located error per conflict:
+
+```text
+assets/content/Places/Causeway.md:8:3: error: data.parents resolve to different cultures (reedflats-note-lore-reedfolk via reedflats, reedflats-note-lore-hillfolk via stonecrest); state data.culture
+```
+
+The conflict fails the content-index build, and every other command that reads
+the index without collecting problems, listing every conflict in one run. Adding
+`culture: lore-reedfolk` under `data:` on `causeway` removes it. A fetched
+dependency's index carries each note's resolved culture, so a parent in another
+package contributes the culture that package resolved for it.
+
+Lint and compile read the culture a note **wrote**, never the resolved value, so
+a derived culture is never mistaken for an authored one: the checks that scope
+`data.culture` by subtype, and the pack and site builds, see an unstated field as
+unstated.
 
 ##### Reading another package's notes
 
@@ -3923,6 +4052,12 @@ rank names the standing, and the standing says.
 | `relations`                                     | `Map<Address, Standing>`                           | Standing with other affiliations, keyed by the other body's Address                            |
 | `relations.<Address>`                           | `aligned`, `unaligned`, `rival` or `nemesis`       | The standing this body holds toward that one; any other value is an error at the value         |
 
+**An affiliation names the people it belongs to in `data.culture`.** An
+affiliation that names none takes its culture from its `data.parents`. A
+`polity` that still has none takes the culture of its places: its `data.seat`
+together with every place whose `data.government` names it. See
+[Culture in the index](#culture-in-the-index).
+
 **A faith tradition is not its god.** An `affiliation` of subType
 `faithtradition` is a _religion_ — a practice, with an ordained priesthood, a
 calendar and a body of observance — and it can outlive belief in the god
@@ -4560,7 +4695,9 @@ sack, on `place-east` and on `lore-fords`.
 Calendar fields are written only on a `calendar` note, and `form`, `subjects` and `language`
 only on a `literature` note; written on any other lore subType, each is an error at its own key.
 `culture` is written on any lore subType but `culture`: a culture note is itself the culture,
-and `data.culture` on one is an error at its key.
+and `data.culture` on one is an error at its key. A `lore` note that states no culture has
+none, since a `lore` note has no `data.parents` to inherit through; a culture note reads as
+its own Address in the index. See [Culture in the index](#culture-in-the-index).
 
 | `data` property            | Values                                                                        | Description                                                                                                                                                  |
 | -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -5105,6 +5242,11 @@ urban.
 
 **A place declares what is true of its ground.** It names its governing affiliation
 in `data.government`; maps name the place they depict through `data.place`.
+A place may name the people it belongs to in `data.culture`. A place that names
+none takes its culture from its `data.parents`, so a region states the culture
+once and the districts and settlements inside it carry it without repeating it;
+[Culture in the index](#culture-in-the-index) gives the rule and a worked
+example.
 The place's `lore` links cover its peoples, calendar, law and history. Political
 languages belong to a polity's `sohl.system.commonSkills`, while the note's
 `description` provides its page summary.
@@ -5139,14 +5281,22 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
 - howto: A task with an outcome, written as the steps that reach it.
 - concept: An explanation of how something works and why it is shaped that way, read to understand rather than to follow.
-- settingguide: An orientation to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
+- settingguide: A culture's guide to the setting, which names its culture in `data.culture`. It orients a reader to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
 
 | `data` property | Values    | Description                                                                                                           |
 | --------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
 | `culture`       | `Address` | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture` |
 
+A setting guide introduces one culture's view of the setting, so it names that
+culture, and a `doc` of any other `subType` has no culture of its own to name.
 A setting guide without `data.culture` is an error at its `subType:` line;
-`data.culture` on any other `doc` subType is an error at its key.
+`data.culture` on any other `doc` subType is an error at its key. The value
+names a `lore` note of `subType: culture`, and a setting guide's culture is the
+one it states: it inherits nothing, because a `doc` has no `data.parents`. The
+other notes that may state a culture are described under
+[`place`](#type-place), [`affiliation`](#type-affiliation) and
+[`lore`](#type-lore), and [Culture in the index](#culture-in-the-index) gives
+the value each one reads as.
 
 Choose `settingguide` for an entry point that stands on its own while guiding
 players and GMs into a setting. A `concept` explains one subject, a `reference`

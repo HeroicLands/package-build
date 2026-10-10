@@ -31,7 +31,7 @@ The formatter keeps a collection on one line when the full line is under 100 cha
 
 ## Shared facts and game mechanics
 
-The [note-type reference](../reference/note-types.md) lists every field accepted under `data`, including the shared `id`, `pack`, `packFolder`, `harnworld`, `icon`, and `banner` fields. A type such as `being` also has its own fields, including `culture`, `homes`, and `affiliations`. A field absent from a type's vocabulary is a lint error; an unrelated field is not silently repurposed.
+The [note-type reference](../reference/note-types.md) lists every field accepted under `data`, including the shared `id`, `pack`, `packFolder`, `harnworld`, `icon`, and `banner` fields. A type such as `being` also has its own fields, including `homes` and `affiliations`. `culture` is shared by `being`, `place`, `affiliation`, `lore` and `doc`: it names a `lore` note of `subType: culture`, is required on a `doc` of `subType: settingguide`, and is inherited down `data.parents` by places and affiliations. See [culture in the index](../reference/format-details.md#culture-in-the-index). A field absent from a type's vocabulary is a lint error; an unrelated field is not silently repurposed.
 
 A being's `data.archetypes` names the roles it can fill in an adventure. Choose every specific role that fits, such as `entertainer` for a performer or `guildsperson` for someone whose professional training or connections matter. Use `[commoner]` when no specific archetype fits. `commoner` cannot share the list with another value. The [archetype reference](../reference/format-details.md#actors) defines the available roles.
 
