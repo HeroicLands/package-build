@@ -156,7 +156,7 @@ import { resolveAssetReplacement } from "./asset-replacement.mjs";
  * The file on disk an authored image pathname names, or `null`.
  *
  * Two of the four forms {@link module:engine/pathnames.resolvePathname}
- * derives, used together: `local` is the file in this repository's own tree,
+ * derives, taken together: `local` is the file in this repository's own tree,
  * and `pdf` is where the book stages a copy of it.
  *
  * **Typst decides where that copy goes.** It resolves a path against its root —

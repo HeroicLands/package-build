@@ -15,14 +15,10 @@
  * Which pack a note's document lands in, when a document type has more than
  * one.
  *
- * A repository used to be able to ship exactly one pack per document type: the
- * pipeline ran one compile pass per type and routed every note of that type
- * into that pass's pack. Editorial grouping of same-type documents into
- * separate compendiums is ordinary Foundry practice — "Core Spells" and
- * "Expanded Spells" are two Item packs — and `sohl-kethira-basic` shipped
- * three. Collapsing them is a breaking change for every existing world,
- * because a compendium UUID carries its pack name
- * (`Compendium.<pkg>.characteristics.Item.<id>`).
+ * Editorial grouping of same-type documents into separate compendiums is
+ * ordinary Foundry practice — "Core Spells" and "Expanded Spells" are two Item
+ * packs. Collapsing them breaks every existing world, because a compendium
+ * UUID carries its pack name (`Compendium.<pkg>.characteristics.Item.<id>`).
  *
  * **A note declares its pack; the configuration declares the default.** The
  * routing key is one frontmatter field, `pack:`, naming a pack from the
@@ -100,10 +96,10 @@ export class PackRoutingError extends Error {
 /**
  * The frontmatter field a note declares its pack in.
  *
- * Deliberately close to the retired `package:` and deliberately not the same
- * word: `package:` said which *distribution* owned a note — now the
- * repository's `contentPackage`, and no longer authorable — while `pack:`
- * says which *compendium* receives its document.
+ * Deliberately close to `package:` and deliberately not the same word:
+ * `package:` would say which *distribution* owns a note — that is the
+ * repository's `contentPackage`, and not authorable — while `pack:` says which
+ * *compendium* receives its document.
  */
 export const PACK_FIELD = "pack";
 

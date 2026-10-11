@@ -1147,7 +1147,7 @@ export const ITEM_FIELDS = Object.freeze({
             to: "strikeModes",
             ...STRIKE_MODES,
             default: [],
-            describe: "The ways the weapon can be used to strike.",
+            describe: "The ways the weapon can strike.",
         },
     ]),
 });

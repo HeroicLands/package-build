@@ -297,7 +297,7 @@ describe("the address lint is read from the content index", () => {
         const r = lintContentTree(root, { skipDirectories: [], problems });
 
         expect(problems).toHaveLength(1);
-        expect(problems[0].message).toMatch(/retired frontmatter field/);
+        expect(problems[0].message).toMatch(/not a frontmatter field/);
         // The other note is still linted — the whole reason a problem is
         // collected rather than thrown.
         expect(r.notes).toBe(1);

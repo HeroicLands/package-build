@@ -622,9 +622,9 @@ export const MEMBERSHIPS_SECTION = Object.freeze({ id: "affiliations", label: "A
  * Each entry is the line a reader meets — `War Chief, Hárár (5), of Vrystwald
  * Tribes` — with the body's name as the link and the standing before it as the
  * entry's `lead`, drawn as plain text. The rung's title is read from the body's
- * own ladder, carried on the reference as its `standings` digest, so a renamed
+ * own ladder, carried on the reference as its `standings` digest, so renaming a
  * rung renames every line pointing at it. A body that publishes no page keeps
- * its name as plain text, and a membership in the list form is the name alone.
+ * its name as plain text, and a membership stating no standing is the name alone.
  *
  * The entries are a `list` section of their own rather than one `links` row,
  * because a line already holds commas and a `links` row joins its values with
@@ -916,7 +916,7 @@ function declaredKeyRows(fields, raw) {
  *
  * The declared string is appended **verbatim**, which is what lets a symbol
  * hug its number (`160d`) and a word stand off it (`1.1 lbs`). The row's kind
- * becomes `text`: a number with a unit on it is no longer a number, and saying
+ * becomes `text`: a number with a unit on it is not a number, and saying
  * otherwise would invite a medium to format it as one.
  *
  * @param {string} kind - The row's kind.

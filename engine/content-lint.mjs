@@ -49,7 +49,7 @@
  * **What is deliberately absent.** Corpus reachability — "every Rules document
  * is reachable from the book's root" — is a statement about what one package
  * publishes, not about the note format, and belongs with the publishing it
- * describes. So do retired hostnames.
+ * describes. So do withdrawn hostnames.
  *
  * @module
  */

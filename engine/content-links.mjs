@@ -46,7 +46,7 @@
  * **What this deliberately does not do.** Corpus reachability — "every rules
  * document is reachable from the book's root" — is a statement about what one
  * package publishes, not about the note format, so it belongs with the
- * publishing it describes; so does a retired hostname. Both are served by the
+ * publishing it describes; so does a withdrawn hostname. Both are served by the
  * link graph returned here rather than implemented here.
  *
  * @module
@@ -118,8 +118,8 @@ export function anchorsOf(body) {
  * Read a content tree into the index a link resolves against.
  *
  * **The corpus comes from the content index, not from a walk of this module's
- * own**. Every pass used to answer "which files are the content?" for
- * itself and throw the answer away; this one now reads
+ * own**. Passes do not each answer "which files are the content?" for
+ * themselves; this one reads
  * {@link module:engine/content-index.indexRecordsFor}, which is the same
  * derivation the published artifact and the compilers are driven from. So a
  * note the index records is a note the link check sees, and the addresses and

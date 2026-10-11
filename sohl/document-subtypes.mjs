@@ -44,8 +44,7 @@ import { defineDocumentSubtypes } from "../engine/document-subtypes.mjs";
  * becomes.
  *
  * The Item rows are the thirteen types the item registry declares; the one
- * Actor row is `being`, which was two types (`character` and `creature`)
- * compiling to the same actor before they were retired. Types this
+ * Actor row is `being`. Types this
  * map does not name — `doc`, `macro`, the three map types — compile into
  * documents that carry no system subtype at all, so they have no row and never
  * needed one.

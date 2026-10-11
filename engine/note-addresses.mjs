@@ -79,12 +79,8 @@ export const STRUCTURED_ADDRESSES = Object.freeze([
 export function addressPositions(fm, context = {}) {
     const out = [];
     for (const field of dataFields(fm.type) ?? []) {
-        // A field that admits both a list and a map declares both halves, and
-        // which one a note wrote is not knowable from the declaration — so the
-        // position says "either" and the conversion reads the value's shape.
         const shape =
             field.kind === "address" ? "value"
-            : field.kind === "list-or-map" ? "keys-or-list"
             : field.keyKind === "address" ? "keys"
             : field.entryKind === "address" ? field.kind
             : undefined;
@@ -225,7 +221,7 @@ function shortcodeCaseError(problem, path, position, context) {
         `\`${path.join(".")}\` shortcode \`${problem.shortcode}\` must be lowercase${declared}`,
     );
     error.keyPath = path;
-    error.addressKey = position.shape === "keys" || position.shape === "keys-or-list";
+    error.addressKey = position.shape === "keys";
     return /** @type {any} */ (error);
 }
 
@@ -290,7 +286,7 @@ function decodePositions(fm, context, refused) {
                 `\`${path.join(".")}\` ${description}: ${JSON.stringify(value)}`,
             );
             error.keyPath = path;
-            error.addressKey = position.shape === "keys" || position.shape === "keys-or-list";
+            error.addressKey = position.shape === "keys";
             throw error;
         };
         const read = (value, path) => {
@@ -340,15 +336,7 @@ function decodePositions(fm, context, refused) {
         };
         const convert = (value, path) => {
             if (value == null || value === "") return value;
-            // Whichever of the two shapes the note wrote, read as that one. An
-            // empty list is the property editor's emptied map and converts to
-            // nothing either way.
-            const shape =
-                position.shape === "keys-or-list" ?
-                    Array.isArray(value) && value.length ?
-                        "list"
-                    :   "keys"
-                :   position.shape;
+            const shape = position.shape;
             if (shape === "keys") {
                 if (value instanceof AddressEntries) return value;
                 if (Array.isArray(value) && value.length === 0) return value;

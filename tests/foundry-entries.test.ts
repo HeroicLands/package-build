@@ -228,7 +228,7 @@ name:
     full: Declaring Blade`,
         );
         try {
-            expect(() => emit({ ...WEB })).toThrow(/retired/);
+            expect(() => emit({ ...WEB })).toThrow(/not a frontmatter field/);
         } finally {
             fs.rmSync(path.join(root, "assets/content/Gear/Declares.md"));
         }

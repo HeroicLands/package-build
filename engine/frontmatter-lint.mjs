@@ -300,17 +300,10 @@ export function matchesKind(value, kind, context = {}) {
             // field admits. A list has neither.
             return matchesKind(value, "string") || matchesKind(value, "map");
         case "string-or-list":
-            // One value or several of the same kind. Unlike `list-or-map` the
+            // One value or several of the same kind. The
             // two halves say the same thing at different lengths, so either is
             // accepted here and the entries are read by the field's own check.
             return matchesKind(value, "string") || Array.isArray(value);
-        case "list-or-map":
-            // A list, or a map. The two carry different facts rather than
-            // being two spellings of one — a map keyed by Address says what is
-            // true *of* each key, which a list has nowhere to put — so the
-            // field's own check is what reads the entries, and all this
-            // answers is whether the value has one of the two shapes.
-            return Array.isArray(value) || matchesKind(value, "map");
         default:
             return true;
     }
@@ -544,13 +537,7 @@ function eventReferenceProblem(value, field, defaults, index) {
 function checkDataReferences(note, field, value, segments, context, index) {
     const checks = [];
     if (field.kind === "address") checks.push({ value, path: [], kind: "address" });
-    // A `list-or-map` field declares both halves, and each describes one shape:
-    // `entryKind` the list's entries, `keyKind` the map's keys. Reading both of
-    // one value would check a map's standings as if they were Addresses and a
-    // list's indices as if they were its keys.
-    const dual = field.kind === "list-or-map";
-    const written = Array.isArray(value) ? "list" : "map";
-    if (field.entryKind && !(dual && written === "map")) {
+    if (field.entryKind) {
         if (Array.isArray(value)) {
             value.forEach((entry, i) =>
                 checks.push({ value: entry, path: [i], kind: field.entryKind }),
@@ -562,7 +549,7 @@ function checkDataReferences(note, field, value, segments, context, index) {
             });
         } else checks.push({ value, path: [], kind: field.entryKind });
     }
-    if (field.keyKind && !(dual && written === "list")) {
+    if (field.keyKind && !Array.isArray(value)) {
         if (value instanceof AddressEntries) {
             for (const entry of value.entries)
                 checks.push({
@@ -1313,7 +1300,7 @@ export function lintNote(
             ...at("package"),
             severity: "error",
             message:
-                "`package:` is a retired frontmatter field — delete it. A note's package " +
+                "`package:` is not a frontmatter field — delete it. A note's package " +
                 "is this repository's configured `contentPackage`, in " +
                 "package-build.config.yaml, and every note in the tree belongs to it",
         });

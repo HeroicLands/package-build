@@ -909,7 +909,7 @@ package-build yaml [paths..]
 
 **DESCRIPTION**
 
-The check that exists because a duplicate frontmatter key used to parse to
+The check that exists because a duplicate frontmatter key parses to
 nothing and the note it belonged to silently lost every field, with every
 later build pass reporting success. Needs no ESLint configuration of its
 own, so a repository with one for its own source code

@@ -22,10 +22,8 @@
  * which {@link sohl.utils.descriptionLinkTarget} recognises and
  * Display Description follows.
  *
- * The prose then exists once. Previously every actor carrying an item carried
- * its own copy of that item's description: 7.59 MB across the actors pack, of
- * which only 133 KB was distinct text. Nothing about actors changes —
- * they embed whatever the item carries, and what the item carries is now a link.
+ * The prose then exists once, not as a copy on every actor carrying the item.
+ * Actors embed whatever the item carries, and what the item carries is now a link.
  *
  * **Two passes, no shared state.** The items pass writes the pointer; the
  * journals pass writes the entry it points at. Neither can see the other's
@@ -106,7 +104,7 @@ export function itemDocEntryId(itemId) {
  *   item beats a bare UUID.
  * @param {string} pageId - The id of the selected entry page, from
  *   {@link journalPageId}.
- * @param {object} [fm] - The source note, used to route GM-only prose.
+ * @param {object} [fm] - The source note, which routes GM-only prose.
  * @returns {string} The pointer to store in `system.docHtml`.
  */
 export function itemDocPointer(packageId, itemId, name, pageId, fm) {

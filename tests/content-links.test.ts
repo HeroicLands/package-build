@@ -559,7 +559,7 @@ describe("a note the content index cannot record", () => {
         const index = buildLinkIndex(root, { skipDirectories: [], problems });
 
         expect(problems).toHaveLength(1);
-        expect(problems[0].message).toMatch(/retired frontmatter field/);
+        expect(problems[0].message).toMatch(/not a frontmatter field/);
         expect(problems[0].file).toBe(path.join(root, "Skills", "Legacy.md"));
 
         // The dead link in the *other* note is still found, which is the whole
@@ -574,7 +574,7 @@ describe("a note the content index cannot record", () => {
             "Skills/Legacy.md": note({ type: "skill", shortcode: "leg", package: "sohl" }),
         });
         expect(() => buildLinkIndex(root, { skipDirectories: [] })).toThrow(
-            /retired frontmatter field/,
+            /not a frontmatter field/,
         );
     });
 });

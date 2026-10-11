@@ -451,7 +451,7 @@ describe("buildIndexRecord", () => {
                 relPath: "A.md",
                 contentPackage: "sohl",
             }),
-        ).toThrow(/retired frontmatter field — delete it/);
+        ).toThrow(/not a frontmatter field — delete it/);
     });
 
     it("sorts every key, so a record serializes identically however authored", () => {
@@ -576,7 +576,7 @@ describe("collectContentIndex", () => {
             note("Legacy.md", "type: being\nid: l\nshortcode: leg\npackage: sohl");
             expect(() =>
                 collectContentIndex(tmp, { contentPackage: "sohl", skipDirectories: [] }),
-            ).toThrow(/retired frontmatter field/);
+            ).toThrow(/not a frontmatter field/);
         });
     });
 });

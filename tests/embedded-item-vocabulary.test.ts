@@ -328,7 +328,7 @@ describe("a being's embedded items, end to end through the translation", () => {
         });
     });
 
-    it("refuses a retired top-level `shortcode`, naming `model`", async () => {
+    it("refuses a top-level `shortcode` as an entry that stands on no model", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
             beingNote("{ model: armor-hlmt }"),
@@ -348,10 +348,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                 );
                 expect(pass.errorCount).toBe(1);
                 const finding = said.find((l) => l.includes("shortcode"));
-                // The message names the replacement and the distinction the old
-                // key blurred: a selector versus this item's own identity.
-                expect(finding).toContain("`model:`");
-                expect(finding).toContain("system.shortcode");
+                expect(finding).toContain("missing shortcode");
             },
         );
     });

@@ -14,7 +14,7 @@
 /**
  * The resolved package-build configuration the pack pipeline reads.
  *
- * One module, one import: everything the compilers used to hard-code — the
+ * One module, one import: everything the compilers need — the
  * content package, the Foundry package and its kind, every path, the `_stats`
  * identity, the item-type membership, and the pack list — arrives from the
  * consuming repository's `package-build.config.yaml`.
@@ -123,11 +123,7 @@ export const CONFIG_BASENAME = "package-build.config";
  * the order the names are *reported* in, which is the order a reader should
  * reach for them: YAML first, `.mjs` last.
  *
- * The `package-build.config.*` stem this package read before the two toolchains
- * merged is **not** resolved. 3.0.0 renames the file rather than accepting both:
- * a deprecation window here would mean a repository could sit indefinitely on a
- * name for a package that no longer exists, and the upgrade already requires
- * touching the consumer's manifest and imports.
+ * Only the `package-build.config.*` stem is resolved.
  *
  * @type {readonly string[]}
  */
@@ -142,7 +138,7 @@ export const CONFIG_FILENAMES = Object.freeze([
  *
  * **Two of them in one directory is an error.** Picking one by precedence would
  * mean a repository mid-conversion silently builds from the file its author is
- * no longer editing, and the build would look entirely healthy while doing it.
+ * not editing, and the build would look entirely healthy while doing it.
  * The walk continues past a directory holding none, so a repository may still
  * sit inside one that has its own.
  *
@@ -163,7 +159,7 @@ export function findConfigFile(from) {
                 `package-build: ${dir} holds more than one configuration ` +
                     `(${found.map((f) => path.basename(f)).join(", ")}). A ` +
                     `repository declares its build in exactly one file — ` +
-                    `delete the one you are no longer editing.`,
+                    `delete the one you are not using.`,
             );
         }
         if (found.length === 1) return found[0];

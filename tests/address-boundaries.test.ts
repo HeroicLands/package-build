@@ -51,11 +51,7 @@ describe("Address read and write boundaries", () => {
         let count = 0;
         for (const type of Object.keys(NOTE_VOCABULARY)) {
             for (const p of addressPositions({ type }, context)) {
-                // A position admitting two shapes is exercised in both: which
-                // one a note wrote is not knowable from the declaration, so a
-                // specimen of one half proves nothing about the other.
-                const shapes =
-                    p.shape === "keys-or-list" ? ["keys" as const, "list" as const] : [p.shape];
+                const shapes = [p.shape];
                 for (const shape of shapes) {
                     const fm: any = { type };
                     let owner = fm;

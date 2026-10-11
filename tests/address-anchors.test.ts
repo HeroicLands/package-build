@@ -81,7 +81,7 @@ describe("every Address field that declares no anchor kind refuses one", () => {
                 // An event's keys are read leniently and refused by the event
                 // check, which `note-events.test.ts` holds to the same rule.
                 if ((p as any).anchors || (p as any).lenient) continue;
-                const shapes = p.shape === "keys-or-list" ? ["keys", "list"] : [p.shape as string];
+                const shapes = [p.shape as string];
                 for (const shape of shapes) {
                     const fm: any = { type };
                     let owner = fm;
@@ -108,7 +108,6 @@ describe("every Address field that declares no anchor kind refuses one", () => {
                 if ((field as any).anchors) continue;
                 const shapes: string[] = [];
                 if (field.kind === "address") shapes.push("value");
-                else if (field.kind === "list-or-map") shapes.push("keys", "list");
                 else if (field.keyKind === "address") shapes.push("keys");
                 else if (field.entryKind === "address")
                     shapes.push(field.kind === "scalar-or-map" ? "value" : "list");

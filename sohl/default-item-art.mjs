@@ -46,9 +46,9 @@
  * **The keys are SoHL *document* subtypes, not markdown note types.** The
  * runtime reads this with `itemData.type`, which is a Foundry Item subtype, and
  * that is the vocabulary a compendium document carries. The two vocabularies
- * would be the same string but for three renamed note types (`armorgear` →
- * `armor`, and its two siblings), and this map stayed on the document side
- * because that is the side the runtime cannot translate: `sohl/item-builders.mjs`
+ * are the same string but for three note types (`armor` and its two siblings,
+ * whose document subtypes are `armorgear` and its siblings), and this map stays
+ * on the document side because that is the side the runtime cannot translate: `sohl/item-builders.mjs`
  * asks SoHL's own note-type → subtype map before it looks art up here, so the
  * build translates once and no second copy of those three rows exists.
  */

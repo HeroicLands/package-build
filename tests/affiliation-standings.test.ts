@@ -88,16 +88,29 @@ const standingFindings = (affiliations: unknown) => [
 ];
 
 describe("a being's standing names the body that confers it", () => {
-    it("declares the map form, with the list form still accepted", () => {
+    it("declares the map form", () => {
         const field = NOTE_VOCABULARY.being.data.find(
             (entry: { name: string }) => entry.name === "affiliations",
         );
-        expect(field.kind).toBe("list-or-map");
+        expect(field.kind).toBe("map");
         expect(field.keyKind).toBe("address");
-        expect(field.entryKind).toBe("address");
         expect(field.standings).toBe(true);
         expect(field.check).toBe(checkStandings);
         expect(STANDING_KEYS).toEqual(["rank", "office", "societies"]);
+    });
+
+    it("refuses a list as an error at the line of data.affiliations", () => {
+        const listed = {
+            ...note(["vrystwldtrbs"]),
+            raw: "---\nshortcode: subject\ntype: being\ndata:\n  affiliations:\n    - vrystwldtrbs\n---",
+        };
+        const findings = [
+            ...checkDataKeys(listed, dataFields("being")),
+            ...checkStandings(listed, { index }),
+        ];
+        expect(findings).toHaveLength(1);
+        expect(findings[0]).toMatchObject({ file: "subject.md", line: 6, severity: "error" });
+        expect(findings[0].message).toMatch(/map/);
     });
 
     it("stops advertising standings on data.lore", () => {
@@ -107,7 +120,7 @@ describe("a being's standing names the body that confers it", () => {
         expect(lore.describe).not.toMatch(/standing/i);
     });
 
-    it("reads the map, the decoded map and the list as one set of entries", () => {
+    it("reads the map and the decoded map as one set of entries", () => {
         expect(readStandings(undefined).form).toBe("absent");
         expect(readStandings([]).entries).toEqual([]);
         expect(readStandings("nonsense").form).toBe("malformed");
@@ -119,9 +132,7 @@ describe("a being's standing names the body that confers it", () => {
             standing: { rank: 4 },
         });
 
-        const asList = readStandings(["vrystwldtrbs"]);
-        expect(asList.form).toBe("list");
-        expect(asList.entries[0]).toMatchObject({ body: "vrystwldtrbs", standing: undefined });
+        expect(readStandings(["vrystwldtrbs"]).form).toBe("malformed");
 
         const decoded: any = decodeNoteAddresses(
             { type: "being", data: { affiliations: { vrystwldtrbs: { rank: 5 } } } },
@@ -139,7 +150,6 @@ describe("a being's standing names the body that confers it", () => {
         expect(
             checkStandings(note({ vrystwldtrbs: { rank: 5, office: "War Chief" } }), { index }),
         ).toEqual([]);
-        expect(checkStandings(note(["vrystwldtrbs"]), { index })).toEqual([]);
         expect(checkStandings(note([]), { index })).toEqual([]);
     });
 
@@ -238,14 +248,11 @@ describe("a being's standing names the body that confers it", () => {
         ).toMatch(/twice/);
     });
 
-    it("refuses a key that is not an affiliation that resolves, in either form", () => {
+    it("refuses a key that is not an affiliation that resolves, ", () => {
         expect(checkStandings(note({ "place-village": {} }), { index })[0].message).toMatch(
             /accepts affiliation, not place/,
         );
         expect(checkStandings(note({ nosuchbody: {} }), { index })[0].message).toMatch(
-            /does not resolve/,
-        );
-        expect(checkStandings(note(["nosuchbody"]), { index })[0].message).toMatch(
             /does not resolve/,
         );
         expect(checkStandings(note("nonsense"), { index })[0].message).toMatch(
@@ -400,8 +407,8 @@ describe("the box prints one line per membership", () => {
         );
     });
 
-    it("writes a list-form membership as the body's name alone", () => {
-        expect(lines(["vrystwldtrbs"])).toEqual(["Vrystwald Tribes"]);
+    it("writes a membership stating no standing as the body's name alone", () => {
+        expect(lines({ vrystwldtrbs: null })).toEqual(["Vrystwald Tribes"]);
         expect(section([])).toBeUndefined();
         expect(section({})).toBeUndefined();
     });
@@ -491,7 +498,7 @@ describe("a membership is derived into the SoHL item, never authored twice", () 
     });
 
     it("keeps the body's own defaults where the being states no standing", () => {
-        for (const written of [{ vrystwldtrbs: {} }, ["vrystwldtrbs"]]) {
+        for (const written of [{ vrystwldtrbs: {} }, { vrystwldtrbs: null }]) {
             const { items, errors } = build(written);
             expect(errors).toBe(0);
             expect(items).toHaveLength(1);

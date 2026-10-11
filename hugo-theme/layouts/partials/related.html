@@ -25,7 +25,7 @@
   computed first and the <section> is rendered only when there is something
   to put in it.
 
-  `return` cannot be used to bail out early here. It sets the partial's
+  `return` cannot bail out early here. It sets the partial's
   return value; it does not discard template text the partial has already
   emitted, so a guard written that way still prints the empty shell. Hence
   the emptiness test wraps the markup instead of preceding it.

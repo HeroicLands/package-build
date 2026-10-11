@@ -121,7 +121,7 @@ function sampleFor(field: {
 /** Whether a declaration's value holds maps — a map, or a list or keyed map of them. */
 function holdsMaps(spec: any): boolean {
     return (
-        ["map", "list-or-map", "scalar-or-map"].includes(spec.kind) ||
+        ["map", "scalar-or-map"].includes(spec.kind) ||
         Boolean(spec.fields) ||
         Boolean(spec.entries?.fields) ||
         Boolean(spec.values)
@@ -161,7 +161,7 @@ function sampleOf(spec: any, key: string): unknown {
         if (spec.entryKind === "address") return [addressSample(spec)];
         return [`entry-${key}`];
     }
-    if (spec.values || spec.kind === "map" || spec.kind === "list-or-map") {
+    if (spec.values || spec.kind === "map") {
         const value =
             spec.terms ? spec.terms[0].term
             : spec.keyKind === "address" && spec.values?.kind === "string" ?

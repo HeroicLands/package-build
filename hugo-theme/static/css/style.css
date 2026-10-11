@@ -771,7 +771,7 @@ img.door-image {
   margin: 0;
 }
 
-/* One card per row once two no longer fit beside each other; the fixed width
+/* One card per row once two do not fit beside each other; the fixed width
    would otherwise overflow a narrow viewport. */
 @media (max-width: 400px) {
   .door {

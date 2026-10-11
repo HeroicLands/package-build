@@ -229,7 +229,7 @@ git worktree where `node_modules` is already correct.
 
 `build:stage-reset` clears only the assembled Foundry package. Keep it before
 every stage writer, including a repository's own code or stylesheet bundle
-step. This keeps renamed and deleted files out of the next package while
+step. This keeps moved and deleted files out of the next package while
 preserving the content index and other generated outputs.
 
 Within the chain, two orderings are real:

@@ -80,7 +80,7 @@ function specimen(type: string) {
     const fm: any = { type, shortcode: `every${type}`, name: { full: `Every ${type}` } };
     let named = 0;
     for (const p of addressPositions({ type })) {
-        if (p.path[0] !== "data" || p.shape === "keys" || p.shape === "keys-or-list") continue;
+        if (p.path[0] !== "data" || p.shape === "keys") continue;
         const target = (p as any).type ?? (p as any).accepts?.[0] ?? "lore";
         const anchor = (p as any).anchors ? "#sample" : "";
         const text = `${PACKAGE}-note-${target}-sample${anchor}`;

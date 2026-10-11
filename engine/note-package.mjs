@@ -19,28 +19,11 @@
  * single-sourced in the repository that ships it — so the package is a property
  * of the *repository*, not of the note, and no note declares it.
  *
- * It is not a property of the note, and not a **selector**: as one, the compile loop
- * read `package:` out of frontmatter and skipped anything that did not match
- * the configured value. That is the defect this module exists to remove.
- * The skip was silent and it was bucketed as "belongs to another pass",
- * so a tree whose notes named a package no configuration answered to compiled
- * **zero notes and exited 0** — which is exactly the state the un-migrated
- * `hm-loc-*` / `hm-adv-*` repositories are in today.
- *
- * The field was retired in three steps, and all three have landed:
- *
- * 1. **Optional** (3.3.0). An absent `package:` was normal and a present one
- *    was accepted while it agreed. Non-breaking, so a consumer adopted it
- *    before changing a note.
- * 2. **Swept** out of every content tree on the org — 6,235 notes across
- *    `sohl`, `thalorna`, `kethira` and `harnensemble`.
- * 3. **Rejected outright**, as this major. A note declaring the field fails the
- *    build naming the file, whatever the value says.
- *
- * Step 3 is deliberately a rejection rather than continued tolerance: a field
- * accepted while it agrees is a field that grows back, one note at a time, and
- * every one of them is a line restating a constant the configuration already
- * carries. There is no value that makes writing it correct, so the diagnostic
+ * It is not a property of the note, and not a **selector**: a compile loop that
+ * skipped notes naming another package would compile zero notes and exit 0 on a
+ * tree whose notes named a package no configuration answered to. A note
+ * declaring the field fails the build naming the file, whatever the value
+ * says: there is no value that makes writing it correct, so the diagnostic
  * says what to write instead rather than which value to change.
  *
  * SQL queries can refer to the configured package. Search readers receive that
@@ -67,7 +50,7 @@ export function searchableFrontmatter(fm, configured) {
  * Refuse a note that declares `package:` at all.
  *
  * Presence is the whole test — a declaration that *agrees* with the
- * configuration is as retired as one that disagrees, and an empty one
+ * configuration is refused like one that disagrees, and an empty one
  * (`package:`, which parses as `null`) is still the field.
  *
  * @param {object|null|undefined} fm - Parsed frontmatter, or nothing when it
@@ -95,7 +78,7 @@ export function assertNoDeclaredPackage(fm, { file, absPath, configured } = {}) 
         :   `\`package: ${declared}\``;
 
     const err = new Error(
-        `${wrote} is a retired frontmatter field — delete it` +
+        `${wrote} is not a frontmatter field — delete it` +
             (file ? ` — ${file}` : "") +
             `. A note's package is this repository's configured ` +
             `\`contentPackage\` ("${target}", in package-build.config.yaml), ` +

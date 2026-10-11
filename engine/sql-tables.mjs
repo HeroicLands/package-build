@@ -569,7 +569,7 @@ function cellText(value, column) {
  * ships a link that does not resolve. A `_section` alias splits the result into
  * a headed table per distinct value, in the order the rows arrive — so the
  * authored `ORDER BY` decides the section order too, and one query replaces the
- * forty near-identical blocks the language used to require.
+ * forty near-identical blocks it would otherwise take.
  *
  * **A result selecting nothing still renders its header and rule.** The finding
  * is the point, not withholding the output: an authored heading with an empty
@@ -934,7 +934,7 @@ export async function prepareTreeSqlTables(
     // Which notes carry a directive, discovered over the same corpus every
     // other pass reads rather than over a walk of this one's own. The
     // body has to be read to find a fence — the index carries no note text —
-    // but *which files* to read is no longer a second answer.
+    // but *which files* to read is not a second answer.
     //
     // `parseMarkdownFile` yields the body `walkMarkdownTree` yielded, trimmed
     // the same way, which matters: results are keyed by note and looked up by

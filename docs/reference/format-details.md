@@ -1762,7 +1762,7 @@ target that does not parse as an address is reported as one that does not, rathe
 than split at an arbitrary place or quietly looked up somewhere else.
 
 The **empty** label is not a way of writing no label. It says _address this
-target, and show whatever it calls itself_ — so a note renamed later takes its new
+target, and show whatever it calls itself_ — so a note whose name changes takes its new
 name at every citation with no link edited. `[[x|]]` is labelled; `[[x]]` is not.
 
 It is the label that is required, not a target: the anchor-only form above
@@ -3508,7 +3508,7 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `gender`                           | `male \| female \| other`                      | Gender of the character                                                                                                                               |
 | `species`                          | `Address`                                      | Being's species (lore)                                                                                                                                |
 | `born`                             | `date \| unknown`                              | When the being was born; absent, it was never born                                                                                                    |
-| `calendar`                         | `Address`                                      | Calendar note used to print the being's dates                                                                                                         |
+| `calendar`                         | `Address`                                      | Calendar note that prints the being's dates                                                                                                           |
 | `died`                             | `date \| unknown`                              | When the being died; absent, it is alive                                                                                                              |
 | `age`                              | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                                                                         |
 | `ageYears`                         | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this                                                        |
@@ -3588,8 +3588,8 @@ data:
 
 Both values are checked against the body the entry is keyed by. A `rank` that
 is not a level the body confers and an `office` that is not one of its keys are
-each an error naming the file, line and column — so a renamed rung or a renamed
-post fails on every being pointing at it. Naming one body twice, by its short
+each an error naming the file, line and column — so a rung or a post that does
+not exist fails on every being pointing at it. Naming one body twice, by its short
 and full Address, still names one body and is an error.
 
 The infobox prints one line per membership, in the order the note writes them,
@@ -3599,8 +3599,8 @@ Vrystwald Tribes`, or `Hárár (5), of Vrystwald Tribes` with no office. The tit
 is read from the body's own `governance.ranks`; where the body declares no rung
 at that level, or its ladder is not available, the rung reads as `Rank 5` —
 `Rank 5, of Vrystwald Tribes`. The body's name links to its page, and is plain
-text where it publishes none. A membership written in the list form, with no
-standing, is the body's name alone. The lines are the same on the website, in
+text where it publishes none. A membership stating no
+standing is the body's name alone. The lines are the same on the website, in
 a Foundry journal and in the book. On the body's own page each office is a row
 anchored by its name, so the post a being holds is described where the body
 declares it.
@@ -4982,7 +4982,7 @@ level with no background prints nothing.
 | `data` property                   | Values                                                                           | Description                                                                                               |
 | --------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `events`                          | event entries — see [Events](#events)                                            | What happened to or at this subject: dated, attributed events                                             |
-| `calendar`                        | `Address`                                                                        | Calendar note used to print this place's dates                                                            |
+| `calendar`                        | `Address`                                                                        | Calendar note that prints this place's dates                                                              |
 | `demonym`                         | `string`                                                                         | What a person from this place is called — a Vylarian                                                      |
 | `purpose`                         | `placeCharacter` tag                                                             | The reason a settlement, site, or structure exists                                                        |
 | `lore`                            | `Address[]`                                                                      | Lore concerning this place — its peoples, its law, its calendar, its history                              |

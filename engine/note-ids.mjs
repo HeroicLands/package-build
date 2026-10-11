@@ -14,13 +14,10 @@
 /**
  * The id a note's document is filed under, and the one rule that decides it.
  *
- * A note used to author its `id` — an opaque 16-character string, 6,343 of them
- * across the four content trees, each a *second* identity for a thing that
- * already had one. The note's canonical address (`sohl-none-miscgear-bowlcer`)
- * says everything the id said, is readable, and is the identity `content-lint`
- * already guards: a duplicate address is a build error, while a duplicate `id`
- * was checked nowhere. So the derived id inherits a guarantee, where the
- * authored one had none.
+ * A note's canonical address (`sohl-none-miscgear-bowlcer`) is the identity
+ * `content-lint` guards: a duplicate address is a build error. The id derived
+ * from it inherits that guarantee, and an authored `id` would be a second
+ * identity for a thing that already has one.
  *
  * **An authored `id` always wins.** That is the pattern the map compiler
  * already uses and documents — `regionDocId(sceneId, key, pinned)` returns
@@ -30,8 +27,7 @@
  * **This is one function because every pass must agree.** Half a dozen corpus
  * readers ask what a note's document id is — the pack passes, the wikilink
  * index, the content index, the Foundry-address pass, the address diff — and
- * they never see each other's answer. They agreed before because they all read
- * one authored field; they agree now because they all call this.
+ * they never see each other's answer. They agree because they all call this.
  *
  * `maps` and `pkg` are parameters with defaults rather than values resolved
  * inside, so a test can pose a package and a registry this toolchain does not
@@ -88,10 +84,8 @@ function text(value) {
  *
  * Returns `undefined` for a file with **no address** — no `type`, or no
  * `shortcode`. Such a file is not an addressable note, so it has no document
- * and inventing an id for one would file it under nothing. Every caller already
- * had to handle an absent id (that is what the authored field's absence meant),
- * so this reports the same thing rather than throwing where a walk used to
- * skip; whether an id is *required* stays each pass's own decision
+ * and inventing an id for one would file it under nothing. This reports the
+ * absence rather than throwing, so a walk skips such a file; whether an id is *required* stays each pass's own decision
  * (`BasePackCompiler.requiresId`).
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.

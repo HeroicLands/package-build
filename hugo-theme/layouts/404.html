@@ -6,7 +6,7 @@
   the deployment does not publish. Without it, Pages falls back to the site
   root, so an unknown path answers 200 with the landing page: a soft-404 that
   makes every "does this URL resolve?" check report success, and lets search
-  engines index retired content as live (issue #1416).
+  engines index withdrawn content as live.
 
   Every consumer needs exactly this, so it lives here rather than being copied
   into each one (issue #1454). The theme carries layout, not addresses, so the
@@ -41,8 +41,8 @@
   <div class="single-content">
     <div class="single-body">
       <p>
-        The page may have been renamed, moved to another part of the
-        {{ $noun }}, or retired along with the concept it described. Links
+        The page may have been moved to another part of the
+        {{ $noun }}, or withdrawn along with the concept it described. Links
         from older discussions, issues, and search results can outlive the
         pages they point at.
       </p>

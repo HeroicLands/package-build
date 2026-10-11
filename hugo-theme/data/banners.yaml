@@ -4,10 +4,9 @@
 # `images/banners/`, and that path is emitted into a `background-image` with no
 # way to test it: the artwork is served from the consuming site's
 # `params.cdnBaseURL`, and Hugo cannot ask a remote host whether a URL exists.
-# So a banner that was never drawn used to 404 in silence — the band rendered
+# So a banner that was never drawn would 404 in silence — the band renders
 # with its title, palette and gradient intact and a dead image URL behind it,
-# and nothing failed: not the build, not Hugo, not the deploy guard
-# (issue #36).
+# and nothing fails: not the build, not Hugo, not the deploy guard.
 #
 # This file is the declaration that replaces that missing test. A name listed
 # here is asserted to exist; a resolved banner whose name is absent falls back

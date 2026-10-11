@@ -184,8 +184,8 @@ function reportFailure(err) {
 /**
  * A note's source text, or `""` when it cannot be read.
  *
- * Used only to turn a link finding into a position. A path that no longer
- * resolves — a page a build generated, a tree walked from somewhere else —
+ * Used only to turn a link finding into a position. A path that does not
+ * resolve — a page a build generated, a tree walked from somewhere else —
  * yields `""`, and {@link positionOfLiteral} then reports nothing, so the
  * diagnostic drops the line and column rather than guessing them.
  *
@@ -1268,8 +1268,8 @@ function formatCommand() {
                     );
                     // `--write` collects findings too — a file Prettier cannot
                     // parse, or one that will not format to a fixpoint — and
-                    // used to discard them, so a run that had left files
-                    // unformatted still reported success and exited 0.
+                    // a run that leaves files unformatted must not report
+                    // success.
                     for (const finding of findings) emitDiagnostic(finding);
                     if (findings.length) {
                         log.error(

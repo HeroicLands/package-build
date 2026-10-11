@@ -18,13 +18,10 @@
  * There is one list, not two. This repository hands {@link ITEM_BUILDERS} to
  * the build as `itemBuilders` in `package-build.config.yaml`, and `itemTypes()`
  * — the whitelist — is derived from that table's own keys, so a type cannot be
- * whitelisted for compilation without a builder to compile it. Split, the
- * whitelist and the builder table were maintained by hand and had already
- * drifted: `trait` — a **retired** item type, absent from
- * `documentTypes.Item` and reported by world migration as unrecognized — was
- * still advertised as compilable, so a `type: trait` note passed the gate and
- * then died on `BUILDERS[type] is not a function`, swallowed as a per-file
- * error.
+ * whitelisted for compilation without a builder to compile it. Kept apart, a
+ * whitelist naming a type absent from `documentTypes.Item` would let a note of
+ * that type pass the gate and then die on `BUILDERS[type] is not a function`,
+ * swallowed as a per-file error.
  *
  * **The builders are generated, not written.** Each type's `system` builder
  * comes from its field declaration in `item-fields.mjs` by way of
@@ -58,7 +55,7 @@ import { ITEM_FIELDS } from "./item-fields.mjs";
  *
  * Reading {@link defaultItemArt} here is what makes the two lists one: this
  * module cannot name a type the art map does not cover, because that function
- * throws and this module evaluates at import. A drift that a test used to catch
+ * throws and this module evaluates at import. A drift between the lists
  * is unrepresentable.
  *
  * **The art map is keyed by the document subtype**, which the runtime reads

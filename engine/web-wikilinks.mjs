@@ -416,9 +416,8 @@ export function resolveWebWikilinks(body, ctx) {
         const label = authoredLabel({ display });
 
         // **Every link carries a label**. Without one there is nothing
-        // to resolve against — the alias namespace a bare `[[Text]]` named is
-        // retired — and nothing to show either, a shortcode being an address
-        // rather than prose. Reported before the same-page form, because the
+        // to resolve against, and nothing to show either, a shortcode being an
+        // address rather than prose. Reported before the same-page form, because the
         // rule is about how the link is *written*: `[[#slug]]` needs the pipe
         // exactly as `[[skill-clmb]]` does.
         if (!parsed.labelled) {

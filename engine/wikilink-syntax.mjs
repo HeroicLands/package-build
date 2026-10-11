@@ -40,8 +40,8 @@ import { parseAddress, isAddressTuple, splitAnchor } from "./address.mjs";
  *
  * The one rule about a link's *shape* that both resolvers share also lives here
  * — **a link carries a label** ({@link unlabelledLinkMessage}) — because the
- * two used to state it in their own words and the author met whichever ran
- * first.
+ * two state it through one message and the author reads the same words
+ * whichever ran first.
  *
  * For the same reason, so does the **vocabulary of link findings**
  * ({@link LINK_FINDING_REASONS}) and the message each one reports through
@@ -145,15 +145,10 @@ export function authoredLabel({ display }) {
  * the form to write rather than a value to correct: there is no value that
  * makes an unlabelled link resolve.
  *
- * **Why there is nothing left for a bare link to mean**. The pipe used
- * to select between two namespaces — address and alias — and the alias one was
- * empty in practice: across 8,305 wikilinks in three content trees, not one
- * bare `[[Alias]]` resolved to a note. What the index it looked up in *did* do
- * was fold every note's `name.full` into itself, which forbade two notes of a
- * type from sharing a display name. So the namespace is gone, every
- * link is an address, and an address needs the pipe that says so.
+ * **A bare link has nothing to mean.** Every link is an address, and an
+ * address needs the pipe that says so.
  *
- * The **link part may still be an anchor**: `[[#slug|Text]]` addresses a
+ * The **link part may be an anchor**: `[[#slug|Text]]` addresses a
  * section of the page it is written on. It is the label that is required, not
  * a target.
  *
@@ -164,7 +159,7 @@ export function unlabelledLinkMessage(target) {
     return (
         `wikilink [[${target}]] carries no label, so it addresses nothing — ` +
         `write [[type-shortcode|Text]]. Every link is an address; the bare ` +
-        `[[Name]] form named an alias, and the alias namespace is retired`
+        `[[Name]] form addresses nothing`
     );
 }
 
@@ -243,13 +238,9 @@ export function isEventAnchor(hit, anchor) {
  * package publishing it is not a declared dependency — or is one whose index
  * has not been fetched — and the link itself looks identical in every case.
  *
- * As a **warning** in the checker and, in the site build, nothing
- * at all until every linkable package's manifest was accounted for — on the
- * reasoning that a bare `[[Name]]` might be a placeholder for a note nobody had
- * written yet. That reasoning was a property of the bare form, which is retired;
- * the intent behind it now has a real spelling, a `draft`-tagged note
- * that exists and resolves and renders marked. So an address naming no
- * note is a typo or an omission, both want fixing, and all three builds say so.
+ * An address naming no note is a typo or an omission: the intent of a
+ * placeholder for a note nobody has written yet is spelled as a `draft`-tagged
+ * note that exists, resolves and renders marked. Both want fixing, and all three builds say so.
  *
  * @param {string} target - The address as authored, named in the message.
  * @returns {string} The message, unpunctuated at the end as a finding is.

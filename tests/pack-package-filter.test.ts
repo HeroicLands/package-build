@@ -312,7 +312,7 @@ describe("a note still declaring `package:` is refused, not skipped", () => {
             expect(names(out)).not.toContain("Other Package Skill");
             const lines = spy.mock.calls.map((c) => String(c[0]));
             expect(lines.some((l) => l.includes("OtherSkill.md"))).toBe(true);
-            expect(lines.some((l) => l.includes("retired"))).toBe(true);
+            expect(lines.some((l) => l.includes("not a frontmatter field"))).toBe(true);
             /*
              * The message names the package **this build resolved**, from the
              * configuration — not the ambient `contentPackage()` accessor this

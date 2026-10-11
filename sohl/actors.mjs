@@ -156,18 +156,7 @@ export class Actors extends SystemActorCompiler {
                     this.errorCount++;
                     return;
                 }
-                const { model, shortcode, type, ...rest } = entry;
-                if (shortcode !== undefined) {
-                    this.noteError(
-                        `${ctx}: sohl.items[${index}] carries a top-level ` +
-                            `\`shortcode\` — that key is retired. Name the item ` +
-                            `this entry copies with \`model:\` (an address, e.g. ` +
-                            `\`${type ?? "skill"}-${shortcode}\`), and use ` +
-                            `\`system.shortcode\` for this item's own identity.`,
-                    );
-                    this.errorCount++;
-                    return;
-                }
+                const { model, type, ...rest } = entry;
                 const read = model === undefined ? null : this.readModel(model, index, ctx);
                 if (model !== undefined && !read) return;
                 if (read && type !== undefined) {
@@ -344,9 +333,8 @@ export class Actors extends SystemActorCompiler {
             templatePriority: systemTemplatePriority(fm, ctx),
             // `system.portrait` is **not** written here. A picture of the
             // subject is a picture, so a being's portrait is the lead image of
-            // its `{#appearance}` section — which is the markup below — and the
-            // key that used to declare one is not a key. With no authored
-            // source left, the field keeps the schema's own initial.
+            // its `{#appearance}` section — which is the markup below. With no
+            // authored source, the field keeps the schema's own initial.
             appearance: renderSection(body || "", "appearance"),
             // One document says it once. `dossier` is the field that carries
             // an unsettled entry's notice, and `appearance` carries none —
@@ -401,9 +389,8 @@ export class Actors extends SystemActorCompiler {
             folder,
             sort: 0,
             ownership: { default: 0 },
-            // Whatever the note authors, and nothing else. The priority used to
-            // be spliced in here as `flags.sohl.docArchetype`; it is a schema
-            // field now and sits in `system`.
+            // Whatever the note authors, and nothing else. The template
+            // priority is a schema field and sits in `system`.
             flags: blockProperty(fm, SYSTEM, "flags", {}),
             _stats: this.stats,
             _key: `!actors!${id}`,

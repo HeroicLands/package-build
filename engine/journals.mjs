@@ -796,15 +796,11 @@ export class Journals extends BasePackCompiler {
         // sits under the same heading a reader found the item under.
         //
         // An address is resolved wherever it is written, including here — and
-        // resolving it *here* is what cures the defect this comment used to
-        // describe. A folder note has one definition and one address, so the
+        // resolving it *here* keeps the folders agreeing. A folder note has one definition and one address, so the
         // journals pack materialises the very folder the items pack does, by
         // the same id. There is no second folder file left to disagree
         // with the first, and so no arrangement to assume: the mirroring
         // failure is unrepresentable rather than merely reported.
-        //
-        // The id spelling used to cross packs verbatim here, on the assumption
-        // both declared it — the arrangement retired with the YAML.
         const { value: authoredFolder } = folderField(fm);
         const folder = this.folderResolver(authoredFolder, { isAddress: true });
 

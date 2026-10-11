@@ -221,7 +221,9 @@ describe("a note the content index cannot record", () => {
 
             // Located and correctly advised — `package:` is retired, not
             // renamed — rather than a bare abort.
-            expect(out).toMatch(/Legacy\.md:\d+:\d+: error: `package: sohl` is a retired/);
+            expect(out).toMatch(
+                /Legacy\.md:\d+:\d+: error: `package: sohl` is not a frontmatter field/,
+            );
             // And the rest of the tree was still read: the one good note is
             // counted. (Each command words its tally differently — "1 notes:"
             // from `links`, "across 1 note(s)" from the other two.)

@@ -325,7 +325,7 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = [], system = n
             // so a whole-package build cannot reach this. What can is a run
             // restricted to this one pack, or a caller constructing the
             // compiler itself — neither of which reordering a pack list fixes,
-            // so the message no longer suggests it.
+            // so the message does not suggest it.
             throw new Error(
                 `Items source directory ${itemsSourceDir} does not exist — ` +
                     `an actor resolves its embedded items against the Item ` +
@@ -572,26 +572,20 @@ export class SystemActorCompiler extends BasePackCompiler {
         // configuration, and a consumer may put them anywhere. Every
         // Item pack, because a repository may ship more than one.
         //
-        // **Optional, and empty is a legitimate package.** This used to
-        // throw unless at least one Item pack was declared, which asked a
-        // package to declare the very thing it may exist not to have. An Item
-        // pack is system-bound by construction — Foundry requires `system` on
-        // Item packs — so a deliberately system-agnostic module could satisfy
-        // the guard only by naming a system. `harn-ensemble` is the case:
-        // 2,512 beings whose embedded items address the `sohl` and `hm3`
-        // catalogues, and five affiliation notes of its own.
+        // **Optional, and empty is a legitimate package.** An Item pack is
+        // system-bound by construction — Foundry requires `system` on Item
+        // packs — so a deliberately system-agnostic module could satisfy a
+        // requirement to declare one only by naming a system. `harn-ensemble`
+        // is the case: its beings' embedded items address the `sohl` and `hm3`
+        // catalogues, and it has a few affiliation notes of its own.
         //
-        // The guard also did not test what it claimed. It counted *declared
-        // directories*, not resolvable items, so an empty Item pack satisfied
-        // it while a being naming a missing item still failed later. The
-        // condition actually cared about is checked where it can be reported
-        // precisely: {@link SystemActorCompiler#resolveEmbedded} already errors
-        // per unresolved `(type, shortcode)`, naming the actor. A package whose
+        // The condition that matters is checked where it can be reported
+        // precisely: {@link SystemActorCompiler#resolveEmbedded} errors per
+        // unresolved `(type, shortcode)`, naming the actor. A package whose
         // actors embed nothing, or whose every address resolves against a
-        // dependency catalogue through `foreignSourceDirs`, now compiles with
-        // no Item pack at all — and one that is genuinely missing an item
-        // still fails, saying which item and which actor rather than which
-        // pack is absent.
+        // dependency catalogue through `foreignSourceDirs`, compiles with no
+        // Item pack at all — and one that is genuinely missing an item fails,
+        // saying which item and which actor rather than which pack is absent.
         Object.defineProperty(this, "itemsSourceDirs", {
             value: Object.freeze([...itemsSourceDirs]),
             writable: false,

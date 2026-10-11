@@ -160,9 +160,6 @@ function readMapEntries(fm, key, { shared } = {}) {
  * so absent frontmatter must resolve to `null` — coercing it to `0` would ship
  * every item as an uncapped charge-user.
  *
- * A legacy `usesCharges` flag in authored frontmatter is ignored: it was inert
- * and has been dropped from the schema.
- *
  * @param {object} fm - The item frontmatter.
  * @returns {{value: number|null, max: number|null}} The persisted charges block.
  */

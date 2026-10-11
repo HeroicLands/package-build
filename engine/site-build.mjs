@@ -230,7 +230,7 @@ export function collectContentPages(contentBase, ctx) {
         if (!note) continue;
         applyComputedBeingAge(note.fm, present, dates);
         const { fm, body, bodyLine } = note;
-        // The configuration's, never a note's: `package:` is retired, so every
+        // The configuration's, never a note's: a note declares no `package:`, so every
         // note in the tree belongs to the package this repository compiles.
         const pkg = ctx.contentPackage;
         if (!ctx.packages.has(pkg) || !fm.type) continue;
@@ -566,7 +566,7 @@ export function tableUniverse(pages) {
  * `<base><slug>/`.
  *
  * A content page carries the package the build **derived**. No note
- * declares one — `package:` is retired — so the note's frontmatter alone
+ * declares one, so the note's frontmatter alone
  * would publish a page that does not say which package it belongs to. The
  * emitted page is what a theme reads: `breadcrumbs.html` reads
  * `.Params.package`. Writing the derived value keeps a page
@@ -1244,8 +1244,8 @@ export function buildSite({ config, sqlTables } = {}) {
 
     const ctx = {
         packages,
-        // The package every note in the tree belongs to. `package:` is
-        // retired, so this is the only source of it.
+        // The package every note in the tree belongs to. a note declares no
+        // `package:`, so this is the only source of it.
         contentPackage: resolved.contentPackage,
         skipDirectories: resolved.skipDirectories,
         config: resolved,
@@ -1307,7 +1307,7 @@ export function buildSite({ config, sqlTables } = {}) {
     }
 
     // The whole tree is a build artifact, regenerated every run: a page whose
-    // note was deleted or renamed would otherwise linger and keep publishing.
+    // note was deleted or moved would otherwise linger and keep publishing.
     fs.rmSync(outBase, { recursive: true, force: true });
 
     // Homepage-only stops here, and stopping is the point: nothing below reads
@@ -1412,9 +1412,6 @@ export function buildSite({ config, sqlTables } = {}) {
         maps: drawn.maps,
         pass,
         // What counts as a being is the toolchain's to say, not a consumer's.
-        // Asking in a consumer's script is how one came to still be checking
-        // `character` and `creature` months after they were retired, and to
-        // publish 95 pages with empty sidebars for months without noticing.
         decorate: sitePageDecorator(resolved, gates.index),
     });
 

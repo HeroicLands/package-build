@@ -418,8 +418,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
         const slug = parsed.anchor || null;
 
         // **Every link carries a label**. Without one there is nothing
-        // to resolve against: the alias namespace a bare `[[Text]]` was looked
-        // up in is retired, and a shortcode is an address rather than prose, so
+        // to resolve against: a shortcode is an address rather than prose, so
         // the link has neither a target this build can find nor text to show.
         // Reported before anything else, including the same-page form, because
         // it is a statement about how the link is *written* — `[[#slug]]` needs

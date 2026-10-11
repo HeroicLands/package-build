@@ -19,25 +19,13 @@
  * address, `type-shortcode`, derived in `engine/content-address.mjs` and
  * touching no display string at all.
  *
- * It is not the other way round: a `contentSlug` here that
- * derived a page's URL from `name.full`, abbreviating it through a table of 200
- * words so the result stayed short, and a `findSlugCollisions` to catch the two
- * notes that would then claim one URL. Its own header justified the readability
- * cost with a rename-survival story — *"every change appends to the legacy-URL
- * map, which emits a redirect"* — and no such map was ever written, in this
- * package or in any consumer. So a rename silently 404'd every existing link,
- * a display string was load-bearing, and a uniqueness check was needed to keep
- * it correct. An address has none of those properties, so all three went.
- *
- * What is left is the normalisation the rest of the build still needs, in the
- * two places it was always right for:
+ * The normalisation applies in two places:
  *
  * - **heading anchors**, where an author writes the matching key by hand — a map
  *   note pins `locations.stair-foot` at a heading called *Stair Foot*;
  * - **pack filenames**, read back only by the unpacker.
  *
- * Neither is abbreviated, and neither ever was: abbreviation existed solely to
- * shorten a name-derived URL, so it left with it.
+ * Neither is abbreviated.
  *
  * What the rule does, and why:
  *

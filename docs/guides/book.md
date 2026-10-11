@@ -159,7 +159,7 @@ selects twice counts as that one book's and prints at each position.
 
 The home is a property of the order the books are listed in and the queries
 they hold. To move a note's home, reorder the books, or narrow the query of the
-book that currently holds it so that it no longer selects the note. Nothing
+book that currently holds it so that it does not select the note. Nothing
 else sets a home.
 
 ### Worked example: two culture books and a World book

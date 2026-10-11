@@ -192,7 +192,7 @@ export { setPath };
  *   itself a valid world time, which is why such a field is nullable rather
  *   than sentinelled and why a default cannot stand in for one.
  *
- *   Nothing used to stop a note writing one. The three checks that might have
+ *   Nothing else stops a note writing one. The three checks that might have
  *   each declined for its own correct reason —
  *   {@link module:engine/system-block.unknownBlockKeys} reads the block's top
  *   level and never descends into `system:`;

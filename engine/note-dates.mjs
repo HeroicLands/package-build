@@ -430,9 +430,9 @@ export function parseNoteDate(value, options) {
             );
         }
         if (DOTLESS_TOKEN_PATTERN.test(trimmed)) {
-            // The message an author who learned a retired spelling meets. No
-            // table says which direction that spelling counted, so it states
-            // the rule rather than guessing a concrete replacement.
+            // A token with no dot names no era. Nothing says which direction
+            // a bare token would count, so the message states the rule rather
+            // than guessing a concrete replacement.
             return refuse(
                 `${subject} names no era — a reckoning is written ` +
                     `\`<calendar shortcode>.<era shortcode>\`: a year before ` +

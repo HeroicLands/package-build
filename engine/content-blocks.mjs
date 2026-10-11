@@ -41,8 +41,8 @@
  * whole page, or Hugo's of the whole site page — read the body as part of its
  * own document rather than as an isolated fragment. A fragment rendered on its
  * own has no access to the note's footnote definitions, which live at the top
- * level outside every block, so a reference inside one used to fall through as
- * literal `[^id]` text; reached by the one parse that also sees the
+ * level outside every block, so a reference inside one would fall through as
+ * literal `[^id]` text if rendered alone; reached by the one parse that also sees the
  * definitions, it resolves exactly as a reference inside a list item or a
  * block quote already does.
  *

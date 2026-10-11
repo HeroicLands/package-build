@@ -1235,9 +1235,8 @@ export class BasePackCompiler {
         // this pass's own. Each note is then read for its **prose**: the
         // index carries what is *about* a note and deliberately not its text,
         // nor the `bodyLine`/`bodyColumn` a diagnostic needs, and this pass has
-        // to have the body anyway. So the read is one this pass was already
-        // making; what it no longer does is decide for itself which files to
-        // make it over.
+        // to have the body anyway. So the read is one this pass makes anyway;
+        // the index decides which files it covers.
         const dates = reckoningContext({ notes: this.corpus.records });
         for (const record of this.corpus.records) {
             if (!isNoteRecord(record)) continue;
@@ -1284,7 +1283,7 @@ export class BasePackCompiler {
                 // `shortcode`. It is not addressable, so there is nothing to
                 // derive from and nothing for a link to point at; the message
                 // names the reason rather than the missing field, because the
-                // field is no longer something an author writes.
+                // field is not something an author writes.
                 if (this.constructor.requiresId) {
                     throw new Error(
                         `${Label} note has no address, so it has no document id: ` +

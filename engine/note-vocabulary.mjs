@@ -44,9 +44,9 @@
  * transmission — and is true of it whichever system is reading. What each
  * system makes of that value is declared elsewhere, in that system's own half.
  *
- * **The type names here are the specification's**, which renamed `armor`,
- * `projectile` and `concoction` off the `…gear` spellings that named a SoHL
- * document subtype rather than the thing the note is about. `weapon` is the one
+ * **The type names here are the specification's**: `armor`, `projectile`
+ * and `concoction` name the thing the note is about, not a SoHL document
+ * subtype in a `…gear` spelling. `weapon` is the one
  * the specification and this registry still spell differently: both systems
  * call that document a `weapongear`, so the name says nothing system-specific
  * and the table has no row for it.
@@ -140,15 +140,12 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  * @typedef {object} DataFieldSpec
  * @property {string} name - The key under `data:`, dotted for a nested one
  *   (`charges.value`).
- * @property {"string"|"number"|"boolean"|"list"|"map"|"list-or-map"|"scalar-or-map"|"address"|"shortcode"} [kind] -
+ * @property {"string"|"number"|"boolean"|"list"|"map"|"scalar-or-map"|"address"|"shortcode"} [kind] -
  *   The value's shape, for the lint. Absent means no claim is made about the
  *   value — which is the honest answer wherever the specification's stated
  *   shape and the shape notes are authored in today disagree.
  * @property {"address"|"shortcode"} [entryKind] - Type of each list or pack-map value.
- * @property {"address"|"shortcode"} [keyKind] - Type of each map key. On a
- *   `list-or-map` field it describes the map form alone, and `entryKind` the
- *   list form alone: reading both of one value would check a map's entries as
- *   if they were its keys.
+ * @property {"address"|"shortcode"} [keyKind] - Type of each map key.
  * @property {boolean} [standings] - The map's entries are standings held in the
  *   body each is keyed by, so a row names the two together — see
  *   {@link module:engine/standings}.
@@ -271,8 +268,6 @@ const TEXT_LIST = Object.freeze({
  *
  * The two are the same fact at different lengths rather than two different
  * facts, so a single value means a list of one and a consumer reads one shape.
- * That is what separates this from `list-or-map`, whose halves say different
- * things.
  */
 const TEXT_OR_LIST = Object.freeze({
     shape: "string or list",
@@ -291,17 +286,11 @@ const LINKS = Object.freeze({ shape: "list of Addresses", kind: "list", entryKin
  *
  * A map keyed by the body's Address, whose entry is that membership's `rank`
  * and `office` — the pair a flat list of bodies cannot state, because it has
- * nowhere to say which body a standing is held in.
- *
- * **`list-or-map` is the sweep's shape**, and it says which half each
- * declaration describes: `entryKind` the list's entries, `keyKind` the map's
- * keys. A tree still writing the list form keeps the check it had, and the map
- * form earns the two the body can answer — see {@link module:engine/standings}.
+ * nowhere to say which body a standing is held in. A list is an error.
  */
 const STANDINGS = Object.freeze({
-    shape: "a standing map keyed by Address, or a list of Addresses",
-    kind: "list-or-map",
-    entryKind: "address",
+    shape: "a standing map keyed by Address",
+    kind: "map",
     keyKind: "address",
     values: Object.freeze({
         kind: "map",
@@ -1070,7 +1059,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "lore",
                 accepts: ["lore"],
                 check: checkCalendarChoice,
-                describe: "Calendar used to display this being's dates.",
+                describe: "Calendar that displays this being's dates.",
             },
             {
                 name: "died",
@@ -1695,7 +1684,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ref: "lore",
                 accepts: ["lore"],
                 check: checkCalendarChoice,
-                describe: "Calendar used to display this place's dates.",
+                describe: "Calendar that displays this place's dates.",
             },
             {
                 name: "demonym",

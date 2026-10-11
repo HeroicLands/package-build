@@ -68,14 +68,12 @@ function mapping(value) {
 /**
  * The standings a being authored, in one shape whichever shape it wrote.
  *
- * The list form names bodies and no standings; the map form names both. Three
- * spellings reach here and every reader downstream takes the same entries, so
- * none of them asks which it was handed:
+ * Two spellings reach here and every reader downstream takes the same entries,
+ * so none of them asks which it was handed:
  *
  * - an **{@link AddressEntries}** — the map after the note boundary decoded its
  *   keys into typed Addresses, which is the shape every compile sees;
- * - a **plain map**, which is the shape a checker reading raw YAML sees;
- * - a **list**, which names bodies and says nothing about standing in them.
+ * - a **plain map**, which is the shape a checker reading raw YAML sees.
  *
  * An emptied map arrives from the property editor as `[]` and means what `{}`
  * means — this being authors no membership — so both read as no entries.
@@ -85,7 +83,7 @@ function mapping(value) {
  * Address is what a finding should name.
  *
  * @param {unknown} value - The authored `data.affiliations`.
- * @returns {{form: "absent"|"list"|"map"|"malformed",
+ * @returns {{form: "absent"|"map"|"malformed",
  *   entries: Array<{body: unknown, sourceKey: string|number, standing: unknown}>}}
  *   The form it was written in, and its entries.
  */
@@ -101,18 +99,9 @@ export function readStandings(value) {
             })),
         };
     }
-    if (Array.isArray(value)) {
-        // An empty list is an emptied map, not a membership stated as a list.
-        if (value.length === 0) return { form: "map", entries: [] };
-        return {
-            form: "list",
-            entries: value.map((body, position) => ({
-                body,
-                sourceKey: position,
-                standing: undefined,
-            })),
-        };
-    }
+    // An emptied map arrives from the property editor as `[]`; any other list
+    // is malformed.
+    if (Array.isArray(value) && value.length === 0) return { form: "map", entries: [] };
     if (!mapping(value) || isAddressTuple(value)) return { form: "malformed", entries: [] };
     return {
         form: "map",
@@ -270,7 +259,7 @@ export function standingLead(standing, digest) {
  * Five questions, and the last three are what keying the entry by its body
  * buys:
  *
- * 1. the value is a map keyed by Address (or the list this window still takes);
+ * 1. the value is a map keyed by Address;
  * 2. every key names an affiliation that resolves, once;
  * 3. the entry states a standing at all — what a stated standing holds is the
  *    inner-key check's, read from {@link STANDING_FIELDS};
@@ -278,7 +267,7 @@ export function standingLead(standing, digest) {
  * 5. an `office` is a key of that body's `governance.offices`.
  *
  * Both of the last two are read from the named body's own frontmatter as the
- * lint runs, so a renamed rung or a renamed post fails on every being pointing
+ * lint runs, so a rung or a post that does not exist fails on every being pointing
  * at it rather than on a list somebody has to remember to edit.
  *
  * @param {object} note - The note.
@@ -301,18 +290,14 @@ export function checkStandings(note, { index } = {}) {
 
     const findings = [];
     const seen = new Map();
-    // The list form names bodies and has nowhere to put a standing. Its entries
-    // are still held to being affiliations that resolve, so a tree part-way
-    // through the sweep keeps the check it had.
-    const isKey = form === "map";
     for (const { body, sourceKey, standing } of entries) {
         const path = ["data", "affiliations", sourceKey];
         const resolved = resolveBody(note, index, body);
-        findings.push(...bodyFindings(note, body, path, isKey, resolved));
+        findings.push(...bodyFindings(note, body, path, true, resolved));
         if (resolved.address) {
             if (seen.has(resolved.address)) {
                 findings.push({
-                    ...position(note, path, isKey),
+                    ...position(note, path, true),
                     message:
                         `\`data.affiliations\` names ${resolved.address} twice, as ` +
                         `${JSON.stringify(String(seen.get(resolved.address)))} and ` +
@@ -322,7 +307,6 @@ export function checkStandings(note, { index } = {}) {
             }
             seen.set(resolved.address, sourceKey);
         }
-        if (!isKey) continue;
         const named = resolved.address ?? String(body);
         // An entry with nothing after its key, and an emptied map arriving from
         // the property editor as `[]`, say exactly what an authored `{}` says:

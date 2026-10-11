@@ -50,10 +50,8 @@ import { resolveImg } from "./helpers.mjs";
  *
  * **Derived, never authored.** These are the keys of the consuming
  * repository's `itemBuilders` registry, so the whitelist and the builder table
- * are the same list and cannot drift apart. They already had: `trait` was
- * whitelisted long after the item type was retired, with no builder
- * behind it, so every `type: trait` note passed the gate and then failed to
- * compile.
+ * are the same list and cannot drift apart. A whitelist naming a type with no builder would
+ * let every note of that type pass the gate and then fail to compile.
  *
  * An accessor rather than a hoisted constant, so that importing this module
  * needs no configuration.

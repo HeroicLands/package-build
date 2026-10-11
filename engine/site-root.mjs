@@ -223,7 +223,7 @@ export async function indexSite({ site, output }) {
  * sits there. Left in place it would redirect the prefix root — the homepage —
  * to an address nothing publishes. The same holds for a `pagefind/` left by an
  * earlier build when `search` is off: deployed, it is a working search over
- * pages that may no longer exist, so it goes too.
+ * pages that may not exist, so it goes too.
  *
  * `_headers` is written before the index is built, so a failed index leaves
  * the root files as they would be — the failure is the indexer's, reported as

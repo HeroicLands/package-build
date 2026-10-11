@@ -327,7 +327,7 @@ function offsetPosition(source, offset, opts = {}) {
  * @param {object} opts - As {@link markdownToTypst} takes.
  * @param {string} original - `source` before its definitions were blanked —
  *   {@link unusedFootnoteDefinitions} locates a definition by searching for
- *   its own text, which `source` no longer carries.
+ *   its own text, which `source` does not carry.
  * @returns {void}
  */
 function reportUnrenderable(source, definitions, opts, original) {

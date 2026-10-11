@@ -26,7 +26,7 @@
  *
  * and yields an empty collection. The very next world launch migrates that
  * scene, **persists `levels: []`**, and leaves `initialLevel` pointing at an id
- * that no longer exists — measured on both 14.359 and 14.367. The map image is
+ * that does not exist — measured on both 14.359 and 14.367. The map image is
  * gone for good, and the only symptom a human sees is a blank battlemap.
  *
  * Foundry is behaving correctly there: a scene with no Level records genuinely
@@ -34,7 +34,7 @@
  * permanent. So the pack build asserts the invariant on the artefact it just
  * wrote — the compiled LevelDB, not the JSON it was compiled from — because the
  * gap this closes is the write path (the emitter is already unit-tested, and
- * the compendium CLI has previously mishandled Scene Levels).
+ * the compendium CLI can mishandle Scene Levels).
  *
  * An {@link https://foundryvtt.com/api/classes/foundry.documents.BaseAdventure.html Adventure}
  * carries its scenes *inline*, levels and all, so the same invariant has a

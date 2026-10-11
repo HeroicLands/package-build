@@ -286,13 +286,12 @@ export const DOCUMENT_ID_NAMESPACE = "document";
  * The Foundry `_id` of the document a note compiles into, derived from its
  * canonical address.
  *
- * A note used to author this — an opaque 16-character string, one per note,
- * that said nothing its address did not and that no check guaranteed. The
- * address is the identity that *is* guaranteed: `content-lint` refuses a
+ * An authored id would be an opaque string that says nothing its address
+ * does not and that no check guarantees. The address is the identity that
+ * *is* guaranteed: `content-lint` refuses a
  * duplicate `(type, shortcode)` across every pack of a document type, which is
  * exactly the scope a primary document's id must be unique within. So the
- * derived id inherits a guard that already exists, where the authored one had
- * none.
+ * derived id inherits that guard.
  *
  * **The coupling this creates, stated plainly.** The address carries the
  * shortcode, so renaming a shortcode moves the document's id — where an
@@ -301,7 +300,7 @@ export const DOCUMENT_ID_NAMESPACE = "document";
  * note, so it is a breaking change either way; and a note that must keep its
  * identity across a rename pins an `id`, which is what the pin is for. One
  * thing genuinely degrades — `engine/address-diff.mjs` tells a rename from a
- * withdrawal by matching document ids, and can no longer do so for a note that
+ * withdrawal by matching document ids, and cannot do so for a note that
  * authors none. Its module note records that.
  *
  * @param {string} pkg - The owning **content** package.

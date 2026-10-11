@@ -303,7 +303,7 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
  *
  * The rule in one place, so every reader of the tree refuses the same
  * way and says so in the same words. It is shared rather than repeated because
- * the corpus is no longer read only by {@link walkMarkdownTree}: a pass that
+ * the corpus is read by more than {@link walkMarkdownTree}: a pass that
  * reads the content index instead is making the identical claim about which
  * files it is looking at, and must be held to the identical requirement — a
  * scope that quietly defaulted there would reintroduce exactly the second
@@ -626,10 +626,8 @@ export function resolveName(fm, defaultValue = "Unnamed") {
  * every v14 build and so left all shipped content permanently eligible for
  * every v14 migration.
  *
- * **Read from the configuration, not from the shipped manifest.** It used to
- * open `paths.packageManifest` and take `compatibility.minimum` out of it,
- * because the configuration had no way to state the fact. Now that it does, the
- * manifest is generated *from* the configuration — so reading it back would be
+ * **Read from the configuration, not from the shipped manifest.** The
+ * manifest is generated *from* the configuration, so reading it back would be
  * a round trip through an artifact that need not exist yet: `build:db` can run
  * before the manifest is written.
  *
@@ -658,9 +656,7 @@ export function supportedCoreVersion(config = loadPackConfig()) {
 /**
  * Default `_stats` block for compiled compendium entries.
  *
- * Every stamped identity is configuration: four compilers used to pass
- * the same frozen `"0.6.0"` literal, and `systemId` / `lastModifiedBy` were
- * written into this function. `coreVersion` alone is *not* configuration — it
+ * Every stamped identity is configuration. `coreVersion` alone is *not* configuration — it
  * comes from {@link supportedCoreVersion}, the configured Foundry floor,
  * so a document never claims to predate the migrations that would rewrite it.
  *
@@ -725,11 +721,9 @@ let cachedDefaultStats;
 /**
  * The `_stats` block every compiler stamps on an entry it emits, built once.
  *
- * Each compiler used to hoist `const STATS = buildStats()` at module scope,
- * which read the shipped package manifest the moment the module was imported —
- * so importing a compiler required a manifest to exist even when nothing was
- * going to be compiled. Deferred to first use and memoised here, the
- * cost and the identity are what they always were; only the moment moved.
+ * Built on first use and memoised, not at module scope: building it reads the
+ * shipped package manifest, and importing a compiler must not require a
+ * manifest to exist when nothing is going to be compiled.
  *
  * @returns {object} The default `_stats` block, shared by every compiler.
  */

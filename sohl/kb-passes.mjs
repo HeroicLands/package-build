@@ -51,9 +51,9 @@ import log from "loglevel";
  * code spans rather than refuse to build.
  *
  * **Configuring one that cannot be used is a defect, and it fails the build.**
- * A missing file, a malformed one, a permissions error and a path typo used to
+ * A missing file, a malformed one, a permissions error and a path typo would
  * be indistinguishable from each other *and* from a correctly configured build
- * with no symbols: a bare `catch` returned `{}` for all five. Nothing then
+ * with no symbols, were a bare `catch` to return `{}` for all of them. Nothing then
  * compares an emitted page against what its source asked for, so the first
  * observer of a broken map was a reader who clicked nothing, because every
  * `{@link}` on the published site had quietly become a code span.
@@ -112,7 +112,7 @@ function readSymbolMap(file, repoRoot) {
 
     // Reported because a map that loaded and a map that loaded empty are
     // otherwise indistinguishable without reading the emitted HTML — and an
-    // empty one degrades every tag exactly as a missing one used to.
+    // empty one degrades every tag exactly as a missing one does.
     log.info(`resolved ${Object.keys(parsed).length} API symbols from ${file}`);
     return parsed;
 }

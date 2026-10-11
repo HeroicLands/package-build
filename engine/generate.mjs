@@ -28,15 +28,14 @@
  * anywhere**. A folder is a note like any other, named by `packFolder`
  * — its address — and it materialises in every pack that holds a document
  * naming it, its ancestors with it. So no pack loads a folder list, and
- * two packs can no longer disagree about a folder they both hold.
+ * two packs cannot disagree about a folder they both hold.
  *
  * **The order the passes run in is derived, not declared** — see
  * {@link orderPassesByDependency}. The declared list is the manifest's `packs`
  * array as well, so it is ordered for a reader; a pass that reads another's
  * output states that on its compiler and is scheduled after it.
  *
- * This replaces the retired `packs:export` (vault → committed `_source/`); the
- * HeroicLands vault is no longer a build input for SoHL content.
+ * The HeroicLands vault is not a build input for SoHL content.
  */
 
 import { noteAddressContext } from "./note-addresses.mjs";
@@ -796,8 +795,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
         emitDiagnostic(finding);
 
     // A note whose `type:` no configured pack claims compiles into nothing, and
-    // used to say nothing — no pass got far enough to reject it, so the
-    // silence had no owner. Asked once, of the whole configuration, because
+    // no pass gets far enough to reject it, so the silence has no owner. Asked once, of the whole configuration, because
     // that is the only place it can be answered: a per-pass check would report
     // every type a system deliberately does not map, which is exactly the
     // silence the rule requires. Independent of `only`, since it is a fact about the

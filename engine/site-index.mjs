@@ -36,11 +36,8 @@
  * matched by the segments it supplies rather than fetched by an exact key —
  * one hit resolves, and anything else is a finding.
  *
- * **A page's *name* is not a key**. It was, as one of a set of
- * collision-aware fallbacks a bare `[[Name]]` was looked up in — which is what
- * made two pages of one type forbidden from sharing a display name. The
- * bare form is retired, so the fallbacks answer nothing and the constraint they
- * imposed is gone with them.
+ * **A page's *name* is not a key**, so two pages of one type may share a
+ * display name.
  *
  * **It reports rather than exits.** A build script owns its diagnostics and its
  * exit code; this returns what it found. That is the same rule the rest of the
@@ -200,11 +197,9 @@ export function buildSiteIndex(
     const packages = new Set(ownPackage ? [ownPackage] : []);
 
     // A page is addressed by `(type, shortcode)` and nothing else. Its name,
-    // filename and bare slug are not keys: the bare `[[Name]]` form that
-    // looked them up is retired, and with it the rule that two pages of a
-    // type may not share a name. A page carries no section either — a
-    // section is a listing the configuration declares, not part of any
-    // address.
+    // filename and bare slug are not keys, so two pages of a type may share
+    // a name. A page carries no section either — a section is a listing the
+    // configuration declares, not part of any address.
 
     // A foreign package may use a type this build has never seen. Seeding those
     // is what lets the resolver recognise `polity-xyz` as an address at all —
@@ -265,7 +260,7 @@ export function buildSiteIndex(
             // canonical form is what cross-package links use.
             // The page's package is the configured one — the site collection
             // resolves it and records it as `pkg`. Never read out of
-            // frontmatter: `package:` is retired.
+            // frontmatter: a note declares no `package:`.
             index.set(
                 canonicalKey(e.pkg ?? ownPackage, ownDocumentSystem(type), type, shortcode),
                 value,
@@ -387,11 +382,10 @@ export function resolveCrossNoteFigures(
  *   the one pass that resolves them.
  * @returns {object} The resolver context.
  *
- * There is deliberately **no `manifestsComplete`**. It used to let a resolver
- * soften an unresolved cross-package address while any package's manifest was
- * missing; the softening is retired, since the pack compilers and the link
- * checker never had it and one authored link must not get two verdicts. A
- * caller still passing it is ignored rather than obeyed.
+ * There is deliberately **no `manifestsComplete`**: an unresolved cross-package
+ * address is never softened while a manifest is missing, since the pack
+ * compilers and the link checker do not soften it and one authored link must
+ * not get two verdicts.
  */
 export function wikiContext(
     built,

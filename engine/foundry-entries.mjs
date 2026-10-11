@@ -172,11 +172,9 @@ export function entriesForNote(fm, name, address, body, ctx) {
         }
 
         // A type this cannot name a single compendium document for has no UUID
-        // to publish, whatever id it derives. That used to follow from such a
-        // note authoring no `id:`; every addressable note derives
-        // one, so "has an id" stopped being evidence a document exists and the
-        // rule is stated where it belongs — beside the addresses — rather than
-        // resting on an absent field. `collectFoundryEntries` skips such a note
+        // to publish, whatever id it derives. Every addressable note derives an
+        // id, so "has an id" is no evidence a document exists; the rule is
+        // stated beside the addresses. `collectFoundryEntries` skips such a note
         // outright; the content index calls this function directly, so the
         // guard has to live on this side of it.
         //

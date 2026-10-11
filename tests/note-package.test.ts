@@ -63,18 +63,20 @@ describe("assertNoDeclaredPackage — the field is rejected outright", () => {
         // The point of the major: not "accepted while it agrees". An agreeing
         // declaration is exactly the ~6,200 redundant lines the sweep removed,
         // and tolerating it lets the field grow back.
-        expect(() => assertNoDeclaredPackage({ package: OWN })).toThrow(/retired/);
+        expect(() => assertNoDeclaredPackage({ package: OWN })).toThrow(/not a frontmatter field/);
     });
 
     it("rejects a note declaring some other package", () => {
-        expect(() => assertNoDeclaredPackage({ package: "harnadventures" })).toThrow(/retired/);
+        expect(() => assertNoDeclaredPackage({ package: "harnadventures" })).toThrow(
+            /not a frontmatter field/,
+        );
     });
 
     it("rejects a declaration with no value at all", () => {
         // `package:` alone parses as null, and an empty one as "". Both are the
         // field, authored — there is no value that makes writing it correct.
-        expect(() => assertNoDeclaredPackage({ package: null })).toThrow(/retired/);
-        expect(() => assertNoDeclaredPackage({ package: "" })).toThrow(/retired/);
+        expect(() => assertNoDeclaredPackage({ package: null })).toThrow(/not a frontmatter field/);
+        expect(() => assertNoDeclaredPackage({ package: "" })).toThrow(/not a frontmatter field/);
     });
 
     it("says what to do instead, naming `contentPackage` and where it lives", () => {
@@ -87,7 +89,7 @@ describe("assertNoDeclaredPackage — the field is rejected outright", () => {
         // An author fixing this needs to know where the value comes from now,
         // not only that the field is gone.
         expect(message).toContain("package:");
-        expect(message).toContain("retired");
+        expect(message).toContain("not a frontmatter field");
         expect(message).toContain("contentPackage");
         expect(message).toContain("package-build.config.yaml");
         expect(message).toContain(OWN);
@@ -255,7 +257,7 @@ describe("the compile loop refuses a note that declares `package:`", () => {
             // `file:line:column: severity: message`, the path first, and the
             // position of the field itself.
             expect(lines[0]).toMatch(/agrees\.md:\d+:\d+: error: /);
-            expect(lines[0]).toContain("retired");
+            expect(lines[0]).toContain("not a frontmatter field");
             expect(lines[0]).toContain("contentPackage");
         } finally {
             spy.mockRestore();
@@ -410,7 +412,7 @@ describe("addresses are keyed from the configuration alone", () => {
             "utf8",
         );
         expect(() => collectFoundryEntries(content, entryContext(configFor(root)))).toThrow(
-            /retired/,
+            /not a frontmatter field/,
         );
     });
 });
