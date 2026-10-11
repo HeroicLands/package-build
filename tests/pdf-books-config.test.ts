@@ -22,7 +22,7 @@ import { AUTHOR_ROLES, defineConfig } from "../content-config.mjs";
 import { resolvePackageBuildConfig } from "../config.mjs";
 import { configFromData, locateConfigError } from "../engine/pack-config.mjs";
 import { buildManifest } from "../manifest.mjs";
-import { buildPdf } from "../engine/pdf-build.mjs";
+import { buildPdf, listBookAssets } from "../engine/pdf-build.mjs";
 
 let root = "";
 
@@ -673,5 +673,41 @@ describe("buildPdf over several books", () => {
             "- absent.md",
         ]);
         for (const error of errors) expect(error.file).toBe(configPath);
+    });
+});
+
+describe("listBookAssets", () => {
+    const TWO = [CORE, { id: "gazetteer", title: "A Gazetteer", contents: INLINE, out: "gaz" }];
+    const at = (...parts: string[]) => path.relative(process.cwd(), path.join(root, ...parts));
+
+    it("names each book's path in configuration order, as the build writes it", () => {
+        const config = load(data({ pdf: { out: "build/pdf", books: TWO } }));
+        expect(listBookAssets({ config, version: "1.4.0" })).toEqual([
+            {
+                id: "core",
+                title: "The Core Volume",
+                file: at("build", "pdf", "sohl-core-1.4.0.pdf"),
+            },
+            { id: "gazetteer", title: "A Gazetteer", file: at("build", "pdf", "gaz-1.4.0.pdf") },
+        ]);
+    });
+
+    it("defaults to build/dist and drops the version suffix when none is given", () => {
+        const config = load(data({ pdf: { books: TWO } }));
+        expect(listBookAssets({ config }).map((entry) => entry.file)).toEqual([
+            at("build", "dist", "sohl-core.pdf"),
+            at("build", "dist", "gaz.pdf"),
+        ]);
+    });
+
+    it("honours an explicit output directory over pdf.out", () => {
+        const config = load(data({ pdf: { out: "build/pdf", books: TWO } }));
+        expect(listBookAssets({ config, out: "elsewhere" })[0].file).toBe(
+            at("elsewhere", "sohl-core.pdf"),
+        );
+    });
+
+    it("lists nothing for a package with no pdf block", () => {
+        expect(listBookAssets({ config: load(data()), version: "1.0.0" })).toEqual([]);
     });
 });

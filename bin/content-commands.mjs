@@ -46,7 +46,7 @@ import prefix from "loglevel-plugin-prefix";
 import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
 import { compilesFoundryDocuments, publishesContentPages } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
-import { buildPdf } from "../engine/pdf-build.mjs";
+import { buildPdf, listBookAssets } from "../engine/pdf-build.mjs";
 import { summaryLines } from "../engine/pdf-coverage.mjs";
 import {
     fetchAllCatalogs,
@@ -1724,6 +1724,12 @@ function pdfCommand() {
                     describe: "Stamp this version on the title page and in the file name.",
                     type: "string",
                 })
+                .option("list-assets", {
+                    describe:
+                        "Print each book's output path as JSON, in configuration order, and build nothing.",
+                    type: "boolean",
+                    default: false,
+                })
                 // Declared positively so yargs derives `--no-compile` from it;
                 // an option literally named `no-compile` is rejected as unknown
                 // when it is actually passed.
@@ -1735,6 +1741,14 @@ function pdfCommand() {
         },
         handler: async (argv) => {
             try {
+                if (argv.listAssets) {
+                    const assets = listBookAssets({
+                        ...(argv.out ? { out: argv.out } : {}),
+                        ...(argv.bookVersion ? { version: String(argv.bookVersion) } : {}),
+                    });
+                    console.log(JSON.stringify(assets, null, 2));
+                    return;
+                }
                 const result = await buildPdf({
                     ...(argv.book !== undefined ? { book: String(argv.book) } : {}),
                     ...(argv.out ? { out: argv.out } : {}),

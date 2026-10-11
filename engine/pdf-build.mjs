@@ -477,6 +477,35 @@ function readDocumentTree(file, field) {
 }
 
 /**
+ * The release assets the declared books produce, in configuration order.
+ *
+ * Builds nothing and reads no note: each entry is the file {@link buildPdf}
+ * writes for that book at `version`, as a path relative to the working
+ * directory inside `out` (default the configured `pdf.out`, else
+ * `build/dist`). A package that publishes no book — no `pdf:` block, or a
+ * content tree holding only a homepage — lists none.
+ *
+ * @param {object} [opts] - Options.
+ * @param {object} [opts.config] - A resolved configuration; loaded when absent.
+ * @param {string} [opts.version] - The version stamped in each file name.
+ * @param {string} [opts.out] - Where the books are written, overriding `pdf.out`.
+ * @returns {Array<{id: string, title: string, file: string}>} One entry per book.
+ */
+export function listBookAssets({ config, version = "", out } = {}) {
+    const resolved = config ?? loadPackConfig();
+    if (!resolved.pdf || !publishesContentPages(resolved)) return [];
+    const outDir = path.resolve(
+        resolved.rootDir,
+        out || resolved.pdf.out || path.join("build", "dist"),
+    );
+    return resolved.pdf.books.map((book) => ({
+        id: book.id,
+        title: book.title,
+        file: path.relative(process.cwd(), path.join(outDir, pdfFileName(book.out, version))),
+    }));
+}
+
+/**
  * The configuration file a finding about a configured key names.
  *
  * The path the loader read when it loaded the configuration; for a

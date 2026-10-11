@@ -54,6 +54,33 @@ also builds a PDF beside the archive. Book findings are reported without
 discarding the installable archive. `package-build release --no-pdf` skips the
 book step. The [book guide](book.md) covers selecting and checking its pages.
 
+### Release assets
+
+A package that declares several books in `pdf.books` publishes all of them
+with its release. Each book is its own PDF in `pdf.out` (default
+`build/dist`), named `<out stem>-<version>.pdf`: the stem is the book's `out`, which defaults to
+`<contentPackage>-<id>`, and the version is the package version. A package
+declaring `core` and `vedyara` under the content package `thalorna` releases
+`thalorna-core-1.4.0.pdf` and `thalorna-vedyara-1.4.0.pdf`, beside the Foundry
+archive and manifest. The release workflow attaches exactly the files
+`package-build pdf --list-assets` names. A declared book whose file is missing
+or empty fails the release; a package with one book attaches one.
+
+The release notes are the top section of `CHANGELOG.md`. When the package
+declares books, they end with a **Books** section: one line per book, in
+`pdf.books` order, giving its title and the file attached for it.
+
+```markdown
+**Books**
+
+- The World of Thalorna: `thalorna-core-1.4.0.pdf`
+- Vedyara: `thalorna-vedyara-1.4.0.pdf`
+```
+
+`package-build pdf --list-assets --book-version <version>` prints each book's
+`id`, `title` and output path as JSON without building anything, which is how
+the workflow derives both the attachments and the lines. A package with no books gets no Books section.
+
 The repository's build scripts decide how the staged tree is assembled. A
 typical content build runs `package-build content-index`,
 `package-build assets`, `package-build package compile`, and

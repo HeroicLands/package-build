@@ -2377,7 +2377,7 @@ Build the books the content tree publishes as.
 **SYNOPSIS**
 
 ```
-package-build pdf [--book <id>] [--out <path>] [--book-version <version>] [--compile]
+package-build pdf [--book <id>] [--out <path>] [--book-version <version>] [--compile] [--list-assets]
 ```
 
 **DESCRIPTION**
@@ -2419,14 +2419,22 @@ its source and PDF, each prefixed with the book's `id`. It then prints, per
 declared book, its entries, distinct notes and notes without a culture, the
 totals, and one line per note several books select, naming its home book.
 
+`--list-assets` builds nothing. It prints a JSON array on standard output with
+one object per declared book, in configuration order — `id`, `title` and the
+`file`, the path the build writes it to at `--book-version`, relative to the
+working directory and inside `--out` or the configured `pdf.out` — and an empty
+array for a package that publishes no book. The release workflow attaches
+exactly these files and lists them in the release notes.
+
 **OPTIONS**
 
-| Option           | Type    | Default                  | Description                                                        |
-| ---------------- | ------- | ------------------------ | ------------------------------------------------------------------ |
-| `--book`         | string  | every declared book      | Build only the book with this `id`.                                |
-| `--out`          | string  | the configured `pdf.out` | Write the books here instead.                                      |
-| `--book-version` | string  | —                        | Stamp this version on the title page and in each file name.        |
-| `--compile`      | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops. |
+| Option           | Type    | Default                  | Description                                                             |
+| ---------------- | ------- | ------------------------ | ----------------------------------------------------------------------- |
+| `--book`         | string  | every declared book      | Build only the book with this `id`.                                     |
+| `--out`          | string  | the configured `pdf.out` | Write the books here instead.                                           |
+| `--book-version` | string  | —                        | Stamp this version on the title page and in each file name.             |
+| `--compile`      | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops.      |
+| `--list-assets`  | boolean | `false`                  | Print each book's `id`, `title` and output path as JSON; build nothing. |
 
 **EXIT STATUS**
 
