@@ -18,7 +18,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { subprocessTimeout } from "./subprocess-timeout.js";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
@@ -214,6 +214,6 @@ describe("path resolution does not depend on the working directory", () => {
             expect(from(PKG_SUBDIR)).toBe(expected);
             expect(from(os.tmpdir())).toBe(expected);
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(3),
     );
 });

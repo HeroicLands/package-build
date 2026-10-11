@@ -38,7 +38,7 @@ import { fromDot, travelDot, treeDot } from "../engine/map-dot.mjs";
 import { buildMaps } from "../engine/map-build.mjs";
 import { layoutChart, layoutFrom, rimRadius, travelGraph } from "../engine/map-layout.mjs";
 
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
@@ -825,12 +825,16 @@ describe("`package-build map`", () => {
         SUBPROCESS_TEST_TIMEOUT,
     );
 
-    it("draws the map from a place, and from every place", () => {
-        expect(run("--from", "alpha").status).toBe(0);
-        expect(fs.existsSync(path.join(repo, "build", "map", "from-alpha.svg"))).toBe(true);
-        expect(run("--from", "all").status).toBe(0);
-        expect(fs.existsSync(path.join(repo, "build", "map", "from-theta.svg"))).toBe(true);
-    }, 30_000);
+    it(
+        "draws the map from a place, and from every place",
+        () => {
+            expect(run("--from", "alpha").status).toBe(0);
+            expect(fs.existsSync(path.join(repo, "build", "map", "from-alpha.svg"))).toBe(true);
+            expect(run("--from", "all").status).toBe(0);
+            expect(fs.existsSync(path.join(repo, "build", "map", "from-theta.svg"))).toBe(true);
+        },
+        subprocessTimeout(2),
+    );
 
     it(
         "draws the chart from a place, at the horizon asked for",
@@ -845,7 +849,7 @@ describe("`package-build map`", () => {
             expect(bad.status).toBe(1);
             expect(bad.stderr).toMatch(/100/);
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(3),
     );
 
     it(

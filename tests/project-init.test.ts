@@ -14,7 +14,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import { renderProject } from "../engine/project-init.mjs";
 
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 const CLI = fileURLToPath(new URL("../bin/package-build.mjs", import.meta.url));
 const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "package-init-"));
 
@@ -142,7 +142,7 @@ describe("package-build init", () => {
                 expect(fs.readFileSync(path.join(target, file), "utf8")).toBe("unchanged\n");
             }
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(2),
     );
 
     it(
@@ -169,6 +169,6 @@ describe("package-build init", () => {
             expect(checked.stderr).toContain("book document tree is missing");
             expect(fs.readdirSync(target).sort()).toEqual(before);
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(2),
     );
 });

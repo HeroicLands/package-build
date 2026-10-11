@@ -8,7 +8,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 
 const BIN = fileURLToPath(new URL("../bin/package-build.mjs", import.meta.url));
 let root: string;
@@ -70,7 +70,7 @@ describe("package-build ci", () => {
             expect(result.code).toBe(0);
             expect(result.output).toContain("checked");
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(2),
     );
 
     it(

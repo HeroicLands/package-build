@@ -32,7 +32,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, "..", "bin", "package-build.mjs");
 
@@ -162,7 +162,7 @@ describe("a command whose action decides the work", () => {
         () => {
             expect(run("docs").out + run("docs").err).toContain("item-fields");
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(2),
     );
 });
 

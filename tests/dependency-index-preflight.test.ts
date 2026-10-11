@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 const CLI = path.resolve(__dirname, "../bin/package-build.mjs");
 
 function fixture() {
@@ -122,6 +122,6 @@ describe("dependency index preflight", () => {
                 fs.rmSync(root, { recursive: true, force: true });
             }
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(2),
     );
 });

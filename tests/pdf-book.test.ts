@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import sharp from "sharp";
 
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 import { BOOK_ROLE_SLOTS, PDF_PAGE, pdfTextWidth } from "../engine/pdf-images.mjs";
 
 /** Inches as Typst writes them, to the precision the renderer emits. */
@@ -668,7 +668,7 @@ describe("place maps and map notes", () => {
             }
             fs.rmSync(dir, { recursive: true, force: true });
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(4),
     );
 });
 

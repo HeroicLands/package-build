@@ -16,3 +16,17 @@
  * that contention while still catching a genuine hang.
  */
 export const SUBPROCESS_TEST_TIMEOUT = 20000;
+
+/**
+ * The timeout for a test whose body spawns `spawns` subprocesses.
+ *
+ * `SUBPROCESS_TEST_TIMEOUT` budgets one spawn under contention, so a test
+ * that spawns several needs that budget once per spawn. A spawn inside a loop
+ * counts once per iteration.
+ *
+ * @param spawns - The number of subprocesses the test spawns.
+ * @returns The per-test timeout in milliseconds.
+ */
+export function subprocessTimeout(spawns: number): number {
+    return spawns * SUBPROCESS_TEST_TIMEOUT;
+}

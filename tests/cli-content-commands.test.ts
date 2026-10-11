@@ -27,7 +27,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
@@ -127,7 +127,7 @@ describe("a content command reaches the content", () => {
                 fs.rmSync(file, { force: true });
             }
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(2),
     );
 
     it(
@@ -167,7 +167,7 @@ describe("a content command reaches the content", () => {
                 fs.rmSync(scoreConfig, { force: true });
             }
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(2),
     );
 
     it.each(["lint", "links", "site"])(

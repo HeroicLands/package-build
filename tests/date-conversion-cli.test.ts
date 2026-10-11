@@ -7,7 +7,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 const cli = path.join(
     path.dirname(path.dirname(fileURLToPath(import.meta.url))),
     "bin/package-build.mjs",
@@ -81,7 +81,7 @@ describe("date conversion commands", () => {
             expect(long.status).toBe(0);
             expect(long.stdout).toBe("03 Taranis 326 VR\n");
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(3),
     );
 
     it(
