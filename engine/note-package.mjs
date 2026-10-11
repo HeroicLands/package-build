@@ -50,7 +50,7 @@
  */
 
 import { contentPackage } from "./content-package.mjs";
-import { locateFrontmatterKey } from "./retired-fields.mjs";
+import { locateFrontmatterKey } from "./diagnostics.mjs";
 
 /**
  * A copy of frontmatter carrying the configured package for query evaluation.

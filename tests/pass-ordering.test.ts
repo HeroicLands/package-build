@@ -68,9 +68,8 @@ function skillNote(
     shortcode: string,
     extra: Record<string, unknown> = {},
 ): string {
-    const head = Object.entries(extra)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join("\n");
+    const entries = Object.entries(extra).map(([k, v]) => `  ${k}: ${v}`);
+    const head = entries.length ? ["data:", ...entries].join("\n") : "";
     return `---
 name:
   full: ${name}
@@ -79,7 +78,7 @@ shortcode: ${shortcode}
 type: skill
 ${head}
 sohl:
-  archetype: null
+  templatePriority: null
   subType: physical
   skillBaseFormula: "sb(attr.str)"
   combatCategory: none
@@ -101,7 +100,7 @@ id: DDDDDDDDDDDDDDDD
 shortcode: hillbandit
 type: being
 sohl:
-  archetype: null
+  templatePriority: null
   items:
     - { model: skill-climbing }
 ---

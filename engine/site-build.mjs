@@ -544,9 +544,7 @@ export function tableUniverse(pages) {
 /**
  * The frontmatter a page publishes with.
  *
- * An authored `aliases` is retired and refused before a build reaches
- * here, which makes this a guard rather than a working path. It is a list of
- * names a reader might call the note. Hugo reads
+ * An authored `aliases` is a list of names a reader might call the note. Hugo reads
  * `aliases` as **URL redirects**, so passing them through would publish a
  * redirect stub at each name. They are dropped, and this build emits no
  * redirects of its own.

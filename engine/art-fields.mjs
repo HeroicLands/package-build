@@ -348,9 +348,9 @@ export function checkArtSlotSizes(records = [], { config, assetsBase = "" } = {}
  * The pathname an art value names, in the form an authored one takes.
  *
  * Handing the result to {@link module:engine/helpers.resolveImg} is what puts an
- * art address and a body image through one ownership rule. The two empties
- * survive it unchanged: `null` and an absent key mean *no art named, apply the
- * default*, and `""` means *ship blank on purpose*.
+ * art address and a body image through one ownership rule. `null` and an
+ * absent key mean *no art named, apply the default*; an empty string names
+ * nothing and is unresolved like any other address nothing answers.
  *
  * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex}.
  * @param {unknown} value - The value as authored.
@@ -365,7 +365,6 @@ export function checkArtSlotSizes(records = [], { config, assetsBase = "" } = {}
  */
 export function artPathname(index, value, defaultType, accepts) {
     if (value == null) return { pathname: null, resolved: true };
-    if (value === "") return { pathname: "", resolved: true };
     const read = readAssetAddress(index, value, defaultType, accepts);
     if (!read.record) {
         return { pathname: null, resolved: false, reason: read.reason, type: read.type };

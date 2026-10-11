@@ -49,13 +49,12 @@ import { blockProperty } from "../engine/system-block.mjs";
  * than a `null` nothing reads.
  *
  * **Read through the shared resolver, not a field declaration**. A
- * `FieldSpec`'s shared source is a single position, and this value has five:
- * `data:`, this block, the top level, and the retiring `archetype` spelling in
- * the latter two. The resolver is the single implementation of what a note said,
- * so the two systems cannot disagree about it. It is read against **this**
- * block: the `sohl:` block is not a source for an HM3 document, so a tree that
- * still states the priority there (`harn-ensemble`, on 2,502 notes) writes no
- * HM3 flag until it sweeps to `data:`.
+ * `FieldSpec`'s shared source is a single position, and this value has three:
+ * `data:`, this block, and the top level. The resolver is the single
+ * implementation of what a note said, so the two systems cannot disagree about
+ * it. It is read against **this** block: the `sohl:` block is not a source for
+ * an HM3 document, so a note that states the priority only there writes no HM3
+ * flag.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {string} block - This pass's system block.

@@ -44,8 +44,7 @@
  * **There is deliberately no third rule** requiring every note to repeat its
  * own `type-shortcode` address in a top-level `aliases:` list. It would serve
  * no build reader: both resolvers parse the hyphen
- * qualifier themselves. The field is retired, refused from
- * `retired-fields.mjs`.
+ * qualifier themselves.
  *
  * **What is deliberately absent.** Corpus reachability — "every Rules document
  * is reachable from the book's root" — is a statement about what one package

@@ -789,6 +789,11 @@ data:
   banner: packagebuild-none-image-skillbnr
 ```
 
+**An empty value is an error.** `icon: ""`, `tokenIcon: ""` and `banner: ""`
+are each a finding at the key, in `data:` or in a system block. A slot names an
+image, or the key is removed and the document takes its type's default;
+`icon: null` says the same as removing it.
+
 **Every slot accepts a second type beyond the one it defaults to**, and the two
 defaults pair with the same accepted set: `icon` and `tokenIcon` default to
 `icon`, `banner` defaults to `image`, and every slot accepts `icon` **and**
@@ -869,12 +874,9 @@ header carries. `data.tokenIcon` is what a token on the canvas wears. Both are
 addresses and both resolve the same way; only the destination differs. An Item
 has one piece of art, so this row applies to actor types alone.
 
-**A `data:` source is still read at the top level, for now.** `data:` did
-not invent the facts it holds — it gathered them out of the top level — so every
-key it collected has a **pre-`data:` spelling** that is read after the declared
-one and reported as retiring. This is the shared level's counterpart to the
-in-block `<system>.<key>` retirement, and the two are separate: a note may have
-moved one and not the other.
+**A `data:` source is authored in `data:` alone.** The same key written at the
+top level is outside the closed top-level region, and written inside a system
+block it is reported at its own line with the `data:` key it belongs to.
 
 **No image key is one of those.** A top-level `img:` is not authored at all:
 `data.icon` is a different key holding a different kind of value, and a note
@@ -1149,20 +1151,9 @@ which of several competing templates a player is actually offered.
 The shared mapping table above names it `data.templatePriority`, targeting
 `system.templatePriority` in SoHL and `flags.hm3.templatePriority` in HM3.
 
-> **`archetype` is the retiring spelling.** It is still read, in the `sohl:`
-> block and at the top level, so a tree sweeps on its own schedule
-> — but the frontmatter linter refuses it, and
-> what is compiled and emitted is `templatePriority` on all three sides.
->
-> It is more than a rename, and the collision is **already live** rather than
-> pending: `archetypes` is specified above as the _sort_ a character is, and a
-> being's row declares it. So a number deciding which template wins and a list of
-> what sort of character this is would otherwise be distinguished **only by a
-> plural `s`**.
->
-> A note carrying both spellings with **different** values is refused rather than
-> resolved quietly — `templatePriority: null` and `archetype: 0` say opposite
-> things, and picking either silently would decide it on the author's behalf.
+> `archetypes` is a different field: specified above as the _sort_ a character
+> is, and declared by a being's row. The priority that decides which template
+> wins is always `templatePriority`, on all three sides.
 
 ```yaml
 data:
@@ -1313,8 +1304,7 @@ the journals pack having to declare anything. A folder nothing references
 materialises nowhere.
 
 One folder note and one Address supply every pack that references it.
-`data.packFolder` names a folder by Address. A top-level `folder:` key is
-refused with a finding that names `data.packFolder` and the authored line.
+`data.packFolder` names a folder by Address.
 
 #### The knowledgebase category
 
@@ -1765,7 +1755,6 @@ is always the same: write `[[type-shortcode|Text]]`.
 
 The bare form does not resolve by display name or alias. `name.aliases` is
 indexed for search and completion, while an authored link names an Address.
-A top-level `aliases:` key is refused.
 
 Requiring the label is also what makes positional parsing safe. Note names
 contain hyphens — `Grukar-ahk` is a name, not a `Grukar` of type `ahk` — so a
@@ -3702,7 +3691,7 @@ absent `born` — there is nothing there to disagree with — and silent whereve
 the package declares no present, for the same reason no age is computed at
 all.
 
-Use `born:` for a being's birth date. The `birthday:` spelling is accepted with a diagnostic; `born` takes precedence when both are written.
+Use `born:` for a being's birth date.
 
 #### The lead image
 
@@ -3822,8 +3811,7 @@ embedded document has no page for.
 `model:` carries the catalogue item's art, and an entry copying nothing takes
 the default its type pairs in `itemBuilders` — the same default an item note of
 that type compiles with. An entry naming an address of its own overrides either.
-Writing `icon: ""` ships the document blank on purpose, and no default replaces
-it.
+An empty `icon: ""` is an error, as it is on a note.
 
 **`data:` reaches no compiled document.** It is where a note names art, and a
 compiled Item has `img` instead; the container is read and goes no further.

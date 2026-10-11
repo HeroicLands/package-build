@@ -180,9 +180,11 @@ describe("createPackRouter — `pack: none`", () => {
     });
 
     it("resolves a `doc` declaring none to no pack at all", () => {
-        expect(router().resolve({ type: "doc", pack: "none" }, "JournalEntry")).toBeUndefined();
         expect(
-            router().resolveOrNull({ type: "doc", pack: "none" }, "JournalEntry"),
+            router().resolve({ type: "doc", data: { pack: "none" } }, "JournalEntry"),
+        ).toBeUndefined();
+        expect(
+            router().resolveOrNull({ type: "doc", data: { pack: "none" } }, "JournalEntry"),
         ).toBeUndefined();
     });
 
@@ -191,7 +193,7 @@ describe("createPackRouter — `pack: none`", () => {
     });
 
     it("refuses it on a type that compiles an Item, naming the Item", () => {
-        expect(() => router().resolve({ type: "skill", pack: "none" }, "Item")).toThrow(
+        expect(() => router().resolve({ type: "skill", data: { pack: "none" } }, "Item")).toThrow(
             /pack: none.*\bItem\b/s,
         );
     });
@@ -200,9 +202,9 @@ describe("createPackRouter — `pack: none`", () => {
         const withActors = createPackRouter(
             baseConfig({ packs: [...ONE_OF_EACH, { name: "actors", type: "Actor" }] }).packs,
         );
-        expect(() => withActors.resolve({ type: "being", pack: "none" }, "Actor")).toThrow(
-            /pack: none.*\bActor\b/s,
-        );
+        expect(() =>
+            withActors.resolve({ type: "being", data: { pack: "none" } }, "Actor"),
+        ).toThrow(/pack: none.*\bActor\b/s);
     });
 
     it("derives the refused types from the registries, not from a list", () => {
@@ -219,16 +221,20 @@ describe("createPackRouter — `pack: none`", () => {
             const documents = documentClassesFor(type).filter((d) => d !== "JournalEntry");
             expect(documents, type).not.toEqual([]);
             const { docType } = packForType(type);
-            expect(() => withActors.resolve({ type, pack: "none" }, docType), type).toThrow(
-                new RegExp(`pack: none.*\\b${documents[0]}\\b`, "s"),
-            );
+            expect(
+                () => withActors.resolve({ type, data: { pack: "none" } }, docType),
+                type,
+            ).toThrow(new RegExp(`pack: none.*\\b${documents[0]}\\b`, "s"));
         }
     });
 
     it("accepts it on every type whose only document is the JournalEntry", () => {
         for (const type of JOURNAL_TYPES) {
             expect(documentClassesFor(type), type).toEqual(["JournalEntry"]);
-            expect(router().resolve({ type, pack: "none" }, "JournalEntry"), type).toBeUndefined();
+            expect(
+                router().resolve({ type, data: { pack: "none" } }, "JournalEntry"),
+                type,
+            ).toBeUndefined();
         }
     });
 
@@ -241,7 +247,7 @@ describe("createPackRouter — `pack: none`", () => {
                 ],
             }).packs,
         );
-        const fm = { type: "doc", pack: "journals", sohl: { pack: "none" } };
+        const fm = { type: "doc", data: { pack: "journals" }, sohl: { pack: "none" } };
         // The block overrides the shared declaration for its own system …
         expect(twoSystems.resolve(fm, "JournalEntry", "sohl")).toBeUndefined();
         // … and leaves the shared declaration standing for every other.
@@ -258,7 +264,7 @@ describe("createPackRouter — `pack: none`", () => {
                 ],
             }).packs,
         );
-        const fm = { type: "doc", pack: "none", sohl: { pack: "journals-sohl" } };
+        const fm = { type: "doc", data: { pack: "none" }, sohl: { pack: "journals-sohl" } };
         expect(twoSystems.resolve(fm, "JournalEntry", "sohl")).toBe("journals-sohl");
         expect(twoSystems.resolve(fm, "JournalEntry")).toBeUndefined();
     });
@@ -275,23 +281,23 @@ describe("createPackRouter — `pack: none`", () => {
 
 describe("declaresNoPack — what a note says about its packs", () => {
     it("is true when the shared declaration is none", () => {
-        expect(declaresNoPack({ type: "doc", pack: "none" })).toBe(true);
+        expect(declaresNoPack({ type: "doc", data: { pack: "none" } })).toBe(true);
         expect(declaresNoPack({ type: "doc", data: { pack: "none" } })).toBe(true);
     });
 
     it("is false when the note declares nothing, or a pack", () => {
         expect(declaresNoPack({ type: "doc" })).toBe(false);
-        expect(declaresNoPack({ type: "doc", pack: "journals" })).toBe(false);
+        expect(declaresNoPack({ type: "doc", data: { pack: "journals" } })).toBe(false);
     });
 
     it("reads a system's block over the shared value", () => {
         expect(declaresNoPack({ type: "doc", sohl: { pack: "none" } }, "sohl")).toBe(true);
-        expect(declaresNoPack({ type: "doc", pack: "none", sohl: { pack: "j" } }, "sohl")).toBe(
-            false,
-        );
-        expect(declaresNoPack({ type: "doc", pack: "none", sohl: { pack: "j" } }, "hm3")).toBe(
-            true,
-        );
+        expect(
+            declaresNoPack({ type: "doc", data: { pack: "none" }, sohl: { pack: "j" } }, "sohl"),
+        ).toBe(false);
+        expect(
+            declaresNoPack({ type: "doc", data: { pack: "none" }, sohl: { pack: "j" } }, "hm3"),
+        ).toBe(true);
     });
 });
 
@@ -309,7 +315,7 @@ describe("generatePacksJson — a `doc` declaring `pack: none`", () => {
             "Dev_Docs/Architecture.md": doc(
                 "Architecture",
                 "architecture",
-                "pack: none",
+                "data:\n  pack: none",
                 "## Layers {#layers}\n\nHow it is built. See [[doc-combat]].",
             ),
             "Rules/Combat.md": doc(
@@ -349,7 +355,7 @@ describe("generatePacksJson — a `doc` declaring `pack: none`", () => {
 describe("generatePacksJson — `pack: none` on a type that compiles an Item", () => {
     it("fails the build, naming the Item it would drop", async () => {
         const root = repo({
-            "Skills/Climbing.md": skill("Climbing", "climbing", "pack: none"),
+            "Skills/Climbing.md": skill("Climbing", "climbing", "data:\n  pack: none"),
             "Skills/Jumping.md": skill("Jumping", "jumping"),
         });
         roots.push(root);
@@ -408,7 +414,7 @@ type: folder
 describe("unclaimedNoteFindings — a `pack: none` note is not unclaimed", () => {
     it("reports nothing for a `doc` declaring none, even with no JournalEntry pack", () => {
         const root = repo({
-            "Dev_Docs/Architecture.md": doc("Architecture", "architecture", "pack: none"),
+            "Dev_Docs/Architecture.md": doc("Architecture", "architecture", "data:\n  pack: none"),
         });
         roots.push(root);
         const config = baseConfig({ rootDir: root, packs: [{ name: "items", type: "Item" }] });
@@ -439,7 +445,9 @@ describe("unclaimedNoteFindings — a `pack: none` note is not unclaimed", () =>
     it("leaves a `skill` declaring none to the router, which refuses it", () => {
         // The type still produces an Item, and with an Item pack configured
         // that document has somewhere to go; the refusal is the compile's.
-        const root = repo({ "Skills/Climbing.md": skill("Climbing", "climbing", "pack: none") });
+        const root = repo({
+            "Skills/Climbing.md": skill("Climbing", "climbing", "data:\n  pack: none"),
+        });
         roots.push(root);
         const config = baseConfig({ rootDir: root, packs: ONE_OF_EACH });
         const records = indexRecordsFor({
@@ -458,7 +466,7 @@ describe("unclaimedNoteFindings — a `pack: none` note is not unclaimed", () =>
 describe("the content index records a `pack: none` note with no Foundry address", () => {
     it("carries the note's address and no `foundry` block", () => {
         const root = repo({
-            "Dev_Docs/Architecture.md": doc("Architecture", "architecture", "pack: none"),
+            "Dev_Docs/Architecture.md": doc("Architecture", "architecture", "data:\n  pack: none"),
             "Rules/Combat.md": doc("Combat", "combat"),
         });
         roots.push(root);
@@ -488,7 +496,7 @@ describe("a wikilink to a `pack: none` note resolves", () => {
             "Dev_Docs/Architecture.md": doc(
                 "Architecture",
                 "architecture",
-                "pack: none",
+                "data:\n  pack: none",
                 "## Layers {#layers}\n\nHow it is built.",
             ),
             "Rules/Combat.md": doc(
@@ -509,7 +517,7 @@ describe("a wikilink to a `pack: none` note resolves", () => {
     it("publishes the page and resolves the link to it on the site", () => {
         const root = repo({
             "homepage.md": "---\ntype: homepage\nshortcode: root\n---\n\nFront.\n",
-            "Dev_Docs/Architecture.md": doc("Architecture", "architecture", "pack: none"),
+            "Dev_Docs/Architecture.md": doc("Architecture", "architecture", "data:\n  pack: none"),
             "Rules/Combat.md": doc("Combat", "combat", "", "See [[doc-architecture|]]."),
         });
         roots.push(root);

@@ -6,93 +6,28 @@
  */
 
 /**
- * **A `data:` source has a retiring top-level spelling, and it is read**.
+ * **A field sourced from `data:` is read from `data:`, its destination and its
+ * default, and from nowhere else.**
  *
- * `data:` did not invent the facts it holds — it gathered them out of the
- * note's open top level, where `species:` sat beside `shortcode:`. So a field
- * declaring `data.species` has *two* shared spellings, and the resolver knew
- * only about the retiring **in-block** one. Step 3 read the declared source and
- * stopped, so the position the specification names never reached the document
- * and the `?? default` beside it dressed the miss up as "this note states
- * nothing".
- *
- * Two things have to be true at once, which is what makes this a
- * resolution-order rule rather than a one-line emitter fix:
- *
- * - `data.<key>` — what the specification's mapping tables name — must reach
- *   the document;
- * - the top-level `<key>:` must keep working, because a tree still on it has
- *   not been swept.
- *
- * So the resolver gained step 3b, and it is **derived** rather than declared:
- * the retiring spelling of `data.<key>` is `<key>`, because that is precisely
- * what the sweep did. A `protection.blunt` was never a `blunt:`, so it has none.
+ * `data.<key>` — what the specification's mapping tables name — reaches the
+ * document. The note's top-level `<key>:` and a `<block>.<key>` entry are not
+ * positions of that field: the first is refused by the closed top-level
+ * region and the second by the block's own vocabulary.
  */
 
-import { describe, it, expect, vi } from "vitest";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { describe, it, expect } from "vitest";
 
-import { resolveFieldValue, retiredTopLevelKey } from "../engine/system-block.mjs";
-import { readField, readsRetiredTopLevel, STRING } from "../engine/field-spec.mjs";
-import { retiredTopLevelMessage } from "../engine/retired-fields.mjs";
-import { lintNote } from "../engine/frontmatter-lint.mjs";
-import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
-import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
-import { loadPackConfig } from "../engine/pack-config.mjs";
-import { Actors } from "../sohl/actors.mjs";
-import { Hm3Actors } from "../hm3/actors.mjs";
+import { resolveFieldValue } from "../engine/system-block.mjs";
+import { STRING } from "../engine/field-spec.mjs";
 
-/** This package's own root — where its test fixtures live. */
-const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-
-/** A `data:`-sourced field with a retiring top-level spelling, as HM3 declares one. */
+/** A `data:`-sourced field, as HM3 declares one. */
 const SPECIES = Object.freeze({
     name: "data.species",
-    legacyKey: "species",
     to: "species",
     ...STRING,
     default: "",
     describe: "The being's species, as a lore note.",
 });
-
-/* --------------------------------------------------------------------- */
-/*  The derivation                                                        */
-/* --------------------------------------------------------------------- */
-
-describe("retiredTopLevelKey", () => {
-    it("strips the `data.` a field's shared source declares", () => {
-        expect(retiredTopLevelKey(SPECIES)).toBe("species");
-        expect(retiredTopLevelKey({ name: "data.occupation" })).toBe("occupation");
-    });
-
-    it("keeps a nested `data:` path nested, so it addresses the same fact", () => {
-        // `data.appearance.eye_color` was `appearance.eye_color` at the top
-        // level, not `eye_color`: the retired path preserves its container.
-        expect(retiredTopLevelKey({ name: "data.appearance.eye_color" })).toBe(
-            "appearance.eye_color",
-        );
-    });
-
-    it("answers for a `data.` source alone", () => {
-        // A path into a container a note has *always* written at the top level.
-        // Reading `blunt:` or `die:` would invent a position rather than
-        // remember one — nothing was ever authored there.
-        expect(retiredTopLevelKey({ name: "protection.blunt" })).toBeUndefined();
-        expect(retiredTopLevelKey({ name: "impact.die" })).toBeUndefined();
-        expect(retiredTopLevelKey({ name: "img" })).toBeUndefined();
-    });
-
-    it("answers for nothing when there is no source, or nothing after the prefix", () => {
-        expect(retiredTopLevelKey({})).toBeUndefined();
-        expect(retiredTopLevelKey({ name: "data." })).toBeUndefined();
-        expect(retiredTopLevelKey(undefined as never)).toBeUndefined();
-    });
-});
-
-/* --------------------------------------------------------------------- */
-/*  The resolution order, with step 3b in it                              */
-/* --------------------------------------------------------------------- */
 
 describe("resolving a `data:`-sourced field", () => {
     it("reads the declared `data:` source — the position the specification names", () => {
@@ -101,40 +36,27 @@ describe("resolving a `data:`-sourced field", () => {
         ).toEqual({ value: "lore-a", from: "shared" });
     });
 
-    it("reads the retiring top-level key, which `data:` gathered the fact off", () => {
-        // The whole point: this is what `sohl`'s bestiary writes, on every
-        // note, and it reached the resolver as an absence.
+    it("reads neither the top-level key nor the block key of the same name", () => {
         expect(resolveFieldValue(SPECIES, { species: "lore-b" }, { block: "sohl" })).toEqual({
-            value: "lore-b",
-            from: "topLevel",
+            value: "",
+            from: "default",
         });
+        expect(
+            resolveFieldValue(SPECIES, { sohl: { species: "lore-c" } }, { block: "sohl" }),
+        ).toEqual({ value: "", from: "default" });
     });
 
-    it("prefers the current `data:` spelling to the retiring one", () => {
+    it("reads `data:` where the other two are also written", () => {
         expect(
             resolveFieldValue(
                 SPECIES,
-                { data: { species: "lore-a" }, species: "lore-b" },
+                { data: { species: "lore-a" }, species: "lore-b", sohl: { species: "lore-c" } },
                 { block: "sohl" },
             ),
         ).toEqual({ value: "lore-a", from: "shared" });
     });
 
-    it("still lets the in-block key win over both, as step 2 always did", () => {
-        expect(
-            resolveFieldValue(
-                SPECIES,
-                {
-                    data: { species: "lore-a" },
-                    species: "lore-b",
-                    sohl: { species: "lore-c" },
-                },
-                { block: "sohl" },
-            ),
-        ).toEqual({ value: "lore-c", from: "block" });
-    });
-
-    it("still lets the destination path win over everything", () => {
+    it("lets the destination path win over everything", () => {
         expect(
             resolveFieldValue(
                 SPECIES,
@@ -156,9 +78,8 @@ describe("resolving a `data:`-sourced field", () => {
     });
 
     it("reads no top-level key at all for a field that declares `topLevelMeans`", () => {
-        // The opt-out removes the shared *level*, not one spelling of it: the
-        // objection is that the note's top level means something else here, and
-        // that is as true of the retiring position as of the current one.
+        // The opt-out removes the shared level: the note's top level means
+        // something else here.
         const exempt = { ...SPECIES, topLevelMeans: "the note's own heading" };
         expect(
             resolveFieldValue(
@@ -169,201 +90,14 @@ describe("resolving a `data:`-sourced field", () => {
         ).toEqual({ value: "", from: "default" });
     });
 
-    it("leaves a non-`data:` shared source resolving exactly as it did", () => {
-        // The guard on the whole change: every declared field has a
-        // bare or non-`data.` source, so none of them gained a position.
+    it("reads a field named for a non-`data:` path from the block under that name", () => {
         const blunt = { name: "protection.blunt", to: "protection.blunt", ...STRING, default: "" };
         expect(resolveFieldValue(blunt, { blunt: "5" }, { block: "sohl" })).toEqual({
             value: "",
             from: "default",
         });
+        expect(
+            resolveFieldValue(blunt, { sohl: { protection: { blunt: "5" } } }, { block: "sohl" }),
+        ).toEqual({ value: "5", from: "block" });
     });
 });
-
-/* --------------------------------------------------------------------- */
-/*  Nothing is dropped in silence                                         */
-/* --------------------------------------------------------------------- */
-
-describe("the retiring top-level position is reported", () => {
-    it("is what `readsRetiredTopLevel` counts, and only that", () => {
-        expect(readsRetiredTopLevel(SPECIES, "topLevel")).toBe(true);
-        expect(readsRetiredTopLevel(SPECIES, "shared")).toBe(false);
-        expect(readsRetiredTopLevel(SPECIES, "block")).toBe(false);
-        expect(readsRetiredTopLevel(SPECIES, "default")).toBe(false);
-    });
-
-    it("calls back once, naming the field, when a note is read from it", () => {
-        const onRetiredTopLevel = vi.fn();
-        readField(SPECIES, { species: "lore-b" }, { block: "sohl", onRetiredTopLevel });
-        expect(onRetiredTopLevel).toHaveBeenCalledTimes(1);
-        expect(onRetiredTopLevel).toHaveBeenCalledWith(SPECIES);
-    });
-
-    it("stays quiet for a note already on `data:`", () => {
-        const onRetiredTopLevel = vi.fn();
-        readField(SPECIES, { data: { species: "lore-a" } }, { block: "sohl", onRetiredTopLevel });
-        expect(onRetiredTopLevel).not.toHaveBeenCalled();
-    });
-
-    it("says which spelling moves where, and that the value is unaffected", () => {
-        const message = retiredTopLevelMessage(SPECIES);
-        expect(message).toContain("top-level `species:`");
-        expect(message).toContain("`data.species:`");
-        expect(message).toContain("Both are read");
-    });
-});
-
-/* --------------------------------------------------------------------- */
-/*  The lint must agree with the resolver about what a note may write    */
-/* --------------------------------------------------------------------- */
-
-/**
- * `resolveFieldValue` reads the retiring top-level key and the top-level
- * region is closed, so the two have to agree about it: a key step 3b resolves
- * is a key the lint's closed-region check must not refuse outright. Left
- * disagreeing, every note still on the pre-`data:` spelling fails the lint
- * with "unknown top-level frontmatter key", before a build ever reaches the
- * position that reads it correctly.
- */
-describe("the lint on a note using the retiring top-level position", () => {
-    const raw = "---\nshortcode: example\ntype: critter\nspecies: lore-b\n---\n\nBody.\n";
-    const note = {
-        file: "note.md",
-        type: "critter",
-        raw,
-        fm: { shortcode: "example", type: "critter", species: "lore-b" },
-    };
-    const findings = () => lintNote(note, { schemas: { critter: [SPECIES] } });
-
-    it("is not refused as an unknown top-level key", () => {
-        expect(findings().some((f) => /unknown top-level frontmatter key/.test(f.message))).toBe(
-            false,
-        );
-    });
-
-    it("is reported as the retiring position instead, as a warning", () => {
-        expect(findings()).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({
-                    severity: "warning",
-                    message: retiredTopLevelMessage(SPECIES),
-                }),
-            ]),
-        );
-    });
-});
-
-/**
- * `pack` and `packFolder` are declared for every type — not through a
- * `FieldSpec` `resolveFieldValue` takes, but through
- * {@link module:engine/system-block.resolveDataProperty}'s identical order:
- * a system's own override, then `data:`, then the retiring top-level
- * spelling `data:` gathered it off. The lint has to recognize that position
- * the same way it recognizes a declared field's, or a tree still authoring
- * `pack:` or `packFolder:` at the bare top level — as some trees still do —
- * fails the lint with "unknown top-level frontmatter key" before a build
- * ever reaches the position that reads it correctly.
- */
-describe("the lint on a note using pack's or packFolder's retiring top-level position", () => {
-    const findings = (key: string) => {
-        const raw = `---\nshortcode: example\ntype: critter\n${key}: items\n---\n\nBody.\n`;
-        const note = {
-            file: "note.md",
-            type: "critter",
-            raw,
-            fm: { shortcode: "example", type: "critter", [key]: "items" },
-        };
-        return lintNote(note, { schemas: { critter: [] } });
-    };
-
-    it.each(["pack", "packFolder"])("is not refused as an unknown top-level key: %s", (key) => {
-        expect(findings(key).some((f) => /unknown top-level frontmatter key/.test(f.message))).toBe(
-            false,
-        );
-    });
-
-    it.each(["pack", "packFolder"])("is reported as the retiring position instead: %s", (key) => {
-        expect(findings(key)).toEqual(
-            expect.arrayContaining([
-                expect.objectContaining({
-                    severity: "warning",
-                    message: retiredTopLevelMessage({ name: `data.${key}` }),
-                }),
-            ]),
-        );
-    });
-});
-
-/* --------------------------------------------------------------------- */
-/*  The emitters — the acceptance criteria themselves                     */
-/* --------------------------------------------------------------------- */
-
-/**
- * A compile index holding the files these cases name.
- *
- * A species is an `image` address, so the compile answers it from the index
- * rather than from a path; these cases stand in for that with the files they
- * name.
- */
-function artIndex(): any {
-    const files: Record<string, [string, string]> = {
-        akhr: ["image", "images/beings/akhr.webp"],
-        donkey: ["image", "images/being/donkey-species.webp"],
-        newart: ["image", "images/new.webp"],
-        oldart: ["image", "images/old.webp"],
-        x: ["icon", "icons/x.svg"],
-        defaultcharhead: ["icon", "icons/other/defaultcharhead.webp"],
-    };
-    return {
-        types: new Set(["icon", "image", "audio"]),
-        packages: new Set(["sohl"]),
-        contentPackage: "sohl",
-        assets: new Map(
-            Object.entries(files).map(([shortcode, [type, assetPath]]) => [
-                `sohl-none-${type}-${shortcode}`,
-                { package: "sohl", asset: { path: assetPath } },
-            ]),
-        ),
-        foreign: new Map(),
-    };
-}
-
-/** The SoHL Actor compiler. Nothing here walks a tree or reads a pack. */
-function actors() {
-    const config = loadPackConfig();
-    const pack = new Actors({
-        skipDirectories: [],
-        contentBase: path.join(PKG_ROOT, "tests/fixtures"),
-        dest: config.paths.packJson,
-    });
-    pack.linkIndex = artIndex();
-    return pack;
-}
-
-/** The HM3 Actor compiler, likewise. */
-function hm3Actors() {
-    const config = loadPackConfig();
-    const pack = new Hm3Actors({
-        skipDirectories: [],
-        contentBase: path.join(PKG_ROOT, "tests/fixtures"),
-        dest: config.paths.packJson,
-    });
-    pack.linkIndex = artIndex();
-    return pack;
-}
-
-/** A being note, with whatever art positions a case needs. */
-const beingNote = (extra: Record<string, unknown>) => ({
-    id: "EEEEEEEEEEEEEEEE",
-    type: "being",
-    shortcode: "folk",
-    name: { full: "Basic Folk" },
-    data: { templatePriority: null },
-    ...extra,
-});
-
-/** The art a `character` falls back to, which this index answers locally. */
-const DEFAULT_BEING_ART = "systems/sohl/assets/icons/other/defaultcharhead.webp";
-
-/** The subtype's own default, beneath the being's. */
-const SUBTYPE_ART = "systems/sohl/assets/icons/game-icons/delapouite/person.svg";

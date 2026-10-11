@@ -24,7 +24,6 @@
  *   npx package-build lint [root] [--no-references]
  *   npx package-build content-format schema --schema <system>=<path>
  *   npx package-build content-format fields [--fields <system>]
- *   npx package-build content-format notes [root] [--strict]
  *   npx package-build links [root] [--manifests <dir>]
  *   npx package-build format [paths..] [--write]
  *   npx package-build markdown [paths..] [--fix]
@@ -80,11 +79,7 @@ import {
     systemBlocksFor,
 } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
-import {
-    checkDeclaredFields,
-    checkSchemaTargets,
-    measureCorpus,
-} from "../engine/content-format-check.mjs";
+import { checkDeclaredFields, checkSchemaTargets } from "../engine/content-format-check.mjs";
 import {
     compareFields,
     resolveSchemaArtifact,
@@ -107,14 +102,7 @@ import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import { lintProse, scoreProseTree } from "../engine/readability-lint.mjs";
 import { loadPackageBuildConfig } from "../config.mjs";
-import {
-    authoredFrontmatter,
-    emitContentIndex,
-    indexRecordsFor,
-    isAssetRecord,
-    isNoteRecord,
-    noteFile,
-} from "../engine/content-index.mjs";
+import { emitContentIndex, indexRecordsFor, isAssetRecord } from "../engine/content-index.mjs";
 import {
     buildSite,
     gatesFailed,
@@ -124,11 +112,7 @@ import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-
 import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 // The one place a link finding is worded, shared with both builds.
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
-import {
-    emitDiagnostic,
-    positionInFrontmatter,
-    positionOfLiteral,
-} from "../engine/diagnostics.mjs";
+import { emitDiagnostic, positionOfLiteral } from "../engine/diagnostics.mjs";
 import { reportFindings } from "./report.mjs";
 import {
     readItemAddresses,
@@ -638,7 +622,6 @@ function docsCommand() {
  *   naming system's published `schema.json`. A failure means the specification
  *   and the system disagree, which is a defect in one of the two.
  * - `fields` compares declared field mappings with compiler declarations.
- * - `notes` measures authored notes against the declared vocabulary.
  *
  * The shipped contract is `engine/content-format.yaml`; guide layout does not
  * participate in validation.
@@ -649,12 +632,11 @@ function docsCommand() {
 function contentFormatCommand() {
     return {
         command: "content-format <action>",
-        describe: "Check the content format specification against schemas and notes",
+        describe: "Check the content format specification against schemas and field declarations",
         builder: (yargs) =>
             yargs
                 .command(contentFormatSchemaCommand())
                 .command(contentFormatFieldsCommand())
-                .command(contentFormatNotesCommand())
                 .demandCommand(1, "Name an action.")
                 .strict(),
         handler: () => {},
@@ -867,95 +849,6 @@ function contentFormatFieldsCommand() {
 }
 
 /**
- * `content-format notes` — a content tree, against the declared vocabulary.
- *
- * **A report, not a gate.** Every authored note predates the format, so a
- * failing check would be red in every repository from the day it lands and
- * would stay red for the length of the migration — which is a check nobody
- * can act on. `--strict` raises the findings to errors, turned on slice by
- * slice as each class of finding reaches zero.
- *
- * @returns {object} The yargs command module.
- */
-function contentFormatNotesCommand() {
-    return {
-        command: "notes [root]",
-        describe: "Measure a content tree against the vocabulary the format declares (a report)",
-        builder: (yargs) => {
-            yargs.positional("root", {
-                describe: "Content tree to measure. Defaults to the configured contentBase.",
-                type: "string",
-            });
-            yargs.option("spec", {
-                describe:
-                    "The format contract to read. Defaults to the engine/content-format.yaml this package ships.",
-                type: "string",
-            });
-            yargs.option("strict", {
-                describe:
-                    "Fail on the findings instead of reporting them. Turned on per slice, as each class reaches zero.",
-                type: "boolean",
-                default: false,
-            });
-        },
-        handler: (argv) => {
-            try {
-                const config = loadPackConfig();
-                const root = argv.root ?? config.paths.content;
-                const format = specFrom(argv);
-
-                // The corpus from the index, like every other check.
-                // A report measuring the tree against the declared vocabulary
-                // has to be looking at the same tree the compile will, or its
-                // counts describe a corpus nobody builds.
-                const corpusProblems = [];
-                const records = indexRecordsFor({
-                    contentBase: root,
-                    config,
-                    skipDirectories: config.skipDirectories,
-                    problems: corpusProblems,
-                });
-                for (const problem of corpusProblems) emitDiagnostic(problem);
-                if (corpusProblems.length) process.exitCode = 1;
-
-                const notes = [];
-                for (const record of records) {
-                    // A documentation journal is a document this tree emits,
-                    // not a note in it, and has no authored frontmatter to
-                    // measure.
-                    if (!isNoteRecord(record) || typeof record.type !== "string") continue;
-                    const absPath = noteFile(root, record);
-                    notes.push({
-                        file: absPath,
-                        // What the author wrote, never the keys the index
-                        // derived — this measures a note against a vocabulary,
-                        // and `address:` is in no vocabulary.
-                        fm: authoredFrontmatter(record),
-                        raw: fs.readFileSync(absPath, "utf8"),
-                    });
-                }
-
-                const { findings, byClass } = measureCorpus(notes, format, {
-                    strict: argv.strict,
-                });
-                for (const finding of findings) emitDiagnostic(finding);
-
-                const counts = Object.entries(byClass).sort(([a], [b]) => (a < b ? -1 : 1));
-                for (const [cls, count] of counts) log.info(`${cls}: ${count}`);
-                log.info(
-                    `${findings.length} finding(s) across ${notes.length} note(s) ` +
-                        `measured against ${format.file}.`,
-                );
-                if (argv.strict && findings.length) process.exitCode = 1;
-            } catch (err) {
-                reportFailure(err);
-                process.exitCode = 1;
-            }
-        },
-    };
-}
-
-/**
  * `package-build lint` — check a content tree's addresses.
  *
  * Deliberately independent of the pack pipeline: it compiles nothing, opens no
@@ -1143,9 +1036,8 @@ function lintCommand() {
                         builders: fieldSpecs,
                         artifact: schema.artifact,
                         // A schema is keyed by document subtype and a field
-                        // declaration by note type. Those were one string until
-                        // Three are renamed, and joining them by name
-                        // after that would drop `armorgear`'s findings without
+                        // declaration by note type, and the two can differ, so
+                        // joining them by name would drop findings without
                         // saying so — the seam exists for exactly this.
                         subtypeOf: (type) => schemaSubtypeOf(config.stats?.systemId, type),
                     });
@@ -1266,13 +1158,8 @@ function lintCommand() {
                     ...generatedArt,
                     ...artSizes,
                 ];
-                // Only an **error** fails the run. Every finding was an error
-                // by then, so this changes nothing on its own —
-                // but a field retired in favour of another is reported while
-                // both spellings still compile, and failing a build over a note
-                // that produces the correct document would red a tree that has
-                // done nothing wrong. `reportFindings` already draws exactly
-                // that line, so the rule is the shared one rather than a second
+                // Only an **error** fails the run. `reportFindings` draws that
+                // line, so the rule is the shared one rather than a second
                 // copy here. Each finding names its own file.
                 const errors = reportFindings(findings, {});
                 if (errors) {

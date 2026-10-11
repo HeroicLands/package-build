@@ -50,7 +50,9 @@ describe("createPackRouter — which pack a note's document lands in", () => {
     });
 
     it("routes a note to the pack it declares", () => {
-        expect(router().resolve({ type: "skill", pack: "mysteries" }, "Item")).toBe("mysteries");
+        expect(router().resolve({ type: "skill", data: { pack: "mysteries" } }, "Item")).toBe(
+            "mysteries",
+        );
         expect(router().resolve({ type: "skill", data: { pack: "mysteries" } }, "Item")).toBe(
             "mysteries",
         );
@@ -64,21 +66,21 @@ describe("createPackRouter — which pack a note's document lands in", () => {
     it("routes a note's *derived* document by the default of that type", () => {
         // A skill note declaring an Item pack still has its prose compiled into
         // the JournalEntry pack — the declaration names where the *item* goes.
-        expect(router().resolve({ type: "skill", pack: "mysteries" }, "JournalEntry")).toBe(
-            "journals",
-        );
+        expect(
+            router().resolve({ type: "skill", data: { pack: "mysteries" } }, "JournalEntry"),
+        ).toBe("journals");
     });
 
     it("fails loudly on a pack name nothing declares", () => {
-        expect(() => router().resolve({ type: "skill", pack: "nosuchpack" }, "Item")).toThrow(
-            /nosuchpack/,
-        );
+        expect(() =>
+            router().resolve({ type: "skill", data: { pack: "nosuchpack" } }, "Item"),
+        ).toThrow(/nosuchpack/);
     });
 
     it("fails loudly when the declared pack holds another document type", () => {
-        expect(() => router().resolve({ type: "skill", pack: "journals" }, "Item")).toThrow(
-            /journals/,
-        );
+        expect(() =>
+            router().resolve({ type: "skill", data: { pack: "journals" } }, "Item"),
+        ).toThrow(/journals/);
     });
 
     it("fails loudly on an undeclared note when no pack of the type is default", () => {
@@ -101,9 +103,9 @@ describe("createPackRouter — which pack a note's document lands in", () => {
                 },
             ]),
         );
-        expect(() => withCompanion.resolve({ type: "map", pack: "adventures" }, "Scene")).toThrow(
-            /adventures/,
-        );
+        expect(() =>
+            withCompanion.resolve({ type: "map", data: { pack: "adventures" } }, "Scene"),
+        ).toThrow(/adventures/);
     });
 
     it("lists every pack of a type, and names the default", () => {
@@ -192,9 +194,8 @@ function skillNote(
     extra: Record<string, unknown> = {},
     body?: string,
 ): string {
-    const head = Object.entries(extra)
-        .map(([k, v]) => `${k}: ${v}`)
-        .join("\n");
+    const entries = Object.entries(extra).map(([k, v]) => `  ${k}: ${v}`);
+    const head = entries.length ? ["data:", ...entries].join("\n") : "";
     return `---
 name:
   full: ${name}
@@ -203,7 +204,7 @@ shortcode: ${shortcode}
 type: skill
 ${head}
 sohl:
-  archetype: null
+  templatePriority: null
   subType: physical
   skillBaseFormula: "sb(attr.str)"
   combatCategory: none

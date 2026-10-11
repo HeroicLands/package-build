@@ -115,12 +115,10 @@ describe("one authored pathname, four derived forms", () => {
         }
     });
 
-    it('keeps `null` unset and `""` blank on purpose', () => {
+    it('keeps `null` unset and refuses `""`', () => {
         expect(resolvePathname(null, thalorna)).toBeNull();
         expect(resolvePathname(undefined, thalorna)).toBeNull();
-        const blank = resolvePathname("", thalorna) as Record<string, unknown>;
-        expect(blank.state).toBe("blank");
-        for (const surface of PATHNAME_SURFACES) expect(blank[surface]).toBe("");
+        expect(() => resolvePathname("", thalorna)).toThrow(/empty pathname/);
     });
 
     it("has no web form with no asset host configured", () => {

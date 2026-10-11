@@ -80,7 +80,7 @@ const skillNote = (sohl: Record<string, unknown>) => ({
     type: "skill",
     shortcode: "awar",
     name: { full: "Awareness" },
-    sohl: { subType: "physical", archetype: 0, ...sohl },
+    sohl: { subType: "physical", templatePriority: 0, ...sohl },
 });
 
 /** A being note, likewise. */
@@ -89,7 +89,7 @@ const beingNote = (sohl: Record<string, unknown>) => ({
     type: "being",
     shortcode: "folk",
     name: { full: "Basic Folk" },
-    sohl: { archetype: 0, ...sohl },
+    sohl: { templatePriority: 0, ...sohl },
 });
 
 describe("compareEmittedSystem reads the keys off the assembled object", () => {
@@ -191,7 +191,7 @@ describe("compareEmittedSystem reads the keys off the assembled object", () => {
     it("says nothing about a subtype the artifact does not name", () => {
         expect(
             compareEmittedSystem({
-                system: { archetype: 0 },
+                system: { templatePriority: 0 },
                 artifact: declaresNothingExtra,
                 documentType: "Item",
                 subtype: "nosuch",
@@ -203,7 +203,7 @@ describe("compareEmittedSystem reads the keys off the assembled object", () => {
     it("stops on an artifact written to a shape it does not read", () => {
         expect(() =>
             compareEmittedSystem({
-                system: { archetype: 0 },
+                system: { templatePriority: 0 },
                 artifact: { ...declaresNothingExtra, version: 99 },
                 documentType: "Item",
                 subtype: "skill",
@@ -233,7 +233,7 @@ describe("the two conditions are told apart, because the fixes differ", () => {
 
     it("calls a key no declared field names a compiler emission", () => {
         const [finding] = compareEmittedSystem({
-            system: { archetype: 0 },
+            system: { templatePriority: 0 },
             artifact: schema,
             documentType: "Item",
             subtype: "skill",

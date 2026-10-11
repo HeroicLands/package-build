@@ -68,12 +68,12 @@ describe("the `data:` container is closed", () => {
         );
     });
 
-    it("retires the singular data.event container", () => {
+    it("reports a singular data.event as an undeclared key", () => {
         const found = messages(
             lintNote(note("lore", { data: { event: { kind: "founding" } } }), opts),
         );
-        expect(found).toContain("`data.event` is retired");
-        expect(found).toContain("write `data.events`");
+        expect(found).toContain('"event" is not a `data:` property declared by lore');
+        expect(found).not.toContain("retired");
     });
 
     it("accepts every key the type declares", () => {

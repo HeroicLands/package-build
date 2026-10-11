@@ -198,36 +198,6 @@ export const PACK_DOCUMENT_TYPES = /** @type {const} */ ([
 ]);
 
 /**
- * Address-scheme keys a configuration may no longer declare.
- *
- * A retired key has exactly two possible fates, and only one of them is honest
- * — the same reasoning `engine/retired-fields.mjs` applies to a retired
- * frontmatter field. Left honoured, it keeps doing whatever it did, which is
- * why it was retired. Left *ignored*, it reads to its author as though it still
- * works: the configuration says one thing and the build does another, and
- * nothing says so. This module has no third option, because it has no warning
- * channel — every finding goes through `fail()`, which throws. So a retired
- * key is **refused**, at the line it was written on, with a message that says
- * the mechanism is gone rather than naming a value to correct.
- *
- * **`landing` is one such key.** It named which note addressed a whole section
- * rather than a page within one — a *landing page*, which therefore had no slug
- * of its own. There are no sections to address: a section is a Hugo content
- * directory the note format does not carry, a page's address names no
- * directory, and so no note lands anything.
- *
- * @type {Readonly<Record<string, string>>}
- */
-export const RETIRED_ADDRESS_KEYS = Object.freeze({
-    landing:
-        "is a retired option — delete it. It named which note addressed a " +
-        "whole section rather than a page within one, and there are no " +
-        "sections to address: a section is a Hugo content directory the note " +
-        "format does not carry, so no note lands one and every page is " +
-        "addressed `<type>-<shortcode>`. Nothing replaces it",
-});
-
-/**
  * A repository's address scheme, with the defaults an unconfigured one gets.
  *
  * `prefix` is where the content tree mounts *inside the package* — `"kb/"` for
@@ -237,9 +207,7 @@ export const RETIRED_ADDRESS_KEYS = Object.freeze({
  * knowledge, held in `PACKAGE_BASE` (`engine/content-address.mjs`) and prefixed at
  * resolve time, so it is never recorded here.
  *
- * It is the whole scheme: `landing`, the key that named which note addressed a
- * whole section, is retired with the sections themselves — see
- * {@link RETIRED_ADDRESS_KEYS}.
+ * It is the whole scheme.
  */
 export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
     prefix: "",
@@ -1167,19 +1135,6 @@ function bylineOf(authors) {
 function normalizePack(value, where, nested = false) {
     if (!isPlainObject(value)) fail(where, "must be an object");
     const pack = /** @type {Record<string, unknown>} */ (value);
-    // Retired with the YAML it named. Refused explicitly rather than
-    // left to the unknown-key check, because the useful thing to say is not
-    // "no such key" but where the folders went: they are notes, and a pack
-    // materialises the ones its documents reference.
-    if (pack.folders !== undefined) {
-        fail(
-            `${where}.folders`,
-            "is retired — delete it. A folder is a note (`type: folder`) now, " +
-                "and a pack materialises the folders its documents reference " +
-                "through `packFolder`, so there is no per-pack hierarchy file " +
-                "to name",
-        );
-    }
     rejectUnknownKeys(pack, PACK_KEYS, `${where}.`);
 
     const name = requireNonEmptyString(pack.name, `${where}.name`);
@@ -1775,45 +1730,13 @@ function normalizeSiteHugo(value) {
 }
 
 /**
- * The keys that asked the site build to write an index between the homepage
- * and the pages, each refused with the one message.
- *
- * A site is its homepage and its pages. Each of these keys asks for a
- * generated listing between them — `sections` (with `listType` and
- * `listSubType` inside an entry) a type-wide alphabetical one per entry,
- * `backfillSections` one for every other directory under the mount, `landing`
- * the mount's own, `list` how such a listing renders. None of those is a page
- * anyone chose the contents of, and every one of them is authored instead: a
- * `doc` note, addressed by its shortcode, carrying a content table over the
- * notes it introduces, with the columns it chooses.
- *
- * Refused rather than ignored, for the reason {@link RETIRED_ADDRESS_KEYS}
- * gives: a key left ignored reads to its author as though it still works.
- *
- * @type {readonly string[]}
- */
-const SITE_INDEX_KEYS = Object.freeze(["sections", "landing", "backfillSections", "list"]);
-
-/**
- * The message every key in {@link SITE_INDEX_KEYS} is refused with.
- *
- * @type {string}
- */
-const SITE_INDEX_MESSAGE =
-    "is retired — a site is its homepage and its pages, and any index between " +
-    "them is a `doc` note: write one with `type: doc`, a `shortcode` and " +
-    "`pack: none`, carrying a content table over the notes it lists, and link " +
-    "it from the homepage. Nothing is generated between the homepage and the " +
-    "pages, so delete the key";
-
-/**
  * The `site` section — how this repository frames the website it publishes.
  *
  * Everything here is *framing*: which named pass bundle supplies the
  * repository's own body rewrites, and the residue of the generated Hugo
  * configuration that is genuinely this repository's own. Where the Hugo tree
  * is written is not a choice: `package-build site` writes it under
- * `build/hugo/`, and a `site.out` is refused by name. How a page gets its
+ * `build/hugo/`. How a page gets its
  * **address** is deliberately not here either — that is `publish.address`,
  * shared with the link manifest so the two cannot disagree about where a
  * page is.
@@ -1827,12 +1750,8 @@ const SITE_INDEX_MESSAGE =
  * **What the site publishes is the homepage and the content tree, and nothing
  * beside them.** A page of documentation is a note — `type: doc`, addressed
  * by its shortcode, compiling into no document where it says `pack: none` —
- * so there is no second mechanism for mounting a directory of markdown, and a
- * configuration that names one (`site.trees`, and the `site.readmeSections`
- * that titled such a tree's landing) is refused with a message saying where
- * the page goes instead. An index between the homepage and the pages is a
- * `doc` note too, so the keys that asked the build to generate one
- * ({@link SITE_INDEX_KEYS}) are refused the same way.
+ * so there is no second mechanism for mounting a directory of markdown. An
+ * index between the homepage and the pages is a `doc` note too.
  *
  * @param {unknown} value - The `site` block, or `undefined`.
  * @returns {Readonly<object>} It, frozen, with every default filled.
@@ -1854,35 +1773,6 @@ function normalizeSite(value) {
     if (value === undefined) return empty;
     if (!isPlainObject(value)) fail("site", "must be a mapping");
     const input = /** @type {Record<string, unknown>} */ (value);
-    // Refused by name, ahead of the vocabulary check: the useful thing to say
-    // is not "no such key" but that the location is fixed.
-    if (input.out !== undefined) {
-        fail(
-            "site.out",
-            "is retired — the site build writes its content mount at " +
-                "`build/hugo/content`, beside the generated `hugo.toml`, and " +
-                "the location is not configurable. Remove the key",
-        );
-    }
-    // Refused by name too, and ahead of the vocabulary check for the same
-    // reason: a page is a note in the content tree, and the useful thing to
-    // say is where it goes rather than that the key is unknown.
-    for (const key of ["trees", "readmeSections"]) {
-        if (input[key] === undefined) continue;
-        fail(
-            `site.${key}`,
-            "is retired — a page is a note in the content tree. Give each page " +
-                "`type: doc`, a `shortcode` and `pack: none`, file it under " +
-                "`assets/content/`, and link it from the homepage or from a " +
-                "`doc` note that indexes it",
-        );
-    }
-    // And by name, for the same reason: an index between the homepage and
-    // the pages is a `doc` note, and the useful thing to say is that.
-    for (const key of SITE_INDEX_KEYS) {
-        if (input[key] === undefined) continue;
-        fail(`site.${key}`, SITE_INDEX_MESSAGE);
-    }
     rejectUnknownKeys(input, SITE_KEYS, "site.");
 
     let packages = [];
@@ -2785,15 +2675,6 @@ function normalizePublish(value) {
         fail("publish.address", "must be an object");
     }
     const address = /** @type {Record<string, unknown>} */ (addressInput ?? {});
-    // A retired key is refused by name, ahead of the vocabulary check: reported
-    // as merely unrecognized it would read as a misspelling of the one key that
-    // survives, and the author would correct the spelling rather than learn
-    // that the mechanism is gone.
-    for (const key of Object.keys(address)) {
-        if (Object.hasOwn(RETIRED_ADDRESS_KEYS, key)) {
-            fail(`publish.address.${key}`, RETIRED_ADDRESS_KEYS[key]);
-        }
-    }
     rejectUnknownKeys(address, ADDRESS_KEYS, "publish.address.");
 
     const prefix =

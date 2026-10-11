@@ -142,7 +142,7 @@ describe("the actor pass reports a misplaced anchor instead of compiling it blan
                 type: "being",
                 shortcode: "thorn",
                 name: { full: "Thorn" },
-                sohl: { archetype: null },
+                sohl: { templatePriority: null },
                 hm3: { type: "character" },
             },
             body,

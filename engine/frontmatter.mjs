@@ -83,63 +83,39 @@ export function sohlField(fm, key, defaultValue = undefined) {
  * `relations` and a projectile's impact die — because each validates a *shape
  * spread over several keys* rather than coercing one scalar.
  *
- * That was equivalent while every note authored inside the block, and stopped
- * being so once a note may author at `sohl.system.<to>` instead: {@link
- * sohlField} sees `sohl.<key>` and the top level, never inside `sohl.system`.
- * So those five read as unset and shipped their empty value — a missing
- * `subType` is a thrown build error, and the other four ship empty in silence,
- * which is the failure class the passthrough exists to prevent.
+ * {@link sohlField} sees `sohl.<key>` and the top level, never inside
+ * `sohl.system`, so this reads the destination first: a note may author at
+ * `sohl.system.<to>`, and a reader that could not see it would ship the
+ * field's empty value in silence.
  *
  * The **destination wins**, matching every other field's resolution order.
  *
- * `legacyKey` is for the one pair whose two positions are spelled differently:
- * a projectile authors `impact.die` and stores `impactBase.die`, so the reader
- * has to be told both. It is the same split `FieldSpec.name`/`legacyKey` makes,
- * for the same reason — one name cannot key two positions.
+ * `name` is for the one pair whose two positions are spelled differently: a
+ * projectile authors `impact.die` and stores `impactBase.die`, so the reader
+ * has to be told both.
  *
- * `shared` is the field's declared shared source, and it completes the order the
- * three other positions are two thirds of. A field whose source is a path into
- * `data:` is authored there by the specification's own mapping tables, and a
- * reader that knew the destination, the block and the top level alone skipped
- * straight past the container: every authored value read as unset, and the
- * document shipped the field's default with nothing said. It sits **between**
- * the block and the top level, exactly where
- * {@link module:engine/system-block.resolveFieldValue} puts it — the block is the
- * position a tree still writes and wins while it does, and the bare top-level
- * key is the spelling `data:` gathered the fact off.
+ * `shared` is the field's declared shared source when it is a path into
+ * `data:`. Such a field is authored in that container and nowhere else, so the
+ * block and the top level are not consulted.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {string} to - The key at the destination, dotted for a nested one.
  * @param {any} [defaultValue] - What an unauthored field reads as.
  * @param {object} [options] - Options.
- * @param {string} [options.legacyKey] - The key the block still carries, when
- *   it is not spelled `to`. Defaults to `to`.
+ * @param {string} [options.name] - The key the block carries, when it is not
+ *   spelled `to`. Defaults to `to`.
  * @param {string} [options.shared] - The field's declared shared source, when it
- *   is a path into a container (`data.relations`). Omitted by a field whose
- *   shared position is the note's top level, which `sohlField` already reads.
+ *   is a path into a container (`data.relations`).
  * @returns {any} The value.
  */
-export function sohlSystemField(fm, to, defaultValue = undefined, { legacyKey = to, shared } = {}) {
+export function sohlSystemField(fm, to, defaultValue = undefined, { name = to, shared } = {}) {
     const system = fm?.sohl?.system;
     if (system && typeof system === "object" && !Array.isArray(system)) {
         const found = getFrontmatter(system, to, undefined);
         if (found !== undefined) return found;
     }
-    if (shared !== undefined) {
-        const block = fm?.sohl;
-        const inBlock =
-            block && typeof block === "object" ?
-                getFrontmatter(block, legacyKey, undefined)
-            :   undefined;
-        // Consulted only where the block does not carry the key, so step 2 keeps
-        // winning; `sohlField` below then reads the block and the retiring
-        // top-level spelling exactly as it always has.
-        if (inBlock === undefined) {
-            const container = getFrontmatter(fm, shared, undefined);
-            if (container !== undefined) return container;
-        }
-    }
-    return sohlField(fm, legacyKey, defaultValue);
+    if (shared !== undefined) return getFrontmatter(fm, shared, defaultValue);
+    return sohlField(fm, name, defaultValue);
 }
 
 /**
@@ -249,7 +225,7 @@ export function resolveSkillAptitudes(fm, ctx = "item") {
 }
 
 /**
- * Resolve an affiliation's `relation` map — the shortcode of another
+ * Resolve an affiliation's `relations` map — the shortcode of another
  * affiliation → this one's standing toward it.
  *
  * An unrecognized standing would fail the schema's `choices` validation at load
@@ -266,18 +242,7 @@ export function resolveSkillAptitudes(fm, ctx = "item") {
  * @throws {Error} When the map is malformed or names an unknown standing.
  */
 export function resolveRelation(fm, ctx = "item") {
-    // `relations` is the field's name; `relation` is the retired spelling, read
-    // underneath it so a tree converts on its own schedule. The
-    // current name wins wherever a note writes both, and the lint reports the
-    // old one through {@link RETIRED_FIELD_ALIASES}.
-    // Probed at the destination too: a note that has moved to
-    // `sohl.system.relations` carries the current spelling, and a probe that
-    // could not see it would fall through to the retired one and read `{}`.
-    // Each spelling is probed at all four of its positions, the `data:` source
-    // the specification names included, so a retirement and a container move are
-    // independent of each other.
-    const current = sohlSystemField(fm, "relations", undefined, { shared: "data.relations" });
-    const key = current == null ? "relation" : "relations";
+    const key = "relations";
     const entries = readMapEntries(fm, key, { shared: `data.${key}` });
     if (entries === null) {
         throw new Error(`${ctx}: ${key} must be a map of shortcode → standing`);
@@ -362,20 +327,8 @@ export function parseValueDesc(raw) {
  *
  * `data.packFolder` is a folder note's **address**
  * (`folder-poisonsandtoxins`), resolved through the address index the whole
- * build shares. The `folder:` Foundry-id spelling this function once read
- * beside it, and the per-pack `*-folders.yaml` that id was resolved against,
- * are retired together — a note declaring `folder:` is refused by
- * {@link module:engine/folder-notes.assertNoDeclaredFolder} rather than
- * reaching here, so there is no second source for a value to come from.
- *
- * **`packFolder` was a path for one release** (`Possessions/Misc_Gear/Cooking`)
- * and is an address now. A path encoded the hierarchy *in the value*, so
- * reparenting a folder made every note naming it wrong — a structural edit
- * became a corpus-wide rewrite. An address is stable under reparenting, which
- * is exactly why a note is addressed by `(type, shortcode)` and never by
- * `file.path`. The path form is **removed rather than deprecated**: it had no
- * authors to migrate, which is the whole reason the change was cheap enough to
- * make.
+ * build shares. An address is stable under reparenting, which is exactly why a
+ * note is addressed by `(type, shortcode)` and never by `file.path`.
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @returns {{value: string|null, isAddress: boolean}} The authored value, and

@@ -251,12 +251,6 @@ describe("everything the generator writes is a key `site.hugo` may not author", 
             },
         });
     });
-
-    it("refuses `site.out`, naming the fixed location", () => {
-        expect(() => configFor({}, { out: "site/content" })).toThrow(
-            new RegExp(`\`site\\.out\` is retired.*\`${HUGO_CONTENT}\``),
-        );
-    });
 });
 
 describe("the generated configuration", () => {
@@ -577,13 +571,6 @@ describe("the Hugo source tree lands under build/", () => {
 });
 
 describe("`site.notfound` is validated", () => {
-    it("`site.list` is refused — how a listing renders is a content table's", () => {
-        expect(() => configFor({}, { list: { shortcodes: true } })).toThrow(
-            /`site\.list` is retired — a site is its homepage and its pages/,
-        );
-        expect("list" in configFor().site).toBe(false);
-    });
-
     it("`site.notfound` requires its wording and checks its links", () => {
         expect(configFor().site.notfound).toBeNull();
         expect(() => configFor({}, { notfound: { tagline: "x" } })).toThrow(

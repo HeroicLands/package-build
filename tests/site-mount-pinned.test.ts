@@ -6,14 +6,12 @@
  */
 
 /**
- * A page of documentation is a note in the content tree.
+ * The mount a site build writes.
  *
- * There is no second way to publish a directory of markdown beside the
- * content: `site.trees` and the `readmeSections` that titled a tree's landing
- * are refused by name, with a message saying where a page goes instead. The
- * site build publishes the homepage and the content tree and nothing else,
- * and the mount it writes is pinned by digest so that a change to what a
- * consumer's site holds is a deliberate one.
+ * A page of documentation is a note in the content tree, and the site build
+ * publishes the homepage and the content tree and nothing else. The mount is
+ * pinned by digest so that a change to what a consumer's site holds is a
+ * deliberate one.
  */
 
 import { describe, it, expect } from "vitest";
@@ -23,71 +21,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
-import * as siteBuild from "../engine/site-build.mjs";
-import * as kbPasses from "../sohl/kb-passes.mjs";
-import { buildSite, gatesFailed, resolveSitePass } from "../engine/site-build.mjs";
-
-/** A minimal configuration `defineConfig` accepts without complaint. */
-function minimal(overrides: Record<string, unknown> = {}) {
-    return {
-        rootDir: "/repo",
-        contentPackage: "acme",
-        foundryPackage: "acme",
-        packageKind: "systems",
-        compatibility: { minimum: "14.359" },
-        stats: { lastModifiedBy: "acmebuilder0000" },
-        packs: [{ name: "items", type: "Item" }],
-        ...overrides,
-    };
-}
-
-describe("site.trees is refused", () => {
-    it("refuses a declared tree, saying a page is a note in the content tree", () => {
-        expect(() =>
-            defineConfig(
-                minimal({ site: { trees: [{ from: "kb/dev-docs", section: "dev-docs" }] } }),
-            ),
-        ).toThrow(/site\.trees.*a page is a note in the content tree/s);
-    });
-
-    it("refuses an empty list too — the key has no reader", () => {
-        expect(() => defineConfig(minimal({ site: { trees: [] } }))).toThrow(/site\.trees/);
-    });
-
-    it("refuses `readmeSections`, which titled a tree's landing and nothing else", () => {
-        expect(() =>
-            defineConfig(
-                minimal({ site: { readmeSections: { "dev-docs": { title: "Developer Docs" } } } }),
-            ),
-        ).toThrow(/site\.readmeSections.*a page is a note in the content tree/s);
-    });
-
-    it("resolves a `site` block without either key, and carries neither", () => {
-        const config = defineConfig(minimal({ site: { description: "A package." } }));
-        expect(config.site.description).toBe("A package.");
-        expect("trees" in config.site).toBe(false);
-        expect("readmeSections" in config.site).toBe(false);
-    });
-});
-
-describe("the site build has no tree walk", () => {
-    it("exports no tree collector", () => {
-        expect("collectTreePages" in siteBuild).toBe(false);
-        expect("walkSiteTree" in siteBuild).toBe(false);
-    });
-
-    it("has no relative-link rewrite for tree pages", () => {
-        // The rewrite resolved a tree page's repository-relative links; a note
-        // links by address, so there is nothing left for it to rewrite.
-        expect("rewriteRepoLinks" in kbPasses).toBe(false);
-        const pass = resolveSitePass("sohlKb", { repoRoot: os.tmpdir() });
-        expect("afterLinks" in pass).toBe(false);
-    });
-});
-
-/* ---------------------------------------------------------------------- */
-/*  The emitted mount is unchanged                                         */
-/* ---------------------------------------------------------------------- */
+import { buildSite, gatesFailed } from "../engine/site-build.mjs";
 
 /**
  * The digest of the mount this fixture publishes. It pins the whole emitted

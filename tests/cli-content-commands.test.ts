@@ -61,7 +61,7 @@ packs:
     );
     const note = (name: string, code: string) =>
         `---\nname:\n  full: ${name}\ndescription: A ${name}.\nid: ${code.padEnd(16, "x")}\n` +
-        `shortcode: ${code}\ntype: miscgear\nsohl:\n  archetype: 0\n  quality: 0\n` +
+        `shortcode: ${code}\ntype: miscgear\nsohl:\n  templatePriority: 0\n  quality: 0\n` +
         `  durability: 2\n  kbcat: cooking\n  value: 6\n  weight: 3\n---\n\nProse.\n`;
     fs.writeFileSync(path.join(root, "assets", "content", "Bowl.md"), note("Bowl", "bowl"));
     // A note the configured scope excludes, so a command that ignores the
@@ -193,25 +193,6 @@ describe("a content command reaches the content", () => {
         },
         SUBPROCESS_TEST_TIMEOUT,
     );
-
-    /*
-     * `content-format notes` was the last check reading the tree for itself.
-     * A report measuring the corpus against the declared vocabulary has
-     * to be looking at the tree the compile will, or its counts describe a
-     * corpus nobody builds.
-     */
-    it(
-        "`package-build content-format notes` measures the configured corpus",
-        () => {
-            const out = run("content-format", "notes");
-
-            expect(out).not.toMatch(/requires `skipDirectories`/);
-            // One note in scope, and the skipped directory's is not counted.
-            expect(out).toMatch(/across 1 note\(s\)/);
-            expect(out).not.toMatch(/Skeleton/);
-        },
-        SUBPROCESS_TEST_TIMEOUT,
-    );
 });
 
 /*
@@ -227,13 +208,13 @@ describe("a note the content index cannot record", () => {
             bad,
             "---\nname:\n  full: Legacy\ndescription: A legacy note.\n" +
                 "id: legacyxxxxxxxxxx\nshortcode: legacy\ntype: miscgear\npackage: sohl\n" +
-                "sohl:\n  archetype: 0\n  quality: 0\n  durability: 2\n  kbcat: cooking\n" +
+                "sohl:\n  templatePriority: 0\n  quality: 0\n  durability: 2\n  kbcat: cooking\n" +
                 "  value: 6\n  weight: 3\n---\n\nProse.\n",
         );
     });
     afterAll(() => fs.rmSync(bad, { force: true }));
 
-    it.each(["lint", "links", "content-format notes"])(
+    it.each(["lint", "links"])(
         "`package-build %s` reports it with a position and still reads the tree",
         (cmd) => {
             const out = run(...cmd.split(" "));

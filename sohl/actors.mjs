@@ -340,10 +340,7 @@ export class Actors extends SystemActorCompiler {
             // identity (the dedup/override key of the Create-dialog picker).
             shortcode: fm.shortcode || "",
             // Required nullable number: a priority, or `null` for a being that
-            // is not a template (the archetype contract). `system.archetype`
-            // is the legacy spelling; the emitted key moves
-            // with the schema, since an undeclared `system` key is discarded at
-            // construction without a warning.
+            // is not a template (the archetype contract).
             templatePriority: systemTemplatePriority(fm, ctx),
             // `system.portrait` is **not** written here. A picture of the
             // subject is a picture, so a being's portrait is the lead image of

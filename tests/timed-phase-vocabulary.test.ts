@@ -313,12 +313,17 @@ function note(fm: Record<string, unknown>, body = "A plague.\n"): string {
     return `---\n${lines.join("\n")}\n---\n\n${body}`;
 }
 
-const afflictionNote = (shortcode: string, sohl: Record<string, unknown>) => ({
+const afflictionNote = (
+    shortcode: string,
+    sohl: Record<string, unknown>,
+    data: Record<string, unknown> = {},
+) => ({
     name: { full: `The ${shortcode}` },
     id: `AAAAAAAAAAAA${shortcode}`,
     type: "affliction",
     shortcode,
     sohl: { subType: "disease", templatePriority: null, ...sohl },
+    ...(Object.keys(data).length ? { data } : {}),
 });
 
 let tmp: string;
@@ -335,11 +340,11 @@ beforeAll(async () => {
     fs.writeFileSync(
         path.join(content, "Timed.md"),
         note(
-            afflictionNote("timd", {
-                levelBase: 3,
-                onsetDurationFormula: "2d6*86400",
-                resolutionDurationBase: 604800,
-            }),
+            afflictionNote(
+                "timd",
+                { levelBase: 3 },
+                { onsetDurationFormula: "2d6*86400", resolutionDurationBase: 604800 },
+            ),
         ),
     );
     fs.writeFileSync(path.join(content, "Bare.md"), note(afflictionNote("bare", { levelBase: 1 })));

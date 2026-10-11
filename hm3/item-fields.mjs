@@ -77,7 +77,6 @@ import { AS_AUTHORED, NUMBER } from "../engine/field-spec.mjs";
 const GEAR_COMMON = Object.freeze([
     {
         name: "data.weight",
-        legacyKey: "weight",
         to: "weight",
         ...AS_AUTHORED,
         kind: "number",
@@ -86,7 +85,6 @@ const GEAR_COMMON = Object.freeze([
     },
     {
         name: "data.value",
-        legacyKey: "value",
         to: "value",
         ...AS_AUTHORED,
         kind: "number",
@@ -107,7 +105,6 @@ const GEAR_COMMON = Object.freeze([
  */
 const QUANTITY = Object.freeze({
     name: "data.quantity",
-    legacyKey: "quantity",
     to: "quantity",
     ...NUMBER,
     default: 1,
@@ -127,10 +124,8 @@ const QUANTITY = Object.freeze({
  * a registry is addressed by what a note calls itself. What the document is
  * called is the map's answer, and only the map's.
  *
- * Each field names both of its authored positions, as
- * {@link module:hm3/actors} does and for the same reason: `name` is the shared
- * source the content format's mapping tables state, and `legacyKey` is the key
- * the `hm3:` block still carries.
+ * A field whose `name` is a path into `data:` is authored there and nowhere
+ * else: `name` is the shared source the content format's mapping tables state.
  *
  * @type {Readonly<Record<string, readonly import("../engine/field-spec.mjs").FieldSpec[]>>}
  */
@@ -148,7 +143,6 @@ export const HM3_ITEM_FIELDS = Object.freeze({
         ...GEAR_COMMON,
         {
             name: "data.capacity",
-            legacyKey: "capacity",
             to: "capacity.max",
             ...NUMBER,
             default: 0,
@@ -171,7 +165,6 @@ export const HM3_ITEM_FIELDS = Object.freeze({
     skill: Object.freeze([
         {
             name: "data.masteryLevel",
-            legacyKey: "masteryLevel",
             to: "masteryLevel",
             ...NUMBER,
             default: 0,

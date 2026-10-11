@@ -423,68 +423,45 @@ export function* walkMarkdownTree(rootDir, { skipDirectories, addressContext } =
  * block, in the order they answer — and whichever of them the note actually
  * wrote.
  *
- * Three places, in the order the migration runs. The specification calls this
- * `data.templatePriority`; `sohl-thalorna` already writes it there on 941
- * notes, beside the `archetype` the build reads — so a tree that has authored
- * forward is read from the key it authored, and only then does the retiring
- * spelling answer.
+ * Three places: the specification calls this `data.templatePriority`, and the
+ * system block and the note's top level answer after it.
  *
  * **The block is a parameter because the value is shared, not per-system.** One
  * `data.templatePriority` is the note's statement that it is a template; SoHL
  * records it as `system.templatePriority` and HM3 as `flags.hm3.templatePriority`.
- * The legacy in-block position is therefore read from *the block being compiled*
+ * The in-block position is therefore read from *the block being compiled*
  * rather than always from `sohl:`, so an HM3-only note is not asked to author a
  * SoHL block to be read.
  *
  * @param {object} fm     Parsed frontmatter.
  * @param {string} block  The system block being compiled.
- * @returns {{found: [object, string]|undefined, retiring: [object, string]|undefined,
- *   NEW: string, OLD: string}} The answering position, the retiring spelling's
- *   position if the note also carries it, and the two key names.
+ * @returns {{found: [object, string]|undefined, KEY: string}} The answering
+ *   position and the key name.
  */
 function findTemplatePriority(fm, block) {
     const inBlock =
         fm != null && typeof fm[block] === "object" && fm[block] !== null ? fm[block] : null;
     const data = fm != null && typeof fm.data === "object" && fm.data !== null ? fm.data : null;
 
-    const NEW = "templatePriority";
-    const OLD = "archetype";
+    const KEY = "templatePriority";
     const sources = /** @type {[object|null, string][]} */ ([
-        [data, NEW],
-        [inBlock, NEW],
-        [fm, NEW],
-        [inBlock, OLD],
-        [fm, OLD],
+        [data, KEY],
+        [inBlock, KEY],
+        [fm, KEY],
     ]);
     const found = sources.find(([where, key]) => where != null && key in where);
-    // A note part-way through the rename may carry both spellings, and they may
-    // *disagree*: 145 of `sohl-thalorna`'s 941 dual-spelled notes say
-    // `templatePriority: null` where `archetype: 0` says the opposite — "not a
-    // template" against "a template at priority 0". Preferring the new key
-    // silently would flip those documents, and preferring the old would ignore
-    // what an author wrote most recently. Neither is a decision this function
-    // gets to make quietly, so a contradiction is refused and named.
-    const retiring = sources
-        .slice(sources.findIndex(([, key]) => key === OLD))
-        .find(([where, key]) => where != null && key in where);
-    return {
-        found: /** @type {[object, string]|undefined} */ (found),
-        retiring: /** @type {[object, string]|undefined} */ (retiring),
-        NEW,
-        OLD,
-    };
+    return { found: /** @type {[object, string]|undefined} */ (found), KEY };
 }
 
 /**
  * The template priority a note states, for a system that treats an unstated one
  * as "not a template" rather than as an authoring error.
  *
- * Reads exactly the positions {@link resolveTemplatePriority} reads, including
- * the retiring `archetype` spelling, and refuses the same contradiction — so
- * the two systems cannot disagree about what a note said. It differs only in
- * what silence means: SoHL requires the statement, while HM3 keeps the value in
- * a flag it simply omits, so there is no tri-state for an absent value to
- * corrupt and nothing to demand.
+ * Reads exactly the positions {@link resolveTemplatePriority} reads, so the two
+ * systems cannot disagree about what a note said. It differs only in what
+ * silence means: SoHL requires the statement, while HM3 keeps the value in a
+ * flag it simply omits, so there is no tri-state for an absent value to corrupt
+ * and nothing to demand.
  *
  * @param {object} fm      Parsed frontmatter.
  * @param {string} label   Human-readable context for error messages.
@@ -492,18 +469,9 @@ function findTemplatePriority(fm, block) {
  * @param {string} [options.block="sohl"] The system block being compiled.
  * @returns {number|null}  The priority, or `null` when the note is not a
  *   template or states nothing.
- * @throws {Error} When both spellings are present and disagree.
  */
 export function statedTemplatePriority(fm, label, { block = "sohl" } = {}) {
-    const { found, retiring, NEW, OLD } = findTemplatePriority(fm, block);
-    if (found && retiring && found[1] !== OLD && found[0][found[1]] !== retiring[0][OLD]) {
-        throw new Error(
-            `Conflicting ${NEW} for ${label}: ` +
-                `${NEW} is ${JSON.stringify(found[0][found[1]])} and the retiring ` +
-                `${OLD} is ${JSON.stringify(retiring[0][OLD])}. Both are read and ` +
-                `${NEW} wins, so they must agree — delete ${OLD}, or correct it`,
-        );
-    }
+    const { found } = findTemplatePriority(fm, block);
     if (!found) return null;
     const raw = found[0][found[1]];
     return raw === null || raw === "" || raw === undefined ? null : raw;
@@ -519,31 +487,21 @@ export function statedTemplatePriority(fm, label, { block = "sohl" } = {}) {
  *                silently assumed.
  *
  * Reads the positions {@link findTemplatePriority} lists: `data.templatePriority`
- * first — the specified home — then the system block and the top level, and
- * finally the retiring `archetype` spelling in the same two places.
+ * first — the specified home — then the system block and the top level.
  *
  * @param {object} fm      Parsed frontmatter.
  * @param {string} label   Human-readable context for error messages.
  * @param {object} [options] Options.
  * @param {string} [options.block="sohl"] The system block being compiled.
  * @returns {number|undefined}  The template priority, or `undefined` when null.
- * @throws {Error} When the property is absent, is not a number/null, or both
- *   spellings are present and disagree.
+ * @throws {Error} When the property is absent or is not a number/null.
  */
 export function resolveTemplatePriority(fm, label, { block = "sohl" } = {}) {
-    const { found, retiring, NEW, OLD } = findTemplatePriority(fm, block);
+    const { found, KEY } = findTemplatePriority(fm, block);
 
-    if (found && retiring && found[1] !== OLD && found[0][found[1]] !== retiring[0][OLD]) {
-        throw new Error(
-            `Conflicting ${NEW} for ${label}: ` +
-                `${NEW} is ${JSON.stringify(found[0][found[1]])} and the retiring ` +
-                `${OLD} is ${JSON.stringify(retiring[0][OLD])}. Both are read and ` +
-                `${NEW} wins, so they must agree — delete ${OLD}, or correct it`,
-        );
-    }
     if (!found) {
         throw new Error(
-            `Missing required ${NEW} for ${label} — set a number (this is a template, at that priority) or null (it is not)`,
+            `Missing required ${KEY} for ${label} — set a number (this is a template, at that priority) or null (it is not)`,
         );
     }
     const raw = found[0][found[1]];
@@ -558,7 +516,7 @@ export function resolveTemplatePriority(fm, label, { block = "sohl" } = {}) {
 
 /**
  * The value a document's `system.templatePriority` carries, from the required
- * `templatePriority` frontmatter (`archetype` is the legacy spelling).
+ * `templatePriority` frontmatter.
  *
  * A **schema field**, so the tri-state is written out in full rather than
  * expressed by a key's presence: a number is a template at that priority, and
@@ -602,15 +560,11 @@ export function makeFilename(name, id) {
  * and nothing else, and because the default a caller applies to an unset one is
  * domain-specific — actors default differently from items, and gear differently
  * again — so each compiler owns its default and applies it with **nullish**
- * coalescing: `resolveImg(fm.img) ?? <default>`. Not `||`, which would collapse
- * a deliberate blank back into the default.
+ * coalescing: `resolveImg(fm.img) ?? <default>`.
  *
- * **Two empties, and they mean opposite things.** `null` — or an absent key,
- * which reaches here as `undefined` — means _unset_: the note names no art and
- * the caller's default applies. `""` means _blank on purpose_: the note names
- * no art **and wants none**, so no default may replace it. Both come back
- * distinguishable, `null` and `""` respectively, and neither is invented from
- * the other.
+ * `null` — or an absent key, which reaches here as `undefined` — means _unset_:
+ * the note names no art and the caller's default applies. An empty string is
+ * not a pathname and is refused like any other value that names no file.
  *
  * **`title` does not follow this rule**, and must not be made to. On a
  * `type: affiliation` note `title` is a declared item field with its own
@@ -633,11 +587,11 @@ export function makeFilename(name, id) {
  * @param {string | null | undefined} raw - The pathname from frontmatter.
  * @param {{assetRoot: string|null}} [config] - The resolved build configuration.
  *   Defaults to this repository's.
- * @returns {string | null} the Foundry-relative path; `""` for a deliberate
- *   blank, and `null` when the note names no art at all.
- * @throws {Error} When no Foundry address can be derived — a `documentation`
- *   package, which Foundry installs nothing of, or a pathname naming a package
- *   this build declares no relationship with.
+ * @returns {string | null} the Foundry-relative path, and `null` when the
+ *   note names no art at all.
+ * @throws {Error} When the pathname is empty, or when no Foundry address can
+ *   be derived — a `documentation` package, which Foundry installs nothing of,
+ *   or a pathname naming a package this build declares no relationship with.
  */
 export function resolveImg(raw, config = loadPackConfig()) {
     const forms = resolvePathname(raw, config);
@@ -802,7 +756,7 @@ export { makeId } from "./ids.mjs";
 
 // The content-type → document-type map, which decides *which* pack list a
 // note's own document is routed against.
-import { assertTypeNotRetired, packForType } from "./ids.mjs";
+import { packForType } from "./ids.mjs";
 import { collectAnchors } from "./anchors.mjs";
 
 /* ------------------------------------------------------------------------ */
@@ -820,10 +774,7 @@ import { collectAnchors } from "./anchors.mjs";
  * would otherwise address every one of them as the first. A note whose
  * declaration is unroutable is indexed against the conventional name and left
  * for the compile pass to report — the index has no business failing a build,
- * and the pass fails it with a far better message. The one exception is a
- * **retired** content type: this walk is the first to see every
- * note together with its path, and unlike an unroutable declaration there is
- * no pass that would ever claim such a note and report it.
+ * and the pass fails it with a far better message.
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [router] - The pack router. Supplied by the calling pass so
@@ -861,9 +812,8 @@ export function buildContentLinkIndex(
         // A documentation journal is a document this tree emits, not a note in
         // it; the note it documents is indexed here and carries its address.
         if (!isNoteRecord(record)) continue;
-        // The note as its author wrote it — the router, the draft tag and the
-        // retired-type check all read authored fields, and none of them may be
-        // handed the keys the index derived.
+        // The note as its author wrote it — the router and the draft tag read
+        // authored fields, and neither may be handed the keys the index derived.
         const fm = authoredFrontmatter(record);
         const absPath = noteFile(contentBase, record);
         // The id a note's document is filed under: its authored pin, or the
@@ -876,11 +826,6 @@ export function buildContentLinkIndex(
         // no shortcode — which is not an addressable note and has no document
         // to link to.
         if (!fm?.id) continue;
-        // The first walk of every note in the tree, and the only one holding
-        // both the declared type and the file that declares it — so a note
-        // left on a retired type is reported here, by name, rather than
-        // several frames deeper with nothing to go on.
-        assertTypeNotRetired(fm.type, absPath);
         const base = String(record.file.name).replace(/_/g, " ");
         const documentation = recordsByAddress.get(encodeAddresses(record.documentation));
         const noOwnDocument =

@@ -80,14 +80,12 @@
  * to a 404 is the failure this module exists to remove, and inventing one here
  * would reintroduce it one directory along.
  *
- * ## The two empties
+ * ## Unset
  *
  * `null` — or an absent key, which arrives as `undefined` — means **unset**: the
- * note names no file and the caller's default applies. `""` means **blank on
- * purpose**: the note names no file and wants none, so no default may replace
- * it. `resolvePathname` returns `null` for the first and a form object whose
- * every address is `""` for the second, so the two stay distinguishable all the
- * way to the caller.
+ * note names no file and the caller's default applies. `resolvePathname`
+ * returns `null` for it. An empty string is not a pathname: it is refused with
+ * a problem, like any other value that names no file.
  *
  * @module
  */
@@ -144,8 +142,8 @@ export const PATHNAME_SURFACES = Object.freeze(["foundry", "local", "web", "pdf"
  *
  * @typedef {object} PathnameForms
  * @property {string} authored  The pathname exactly as the note wrote it.
- * @property {"blank"|"external"|"package"} state  `blank` for `""`, `external`
- *   for an address no package owns, `package` for an owned file.
+ * @property {"external"|"package"} state  `external` for an address no
+ *   package owns, `package` for an owned file.
  * @property {string|null} package  The content package that owns the file, or
  *   `null` when no package does.
  * @property {string|null} suffix  The path inside that package's shipped tree.
@@ -206,7 +204,8 @@ function convertedSpelling(s) {
 export function pathnameProblem(raw) {
     if (raw == null) return "";
     const s = String(raw);
-    if (!s || isExternal(s)) return "";
+    if (!s) return "an empty pathname names no file — remove the key, or name an image";
+    if (isExternal(s)) return "";
     const root = s.split("/")[0];
     if (!FOUNDRY_ROOTS.includes(root)) return "";
     return (
@@ -379,19 +378,6 @@ export function packageAddresses(config) {
 export function resolvePathname(raw, config) {
     if (raw == null) return null;
     const authored = String(raw);
-    if (authored === "") {
-        return {
-            authored,
-            state: "blank",
-            package: null,
-            suffix: null,
-            own: false,
-            foundry: "",
-            local: "",
-            web: "",
-            pdf: "",
-        };
-    }
     if (isExternal(authored)) {
         return {
             authored,

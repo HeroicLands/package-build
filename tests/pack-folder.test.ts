@@ -91,7 +91,7 @@ data:
   id: ${code.padEnd(16, "x")}
 ${folderKey === "folder" ? `folder: ${folderValue}` : `  ${folderKey}: ${folderValue}`}
 sohl:
-  archetype: 0
+  templatePriority: 0
   quality: 0
   durability: 2
   kbcat: cooking
@@ -324,26 +324,6 @@ describe("compiling a note that names its folder by address", () => {
 
             expect(result.errors).toBeGreaterThan(0);
             expect(result.output).toMatch(/no folder note is addressed "sohl-none-folder-nowhere"/);
-        },
-        SUBPROCESS_TEST_TIMEOUT,
-    );
-
-    it(
-        "refuses a note that still names a Foundry id, naming `packFolder`",
-        () => {
-            // The retirement, through a real compile: the id spelling has
-            // nothing left to resolve against, so it fails rather than filing the
-            // note somewhere arbitrary — or, worse, nowhere and silently.
-            const root = folderRepo({
-                ...TREE_NOTES,
-                "ById.md": gear("Bowl By Id", "bowlid", "folder", "dddddddddddddddd"),
-            });
-            roots.push(root);
-            const result = compile(root);
-
-            expect(result.errors).toBeGreaterThan(0);
-            expect(result.output).toMatch(/retired frontmatter field/);
-            expect(result.output).toMatch(/packFolder/);
         },
         SUBPROCESS_TEST_TIMEOUT,
     );

@@ -17,32 +17,41 @@ describe("resolveRelation (pack builder — affiliation standing map)", () => {
     it("returns an empty map when the affiliation authors no relations", () => {
         expect(resolveRelation({})).toEqual({});
         expect(resolveRelation({ sohl: {} })).toEqual({});
+        expect(resolveRelation({ data: {} })).toEqual({});
     });
 
     it("reads an empty list as an empty map", () => {
-        // A note may author `relation: []` to state no entries. It
-        // means exactly what `relation: {}` means: neutral toward everyone.
-        expect(resolveRelation({ relation: [] })).toEqual({});
-        expect(resolveRelation({ sohl: { relation: [] } })).toEqual({});
+        // A note may author `relations: []` to state no entries. It
+        // means exactly what `relations: {}` means: neutral toward everyone.
+        expect(resolveRelation({ data: { relations: [] } })).toEqual({});
+        expect(resolveRelation({ data: { relations: {} } })).toEqual({});
     });
 
-    it("passes an authored map through, from the sohl block or the top level", () => {
-        expect(resolveRelation({ sohl: { relation: { peoni: "nemesis" } } })).toEqual({
+    it("passes an authored map through from `data:`", () => {
+        expect(resolveRelation({ data: { relations: { peoni: "nemesis" } } })).toEqual({
             peoni: "nemesis",
         });
-        expect(resolveRelation({ relation: { larani: "aligned" } })).toEqual({
-            larani: "aligned",
-        });
+    });
+
+    it("reads the destination ahead of `data:`", () => {
+        expect(
+            resolveRelation({
+                sohl: { system: { relations: { peoni: "aligned" } } },
+                data: { relations: { peoni: "nemesis" } },
+            }),
+        ).toEqual({ peoni: "aligned" });
     });
 
     it("accepts every declared standing", () => {
         expect(
             resolveRelation({
-                relation: {
-                    a: "aligned",
-                    u: "unaligned",
-                    r: "rival",
-                    n: "nemesis",
+                data: {
+                    relations: {
+                        a: "aligned",
+                        u: "unaligned",
+                        r: "rival",
+                        n: "nemesis",
+                    },
                 },
             }),
         ).toEqual({ a: "aligned", u: "unaligned", r: "rival", n: "nemesis" });
@@ -51,51 +60,24 @@ describe("resolveRelation (pack builder — affiliation standing map)", () => {
     it("throws on an unknown standing rather than shipping it", () => {
         // Foundry would drop the invalid choice at load, quietly turning an
         // authored hostility into neutrality.
-        expect(() => resolveRelation({ relation: { peoni: "hostile" } }, "Agrik")).toThrow(
-            /Agrik: relation\["peoni"\]/,
-        );
+        expect(() =>
+            resolveRelation({ data: { relations: { peoni: "hostile" } } }, "Agrik"),
+        ).toThrow(/Agrik: relations\["peoni"\]/);
     });
 
     it("throws when the map is not a map", () => {
         // A *populated* list is still an error: it is not a map, and dropping
         // its entries is the silent data loss this resolver exists to prevent.
-        expect(() => resolveRelation({ relation: ["peoni"] }, "Agrik")).toThrow(/map of shortcode/);
-        expect(() => resolveRelation({ relation: "peoni" }, "Agrik")).toThrow(/map of shortcode/);
-    });
-});
-
-describe("resolveRelation — `relation` is the retired spelling of `relations`", () => {
-    it("reads the current name", () => {
-        expect(resolveRelation({ sohl: { relations: { peoni: "nemesis" } } })).toEqual({
-            peoni: "nemesis",
-        });
-    });
-
-    it("still reads the retired one, so a tree converts on its own schedule", () => {
-        expect(resolveRelation({ sohl: { relation: { peoni: "nemesis" } } })).toEqual({
-            peoni: "nemesis",
-        });
-    });
-
-    it("lets the current name win where a note writes both", () => {
-        expect(
-            resolveRelation({
-                sohl: { relations: { peoni: "aligned" }, relation: { peoni: "nemesis" } },
-            }),
-        ).toEqual({ peoni: "aligned" });
-    });
-
-    it("names the spelling the note actually used when the map is malformed", () => {
-        expect(() => resolveRelation({ sohl: { relation: "nonsense" } }, "affiliation")).toThrow(
-            /relation must be a map/,
+        expect(() => resolveRelation({ data: { relations: ["peoni"] } }, "Agrik")).toThrow(
+            /map of shortcode/,
         );
-        expect(() => resolveRelation({ sohl: { relations: "nonsense" } }, "affiliation")).toThrow(
+        expect(() => resolveRelation({ data: { relations: "peoni" } }, "Agrik")).toThrow(
             /relations must be a map/,
         );
     });
 
-    it("reads an empty list under either relation spelling", () => {
-        expect(resolveRelation({ sohl: { relations: [] } })).toEqual({});
-        expect(resolveRelation({ sohl: { relation: [] } })).toEqual({});
+    it("reads neither a singular `relation` nor the block's `relations`", () => {
+        expect(resolveRelation({ data: { relation: { peoni: "nemesis" } } })).toEqual({});
+        expect(resolveRelation({ sohl: { relations: { peoni: "nemesis" } } })).toEqual({});
     });
 });

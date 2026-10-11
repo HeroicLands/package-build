@@ -138,10 +138,6 @@ export function isHomepage(fm) {
  * closed vocabulary, so repeating that judgement per type would be a second
  * answer to one question.
  *
- * `aliases` is deliberately not in the class: it is a **retired** field, refused
- * on every note whatever its type, so it is answered there rather than
- * here.
- *
  * @type {ReadonlyMap<string, string>}
  */
 export const HOMEPAGE_REFUSED_FIELDS = Object.freeze(
@@ -184,8 +180,7 @@ export const HOMEPAGE_REFUSED_FIELDS = Object.freeze(
  *
  * Each finding carries the `locator` key to position it at, because the two
  * things that would resolve one — the raw note text and the position helper —
- * belong to the caller. This mirrors {@link module:engine/retired-fields},
- * whose retired-field messages are likewise positioned by whoever reports them.
+ * belong to the caller.
  *
  * **A refused field must be one the note *wrote*.** `resolveNoteId` fills
  * `fm.id` **in place** so every downstream reader sees one derived value —
@@ -364,8 +359,7 @@ export function homepageTitle(fm, config) {
  *
  * The note's own, plus the two derived values every emitted page carries: the
  * resolved `title`, and the package the build derived — no note declares one
- * (`package:` is retired) and the theme's breadcrumb partial reads
- * `.Params.package`.
+ * and the theme's breadcrumb partial reads `.Params.package`.
  *
  * **No `url` and no `slug`.** Hugo publishes the `home` kind at `baseURL`,
  * whose path is already where the package is served, so the page has no
@@ -374,8 +368,7 @@ export function homepageTitle(fm, config) {
  *
  * An authored `aliases` is dropped for the same reason it is on every other
  * page: Hugo reads it as URL redirects, so passing it through would publish a
- * redirect stub at each one. The field is retired and refused before a
- * build reaches here, which makes this a guard rather than a working path.
+ * redirect stub at each one.
  *
  * `related` is derived like every other page's — what links to the homepage
  * is a fact about the rest of the tree — so an authored value is dropped and

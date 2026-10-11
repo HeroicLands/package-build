@@ -269,7 +269,7 @@ description: A ${name.toLowerCase()}.
 shortcode: ${code}
 type: miscgear
 sohl:
-  archetype: 0
+  templatePriority: 0
   quality: 0
   durability: 2
   kbcat: cooking

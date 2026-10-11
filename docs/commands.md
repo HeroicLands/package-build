@@ -1902,13 +1902,13 @@ $ package-build lint
 
 `package-build links [root]`, `package-build reachability <dir> [file]`,
 `package-build content-format schema`, `package-build content-format fields`,
-`package-build content-format notes`, [Diagnostics](diagnostics.md),
+[Diagnostics](diagnostics.md),
 [Configuration](configuration.md).
 
 `package-build content-format <action>` checks `docs/content-format.md` —
 the content-format specification this package ships — against reality, in
-three ways that fail for different reasons at different times: `schema`,
-`fields` and `notes`, one section below per action. All three read the
+two ways that fail for different reasons at different times: `schema`
+and `fields`, one section below per action. Both read the
 specification named by `--spec`, defaulting to the one this package ships,
 and write nothing.
 
@@ -1954,8 +1954,8 @@ $ package-build content-format schema --schema sohl=schema.json
 
 **SEE ALSO**
 
-`package-build content-format fields`, `package-build content-format notes`,
-`package-build schema`, [Configuration](configuration.md).
+`package-build content-format fields`, `package-build schema`,
+[Configuration](configuration.md).
 
 ### `package-build content-format fields`
 
@@ -2009,59 +2009,7 @@ $ package-build content-format fields --fields sohl --coverage
 
 **SEE ALSO**
 
-`package-build content-format schema`, `package-build content-format notes`,
-[Configuration](configuration.md).
-
-### `package-build content-format notes`
-
-**NAME**
-
-Measure a content tree against the specification's vocabulary.
-
-**SYNOPSIS**
-
-```
-package-build content-format notes [root] [--strict] [--spec <path>]
-```
-
-**DESCRIPTION**
-
-Measures a content tree against the vocabulary the specification declares
-per type. A report by default rather than a gate — every authored note
-predates the specification, so a failing check would be red from the day it
-landed and stay red for the length of a migration nobody could act on;
-`--strict` raises its findings to errors, turned on slice by slice as each
-class of finding reaches zero.
-
-**OPTIONS**
-
-| Positional | Type   | Default                        | Description              |
-| ---------- | ------ | ------------------------------ | ------------------------ |
-| `root`     | string | the configured `paths.content` | Content tree to measure. |
-
-| Option     | Type    | Default                                  | Description                                          |
-| ---------- | ------- | ---------------------------------------- | ---------------------------------------------------- |
-| `--spec`   | string  | the shipped `engine/content-format.yaml` | The specification to read.                           |
-| `--strict` | boolean | `false`                                  | Fail on the findings instead of only reporting them. |
-
-**EXIT STATUS**
-
-1 if the content index could not be built for any note. Without `--strict`,
-findings never fail the run. With `--strict`, 1 if there are any findings.
-Otherwise 0.
-
-**EXAMPLES**
-
-```
-$ package-build content-format notes
-[…] 0 finding(s) across 4 note(s) measured against docs/content-format.md.
-```
-
-**SEE ALSO**
-
-`package-build content-format schema`, `package-build content-format fields`,
-`package-build lint [root]`, [Diagnostics](diagnostics.md),
-[Configuration](configuration.md).
+`package-build content-format schema`, [Configuration](configuration.md).
 
 ### `package-build links [root]`
 
@@ -2078,8 +2026,7 @@ package-build links [root]
 **DESCRIPTION**
 
 Checks that every link in a content tree lands: a dead `#anchor`, a dead
-qualified address, a link with no label (the bare `[[Name]]` alias form is
-retired — every link is an address), a wikilink authored in frontmatter
+qualified address, a link with no label (every link is an address), a wikilink authored in frontmatter
 (which is data and is never resolved), and a package homepage's markdown
 links and `landing:` addresses, which are published verbatim and use no
 wikilink at all. Also reports a vendored foreign-package content index that

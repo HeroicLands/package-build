@@ -82,7 +82,7 @@ function being(items: object[]) {
         type: "being",
         shortcode: "warr",
         name: { full: "Ancient Warrior" },
-        sohl: { archetype: null, items },
+        sohl: { templatePriority: null, items },
     };
 }
 
@@ -174,7 +174,7 @@ describe("an entry that copies nothing", () => {
         });
     });
 
-    it("ships blank on purpose where it writes an empty `icon`", async () => {
+    it("takes the default where it writes an empty `icon`", async () => {
         await withPass([], (pass) => {
             const doc = pass.buildEntry(
                 being([
@@ -187,7 +187,7 @@ describe("an entry that copies nothing", () => {
                 ]),
                 "",
             );
-            expect(doc.items[0].img).toBe("");
+            expect(doc.items[0].img).toBe(MISCGEAR_ART);
         });
     });
 

@@ -15,16 +15,16 @@
  * `system` keys a note may **never** author, because the *compiler* writes them
  * from the note itself.
  *
- * The third of three refusals that read alike and state different facts:
+ * The companion of `runtime-only-fields.mjs`, and the two state different
+ * facts:
  *
  * | module | refuses a field | because |
  * | --- | --- | --- |
- * | `retired-fields.mjs` | a note may no longer declare | it has been withdrawn |
  * | `runtime-only-fields.mjs` | a note never could | the *document* writes it in play |
  * | this one | a note never could | the *compiler* writes it, from the note |
  *
- * The distinction between the last two is where the value comes from, and it
- * decides what an author is told. A runtime-only field has no compile-time
+ * The distinction is where the value comes from, and it decides what an author
+ * is told. A runtime-only field has no compile-time
  * value at all, so the fix is to delete the key. A derived one **does** have a
  * compile-time value — it is already being written, from somewhere else in the
  * same note — so the fix is to move the content to wherever the compiler reads
@@ -54,7 +54,7 @@
  */
 
 import { getFrontmatter } from "./frontmatter.mjs";
-import { locateFrontmatterKey } from "./retired-fields.mjs";
+import { locateFrontmatterKey } from "./diagnostics.mjs";
 import { SYSTEM_DATA_KEY, systemData } from "./system-block.mjs";
 
 /**
@@ -88,8 +88,7 @@ export function derivedMessage(key, from, file) {
 /**
  * The derived keys a note actually writes, in declaration order.
  *
- * **Presence is the whole test**, as it is for a retired or a runtime-only
- * field: an authored empty string is as much a claim on the key as prose is,
+ * **Presence is the whole test**, as it is for a runtime-only field: an authored empty string is as much a claim on the key as prose is,
  * and it is the same belief the message exists to correct. So the question is
  * whether the path resolves to anything at all, never whether the value is a
  * usable one.

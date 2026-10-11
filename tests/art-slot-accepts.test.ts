@@ -59,7 +59,7 @@ function being(items: object[]) {
         type: "being",
         shortcode: "warr",
         name: { full: "Ancient Warrior" },
-        sohl: { archetype: null, items },
+        sohl: { templatePriority: null, items },
     };
 }
 

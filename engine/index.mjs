@@ -69,9 +69,6 @@ export * as contentPackage from "./content-package.mjs";
 /** Which content package a note belongs to, and refusing one that says so. */
 export * as notePackage from "./note-package.mjs";
 
-/** Frontmatter fields a note may no longer declare, and the refusal of them. */
-export * as retiredFields from "./retired-fields.mjs";
-
 /** Schema fields a note may never declare, because play writes them. */
 export * as runtimeOnlyFields from "./runtime-only-fields.mjs";
 

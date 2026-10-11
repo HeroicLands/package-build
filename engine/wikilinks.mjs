@@ -36,7 +36,6 @@ import { readCanonicalKey } from "./content-address.mjs";
 // is stated there and read here — the anchor and the label are this module's,
 // and the tuple inside them is not.
 import {
-    ITEM_DOC_PREFIX,
     readQualifier,
     resolveItemDocType,
     parseAddress,
@@ -197,16 +196,7 @@ export function buildWikilinkIndex(
     for (const v of foreignByKey.values()) {
         if (v.type) foreignTypes.push(norm(v.type));
     }
-    // A legacy index may contain `doc<type>` records. Keep the authored type
-    // vocabulary separate so the input alias can resolve to its base type.
-    for (const t of foreignTypes) {
-        if (!t.startsWith(ITEM_DOC_PREFIX)) types.add(t);
-    }
-    for (const t of foreignTypes) {
-        if (!t.startsWith(ITEM_DOC_PREFIX)) continue;
-        if (types.has(t.slice(ITEM_DOC_PREFIX.length))) continue;
-        types.add(t);
-    }
+    for (const t of foreignTypes) types.add(t);
 
     // Every package an address may name: this one, plus every package a
     // vendored manifest speaks for. What lets `thalorna-creature-grkrahk` be
@@ -355,8 +345,7 @@ function unresolvedLink(text, target) {
  * **The wrapper carries the cue and nothing else.** The link itself is
  * untouched — Foundry enriches inside HTML, so the `@UUID` still becomes a live
  * content link, and the note is in the packs, the manifest and the index
- * exactly as any other. Nothing here resembles the retired `draft:` field,
- * which moved a note from published to unresolvable without saying so.
+ * exactly as any other.
  *
  * The appearance lives in `scss/components/_draft-link.scss`, beside the
  * unresolved-link partial, not here.

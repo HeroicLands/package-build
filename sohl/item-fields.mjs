@@ -246,7 +246,7 @@ const STRIKE_MODES = Object.freeze({
  * @returns {number} The die size, `0` when the projectile declares none.
  */
 function impactDie(fm) {
-    return Number(sohlSystemField(fm, "impactBase.die", 0, { legacyKey: "impact.die" })) || 0;
+    return Number(sohlSystemField(fm, "impactBase.die", 0, { name: "impact.die" })) || 0;
 }
 
 /** A strike mode discriminated by `type`, mandatory on a combat technique. */
@@ -281,7 +281,6 @@ const GEAR_COMMON = Object.freeze([
     },
     {
         name: "data.weight",
-        legacyKey: "weight",
         to: "weightBase",
         ...AS_AUTHORED,
         kind: "number",
@@ -290,7 +289,6 @@ const GEAR_COMMON = Object.freeze([
     },
     {
         name: "data.value",
-        legacyKey: "value",
         to: "valueBase",
         ...AS_AUTHORED,
         kind: "number",
@@ -299,7 +297,6 @@ const GEAR_COMMON = Object.freeze([
     },
     {
         name: "data.quality",
-        legacyKey: "quality",
         to: "qualityBase",
         ...AS_AUTHORED,
         kind: "number",
@@ -308,7 +305,6 @@ const GEAR_COMMON = Object.freeze([
     },
     {
         name: "data.durability",
-        legacyKey: "durability",
         to: "durabilityBase",
         ...AS_AUTHORED,
         kind: "number",
@@ -352,13 +348,9 @@ export const COMBAT_TECHNIQUE_STRIKE_MODE = Object.freeze({
  * Every item type's frontmatter vocabulary, in the order the `system` block
  * emits it.
  *
- * **A field whose shared source is a path into `data:` names both positions.**
- * `name` is the source the content format's mapping tables state — `data.seat`,
- * `data.weight` — and `legacyKey` is the key the system block still carries, which
- * wins while a tree writes it. Naming only the source would move the in-block
- * read to a key spelled `data.seat`, which nothing authors; naming only the key
- * leaves the container the specification points at unread, and the field then
- * compiles its default over an authored value with nothing said.
+ * **A field whose shared source is a path into `data:` is authored there and
+ * nowhere else.** `name` is the source the content format's mapping tables
+ * state — `data.seat`, `data.weight`.
  *
  * @type {Readonly<Record<string, readonly import("../engine/field-spec.mjs").FieldSpec[]>>}
  */
@@ -418,7 +410,6 @@ export const ITEM_FIELDS = Object.freeze({
             // Plural because the field holds a map of many standings, one per
             // affiliation — the singular reads as a misnomer.
             name: "data.relations",
-            legacyKey: "relations",
             to: "relations",
             ...RELATION,
             address: AFFILIATION_KEYS,
@@ -430,7 +421,6 @@ export const ITEM_FIELDS = Object.freeze({
             // A list, because an affiliation may sit under more than one at
             // once — an arcane tradition within an order, say.
             name: "data.parents",
-            legacyKey: "parents",
             to: "parents",
             ...ADDRESS_LIST,
             address: AFFILIATION_ITEMS,
@@ -442,7 +432,6 @@ export const ITEM_FIELDS = Object.freeze({
             // subTypes, while a seat covers a polity, a guild, an order and a
             // faith alike.
             name: "data.seat",
-            legacyKey: "seat",
             to: "seat",
             ...BLANK_IS_NULL,
             address: PLACE_VALUE,
@@ -487,7 +476,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.contagionIndex",
-            legacyKey: "contagionIndex",
             to: "contagionIndexBase",
             ...NUMBER,
             default: 0,
@@ -495,7 +483,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.transmission",
-            legacyKey: "transmission",
             to: "transmission",
             ...AS_AUTHORED,
             default: "none",
@@ -518,7 +505,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.outcomeTraumas",
-            legacyKey: "outcomeTraumas",
             to: "outcomeTraumas",
             ...BLANK_IS_NULL,
             default: null,
@@ -526,7 +512,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.outcome",
-            legacyKey: "outcome",
             to: "outcome",
             ...BLANK_IS_DEFAULT,
             default: "cured",
@@ -551,7 +536,6 @@ export const ITEM_FIELDS = Object.freeze({
         // the whole content of the declaration.
         {
             name: "data.onsetDurationFormula",
-            legacyKey: "onsetDurationFormula",
             to: "onsetDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -560,7 +544,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.onsetDurationBase",
-            legacyKey: "onsetDurationBase",
             to: "onsetDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -569,7 +552,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.healingCheckDurationFormula",
-            legacyKey: "healingCheckDurationFormula",
             to: "healingCheckDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -578,7 +560,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.healingCheckDurationBase",
-            legacyKey: "healingCheckDurationBase",
             to: "healingCheckDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -587,7 +568,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.resolutionDurationFormula",
-            legacyKey: "resolutionDurationFormula",
             to: "resolutionDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -596,7 +576,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.resolutionDurationBase",
-            legacyKey: "resolutionDurationBase",
             to: "resolutionDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -831,7 +810,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.skillAptitudes",
-            legacyKey: "skillAptitudes",
             to: "skillAptitudes",
             ...SKILL_APTITUDES,
             default: {},
@@ -839,7 +817,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.charges",
-            legacyKey: "charges",
             to: "charges",
             ...CHARGES,
             default: { value: null, max: null },
@@ -896,7 +873,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.charges",
-            legacyKey: "charges",
             to: "charges",
             ...CHARGES,
             default: { value: null, max: null },
@@ -1089,7 +1065,6 @@ export const ITEM_FIELDS = Object.freeze({
         // that sets it bleeds, and one that leaves it unset does not.
         {
             name: "data.healingCheckDurationFormula",
-            legacyKey: "healingCheckDurationFormula",
             to: "healingCheckDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -1098,7 +1073,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.healingCheckDurationBase",
-            legacyKey: "healingCheckDurationBase",
             to: "healingCheckDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -1107,7 +1081,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.bloodLossAdvanceDurationFormula",
-            legacyKey: "bloodLossAdvanceDurationFormula",
             to: "bloodLossAdvanceDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -1116,7 +1089,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.bloodLossAdvanceDurationBase",
-            legacyKey: "bloodLossAdvanceDurationBase",
             to: "bloodLossAdvanceDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -1125,7 +1097,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.courseDurationFormula",
-            legacyKey: "courseDurationFormula",
             to: "courseDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -1134,7 +1105,6 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             name: "data.courseDurationBase",
-            legacyKey: "courseDurationBase",
             to: "courseDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,

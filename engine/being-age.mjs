@@ -59,11 +59,6 @@ import { worldInvariants } from "./calendar-notes.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
-// `born`'s retired spelling is still read during its retirement window — see
-// `docs/content-format.md`'s "`birthday:` is the retired spelling of `born:`"
-// — so a being on the old spelling still computes an age rather than reading
-// as never born.
-import { readAliasedField } from "./retired-fields.mjs";
 
 /** The note type this module's derivation and check apply to. */
 const BEING_TYPE = "being";
@@ -170,7 +165,7 @@ export function applyComputedBeingAge(fm, presentRaw, dateContext = {}) {
         return;
     }
 
-    const born = readAliasedField(fm, "born", { inData: true });
+    const born = data?.born;
     const computed = computeAge(born, presentRaw, dateContext);
     if (computed !== null) data.age = computed;
 }
@@ -237,7 +232,7 @@ export function checkBeingAge(note, { index } = {}) {
     const data = dataOf(note?.fm);
     if (!data) return [];
 
-    const bornRaw = readAliasedField(note?.fm, "born", { inData: true });
+    const bornRaw = data.born;
     const ageRaw = data.age;
     if (ageRaw === undefined || ageRaw === null || ageRaw === "") return [];
     if (!index) return [];

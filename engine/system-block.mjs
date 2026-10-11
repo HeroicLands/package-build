@@ -37,68 +37,25 @@
  *
  * This is the load-bearing part, and the reason the whole module exists.
  * `sohl.system.portrait` and `hm3.system.bioImage` both default from one shared
- * top-level property — and they are two *real* fields with different names. The
- * two Actor schemas one `being` note has to feed share **no field name at all**,
- * so a rule that matched on spelling would not be a rule with exceptions; it
- * would be a rule that never fires.
+ * property — and they are two *real* fields with different names. The two Actor
+ * schemas one `being` note has to feed share **no field name at all**, so a rule
+ * that matched on spelling would not be a rule with exceptions; it would be a
+ * rule that never fires.
  *
  * So each field declares where its shared value comes from, and the resolution
  * order for a system `S` is:
  *
  * 1. `S.system.<to>` — authored directly, wins outright;
- * 2. `S.<legacyKey>` — the legacy in-block position the corpus still writes,
- *    kept until the corpus moves it;
- * 3. the shared top-level property the field **declares** as its source, which
- *    may be a dotted path (`data.portrait`) rather than a sibling key;
- * 3b. for a `data.` source, the bare top-level key that container gathered it
- *    off — the retiring *shared* position, derived rather than declared;
+ * 2. `S.<name>` — the field's own name, written in the block. A field whose
+ *    `name` is a path into `data:` has no in-block position, because its home
+ *    is the container;
+ * 3. the shared property the field **declares** as its source, which may be a
+ *    dotted path (`data.portrait`) rather than a sibling key;
  * 4. the field's own default.
  *
- * ## Steps 2 and 3 are two declarations, because they are two positions
- *
- * They are not one: keying both on `name` holds only while the
- * shared source and the in-block key were the same word. `data:` ended
- * that — a shared source is now a path *into* a container, so `data.species`
- * and `species` are two spellings of two different places, and no single value
- * of `name` reached both. `name: "species"` read `hm3.species` and could not
- * see `data.species`; `name: "data.species"` read the shared source and could
- * not see `hm3.species`. Each yielded the field's **default** wherever only the
- * other position was authored — silently, since the field compiles and the
- * document is emitted with the value simply gone.
- *
- * That made every move into `data:` a flag day. Each of this package's other
- * retirements — `package:`, `image`, `archetype`, `relation` — works because
- * *both spellings are read while the corpus moves*, and one property could not
- * offer that here.
- *
- * So a field declares `legacyKey` beside `name`: the key it is authored at
- * inside the block, which step 2 reads and which **falls back to `name`** when
- * absent, so every declaration written before this resolves unchanged. A field
- * that declares one is mid-sweep by construction, which is what
- * {@link module:engine/field-spec.readsLegacyKey} reports on.
- *
- * ## Step 3 has a retiring position too, and it is derived
- *
- * `legacyKey` retires the *in-block* position, and for a while that looked like
- * the whole of what `data:` left behind. It is not. The facts `data:` holds
- * were not invented by it — the sweep **gathered** them out of the note's open top
- * level, where `portrait:` sat beside `img:` and `shortcode:` — so a field that
- * declares `data.portrait` has two shared spellings to read, not one, and
- * reading only the current one is the same silent miss `legacyKey` exists to
- * prevent. It is worse here, because the caller's `?? default` cannot tell a
- * value that is absent from one that is merely unreachable: 646 `sohl-thalorna`
- * beings shipped the generic person icon over an authored path, and no tree
- * that still writes the top-level spelling — `sohl`'s own bestiary does —
- * looked any different from one that names no art at all.
- *
- * So step 3b reads it, and unlike `legacyKey` it is **derived**: the retiring
- * spelling of `data.<key>` is `<key>`, mechanically, because that is precisely
- * what the move did. A second declaration would be a second place for the same
- * fact to be stated, and the retirement it describes is one rule rather than a
- * per-field decision. {@link retiredTopLevelKey} is that derivation, and it
- * answers for `data.` sources alone — `protection.blunt` is a path into a
- * container notes have always written at the top level, never a `blunt:` that
- * moved.
+ * A key written at a position that is not on this list is not read. For a
+ * field whose home is `data:`, the frontmatter lint reports the key at the
+ * position it was written.
  *
  * ## A name that collides across the two vocabularies skips step 3
  *
@@ -108,28 +65,23 @@
  * all. They do not always. An `affiliation` item's `system.title` is the style
  * of address an office carries — "Ajaw", "Warden"; a note's top-level `title`
  * is refused outright by the closed top-level vocabulary, which has no `title`
- * entry. Nothing relates them, and step 3 fed the first from the second anyway.
- *
- * It was not a harmless coincidence either, because step 3 answers **without**
- * applying `field.default` — only step 2 does — so an authored `title: null`
- * reached the field's coercion unguarded and shipped as the literal string
- * `"null"` in fifteen documents.
+ * entry. Nothing relates them. Step 3 answers **without** applying
+ * `field.default`, so an authored `title: null` would reach the field's
+ * coercion unguarded.
  *
  * So a field may declare `topLevelMeans`: why the note's top-level key of this
  * name is not this field's source — declared wherever that key's spelling
  * means something else at the note level, or the closed top-level vocabulary
- * refuses it outright. Declaring it removes the whole shared level — step 3
- * and the retiring 3b alike, since both read the note's top level and the
- * objection is to that level, not to a spelling — leaving the two positions
- * that describe the document rather than the note. It is deliberately
- * a per-field opt-out rather than a change to the order — step 3 is right
+ * refuses it outright. Declaring it removes the shared level (step 3), leaving
+ * the positions that describe the document rather than the note. It is a
+ * per-field opt-out rather than a change to the order — step 3 is right
  * wherever the two levels state the same quantity, which is nearly everywhere —
  * and its value is the reason rather than a bare flag, so the collision is
  * legible where the field is declared. See {@link module:engine/field-spec.FieldSpec}.
  *
  * `sohlField()` — read `fm.sohl[key]`, fall back to `fm[key]` — is the
- * degenerate case where source and destination happen to share a name. It stops
- * being the general rule; {@link blockField} is what remains of it.
+ * degenerate case where source and destination happen to share a name. It is
+ * not the general rule; {@link blockField} is what remains of it.
  *
  * ## Nothing here knows a game system
  *
@@ -365,17 +317,14 @@ export function blockProperty(fm, block, key, defaultValue = undefined) {
 }
 
 /**
- * A system override followed by a shared `data:` value followed by the
- * retiring top-level spelling `data:` gathered it off, reporting which one
+ * A system override followed by a shared `data:` value, reporting which one
  * answered.
  *
  * {@link module:engine/field-spec.resolveFieldValue}'s counterpart for a
  * universal `data:` key — `pack` and `packFolder`, declared for every note
  * type rather than per type, so neither is a `FieldSpec` that resolver takes.
  * The order is the same shape: a system's own override, then the shared
- * `data:` position, then the bare top-level key a tree authored before
- * `data:` existed. The top-level value stays readable while a tree still on
- * it moves its authored fields.
+ * `data:` position.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {string} block - The system block key.
@@ -389,8 +338,6 @@ export function resolveDataProperty(fm, block, key, defaultValue = undefined) {
     if (declared !== undefined && declared !== null) return { value: declared, from: "block" };
     const shared = isMapping(fm?.data) ? fm.data[key] : undefined;
     if (shared !== undefined && shared !== null) return { value: shared, from: "shared" };
-    const legacy = isMapping(fm) ? fm[key] : undefined;
-    if (legacy !== undefined && legacy !== null) return { value: legacy, from: "topLevel" };
     return { value: defaultValue, from: "default" };
 }
 
@@ -409,27 +356,6 @@ export function blockDataProperty(fm, block, key, defaultValue = undefined) {
 }
 
 /**
- * The key a field is authored at **inside** a system block — step 2.
- *
- * `legacyKey` when the field declares one, and `name` otherwise. The fallback
- * is what makes this change invisible to every declaration written before it:
- * a field whose shared source and in-block key are the same word says so once,
- * as it always did.
- *
- * Named and exported rather than spelled inline because three readers ask the
- * question and must agree — the resolver here, the frontmatter lint building
- * the set of keys a block may carry, and the author-facing surfaces naming
- * where a value was written.
- *
- * @param {{name?: string, legacyKey?: string}} field - The declaration.
- * @returns {string|undefined} The in-block key, or `undefined` for a field that
- *   is not authored at all.
- */
-export function legacyKeyOf(field) {
-    return field?.legacyKey ?? field?.name;
-}
-
-/**
  * The `data:` container's prefix, as a shared source spells it.
  *
  * @type {string}
@@ -437,31 +363,20 @@ export function legacyKeyOf(field) {
 const DATA_PREFIX = "data.";
 
 /**
- * The bare top-level key a `data:`-sourced field is being swept off — step 3b.
+ * The key a field is authored at **inside** a system block — step 2.
  *
- * The retiring spelling of `data.portrait` is not a second declaration anyone
- * has to write — it is `portrait`, mechanically, and the same holds for every
- * other key the container gathered. Deriving it is what keeps the two spellings
- * of one field from disagreeing the way two declarations would.
- *
- * **Only a `data.` source has one.** `protection.blunt` and `impact.die` are
- * paths into containers a note has always written at the top level; they were
- * never `blunt:` or `die:`, and reading those would invent a position rather
- * than remember one.
- *
- * A field declaring {@link module:engine/field-spec.FieldSpec `topLevelMeans`}
- * has no shared position at all, retiring or otherwise — the resolver checks
- * that before asking.
+ * The field's `name`, except that a name which is a path into `data:` has no
+ * in-block position. Named and exported because the resolver and the
+ * frontmatter lint, which builds the set of keys a block may carry, must agree.
  *
  * @param {{name?: string}} field - The declaration.
- * @returns {string|undefined} The retiring top-level path, or `undefined` for a
- *   field whose shared source never lived there.
+ * @returns {string|undefined} The in-block key, or `undefined` for a field that
+ *   is not authored in the block.
  */
-export function retiredTopLevelKey(field) {
+export function inBlockKey(field) {
     const name = field?.name;
-    if (typeof name !== "string" || !name.startsWith(DATA_PREFIX)) return undefined;
-    const rest = name.slice(DATA_PREFIX.length);
-    return rest === "" ? undefined : rest;
+    if (typeof name !== "string" || name.startsWith(DATA_PREFIX)) return undefined;
+    return name;
 }
 
 /**
@@ -492,7 +407,7 @@ export function authoredKey(name) {
  * can distinguish a value an author wrote from one a default supplied, which
  * the value alone never says.
  *
- * @typedef {"system"|"block"|"shared"|"topLevel"|"default"|"value"} FieldSource
+ * @typedef {"system"|"block"|"shared"|"default"|"value"} FieldSource
  */
 
 /**
@@ -529,19 +444,16 @@ export function resolveFieldValue(field, fm, { block = "sohl" } = {}) {
         if (own !== undefined) return { value: own, from: "system" };
     }
 
-    // 2. The legacy in-block position, keyed on `legacyKey` — the shared
-    //    source is a path into `data:` and the in-block key is a bare word, so
-    //    the two are declared separately. Every note in every tree
-    //    writes here today, and will until the corpus moves them; dropping it would
-    //    be a corpus migration disguised as a mechanism change.
+    // 2. The field's own name, written in the block. A name that is a path
+    //    into `data:` has no in-block position: its home is the container.
     const declared = systemBlock(fm, block);
-    const legacyKey = legacyKeyOf(field);
-    if (declared && legacyKey) {
-        if (legacyKey in declared) {
-            const value = declared[legacyKey];
+    const key = inBlockKey(field);
+    if (declared && key !== undefined) {
+        if (key in declared) {
+            const value = declared[key];
             return { value: value ?? field.default, from: "block" };
         }
-        const nested = getFrontmatter(declared, legacyKey, undefined);
+        const nested = getFrontmatter(declared, key, undefined);
         if (nested !== undefined) return { value: nested, from: "block" };
     }
 
@@ -551,20 +463,6 @@ export function resolveFieldValue(field, fm, { block = "sohl" } = {}) {
     if (field.topLevelMeans === undefined) {
         const shared = getFrontmatter(fm, field.name, undefined);
         if (shared !== undefined) return { value: shared, from: "shared" };
-
-        // 3b. The bare top-level key the `data:` source was gathered off — the
-        //     retiring *shared* position, exactly as `legacyKey` is the
-        //     retiring *in-block* one. Without it a field declaring
-        //     `data.portrait` cannot see the `portrait:` every tree still
-        //     writes, and the miss arrives at the caller's `?? default` as an
-        //     ordinary absence: 646 `sohl-thalorna` beings compiled the generic
-        //     person icon over an authored path, deterministically and with
-        //     nothing said.
-        const retiring = retiredTopLevelKey(field);
-        if (retiring !== undefined) {
-            const legacy = getFrontmatter(fm, retiring, undefined);
-            if (legacy !== undefined) return { value: legacy, from: "topLevel" };
-        }
     }
 
     // 4. The field's own default.

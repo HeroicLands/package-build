@@ -17,7 +17,7 @@ import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { authoredFields, STRING } from "../engine/field-spec.mjs";
-import { MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES } from "../engine/ids.mjs";
+import { MAP_TYPES, PACK_BY_TYPE } from "../engine/ids.mjs";
 
 /** A note as the link index hands one over. */
 const note = (type: string, sohl: object = {}, extra: object = {}) => ({
@@ -80,12 +80,6 @@ describe("the five failure classes", () => {
             },
         ],
     } as any;
-
-    it("names the replacement for a retired type", () => {
-        const [type, replacement] = Object.entries(RETIRED_TYPES)[0];
-        const findings = lintNote(note(type), { schemas });
-        expect(messages(findings)).toContain(`"${replacement}"`);
-    });
 
     it("reports a type no schema declares", () => {
         const findings = lintNote(note("sandwich"), { schemas });
@@ -226,13 +220,7 @@ describe("keys every type accepts", () => {
         const sohl = Object.fromEntries([...UNIVERSAL_KEYS].map((k) => [k, "x"]));
         const findings = lintNote(note("doc", sohl), { schemas });
 
-        // One is rejected, and only one: `archetype` is the retiring spelling
-        // of `templatePriority`, and both are universal keys during the window,
-        // so a note naming every universal key necessarily names the old
-        // spelling too. Every other universal key passes.
-        expect(findings).toHaveLength(1);
-        expect(findings[0].severity).toBe("error");
-        expect(findings[0].message).toMatch(/write `templatePriority:` instead/);
+        expect(findings).toEqual([]);
     });
 
     it("includes kbcat, which no compiler reads but the knowledgebase does", () => {
@@ -470,59 +458,49 @@ describe("a being's closed subtype vocabulary", () => {
 });
 
 /* -------------------------------------------------------------------- */
-/*  `img: ""` — the old spelling of "unset"                       */
+/*  An empty art value                                                   */
 /* -------------------------------------------------------------------- */
 
-describe('an authored `icon: ""`', () => {
+describe("an authored empty art value", () => {
     const schemas = { skill: [] as any[] };
+    const empty = (findings: Array<{ message: string }>, key: string) =>
+        findings.filter((f) => new RegExp(`\`${key}: ""\``).test(f.message));
 
-    it("is warned about, because it reads as the opposite", () => {
-        // `""` was how a note said "no art authored" while `resolveImg`
-        // conflated the two empties; it now says "ship no art". Forty-five
-        // `sohl-thalorna` notes were written under the old reading and would
-        // have lost their default art silently.
-        const findings = lintNote(note("skill", {}, { data: { icon: "" } }), { schemas });
-        const icon = findings.filter((f) => /`icon: ""`/.test(f.message));
+    it("is an error at the key, whose compiled document field is `img`", () => {
+        const raw = '---\ntype: skill\ndata:\n  icon: ""\n---\n';
+        const n = note("skill", {}, { data: { icon: "" } });
+        const hit = empty(lintNote({ ...n, raw }, { schemas }), "icon");
 
-        expect(icon).toHaveLength(1);
-        expect(icon[0].severity).toBe("warning");
-        expect(icon[0].message).toMatch(/icon: null/);
+        expect(hit).toHaveLength(1);
+        expect(hit[0]).toMatchObject({ severity: "error", line: 4, column: 3 });
+        expect(hit[0].message).toMatch(/remove the key/i);
+        expect(hit[0].message).toMatch(/name an image/);
     });
 
-    it("is warned about under a system block too, where a note may also write it", () => {
-        const findings = lintNote(note("skill", { icon: "" }), { schemas });
-
-        expect(findings.filter((f) => /`icon: ""`/.test(f.message))).toHaveLength(1);
-    });
-
-    it("says nothing about `icon: null`, which is the spelling it asks for", () => {
-        const findings = lintNote(note("skill", {}, { data: { icon: null } }), { schemas });
-
-        expect(findings.filter((f) => /`icon: ""`/.test(f.message))).toHaveLength(0);
-    });
-
-    it("says nothing about a note that names art, or names none at all", () => {
-        expect(
-            lintNote(note("skill", {}, { data: { icon: "sword" } }), { schemas }).filter((f) =>
-                /`icon: ""`/.test(f.message),
-            ),
-        ).toHaveLength(0);
-        expect(
-            lintNote(note("skill"), { schemas }).filter((f) => /`icon: ""`/.test(f.message)),
-        ).toHaveLength(0);
-    });
-
-    it("is warned about for every slot, since the rule belongs to the resolution", () => {
-        // A check keyed on one slot would call a tree clean that loses its
-        // default art through another.
-        for (const key of ["tokenIcon", "banner"]) {
-            const findings = lintNote(note("skill", {}, { data: { [key]: "" } }), { schemas });
-            const art = findings.filter((f) => new RegExp(`\`${key}: ""\``).test(f.message));
-
-            expect(art, key).toHaveLength(1);
-            expect(art[0].severity).toBe("warning");
-            expect(art[0].message).toMatch(new RegExp(`${key}: null`));
+    it("is an error for every art slot, whichever position the note writes it at", () => {
+        for (const key of ["icon", "tokenIcon", "banner"]) {
+            const f = empty(lintNote(note("skill", {}, { data: { [key]: "" } }), { schemas }), key);
+            expect(f, key).toHaveLength(1);
+            expect(f[0].severity, key).toBe("error");
         }
+    });
+
+    it("is an error under a system block too, where a note may also write it", () => {
+        const f = empty(lintNote(note("skill", { icon: "" }), { schemas }), "icon");
+        expect(f).toHaveLength(1);
+        expect(f[0].severity).toBe("error");
+    });
+
+    it("says nothing about `null`, a named image, or an absent key", () => {
+        for (const data of [{ icon: null }, { icon: "sword" }, {}]) {
+            expect(empty(lintNote(note("skill", {}, { data }), { schemas }), "icon")).toHaveLength(
+                0,
+            );
+        }
+        expect(empty(lintNote(note("skill"), { schemas }), "img")).toHaveLength(0);
+        expect(empty(lintNote(note("skill", {}, { img: null }), { schemas }), "img")).toHaveLength(
+            0,
+        );
     });
 
     it("says nothing about a page heading, which is not an art path", () => {
@@ -530,7 +508,7 @@ describe('an authored `icon: ""`', () => {
         // of its own — a harder one, because the name is required.
         const findings = lintNote(note("skill", {}, { name: { full: "" } }), { schemas });
 
-        expect(findings.filter((f) => /ship no art at all/.test(f.message))).toHaveLength(0);
+        expect(findings.filter((f) => /not a valid art value/.test(f.message))).toHaveLength(0);
         expect(findings.some((f) => /`name.full` must be a nonempty string/.test(f.message))).toBe(
             true,
         );
@@ -542,9 +520,9 @@ describe('an authored `icon: ""`', () => {
 /* -------------------------------------------------------------------- */
 
 describe("a system field that merely shares a note-level field's name", () => {
-    /** The "ship no art at all" finding, whichever position provoked it. */
+    /** The empty-art finding, whichever position provoked it. */
     const inertArt = (findings: Array<{ message: string }>) =>
-        findings.filter((f) => /ship no art at all/.test(f.message));
+        findings.filter((f) => /not a valid art value/.test(f.message));
 
     it("says nothing about an affiliation whose office has no style of address", () => {
         // `sohl.title` on an affiliation is the style of address the office

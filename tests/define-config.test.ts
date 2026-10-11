@@ -601,35 +601,6 @@ describe("the address scheme a repository publishes at", () => {
     });
 });
 
-describe("the retired per-pack folder file", () => {
-    it("refuses a pack that still names one, saying where the folders went", () => {
-        // Refused explicitly rather than left to the unknown-key check: the
-        // useful thing to say to a tree that has not swept is not "no such
-        // key" but that a folder is a note now.
-        expect(() =>
-            defineConfig({
-                ...minimal(),
-                packs: [{ name: "items", type: "Item", folders: "item-folders.yaml" }],
-            }),
-        ).toThrow(/retired/);
-        expect(() =>
-            defineConfig({
-                ...minimal(),
-                packs: [{ name: "items", type: "Item", folders: "item-folders.yaml" }],
-            }),
-        ).toThrow(/packFolder/);
-    });
-
-    it("refuses it written empty, presence being the whole test", () => {
-        expect(() =>
-            defineConfig({
-                ...minimal(),
-                packs: [{ name: "items", type: "Item", folders: null }],
-            }),
-        ).toThrow(/retired/);
-    });
-});
-
 describe("prebuilt packs and per-pack systems", () => {
     it("accepts a pack whose JSON is already built, and records where it lives", () => {
         const config = defineConfig({

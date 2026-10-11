@@ -39,7 +39,7 @@ id: AAAAAAAAAAAAAAAA
 shortcode: foreignskill
 type: skill
 sohl:
-  archetype: null
+  templatePriority: null
   subType: physical
   skillBaseFormula: "sb(attr.str)"
   combatCategory: none
@@ -64,7 +64,7 @@ id: YYYYYYYYYYYYYYYY
 shortcode: undeclaredskill
 type: skill
 sohl:
-  archetype: null
+  templatePriority: null
   subType: physical
   skillBaseFormula: "sb(attr.str)"
   combatCategory: none
@@ -91,7 +91,7 @@ shortcode: otherskill
 type: skill
 package: sohl
 sohl:
-  archetype: null
+  templatePriority: null
   subType: physical
   skillBaseFormula: "sb(attr.str)"
   combatCategory: none
@@ -111,7 +111,7 @@ id: BBBBBBBBBBBBBBBB
 shortcode: foreigncreature
 type: being
 sohl:
-  archetype: null
+  templatePriority: null
 ---
 
 # Appearance
@@ -126,7 +126,7 @@ id: CCCCCCCCCCCCCCCC
 shortcode: foreignguide
 type: doc
 sohl:
-  archetype: null
+  templatePriority: null
 ---
 
 # Overview
@@ -141,7 +141,7 @@ id: DDDDDDDDDDDDDDDD
 shortcode: foreignmacro
 type: macro
 sohl:
-  archetype: null
+  templatePriority: null
 ---
 
 A macro belonging to the configured content package.

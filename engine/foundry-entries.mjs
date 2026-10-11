@@ -36,8 +36,7 @@
  * no uniqueness check stands between the two. The system segment goes with the
  * package because a note publishes one page however many systems' documents it
  * compiles into. Every entry is
- * derivable that way, sections being retired — the section landing was the one
- * that was not. The field is still written rather than left for a consumer to
+ * derivable that way. The field is still written rather than left for a consumer to
  * compute, because an absent `path` already means something else entirely (a
  * package that publishes no pages).
  *
@@ -72,19 +71,12 @@ import { DEFAULT_DOCUMENT_SUBTYPES, SYSTEM_DOCUMENT_CLASSES } from "./subtype-re
 import { carriesSystemBlock } from "./system-block.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
-import { compendiumUuid, currentType, packForType, pageUuid } from "./ids.mjs";
+import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { journalHasContent } from "./note-state.mjs";
 import { isHomepage } from "./homepage.mjs";
 import { declaresNoPack } from "./pack-router.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
-import { assertNoDeclaredFolder } from "./folder-notes.mjs";
-import {
-    assertNoAliasesField,
-    assertNoDraftField,
-    assertNoSectionField,
-    assertNoTraitsField,
-} from "./retired-fields.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
@@ -250,9 +242,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
     };
 
     const carriesDoc =
-        ctx.docEntryTypes ?
-            ctx.docEntryTypes.has(String(currentType(fm.type)))
-        :   hasDocEntry(fm.type);
+        ctx.docEntryTypes ? ctx.docEntryTypes.has(String(fm.type)) : hasDocEntry(fm.type);
     if (carriesDoc) {
         // `NO_SYSTEM`, whatever the item is: a documentation journal is a
         // JournalEntry, which no game system defines, and there is one of them
@@ -311,11 +301,10 @@ export function entriesForNote(fm, name, address, body, ctx) {
  * Every note this package publishes, as manifest entries.
  *
  * Every note in the tree is this package's, so nothing here selects by package:
- * the key's first segment is `contentPackage`. A note still declaring the
- * retired `package:` or `draft:` field **throws** rather than being skipped —
- * skipping one silently is how a whole tree came to be filtered out of a
- * manifest that then claimed the package published nothing, and it is what let
- * a drafted note's inbound links look like links to a note that never existed.
+ * the key's first segment is `contentPackage`. A note declaring `package:`
+ * **throws** rather than being skipped — skipping one silently is how a whole
+ * tree came to be filtered out of a manifest that then claimed the package
+ * published nothing.
  *
  * A note that has no address is **reported, not guessed** — the finding carries
  * the file and the reason, so a caller can print it or fail on it. Inventing an
@@ -349,11 +338,6 @@ export function collectFoundryEntries(contentBase, ctx) {
             absPath,
             configured: ctx.contentPackage,
         });
-        assertNoDeclaredFolder(fm, { file: rel, absPath });
-        assertNoDraftField(fm, { file: rel, absPath });
-        assertNoAliasesField(fm, { file: rel, absPath });
-        assertNoSectionField(fm, { file: rel, absPath });
-        assertNoTraitsField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
         // A homepage is addressed like every other note, and a
         // shortcode alone would now put it here. It stays out for the reason it

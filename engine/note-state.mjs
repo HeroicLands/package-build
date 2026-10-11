@@ -62,9 +62,7 @@ export const NOTE_STATES = Object.freeze(["stub", "draft", "full"]);
  * either state.
  *
  * An HTML comment is deliberately not empty. An invisible marker deciding
- * whether a page exists is the failure the retired `draft:` field was removed
- * for, and reintroducing it in comment form would be worse, because nothing
- * would report it.
+ * whether a page exists would be a failure nothing reports.
  *
  * @param {string|null|undefined} body - The note body, frontmatter stripped.
  * @returns {boolean} Whether the body is empty.

@@ -228,14 +228,14 @@ describe("what the grammar refuses", () => {
 });
 
 /** An affiliation note authoring the given `sohl:` block. */
-function affiliation(sohl: object) {
+function affiliation(data: object) {
     return {
         id: "AAAAAAAAAAAAAAAA",
         type: "affiliation",
         shortcode: "guild",
         name: { full: "The Guild" },
-        data: { templatePriority: null },
-        sohl: { subType: "guild", ...sohl },
+        data: { templatePriority: null, ...data },
+        sohl: { subType: "guild" },
     };
 }
 
@@ -266,6 +266,8 @@ async function withPass(run: (pass: any, said: string[]) => void) {
             "type: affiliation",
             "shortcode: guild",
             "sohl:",
+            "  subType: guild",
+            "data:",
             "  seat: bar-none-place-tashal",
             "  relations:",
             "    b: aligned",
@@ -323,7 +325,7 @@ describe("through a real compile", () => {
             expect(message, said.join("\n")).toBeDefined();
             // The path starts the line, the position is the colliding entry's
             // own, and the severity is the error a build stops on.
-            expect(message).toMatch(/^\S*The_Guild\.md:8:5: error: /);
+            expect(message).toMatch(/^\S*The_Guild\.md:10:5: error: /);
         });
     });
 });

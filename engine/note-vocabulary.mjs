@@ -49,10 +49,7 @@
  * document subtype rather than the thing the note is about. `weapon` is the one
  * the specification and this registry still spell differently: both systems
  * call that document a `weapongear`, so the name says nothing system-specific
- * and the table has no row for it. A note left on a renamed spelling still
- * reaches its entry — every type-keyed lookup normalises through
- * `RENAMED_TYPES` — and is reported rather than refused until the content trees
- * have swept.
+ * and the table has no row for it.
  *
  * **A type name and a subType value are held to the address charset**, so
  * both match `ADDRESS_SEGMENT_PATTERN` — the charset `engine/address-charset.mjs`
@@ -64,10 +61,8 @@
  * would be read back as two segments and resolve to nothing, reporting nothing
  * about why.
  *
- * A subType reaches no address of its own. It did when this rule was written —
- * a `doc`'s was its section, a path segment — and sections are retired from
- * the note format one release later. It keeps the rule regardless, and the
- * reason is not inertia: a subType is a vocabulary term the whole toolchain
+ * A subType reaches no address of its own. It keeps the charset rule regardless,
+ * and the reason is not inertia: a subType is a vocabulary term the whole toolchain
  * keys on, it is one closed set away from being an address again, and a charset
  * that held for a type, a shortcode and a package but not for a subType would
  * be a rule nobody could state in one sentence. The registry below is checked
@@ -84,10 +79,7 @@ import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs
 // The system registry, so the top-level block keys below are the systems this
 // toolchain recognises rather than a second list of them.
 import { SYSTEM_IDS } from "./systems.mjs";
-// The retirement window for a renamed type, read rather than restated: a
-// vocabulary that answered only to the current spelling would report every key
-// of an unswept note as unknown.
-import { currentType, packForType } from "./ids.mjs";
+import { packForType } from "./ids.mjs";
 // What a place is next to and reachable from — the two relation lists and
 // the checks that hold them to their closed sets and to each other.
 import { checkBorders, checkRoutes } from "./place-relations.mjs";
@@ -734,9 +726,7 @@ function checkPlacePurpose(note) {
  *
  * It is a **presentation** fact and nothing more. A draft note compiles,
  * validates, publishes and resolves like any other; only a link *into* it
- * renders marked. What it emphatically is not is the retired `draft:` field,
- * whose entire effect was to move a note from published to unresolvable — see
- * {@link draftRetiredMessage}.
+ * renders marked.
  */
 export const DRAFT_TAG = "draft";
 
@@ -1936,11 +1926,8 @@ export const NOTE_VOCABULARY = Object.freeze({
  * What a note carrying a subType outside the address charset is told.
  *
  * **Why the charset holds for a subType, which reaches no address.** The rule
- * said
- * "the hyphen separates the segments of an address", and that was true of a
- * subType when it shipped: `sectionOf` returned a `doc`'s subType, so the value
- * was a URL path segment. Sections are retired and it is not one. The rule
- * stays, on its own footing: a subType is a vocabulary term the whole toolchain
+ * says "the hyphen separates the segments of an address", and a subType is not
+ * one. The rule stands on its own footing: a subType is a vocabulary term the whole toolchain
  * keys on, and it is one closed set away from being an address segment again —
  * so the reason to spell it in the address charset is that a charset holding
  * for a type, a shortcode and a `contentPackage` but not for a subType is a
@@ -1989,7 +1976,7 @@ export function typeCharsetMessage(type) {
  *
  * The message states the reason **per key**, as {@link typeCharsetMessage} and
  * {@link subTypeCharsetMessage} do: a type is an address segment, and a subType
- * is not one, since sections are retired, so a single claim covering both
+ * is not one, so a single claim covering both
  * would be half wrong.
  *
  * @param {Readonly<Record<string, TypeVocabulary>>} vocabulary - The registry.
@@ -2036,11 +2023,11 @@ assertVocabularyCharset(NOTE_VOCABULARY);
  *   one, and is why the lint makes no claim rather than refusing every key.
  */
 export function dataFields(type, vocabulary = NOTE_VOCABULARY) {
-    const entry = vocabulary?.[currentType(type)];
+    const entry = vocabulary?.[type];
     if (!entry) return undefined;
     // The shared keys first, so a type's own declarations keep their authored
     // order behind them and a reader meets the art before the mechanics.
-    const key = currentType(type);
+    const key = type;
     return Object.freeze([
         ...SHARED_DATA_FIELDS,
         ...(emitsIcon(key) ? [ICON_FIELD] : []),
@@ -2059,7 +2046,7 @@ export function dataFields(type, vocabulary = NOTE_VOCABULARY) {
  *   it has no `subType` at all — see {@link TypeVocabulary}.
  */
 export function subTypes(type, vocabulary = NOTE_VOCABULARY) {
-    const entry = vocabulary?.[currentType(type)];
+    const entry = vocabulary?.[type];
     if (!entry || !Object.hasOwn(entry, "subTypes")) return undefined;
     return entry.subTypes;
 }

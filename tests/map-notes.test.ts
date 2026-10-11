@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import { docEntryTypes, hasDocEntry } from "../engine/item-docs.mjs";
-import { MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES, isMapType } from "../engine/ids.mjs";
+import { MAP_TYPES, PACK_BY_TYPE, isMapType } from "../engine/ids.mjs";
 
 describe("map note types", () => {
     it("recognises the one map type, the other names being subtypes", () => {
@@ -16,12 +16,6 @@ describe("map note types", () => {
         expect(isMapType("battlemap")).toBe(false);
         expect(isMapType("skill")).toBe(false);
         expect(isMapType(undefined)).toBe(false);
-    });
-
-    it("names each retired spelling, rather than routing it to the items pack", () => {
-        for (const old of ["battlemap", "localmap", "regionalmap"]) {
-            expect(RETIRED_TYPES[old], old).toBe("map");
-        }
     });
 
     it("routes the one type to the scenes pack", () => {

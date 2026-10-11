@@ -87,19 +87,6 @@ describe("auditLinks — the homepage", () => {
         ).toEqual([]);
     });
 
-    it("reports an address naming a retired content type", () => {
-        const found = messages({
-            "homepage.md": homepage(
-                "",
-                "Every [creature](kb/creature/) and every [character](kb/character/).\n",
-            ),
-        });
-        expect(found).toHaveLength(2);
-        expect(found[0]).toContain('content type "creature", retired in favour of "being"');
-        expect(found[0]).toContain('mechanical: "kb/being/"');
-        expect(found[1]).toContain('content type "character", retired in favour of "being"');
-    });
-
     it("reports an absolute URL into this package's own address", () => {
         const found = messages({
             "homepage.md": homepage(
@@ -176,12 +163,15 @@ describe("auditLinks — the homepage", () => {
 
     it("locates a finding at the line the address is written on", () => {
         const { homepageLinks } = audit({
-            "homepage.md": homepage("", "Prose first.\n\nThen [creatures](kb/creature/).\n"),
+            "homepage.md": homepage(
+                "",
+                "Prose first.\n\nThen [rules](https://www.heroiclands.org/sohl/kb/rules/).\n",
+            ),
         });
         const f = homepageLinks[0];
         expect(positionOfLiteral(f.note.raw, f.text, f.occurrence)).toEqual({
             line: 7,
-            column: 18,
+            column: 14,
         });
     });
 
@@ -194,7 +184,7 @@ describe("auditLinks — the homepage", () => {
                     "shortcode: clmb",
                     "---",
                     "",
-                    "See [creatures](kb/creature/).",
+                    "See [rules](https://www.heroiclands.org/sohl/kb/rules/).",
                     "",
                 ].join("\n"),
             }),

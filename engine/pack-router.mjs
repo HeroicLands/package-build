@@ -132,9 +132,7 @@ export { NO_PACK };
  */
 export function declaresNoPack(fm, system) {
     const declared =
-        system === undefined ?
-            (fm?.data?.[PACK_FIELD] ?? fm?.[PACK_FIELD])
-        :   blockDataProperty(fm, system, PACK_FIELD);
+        system === undefined ? fm?.data?.[PACK_FIELD] : blockDataProperty(fm, system, PACK_FIELD);
     return declared === NO_PACK;
 }
 
@@ -274,7 +272,7 @@ export function createPackRouter(packs) {
         const authoredInBlock = inBlock != null && inBlock !== "";
         let declared =
             system === undefined ?
-                (fm?.data?.[PACK_FIELD] ?? fm?.[PACK_FIELD])
+                fm?.data?.[PACK_FIELD]
             :   blockDataProperty(fm, system, PACK_FIELD);
         // The declaration names where the note's *own* document goes. A pass
         // writing a document derived from it — an item's prose becoming a

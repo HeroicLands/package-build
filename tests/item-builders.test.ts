@@ -148,7 +148,7 @@ describe("the art a compiled sohl item actually gets", () => {
         type: "skill",
         shortcode: "awar",
         name: { full: "Awareness" },
-        sohl: { subType: "physical", archetype: null },
+        sohl: { subType: "physical", templatePriority: null },
     };
 
     it("is the map's entry, exactly as before the art moved", () => {

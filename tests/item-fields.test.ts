@@ -112,7 +112,8 @@ describe("the declarations preserve the vocabulary they replaced", () => {
 
     it("renames contagionIndex onto its Base field", () => {
         expect(
-            build("affliction", { subType: "disease", contagionIndex: 7 }).contagionIndexBase,
+            build("affliction", { subType: "disease" }, { data: { contagionIndex: 7 } })
+                .contagionIndexBase,
         ).toBe(7);
     });
 
@@ -211,10 +212,11 @@ describe("the declarations preserve the vocabulary they replaced", () => {
 
     it("validates an affiliation's standings against the closed list", () => {
         expect(() =>
-            build("affiliation", {
-                subType: "temporal",
-                relation: { abc: "friendly" },
-            }),
+            build(
+                "affiliation",
+                { subType: "temporal" },
+                { data: { relations: { abc: "friendly" } } },
+            ),
         ).toThrow(/must be one of/);
     });
 });
@@ -365,11 +367,12 @@ describe("the surviving gear possession constants", () => {
 });
 
 describe("affiliation references", () => {
-    it("emits `system.relations`, not the retired singular", () => {
-        const system = build("affiliation", {
-            subType: "guild",
-            relations: { peoni: "nemesis" },
-        });
+    it("emits `system.relations`, not the singular", () => {
+        const system = build(
+            "affiliation",
+            { subType: "guild" },
+            { data: { relations: { peoni: "nemesis" } } },
+        );
         expect(system.relations).toEqual({ peoni: "nemesis" });
         expect(system).not.toHaveProperty("relation");
     });
@@ -382,38 +385,40 @@ describe("affiliation references", () => {
     });
 
     it("records several parents, because a body may sit under more than one", () => {
-        const system = build("affiliation", {
-            subType: "arcanetradition",
-            parents: ["ordoarcanis", "vylarianempire"],
-        });
+        const system = build(
+            "affiliation",
+            { subType: "arcanetradition" },
+            { data: { parents: ["ordoarcanis", "vylarianempire"] } },
+        );
         expect(system.parents).toEqual(["ordoarcanis", "vylarianempire"]);
     });
 
-    it("ignores retired domains without emitting an affiliation domain", () => {
-        const system = build("affiliation", {
-            subType: "polity",
-            domains: ["kaldorregion", "tashal"],
-        });
+    it("ignores domains without emitting an affiliation domain", () => {
+        const system = build(
+            "affiliation",
+            { subType: "polity" },
+            { data: { domains: ["kaldorregion", "tashal"] } },
+        );
         expect(system).not.toHaveProperty("domain");
         expect(system).not.toHaveProperty("domains");
     });
 
     it("drops the blank rows a cleared property editor leaves behind", () => {
-        const system = build("affiliation", {
-            subType: "guild",
-            parents: ["ordoarcanis", "", "  "],
-            domains: [],
-        });
+        const system = build(
+            "affiliation",
+            { subType: "guild" },
+            { data: { parents: ["ordoarcanis", "", "  "], domains: [] } },
+        );
         expect(system.parents).toEqual(["ordoarcanis"]);
         expect(system).not.toHaveProperty("domain");
     });
 
-    it("keeps its declared seat while ignoring obsolete domains", () => {
-        const system = build("affiliation", {
-            subType: "polity",
-            seat: "golotha",
-            domains: ["kaldorregion"],
-        });
+    it("keeps its declared seat while ignoring domains", () => {
+        const system = build(
+            "affiliation",
+            { subType: "polity" },
+            { data: { seat: "golotha", domains: ["kaldorregion"] } },
+        );
         expect(system.seat).toBe("golotha");
         expect(system).not.toHaveProperty("domain");
     });

@@ -170,12 +170,6 @@ describe("applyComputedBeingAge", () => {
         applyComputedBeingAge(fm, "720/1/1");
         expect((fm.data as any).age).toBeUndefined();
     });
-
-    it("computes from the retired `birthday:` spelling when `born:` is unwritten", () => {
-        const fm = { type: "being", data: { birthday: "676/12/5" } };
-        applyComputedBeingAge(fm, "720/1/1");
-        expect((fm.data as any).age).toBe(43);
-    });
 });
 
 describe("presentAmongRecords / presentAmongFrontmatters", () => {

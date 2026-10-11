@@ -124,9 +124,17 @@ describe("the resolution order for a declared field", () => {
         });
     });
 
-    it("falls back to the block's own key — where the corpus writes it today", () => {
-        const fm = { data: { portrait: "shared.webp" }, sohl: { "data.portrait": "legacy.webp" } };
-        expect(resolveFieldValue(field, fm, { block: "sohl" }).from).toBe("block");
+    it("gives a `data:` source no in-block position", () => {
+        const fm = { sohl: { portrait: "block.webp", "data.portrait": "block.webp" } };
+        expect(resolveFieldValue(field, fm, { block: "sohl" }).from).toBe("default");
+    });
+
+    it("falls back to the field's own name in the block, for a name outside `data:`", () => {
+        const local = { to: "heft", name: "heft", default: 0, describe: "" };
+        expect(resolveFieldValue(local, { sohl: { heft: 4 } }, { block: "sohl" })).toEqual({
+            value: 4,
+            from: "block",
+        });
     });
 
     it("falls back to the shared property the field declares as its source", () => {
@@ -255,31 +263,25 @@ describe("resolveDataProperty", () => {
         });
     });
 
-    it("reads the retiring top-level spelling `data:` gathered it off", () => {
-        // What a tree still authors directly, before the `data:` migration —
-        // `pack:` beside `shortcode:`, the same shape `data.species`'s
-        // retiring top level is.
+    it("does not read the top level", () => {
         expect(resolveDataProperty({ pack: "items" }, "sohl", "pack")).toEqual({
-            value: "items",
-            from: "topLevel",
+            value: undefined,
+            from: "default",
         });
     });
 
-    it("prefers the block over `data:` over the top level, in that order", () => {
+    it("prefers the block over `data:`", () => {
         expect(
             resolveDataProperty(
-                { sohl: { pack: "items-sohl" }, data: { pack: "items-data" }, pack: "items-top" },
+                { sohl: { pack: "items-sohl" }, data: { pack: "items-data" } },
                 "sohl",
                 "pack",
             ),
         ).toEqual({ value: "items-sohl", from: "block" });
-        expect(
-            resolveDataProperty(
-                { data: { pack: "items-data" }, pack: "items-top" },
-                "sohl",
-                "pack",
-            ),
-        ).toEqual({ value: "items-data", from: "shared" });
+        expect(resolveDataProperty({ data: { pack: "items-data" } }, "sohl", "pack")).toEqual({
+            value: "items-data",
+            from: "shared",
+        });
     });
 
     it("falls to the supplied default when no position declares it", () => {
@@ -296,7 +298,6 @@ describe("blockDataProperty", () => {
             "items-sohl",
         );
         expect(blockDataProperty({ data: { pack: "items" } }, "sohl", "pack")).toBe("items");
-        expect(blockDataProperty({ pack: "items" }, "sohl", "pack")).toBe("items");
         expect(blockDataProperty({}, "sohl", "pack", "items")).toBe("items");
     });
 });
@@ -401,13 +402,13 @@ describe("unknownBlockKeys", () => {
                 pack: "actors",
                 system: {},
                 items: [],
-                archetype: 1,
+                templatePriority: 1,
                 kbcat: "people",
                 attributes: {},
             },
         };
         expect(
-            unknownBlockKeys(fm, "sohl", { known: ["archetype", "kbcat", "attributes"] }),
+            unknownBlockKeys(fm, "sohl", { known: ["templatePriority", "kbcat", "attributes"] }),
         ).toEqual([]);
     });
 

@@ -114,9 +114,7 @@
 
 import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { getFrontmatter } from "./frontmatter.mjs";
-import { currentType } from "./ids.mjs";
 import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
-import { readAliasedField } from "./retired-fields.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
 import { cultureNamesItself } from "./culture-choice.mjs";
@@ -387,7 +385,7 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
  */
 export function overlayFor(presentation, type, name) {
     const key = authoredKey(name);
-    return presentation?.[`${currentType(type)}.${key}`] ?? presentation?.[key] ?? {};
+    return presentation?.[`${type}.${key}`] ?? presentation?.[key] ?? {};
 }
 
 /** What a composed group's row is called. @type {Readonly<Record<string, string>>} */
@@ -1025,12 +1023,7 @@ function noteBox(
     for (const field of dataFields(fm?.type, vocabulary) ?? []) {
         const overlay = overlayFor(presentation, fm?.type, field.name);
         if (overlay.withheld) continue;
-        // The retired spelling underneath, so a note part-way through a rename
-        // still shows its value rather than losing the row with nothing said.
-        // The current name wins, which is the whole of the retirement window's
-        // behaviour and is `readAliasedField`'s answer, not a second one.
-        const own = getFrontmatter(data, field.name, undefined);
-        let raw = own !== undefined ? own : readAliasedField(fm, field.name, { inData: true });
+        let raw = getFrontmatter(data, field.name, undefined);
         // A culture note resolves to itself, and a row linking it to itself
         // says nothing.
         if (field.name === "culture" && cultureNamesItself(fm, raw, { contentPackage })) continue;
@@ -1339,7 +1332,7 @@ export function buildInfoboxes(fm, options) {
             sections: [],
         };
         if (available && provider) {
-            const type = currentType(fm.type);
+            const type = fm.type;
             const ctx = {
                 block: map.block,
                 resolve,

@@ -12,7 +12,7 @@
  */
 
 import { declaredSystems, systemBlocksFor } from "./system-vocabulary.mjs";
-import { RETIRED_FIELD_ALIASES } from "./retired-fields.mjs";
+import { inBlockKey } from "./system-block.mjs";
 import {
     isAddressTuple,
     parseAddress,
@@ -189,18 +189,13 @@ export function addressPositions(fm, context = {}) {
                     :   system,
             };
             out.push({ ...position, path: [system, "system", ...field.to.split(".")] });
-            out.push({
-                ...position,
-                path: [system, ...(field.legacyKey ?? field.name).split(".")],
-            });
+            const inBlock = inBlockKey(field);
+            if (inBlock !== undefined) {
+                out.push({ ...position, path: [system, ...inBlock.split(".")] });
+            }
             if (field.name?.startsWith("data.") && field.topLevelMeans === undefined)
                 out.push({ ...position, path: field.name.slice(5).split(".") });
         }
-    }
-    for (const position of [...out]) {
-        const last = position.path.at(-1);
-        const retired = RETIRED_FIELD_ALIASES[last];
-        if (retired) out.push({ ...position, path: [...position.path.slice(0, -1), retired] });
     }
     return out;
 }

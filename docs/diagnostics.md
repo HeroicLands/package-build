@@ -109,13 +109,11 @@ different lines or columns instead of collapsing onto the first.
 frontmatter key** by searching the fence rather than the whole file — a bare
 search for a key like `name` or `type` would routinely match a line of prose
 first. Passing `value` narrows the match to the entry that carries it, which
-is what a list-valued key (`aliases`) needs: the finding belongs on the
+is what a list-valued key (`tags`) needs: the finding belongs on the
 wrong entry, not on the key that introduces the list. `opts.topLevel`
 requires the match at column 1, for a key name that is legal both at the top
-level and nested (`aliases` is both a retired top-level field and a
-permitted `name.aliases`) — without it, a finding about the retired field
-could resolve to the nested one and tell an author to delete a field they are
-allowed to write.
+level and nested — without it, a finding about the top-level key could
+resolve to the nested one.
 
 **`positionOfYamlPath(text, keyPath, opts)`** and
 **`positionOfFrontmatterPath(raw, keyPath, opts)`** locate a node by
@@ -298,18 +296,14 @@ all fails the run.
 
 **A corpus problem always fails, regardless of severity or a `--strict`
 flag.** When the content tree itself cannot be indexed — a note the walk
-cannot record, most often a retired `package:` key — the note is absent from
+cannot record, most often a declared `package:` key — the note is absent from
 every other answer a command gives. Reporting it and still exiting `0` would
 call the tree clean while silently omitting a note, so every command that
-indexes a corpus (`lint`, `links`, `reachability`, `content-format notes`,
-`addresses diff`) fails on a corpus problem unconditionally, before it
+indexes a corpus (`lint`, `links`, `reachability`, `addresses diff`) fails on a corpus problem unconditionally, before it
 evaluates anything else.
 
 **A few commands report advisory findings that never fail the run on their
-own**, and say so where they emit them: `content-format notes` measures a
-content tree against the format specification as a progress report during a
-migration, printing every finding as a `warning` and passing `--strict` to
-promote a class to `error` only once that class has reached zero; `format`
+own**, and say so where they emit them: `format`
 reports where this repository's Prettier configuration diverges from the
 shared convention as a `warning`, because a repository's own configuration
 is allowed to win on purpose; `addresses diff` reports a withdrawn or renamed
@@ -325,7 +319,6 @@ over one would teach people to stop reading the report.
 | command                                          | fails when                                                                                                                                                                                                                                                         |
 | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `package-build lint [root]`                      | an address, frontmatter, schema, charset, icon or HTML finding is `error`-severity, or the corpus cannot be indexed                                                                                                                                                |
-| `package-build content-format notes [root]`      | `--strict` was passed and it reported any finding (all findings are `error`-severity only under `--strict`), or the corpus cannot be indexed                                                                                                                       |
 | `package-build content-format schema`            | it reports any finding at all                                                                                                                                                                                                                                      |
 | `package-build content-format fields`            | it reports any finding at all                                                                                                                                                                                                                                      |
 | `package-build links [root]`                     | it reports any finding at all, an index is unusable (a stale or unaddressable foreign manifest), or the corpus cannot be indexed                                                                                                                                   |

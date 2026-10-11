@@ -23,8 +23,6 @@ import {
     checkDeclaredFields,
     checkSchemaTargets,
     fieldDriftMessage,
-    measureCorpus,
-    measureNote,
     undeclaredTargetMessage,
 } from "../engine/content-format-check.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
@@ -389,76 +387,6 @@ describe("the specification against the committed fixture schema", () => {
     });
 });
 
-describe("measuring a note against the declared vocabulary", () => {
-    const format = parseContentFormat(MINI, { file: "spec.md" });
-    const note = (fm: object) => ({
-        file: "/tree/note.md",
-        raw: `---\n${Object.keys(fm)
-            .map((k) => `${k}: x`)
-            .join("\n")}\n---\n`,
-        fm,
-    });
-
-    it("says nothing about a conforming note", () => {
-        const findings = measureNote(note({ type: "weapon", data: { weight: 3 } }), format);
-        expect(findings).toEqual([]);
-    });
-
-    it("reports a key the type's `data` table does not declare, and guesses the one meant", () => {
-        const findings = measureNote(note({ type: "weapon", data: { weigth: 3 } }), format);
-        expect(findings).toHaveLength(1);
-        expect(findings[0].class).toBe("unknown-data-key");
-        expect(messages(findings)).toContain('Did you mean "weight"?');
-    });
-
-    it("reports a declared `data` property authored at top level", () => {
-        const findings = measureNote(note({ type: "weapon", weight: 3 }), format);
-        expect(findings).toHaveLength(1);
-        expect(findings[0].class).toBe("top-level-data-key");
-        expect(messages(findings)).toContain("`data.weight`");
-    });
-
-    it("reports a declared `data` property authored inside a system block", () => {
-        const findings = measureNote(note({ type: "weapon", sohl: { weight: 3 } }), format);
-        expect(findings).toHaveLength(1);
-        expect(findings[0].class).toBe("system-block-data-key");
-        expect(messages(findings)).toContain("sohl.system");
-    });
-
-    it("leaves a system block's own vocabulary alone", () => {
-        // The format does not define the `sohl:` schema — the system does — so
-        // a key it says nothing about is not this check's to refuse.
-        const findings = measureNote(note({ type: "weapon", sohl: { heft: 12 } }), format);
-        expect(findings).toEqual([]);
-    });
-
-    it("reports a note whose type the format declares no section for", () => {
-        const findings = measureNote(note({ type: "weapongear" }), format);
-        expect(findings).toHaveLength(1);
-        expect(findings[0].class).toBe("unknown-type");
-        expect(messages(findings)).toContain("weapongear");
-    });
-
-    it("counts findings by class across a corpus", () => {
-        const result = measureCorpus(
-            [
-                note({ type: "weapon", weight: 3 }),
-                note({ type: "weapon", data: { weigth: 3 } }),
-                note({ type: "place", data: { parents: ["x"] } }),
-            ],
-            format,
-        );
-        expect(result.notes).toBe(3);
-        expect(result.findings).toHaveLength(2);
-        expect(result.byClass).toEqual({ "top-level-data-key": 1, "unknown-data-key": 1 });
-    });
-
-    it("emits findings as warnings, so the report is not a failing check", () => {
-        const { findings } = measureCorpus([note({ type: "weapon", weight: 3 })], format);
-        expect(findings.every((f) => f.severity === "warning")).toBe(true);
-    });
-});
-
 describe("the specification against the declarations that compile it", () => {
     /** A declaration set in the shape `itemBuilders` entries carry. */
     const DECLARED = {
@@ -683,19 +611,5 @@ describe("affiliation domains", () => {
         const format = loadContentFormat();
         expect(format.types.get("affiliation")?.dataKeys.has("domains")).toBe(false);
         expect(format.claims.some((row: any) => row.source === "data.domains")).toBe(false);
-    });
-    it("is reported as an unknown data key on an affiliation", () => {
-        const findings = measureNote(
-            { fm: { type: "affiliation", data: { domains: ["temple"] } } },
-            loadContentFormat(),
-        );
-        expect(findings.some((finding: any) => finding.class === "unknown-data-key")).toBe(true);
-    });
-    it("is reported as an unknown data key on other note types", () => {
-        const findings = measureNote(
-            { fm: { type: "place", data: { domains: [] } } },
-            loadContentFormat(),
-        );
-        expect(findings.some((finding: any) => finding.class === "unknown-data-key")).toBe(true);
     });
 });

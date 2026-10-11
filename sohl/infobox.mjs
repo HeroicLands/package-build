@@ -62,7 +62,6 @@ import {
     humanizeValue,
     systemRowsSection,
 } from "../engine/infobox.mjs";
-import { currentType } from "../engine/ids.mjs";
 import { subTypes } from "../engine/note-vocabulary.mjs";
 import { systemBlock, systemData } from "../engine/system-block.mjs";
 import { readCanonicalKey } from "../engine/content-address.mjs";
@@ -240,7 +239,7 @@ export function decodeItem(entry) {
     if (!type) return undefined;
     return {
         ...(address ? { address } : {}),
-        type: currentType(type),
+        type: type,
         shortcode,
         name: typeof entry.name === "string" ? entry.name : "",
         system,

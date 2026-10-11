@@ -58,14 +58,14 @@ describe("resolveImg (content → Foundry img path translation)", () => {
         expect(resolveImg("https://example.com/a.png")).toBe("https://example.com/a.png");
     });
 
-    it("tells an unset path from a deliberately blank one", () => {
+    it("tells an unset path from an empty one", () => {
         // Translation only — each builder applies its own per-type default
         // (actors → being, items → per-type / miscgear) to an *unset* path,
-        // with `??`. The two empties are not one case: `null` and an absent
-        // key mean "no art named, use the default", `""` means "ship no art".
+        // with `??`. `null` and an absent key mean "no art named, use the
+        // default"; `""` names no file and is refused.
         // The full rule, and every caller that pairs a default with
         // it, is pinned in `img-unset-vs-blank.test.ts`.
-        expect(resolveImg("")).toBe("");
+        expect(() => resolveImg("")).toThrow(/empty pathname/);
         expect(resolveImg(undefined)).toBeNull();
         expect(resolveImg(null)).toBeNull();
     });
@@ -179,7 +179,7 @@ describe("resolveImg for a non-`sohl` consumer", () => {
         expect(resolveImg("thalorna/assets/icons/other/sword.svg", moduleConfig)).toBe(
             "modules/sohl-thalorna/assets/icons/other/sword.svg",
         );
-        expect(resolveImg("", moduleConfig)).toBe("");
+        expect(() => resolveImg("", moduleConfig)).toThrow(/empty pathname/);
     });
 
     it("obeys the same ownership rule, only under a different root", () => {
@@ -267,7 +267,7 @@ const skillNote = (data: Record<string, unknown>) => ({
     type: "skill",
     shortcode: "awar",
     name: { full: "Awareness" },
-    sohl: { subType: "physical", archetype: null },
+    sohl: { subType: "physical", templatePriority: null },
     data,
 });
 
@@ -278,7 +278,7 @@ const beingNote = (data: Record<string, unknown>) => ({
     shortcode: "folk",
     subType: "character",
     name: { full: "Basic Folk" },
-    sohl: { archetype: null },
+    sohl: { templatePriority: null },
     data,
 });
 

@@ -47,7 +47,7 @@ ${forbid ? "forbidGeneratedArt: true\n" : ""}`,
     fs.writeFileSync(
         path.join(root, "assets", "content", "Bowl.md"),
         "---\nname:\n  full: Bowl\ndescription: A bowl.\nid: bowlxxxxxxxxxxxx\n" +
-            "shortcode: bowl\ntype: miscgear\nsohl:\n  archetype: 0\n  quality: 0\n" +
+            "shortcode: bowl\ntype: miscgear\nsohl:\n  templatePriority: 0\n  quality: 0\n" +
             "  durability: 2\n  kbcat: cooking\n  value: 6\n  weight: 3\n---\n\nProse.\n",
     );
     fs.writeFileSync(path.join(root, "assets", "icons", "anvil.svg"), "<svg/>");

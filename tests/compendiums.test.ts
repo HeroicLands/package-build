@@ -29,7 +29,7 @@ id: FFFFFFFFFFFFFFFF
 shortcode: sandbox
 type: doc
 sohl:
-  archetype: null
+  templatePriority: null
 ---
 
 # Overview

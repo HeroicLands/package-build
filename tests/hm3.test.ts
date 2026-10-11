@@ -165,7 +165,7 @@ describe("the five shared type names resolve through each system's own half", ()
     it("each system's builder emits its own system's field paths", () => {
         // One authored fact, two documents: both halves draw `weight` from the
         // same shared source and send it somewhere different.
-        const fm = { weight: 7, value: 300, quality: 2, durability: 5 };
+        const fm = { data: { weight: 7, value: 300, quality: 2, durability: 5 } };
         for (const type of ["armorgear", "containergear", "miscgear"] as const) {
             const sohl = ITEM_BUILDERS[type].system(fm);
             const hm3 = HM3_ITEM_BUILDERS[type].system(fm);
@@ -179,7 +179,7 @@ describe("the five shared type names resolve through each system's own half", ()
     });
 
     it("a skill's mastery level lands at each system's own path", () => {
-        const fm = { subType: "physical", masteryLevelBase: 42, masteryLevel: 42 };
+        const fm = { subType: "physical", masteryLevelBase: 42, data: { masteryLevel: 42 } };
         expect(ITEM_BUILDERS.skill.system(fm)).toHaveProperty("masteryLevelBase", 42);
         expect(HM3_ITEM_BUILDERS.skill.system(fm)).toHaveProperty("masteryLevel", 42);
     });
@@ -476,11 +476,12 @@ name:
 id: AAAAAAAAAAAAAAAA
 shortcode: broadsword
 type: weapongear
-weight: 5
-value: 400
+data:
+  weight: 5
+  value: 400
 sohl:
   pack: items-sohl
-  archetype: null
+  templatePriority: null
 hm3:
   pack: items-hm3
   type: weapongear
@@ -507,7 +508,7 @@ data:
   occupation: Knight
 sohl:
   pack: actors-sohl
-  archetype: null
+  templatePriority: null
 hm3:
   pack: actors-hm3
   type: character
@@ -531,9 +532,9 @@ name:
 id: CCCCCCCCCCCCCCCC
 shortcode: trainingsword
 type: weapongear
-weight: 4
-value: 20
 data:
+  weight: 4
+  value: 20
   templatePriority: 0
 sohl:
   pack: items-sohl
@@ -686,47 +687,6 @@ it(
     SUBPROCESS_TEST_TIMEOUT,
 );
 
-/**
- * A `being` written the way the corpus writes it today: the shared facts inside
- * the `hm3:` block, where every one of the 2,512 `harn-ensemble` beings carries
- * them.
- */
-const LEGACY_KNIGHT = KNIGHT.replace(
-    "data:\n  species: human\n  gender: male\n  occupation: Knight\n",
-    "",
-).replace("  type: character\n", "  type: character\n  species: human\n  gender: male\n");
-
-describe("a field mid-sweep reads either position, and says which", () => {
-    let root: string;
-    let result: { errors: number; output: string };
-
-    beforeAll(() => {
-        // The sword rides along so the item and journal packs are not empty —
-        // an empty pack is its own error, and this test is about the being.
-        root = dualRepo({ "Aldric.md": LEGACY_KNIGHT, "Broadsword.md": SWORD });
-        roots.push(root);
-        result = compile(root);
-    });
-
-    it("still compiles a note that writes the legacy in-block key", () => {
-        expect(result.errors).toBe(0);
-        expect(packDocs(root, "actors-hm3")["Sir Aldric"].system.species).toBe("human");
-        expect(packDocs(root, "actors-hm3")["Sir Aldric"].system.gender).toBe("male");
-    });
-
-    it("reports the legacy position, so the sweep has something to count down", () => {
-        expect(result.output).toContain("`hm3.gender:` is the legacy position");
-        expect(result.output).not.toContain("`data.species:`");
-    });
-
-    it("reports it as a warning, not an error", () => {
-        // The note compiles to the correct document; failing a build over it
-        // would red a tree that has done nothing wrong yet.
-        expect(result.output).toMatch(/warning: `hm3\.gender:`/);
-        expect(result.errors).toBe(0);
-    });
-});
-
 describe("a note carrying only one block compiles only that system's document", () => {
     it(
         "is passed over by the other system's pass rather than failed",
@@ -738,8 +698,9 @@ name:
 id: CCCCCCCCCCCCCCCC
 shortcode: beltpouch
 type: containergear
-weight: 1
-capacity: 10
+data:
+  weight: 1
+  capacity: 10
 hm3:
   pack: items-hm3
 ---
@@ -780,7 +741,7 @@ shortcode: secondsight
 type: mysticalability
 sohl:
   pack: items-sohl
-  archetype: null
+  templatePriority: null
   subType: arcanetalent
 hm3:
   pack: items-hm3
@@ -847,23 +808,21 @@ describe("an embedded reference naming a mysticalability subtype carries default
         expect(doc!.img).toBe(expected);
     });
 
-    it("still refuses a subtype this map pairs with no default, unchanged", () => {
-        // The fail-fast contract itself is not weakened: the override answers
-        // for exactly `spell`, `invocation` and `psionic` and falls through to
-        // the engine's table for anything else, which still throws rather than
-        // shipping a document with no image.
+    it("refuses a subtype no registry declares, and ships no document", () => {
+        // The override answers for exactly `spell`, `invocation` and `psionic`;
+        // a type nothing declares is refused before any art is asked for.
         const pack = hm3Actors();
-        expect(() =>
-            pack.resolveEmbedded(
-                new Map(),
-                "AAAAAAAAAAAAAAAA",
-                "no-such-subtype",
-                null,
-                { name: "Nothing", system: {} },
-                "items:0",
-                'actor "Test Being"',
-            ),
-        ).toThrow(/No default art for item type "no-such-subtype"/);
+        const embedded = pack.resolveEmbedded(
+            new Map(),
+            "AAAAAAAAAAAAAAAA",
+            "no-such-subtype",
+            null,
+            { name: "Nothing", system: {} },
+            "items:0",
+            'actor "Test Being"',
+        );
+        expect(embedded).toBeNull();
+        expect(pack.errorCount).toBe(1);
     });
 });
 
@@ -881,12 +840,13 @@ name:
 id: EEEEEEEEEEEEEEEE
 shortcode: beltpouch
 type: containergear
-weight: 1
-capacity: 10
+data:
+  weight: 1
+  capacity: 10
 maxCapacity: 10
 sohl:
   pack: items-sohl
-  archetype: null
+  templatePriority: null
 ${sohlSystem}
 hm3:
   pack: items-hm3
@@ -984,13 +944,11 @@ describe("the hm3 half stays a half", () => {
  * systems record, SoHL as `system.templatePriority` and HM3 as
  * `flags.hm3.templatePriority`.
  *
- * It was resolved here as an ordinary declared field, whose shared source is a
- * single position, so only a bare top-level `templatePriority` ever answered.
- * A note authoring it at the *specified* home (`data:`), or at the retiring
- * `archetype` spelling every unswept tree still uses, wrote no flag at all —
- * silently, since HM3 omits the flag for a note that is not a template, making
- * "lost" and "not a template" the same output. `harn-ensemble` authors
- * `archetype:` on 2,502 notes and `templatePriority` on none.
+ * It is resolved through one shared resolver rather than as an ordinary
+ * declared field, whose shared source is a single position: a note authoring
+ * it at the *specified* home (`data:`) writes the flag, as does the block and
+ * the top level. HM3 omits the flag for a note that is not a template, making
+ * "lost" and "not a template" the same output, so every position is held here.
  */
 describe.each([
     [
@@ -1018,8 +976,8 @@ describe.each([
             ["the specified home, `data:`", { data: { templatePriority: 3 } }, 3],
             ["the top level", { templatePriority: 4 }, 4],
             ["this system's own block", { hm3: { templatePriority: 5 } }, 5],
-            ["the retiring spelling, top level", { archetype: 7 }, 7],
-            ["the retiring spelling, in block", { hm3: { archetype: 8 } }, 8],
+            ["the retiring spelling, top level", { templatePriority: 7 }, 7],
+            ["the retiring spelling, in block", { hm3: { templatePriority: 8 } }, 8],
             ["a priority of 0, which is a real one", { data: { templatePriority: 0 } }, 0],
         ])("writes the flag from %s", (_where, fm, expected) => {
             expect(flagsFor(fm as Record<string, unknown>).hm3.templatePriority).toBe(expected);
@@ -1042,20 +1000,13 @@ describe.each([
         });
 
         /**
-         * Deliberate, and the reason `harn-ensemble` is not fixed by this read
-         * alone: it states the priority at `sohl.archetype` on 2,502 notes, and
-         * those notes get their HM3 flag when the tree sweeps to `data:` (step 2 of
-         * the migration), not by this pass reaching into another system's block.
+         * Deliberate: a note that states the priority only in the `sohl:` block
+         * gets its HM3 flag from `data:`, not by this pass reaching into another
+         * system's block.
          */
         it("does not read the other system's block", () => {
-            expect(flagsFor({ sohl: { archetype: 1 } }).hm3).toBeUndefined();
             expect(flagsFor({ sohl: { templatePriority: 1 } }).hm3).toBeUndefined();
-        });
-
-        it("refuses a note whose two spellings disagree, rather than picking one", () => {
-            expect(() => flagsFor({ data: { templatePriority: null }, archetype: 0 })).toThrow(
-                /Conflicting templatePriority/,
-            );
+            expect(flagsFor({ sohl: { templatePriority: 1 } }).hm3).toBeUndefined();
         });
     },
 );

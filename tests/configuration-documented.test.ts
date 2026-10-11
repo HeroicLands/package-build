@@ -497,19 +497,6 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
         expect(DOC, `docs/configuration.md should quote: ${message}`).toContain(message);
     }
 
-    it("retired keys", () => {
-        assertQuoted(
-            thrown(() =>
-                defineConfig(minimal({ packs: [{ name: "x", type: "Item", folders: {} }] })),
-            ).replace(/^package-build config: `packs\[0\]\.folders` /, ""),
-        );
-        assertQuoted(
-            thrown(() =>
-                defineConfig(minimal({ publish: { address: { prefix: "kb/", landing: true } } })),
-            ).replace(/^package-build config: `publish\.address\.landing` /, ""),
-        );
-    });
-
     it("`contentPackage`", () => {
         assertQuoted(
             thrown(() => defineConfig(minimal({ contentPackage: "harn-adventures" }))).replace(
@@ -761,28 +748,28 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
         );
     });
 
-    it("`site.sections`, `site.landing`, `site.backfillSections` and `site.list`", () => {
-        for (const site of [
-            { sections: { foo: { title: "t" } } },
-            { landing: { title: "t" } },
-            { backfillSections: true },
-            { list: { shortcodes: true } },
-        ]) {
-            assertQuoted(
-                thrown(() => defineConfig(minimal({ site }))).replace(
-                    /^package-build config: `site\.\w+` /,
-                    "",
-                ),
-            );
-        }
-    });
-
-    it("`site.trees` and `site.readmeSections`", () => {
+    it("an unrecognized `site` key", () => {
         assertQuoted(
             thrown(() => defineConfig(minimal({ site: { trees: [] } }))).replace(
                 /^package-build config: `site\.trees` /,
                 "",
             ),
+        );
+    });
+
+    it("an unrecognized `publish.address` key", () => {
+        assertQuoted(
+            thrown(() =>
+                defineConfig(minimal({ publish: { address: { prefix: "kb/", landing: true } } })),
+            ).replace(/^package-build config: `publish\.address\.landing` /, ""),
+        );
+    });
+
+    it("an unrecognized pack key", () => {
+        assertQuoted(
+            thrown(() =>
+                defineConfig(minimal({ packs: [{ name: "x", type: "Item", folders: {} }] })),
+            ).replace(/^package-build config: `packs\[0\]\.folders` /, ""),
         );
     });
 

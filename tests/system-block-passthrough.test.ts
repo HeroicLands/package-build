@@ -35,7 +35,7 @@ id: PPPPPPPPPPPPPPPP
 shortcode: passthroughskill
 type: skill
 sohl:
-  archetype: null
+  templatePriority: null
   subType: physical
   skillBaseFormula: "sb(attr.str)"
   combatCategory: none
@@ -57,7 +57,7 @@ id: QQQQQQQQQQQQQQQQ
 shortcode: passthroughbeing
 type: being
 sohl:
-  archetype: null
+  templatePriority: null
   system:
     currentMoveMedium: swim
     body:
@@ -76,7 +76,7 @@ id: RRRRRRRRRRRRRRRR
 shortcode: plainbeing
 type: being
 sohl:
-  archetype: null
+  templatePriority: null
 ---
 
 # Appearance

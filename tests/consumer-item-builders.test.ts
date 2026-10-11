@@ -154,7 +154,7 @@ const RELIC_FM = `{
     shortcode: "relic1",
     name: { full: "Cracked Signet" },
     data: { icon: "itembag" },
-    sohl: { power: 7, archetype: null },
+    sohl: { power: 7, templatePriority: null },
 }`;
 
 describe("a consumer's own itemBuilders table is the one that compiles", () => {
@@ -218,7 +218,7 @@ describe("a consumer's own itemBuilders table is the one that compiles", () => {
                     shortcode: "skill1",
                     name: { full: "Intrusion" },
                     data: { icon: "itembag" },
-                    sohl: { subType: "physical", archetype: null },
+                    sohl: { subType: "physical", templatePriority: null },
                 }, "");
             } catch (e) {
                 error = String(e.message);
@@ -241,7 +241,7 @@ const RELIC_FM_NO_IMG = `{
     type: "relic",
     shortcode: "relic2",
     name: { full: "Tarnished Torc" },
-    sohl: { power: 3, archetype: null },
+    sohl: { power: 3, templatePriority: null },
 }`;
 
 describe("a consumer's own item type has default art of its own", () => {

@@ -234,26 +234,6 @@ name:
         }
     });
 
-    it("refuses a note declaring `draft:`, rather than skipping it", () => {
-        // Dropping it in silence leaves every wikilink into it
-        // indistinguishable from a link to a note that does not exist — the
-        // one state the manifest exists to prevent.
-        note(
-            "Gear/Drafted.md",
-            `type: weapongear
-shortcode: drafted
-draft: true
-id: eeeeeeeeeeeeeeee
-name:
-    full: Drafted Blade`,
-        );
-        try {
-            expect(() => emit({ ...WEB })).toThrow(/`draft:` is a retired/);
-        } finally {
-            fs.rmSync(path.join(root, "assets/content/Gear/Drafted.md"));
-        }
-    });
-
     it("reports an unaddressable note rather than dropping it silently", () => {
         // No usable shortcode, so no address — the one thing left that a note
         // can fail to have. Written as whitespace rather than omitted, because

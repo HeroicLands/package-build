@@ -92,20 +92,17 @@ import {
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { reduceAddressFields } from "./address-fields.mjs";
 import { artPathname, artSlot, unacceptedArtMessage, unresolvedArtMessage } from "./art-fields.mjs";
-import { emitDiagnostic, positionOfFrontmatterPath, positionOfLiteral } from "./diagnostics.mjs";
-import { assertNoDeclaredPackage } from "./note-package.mjs";
-import { assertNoDeclaredFolder } from "./folder-notes.mjs";
 import {
-    assertNoAliasesField,
-    assertNoDraftField,
-    assertNoSectionField,
-    assertNoTraitsField,
-} from "./retired-fields.mjs";
-import { assertTypeNotRetired, packForType } from "./ids.mjs";
+    emitDiagnostic,
+    locateFrontmatterKey,
+    positionOfFrontmatterPath,
+    positionOfLiteral,
+} from "./diagnostics.mjs";
+import { assertNoDeclaredPackage } from "./note-package.mjs";
+import { packForType } from "./ids.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 import { carriesSystemBlock } from "./system-block.mjs";
 import { checkAuthoredSystemData, checkEmittedSystemData } from "./schema-check.mjs";
-import { locateFrontmatterKey } from "./retired-fields.mjs";
 // A being's computed `age`, filled in against the package's own declared
 // present before this pass reads `data:` for anything else — see
 // `engine/being-age.mjs`.
@@ -116,8 +113,8 @@ import { reckoningContext } from "./reckoning-markers.mjs";
  * The tallies one pass accumulates while walking the tree.
  *
  * `declined` and `skippedOther` are deliberately separate numbers. A declined
- * note is one this build **refused** — it declares a retired frontmatter field
- * — and it is an error; a skipped one legitimately belongs to another pass, and
+ * note is one this build **refused** — it declares `package:` — and it is an
+ * error; a skipped one legitimately belongs to another pass, and
  * there are thousands of those. Folding the first into the second is what let a
  * whole tree be filtered out in silence.
  *
@@ -125,9 +122,9 @@ import { reckoningContext } from "./reckoning-markers.mjs";
  * @property {number} compiled - Notes that became a document.
  * @property {number} skippedNoId - Notes with no `id`, where that is tolerated.
  * @property {number} skippedOther - Notes this pass does not claim.
- * @property {number} declined - Notes this pack **refused** — one declaring a
- *   retired frontmatter field, or one routed to a system pack whose system it
- *   says nothing about. Counted as errors, never as skips.
+ * @property {number} declined - Notes this pack **refused** — one declaring
+ *   `package:`, or one routed to a system pack whose system it says nothing
+ *   about. Counted as errors, never as skips.
  */
 
 /**
@@ -524,14 +521,14 @@ export class BasePackCompiler {
      * A refusal only this pass can make, because its subject is the note's
      * **type**.
      *
-     * The `assertNo*Field` family above it in the walk is type-agnostic by
-     * construction: it runs before `selects`, so that a note declaring a
-     * retired field is answered whichever pass would have claimed it. A rule
+     * The `assertNoDeclaredPackage` check above it in the walk is type-agnostic
+     * by construction: it runs before `selects`, so that a note declaring
+     * `package:` is answered whichever pass would have claimed it. A rule
      * about what a *`trauma`* may write cannot live there — it needs the type's
      * field declaration, which only the pass that compiles the type can reach.
      *
      * So it is a hook, called once the note is known to be this pass's, and its
-     * throw is counted and located exactly as the family's is: the note is
+     * throw is counted and located exactly as that check's is: the note is
      * declined rather than skipped, and the build fails naming the line.
      *
      * The default refuses nothing, which is the honest position for a pass
@@ -832,12 +829,10 @@ export class BasePackCompiler {
     /**
      * The Foundry path one authored art address names, or `null`.
      *
-     * **The two empties survive.** `null` and an absent key mean *no art named*,
-     * so the caller's own default applies with nullish coalescing; `""` means
-     * *ship blank on purpose* and no default may replace it. That is
-     * {@link module:engine/helpers.resolveImg}'s rule, reached through it rather
-     * than restated, which is also what puts an art address and a body image
-     * through one ownership rule.
+     * `null` and an absent key mean *no art named*, so the caller's own default
+     * applies with nullish coalescing. The address goes through
+     * {@link module:engine/helpers.resolveImg}, which puts an art address and a
+     * body image through one ownership rule.
      *
      * An address nothing answers is reported against the note and treated as
      * unnamed, so the document takes its default rather than shipping a path
@@ -849,8 +844,8 @@ export class BasePackCompiler {
      * @param {string} key - The key it was authored at, for the message.
      * @param {string} type - The asset type a bare value takes.
      * @param {Iterable<string>} [accepts] - The types this slot accepts.
-     * @returns {string|null} The Foundry-relative path, `""` for a deliberate
-     *   blank, or `null` where the note names none.
+     * @returns {string|null} The Foundry-relative path, or `null` where the
+     *   note names none.
      */
     artPathOf(value, key, type, accepts) {
         const {
@@ -1216,7 +1211,7 @@ export class BasePackCompiler {
         // A note the index could not record is a note this pass declines —
         // counted and reported exactly as the loop below does for the same
         // refusal, because it *is* the same refusal: the index defers to
-        // `assertNoDeclaredPackage` for a retired `package:`, which is the
+        // `assertNoDeclaredPackage` for a declared `package:`, which is the
         // check this loop makes a few lines further down. All that changed is
         // which pass sees the note first.
         if (this.reportsCorpusProblems) {
@@ -1258,44 +1253,20 @@ export class BasePackCompiler {
                 continue;
             }
             applyComputedBeingAge(fm, this.worldPresent, dates);
-            // The retired frontmatter fields, refused before `selects` so a
-            // note is answered whichever pass would have claimed it — and
-            // whatever the declared value says.
-            //
-            // - `package:`: a note's package is the repository's
-            //   configured one, so declaring it restates a constant.
-            // - `draft:`: it excluded the note from the packs, the
-            //   manifest and the site, and no checker reported the links that
-            //   left dangling.
-            // - `aliases:`: it fed the alias index, which the bare
-            //   `[[Alias]]` form was looked up in; the form is retired, so the
-            //   list has no reader left. The nested `name.aliases` is a
-            //   different field: the infobox displays it, and the note name
-            //   check validates it.
-            //
-            // Both are reported and counted — never skipped, which is how a
-            // tree naming a package nothing answers to used to compile zero
-            // notes and exit 0. The file comes from the diagnostic locator, so
-            // neither message may repeat it.
+            // `package:` is refused before `selects`, so a note is answered
+            // whichever pass would have claimed it: a note's package is the
+            // repository's configured one, so declaring it restates a
+            // constant. It is reported and counted, never skipped. The file
+            // comes from the diagnostic locator, so the message must not
+            // repeat it.
             try {
                 assertNoDeclaredPackage(fm, { absPath });
-                assertNoDeclaredFolder(fm, { absPath });
-                assertNoDraftField(fm, { absPath });
-                assertNoAliasesField(fm, { absPath });
-                assertNoSectionField(fm, { absPath });
-                assertNoTraitsField(fm, { absPath });
             } catch (err) {
                 stats.declined++;
                 this.errorCount++;
                 this.noteError(err.message, err.position);
                 continue;
             }
-            // Checked before `selects`, and therefore for every note this
-            // package owns rather than only the ones some pass claims. A
-            // retired type is claimed by no pass, so the alternative is not a
-            // wrong document — it is no document, skipped as quietly as the
-            // thousands of notes that legitimately belong to another pass.
-            assertTypeNotRetired(fm.type, absPath);
             if (!this.selects(fm)) {
                 stats.skippedOther++;
                 continue;
@@ -1350,11 +1321,10 @@ export class BasePackCompiler {
                     stats.skippedOther++;
                     continue;
                 }
-                // The type-specific half of the retired-field family:
-                // what a note of *this* type may not write, which needs the
+                // What a note of *this* type may not write, which needs the
                 // type's own field declaration and so cannot be asked before
                 // `selects`. Counted as a declined note for the same reason
-                // they are — the alternative is a tree that compiles fewer
+                // a declared `package:` is — the alternative is a tree that compiles fewer
                 // documents than it has notes and exits 0.
                 this.assertAuthorable(fm);
             } catch (err) {

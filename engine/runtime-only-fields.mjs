@@ -15,12 +15,9 @@
  * Schema fields a note may **never** author, because the document writes them
  * in play.
  *
- * `retired-fields.mjs` refuses a field a note may no longer declare; this
- * refuses one it never could. The two read alike deliberately — a note says one
- * thing, the build does another, and nothing says so — but they are different
- * facts, and only one of them is ever swept: a retired field goes away, while
+ * A note says one thing and the build does another, and nothing says so:
  * `onsetDate` is a permanent part of `affliction`'s schema that simply is not
- * content.
+ * content, so it is refused by name.
  *
  * ## What was going wrong
  *
@@ -65,7 +62,7 @@
 
 import { runtimeOnlyFields } from "./field-spec.mjs";
 import { getFrontmatter } from "./frontmatter.mjs";
-import { locateFrontmatterKey } from "./retired-fields.mjs";
+import { locateFrontmatterKey } from "./diagnostics.mjs";
 import { SYSTEM_DATA_KEY, systemData } from "./system-block.mjs";
 
 /**
@@ -107,7 +104,7 @@ export function runtimeOnlyMessage(key, field, file) {
 /**
  * The runtime-only fields a note actually writes, in declaration order.
  *
- * **Presence is the whole test**, as it is for every retired field: an authored
+ * **Presence is the whole test**: an authored
  * `onsetDate: null` is as much a claim about play state as a number is, and it
  * is exactly the belief the message exists to correct. So the question is
  * whether the path resolves to anything at all, never whether the value is a
@@ -115,7 +112,7 @@ export function runtimeOnlyMessage(key, field, file) {
  *
  * Only `<block>.system.<to>` is searched, because it is the only position a
  * runtime-only field is reachable at. Such a declaration carries no `name`, so
- * it has neither a legacy in-block key nor a shared top-level source — and a
+ * it has neither an in-block key nor a shared top-level source — and a
  * bare `<block>.onsetDate` is an unrecognized block key, which
  * {@link module:engine/system-block.unknownBlockKeys} already reports as an
  * error naming the note and the line.

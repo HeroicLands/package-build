@@ -249,7 +249,7 @@ describe("a path with no asset root to be served from", () => {
             "https://example.org/art.webp",
         );
         expect(resolveImg(null, config)).toBeNull();
-        expect(resolveImg("", config)).toBe("");
+        expect(() => resolveImg("", config)).toThrow(/empty pathname/);
     });
 });
 

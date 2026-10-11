@@ -138,7 +138,7 @@ import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 // `ids.mjs` is a leaf with no local imports, and `pack-config.mjs` reaches only
 // the configuration loader and the diagnostics writer — neither reads an
 // address, so the grammar sits below everything that consumes it.
-import { currentType, ITEM_PACK, JOURNAL_TYPES, packForType } from "./ids.mjs";
+import { ITEM_PACK, JOURNAL_TYPES, packForType } from "./ids.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 
@@ -225,12 +225,9 @@ export function docEntryTypes() {
  *   `macro`; false for `doc`.
  */
 export function hasDocEntry(type) {
-    // Through {@link currentType}, because the set is derived from the item
-    // registry's keys and those are the *current* spelling of a note type. A
-    // note still on a renamed one carries its documentation journal exactly as
-    // before — this is the one lookup between an item compiling and its prose
-    // silently compiling into nothing.
-    return docEntryTypes().has(String(currentType(type)));
+    // The set is derived from the item registry's keys: the one lookup between
+    // an item compiling and its prose silently compiling into nothing.
+    return docEntryTypes().has(String(type));
 }
 
 /** The segment of a note's own document. */

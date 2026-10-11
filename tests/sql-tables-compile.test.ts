@@ -31,7 +31,7 @@ description: A ${name.toLowerCase()}.
 data:
   id: ${code.padEnd(16, "x")}
 sohl:
-  archetype: 0
+  templatePriority: 0
   quality: 0
   durability: 2
   kbcat: ${cat}

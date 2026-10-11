@@ -264,8 +264,7 @@ export function buildMacroEntry(fm, { command, folder = null, stats = defaultSta
         // into chat instead of running.
         type: resolveMacroType(fm, name),
         author: null,
-        // Nullish, not `||`: a macro note that names no art gets the
-        // shared default, one that writes `icon: ""` ships blank on purpose.
+        // A macro note that names no art gets the shared default.
         img: (img === undefined ? null : img) ?? DEFAULT_MACRO_IMG,
         scope: resolveMacroScope(fm, name),
         command,

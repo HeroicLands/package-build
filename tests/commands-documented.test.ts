@@ -17,7 +17,7 @@
  * subcommands (a `.command(fooCommand())` call, possibly with validation preflights,
  * that falls textually inside
  * another `*Command()` function's own body is that command's child — this is
- * how `content-format` gets `schema` / `fields` / `notes` and everywhere else
+ * how `content-format` gets `schema` / `fields` and everywhere else
  * does not), then reads each body's own `command:` signature, `.positional(`
  * names, `.option(` names, and `choices:` values.
  *
@@ -301,17 +301,12 @@ describe("the command's real surface, extracted from source", () => {
 
     // A representative sample of the parse itself, independent of the
     // document — if this drifts, the parser is wrong, not the document.
-    it("finds content-format's three actions nested under it", () => {
+    it("finds content-format's two actions nested under it", () => {
         const names = nodes
             .filter((n) => n.binary === "package-build" && n.path[0] === "content-format")
             .map((n) => n.path.join(" "));
         expect(names.sort()).toEqual(
-            [
-                "content-format",
-                "content-format fields",
-                "content-format notes",
-                "content-format schema",
-            ].sort(),
+            ["content-format", "content-format fields", "content-format schema"].sort(),
         );
     });
 });

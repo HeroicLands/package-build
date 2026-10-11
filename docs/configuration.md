@@ -752,11 +752,6 @@ toolchain compiles:
 
 > ``package-build config: `packs[<index>].type` must be one of: Actor, Adventure, Item, JournalEntry, Macro, Scene.``
 
-`folders` is retired — a folder is a note (`type: folder`) now, materialised
-by the pack whose documents reference it through `packFolder`:
-
-> ``package-build config: `packs[<index>].folders` is retired — delete it. A folder is a note (`type: folder`) now, and a pack materialises the folders its documents reference through `packFolder`, so there is no per-pack hierarchy file to name.``
-
 A **companion** — a pack written by its parent pack's own compile pass — may
 not declare `default` (no note is ever routed into one), and may not nest
 further companions of its own:
@@ -877,39 +872,17 @@ over the content index, and linked from the homepage like any other page.
 
 So a page of documentation is a note — `type: doc`, addressed by its
 shortcode, and `pack: none` where it compiles into no Foundry document — and
-there is no second mechanism for mounting a directory of markdown. A
-configuration that names one is refused with a message saying where the page
-goes instead:
-
-> ``package-build config: `site.trees` is retired — a page is a note in the content tree. Give each page `type: doc`, a `shortcode` and `pack: none`, file it under `assets/content/`, and link it from the homepage or from a `doc` note that indexes it.``
-
-> ``package-build config: `site.readmeSections` is retired — a page is a note in the content tree. Give each page `type: doc`, a `shortcode` and `pack: none`, file it under `assets/content/`, and link it from the homepage or from a `doc` note that indexes it.``
-
-A configuration that asks the build to generate an index between the
-homepage and the pages is refused the same way, by name and with one message
-— `site.sections` (and the `listType` / `listSubType` an entry carried),
-`site.landing`, `site.backfillSections` and `site.list` alike, since how a
-listing renders is a content table's to say:
-
-> ``package-build config: `site.sections` is retired — a site is its homepage and its pages, and any index between them is a `doc` note: write one with `type: doc`, a `shortcode` and `pack: none`, carrying a content table over the notes it lists, and link it from the homepage. Nothing is generated between the homepage and the pages, so delete the key.``
-
-> ``package-build config: `site.landing` is retired — a site is its homepage and its pages, and any index between them is a `doc` note: write one with `type: doc`, a `shortcode` and `pack: none`, carrying a content table over the notes it lists, and link it from the homepage. Nothing is generated between the homepage and the pages, so delete the key.``
-
-> ``package-build config: `site.backfillSections` is retired — a site is its homepage and its pages, and any index between them is a `doc` note: write one with `type: doc`, a `shortcode` and `pack: none`, carrying a content table over the notes it lists, and link it from the homepage. Nothing is generated between the homepage and the pages, so delete the key.``
-
-> ``package-build config: `site.list` is retired — a site is its homepage and its pages, and any index between them is a `doc` note: write one with `type: doc`, a `shortcode` and `pack: none`, carrying a content table over the notes it lists, and link it from the homepage. Nothing is generated between the homepage and the pages, so delete the key.``
+there is no second mechanism for mounting a directory of markdown.
 
 Where the Hugo tree is written is not a choice. `package-build site` writes
 the whole Hugo source tree under `build/hugo/` — the generated `hugo.toml`,
 the content mount at `build/hugo/content/`, Hugo's own cache — as a sibling
 of the deployment root `build/site/`, so nothing Hugo reads lands in what is
-published. A `site.out` is refused by name:
-
-> ``package-build config: `site.out` is retired — the site build writes its content mount at `build/hugo/content`, beside the generated `hugo.toml`, and the location is not configurable. Remove the key.``
+published.
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, pass, passOptions, notfound, hugo, search, maps).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, title, assets, description, packages, pass, passOptions, notfound, hugo, search, maps).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -1640,12 +1613,6 @@ manifest's package homepage also stays at that root. A page staged under
 
 > ``package-build config: `publish.address.prefix` must not begin with a slash.``
 
-`publish.address.landing` is **retired** — it named which note addressed a
-whole section rather than a page within one, and there are no sections to
-address:
-
-> ``package-build config: `publish.address.landing` is a retired option — delete it. It named which note addressed a whole section rather than a page within one, and there are no sections to address: a section is a Hugo content directory the note format does not carry, so no note lands one and every page is addressed `<type>-<shortcode>`. Nothing replaces it.``
-
 Any other key under `publish.address` is refused:
 
 > ``package-build config: `publish.address.<key>` is not a recognized option (expected one of: prefix).``
@@ -2101,12 +2068,10 @@ the source directory:
 
 ---
 
-## Every retired or forbidden key, in one place
+## Every forbidden key, in one place
 
 | Key                                                                                                                                                                                                                                                                                         | Why                                                                                                                                                    |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `publish.address.landing`                                                                                                                                                                                                                                                                   | Retired — named a whole-section landing, and there are no sections to address.                                                                         |
-| `packs[].folders`                                                                                                                                                                                                                                                                           | Retired — a folder is a note (`type: folder`), materialised by the pack whose documents reference it.                                                  |
 | `rootDir`                                                                                                                                                                                                                                                                                   | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
 | `foundryPackage`                                                                                                                                                                                                                                                                            | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
 | `homepage`                                                                                                                                                                                                                                                                                  | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage`.                                                               |
@@ -2115,9 +2080,6 @@ the source directory:
 | `stats.systemId`                                                                                                                                                                                                                                                                            | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
 | `stats.systemVersion`                                                                                                                                                                                                                                                                       | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
 | `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs`                                                                                                                                             | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
-| `site.out`                                                                                                                                                                                                                                                                                  | Retired — the site build writes its content mount at `build/hugo/content`, beside the generated `hugo.toml`.                                           |
-| `site.trees`, `site.readmeSections`                                                                                                                                                                                                                                                         | Retired — a page is a note in the content tree.                                                                                                        |
-| `site.sections`, `site.landing`, `site.backfillSections`, `site.list`                                                                                                                                                                                                                       | Retired — a site is its homepage and its pages, and any index between them is a `doc` note.                                                            |
 | `site.hugo.baseURL`, `.title`, `.locale`, `.publishDir`, `.contentDir`, `.themesDir`, `.theme`, `.disableKinds`, `.taxonomies`, `.outputs`, `.params.description`, `.params.author`, `.params.cdnBaseURL`, `.params.brand`, `.params.notfound`, `.markup.goldmark.renderer.unsafe`, `.menu` | Forbidden — each is written by the site build from a source it names; see [the generated Hugo configuration](#the-generated-hugo-configuration).       |
 | `publish.site` (any value)                                                                                                                                                                                                                                                                  | Refused — publication follows the authored content tree.                                                                                               |
 | `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                                                                                                                                                                   | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |

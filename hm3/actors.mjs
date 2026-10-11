@@ -46,20 +46,13 @@
  */
 
 import { resolveName } from "../engine/helpers.mjs";
-import { buildFromFields, retiredTopLevelKey, STRING } from "../engine/field-spec.mjs";
+import { buildFromFields, STRING } from "../engine/field-spec.mjs";
 import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
 import { renderSection } from "../engine/anchored-sections.mjs";
 import { withDraftNotice } from "../engine/draft-notice.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 import { templateFlags } from "./template-priority.mjs";
-// The retirement window's reports, shared with the frontmatter lint so the
-// two cannot say different things about the same key.
-import {
-    legacyKeyMessage,
-    locateFrontmatterKey,
-    retiredTopLevelMessage,
-} from "../engine/retired-fields.mjs";
 // The note-level `hm3:` block: `hm3.system` onto the document's `system`
 // verbatim, and `hm3.img` / `hm3.items` / `hm3.effects` / `hm3.flags`
 // overriding their shared top-level forms for this system alone.
@@ -92,15 +85,13 @@ export const ACTOR_FIELDS = Object.freeze([
 /**
  * The two `data:` facts HM3 declares on a `character` and not on a `creature`.
  *
- * Both name their shared source and their legacy in-block key, for the reason
- * {@link ACTOR_FIELDS} does.
+ * Both name a shared source in `data:`, which is the only place they are authored.
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
 export const CHARACTER_FIELDS = Object.freeze([
     {
         name: "data.gender",
-        legacyKey: "gender",
         to: "gender",
         ...STRING,
         default: "",
@@ -108,7 +99,6 @@ export const CHARACTER_FIELDS = Object.freeze([
     },
     {
         name: "data.occupation",
-        legacyKey: "occupation",
         to: "occupation",
         ...STRING,
         default: "",
@@ -297,38 +287,9 @@ export class Hm3Actors extends SystemActorCompiler {
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
 
-        // The sweep's progress signal, reported where an author meets it
-        // soonest — every consumer runs the compile, and not every one runs the
-        // lint. A warning: the note compiles to the correct document
-        // either way, and refusing the position comes once no tree writes it.
-        const onLegacyKey = (field) =>
-            this.noteWarn(
-                legacyKeyMessage(block, field),
-                locateFrontmatterKey(this.currentNote?.absPath, field.legacyKey),
-            );
+        const reports = { block };
 
-        // The shared level's own retiring position — the top-level key `data:`
-        // gathered the field off. Same signal, same severity, separate
-        // callback: a note may have moved one position and not the other.
-        // Anchored at column 1, because the two spellings coincide — `portrait`
-        // names a block key and a top-level one — and a locator that took the
-        // first match would point at the wrong line.
-        const onRetiredTopLevel = (field) =>
-            this.noteWarn(
-                retiredTopLevelMessage(field),
-                locateFrontmatterKey(
-                    this.currentNote?.absPath,
-                    retiredTopLevelKey(field),
-                    undefined,
-                    { topLevel: true },
-                ),
-            );
-        const reports = { block, onLegacyKey, onRetiredTopLevel };
-
-        // One spelling, as everywhere else: `packFolder` names a folder note
-        // by its address. This pass once read only the Foundry id, so an HM3
-        // tree could not file an actor by address at all — which its own sweep
-        // needs; the id spelling is retired outright.
+        // `packFolder` names a folder note by its address.
         const folder = this.folderResolver(blockDataProperty(fm, block, "packFolder", null), {
             isAddress: true,
         });

@@ -52,7 +52,7 @@ id: FFFFFFFFFFFFFFFF
 shortcode: relocated
 type: doc
 sohl:
-  archetype: null
+  templatePriority: null
 ---
 
 # Overview

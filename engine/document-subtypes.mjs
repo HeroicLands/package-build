@@ -63,11 +63,10 @@
  * @module
  */
 
-import { assertTypeNotRetired, currentType } from "./ids.mjs";
 import { NO_SYSTEM } from "./systems.mjs";
 
 export { NO_SYSTEM };
-import { locateFrontmatterKey } from "./retired-fields.mjs";
+import { locateFrontmatterKey } from "./diagnostics.mjs";
 
 /**
  * One row of a system's map: what a note of this type becomes.
@@ -201,12 +200,9 @@ function frozenRow(system, noteType, row) {
 /**
  * The row a system declares for a note type, or nothing.
  *
- * The **one** place a map is indexed, so the retirement window for a renamed
- * type is honoured everywhere a row is asked for — {@link documentSubtype},
- * {@link mapsNoteType}, {@link noteTypesFor}'s consumers and
- * {@link systemOf} all arrive here. A note still spelling `armorgear` finds the
- * `armor` row, compiles into the `armorgear` document it always did, and keeps
- * the address it publishes at; only the *report* tells it to move.
+ * The **one** place a map is indexed — {@link documentSubtype},
+ * {@link mapsNoteType}, {@link noteTypesFor}'s consumers and {@link systemOf}
+ * all arrive here.
  *
  * @param {DocumentSubtypeMap} map - The system's map.
  * @param {string|undefined} noteType - The note's declared `type`.
@@ -215,7 +211,7 @@ function frozenRow(system, noteType, row) {
  */
 export function subtypeRow(map, noteType) {
     if (!noteType || typeof noteType !== "string") return undefined;
-    return map?.types?.[currentType(noteType)];
+    return map?.types?.[noteType];
 }
 
 /**
@@ -315,6 +311,29 @@ export function documentSubtype(map, noteType, fm, { file, absPath } = {}) {
  * @property {string} [problem] - Why the reference names no document subtype.
  */
 
+/** Every subtype a map's rows produce, per map. @type {WeakMap<object, Set<string>>} */
+const PRODUCED = new WeakMap();
+
+/**
+ * The document subtypes the rows of a map produce.
+ *
+ * @param {DocumentSubtypeMap} map - The system's map.
+ * @returns {Set<string>} Each one-to-one row's subtype and every subtype a
+ *   one-to-many row permits.
+ */
+function producedSubtypes(map) {
+    let produced = PRODUCED.get(map);
+    if (!produced) {
+        produced = new Set();
+        for (const row of Object.values(map?.types ?? {})) {
+            if (row.subType) produced.add(row.subType);
+            for (const subType of row.subTypes ?? []) produced.add(subType);
+        }
+        PRODUCED.set(map, produced);
+    }
+    return produced;
+}
+
 /**
  * The document subtype a `(type, shortcode)` **reference** addresses.
  *
@@ -354,41 +373,35 @@ export function documentSubtype(map, noteType, fm, { file, absPath } = {}) {
  *   only the row has no block to read a discriminator from, so nothing here
  *   can choose, and choosing anyway would be right about half the time.
  *
- * A **retired** spelling is refused by name before any of that. Without it a
- * reference left behind by a merge would take the unmapped fallback and address
- * a document of the old name — resolving silently, which is precisely what a
- * retirement exists to stop.
- *
- * A **renamed** spelling is the opposite case and resolves normally, through
- * the same {@link currentType} every other lookup goes through. It has to
- * be this side as much as the note's own `type:`: the overwhelming majority of
- * the 31,000 occurrences of the old names are `(type, shortcode)` references
- * inside a being's `items:` list, so a window that resolved notes but not
- * references would silently drop 30,000 embedded items rather than compile them
- * unchanged.
+ * A type that no row names, that no row produces as a subtype and that the
+ * consumer does not declare is refused: stamping the authored spelling on it
+ * would address a document that cannot exist.
  *
  * @param {DocumentSubtypeMap} map - The system's map.
  * @param {string|undefined} noteType - The type the reference names.
  * @param {string} document - The Foundry document class the reference must
  *   address — `"Item"` for a being's embedded items.
+ * @param {object} [options] - Options.
+ * @param {ReadonlySet<string>} [options.declared] - The item types the
+ *   consuming repository declares itself, which the map does not name.
  * @returns {ReferencedSubtype} The subtype, or why there is none.
  */
-export function referencedSubtype(map, noteType, document) {
+export function referencedSubtype(map, noteType, document, { declared } = {}) {
     if (!noteType || typeof noteType !== "string") {
         return { problem: "the reference names no type" };
     }
-    try {
-        assertTypeNotRetired(noteType);
-    } catch (err) {
-        return { problem: /** @type {Error} */ (err).message };
-    }
 
     const row = subtypeRow(map, noteType);
-    // No row: the type is the consumer's own, and its document is stamped with
-    // the note type. See the note on the unmapped fallback above. Returned as
-    // *authored*, not normalised — the Item pass stamps an unmapped document
-    // with `fm.type` verbatim, and the two answers have to agree.
-    if (!row) return { subType: noteType };
+    // No row: the type is the consumer's own, or a subtype a row produces, and
+    // its document is stamped with the note type. See the note on the unmapped
+    // fallback above. Returned as *authored* — the Item pass stamps an unmapped
+    // document with `fm.type` verbatim, and the two answers have to agree.
+    if (!row) {
+        if (declared?.has(noteType) || producedSubtypes(map).has(noteType)) {
+            return { subType: noteType };
+        }
+        return { problem: `"${noteType}" is not a type any registry declares` };
+    }
 
     if (row.document !== document) {
         return {
@@ -406,8 +419,8 @@ export function referencedSubtype(map, noteType, document) {
         // reference does by never matching this row's key at all. Only a
         // reference that names the row without naming a subtype is genuinely
         // undecidable.
-        if (permitted.includes(currentType(noteType))) {
-            return { subType: currentType(noteType) };
+        if (permitted.includes(noteType)) {
+            return { subType: noteType };
         }
         return {
             problem:

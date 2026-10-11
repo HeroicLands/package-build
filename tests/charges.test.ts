@@ -22,28 +22,28 @@ describe("resolveCharges (pack builder — a blank maximum means 'does not use c
     });
 
     it("yields a null max when the maximum is explicitly null", () => {
-        expect(resolveCharges({ sohl: { charges: { value: null, max: null } } })).toEqual({
+        expect(resolveCharges({ data: { charges: { value: null, max: null } } })).toEqual({
             value: null,
             max: null,
         });
     });
 
     it("keeps a declared finite maximum and current value", () => {
-        expect(resolveCharges({ sohl: { charges: { value: 3, max: 5 } } })).toEqual({
+        expect(resolveCharges({ data: { charges: { value: 3, max: 5 } } })).toEqual({
             value: 3,
             max: 5,
         });
     });
 
     it("keeps a zero maximum, which means 'counted but uncapped'", () => {
-        expect(resolveCharges({ sohl: { charges: { value: 2, max: 0 } } })).toEqual({
+        expect(resolveCharges({ data: { charges: { value: 2, max: 0 } } })).toEqual({
             value: 2,
             max: 0,
         });
     });
 
     it("keeps a null value (infinite remaining) alongside a real maximum", () => {
-        expect(resolveCharges({ sohl: { charges: { value: null, max: 4 } } })).toEqual({
+        expect(resolveCharges({ data: { charges: { value: null, max: 4 } } })).toEqual({
             value: null,
             max: 4,
         });
@@ -52,7 +52,7 @@ describe("resolveCharges (pack builder — a blank maximum means 'does not use c
     it("forces the value to null when the item does not use charges", () => {
         // A stray current-charge count cannot outlive a blank maximum: the
         // logic layer disables both modifiers when max is null.
-        expect(resolveCharges({ sohl: { charges: { value: 7, max: null } } })).toEqual({
+        expect(resolveCharges({ data: { charges: { value: 7, max: null } } })).toEqual({
             value: null,
             max: null,
         });
@@ -62,7 +62,7 @@ describe("resolveCharges (pack builder — a blank maximum means 'does not use c
         // The flag was inert and has been dropped from the schema;
         // authored content that still carries it must not resurrect it.
         const charges = resolveCharges({
-            sohl: { charges: { usesCharges: true, value: 1, max: 2 } },
+            data: { charges: { usesCharges: true, value: 1, max: 2 } },
         });
         expect(charges).toEqual({ value: 1, max: 2 });
         expect(charges).not.toHaveProperty("usesCharges");

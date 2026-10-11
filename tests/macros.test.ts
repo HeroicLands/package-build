@@ -380,14 +380,6 @@ describe("`docmacro` is synthesized, never a real type", () => {
 
     const localOnlyDocs = [{ type: "doc", id: "docdocdocdocdoc1", shortcode: "usage" }];
 
-    it("does not admit a foreign `docmacro` key to the known-type set", () => {
-        // No local macro notes at all: `macro` is known only from the manifest,
-        // so admitting `docmacro` alongside it would depend on iteration order.
-        const idx = buildWikilinkIndex(localOnlyDocs, "sohl", foreign, "sohl");
-        expect(idx.types.has("macro")).toBe(true);
-        expect(idx.types.has("docmacro")).toBe(false);
-    });
-
     it("still resolves a foreign macro's documentation through the prefix", () => {
         const idx = buildWikilinkIndex(localOnlyDocs, "sohl", foreign, "sohl");
         const out = convertWikilinks("[[thalorna-note-macro-summon|S]]", {

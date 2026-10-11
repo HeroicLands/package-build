@@ -12,21 +12,12 @@
  */
 
 /**
- * An art slot says "unset" and "blank on purpose" with two different values.
- *
- * `resolveImg` used to open with `if (!raw) return ""`, and every caller then
- * applied its own default with `||`. That made `""`, `null` and an absent key
- * one case: all three landed on the type's default art, and a note had no way
- * to say "ship no image" at all. The rule survives the move to addresses: a slot
- * resolves to `null` where the note names nothing and to `""` where it names
- * blank, and only the first may be replaced.
- *
- * The rule this suite pins is the one the project already holds for an optional
- * "not specified" DataModel string — `nullable, initial: null`, so "unset" is
- * one honest value rather than two:
+ * An art slot is unset or names an image; an empty string is neither.
  *
  * - **`null` / absent** → unset. The caller's default applies.
- * - **`""`** → blank on purpose. It survives, and no default replaces it.
+ * - **`""`** → names no file. The pathname resolver refuses it, and a compiler
+ *   reads it as an address nothing answers, so the default applies and the
+ *   lint reports the key as an error.
  *
  * `title` is deliberately **not** covered by the rule. It is simultaneously a
  * declared item field whose default is `""` (`sohl/item-fields.mjs`, resolved
@@ -70,7 +61,7 @@ const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 /*  The translator itself                                               */
 /* -------------------------------------------------------------------- */
 
-describe("resolveImg tells an unset path from a deliberately blank one", () => {
+describe("resolveImg treats an unset path as unset and an empty one as an error", () => {
     it("returns null for an absent path, so a caller's default can apply", () => {
         expect(resolveImg(undefined)).toBeNull();
     });
@@ -79,8 +70,8 @@ describe("resolveImg tells an unset path from a deliberately blank one", () => {
         expect(resolveImg(null)).toBeNull();
     });
 
-    it('returns the empty string for an authored `""` — blank on purpose', () => {
-        expect(resolveImg("")).toBe("");
+    it('refuses an authored `""`, which names no file', () => {
+        expect(() => resolveImg("")).toThrow(/empty pathname/);
     });
 
     it("still translates a bundled pathname, and still passes a URL through", () => {
@@ -91,10 +82,10 @@ describe("resolveImg tells an unset path from a deliberately blank one", () => {
         expect(resolveImg("https://example.com/a.png")).toBe("https://example.com/a.png");
     });
 
-    it("distinguishes the two for a non-`sohl` consumer as well", () => {
+    it("holds for a non-`sohl` consumer as well", () => {
         const moduleConfig = { assetRoot: "modules/sohl-thalorna/assets" } as any;
         expect(resolveImg(null, moduleConfig)).toBeNull();
-        expect(resolveImg("", moduleConfig)).toBe("");
+        expect(() => resolveImg("", moduleConfig)).toThrow(/empty pathname/);
     });
 });
 
@@ -118,7 +109,7 @@ describe("an item note's `img`", () => {
         type: "skill",
         shortcode: "awar",
         name: { full: "Awareness" },
-        sohl: { subType: "physical", archetype: null },
+        sohl: { subType: "physical", templatePriority: null },
     };
 
     // The registry's art is a pathname like any other, so the compiled value
@@ -138,8 +129,8 @@ describe("an item note's `img`", () => {
         );
     });
 
-    it('ships no art at all when the note writes `""`', () => {
-        expect(compiler().buildEntry({ ...SKILL_FM, data: { icon: "" } }, "").img).toBe("");
+    it('takes the default, as for any unresolved address, when the note writes `""`', () => {
+        expect(compiler().buildEntry({ ...SKILL_FM, data: { icon: "" } }, "").img).toBe(SKILL_ART);
     });
 
     it("still lets a note name its own art", () => {
@@ -166,9 +157,5 @@ describe("a macro note's `icon`", () => {
 
     it("falls back to the macro default when the note writes `null`", () => {
         expect(buildMacroEntry(FM, { command: "x();", img: null }).img).toBe(DEFAULT_MACRO_IMG);
-    });
-
-    it('ships no art at all when the note writes `""`', () => {
-        expect(buildMacroEntry(FM, { command: "x();", img: "" }).img).toBe("");
     });
 });

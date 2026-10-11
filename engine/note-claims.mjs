@@ -87,12 +87,12 @@ import { assertSuppliedCorpus, parseMarkdownFile } from "./helpers.mjs";
 // The record accessors only: this module is imported by the content index, so
 // importing the index back would close a cycle.
 import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
-import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES, currentType } from "./ids.mjs";
+import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE } from "./ids.mjs";
 import { itemTypes } from "./item-registry.mjs";
 import { docEntryTypes } from "./item-docs.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { declaresNoPack } from "./pack-router.mjs";
-import { locateFrontmatterKey } from "./retired-fields.mjs";
+import { locateFrontmatterKey } from "./diagnostics.mjs";
 import { noteTypesFor, subtypeRow } from "./document-subtypes.mjs";
 import {
     DEFAULT_DOCUMENT_SUBTYPES,
@@ -359,7 +359,7 @@ export const CLAIMABLE_DOCUMENT_TYPES = Object.freeze([
  * the answer is the type's full potential — every document such a note *could*
  * produce — which is what a caller asking about a type rather than a note wants.
  *
- * @param {string} type - The note's declared `type`, current spelling.
+ * @param {string} type - The note's declared `type`.
  * @param {ClaimSources} [sources] - What to answer from.
  * @param {object} [opts] - Options.
  * @param {(() => boolean)|boolean} [opts.hasProse] - Whether *this note* carries
@@ -497,18 +497,14 @@ function article(word) {
  * @returns {string} The message.
  */
 function configurationMessage(type, config, sources) {
-    // Every table below is keyed by the current spelling of a note type; the
-    // message quotes the authored one, which is what the reader has in front of
-    // them.
-    const current = currentType(type);
     const documents = mappedDocuments(sources.maps, type);
-    if (!documents.length && sources.itemTypes.has(current)) documents.push("Item");
-    if (!documents.length && PACK_BY_TYPE[current]) documents.push(PACK_BY_TYPE[current].docType);
+    if (!documents.length && sources.itemTypes.has(type)) documents.push("Item");
+    if (!documents.length && PACK_BY_TYPE[type]) documents.push(PACK_BY_TYPE[type].docType);
 
     const systems = mappingSystems(sources.maps, type);
     const configured = new Set((config.packs ?? []).map((pack) => pack.type));
     const packless = documents.filter((document) => !configured.has(document));
-    const needsBuilder = documents.includes("Item") && !sources.itemTypes.has(current);
+    const needsBuilder = documents.includes("Item") && !sources.itemTypes.has(type);
 
     const into = documents.map((document) => `${article(document)} ${document}`).join(" or ");
     const becomes =
@@ -668,7 +664,7 @@ function packsServing(config, docType, system) {
  *
  * @param {object} fm - The note's frontmatter.
  * @param {string} absPath - The note's path, for the finding's position.
- * @param {string} type - The note's current type.
+ * @param {string} type - The note's type.
  * @param {object} config - The resolved build configuration.
  * @returns {Array<{file: string, line?: number, column?: number,
  *   severity: "error", message: string, type: string}>} One finding per
@@ -708,12 +704,10 @@ function discardedSystemBlockFindings(fm, absPath, type, config) {
  * note's type and of a note's systems, and a note can fail either while passing
  * the other — see {@link discardedSystemBlockFindings}.
  *
- * Read-only: it walks the tree and reports, and writes nothing. Three kinds of
+ * Read-only: it walks the tree and reports, and writes nothing. Two kinds of
  * note are passed over, each for a stated reason rather than by omission — a
  * file with no frontmatter is not a note; a note with no `type:` is the
- * frontmatter linter's finding, which can say what a type is *for*; and a
- * retired type is answered by `assertTypeNotRetired` in `ids.mjs`, which names the
- * replacement.
+ * frontmatter linter's finding, which can say what a type is *for*.
  *
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
@@ -755,24 +749,16 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
         if (!type) continue;
         if (NEVER_PACKED_TYPES.has(type)) continue;
         if (DERIVED_PACKED_TYPES.has(type)) continue;
-        if (RETIRED_TYPES[type]) continue;
-        // A **renamed** spelling is a live type, not an unknown one: it resolves
-        // to the same row, the same registry entry and the same pack. So the
-        // claim is asked of the current spelling while the finding quotes the
-        // authored one. The rename itself is reported by the frontmatter
-        // lint, which can say what to write instead.
-        const current = currentType(type);
-
         // Asked first, and asked whatever the type's claim turns out to be: a
         // note whose documents all have packs may still carry a block none of
         // them reads, and that is invisible to every question below.
-        findings.push(...discardedSystemBlockFindings(fm, absPath, current, config));
+        findings.push(...discardedSystemBlockFindings(fm, absPath, type, config));
 
         // Every document this note produces, against the classes this
         // configuration has a pack for. Three outcomes, and the middle one is
         // the half-claimed one — invisible while the question is only "is anything
         // claiming this note", because the answer there is yes.
-        const produces = documentClassesFor(current, resolved, {
+        const produces = documentClassesFor(type, resolved, {
             // Lazy: only a doc-carrying type whose JournalEntry has nowhere to
             // go asks, so a tree with a JournalEntry pack — which is most of
             // them — reads no bodies at all.
@@ -824,9 +810,9 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
                 // nothing routes it, so the `vocabulary.has` branch would never
                 // reach it — and reading its absence as the reason is the
                 // inference {@link UNIMPLEMENTED_TYPES} exists to replace.
-                UNIMPLEMENTED_TYPES.has(current) ? specifiedMessage(type)
-                : vocabulary.has(current) ? configurationMessage(type, config, resolved)
-                : Object.hasOwn(NOTE_VOCABULARY, current) ? specifiedMessage(type)
+                UNIMPLEMENTED_TYPES.has(type) ? specifiedMessage(type)
+                : vocabulary.has(type) ? configurationMessage(type, config, resolved)
+                : Object.hasOwn(NOTE_VOCABULARY, type) ? specifiedMessage(type)
                 : authoringMessage(type),
         });
     }

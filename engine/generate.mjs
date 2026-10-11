@@ -73,7 +73,7 @@ import { routerFor } from "./pack-router.mjs";
 import { NEVER_PACKED_TYPES, unclaimedNoteFindings } from "./note-claims.mjs";
 // Which document a content type compiles into, so the art declaration below is
 // answered from the same routing the compile uses.
-import { RETIRED_TYPES, currentType, packForType } from "./ids.mjs";
+import { packForType } from "./ids.mjs";
 import { contentPackage } from "./content-package.mjs";
 
 /**
@@ -230,22 +230,22 @@ export function compilerFor(docType, system = null) {
  * @param {string} type - The note's content type.
  * @returns {{document: string|null, art: readonly string[]}|null} What the type
  *   compiles into and the art it carries there, or `null` where no claim can be
- *   made — a retired type, which is reported as retired instead.
+ *   made.
  */
 export function emittedArtFor(type) {
     const name = String(type ?? "");
-    if (!name || Object.hasOwn(RETIRED_TYPES, name)) return null;
+    if (!name) return null;
 
     // A homepage compiles into a *page*, not a compendium document, so nothing
     // it authors reaches one. It is the one type whose absence from every pack
     // is the intended state (`NEVER_PACKED_TYPES`).
-    if (NEVER_PACKED_TYPES.has(currentType(name))) return { document: null, art: [] };
+    if (NEVER_PACKED_TYPES.has(name)) return { document: null, art: [] };
 
     // A folder reaches a pack by a route of its own — it materialises in every
     // pack holding a document that references it — so `packForType` has no
     // answer for it and no compiler class writes it. `folderDocument` does, and
     // a Foundry `Folder` has no artwork at all.
-    if (currentType(name) === FOLDER_TYPE) return { document: "Folder", art: [] };
+    if (name === FOLDER_TYPE) return { document: "Folder", art: [] };
 
     const { docType } = packForType(name);
     const passes = [
@@ -516,11 +516,8 @@ async function generatePack(
     /**
      * The Foundry folder id a note names, by its folder note's address.
      *
-     * There is one spelling. `packFolder` names a folder **note**, resolved
-     * through the address index shared by the whole build; the `folder:`
-     * Foundry-id spelling and the per-pack `*-folders.yaml` it resolved
-     * against are retired together, so there is no second source left
-     * for a value to come from.
+     * `packFolder` names a folder **note**, resolved through the address index
+     * shared by the whole build.
      *
      * @param {string|null|undefined} value - As authored.
      * @returns {string|null} The folder id, or `null` for an absent value.

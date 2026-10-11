@@ -305,16 +305,16 @@ describe("checkNoteEvents", () => {
         ).toBe(true);
     });
 
-    it("the retired container still written", () => {
+    it("reports the singular container as an undeclared key", () => {
         const n = note({
             ...calendar,
             data: { event: { kind: "founding", when: "412.1" } },
         });
         const findings = lintNote(n, opts);
-        const retired = findings.find((f) => f.message.includes("`data.event`"));
-        expect(retired).toBeDefined();
-        expect(retired?.severity).toBe("error");
-        expect(retired?.message).toContain("write `data.events`");
+        const found = findings.find((f) => f.message.includes('"event"'));
+        expect(found).toBeDefined();
+        expect(found?.severity).toBe("error");
+        expect(found?.message).toContain("is not a `data:` property declared by lore");
     });
 });
 

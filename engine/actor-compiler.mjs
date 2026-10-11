@@ -52,7 +52,7 @@ import log from "loglevel";
 
 import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { makeId } from "./helpers.mjs";
-import { emitDiagnostic } from "./diagnostics.mjs";
+import { emitDiagnostic, locateFrontmatterKey } from "./diagnostics.mjs";
 // The `{#appearance}` / `{#dossier}` convention is the note format's, so the
 // extraction is shared; which field a section lands in stays the system's.
 export { extractAnchorSection, renderSection } from "./anchored-sections.mjs";
@@ -64,13 +64,12 @@ import { contentPackage } from "./content-package.mjs";
 // types are actors at all. Looked up in the system's declared map, never
 // inferred from the type itself.
 import { mapsNoteType, noteTypesFor, referencedSubtype } from "./document-subtypes.mjs";
-import { locateFrontmatterKey } from "./retired-fields.mjs";
 // An `items:` entry's `system:` overlay is merged verbatim, so it reaches the
 // document by a path no field declaration sits on — including the
 // fields the document is supposed to write for itself in play. `itemArt` is
 // the same table the Item pass defaults from, so an entry that copies no
 // template and names no art of its own carries what a note of its type would.
-import { itemArt, itemFields } from "./item-registry.mjs";
+import { itemArt, itemFields, itemTypes } from "./item-registry.mjs";
 import { runtimeOnlyIn, runtimeOnlyMessage } from "./runtime-only-fields.mjs";
 // A `model:` is an address, read by the same grammar every wikilink is,
 // so an author writes one form and meets one set of messages.
@@ -467,8 +466,7 @@ export class SystemActorCompiler extends BasePackCompiler {
         const address = beingDefaultArt(fm);
         const byTag = address ? this.artPathOf(address, "icon", "icon") : null;
         const base = byTag ?? fallback;
-        // Nullish, not `||`: a note that names no art takes the default, one
-        // that writes `""` ships blank on purpose.
+        // A note that names no art takes the default.
         const img = this.artPath(fm, "icon") ?? base;
         return { img, token: this.artPath(fm, "tokenIcon") ?? img };
     }
@@ -679,7 +677,7 @@ export class SystemActorCompiler extends BasePackCompiler {
      *   subtype, or why the reference names none.
      */
     embeddedSubtype(type) {
-        return referencedSubtype(this.documentSubtypes, type, "Item");
+        return referencedSubtype(this.documentSubtypes, type, "Item", { declared: itemTypes() });
     }
 
     /**
@@ -892,8 +890,7 @@ export class SystemActorCompiler extends BasePackCompiler {
         // The two art rules an item note compiles under, applied to an entry
         // that is one in every respect but where it is written: the address it
         // names wins, the template it copies answers next, and the type's own
-        // default answers last. Nullish coalescing throughout, so `icon: ""`
-        // ships blank on purpose rather than collecting a default.
+        // default answers last.
         merged.img =
             this.artPath(overlay ?? {}, "icon") ??
             merged.img ??

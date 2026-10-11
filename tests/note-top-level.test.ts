@@ -28,7 +28,6 @@ import { describe, expect, it } from "vitest";
 import YAML from "yaml";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { formatNoteFrontmatter } from "../engine/note-format.mjs";
-import { NOTE_LEVEL_KEYS } from "../engine/content-format-check.mjs";
 import {
     NOTE_TOP_LEVEL_FIELDS,
     NOTE_TOP_LEVEL_KEYS,
@@ -128,10 +127,6 @@ describe("every reader of the vocabulary", () => {
             .map((line) => line.split(":")[0]);
 
         expect(order).toEqual([...NOTE_TOP_LEVEL_KEYS]);
-    });
-
-    it("shares one set with the content-format check", () => {
-        expect([...NOTE_LEVEL_KEYS].sort()).toEqual([...NOTE_TOP_LEVEL_KEYS].sort());
     });
 
     it("enumerates the vocabulary in the note-type reference", () => {

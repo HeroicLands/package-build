@@ -301,14 +301,14 @@ describe("buildManifest", () => {
     // Namespaced flags and this one share the object, so adding a namespace
     // must not drop the URL — they are merged, not written in turn.
     it("keeps the index URL beside namespaced flags", () => {
-        const manifest = build({ contentPackage: "sohl" }, { hm3: { archetype: 0 } }) as Record<
-            string,
-            never
-        >;
+        const manifest = build(
+            { contentPackage: "sohl" },
+            { hm3: { templatePriority: 0 } },
+        ) as Record<string, never>;
         const flags = manifest.flags as unknown as Record<string, unknown>;
 
         expect(flags.metadataUrl).toContain("sohl-metadata.jsonl");
-        expect(flags.hm3).toEqual({ archetype: 0 });
+        expect(flags.hm3).toEqual({ templatePriority: 0 });
     });
 
     // `url` is the Project Homepage link a reader follows from the package

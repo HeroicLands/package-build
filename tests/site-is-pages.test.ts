@@ -11,8 +11,7 @@
  *
  * Every structure above the pages — which notes belong together, in what
  * order, under which headings — is authored, as a `doc` note carrying a
- * content table. So a configuration that asks the build to write an index of
- * its own is refused, the homepage is the mount's `_index.md`, the deployment
+ * content table. The homepage is the mount's `_index.md`, the deployment
  * root carries no redirect, and the generated Hugo configuration renders the
  * `home` and `page` kinds only.
  */
@@ -46,9 +45,6 @@ import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import * as noteVocabulary from "../engine/note-vocabulary.mjs";
 
-/** The one message every generated-index key is refused with. */
-const INDEX_IS_A_NOTE = /a site is its homepage and its pages.*is a `doc` note/s;
-
 /** A minimal configuration `defineConfig` accepts without complaint. */
 function minimal(overrides: Record<string, unknown> = {}) {
     return {
@@ -62,83 +58,6 @@ function minimal(overrides: Record<string, unknown> = {}) {
         ...overrides,
     } as ContentBuildConfigInput;
 }
-
-/* ---------------------------------------------------------------------- */
-/*  1. No configured index between the homepage and the pages              */
-/* ---------------------------------------------------------------------- */
-
-describe("a configured index between the homepage and the pages is refused", () => {
-    it("refuses `site.sections`, saying an index is a `doc` note", () => {
-        expect(() =>
-            defineConfig(minimal({ site: { sections: { being: { title: "Beings" } } } })),
-        ).toThrow(/`site\.sections`/);
-        expect(() =>
-            defineConfig(minimal({ site: { sections: { being: { title: "Beings" } } } })),
-        ).toThrow(INDEX_IS_A_NOTE);
-    });
-
-    it("refuses an empty `site.sections` too — the key has no reader", () => {
-        expect(() => defineConfig(minimal({ site: { sections: {} } }))).toThrow(/`site\.sections`/);
-    });
-
-    it("refuses `listType` / `listSubType`, which only a section could carry", () => {
-        expect(() =>
-            defineConfig(
-                minimal({
-                    site: { sections: { rules: { title: "Rules", listType: "doc" } } },
-                }),
-            ),
-        ).toThrow(INDEX_IS_A_NOTE);
-        expect(() =>
-            defineConfig(
-                minimal({
-                    site: {
-                        sections: {
-                            rules: { title: "Rules", listType: "doc", listSubType: "rules" },
-                        },
-                    },
-                }),
-            ),
-        ).toThrow(INDEX_IS_A_NOTE);
-    });
-
-    it("refuses `site.backfillSections`, whichever way it is set", () => {
-        expect(() => defineConfig(minimal({ site: { backfillSections: true } }))).toThrow(
-            /`site\.backfillSections`/,
-        );
-        expect(() => defineConfig(minimal({ site: { backfillSections: false } }))).toThrow(
-            INDEX_IS_A_NOTE,
-        );
-    });
-
-    it("refuses `site.list` — how a listing renders is a content table's to say", () => {
-        expect(() => defineConfig(minimal({ site: { list: { shortcodes: true } } }))).toThrow(
-            /`site\.list`.*a site is its homepage and its pages/s,
-        );
-    });
-
-    it("refuses `site.landing` — the mount's own index is the homepage", () => {
-        expect(() =>
-            defineConfig(
-                minimal({ site: { landing: { title: "Knowledgebase", type: "knowledgebase" } } }),
-            ),
-        ).toThrow(/`site\.landing`.*a site is its homepage and its pages/s);
-    });
-
-    it("resolves a `site` block without any of them, and carries none", () => {
-        const config = defineConfig(minimal({ site: { description: "A package." } }));
-        expect("sections" in config.site).toBe(false);
-        expect("landing" in config.site).toBe(false);
-        expect("backfillSections" in config.site).toBe(false);
-        expect("list" in config.site).toBe(false);
-    });
-
-    it("exports no section writer", () => {
-        expect("writeSectionLandings" in siteBuild).toBe(false);
-        expect("sectionFrontmatter" in siteBuild).toBe(false);
-        expect("pluralTitle" in siteBuild).toBe(false);
-    });
-});
 
 /* ---------------------------------------------------------------------- */
 /*  2. The homepage is a page with a body                                   */

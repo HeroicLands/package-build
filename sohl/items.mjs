@@ -88,10 +88,6 @@ export class Items extends SystemItemCompiler {
             shortcode: fm.shortcode,
             // Required nullable number: a priority, or `null` for a document
             // that is not a template (the archetype contract).
-            // `system.archetype` is the legacy spelling; the receiving
-            // schema declares only the new name, so the emitted key moves with
-            // it — an undeclared `system` key is discarded at construction
-            // without a warning.
             templatePriority: systemTemplatePriority(fm, label),
             actionDefs: [],
             notes: "",

@@ -42,6 +42,7 @@
  *   which would send a reader to the frontmatter every time.
  */
 
+import fs from "node:fs";
 import path from "node:path";
 import YAML, { LineCounter } from "yaml";
 
@@ -183,10 +184,8 @@ export function positionInBody(body, offset, { bodyLine = 1, bodyColumn = 1, lin
  * The key match tolerates leading whitespace by default, so a nested key of the
  * same name answers when no top-level one is present — which is usually what a
  * reader wants, the key being unique in nearly every note. Pass `topLevel` where
- * it is not: `aliases` is both a retired top-level field and a **permitted**
- * `name.aliases`, and a finding about the first must never open on the
- * second, which would tell an author to delete a field they are allowed to
- * write.
+ * it is not: a finding about a top-level key must never open on a nested key
+ * of the same name.
  *
  * @param {string} raw - The file's full contents, frontmatter included.
  * @param {string} key - The top-level frontmatter key.
@@ -233,6 +232,37 @@ export function positionInFrontmatter(raw, key, value = undefined, { topLevel = 
         line: keyLine + 2,
         ...(column === -1 ? {} : { column: column + 1 }),
     };
+}
+
+/**
+ * A frontmatter key's position in a note's file, or nothing.
+ *
+ * {@link positionInFrontmatter} answers the same question from the file's
+ * *text*; this reads the file to ask it.
+ *
+ * @param {string|undefined} absPath - The note's file.
+ * @param {string} key - The frontmatter key.
+ * @param {string} [value] - When given, prefer the occurrence whose line also
+ *   carries this text — so a finding about one entry of a block opens on that
+ *   entry rather than on the key that introduces it.
+ * @param {object} [options] - Options, forwarded to
+ *   {@link positionInFrontmatter}.
+ * @param {boolean} [options.topLevel=false] - Require the key at column 1, so
+ *   an identically named nested key cannot answer for it.
+ * @returns {{line?: number, column?: number}|undefined} Spreadable position
+ *   fields, dropped rather than guessed when the file cannot be read or the key
+ *   cannot be found — as `formatDiagnostic` requires.
+ */
+export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel = false } = {}) {
+    if (!absPath) return undefined;
+    let raw;
+    try {
+        raw = fs.readFileSync(absPath, "utf8");
+    } catch {
+        return undefined;
+    }
+    const at = positionInFrontmatter(raw, key, value, { topLevel });
+    return at.line === undefined ? undefined : at;
 }
 
 /** Escape a literal for use inside a `RegExp`. */

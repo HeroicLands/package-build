@@ -30,7 +30,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { defineDocumentSubtypes, referencedSubtype } from "../engine/document-subtypes.mjs";
-import { RENAMED_TYPES } from "../engine/ids.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
@@ -75,12 +74,20 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
         expect(referencedSubtype(DEMO, "skill", "Item")).toEqual({ subType: "skill" });
     });
 
-    it("falls back to the note type for a type the system's map does not name", () => {
+    it("falls back to the note type for a type the consumer declares", () => {
         // A consumer's own item type is declared in its `itemBuilders` table,
         // not in this system's map, and the Item pass stamps such a document
         // with the note type itself. The reference has to agree, or a
         // consumer's items would stop resolving the moment a map existed.
-        expect(referencedSubtype(DEMO, "houserule", "Item")).toEqual({ subType: "houserule" });
+        expect(
+            referencedSubtype(DEMO, "houserule", "Item", { declared: new Set(["houserule"]) }),
+        ).toEqual({ subType: "houserule" });
+    });
+
+    it("refuses a type no row names, no row produces and the consumer does not declare", () => {
+        const { subType, problem } = referencedSubtype(DEMO, "houserule", "Item");
+        expect(subType).toBeUndefined();
+        expect(problem).toBe('"houserule" is not a type any registry declares');
     });
 
     it("refuses a type this system compiles into another document class", () => {
@@ -97,13 +104,10 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
         expect(problem).toMatch(/missilegear/);
     });
 
-    it("refuses a retired type by name, rather than letting it resolve as its own", () => {
-        // Without this a reference in a retired spelling would take the
-        // unmapped fallback and address a document of that name — which is
-        // exactly what a rename leaves behind.
+    it("refuses a former type as it refuses any undeclared one", () => {
         const { subType, problem } = referencedSubtype(DEMO, "creature", "Item");
         expect(subType).toBeUndefined();
-        expect(problem).toMatch(/being/);
+        expect(problem).toBe('"creature" is not a type any registry declares');
     });
 
     it("refuses a reference that names no type at all", () => {
@@ -169,21 +173,6 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
             expect(row.subType).toBeTruthy();
             expect(row.discriminator).toBeUndefined();
         }
-    });
-
-    it("resolves a reference still on a renamed type's retired spelling", () => {
-        // The half of the window that matters most: the old names occur ~1,000
-        // times as often inside a being's `(type, shortcode)` items list as
-        // they do as a note's own `type:`. A window that resolved notes but not
-        // references would silently drop 30,000 embedded items.
-        for (const [retired, current] of Object.entries(RENAMED_TYPES)) {
-            expect(referencedSubtype(SOHL_DOCUMENT_SUBTYPES, retired, "Item"), retired).toEqual(
-                referencedSubtype(SOHL_DOCUMENT_SUBTYPES, current, "Item"),
-            );
-        }
-        expect(referencedSubtype(SOHL_DOCUMENT_SUBTYPES, "armorgear", "Item")).toEqual({
-            subType: "armorgear",
-        });
     });
 });
 
@@ -267,7 +256,7 @@ function beingNote(entry: string): string {
         "name:",
         "    full: Ancient Warrior",
         "sohl:",
-        "    archetype: null",
+        "    templatePriority: null",
         "    items:",
         `        - ${entry}`,
         "",
@@ -296,7 +285,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                         shortcode: "warr",
                         name: { full: "Ancient Warrior" },
                         sohl: {
-                            archetype: null,
+                            templatePriority: null,
                             items: [{ model: "armorgear-hlmt" }],
                         },
                     },
@@ -325,7 +314,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                     shortcode: "warr",
                     name: { full: "Ancient Warrior" },
                     sohl: {
-                        archetype: null,
+                        templatePriority: null,
                         items: [
                             { type: "armorgear", name: "Scavenged Helm", system: { quality: 1 } },
                         ],
@@ -351,7 +340,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                         shortcode: "warr",
                         name: { full: "Ancient Warrior" },
                         sohl: {
-                            archetype: null,
+                            templatePriority: null,
                             items: [{ shortcode: "hlmt", type: "armorgear" }],
                         },
                     },
@@ -379,7 +368,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                         shortcode: "warr",
                         name: { full: "Ancient Warrior" },
                         sohl: {
-                            archetype: null,
+                            templatePriority: null,
                             items: [{ model: "armorgear-hlmt", type: "armorgear" }],
                         },
                     },
@@ -402,7 +391,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                         type: "being",
                         shortcode: "warr",
                         name: { full: "Ancient Warrior" },
-                        sohl: { archetype: null, items: [{ model: "Helmet" }] },
+                        sohl: { templatePriority: null, items: [{ model: "Helmet" }] },
                     },
                     "",
                 );
@@ -424,7 +413,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                         shortcode: "warr",
                         name: { full: "Ancient Warrior" },
                         sohl: {
-                            archetype: null,
+                            templatePriority: null,
                             items: [{ model: "armorgear-brst" }],
                         },
                     },
@@ -463,7 +452,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                         shortcode: "warr",
                         name: { full: "Ancient Warrior" },
                         sohl: {
-                            archetype: null,
+                            templatePriority: null,
                             items: [{ model: "weapon-swrd" }],
                         },
                     },

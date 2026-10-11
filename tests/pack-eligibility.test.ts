@@ -47,7 +47,7 @@ const PACKS = [
 
 describe("a system block overrides the shared `pack:`", () => {
     const router = createPackRouter(PACKS);
-    const note = { type: "skill", pack: "items", hm3: { pack: "items-hm3" } };
+    const note = { type: "skill", data: { pack: "items" }, hm3: { pack: "items-hm3" } };
 
     it("routes a system's document by that system's declaration", () => {
         expect(router.resolve(note, "Item", "hm3")).toBe("items-hm3");

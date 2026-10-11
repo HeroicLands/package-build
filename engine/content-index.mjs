@@ -86,7 +86,12 @@
  */
 
 import { isAddressSegment } from "./address-charset.mjs";
-import { formatDiagnostic, positionOfFrontmatterPath, positionOfYamlPath } from "./diagnostics.mjs";
+import {
+    formatDiagnostic,
+    locateFrontmatterKey,
+    positionOfFrontmatterPath,
+    positionOfYamlPath,
+} from "./diagnostics.mjs";
 import {
     decodeNoteAddresses,
     decodeIndexAddresses,
@@ -131,10 +136,9 @@ import { walkMarkdownTree } from "./helpers.mjs";
 // SQL view that derives the ladder from the absence this writes.
 import { isStubNote } from "./note-state.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
-// The retired-field refusal and the key locator, so a note authoring a derived
-// key is reported where it is rather than as a bare abort.
+// The `package:` refusal, so a note declaring one is reported where it is
+// rather than as a bare abort.
 import { assertNoDeclaredPackage } from "./note-package.mjs";
-import { locateFrontmatterKey } from "./retired-fields.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 // The record accessors, which live apart so that a module the compilers load
 // can read a record without importing this one and closing a cycle.
@@ -392,11 +396,11 @@ function foundryBlock(entry, system) {
  * carries `file` and a `position`, and a pass that collects rather than throws
  * can emit `file:line:column: error: …` like any other finding.
  *
- * **`package:` keeps its own words.** It is not a name collision but a *retired
- * field*, and the correction is to delete it, not to rename it — which is
- * what {@link module:engine/note-package.assertNoDeclaredPackage} has always
- * said, and had no caller to say it to. Deferring to it means one message for
- * one mistake rather than two that contradict each other about the fix.
+ * **`package:` keeps its own words.** It is not a name collision but a field
+ * the configuration owns, and the correction is to delete it, not to rename
+ * it — which is what {@link module:engine/note-package.assertNoDeclaredPackage}
+ * says. Deferring to it means one message for one mistake rather than two that
+ * contradict each other about the fix.
  *
  * @param {object} frontmatter - The note's parsed frontmatter.
  * @param {string} relPath - The note's path within the tree, for the message.

@@ -307,7 +307,7 @@ function isMapping(value) {
  * `data.seat` — and the note writes `seat:` one level inside it. The finding
  * names that key for two reasons at once: it is the word on the line the
  * diagnostic opens, and it is what {@link
- * module:engine/retired-fields.locateFrontmatterKey} matches when the authored
+ * module:engine/diagnostics.locateFrontmatterKey} matches when the authored
  * value cannot be found in the fence, which a dotted path never would.
  *
  * @param {object} field - The declaration.

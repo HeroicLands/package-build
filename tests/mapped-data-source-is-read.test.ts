@@ -24,12 +24,8 @@
  * that compiles it is found through the same matcher the target check uses, and
  * that declaration must name `data.X`. Every unmatched row is a finding.
  *
- * The second assertion is the trap the first one walks into. `legacyKeyOf` falls
- * back to `name`, so renaming a source to `data.weight` and stopping there moves
- * step 2 from `sohl.weight` to `sohl["data.weight"]` — a position no note
- * authors — and every tree that writes the key inside its block loses the value
- * to fix the container. A `data.` source therefore declares `legacyKey`, and
- * that key is the bare remainder.
+ * The second assertion is the converse: a `data.` source is authored in the
+ * container and nowhere else, so it has no in-block key.
  */
 
 import { describe, it, expect } from "vitest";
@@ -37,7 +33,7 @@ import { describe, it, expect } from "vitest";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import { declarationFor } from "../engine/content-format-check.mjs";
 import { authoredFields } from "../engine/field-spec.mjs";
-import { legacyKeyOf, retiredTopLevelKey, resolveFieldValue } from "../engine/system-block.mjs";
+import { inBlockKey, resolveFieldValue } from "../engine/system-block.mjs";
 import { resolveCharges, resolveRelation, resolveSkillAptitudes } from "../engine/frontmatter.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
@@ -148,18 +144,12 @@ describe("a mapping row's `data.` source is read", () => {
         expect(skippedRows()).toEqual([]);
     });
 
-    it("keeps the in-block key a note authors reachable beneath it", () => {
-        // `legacyKeyOf` falls back to `name`, so a dotted source with no
-        // `legacyKey` sends step 2 looking for a key spelled `data.weight`
-        // inside the block — which nothing writes.
-        const unreachable = everyDeclaration()
+    it("gives a `data.` source no in-block key", () => {
+        const keyed = everyDeclaration()
             .filter(({ field }) => String(field.name ?? "").startsWith("data."))
-            .filter(({ field }) => legacyKeyOf(field) !== retiredTopLevelKey(field))
-            .map(({ system, noteType, field }) => ({
-                declaration: `${system}.${noteType}.${field.name}`,
-                legacyKey: legacyKeyOf(field),
-            }));
-        expect(unreachable).toEqual([]);
+            .filter(({ field }) => inBlockKey(field) !== undefined)
+            .map(({ system, noteType, field }) => `${system}.${noteType}.${field.name}`);
+        expect(keyed).toEqual([]);
     });
 });
 
@@ -194,18 +184,10 @@ describe("an affiliation's four shared sources reach the document", () => {
         });
     });
 
-    it("keeps the in-block and top-level positions every tree still writes", () => {
-        expect(resolveRelation({ sohl: { relations: { peoni: "aligned" } } })).toEqual({
-            peoni: "aligned",
-        });
-        expect(resolveRelation({ relations: { peoni: "rival" } })).toEqual({ peoni: "rival" });
-        // The retired spelling of the field, in the container and out of it.
-        expect(resolveRelation({ data: { relation: { peoni: "nemesis" } } })).toEqual({
-            peoni: "nemesis",
-        });
-        expect(resolveRelation({ sohl: { relation: { peoni: "nemesis" } } })).toEqual({
-            peoni: "nemesis",
-        });
+    it("reads neither the block, the top level nor a singular spelling", () => {
+        expect(resolveRelation({ sohl: { relations: { peoni: "aligned" } } })).toEqual({});
+        expect(resolveRelation({ relations: { peoni: "rival" } })).toEqual({});
+        expect(resolveRelation({ data: { relation: { peoni: "nemesis" } } })).toEqual({});
     });
 });
 
@@ -214,9 +196,7 @@ describe("an affiliation's four shared sources reach the document", () => {
  *
  * `data.charges.value`, `data.charges.max` and `data.skillAptitudes` are mapping
  * rows exactly as the affiliation four are, and their readers re-read the note
- * for the same reason — each validates a shape spread over several keys. No tree
- * authors them under `data:` today, which is why they cost nothing and why they
- * would have gone unnoticed.
+ * for the same reason — each validates a shape spread over several keys.
  */
 describe("a mystery's shared sources reach the document", () => {
     it("resolves `charges` out of the container", () => {
@@ -232,11 +212,11 @@ describe("a mystery's shared sources reach the document", () => {
         });
     });
 
-    it("keeps the destination and in-block positions winning over it", () => {
+    it("keeps the destination winning over it", () => {
         expect(
             resolveCharges({
                 data: { charges: { value: 2, max: 5 } },
-                sohl: { charges: { value: 1, max: 3 } },
+                sohl: { system: { charges: { value: 1, max: 3 } } },
             }),
         ).toEqual({ value: 1, max: 3 });
         expect(

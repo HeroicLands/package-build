@@ -23,7 +23,7 @@
  *
  * The impact die is the one whose two positions are spelled differently —
  * authored `impact.die`, stored `impactBase.die` — so the reader takes both,
- * the same shape `FieldSpec.name`/`legacyKey` takes.
+ * the same split `FieldSpec.name`/`FieldSpec.to` makes.
  */
 
 import { describe, it, expect } from "vitest";
@@ -40,13 +40,13 @@ const build = (type: string, fm: object) =>
 /*  The reader                                                            */
 /* --------------------------------------------------------------------- */
 
-describe("sohlSystemField — the destination first, then the legacy position", () => {
+describe("sohlSystemField — the destination first, then the block", () => {
     it("prefers `sohl.system.<to>`", () => {
         const fm = { sohl: { subType: "legacy", system: { subType: "own" } } };
         expect(sohlSystemField(fm, "subType")).toBe("own");
     });
 
-    it("falls back to the legacy in-block key, then the top level", () => {
+    it("falls back to the in-block key, then the top level", () => {
         expect(sohlSystemField({ sohl: { subType: "legacy" } }, "subType")).toBe("legacy");
         expect(sohlSystemField({ subType: "shared" }, "subType")).toBe("shared");
     });
@@ -56,13 +56,13 @@ describe("sohlSystemField — the destination first, then the legacy position", 
         expect(sohlSystemField(fm, "charges.max", null)).toBe(3);
     });
 
-    it("takes a legacy key spelled differently from the destination", () => {
-        // `impact.die` is authored; `impactBase.die` is stored. Both are read
-        // while the corpus moves, and the destination wins.
+    it("takes an in-block key spelled differently from the destination", () => {
+        // `impact.die` is authored; `impactBase.die` is stored. Both are read,
+        // and the destination wins.
         const authored = { sohl: { impact: { die: 6 } } };
         const moved = { sohl: { system: { impactBase: { die: 8 } } } };
-        expect(sohlSystemField(authored, "impactBase.die", 0, { legacyKey: "impact.die" })).toBe(6);
-        expect(sohlSystemField(moved, "impactBase.die", 0, { legacyKey: "impact.die" })).toBe(8);
+        expect(sohlSystemField(authored, "impactBase.die", 0, { name: "impact.die" })).toBe(6);
+        expect(sohlSystemField(moved, "impactBase.die", 0, { name: "impact.die" })).toBe(8);
     });
 
     it("returns the default when neither position carries the key", () => {
@@ -114,23 +114,29 @@ describe("a note that authors at the destination still compiles", () => {
 });
 
 /* --------------------------------------------------------------------- */
-/*  The legacy position keeps working while the corpus moves              */
+/*  The block and `data:` positions                                       */
 /* --------------------------------------------------------------------- */
 
-describe("the corpus's current spelling is unchanged", () => {
-    it("still reads every one of the five from the block", () => {
+describe("the positions a note writes today", () => {
+    it("reads every one of the five from the block or from `data:`", () => {
         expect(build("skill", { sohl: { subType: "physical" } }).subType).toBe("physical");
         expect(
-            build("mystery", { sohl: { subType: "grimoire", charges: { max: 5, value: 2 } } })
-                .charges,
+            build("mystery", {
+                sohl: { subType: "grimoire" },
+                data: { charges: { max: 5, value: 2 } },
+            }).charges,
         ).toEqual({ max: 5, value: 2 });
         expect(
-            build("mystery", { sohl: { subType: "grimoire", skillAptitudes: { swordcraft: 2 } } })
-                .skillAptitudes,
+            build("mystery", {
+                sohl: { subType: "grimoire" },
+                data: { skillAptitudes: { swordcraft: 2 } },
+            }).skillAptitudes,
         ).toEqual({ swordcraft: 2 });
         expect(
-            build("affiliation", { sohl: { subType: "polity", relations: { guild: "rival" } } })
-                .relations,
+            build("affiliation", {
+                sohl: { subType: "polity" },
+                data: { relations: { guild: "rival" } },
+            }).relations,
         ).toEqual({ guild: "rival" });
         expect(
             build("projectilegear", { sohl: { subType: "arrow", impact: { die: 6 } } }).impactBase

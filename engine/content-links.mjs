@@ -27,9 +27,8 @@
  *    written target expands to exactly one canonical address, from the
  *    position's own defaults — the package it omits is always this one — so a
  *    lookup finds one entry or none. There is no candidate set to disambiguate.
- * 3. **An unlabelled link.** `[[x]]` addresses nothing: the alias namespace it
- *    once named is retired, and a shortcode is an address rather than
- *    prose, so the link has neither a resolvable target nor text to show. The
+ * 3. **An unlabelled link.** `[[x]]` addresses nothing: a shortcode is an address
+ *    rather than prose, so the link has neither a resolvable target nor text to show. The
  *    correction is always `[[type-shortcode|Text]]`.
  * 4. **A wikilink authored in frontmatter.** Both builds walk a note's *body*
  *    and copy frontmatter through verbatim, so a link written in a
@@ -90,7 +89,6 @@ import {
 import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
-import { RETIRED_TYPES } from "./ids.mjs";
 import { parseWikilink, WIKILINK } from "./wikilink-syntax.mjs";
 import { readQualifier } from "./wikilinks.mjs";
 
@@ -167,8 +165,9 @@ export function buildLinkIndex(
     const frontmatterLinks = [];
 
     // The one package every note in this tree belongs to. Taken from the
-    // configuration this build resolved — never from a note (`package:` is
-    // retired, so there is no second source an address could disagree with)
+    // configuration this build resolved — never from a note (a note
+    // declares no package, so there is no second source an address could
+    // disagree with)
     // and never from the ambient one, which is a different configuration
     // whenever a test injects one, `PACKAGE_BUILD_CONFIG` names one, or the
     // command runs from a worktree.
@@ -788,8 +787,6 @@ function readAddress(url, packages) {
  * **What is checkable, stated plainly.** Only an address into this site is, and
  * only against facts this build already holds:
  *
- * - A **retired content type** in the path. The engine knows the retired names
- *   and what replaced it, so this is a fact rather than a guess.
  * - A **hardcoded absolute URL** into this package's own prefix, or into one a
  *   fetched index names. Every one of them has a better form to write, which
  *   is why every one is reported — including a bare `/<package>/`, which names
@@ -890,30 +887,6 @@ export function auditHomepageLinks(index) {
                             `— resolve it through that package's link ` +
                             `manifest, whose entries carry the address, so a ` +
                             `relocation does not leave this page behind`,
-                );
-            }
-
-            // The retired-type rule reads the path *inside* the package, so an
-            // address that named one is fixed the same way wherever it was
-            // written.
-            const inPackage = prefix ? segments.slice(1) : segments;
-            for (const [i, segment] of inPackage.entries()) {
-                // `hasOwn`, not a plain lookup: a path segment spelled
-                // `constructor` would otherwise inherit a truthy answer from
-                // `Object.prototype` and be reported as retired.
-                if (!Object.hasOwn(RETIRED_TYPES, segment)) continue;
-                const replacement = RETIRED_TYPES[segment];
-                const fixed = [...inPackage];
-                fixed[i] = replacement;
-                report(
-                    field,
-                    url,
-                    url,
-                    occurrence,
-                    `address "${url}" names content type "${segment}", ` +
-                        `retired in favour of "${replacement}" — both ` +
-                        `compiled to the same document, so the fix is ` +
-                        `mechanical: "${fixed.join("/")}/"`,
                 );
             }
         }

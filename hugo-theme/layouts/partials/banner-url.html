@@ -93,11 +93,10 @@
 {{- $declined := or (eq (lower $raw) "none") (eq $raw "false") -}}
 
 {{- /* A note's resolved banner, formatted for the same reason the decline
-       above is: an unset key and a deliberate blank are both falsy, and only
+       above is: an unset key and an empty string are both falsy, and only
        formatting tells them apart. `<nil>` covers both an absent key and an
        explicit `null`, which the note format reads as *unset* — so the
-       resolution carries on to the subtype default. `""` is the format's
-       deliberate blank: a note naming no hero image, which declines one. */ -}}
+       resolution carries on to the subtype default. */ -}}
 {{- $resolved := printf "%v" (index $data "banner") -}}
 {{- $fromBuild := ne $resolved "<nil>" -}}
 

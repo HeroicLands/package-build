@@ -43,9 +43,9 @@
  * @module
  */
 
-import { legacyKeyOf, resolveFieldValue, retiredTopLevelKey, setPath } from "./system-block.mjs";
+import { resolveFieldValue, setPath } from "./system-block.mjs";
 
-export { legacyKeyOf, retiredTopLevelKey, setPath };
+export { setPath };
 
 /**
  * @typedef {object} FieldSpec
@@ -61,29 +61,10 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   degenerate case where the shared source and the system destination happen
  *   to share a name. They constantly do not — one shared `data.portrait` feeds
  *   `sohl.system.portrait` *and* `hm3.system.bioImage` — so the source is
- *   declared rather than matched by spelling. The in-block position is
- *   still read, second, until the corpus moves off it — keyed on
- *   `legacyKey` where the two spellings differ.
+ *   declared rather than matched by spelling. A name that is not a path into
+ *   `data:` is also read inside the system block, second.
  *
  *   Absent means the value is not authored at all — see `value`.
- * @property {string} [legacyKey] - **The key this field is authored at inside
- *   the system block** — the second position of the resolution order — when
- *   that is not `name`. Absent, the position is keyed on `name`.
- *
- *   As one property the two would hold only while a field's
- *   shared source and its in-block key were the same word. `data:` ended
- *   that: a shared source is a path into a container, so `data.species` and
- *   `species` name two different places and no single value reached both.
- *   `name: "species"` could not see `data.species`; `name: "data.species"`
- *   could not see `hm3.species`; and each yielded the field's **default**
- *   wherever only the other position was authored, with the note compiling and
- *   the value simply gone.
- *
- *   Declaring both restores the shape every other retirement in this package
- *   uses — read both spellings, let the current one win, and *report* the
- *   retiring one — so a field can move into `data:` while the corpus catches
- *   up, instead of on a flag day across four repositories. A declaration that
- *   names one is mid-sweep by construction; see {@link readsLegacyKey}.
  * @property {string} [topLevelMeans] - **Why the note's top-level key of this
  *   name is not this field's source** — declared wherever that key's spelling
  *   means something else at the note level, or the closed top-level
@@ -109,7 +90,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *
  *   The exempted field is still authorable, at both of the positions that
  *   describe the *document* rather than the note: `<system>.system.<to>` and
- *   the legacy in-block `<system>.<name>`. Absent means the ordinary case —
+ *   the in-block `<system>.<name>`. Absent means the ordinary case —
  *   the top level is read, as the third step.
  *
  *   **It is read from the other side too**, because the statement is symmetric:
@@ -307,56 +288,11 @@ export const BLANK_IS_DEFAULT = Object.freeze({
 /* --------------------------------------------------------------------- */
 
 /**
- * Whether a resolution read a field from the position it is being swept off.
- *
- * The sweep's progress signal, in one predicate so the compile-time report and
- * the frontmatter lint cannot disagree about what counts — the role
- * {@link module:engine/retired-fields.declaresRetiredAlias} plays for a renamed
- * field.
- *
- * **Only for a field that declares a `legacyKey`.** Every other field's
- * in-block position is simply where it lives; reporting those would put a
- * finding on every field of every note in every tree, which is the corpus
- * migration rather than a signal anyone could act on.
- *
- * @param {FieldSpec} field - The declaration.
- * @param {import("./system-block.mjs").FieldSource} from - Where
- *   {@link resolveFieldValue} said the value came from.
- * @returns {boolean} True when the value came from the retiring position.
- */
-export function readsLegacyKey(field, from) {
-    return field?.legacyKey !== undefined && from === "block";
-}
-
-/**
- * Whether a resolution read a field from the top-level key `data:` gathered it
- * off — the shared level's retiring position.
- *
- * {@link readsLegacyKey}'s sibling, and the same signal: a finding here counts
- * one note still on the pre-`data:` spelling, so the sweep has something to
- * count down instead of a corpus nobody has surveyed.
- *
- * The `from` tag already carries the whole answer — step 3b is the only thing
- * that produces it, and it produces it only for a `data.` source — so this is a
- * name for the question rather than a second test of it. Named all the same,
- * because a compile-time report and the frontmatter lint both ask it and must
- * not drift apart about what counts.
- *
- * @param {FieldSpec} field - The declaration.
- * @param {import("./system-block.mjs").FieldSource} from - Where
- *   {@link resolveFieldValue} said the value came from.
- * @returns {boolean} True when the value came from the retiring top-level key.
- */
-export function readsRetiredTopLevel(field, from) {
-    return from === "topLevel" && retiredTopLevelKey(field) !== undefined;
-}
-
-/**
  * Read one declared field out of a note's frontmatter.
  *
  * The *position* is resolved by {@link resolveFieldValue} — `<system>.system`
- * first, then the legacy in-block key, then the declared shared source, then
- * the default. The **coercion** is applied here, once, wherever the value
+ * first, then the in-block key, then the declared shared source, then the
+ * default. The **coercion** is applied here, once, wherever the value
  * came from: a field's `read` is a statement about the field, not about where
  * an author happened to write it, so `weight: "7"` reads as `7` at every one of
  * those positions.
@@ -367,17 +303,6 @@ export function readsRetiredTopLevel(field, from) {
  * @param {string} [options.block="sohl"] - Which system's block to resolve
  *   against. The default is the one block every existing tree authors; a
  *   second system passes its own.
- * @param {(field: FieldSpec) => void} [options.onLegacyKey] - Called with each
- *   field read from the position it is being swept off. A callback
- *   rather than a returned list because the caller is a compiler, which already
- *   knows the note and how to locate a key in it; this module knows neither and
- *   would have to invent a finding shape to say so.
- * @param {(field: FieldSpec) => void} [options.onRetiredTopLevel] - Called with
- *   each field read from the top-level key `data:` gathered it off. The
- *   shared level's counterpart to `onLegacyKey`, and a separate callback
- *   because it is a separate position: a note may have moved one of the two and
- *   not the other, and a caller that conflated them would tell its author to
- *   fix the wrong line.
  * @returns {any} The value to emit.
  */
 export function readField(field, fm, options = {}) {
@@ -403,18 +328,12 @@ export function readField(field, fm, options = {}) {
  * @param {object} [options] - Options, as {@link readField} takes them.
  * @param {string} [options.block="sohl"] - Which system's block to resolve
  *   against.
- * @param {(field: FieldSpec) => void} [options.onLegacyKey] - See
- *   {@link readField}.
- * @param {(field: FieldSpec) => void} [options.onRetiredTopLevel] - See
- *   {@link readField}.
  * @returns {{value: any, from: import("./system-block.mjs").FieldSource}} The
  *   value to emit, and the position it was read from.
  */
-export function readFieldEntry(field, fm, { block = "sohl", onLegacyKey, onRetiredTopLevel } = {}) {
+export function readFieldEntry(field, fm, { block = "sohl" } = {}) {
     const { value, from } = resolveFieldValue(field, fm, { block });
     if (from === "value") return { value, from };
-    if (onLegacyKey && readsLegacyKey(field, from)) onLegacyKey(field);
-    if (onRetiredTopLevel && readsRetiredTopLevel(field, from)) onRetiredTopLevel(field);
     return { value: field.read ? field.read(value, { fm, field }) : value, from };
 }
 
@@ -453,15 +372,9 @@ export function isAuthored(from, value) {
  * @param {string} [options.block="sohl"] - Which system's block the builder
  *   reads. One declaration compiles against any block, which is what lets two
  *   systems declare the same shared source and different destinations.
- * @param {(field: FieldSpec) => void} [options.onLegacyKey] - Passed through to
- *   {@link readField}: called with each field the note authored at the position
- *   it is being swept off.
- * @param {(field: FieldSpec) => void} [options.onRetiredTopLevel] - Passed
- *   through to {@link readField}: called with each field the note authored at
- *   the top-level key `data:` gathered it off.
  * @returns {(fm: object) => object} A `system`-block builder.
  */
-export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetiredTopLevel } = {}) {
+export function buildFromFields(fields, { block = "sohl" } = {}) {
     return function buildDeclaredSystem(fm) {
         const out = {};
         for (const field of fields) {
@@ -474,11 +387,7 @@ export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetired
             // `initial` standing; writing the `undefined` a source-less
             // declaration resolves to would put the key in the document.
             if (field.runtimeOnly) continue;
-            const { value, from } = readFieldEntry(field, fm, {
-                block,
-                onLegacyKey,
-                onRetiredTopLevel,
-            });
+            const { value, from } = readFieldEntry(field, fm, { block });
             // The other conditional row: a field whose *absence* is meaningful.
             // Writing a declared default would answer a question the
             // note did not ask — "this affliction's onset takes `null` days" —

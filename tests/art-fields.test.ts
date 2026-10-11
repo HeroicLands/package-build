@@ -308,12 +308,14 @@ describe("resolving an art value", () => {
         });
     });
 
-    it("keeps the two empties apart, as the pathname rule does", () => {
-        // `null` and an absent key mean "no art named, apply the default";
-        // `""` means "ship blank on purpose", and no default may replace it.
+    it('reads `null` and an absent key as unset, and `""` as an address nothing answers', () => {
         expect(artPathname(index, null, "icon")).toEqual({ pathname: null, resolved: true });
         expect(artPathname(index, undefined, "icon")).toEqual({ pathname: null, resolved: true });
-        expect(artPathname(index, "", "icon")).toEqual({ pathname: "", resolved: true });
+        expect(artPathname(index, "", "icon")).toMatchObject({
+            pathname: null,
+            resolved: false,
+            reason: "not-an-address",
+        });
     });
 
     it("says an address nothing answers is unresolved, rather than unnamed", () => {

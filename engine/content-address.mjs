@@ -148,12 +148,10 @@ export function addressSlug(fm) {
  * docs, neither of which contains a hyphen or names a type.
  *
  * **It is a pure function of the frontmatter**, and takes no options. Nothing
- * about the file the note was read from reaches it: the `README.md` convention
- * that made one note address a whole section is retired with the section itself,
- * so every note is addressed alike and there is one rule and no branch.
- * It takes no address scheme; the `landing` rule it once validated is
- * discarded; with that key retired, `prefix` was the only thing left in the
- * scheme and the paragraph above is the reason it never applied.
+ * about the file the note was read from reaches it, so every note is addressed
+ * alike and there is one rule and no branch. It takes no address scheme:
+ * `prefix` is the whole scheme and the paragraph above is the reason it never
+ * applies here.
  *
  * @param {object} fm - Parsed frontmatter.
  * @returns {string} The package-relative address, with a trailing slash and no

@@ -49,7 +49,7 @@ import { NOTE_SYSTEM } from "./systems.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 // The folder id's derivation, taken from the pass that owns it rather than
 // restated here — see the `folder` branch below. `folder-notes.mjs` reaches
-// only `content-address`, `address-charset`, `ids` and `retired-fields`, none
+// only `content-address`, `address-charset` and `ids`, none
 // of which reach this module, so the direction closes no cycle.
 import { FOLDER_TYPE, folderDocId } from "./folder-notes.mjs";
 

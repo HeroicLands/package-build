@@ -231,17 +231,8 @@ describe("emittedArtFor answers from the routing the compile follows", () => {
         expect(emittedArtFor("homepage")).toEqual({ document: null, art: [] });
     });
 
-    it("makes no claim about a retired type, which is reported as retired instead", () => {
-        expect(emittedArtFor("character")).toBeNull();
+    it("makes no claim about a note with no type", () => {
         expect(emittedArtFor("")).toBeNull();
-    });
-
-    it("answers a renamed type as its current spelling", () => {
-        // Every type-keyed lookup normalises through `currentType`, so a tree
-        // still on `armor` gets the same answer a swept one does — which is
-        // what keeps the check from reporting an unswept note's live `img:`.
-        expect(emittedArtFor("armor")).toEqual(emittedArtFor("armorgear"));
-        expect(emittedArtFor("armor")).toEqual({ document: "Item", art: ["icon"] });
     });
 });
 
@@ -294,15 +285,15 @@ describe("the frontmatter lint reports an art key the type never emits", () => {
         expect(inertArt(lint({ type: "lore", sohl: { icon: AUTHORED_ART } }))).toHaveLength(1);
     });
 
-    it('reports an `icon: ""` once, as inert rather than as a lost default', () => {
-        // Both rules could fire on this note. Only the one that is true does:
-        // where nothing is emitted there is no default art to fall back to, so
-        // the `""`-versus-`null` distinction has nothing to distinguish.
+    it('reports an `icon: ""` once, as an empty value', () => {
+        // Both rules could fire on this note. Only the empty-value error does:
+        // an empty value is refused wherever it is written, and a second
+        // finding about the same key would send the author to it twice.
         const findings = lint({ type: "lore", data: { icon: "" } });
-        expect(inertArt(findings)).toHaveLength(1);
-        expect(findings.filter((f) => String(f.message).includes("ship no art at all"))).toEqual(
-            [],
-        );
+        expect(inertArt(findings)).toHaveLength(0);
+        expect(
+            findings.filter((f) => String(f.message).includes("not a valid art value")),
+        ).toHaveLength(1);
     });
 
     it("says nothing about `icon: null`, which is the blessed way to name none", () => {

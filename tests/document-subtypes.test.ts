@@ -35,7 +35,7 @@ import {
 } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
-import { RENAMED_TYPES, packForType } from "../engine/ids.mjs";
+import { packForType } from "../engine/ids.mjs";
 import { itemTypes } from "../engine/item-registry.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { Items } from "../sohl/items.mjs";
@@ -255,20 +255,6 @@ describe("SOHL_DOCUMENT_SUBTYPES (the declaration this system ships)", () => {
         }
     });
 
-    it("still answers to a renamed type's retired spelling", () => {
-        // The retirement window: a tree that has not swept its `(type,
-        // shortcode)` references compiles into the document it always did, so
-        // the packs cannot move while the sweep is outstanding.
-        for (const [retired, current] of Object.entries(RENAMED_TYPES)) {
-            expect(documentSubtype(SOHL_DOCUMENT_SUBTYPES, retired, {}), retired).toBe(
-                documentSubtype(SOHL_DOCUMENT_SUBTYPES, current, {}),
-            );
-            expect(subtypeRow(SOHL_DOCUMENT_SUBTYPES, retired), retired).toBe(
-                subtypeRow(SOHL_DOCUMENT_SUBTYPES, current),
-            );
-        }
-    });
-
     it("agrees with the engine's own note-type → document routing", () => {
         // Two declarations of related facts: the engine says which pack and
         // document class a note type routes to, this map says which subtype of
@@ -305,7 +291,7 @@ describe("the compilers look the subtype up", () => {
         type: "skill",
         shortcode: "awar",
         name: { full: "Awareness" },
-        sohl: { subType: "physical", archetype: null },
+        sohl: { subType: "physical", templatePriority: null },
     };
 
     const BEING_FM = {
@@ -313,7 +299,7 @@ describe("the compilers look the subtype up", () => {
         type: "being",
         shortcode: "folk",
         name: { full: "Basic Folk" },
-        sohl: { archetype: null },
+        sohl: { templatePriority: null },
     };
 
     it("emits the item subtype the map declares", () => {

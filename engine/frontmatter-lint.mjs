@@ -39,12 +39,10 @@
  * vocabulary (an adventure module ships skills, beings and magic swords), so
  * every consumer loads all of it.
  *
- * The two rules that are not schema-driven sit on the *note format* side of
- * that line, which is why they are here and not in `sohl/`: the retired
- * top-level fields, and the address-bearing fields a `type: homepage` note
- * refuses. Each supplies its own message from the module that owns the
- * knowledge — `retired-fields.mjs` and `homepage.mjs` — and this module only
- * locates it in the file.
+ * The rule that is not schema-driven sits on the *note format* side of that
+ * line, which is why it is here and not in `sohl/`: the address-bearing fields
+ * a `type: homepage` note refuses. The message comes from `homepage.mjs`, which
+ * owns the knowledge, and this module only locates it in the file.
  *
  * **It takes a built link index rather than walking itself.** The dead-
  * reference check has to resolve exactly as a wikilink does, cross-package
@@ -67,12 +65,10 @@ import {
 import { AddressEntries, AddressLink } from "./address-values.mjs";
 import { resolveEventReference } from "./note-events.mjs";
 import { addressPositions } from "./note-addresses.mjs";
-import { authoredFields, readsLegacyKey, readsRetiredTopLevel } from "./field-spec.mjs";
+import { authoredFields } from "./field-spec.mjs";
 import {
-    legacyKeyOf,
-    resolveDataProperty,
+    inBlockKey,
     resolveFieldValue,
-    retiredTopLevelKey,
     systemBlock,
     SYSTEM_BLOCK_KEYS,
     unknownBlockKeys,
@@ -84,7 +80,6 @@ import {
 } from "./diagnostics.mjs";
 import { pathnameProblem } from "./pathnames.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
-import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from "./ids.mjs";
 import { parseAddress, acceptsType, renderAddress, hasAnchor } from "./address.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
@@ -101,19 +96,6 @@ import {
 } from "./note-vocabulary.mjs";
 // The art slots, declared once. The linter states no art key of its own.
 import { ART_SLOTS } from "./art-fields.mjs";
-import {
-    RETIRED_FIELD_ALIASES,
-    declaresRetiredAlias,
-    aliasesRetiredMessage,
-    declaresRetiredAliasesField,
-    draftRetiredMessage,
-    legacyKeyMessage,
-    readAliasedField,
-    retiredAliasMessage,
-    retiredTopLevelMessage,
-    sectionRetiredMessage,
-    traitsRetiredMessage,
-} from "./retired-fields.mjs";
 
 /**
  * `sohl:` keys every type accepts, whatever its schema says.
@@ -123,10 +105,10 @@ import {
  * declaration and both would otherwise be reported as unknown on every note
  * that uses them.
  *
- * - `folder` — the compendium folder the document is filed in.
+ * - `packFolder` — the folder note the document is filed in.
  * - `pack` — which compendium of the note's document type receives it, for a
  *   repository shipping several.
- * - `archetype` — the archetype flag, read for any note by the walk itself.
+ * - `templatePriority` — which of several templates the Create dialog offers.
  * - `kbcat` — the knowledgebase category a note is grouped under.
  *
  * `kbcat` is the one that matters for what this check *is*. **The pack build is
@@ -144,21 +126,8 @@ import {
  * @type {ReadonlySet<string>}
  */
 export const UNIVERSAL_KEYS = Object.freeze(
-    new Set(["packFolder", "pack", "archetype", "templatePriority", "kbcat"]),
+    new Set(["packFolder", "pack", "templatePriority", "kbcat"]),
 );
-
-/**
- * The shared `data:` keys declared for every note type that still have a
- * retiring top-level spelling — `pack` and `packFolder`, the two
- * {@link module:engine/note-vocabulary.SHARED_DATA_FIELDS} entries
- * {@link module:engine/system-block.resolveDataProperty} reads off a tree's
- * bare top level. Unlike a type's own declarations, which the retiring set
- * below derives from `schemas`, these apply to every type at once, so they
- * are named once here rather than attached to one type's vocabulary.
- *
- * @type {readonly string[]}
- */
-const UNIVERSAL_RETIRING_DATA_KEYS = Object.freeze(["pack", "packFolder"]);
 
 /**
  * The system blocks a build checks, and what each accepts beyond the shared
@@ -432,34 +401,8 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
     /** First segment of each declared name — `charges.value` is authored as `charges`. */
     const declared = new Set(fields.map((f) => f.name.split(".")[0]));
 
-    // The retired spelling of a key this type declares → what to write now.
-    // Built from the type's own declaration, so a renamed `data:` key is
-    // retired exactly where its replacement exists and stays an unrecognised
-    // key on every other type.
-    const renamed = new Map();
-    for (const name of declared) {
-        const retired = RETIRED_FIELD_ALIASES[name];
-        if (retired) renamed.set(retired, name);
-    }
-
     for (const key of Object.keys(entries)) {
         if (declared.has(key)) continue;
-        const current = renamed.get(key);
-        if (current) {
-            findings.push({
-                file: note.file,
-                ...positionOfFrontmatterPath(raw, ["data", key], { key: true }),
-                // A warning, as every retired spelling is: the note compiles to
-                // the correct document, so failing a build over it would red a
-                // tree that has done nothing wrong yet. The refusal comes once
-                // no tree writes the key, and needs no code — with the alias
-                // gone the spelling is an unrecognised key again, which the
-                // loop below already refuses.
-                severity: "warning",
-                message: retiredAliasMessage(key, current),
-            });
-            continue;
-        }
         const guess = nearest(key, declared);
         findings.push({
             file: note.file,
@@ -468,9 +411,6 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
             message:
                 type === "affiliation" && key === "commonSkills" ?
                     "`data.commonSkills` is not an affiliation field; write skill Addresses at `sohl.system.commonSkills`"
-                : type === "lore" && key === "event" ?
-                    "`data.event` is retired — write `data.events`, a list of occurrences, " +
-                    "instead, each `{ when, until?, recurs? }`; a note may state several"
                 :   `"${key}" is not a \`data:\` property declared by ${type}; ` +
                     `the container is closed, so the key reaches no document ` +
                     `and no page` +
@@ -886,11 +826,8 @@ function checkKeyedMap(note, { field, segments, entries, raw, packs }) {
  * whatever the type declares, and only once it is a well-formed term is the
  * type's own list the reason to refuse it.
  *
- * There is deliberately no third, retired-spelling check ahead of them
- * accepting `user-guide` as a warning naming `userguide`. Every consumer tree
- * has swept, so it would guard nothing: the old spelling falls through to the
- * charset check, which refuses it for the reason that always applied — it
- * contains a hyphen.
+ * A hyphenated term such as `user-guide` falls through to the charset check,
+ * which refuses it because it contains a hyphen.
  *
  * @param {object} note - The note.
  * @param {object} opts
@@ -1030,10 +967,8 @@ export const ART_FIELDS = Object.freeze(
  * The keys a field declaration is authored at **inside a system block**.
  *
  * The first segment of each field's in-block key: `impact.die` is authored as
- * `impact`, and a field whose shared source moved under `data:` is authored at
- * the `legacyKey` it declares rather than at its dotted name. Keying on
- * the name instead would report `sohl.species` as a property no `being` has,
- * against exactly the notes the sweep has not reached yet.
+ * `impact`. A field whose `name` is a path into `data:` has none: it is
+ * authored in the container.
  *
  * Written once and read twice: the note type's own declaration answers for the
  * system whose vocabulary the caller's `schemas` are, and a second system's
@@ -1044,7 +979,11 @@ export const ART_FIELDS = Object.freeze(
  * @returns {Set<string>} The in-block keys.
  */
 function inBlockKeys(schema) {
-    return new Set(authoredFields(schema ?? []).map((f) => legacyKeyOf(f).split(".")[0]));
+    return new Set(
+        authoredFields(schema ?? [])
+            .map((f) => inBlockKey(f)?.split(".")[0])
+            .filter((key) => key !== undefined),
+    );
 }
 
 /**
@@ -1063,8 +1002,8 @@ function inBlockKeys(schema) {
  * nothing outside that item supplies them and a note-level check must not go
  * looking in the block for one.
  *
- * Keyed on the **in-block** key — `legacyKey` where a field declares one, and
- * its first segment where that is dotted — because that is the position a note
+ * Keyed on the **in-block** key — its first segment where that is dotted —
+ * because that is the position a note
  * authors, and so the position a note-level check would otherwise read.
  *
  * @param {readonly object[]|null|undefined} schema - The type's declarations.
@@ -1076,7 +1015,8 @@ function collidingBlockKeys(schema) {
     if (!Array.isArray(schema)) return keys;
     for (const field of authoredFields(schema)) {
         if (field.topLevelMeans === undefined) continue;
-        keys.add(String(legacyKeyOf(field)).split(".")[0]);
+        const key = inBlockKey(field);
+        if (key !== undefined) keys.add(key.split(".")[0]);
     }
     return keys;
 }
@@ -1259,21 +1199,6 @@ export function lintNote(
     const raw = () => note.raw ?? "";
     const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
 
-    // The keys the closed top-level region refuses in general, but a
-    // declaration still reads at the retiring position — this type's own
-    // fields, which `resolveFieldValue`'s step 3b resolves, plus `pack` and
-    // `packFolder`, declared for every type and resolved the same way by
-    // {@link resolveDataProperty}. Derived ahead of the schema lookup below,
-    // which runs after the closed-region check, so that check can skip
-    // exactly these and nothing else: a key no declaration names stays
-    // refused.
-    const retiringTopLevelKeys = new Set([
-        ...UNIVERSAL_RETIRING_DATA_KEYS,
-        ...authoredFields(schemas?.[currentType(type)] ?? [])
-            .filter((field) => field.topLevelMeans === undefined)
-            .map((field) => retiredTopLevelKey(field))
-            .filter((key) => key !== undefined),
-    ]);
     if (type === "being") {
         const archetypes = fm.data?.archetypes;
         if (
@@ -1377,76 +1302,26 @@ export function lintNote(
      * each check would otherwise ask the same question of the same
      * declarations.
      */
-    const blockCollisions = collidingBlockKeys(schemas?.[currentType(type)]);
+    const blockCollisions = collidingBlockKeys(schemas?.[type]);
 
-    // The retired top-level fields, checked before the type: a note may carry
-    // one whatever its type is, and each finding stands on its own. Reported
-    // here as well as refused at compile because this is where an author meets
-    // every finding in the tree at once, rather than one note at a time.
+    // `package:` is never a note property: the package is the repository's
+    // configured `contentPackage`. Reported here as well as refused at compile
+    // because this is where an author meets every finding in the tree at once.
     if (Object.hasOwn(fm, "package")) {
         findings.push({
             file: note.file,
             ...at("package"),
             severity: "error",
             message:
-                "`package:` is a retired frontmatter field — delete it. A " +
-                "note's package is this repository's configured " +
-                "`contentPackage`, in package-build.config.yaml, and every " +
-                "note in the tree belongs to it",
+                "`package:` is a retired frontmatter field — delete it. A note's package " +
+                "is this repository's configured `contentPackage`, in " +
+                "package-build.config.yaml, and every note in the tree belongs to it",
         });
     }
-    // `folder:` named a compendium folder by the raw Foundry id declared in a
-    // per-pack `*-folders.yaml`. Both halves are retired together: the
-    // id spelling has nothing left to resolve against once the YAML is gone.
-    //
-    // Checked here as well as refused at compile because this is where an
-    // author meets every one of them in the tree at once — which is what a
-    // tree still to sweep needs, the whole corpus rather than the first note
-    // the compile happens to reach.
-    //
-    // **Both positions**, because notes wrote it both ways: top-level, and
-    // inside the `sohl:` block. The block spelling is no longer a universal
-    // key, so it would otherwise be reported as merely unrecognized, which
-    // says nothing about what to write instead.
-    const sohlBlock = fm.sohl;
-    const folderInBlock =
-        !!sohlBlock && typeof sohlBlock === "object" && Object.hasOwn(sohlBlock, "folder");
-    if (Object.hasOwn(fm, "folder") || folderInBlock) {
-        findings.push({
-            file: note.file,
-            ...at("folder"),
-            severity: "error",
-            message:
-                "`folder:` is a retired frontmatter field — write `packFolder` " +
-                "instead. A folder is a note (`type: folder`) now, and " +
-                "`packFolder` names it by its address, not by the Foundry id a " +
-                "retired `*-folders.yaml` used to declare",
-        });
-    }
-    // `img: ""` was how a note said "I name no art" while `resolveImg`
-    // conflated the two empties and every caller defaulted with `||`. It now
-    // says the opposite — "ship no art, and do not default me" — so a
-    // note carrying the old spelling has quietly changed meaning. Forty-five
-    // `sohl-thalorna` notes were written under the old reading and would have
-    // lost their default art with no error and no warning; this is the guard
-    // that would have caught them.
-    //
-    // **Both art fields, because both go through `resolveImg`.** `portrait` is
-    // not a variant spelling of `img` — a being carries the two independently —
-    // and checking only the more common one is how the sweep that prompted this
-    // guard missed eleven `sohl-kethira-basic` beings that write
-    // `portrait: ""`. Whatever the rule is, it belongs to the function, not to
-    // one of the keys that reaches it.
-    //
-    // A **warning**, on the pattern the `package:` and retired-alias sweeps
-    // set: the note still compiles, to a document that is merely iconless, so
-    // reddening a tree over it would refuse before the sweep rather than after
-    // it. It is transitional in the same sense — `""` is a legal thing to mean,
-    // and the message says so, but nothing in any tree means it yet.
-    //
-    // **The art slots only.** The rule reads as a general one about optional
-    // strings, and it is not — it belongs to `resolveImg`, and nothing else
-    // goes through it.
+    // An empty art value is an error. A slot names an image or is left out; a
+    // blank is how an unfinished note looks, and declining art has to be said
+    // by omitting the key. Every art slot is checked, wherever the note writes
+    // it, because the rule belongs to the slots and not to one key.
     //
     // **A block key a type claims for something else is read past.**
     // `topLevelMeans` settles which position the *emitted field* reads; it says
@@ -1454,29 +1329,6 @@ export function lintNote(
     // go on resolving through the block regardless — so an office with no style
     // of address would answer for a note's art, in twenty-eight
     // `sohl-kethira-basic` affiliations. Hence `blockCollisions`.
-
-    // The template priority is a *shared source* — the specification states it
-    // once for every type, as it does `pack` — so its retirement is reported
-    // here rather than by the per-type loop below, which only reaches a field
-    // some type's vocabulary declares.
-    if (declaresRetiredAlias(fm, "templatePriority")) {
-        findings.push({
-            file: note.file,
-            ...at(RETIRED_FIELD_ALIASES.templatePriority),
-            // An error, unlike the other retired alias. `archetype` is not
-            // a field of its own — it is `templatePriority` under its prior
-            // name, and both sit one letter from `archetypes`, which means
-            // something else entirely. A tree still on it is one where a
-            // priority and a taxonomy are told apart by a plural `s`, which
-            // is worth stopping rather than mentioning. This reds every
-            // tree until each is swept; that is the point.
-            severity: "error",
-            message: retiredAliasMessage(
-                RETIRED_FIELD_ALIASES.templatePriority,
-                "templatePriority",
-            ),
-        });
-    }
 
     // An art field a note's own type never emits. `img` is a *shared
     // top-level* field — `BLOCK_DOCUMENT_PROPERTIES` maps it onto
@@ -1503,12 +1355,11 @@ export function lintNote(
     // state, and telling each of them to delete a key that already means
     // nothing would bury the fifty-seven that name a path they believe ships.
     //
-    // A **warning**, as the `package:` and retired-alias sweeps are: the note
-    // compiles correctly and the value is merely inert. Nor is it certainly
+    // A **warning**: the note compiles correctly and the value is merely inert. Nor is it certainly
     // unwanted — a note's top level is the generated page's front matter as
     // well, so a template may read there what no document carries, which is a
     // judgement only the tree's author can make.
-    const emitted = emittedArt ? emittedArt(currentType(type)) : null;
+    const emitted = emittedArt ? emittedArt(type) : null;
     /** The art fields this note's type reaches nothing through. */
     const inertArt = new Set(
         emitted ?
@@ -1524,6 +1375,8 @@ export function lintNote(
             blockCollides: blockCollisions.has(key),
         });
         if (typeof authored !== "string" && !isAddressTuple(authored)) continue;
+        // An empty value has its own finding below; one finding per key.
+        if (authored === "") continue;
         findings.push({
             file: note.file,
             ...at(key),
@@ -1552,6 +1405,8 @@ export function lintNote(
             blockCollides: blockCollisions.has(key),
         });
         if (typeof authored !== "string" && !isAddressTuple(authored)) continue;
+        // An empty value has its own finding below.
+        if (authored === "") continue;
         const problem = pathnameProblem(authored);
         if (!problem) continue;
         findings.push({
@@ -1563,70 +1418,20 @@ export function lintNote(
     }
 
     for (const { key, inData } of ART_FIELDS) {
-        // Reported above, and the distinction this draws does not exist there:
-        // where nothing is emitted, `""` and `null` are equally inert and the
-        // note has no default art to lose.
-        if (inertArt.has(key)) continue;
         if (authoredValue(fm, key, { inData, blockCollides: blockCollisions.has(key) }) !== "")
             continue;
         findings.push({
             file: note.file,
             ...at(key),
-            severity: "warning",
+            severity: "error",
             message:
-                `\`${key}: ""\` means "ship no art at all" — it no longer falls ` +
-                `back to this type's default. Write \`${key}: null\` for a note ` +
-                'that simply names none; keep `""` only where the document is ' +
-                "meant to have no image",
+                `\`${key}: ""\` is not a valid art value — an empty value names no ` +
+                `image. Remove the key to name none, or name an image`,
         });
     }
-    if (Object.hasOwn(fm, "draft")) {
-        findings.push({
-            file: note.file,
-            ...at("draft"),
-            severity: "error",
-            message: draftRetiredMessage(),
-        });
-    }
-    // Anchored at column 1 for the same reason `aliases` is: a nested
-    // `section` under some other block is not this field.
-    if (Object.hasOwn(fm, "section")) {
-        findings.push({
-            file: note.file,
-            ...positionInFrontmatter(raw(), "section", undefined, { topLevel: true }),
-            severity: "error",
-            message: sectionRetiredMessage(),
-        });
-    }
-    // Anchored at column 1 for the same reason `section` is, and with more at
-    // stake: `sohl.traits` is a *different field that shares the name* —
-    // `projectilegear` declares one and the theme's gear sidebar reads it — so
-    // a finding about the retired top-level block must never open on it.
-    if (Object.hasOwn(fm, "traits")) {
-        findings.push({
-            file: note.file,
-            ...positionInFrontmatter(raw(), "traits", undefined, { topLevel: true }),
-            severity: "error",
-            message: traitsRetiredMessage(),
-        });
-    }
-    // Only the top-level `aliases` is retired. `name.aliases` writes the same
-    // key indented under `name:` and is **permitted** — reserved and unread —
-    // so both the test and the locator are anchored at column 1.
-    if (declaresRetiredAliasesField(fm)) {
-        findings.push({
-            file: note.file,
-            ...positionInFrontmatter(raw(), "aliases", undefined, { topLevel: true }),
-            severity: "error",
-            message: aliasesRetiredMessage(),
-        });
-    }
-
     // What the address rule says about a homepage's top-level fields: the
-    // `shortcode` it owes, and the `id` it may not write. Reported
-    // beside the retired fields above because it is the same kind of statement
-    // about the same note, and, like them, it must survive the two early
-    // returns below: the finding stands whatever else the type is.
+    // `shortcode` it owes, and the `id` it may not write. It must survive the
+    // two early returns below: the finding stands whatever else the type is.
     // Tags are checked here for the same reason: a classifying tag is not a
     // type's property — `draft` belongs to any note and `village` to a place —
     // so the finding must survive the early returns below.
@@ -1654,9 +1459,6 @@ export function lintNote(
 
     for (const key of authoredNoteKeys(raw())) {
         if (NOTE_TOP_LEVEL_KEY_SET.has(key)) continue;
-        // Reported below, as the retiring position it is rather than a key
-        // nobody recognises.
-        if (retiringTopLevelKeys.has(key)) continue;
         const position = positionInFrontmatter(raw(), key, undefined, { topLevel: true });
         if (
             findings.some(
@@ -1675,28 +1477,6 @@ export function lintNote(
                 `the region is closed, so the key reaches no document and no ` +
                 `page. Use ${listed(NOTE_TOP_LEVEL_KEYS)}` +
                 (guess ? `. Did you mean "${guess}"?` : ""),
-        });
-    }
-
-    // `pack` and `packFolder` are declared for every type, so each is
-    // checked once here rather than in the per-type `fields` loop below,
-    // which only iterates a type's own declarations. A **warning**, for the
-    // reason the per-type retiring position above is one: the note compiles
-    // to the correct document either way, so failing a build over it would
-    // red a tree that has done nothing wrong yet. Checked against every
-    // configured system block, because `resolveDataProperty` reads a
-    // system's own override before the top level, and a note may configure
-    // more than one.
-    for (const key of UNIVERSAL_RETIRING_DATA_KEYS) {
-        const retiring = Object.keys(systems ?? {}).some(
-            (blockName) => resolveDataProperty(fm, blockName, key).from === "topLevel",
-        );
-        if (!retiring) continue;
-        findings.push({
-            file: note.file,
-            ...at(key),
-            severity: "warning",
-            message: retiredTopLevelMessage({ name: `data.${key}` }),
         });
     }
 
@@ -1719,41 +1499,7 @@ export function lintNote(
         return findings;
     }
 
-    const replacement = RETIRED_TYPES[type];
-    if (replacement) {
-        findings.push({
-            file: note.file,
-            ...at("type", type),
-            severity: "error",
-            message:
-                `content type "${type}" was retired in favour of ` +
-                `"${replacement}"; both compiled to the same document, so the ` +
-                `fix is mechanical: write "${replacement}"`,
-        });
-        return findings;
-    }
-
-    // A **renamed** type is the opposite case, and the opposite answer: the
-    // note compiles into exactly the document it always did, so refusing it
-    // would fail a build over a note that is not wrong. It is reported, and
-    // every lookup below reads the current spelling.
-    const renamedTo = RENAMED_TYPES[type];
-    if (renamedTo) {
-        findings.push({
-            file: note.file,
-            ...at("type", type),
-            // A warning, for the reason the retired *field* alias below is one:
-            // the sweep is the content trees' work and the refusal comes after
-            // it, as `package:`'s did.
-            severity: "warning",
-            message: renamedTypeMessage(type, renamedTo),
-        });
-    }
-    // What every type-keyed table is keyed by. The authored spelling is still
-    // what a message quotes — it is what the reader has in front of them.
-    const current = currentType(type);
-
-    const schema = schemas[current];
+    const schema = schemas[type];
     if (!schema) {
         findings.push({
             file: note.file,
@@ -1771,9 +1517,9 @@ export function lintNote(
     // one this type may write. Skipped entirely when the caller declares no
     // vocabulary — reporting every key as unknown because nothing was loaded
     // to recognise it would be worse than not checking.
-    const entry = vocabulary?.[current];
+    const entry = vocabulary?.[type];
     if (entry) {
-        const fields = dataFields(current, vocabulary) ?? [];
+        const fields = dataFields(type, vocabulary) ?? [];
         findings.push(
             ...checkDataContainer(note, {
                 type,
@@ -1803,33 +1549,6 @@ export function lintNote(
     const fields = authoredFields(schema);
     /** The keys this type's own declaration is authored at inside a block. */
     const declared = inBlockKeys(schema);
-
-    // The retired spelling of a field this type declares → what to write now.
-    // Built from the type's own vocabulary, so a renamed field is retired
-    // exactly where its replacement exists and the old name stays an unknown
-    // key everywhere else.
-    const renamed = new Map();
-    for (const name of declared) {
-        const retired = RETIRED_FIELD_ALIASES[name];
-        if (retired) renamed.set(retired, name);
-    }
-    for (const [retired, current] of renamed) {
-        // `declaresRetiredAlias` searches both regions, because both are read:
-        // a note that moved the key to the top level without renaming it has
-        // done half the migration. It is the same predicate the compile-time
-        // report asks, so the two cannot disagree about what a note declares.
-        if (!declaresRetiredAlias(fm, current)) continue;
-        findings.push({
-            file: note.file,
-            ...at(retired),
-            // A warning, not an error: the note compiles to the correct
-            // document, so failing a build over it would red a tree that has
-            // done nothing wrong yet. The refusal comes after the sweep, as
-            // `package:`'s did.
-            severity: "warning",
-            message: retiredAliasMessage(retired, current),
-        });
-    }
 
     // Every declared system's block, each against its own vocabulary. A
     // block carries the shared keys any system's does — `system`, `type`,
@@ -1862,12 +1581,29 @@ export function lintNote(
             ...(spec?.fieldVocabulary ? declared : []),
             ...(own ? inBlockKeys(own[type]) : []),
         ]);
+        // A field whose home is `data:`, written in the block instead. The
+        // block does not read it, and it may share a name with a field the
+        // block does read, so it is named here rather than left to the
+        // unknown-key finding below.
+        const misplaced = new Set(
+            [...(spec?.fieldVocabulary ? fields : []), ...authoredFields(own?.[type] ?? [])]
+                .filter((field) => field.name.startsWith("data."))
+                .map((field) => field.name.slice("data.".length).split(".")[0]),
+        );
+        const block = systemBlock(fm, blockName);
+        for (const key of Object.keys(block ?? {})) {
+            if (!misplaced.has(key)) continue;
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw(), [blockName, key], { key: true }),
+                severity: "error",
+                message:
+                    `\`${blockName}.${key}\` is a \`data:\` property of a ${type}; ` +
+                    `write it at \`data.${key}\` — the block does not read it`,
+            });
+        }
         for (const key of unknownBlockKeys(fm, blockName, { known: accepted })) {
-            // Reported above, with what to write instead — a retired spelling
-            // is a rename to schedule, not a key nobody recognises. Only where
-            // the block's vocabulary is this type's: the alias renames *this*
-            // system's field, and another system's like-spelled key is not it.
-            if (spec?.fieldVocabulary && renamed.has(key)) continue;
+            if (misplaced.has(key)) continue;
             const guess = nearest(key, [...accepted, ...SYSTEM_BLOCK_KEYS]);
             findings.push({
                 file: note.file,
@@ -1893,42 +1629,7 @@ export function lintNote(
         // the moment it moved to another of them. A **shared** field needs
         // nothing extra here — the note's top level *is* the third step — so
         // `shared` says only where the field's home is, for the message below.
-        let { value, from } = resolveFieldValue(field, fm, { block: "sohl" });
-        // A **renamed** field may still be written under its retired spelling,
-        // which that order knows nothing about. It resolves through the reader
-        // the compiler uses, so the lint cannot disagree with the build about
-        // which value a note carries.
-        if ((from === "default" || value == null) && RETIRED_FIELD_ALIASES[field.name]) {
-            const aliased = readAliasedField(fm, field.name);
-            if (aliased !== undefined) {
-                value = aliased;
-                from = "block";
-            }
-        }
-        // The sweep's progress signal. A **warning**, for the reason a
-        // retired spelling is one: the note compiles to the correct document,
-        // so failing a build over it would red a tree that has done nothing
-        // wrong yet. The refusal comes once no tree writes the position.
-        if (readsLegacyKey(field, from)) {
-            findings.push({
-                file: note.file,
-                ...at(legacyKeyOf(field)),
-                severity: "warning",
-                message: legacyKeyMessage("sohl", field),
-            });
-        }
-        // `readsLegacyKey`'s sibling for the other retiring position — the
-        // note's own top level, which `data:` gathered the fact off. Also a
-        // **warning**: the closed-region check above already let this exact
-        // key through for this exact reason, and the two must agree.
-        if (readsRetiredTopLevel(field, from)) {
-            findings.push({
-                file: note.file,
-                ...at(retiredTopLevelKey(field)),
-                severity: "warning",
-                message: retiredTopLevelMessage(field),
-            });
-        }
+        const { value, from } = resolveFieldValue(field, fm, { block: "sohl" });
         const absent = from === "default" || value === undefined || value === null;
         // Where the field belongs, as a message names it: a shared field is not
         // under `sohl:`, so telling an author to write `sohl.img` would send
@@ -1936,7 +1637,7 @@ export function lintNote(
         // path into `data:` — `sohl.data.species` is a region that does not
         // exist, and the home of that field is the container it names.
         const label =
-            field.shared || (field.name.includes(".") && field.legacyKey !== undefined) ?
+            field.shared || field.name.startsWith("data.") ?
                 `\`${field.name}\``
             :   `\`sohl.${field.name}\``;
 
