@@ -23,7 +23,7 @@ import { collectContentIndex } from "../engine/content-index.mjs";
 import { expandContentTables } from "../engine/content-tables.mjs";
 import { EVENT_VIEWS } from "../engine/event-views.mjs";
 import { parseMarkdownFile } from "../engine/helpers.mjs";
-import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
+import { openNotesDatabase, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 
 const PACKAGE = "demo";
 
@@ -200,6 +200,33 @@ describe("a region's chronology", () => {
         expect(views).toContain("WITH RECURSIVE");
         const rha = expanded("Rha.md");
         expect(rha.indexOf("Prose about rha.")).toBeLessThan(rha.indexOf("# Chronology"));
+    });
+});
+
+describe("the batched own-row check", () => {
+    it("names the same places as counting each place's own rows one at a time", async () => {
+        const records = collectContentIndex(dir, { contentPackage: PACKAGE, skipDirectories: [] });
+        const db = await openNotesDatabase(records, { audience: "public" });
+        try {
+            const chronology: any = EVENT_VIEWS[0];
+            const shape = { parents: true, locus: true, reach: true } as any;
+            const roots = records
+                .filter((record: any) => record.type === "place")
+                .map((record: any) => `${PACKAGE}-note-place-${record.shortcode}`);
+            const batched: Set<string> = await chronology.owners(db, roots, shape);
+            const counted = new Set<string>();
+            for (const root of roots) {
+                const { rows } = await db.query(
+                    `SELECT count(*) AS n FROM (${chronology.query([root], shape).own})`,
+                );
+                if (Number(rows[0].n) > 0) counted.add(root);
+            }
+            expect(counted.size).toBeGreaterThan(0);
+            expect(counted.size).toBeLessThan(roots.length);
+            expect([...batched].sort()).toEqual([...counted].sort());
+        } finally {
+            await db.close();
+        }
     });
 });
 

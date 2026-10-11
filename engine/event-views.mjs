@@ -59,11 +59,14 @@ const BY_DATE = "ORDER BY e.whenSort NULLS LAST, e.address";
  * index record, and the `query` it writes for a note — given the note's
  * Address in each form an event may name it by, and the shape of the corpus —
  * or `null` where the corpus states nothing the view could select. A view's
- * `own` query, where it has one, is what decides whether the view has rows.
+ * `own` query, where it has one, is what decides whether the view has rows;
+ * a view with `owners` answers that for many notes in one query, given their
+ * first Address forms.
  *
  * @type {ReadonlyArray<Readonly<{slug: string, heading: string,
  *   applies: (record: object) => boolean,
- *   query: (self: string[], shape: CorpusShape) => {fence: string, own?: string}|null}>>}
+ *   query: (self: string[], shape: CorpusShape) => {fence: string, own?: string}|null,
+ *   owners?: (db: object, roots: string[], shape: CorpusShape) => Promise<Set<string>>}>>}
  */
 export const EVENT_VIEWS = Object.freeze([
     Object.freeze({
@@ -71,6 +74,7 @@ export const EVENT_VIEWS = Object.freeze([
         heading: "Chronology",
         applies: (record) => record.type === "place",
         query: chronologyQuery,
+        owners: chronologyOwners,
     }),
     Object.freeze({
         slug: "events",
@@ -153,6 +157,65 @@ export const EVENT_VIEWS = Object.freeze([
  * @property {boolean} depth - Some event states `depth`.
  */
 
+/** The `reach` clauses felt in the places `here` holds. */
+function chronologyFelt() {
+    return 'list_filter(e."where".reach, r -> list_contains(here.places, r.place))';
+}
+
+/**
+ * The conditions under which an event is one of a place's own rows: it
+ * happened at the place or below it, or it is felt there.
+ *
+ * @param {CorpusShape} shape - What the corpus states.
+ * @returns {string[]} The alternatives, over `e` and `here.places`.
+ */
+function chronologyOwnRows(shape) {
+    return [
+        ...(shape.locus ?
+            ['len(list_filter(e."where".locus, l -> list_contains(here.places, l))) > 0']
+        :   []),
+        ...(shape.reach ? [`len(${chronologyFelt()}) > 0`] : []),
+    ];
+}
+
+/**
+ * Which places have a chronology of their own rows, asked of every place in one
+ * query rather than one query per place.
+ *
+ * The places below each root are walked together, so the walk over `entries`
+ * is paid once for the whole corpus instead of once per place.
+ *
+ * @param {object} db - From {@link module:engine/sql-tables.openNotesDatabase}.
+ * @param {string[]} roots - Each place's Address in the `note` system.
+ * @param {CorpusShape} shape - What the corpus states.
+ * @returns {Promise<Set<string>>} The roots with at least one own row.
+ */
+async function chronologyOwners(db, roots, shape) {
+    const values = [...new Set(roots)].map((root) => `(${literal(root)})`).join(", ");
+    const below =
+        shape.parents ?
+            [
+                "WITH RECURSIVE below(root, place) AS (",
+                `    SELECT r, r FROM (VALUES ${values}) AS t(r)`,
+                "    UNION",
+                "    SELECT b.root, lower(p.package || '-note-place-' || p.shortcode)",
+                "    FROM entries p JOIN below b ON list_contains(p.data.parents, b.place)",
+                "    WHERE p.type = 'place'",
+                "),",
+            ]
+        :   [`WITH RECURSIVE below(root, place) AS (SELECT r, r FROM (VALUES ${values}) AS t(r)),`];
+    const { rows } = await db.query(
+        [
+            ...below,
+            "here AS (SELECT root, list(place) AS places FROM below GROUP BY root)",
+            "SELECT DISTINCT here.root AS root",
+            "FROM events e, here",
+            `WHERE ${chronologyOwnRows(shape).join(" OR ")}`,
+        ].join("\n"),
+    );
+    return new Set(rows.map((row) => String(row.root)));
+}
+
 /**
  * A place's chronology: every event that happened at the place or anywhere
  * below it in `parents`, every event felt there — with the clause saying how —
@@ -181,13 +244,8 @@ function chronologyQuery(self, shape) {
                 "),",
             ]
         :   [`WITH RECURSIVE below(place) AS (SELECT ${literal(self[0])}),`];
-    const felt = 'list_filter(e."where".reach, r -> list_contains(here.places, r.place))';
-    const ownRows = [
-        ...(shape.locus ?
-            ['len(list_filter(e."where".locus, l -> list_contains(here.places, l))) > 0']
-        :   []),
-        ...(shape.reach ? [`len(${felt}) > 0`] : []),
-    ];
+    const felt = chronologyFelt();
+    const ownRows = chronologyOwnRows(shape);
     const head = [
         ...below,
         "here AS (SELECT list(place) AS places FROM below)",
@@ -285,6 +343,21 @@ export async function eventViewSections(db, records, fileOf, only) {
     if (!all.some((record) => Array.isArray(record?.data?.events) && record.data.events.length))
         return out;
     const shape = await corpusShape(db);
+    // A view that can say which notes have rows in one query is asked once, over
+    // every note it will be given, and the per-note count is skipped.
+    const owned = new Map();
+    for (const view of EVENT_VIEWS) {
+        if (!view.owners) continue;
+        const roots = [];
+        for (const record of all) {
+            if (!record?.address || record.documents || !record.shortcode) continue;
+            if (only !== undefined && fileOf(record) !== only) continue;
+            if (!view.applies(record) || authoredSection(record, view.slug)) continue;
+            const self = selfForms(record);
+            if (view.query(self, shape)) roots.push(self[0]);
+        }
+        if (roots.length) owned.set(view.slug, await view.owners(db, roots, shape));
+    }
     for (const record of all) {
         if (!record?.address || record.documents || !record.shortcode) continue;
         if (only !== undefined && fileOf(record) !== only) continue;
@@ -294,10 +367,14 @@ export async function eventViewSections(db, records, fileOf, only) {
             if (!view.applies(record) || authoredSection(record, view.slug)) continue;
             const query = view.query(self, shape);
             if (!query) continue;
-            const { rows } = await db.query(
-                `SELECT count(*) AS n FROM (${query.own ?? query.fence})`,
-            );
-            if (Number(rows[0]?.n ?? 0) > 0) sections.set(view.slug, section(view, query.fence));
+            const has =
+                owned.has(view.slug) ?
+                    owned.get(view.slug).has(self[0])
+                :   Number(
+                        (await db.query(`SELECT count(*) AS n FROM (${query.own ?? query.fence})`))
+                            .rows[0]?.n ?? 0,
+                    ) > 0;
+            if (has) sections.set(view.slug, section(view, query.fence));
         }
         if (sections.size) out.set(fileOf(record), sections);
     }

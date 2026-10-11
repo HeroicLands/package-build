@@ -677,6 +677,17 @@ export function renderSqlTable(
 export async function prepareSqlTables(db, sources, { linkable, records } = {}) {
     const prepared = new Map();
     if (records) prepared.pageLists = preparePageLists(records, sources);
+    // The corpus does not change while a preparation runs, so a query written
+    // twice has one answer. Each use gets its own copy, because a caller
+    // rewrites the rows it is handed.
+    const answers = new Map();
+    const reader = {
+        ...db,
+        async query(sql) {
+            if (!answers.has(sql)) answers.set(sql, await db.query(sql));
+            return structuredClone(answers.get(sql));
+        },
+    };
     for (const { source, markdown } of sources) {
         const blocks = findSqlBlocks(markdown);
         if (!blocks.length) continue;
@@ -685,7 +696,7 @@ export async function prepareSqlTables(db, sources, { linkable, records } = {}) 
         for (const block of blocks) {
             try {
                 if (block.problems.length) throw new Error(block.problems.join("; "));
-                const result = await runSqlQuery(db, block.query);
+                const result = await runSqlQuery(reader, block.query);
                 forNote.push({
                     markdown: renderSqlTable(result, {
                         linkable,

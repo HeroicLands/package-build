@@ -306,6 +306,24 @@ describe("preparing directives ahead of expansion", () => {
         expect(prepared.get("N.md")?.[0]?.rows).toBe(1);
     });
 
+    it("asks a query written in several notes once, and gives each note its own result", async () => {
+        const asked: string[] = [];
+        const counting = {
+            ...db,
+            query: (sql: string) => {
+                asked.push(sql);
+                return db.query(sql);
+            },
+        };
+        const sources = ["A.md", "B.md", "C.md"].map((source) => ({ source, markdown: body }));
+        const prepared = await prepareSqlTables(counting, sources);
+        const solo = await prepareSqlTables(db, [{ source: "A.md", markdown: body }]);
+
+        expect(asked).toHaveLength(1);
+        for (const { source } of sources)
+            expect(prepared.get(source)?.[0]?.markdown).toBe(solo.get("A.md")?.[0]?.markdown);
+    });
+
     it("records a failing query rather than throwing it", async () => {
         const prepared = await prepareSqlTables(db, [
             { source: "N.md", markdown: "```sql\nSELECT nope FROM notes\n```\n" },
