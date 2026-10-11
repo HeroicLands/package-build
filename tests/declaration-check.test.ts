@@ -9,7 +9,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { checkDeclarations, exportedDeclarationFiles } from "../engine/declaration-check.mjs";
-import { subprocessTimeout } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 
 function project() {
     const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "package-build-types-")));
@@ -51,7 +51,7 @@ describe("declaration checks", () => {
             const result = spawnSync(process.execPath, [binary, "types", "check"], {
                 cwd: root,
                 encoding: "utf8",
-                timeout: 10_000,
+                timeout: SUBPROCESS_TEST_TIMEOUT,
             });
             expect(result.status).toBe(1);
             expect(result.stderr).toMatch(/^index\.d\.ts:1:\d+: error: TS2307:/m);

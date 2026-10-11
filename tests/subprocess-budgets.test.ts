@@ -8,8 +8,13 @@
  * spawn count. Those use `subprocessTimeout(n)`; a literal at or above that
  * budget, or on a test that never spawns, passes.
  *
+ * `it.each(table)(name, fn, timeout)` and `test.each` are read as the test they
+ * declare, budgeted per invocation. A spawn call whose own numeric `timeout:`
+ * option is below `SUBPROCESS_TEST_TIMEOUT` is also a finding: a child killed
+ * under load reports a null status whatever the test's budget.
+ *
  * Spawning calls are `spawnSync`, `execFileSync`, `spawn` and `execFile`, plus
- * every function declared in the same file whose body calls a spawning call or
+ * every function declared in the same file, with or without type annotations, whose body calls a spawning call or
  * another such function. The wrappers are derived from the file's own source.
  */
 
@@ -127,6 +132,57 @@ function callPattern(names: string[], member = false): RegExp {
     return new RegExp(`${before}(?:${names.join("|")})\\s*\\(`, "g");
 }
 
+function skipSpace(code: string, from: number): number {
+    let k = from;
+    while (k < code.length && /\s/.test(code[k])) k++;
+    return k;
+}
+
+/**
+ * The offset after the type annotation starting at `from`: unions and
+ * intersections of names, generics, arrays, object literals, tuples and
+ * parenthesised or quoted types.
+ */
+function skipType(code: string, from: number): number {
+    let k = from;
+    for (;;) {
+        k = skipSpace(code, k);
+        if ("{[(".includes(code[k])) {
+            const close = matchClose(code, k);
+            if (close === -1) return k;
+            k = close + 1;
+        } else if (code[k] === '"' || code[k] === "'" || code[k] === "`") {
+            const end = code.indexOf(code[k], k + 1);
+            k = end === -1 ? code.length : end + 1;
+        } else {
+            const name = /^[\w$.]+/.exec(code.slice(k));
+            if (!name) return k;
+            k += name[0].length;
+        }
+        k = skipSpace(code, k);
+        if (code[k] === "<") {
+            let depth = 0;
+            for (; k < code.length; k++) {
+                if (code[k] === "<") depth++;
+                else if (code[k] === ">" && code[k - 1] !== "=" && --depth === 0) {
+                    k++;
+                    break;
+                }
+            }
+        }
+        for (;;) {
+            const rest = skipSpace(code, k);
+            if (code[rest] !== "[") break;
+            const close = matchClose(code, rest);
+            if (close === -1) return rest;
+            k = close + 1;
+        }
+        const next = skipSpace(code, k);
+        if (code[next] !== "|" && code[next] !== "&") return k;
+        k = next + 1;
+    }
+}
+
 interface Spawners {
     /** Names of functions in the file whose bodies reach a spawning call. */
     names: string[];
@@ -143,15 +199,9 @@ function deriveSpawners(code: string): Spawners {
         const open = code.indexOf("(", m.index + m[0].length - 1);
         const close = matchClose(code, open);
         if (close === -1) continue;
-        let k = close + 1;
-        while (k < code.length && /[\s:\w<>[\],|.={]/.test(code[k]) && code[k] !== "{") {
-            if (code[k] === "=" && code[k + 1] === ">") {
-                k += 2;
-                break;
-            }
-            k++;
-        }
-        while (/\s/.test(code[k])) k++;
+        let k = skipSpace(code, close + 1);
+        if (code[k] === ":") k = skipSpace(code, skipType(code, skipSpace(code, k + 1)));
+        if (code[k] === "=" && code[k + 1] === ">") k = skipSpace(code, k + 2);
         let end: number;
         if (code[k] === "{") end = matchClose(code, k);
         else {
@@ -226,11 +276,18 @@ export function overBudgetTests(file: string): Violation[] {
     if (derived.names.length) spawnRes.push(callPattern(derived.names));
     const rel = path.relative(path.dirname(TESTS_DIR), file);
     const found: Violation[] = [];
-    const testRe = /(?<![\w$.])(?:it|test)(?:\.\w+)?\s*\(/g;
+    const testRe = /(?<![\w$.])(?:it|test)(?:\.\w+)*\s*\(/g;
     for (let m = testRe.exec(code); m; m = testRe.exec(code)) {
-        const open = code.indexOf("(", m.index);
-        const close = matchClose(code, open);
+        let open = code.indexOf("(", m.index);
+        let close = matchClose(code, open);
         if (close === -1) continue;
+        // `it.each(table)(name, fn, timeout)`: the second call is the test.
+        if (/\.each\s*\($/.test(m[0])) {
+            open = skipSpace(code, close + 1);
+            if (code[open] !== "(") continue;
+            close = matchClose(code, open);
+            if (close === -1) continue;
+        }
         const starts = argStarts(code, open, close);
         if (code.slice(starts[starts.length - 1], close).trim() === "") starts.pop();
         if (starts.length < 3) continue;
@@ -274,16 +331,51 @@ export function overBudgetTests(file: string): Violation[] {
     return found;
 }
 
+/** Spawn calls in `file` whose own numeric `timeout:` is below the test budget. */
+export function shortSpawnTimeouts(file: string): { where: string; timeout: number }[] {
+    const src = fs.readFileSync(file, "utf8");
+    const code = mask(src);
+    const rel = path.relative(path.dirname(TESTS_DIR), file);
+    const spawnRe = callPattern(NATIVE_SPAWNS, true);
+    const found: { where: string; timeout: number }[] = [];
+    for (let m = spawnRe.exec(code); m; m = spawnRe.exec(code)) {
+        const open = code.indexOf("(", m.index);
+        const close = matchClose(code, open);
+        if (close === -1) continue;
+        const option = /(?<![\w$.])timeout\s*:\s*(\d[\d_]*)\s*[,}]/g;
+        const args = code.slice(open, close);
+        for (let t = option.exec(args); t; t = option.exec(args)) {
+            const timeout = Number(t[1].replaceAll("_", ""));
+            if (timeout < SUBPROCESS_TEST_TIMEOUT) {
+                found.push({ where: `${rel}:${lineOf(src, open + t.index)}`, timeout });
+            }
+        }
+    }
+    return found;
+}
+
+function testFiles(): string[] {
+    return fs
+        .readdirSync(TESTS_DIR)
+        .filter((f) => f.endsWith(".test.ts") && f !== "subprocess-budgets.test.ts")
+        .map((f) => path.join(TESTS_DIR, f));
+}
+
 describe("subprocess budgets", () => {
     it("gives every test that spawns more than once a budget per spawn", () => {
-        const files = fs
-            .readdirSync(TESTS_DIR)
-            .filter((f) => f.endsWith(".test.ts") && f !== "subprocess-budgets.test.ts")
-            .map((f) => path.join(TESTS_DIR, f));
-        const over = files.flatMap(overBudgetTests);
+        const over = testFiles().flatMap(overBudgetTests);
         const report = over.map(
             (v) =>
                 `${v.where}: error: ${v.spawns} spawn call(s)${v.inLoop ? " (in a loop)" : ""} under ${v.literal ?? "SUBPROCESS_TEST_TIMEOUT"} [${v.calls.join(", ")}]; use subprocessTimeout(n)`,
+        );
+        expect(report).toEqual([]);
+    });
+
+    it("gives no spawn a timeout of its own below the test budget", () => {
+        const short = testFiles().flatMap(shortSpawnTimeouts);
+        const report = short.map(
+            (v) =>
+                `${v.where}: error: spawn timeout ${v.timeout} is below SUBPROCESS_TEST_TIMEOUT; raise it to SUBPROCESS_TEST_TIMEOUT or remove it`,
         );
         expect(report).toEqual([]);
     });

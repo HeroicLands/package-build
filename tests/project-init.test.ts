@@ -102,7 +102,7 @@ describe("package-build init", () => {
                 [...expected].map(([file]) => fs.readFileSync(path.join(named, file), "utf8")),
             ).toEqual(before);
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(2),
     );
 
     it(

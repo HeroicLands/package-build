@@ -24,7 +24,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { SUBPROCESS_TEST_TIMEOUT, subprocessTimeout } from "./subprocess-timeout.js";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 
@@ -187,7 +187,7 @@ describe("`package-build docs item-fields` with `--out` inside the content tree"
                 fs.rmSync(destination, { force: true });
             }
         },
-        SUBPROCESS_TEST_TIMEOUT,
+        subprocessTimeout(3),
     );
 
     it(
