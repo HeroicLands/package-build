@@ -1676,7 +1676,7 @@ export { default } from "@heroiclands/package-build/prettier";
 
 ## `./markdownlint`
 
-The shared markdownlint rules, as a markdownlint-cli2 options module, applied without a consumer declaring anything by `package-build markdown`. Exists for an editor's markdownlint extension, and for a consumer that wants to extend rather than replace the set.
+The shared markdownlint rules, as a `.markdownlint-cli2.mjs` options module, applied without a consumer declaring anything by `package-build markdown`. Exists for an editor's markdownlint extension, and for a consumer that wants to extend rather than replace the set.
 
 ```js
 // .markdownlint-cli2.mjs
@@ -1684,9 +1684,9 @@ import shared from "@heroiclands/package-build/markdownlint";
 export default { ...shared, config: { ...shared.config, MD013: true } };
 ```
 
-| Export    | Signature                                                    | Returns                                     | Use it when                                                                                                                                                    |
-| --------- | ------------------------------------------------------------ | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `default` | `export default { config, globs, ignores, gitignore: true }` | The shared markdownlint-cli2 options object | spreading it into a consumer's own options module to extend rather than replace the shared rules; `config` is frozen, so it must be spread rather than mutated |
+| Export    | Signature                                                    | Returns                                | Use it when                                                                                                                                                    |
+| --------- | ------------------------------------------------------------ | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `default` | `export default { config, globs, ignores, gitignore: true }` | The shared markdownlint options object | spreading it into a consumer's own options module to extend rather than replace the shared rules; `config` is frozen, so it must be spread rather than mutated |
 
 ## `./bundle`
 

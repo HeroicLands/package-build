@@ -25,7 +25,7 @@
  * invokes it.
  *
  * **Neither of these is an override.** A consumer that declares its own
- * Prettier config or its own `.markdownlint-cli2.jsonc` wins; what ships here
+ * Prettier config or its own `.markdownlint-cli2.*` options file wins; what ships here
  * is the default a repository gets for declaring nothing. Repository *layout*
  * knowledge — which paths to skip — stays with the repository that has the
  * layout, in its own ignore files.

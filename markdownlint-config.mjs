@@ -12,7 +12,7 @@
  */
 
 /**
- * The shared markdownlint rules, as a markdownlint-cli2 options module.
+ * The shared markdownlint rules, as a `.markdownlint-cli2.mjs` options module.
  *
  * `package-build markdown` applies these without a consumer declaring
  * anything; this is for an editor's markdownlint extension, and for a consumer

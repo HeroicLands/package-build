@@ -349,15 +349,35 @@ options the toolchain applies — without it they fall back to Prettier's own
 defaults, and a print width that differs from the project's turns every
 save into a diff the lint chain reverts.
 
-`package-build markdown` needs no equivalent file: it hands the shared rule set
-to markdownlint directly, and a repository that declares nothing gets it. A
-`.markdownlint-cli2.jsonc` is for the editor's markdownlint extension, and
-[`@heroiclands/package-build/markdownlint`](api.md) is the export it re-uses —
-with one trap worth knowing before writing one. A consumer file overrides the
-shared configuration **key by key, and each key wholesale**: declaring only
-`ignores` keeps every rule intact but _replaces_ the shared ignore list rather
-than extending it, so such a file must restate `CHANGELOG.md` if it still wants
-that file excluded. The command always excludes `node_modules`.
+`package-build markdown` needs no equivalent file: it applies the shared rule
+set through the markdownlint library, and a repository that declares nothing
+gets it. A `.markdownlint-cli2.jsonc` (or `.yaml`, `.cjs`, `.mjs`) at the
+repository root overrides it and is what the editor's markdownlint extension
+reads, and [`@heroiclands/package-build/markdownlint`](api.md) is the export it
+re-uses — with one trap worth knowing before writing one. A consumer file
+overrides the shared configuration **key by key, and each key wholesale**:
+declaring only `ignores` keeps every rule intact but _replaces_ the shared ignore
+list rather than extending it, so such a file must restate `CHANGELOG.md` if it
+still wants that file excluded. The command always excludes `node_modules` and
+`.git`.
+
+The options file accepts a closed set of keys, and any other key is refused with
+a located diagnostic:
+
+| Key              | Where                | Meaning                                                                   |
+| ---------------- | -------------------- | ------------------------------------------------------------------------- |
+| `config`         | any directory        | Rule settings, merged rule by rule over the settings above it.            |
+| `customRules`    | any directory        | Module ids (resolved from that directory) or rule objects to add.         |
+| `frontMatter`    | any directory        | Regular expression source matching a front matter block.                  |
+| `ignores`        | any directory        | Globs, relative to that directory, whose files are skipped.               |
+| `noInlineConfig` | any directory        | `true` to disregard `<!-- markdownlint-... -->` comments.                 |
+| `globs`          | repository root only | Globs of files to lint, in addition to `**/*.md` when no paths are named. |
+| `gitignore`      | repository root only | `false` to lint files that `.gitignore` files exclude; `true` by default. |
+
+An options file in a subdirectory applies to that directory and below, merged
+over the root's. A `.markdownlint.jsonc`, `.json`, `.yaml`, `.yml`, `.cjs` or
+`.mjs` file holds a rule `config` directly and replaces the merged `config` for
+its directory.
 
 ## `.prettierignore`
 

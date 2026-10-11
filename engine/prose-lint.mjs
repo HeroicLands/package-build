@@ -21,12 +21,13 @@
  * shared configuration *as a default a local one overrides*, and reporting
  * findings in the one parseable form every check in this package emits.
  *
- * **Neither tool's own file discovery is reimplemented.** Prettier decides what
- * it formats and what an ignore file excludes, through `getFileInfo`;
- * markdownlint expands its own globs and honours `.gitignore` itself. A second
- * implementation of either would drift from the tool it stands in for, and the
- * whole point of the command is that `package-build format --check` and a bare
- * `prettier --check .` report the same thing.
+ * **Prettier's own file discovery is not reimplemented.** Prettier decides what
+ * it formats and what an ignore file excludes, through `getFileInfo`; a second
+ * implementation would drift from the tool it stands in for, and the whole point
+ * of the command is that `package-build format --check` and a bare
+ * `prettier --check .` report the same thing. Markdown linting walks the tree
+ * with `./markdownlint-run.mjs`, which applies
+ * `.gitignore` files and the configured globs itself.
  *
  * @module
  */
@@ -42,17 +43,8 @@ import {
     sharedPrettierDivergence,
     sharedPrettierOptionsFor,
 } from "./prose-config.mjs";
-
-/**
- * Directories never walked, whatever the ignore files say.
- *
- * `node_modules` is in every consumer's `.gitignore` and would be excluded
- * anyway; skipping it in the walk rather than per file is the difference
- * between a check that takes a second and one that stats a hundred thousand
- * files to be told each is ignored. `.git` is in nobody's `.gitignore`, so it
- * has to be named.
- */
-const NEVER_WALK = Object.freeze(new Set([".git", "node_modules"]));
+import { MarkdownConfigError, runMarkdownlint } from "./markdownlint-run.mjs";
+import { walkFiles } from "./walk-files.mjs";
 
 /**
  * The ignore files Prettier consults, in its own default order.
@@ -100,37 +92,6 @@ const CONVENTION_PROBES = Object.freeze({ code: "index.mjs", markdown: "README.m
 
 /** The one line a consumer writes to adopt the shared configuration verbatim. */
 const SHARED_CONFIG_RE_EXPORT = 'export { default } from "@heroiclands/package-build/prettier";';
-
-/**
- * Every file under a root, minus the directories nothing should walk.
- *
- * @param {string} root - Absolute path to walk.
- * @returns {string[]} Absolute file paths, in directory order.
- */
-function walkFiles(root) {
-    const out = [];
-    /** @param {string} dir - Directory to descend into. */
-    const descend = (dir) => {
-        let entries;
-        try {
-            entries = fs.readdirSync(dir, { withFileTypes: true });
-        } catch {
-            // A directory that vanished or cannot be read is not a finding
-            // about prose; leave it to whatever owns it.
-            return;
-        }
-        for (const entry of entries) {
-            const abs = path.join(dir, entry.name);
-            if (entry.isDirectory()) {
-                if (!NEVER_WALK.has(entry.name)) descend(abs);
-            } else if (entry.isFile()) {
-                out.push(abs);
-            }
-        }
-    };
-    descend(root);
-    return out;
-}
 
 /**
  * Check — or rewrite — every file Prettier claims, under one root.
@@ -408,10 +369,10 @@ function toDiagnostic(directory, result) {
 /**
  * Lint a repository's markdown against the shared rule set.
  *
- * {@link MARKDOWNLINT_CONFIG} is passed as markdownlint's `optionsDefault`,
- * which is precisely the "shipped default, consumer overrides" behaviour the
- * command promises: a repository with no configuration of its own gets these
- * rules, and a `.markdownlint-cli2.jsonc` found in the tree overrides them.
+ * {@link MARKDOWNLINT_CONFIG} is the default rule set, which is precisely the
+ * "shipped default, consumer overrides" behaviour the command promises: a
+ * repository with no configuration of its own gets these rules, and a
+ * `.markdownlint-cli2.*` options file found in the tree overrides them.
  *
  * The override is **key by key, and each key wholesale** — which is not the same
  * as "replaces it", and the difference is the one worth stating. A consumer file
@@ -419,55 +380,58 @@ function toDiagnostic(directory, result) {
  * and every per-rule option; but its `ignores` *replaces*
  * {@link MARKDOWN_IGNORES} rather than extending it, so such a file must restate
  * every shared entry it still wants. Omitting `CHANGELOG.md` there silently
- * starts linting a generated file. `node_modules` stays excluded by the
- * command's glob even when a consumer replaces `ignores`.
+ * starts linting a generated file. `node_modules` stays excluded even when a
+ * consumer replaces `ignores`.
+ *
+ * A configuration file the contract refuses (an unknown option, a key that
+ * cannot mean anything where it is written, a syntax error) is returned as a
+ * finding located in that file, and nothing is linted.
  *
  * @param {string} root - Repository to lint.
  * @param {object} [opts]
  * @param {readonly string[]} [opts.paths] - Globs to lint instead of every
  *   markdown file.
  * @param {boolean} [opts.fix=false] - Apply the fixes markdownlint can make.
- * @param {(params: object) => Promise<number>} [opts.run] - The
- *   markdownlint-cli2 entry point, for tests.
  * @returns {Promise<{findings: object[], exitCode: number}>} The findings, and
- *   markdownlint's own exit code.
+ *   an exit code that is 1 when there are any.
  */
 export async function lintMarkdown(root, opts = {}) {
     const { paths, fix = false } = opts;
-    const run = opts.run ?? (await import("markdownlint-cli2")).main;
     const directory = path.resolve(root);
 
-    /** @type {object[]} */
-    const collected = [];
-    // A formatter is normally a module id resolved from disk, but
-    // markdownlint-cli2 passes a non-string through untouched — so the results
-    // can be collected in process rather than parsed back out of its output.
-    const collect = ({ results }) => {
-        collected.push(...results);
-    };
-
-    const argv = [...(paths?.length ? paths : MARKDOWN_GLOBS), "!**/node_modules/**"];
-    if (fix) argv.push("--fix");
-
-    const exitCode = await run({
-        directory,
-        argv,
-        optionsDefault: {
-            config: MARKDOWNLINT_CONFIG,
-            // Generated markdown reports on its generator, not its author, and
-            // every consumer already lists its generated trees here.
-            gitignore: true,
-            ignores: [...MARKDOWN_IGNORES],
-            noProgress: true,
-            noBanner: true,
-        },
-        optionsOverride: { outputFormatters: [[collect]] },
-        logMessage: () => {},
-        logError: () => {},
-    });
+    let results;
+    try {
+        ({ results } = await runMarkdownlint({
+            directory,
+            globs: paths,
+            fix,
+            defaults: {
+                config: MARKDOWNLINT_CONFIG,
+                // Generated markdown reports on its generator, not its author,
+                // and every consumer already lists its generated trees here.
+                gitignore: true,
+                globs: MARKDOWN_GLOBS,
+                ignores: [...MARKDOWN_IGNORES],
+            },
+        }));
+    } catch (err) {
+        if (!(err instanceof MarkdownConfigError)) throw err;
+        return {
+            findings: [
+                {
+                    file: err.file,
+                    ...(err.line ? { line: err.line } : {}),
+                    ...(err.line && err.column ? { column: err.column } : {}),
+                    severity: "error",
+                    message: err.message,
+                },
+            ],
+            exitCode: 1,
+        };
+    }
 
     return {
-        findings: collected.map((result) => toDiagnostic(directory, result)),
-        exitCode,
+        findings: results.map((result) => toDiagnostic(directory, result)),
+        exitCode: results.length ? 1 : 0,
     };
 }

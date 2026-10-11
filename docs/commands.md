@@ -2192,16 +2192,20 @@ checks Prettier cannot make: a heading level that skips, two sibling
 headings sharing an anchor, a reversed link, an emphasis marker other than
 the one these repositories write. Runs over the repository rather than the
 content tree, taking its rules from this package unless the consumer
-declares its own. `--fix` applies the fixes markdownlint can make. Reads
-every matched file; `--fix` rewrites them.
-Installed dependencies under `node_modules` are excluded even when the
-repository has no `.gitignore` or supplies its own markdownlint ignore list.
+declares its own. `--fix` applies the fixes markdownlint can make, then
+reports what remains. Reads every matched file; `--fix` rewrites them.
+Files excluded by any `.gitignore` are skipped, and `node_modules` and `.git`
+are never entered, even when the repository supplies its own markdownlint ignore
+list. A `.markdownlint-cli2.*` options file or `.markdownlint.*` rule file
+overrides the rules and the ignore list; an option the file cannot mean is
+refused as `file:line:column: error:` and nothing is linted. See
+[Project setup](project-setup.md) for the accepted keys.
 
 **OPTIONS**
 
-| Positional | Type      | Default                               | Description    |
-| ---------- | --------- | ------------------------------------- | -------------- |
-| `paths`    | string(s) | every markdown file in the repository | Globs to lint. |
+| Positional | Type      | Default                               | Description                     |
+| ---------- | --------- | ------------------------------------- | ------------------------------- |
+| `paths`    | string(s) | every markdown file in the repository | Globs, or directories, to lint. |
 
 | Option  | Type    | Default | Description                            |
 | ------- | ------- | ------- | -------------------------------------- |
