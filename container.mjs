@@ -348,6 +348,11 @@ export function passthroughEnv(env = process.env) {
  * @param {string|null} [opts.version] - Exact build to pin.
  * @param {string|null} [opts.world] - World to auto-launch; `""` forces none.
  * @param {string|null} [opts.licenseKey] - Dedicated licence key.
+ * @param {string|null} [opts.user] - `--user` value to run the container as.
+ *   `felddy/foundryvtt` runs Foundry as user 1000 and ignores `FOUNDRY_UID` and
+ *   `FOUNDRY_GID`; under rootless Docker, container root is the host user, so
+ *   `0:0` makes every file under the data root theirs. Blank or `null` leaves
+ *   the image's own user.
  * @returns {string[]} Arguments after `docker`.
  */
 export function dockerRunArgs({
@@ -360,6 +365,7 @@ export function dockerRunArgs({
     version = null,
     world = null,
     licenseKey = null,
+    user = null,
 }) {
     const args = [
         "run",
@@ -385,6 +391,7 @@ export function dockerRunArgs({
     if (version) args.push("-e", `FOUNDRY_VERSION=${version}`);
     if (world !== null) args.push("-e", `FOUNDRY_WORLD=${world}`);
     if (licenseKey) args.push("-e", `FOUNDRY_LICENSE_KEY=${licenseKey}`);
+    if (user?.trim()) args.push("--user", user.trim());
     args.push(image);
     return args;
 }
@@ -487,6 +494,7 @@ export function clearStaleLock(dataRoot, log = () => {}) {
  * @property {string|null} world
  * @property {string|null} licenseKey
  * @property {string|null} cacheDir
+ * @property {string|null} user - From `FOUNDRYVTT_CONTAINER_USER`.
  */
 
 /**
@@ -522,6 +530,7 @@ export function resolveContainer({ stage, config, env = process.env }) {
         world: resolveWorld(stage, { env, stages }),
         licenseKey: resolveLicenseKey(stage, env),
         cacheDir: env.FOUNDRYVTT_CACHE?.trim() || null,
+        user: env.FOUNDRYVTT_CONTAINER_USER?.trim() || null,
     };
 }
 
@@ -563,6 +572,7 @@ export function startContainer(container, { dataRoot, env = process.env, log = (
             version: container.version,
             world: container.world,
             licenseKey: container.licenseKey,
+            user: container.user,
         }),
     );
     if (status === 0) {

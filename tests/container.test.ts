@@ -248,6 +248,21 @@ describe("the docker run argument vector", () => {
         expect(args).toContain(`CONTAINER_CACHE=${CACHE_MOUNT}`);
     });
 
+    it("runs the container as the chosen user, before the image", () => {
+        const args = dockerRunArgs({ ...base, user: "0:0" });
+        expect(args[args.indexOf("--user") + 1]).toBe("0:0");
+        expect(args.indexOf("--user")).toBeLessThan(args.indexOf(base.image));
+    });
+
+    it("omits --user when no user is chosen", () => {
+        expect(dockerRunArgs(base)).not.toContain("--user");
+        expect(dockerRunArgs({ ...base, user: null })).not.toContain("--user");
+    });
+
+    it("omits --user when the user is blank", () => {
+        expect(dockerRunArgs({ ...base, user: "  " })).not.toContain("--user");
+    });
+
     it("lets a per-stage licence beat the one passed through", () => {
         // docker takes the last `-e` for a repeated key, so order is the rule.
         const args = dockerRunArgs({
@@ -297,5 +312,20 @@ describe("resolving a stage from configuration", () => {
         });
 
         expect(resolved.name).toBe("heroiclands-foundry-test");
+    });
+
+    it("reads the container user from FOUNDRYVTT_CONTAINER_USER", () => {
+        const set = resolveContainer({
+            stage: "test",
+            config: config(),
+            env: { FOUNDRYVTT_CONTAINER_USER: " 0:0 " },
+        });
+        expect(set.user).toBe("0:0");
+    });
+
+    it("resolves no container user when the variable is unset or blank", () => {
+        for (const env of [{}, { FOUNDRYVTT_CONTAINER_USER: "  " }]) {
+            expect(resolveContainer({ stage: "test", config: config(), env }).user).toBeNull();
+        }
     });
 });
