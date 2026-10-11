@@ -94,6 +94,7 @@ export function addressPositions(fm, context = {}) {
                 shape,
                 type: field.ref,
                 accepts: field.accepts,
+                ...(field.declines === undefined ? {} : { declines: field.declines }),
                 ...(field.anchors ? { anchors: field.anchors } : {}),
                 ...(ASSET_TYPE_NAMES.has(field.ref) || field.ref === "folder" ?
                     { system: "none" }
@@ -299,6 +300,9 @@ function decodePositions(fm, context, refused) {
         };
         const read = (value, path) => {
             if (value == null || value === "") return value;
+            // The word a position declines with is not an Address; it stays as
+            // written so every later stage can tell it from an image.
+            if (position.declines !== undefined && value === position.declines) return value;
             if (value instanceof AddressLink) {
                 if (!position.anchors)
                     fail(

@@ -71,6 +71,7 @@ import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
 import { collectAnchors, eventAnchors, markupAnchorFindings } from "./anchors.mjs";
 import { checkImages, renderImageFigures } from "./content-images.mjs";
+import { isAddressTuple } from "./address.mjs";
 import { assetPathnameKey, pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import {
     buildSiteIndex,
@@ -377,15 +378,26 @@ export function collectHomepages(contentBase, ctx) {
  * @param {import("./related-pages.mjs").Related} [options.related] - The
  *   homepage's backlinks and mentions. Absent where nothing connects to it,
  *   and when the tree contains only a homepage, where no content link resolves.
+ * @param {readonly object[]} [options.records] - The corpus, so a `data.banner`
+ *   address resolves against the images this package ships.
+ * @param {object} [options.foreign] - The dependencies' vendored indexes, so a
+ *   `data.banner` may name an image a dependency ships.
  * @returns {number} How many pages were written.
  */
-export function writeHomepages(outRoot, pages, config, { related } = {}) {
+export function writeHomepages(outRoot, pages, config, { related, records, foreign } = {}) {
+    const artIndex = assetAddressIndex(records ?? [], { config, foreign });
+    // A pathname no asset host serves resolves to `null`, which the theme reads
+    // as an unset banner rather than as a URL to nowhere.
+    const webSrc = (src) => resolvePathname(src, config)?.web ?? null;
+    const artSrc = (value, type, accepts) => artPathname(artIndex, value, type, accepts).pathname;
     for (const page of pages) {
         const data = homepageFrontmatter(page.fm, {
             contentPackage: config.contentPackage,
             title: homepageTitle(page.fm, config),
             related,
         });
+        if (isPlainObject(data.data)) data.data = { ...data.data };
+        resolveArtFields(data, webSrc, artSrc);
         const dest = path.join(outRoot, HOMEPAGE_DESTINATION);
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.writeFileSync(dest, matter.stringify(page.body, encodeAddresses(data)));
@@ -629,7 +641,8 @@ function pageTitle(page) {
  * added to the vocabulary reaches the page without anyone remembering this
  * function exists. Only an authored **string** is touched: `null` is a note
  * naming no art and `""` is one naming none on purpose, and neither is an
- * address to resolve.
+ * address to resolve. A slot's declining word (`banner: none`) is emitted as
+ * a blank, the value a theme reads as "draw no image".
  *
  * **An address nothing answers is dropped**, not emitted as written. The theme
  * renders nothing where a value is absent — its silent-disappear convention —
@@ -643,11 +656,15 @@ function pageTitle(page) {
  * @returns {void}
  */
 function resolveArtFields(data, webSrc, artSrc) {
-    for (const { key, type, accepts } of ART_SLOTS) {
+    for (const { key, type, accepts, declines } of ART_SLOTS) {
         const holder = isPlainObject(data.data) ? data.data : null;
         if (!holder) continue;
         const value = holder[key];
-        if (typeof value !== "string" || value === "") continue;
+        if (declines !== undefined && value === declines) {
+            holder[key] = "";
+            continue;
+        }
+        if ((typeof value !== "string" && !isAddressTuple(value)) || value === "") continue;
         const pathname = artSrc(value, type, accepts);
         if (pathname === null) delete holder[key];
         else holder[key] = webSrc(pathname);
@@ -1313,7 +1330,7 @@ export function buildSite({ config, sqlTables } = {}) {
             embedErrors: [],
             mapFindings: [],
             stats: {
-                homepages: writeHomepages(homeRoot, homepages, resolved),
+                homepages: writeHomepages(homeRoot, homepages, resolved, { records: ctx.records }),
                 out: homeRoot,
             },
         };
@@ -1408,6 +1425,8 @@ export function buildSite({ config, sqlTables } = {}) {
     // graph keys its block.
     const homepagesWritten = writeHomepages(homeRoot, homepages, resolved, {
         related: rendered.related.get(base),
+        records: ctx.records,
+        foreign: gates.foreign,
     });
 
     return {

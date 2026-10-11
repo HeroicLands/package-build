@@ -30,16 +30,15 @@ These are the only keys a note writes at its top level, in the order the formatt
 
 ## Shared `data` fields
 
-These fields are accepted by every note type. A field's value can still be irrelevant to a particular output; the build reports that where it can.
+These fields are accepted by every note type. A field's value can still be irrelevant to a particular output; the build reports that where it can. `data.icon` is not shared: it is listed under each type whose document carries art.
 
-| Field             | Shape                                           | Meaning                                                                                    |
-| ----------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `data.id`         | string                                          | A fixed document identity when the derived identity is unsuitable.                         |
-| `data.pack`       | string                                          | The shared compendium route, with a system block overriding it.                            |
-| `data.packFolder` | an Address, or a map of Addresses keyed by pack | The shared compendium folder Address, with a system block overriding it.                   |
-| `data.harnworld`  | `{ realm?, ritual? }`                           | HârnWorld source details shared by every system — `realm` and `ritual`.                    |
-| `data.icon`       | an Address                                      | The document's profile art — an `icon` address, resolved into `img`.                       |
-| `data.banner`     | an Address                                      | The page's hero image — an `image` address, cut to 1792×768. Reaches no compiled document. |
+| Field             | Shape                                           | Meaning                                                                                                                       |
+| ----------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `data.id`         | string                                          | A fixed document identity when the derived identity is unsuitable.                                                            |
+| `data.pack`       | string                                          | The shared compendium route, with a system block overriding it.                                                               |
+| `data.packFolder` | an Address, or a map of Addresses keyed by pack | The shared compendium folder Address, with a system block overriding it.                                                      |
+| `data.harnworld`  | `{ realm?, ritual? }`                           | HârnWorld source details shared by every system — `realm` and `ritual`.                                                       |
+| `data.banner`     | an Address                                      | The page's hero image — an `image` address, cut to 1792×768, or `none` to decline a hero image. Reaches no compiled document. |
 
 **Inner keys** — a key a field's value does not declare is an error at its own line and column.
 
@@ -56,11 +55,11 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                            | Shape                                                   | Meaning                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | -------------------------------- | ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data.icon`                      | an Address                                              | The document's profile art — an `icon` address, resolved into `img`.                                                                                                                                                                                                                                                                                                                                                                |
 | `data.tokenIcon`                 | an Address                                              | What a token on the canvas wears — an `icon` address; unset, it follows `icon`.                                                                                                                                                                                                                                                                                                                                                     |
 | `data.templatePriority`          | number                                                  | Template priority; unset means the note is not a template.                                                                                                                                                                                                                                                                                                                                                                          |
 | `data.archetypes`                | list of strings                                         | Archetypal behaviours the being fits.                                                                                                                                                                                                                                                                                                                                                                                               |
 | `data.occupation`                | string                                                  | What the being does for a living.                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `data.stations`                  | list of Addresses                                       | Stations the being holds.                                                                                                                                                                                                                                                                                                                                                                                                           |
 | `data.lore`                      | list of Addresses                                       | Lore concerning this being — the law it lives under, the customs it is subject to, the traditions it was raised in.                                                                                                                                                                                                                                                                                                                 |
 | `data.culture`                   | an Address                                              | The being's primary culture, as a culture lore note.                                                                                                                                                                                                                                                                                                                                                                                |
 | `data.homes`                     | list of Addresses                                       | Places the being calls home.                                                                                                                                                                                                                                                                                                                                                                                                        |
@@ -111,6 +110,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                   | Shape      | Meaning                                                                         |
 | ----------------------- | ---------- | ------------------------------------------------------------------------------- |
+| `data.icon`             | an Address | The document's profile art — an `icon` address, resolved into `img`.            |
 | `data.tokenIcon`        | an Address | What a token on the canvas wears — an `icon` address; unset, it follows `icon`. |
 | `data.templatePriority` | number     | Template priority; unset means the note is not a template.                      |
 
@@ -120,6 +120,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                     | Shape                                          | Meaning                                                                                                                              |
 | ------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `data.icon`               | an Address                                     | The document's profile art — an `icon` address, resolved into `img`.                                                                 |
 | `data.templatePriority`   | number                                         | Template priority; unset means the note is not a template.                                                                           |
 | `data.events`             | list of event entries                          | What happened to or at this subject — each entry one dated, attributed event: a founding, a war, a fall, or an occasion that recurs. |
 | `data.demonym`            | string                                         | What one member is called — a Vylarian.                                                                                              |
@@ -203,20 +204,21 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `disease`, `poisontoxin`, `maladiction`.
 
-| Field                              | Shape  | Meaning                                                        |
-| ---------------------------------- | ------ | -------------------------------------------------------------- |
-| `data.templatePriority`            | number | Template priority; unset means the note is not a template.     |
-| `data.transmission`                | string | How it passes from one host to another.                        |
-| `data.outcome`                     | string | Where it ends once it has run its course — `death` or `cured`. |
-| `data.healingRate`                 | number | How readily a healing test goes well.                          |
-| `data.contagionIndex`              | number | How contagious it is.                                          |
-| `data.outcomeTraumas`              | string | Expression returning the traumas recovery leaves behind.       |
-| `data.onsetDurationFormula`        | string | Roll formula for the delay between contraction and onset.      |
-| `data.onsetDurationBase`           | number | That delay in seconds, stated outright instead of rolled.      |
-| `data.healingCheckDurationFormula` | string | Roll formula for the interval between healing checks.          |
-| `data.healingCheckDurationBase`    | number | That interval in seconds, stated outright instead of rolled.   |
-| `data.resolutionDurationFormula`   | string | Roll formula for the time from onset to resolution.            |
-| `data.resolutionDurationBase`      | number | That time in seconds, stated outright instead of rolled.       |
+| Field                              | Shape      | Meaning                                                              |
+| ---------------------------------- | ---------- | -------------------------------------------------------------------- |
+| `data.icon`                        | an Address | The document's profile art — an `icon` address, resolved into `img`. |
+| `data.templatePriority`            | number     | Template priority; unset means the note is not a template.           |
+| `data.transmission`                | string     | How it passes from one host to another.                              |
+| `data.outcome`                     | string     | Where it ends once it has run its course — `death` or `cured`.       |
+| `data.healingRate`                 | number     | How readily a healing test goes well.                                |
+| `data.contagionIndex`              | number     | How contagious it is.                                                |
+| `data.outcomeTraumas`              | string     | Expression returning the traumas recovery leaves behind.             |
+| `data.onsetDurationFormula`        | string     | Roll formula for the delay between contraction and onset.            |
+| `data.onsetDurationBase`           | number     | That delay in seconds, stated outright instead of rolled.            |
+| `data.healingCheckDurationFormula` | string     | Roll formula for the interval between healing checks.                |
+| `data.healingCheckDurationBase`    | number     | That interval in seconds, stated outright instead of rolled.         |
+| `data.resolutionDurationFormula`   | string     | Roll formula for the time from onset to resolution.                  |
+| `data.resolutionDurationBase`      | number     | That time in seconds, stated outright instead of rolled.             |
 
 **System mappings**
 
@@ -239,6 +241,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                   | Shape                   | Meaning                                                                                                      |
 | ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
 | `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
 | `data.weight`           | number                  | What the thing weighs.                                                                                       |
 | `data.value`            | number                  | What the thing is worth.                                                                                     |
@@ -262,17 +265,19 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** Open vocabulary.
 
-| Field                   | Shape  | Meaning                                                    |
-| ----------------------- | ------ | ---------------------------------------------------------- |
-| `data.templatePriority` | number | Template priority; unset means the note is not a template. |
+| Field                   | Shape      | Meaning                                                              |
+| ----------------------- | ---------- | -------------------------------------------------------------------- |
+| `data.icon`             | an Address | The document's profile art — an `icon` address, resolved into `img`. |
+| `data.templatePriority` | number     | Template priority; unset means the note is not a template.           |
 
 ### attribute
 
 **Subtypes:** None.
 
-| Field                   | Shape  | Meaning                                                    |
-| ----------------------- | ------ | ---------------------------------------------------------- |
-| `data.templatePriority` | number | Template priority; unset means the note is not a template. |
+| Field                   | Shape      | Meaning                                                              |
+| ----------------------- | ---------- | -------------------------------------------------------------------- |
+| `data.icon`             | an Address | The document's profile art — an `icon` address, resolved into `img`. |
+| `data.templatePriority` | number     | Template priority; unset means the note is not a template.           |
 
 ### concoctiongear
 
@@ -280,6 +285,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                   | Shape                   | Meaning                                                                                                      |
 | ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
 | `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
 | `data.weight`           | number                  | What the thing weighs.                                                                                       |
 | `data.value`            | number                  | What the thing is worth.                                                                                     |
@@ -307,6 +313,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                   | Shape                   | Meaning                                                                                                      |
 | ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
 | `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
 | `data.weight`           | number                  | What the thing weighs.                                                                                       |
 | `data.value`            | number                  | What the thing is worth.                                                                                     |
@@ -334,6 +341,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                   | Shape                   | Meaning                                                                                                      |
 | ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
 | `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
 | `data.weight`           | number                  | What the thing weighs.                                                                                       |
 | `data.value`            | number                  | What the thing is worth.                                                                                     |
@@ -361,6 +369,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                   | Shape                                        | Meaning                                                                    |
 | ----------------------- | -------------------------------------------- | -------------------------------------------------------------------------- |
+| `data.icon`             | an Address                                   | The document's profile art — an `icon` address, resolved into `img`.       |
 | `data.templatePriority` | number                                       | Template priority; unset means the note is not a template.                 |
 | `data.assocSkill`       | an Address                                   | The skill it is associated with.                                           |
 | `data.assocAffiliation` | an Address                                   | The affiliation it is associated with.                                     |
@@ -382,15 +391,16 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `spiritrite`, `spiritaction`, `spiritpower`, `ritualaction`, `divineincantation`, `arcaneincantation`, `arcanetalent`, `spirittalent`, `alchemy`, `divination`.
 
-| Field                   | Shape      | Meaning                                                    |
-| ----------------------- | ---------- | ---------------------------------------------------------- |
-| `data.templatePriority` | number     | Template priority; unset means the note is not a template. |
-| `data.assocSkill`       | an Address | The skill it is associated with.                           |
-| `data.assocAffiliation` | an Address | The affiliation it is associated with.                     |
-| `data.masteryLevel`     | number     | Mastery before any modifier.                               |
-| `data.level`            | number     | The magnitude of the ability.                              |
-| `data.charges.value`    | number     | Charges available now; unset means charges are not used.   |
-| `data.charges.max`      | number     | Most charges it can hold; unset means no maximum.          |
+| Field                   | Shape      | Meaning                                                              |
+| ----------------------- | ---------- | -------------------------------------------------------------------- |
+| `data.icon`             | an Address | The document's profile art — an `icon` address, resolved into `img`. |
+| `data.templatePriority` | number     | Template priority; unset means the note is not a template.           |
+| `data.assocSkill`       | an Address | The skill it is associated with.                                     |
+| `data.assocAffiliation` | an Address | The affiliation it is associated with.                               |
+| `data.masteryLevel`     | number     | Mastery before any modifier.                                         |
+| `data.level`            | number     | The magnitude of the ability.                                        |
+| `data.charges.value`    | number     | Charges available now; unset means charges are not used.             |
+| `data.charges.max`      | number     | Most charges it can hold; unset means no maximum.                    |
 
 **System mappings**
 
@@ -406,6 +416,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                   | Shape                   | Meaning                                                                                                      |
 | ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
 | `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
 | `data.weight`           | number                  | What the thing weighs.                                                                                       |
 | `data.value`            | number                  | What the thing is worth.                                                                                     |
@@ -432,11 +443,12 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `social`, `nature`, `craft`, `lore`, `language`, `script`, `mystical`, `physical`, `combat`, `combattechnique`.
 
-| Field                   | Shape      | Meaning                                                    |
-| ----------------------- | ---------- | ---------------------------------------------------------- |
-| `data.templatePriority` | number     | Template priority; unset means the note is not a template. |
-| `data.masteryLevel`     | number     | Mastery before any modifier.                               |
-| `data.parentSkill`      | an Address | The skill this one specialises.                            |
+| Field                   | Shape      | Meaning                                                              |
+| ----------------------- | ---------- | -------------------------------------------------------------------- |
+| `data.icon`             | an Address | The document's profile art — an `icon` address, resolved into `img`. |
+| `data.templatePriority` | number     | Template priority; unset means the note is not a template.           |
+| `data.masteryLevel`     | number     | Mastery before any modifier.                                         |
+| `data.parentSkill`      | an Address | The skill this one specialises.                                      |
 
 **System mappings**
 
@@ -449,15 +461,16 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Subtypes:** `injury`, `fear`, `morale`, `pall`, `psycond`, `physcond`, `auralshock`, `fatigue`, `infection`, `shock`, `coma`.
 
-| Field                                  | Shape  | Meaning                                                             |
-| -------------------------------------- | ------ | ------------------------------------------------------------------- |
-| `data.templatePriority`                | number | Template priority; unset means the note is not a template.          |
-| `data.healingCheckDurationFormula`     | string | Roll formula for the interval between healing checks.               |
-| `data.healingCheckDurationBase`        | number | That interval in seconds, stated outright instead of rolled.        |
-| `data.bloodLossAdvanceDurationFormula` | string | Roll formula for the interval between blood-loss advances.          |
-| `data.bloodLossAdvanceDurationBase`    | number | That interval in seconds. Setting it is what makes the wound bleed. |
-| `data.courseDurationFormula`           | string | Roll formula for the interval between course tests.                 |
-| `data.courseDurationBase`              | number | That interval in seconds, stated outright instead of rolled.        |
+| Field                                  | Shape      | Meaning                                                              |
+| -------------------------------------- | ---------- | -------------------------------------------------------------------- |
+| `data.icon`                            | an Address | The document's profile art — an `icon` address, resolved into `img`. |
+| `data.templatePriority`                | number     | Template priority; unset means the note is not a template.           |
+| `data.healingCheckDurationFormula`     | string     | Roll formula for the interval between healing checks.                |
+| `data.healingCheckDurationBase`        | number     | That interval in seconds, stated outright instead of rolled.         |
+| `data.bloodLossAdvanceDurationFormula` | string     | Roll formula for the interval between blood-loss advances.           |
+| `data.bloodLossAdvanceDurationBase`    | number     | That interval in seconds. Setting it is what makes the wound bleed.  |
+| `data.courseDurationFormula`           | string     | Roll formula for the interval between course tests.                  |
+| `data.courseDurationBase`              | number     | That interval in seconds, stated outright instead of rolled.         |
 
 **System mappings**
 
@@ -477,6 +490,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field                   | Shape                   | Meaning                                                                                                      |
 | ----------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `data.icon`             | an Address              | The document's profile art — an `icon` address, resolved into `img`.                                         |
 | `data.templatePriority` | number                  | Template priority; unset means the note is not a template.                                                   |
 | `data.weight`           | number                  | What the thing weighs.                                                                                       |
 | `data.value`            | number                  | What the thing is worth.                                                                                     |
@@ -711,9 +725,9 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 **Subtypes:** None.
 
-| Field | Shape | Meaning                         |
-| ----- | ----- | ------------------------------- |
-| —     | —     | No type-specific `data` fields. |
+| Field       | Shape      | Meaning                                                              |
+| ----------- | ---------- | -------------------------------------------------------------------- |
+| `data.icon` | an Address | The document's profile art — an `icon` address, resolved into `img`. |
 
 ### bundle
 
@@ -721,6 +735,7 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 | Field           | Shape             | Meaning                                                                                                                                                           |
 | --------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data.icon`     | an Address        | The document's profile art — an `icon` address, resolved into `img`.                                                                                              |
 | `data.contents` | list of Addresses | The documents the Adventure holds, as addresses. Empty when unstated. A document of neither `none` nor the system being compiled is left out rather than failing. |
 
 ### folder

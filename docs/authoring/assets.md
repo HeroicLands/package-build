@@ -43,15 +43,21 @@ role: portrait
 | A note writes      | The page draws                                     |
 | ------------------ | -------------------------------------------------- |
 | an asset Address   | that picture                                       |
-| a blank            | no picture, on purpose, and no default replaces it |
+| `none`             | no picture, on purpose, and no default replaces it |
 | nothing, or `null` | a default picture chosen by the note's `type`      |
 
 Omitting the key does not mean "no hero image" — it means artwork chosen for
 the author, which inverts the ordinary reading of an absent key. **A note
-declines with a blank, not with `none`.** `none` parses as an ordinary asset
-Address — a shortcode, not a keyword — and since nothing in the corpus
-answers to it, the build drops the key outright and the page falls through to
-its type's default: the opposite of a decline.
+declines with `none`, and with nothing else.** `none` is a keyword, never an
+asset shortcode, so it is not looked up. A blank (`""`) is an error, and
+`null` is the same as omitting the key. An Address that names no image in
+this package or a declared dependency is a finding at its line and column;
+write `data.banner: none` when the page is meant to carry no hero image.
+
+```yaml
+data:
+  banner: none
+```
 
 `role` is one of `portrait`, `emblem`, `banner`, `plate` or `map`, and belongs to the `image` type only — declaring it in a `provenance.yaml` under `assets/icons` is a finding, since an icon carries one nominal size per medium whatever the file holds. Leave the key out for an ordinary picture; there is no default role name, only its absence.
 

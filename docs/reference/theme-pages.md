@@ -194,14 +194,14 @@ list by shipping its own `data/banners.yaml`, which Hugo reads in preference
 to the theme's bundled one, and can run the same check against it.
 
 **Declining a hero image.** `banner: none` on a hand-authored page, and a
-blank `data.banner` on a note, render the band with no image at all — the
+blank `data.banner` on a note (which the build emits for `data.banner: none`),
+render the band with no image at all — the
 title, the palette and the `.hero-with-image` gradient, which is what gives
 the band its presence. A package may have a standing editorial reason to
 publish no imagery, and falling back to a default for those would substitute
 artwork where the considered answer was "none". See
 [images, icons, audio, and provenance](../authoring/assets.md) for how a note
-declines one; the spelling differs from the hand-authored page's, and the two
-are not interchangeable.
+declines one with `data.banner: none`.
 
 ## Generated sections
 

@@ -740,14 +740,14 @@ no SoHL form, so its SoHL column is. Nothing else varies — which is why these
 rows are worth stating once: repeated sixteen times they buried the differences
 that matter.
 
-**`data.icon` maps onto a document that has one, and not every type's does.**
-The row is shared because the key is legal on every note whatever its type, not
-because every document carries artwork: `doc`, `place`, `lore` and `scenario`
-compile into a JournalEntry, which has no image of any kind, and a `folder`
-compiles into a Foundry `Folder`, which has none either. A `homepage` compiles
-into no compendium document at all. On any of those the mapping has no
-destination, so the resolved value is simply dropped — the note validates, the
-tree compiles, and the value goes nowhere.
+**`data.icon` is declared only for the types whose document carries art.**
+The row is not shared: `being`, every Item type, `macro` and `bundle` compile
+into a document with an image, and only those declare `icon`. `doc`, `place`,
+`lore` and `scenario` compile into a JournalEntry, which has no image of any
+kind; a `map` compiles into a Scene whose art is its own; a `folder` compiles
+into a Foundry `Folder`; and a `homepage` compiles into no compendium document
+at all. On any of those `icon` is not a declared property, so the note is
+refused at the key's own line rather than compiled with the value dropped.
 
 **What a note writes is an address; what a document carries is a path.**
 `data.icon` is an `Address` defaulting to type `icon`, so a being writes
@@ -756,20 +756,13 @@ file the owning package ships and writes the resulting path into `img`. The two
 sides of this row are therefore in two different currencies, which is why the
 row reads `data.icon → img` rather than naming one thing twice.
 
-Since a dropped value looks exactly like a value never written, the frontmatter
-lint **reports it**: an art key authored on a type whose passes emit none is a
-warning naming the note and the key. A warning rather than an error, because the
-note still compiles correctly and the key is not certainly unwanted — a note's
-top level is the generated page's front matter as well, so a site template may
-read there what no document carries. `null` is never reported: that is the
-blessed way to say "this note names no art", and on a type with no art it is a
-true and harmless thing to say.
-
-Which types those are is **not a list**. It is asked of the passes: a type routes
-to a document, a document to the pass that compiles it, and each pass declares
-the art it writes (`emitsArt`). A second table of iconless types would be a table
-free to drift from what is actually emitted, which is the defect rather than the
-check.
+Which types declare `icon` is **not a list**. It is asked of the passes: a type
+routes to a document, a document to the pass that compiles it, and each pass
+declares the art it writes (`emitsArt`). A pass that emits `icon` is a type that
+declares the key. Any other art key authored where no pass emits it, such as a
+`tokenIcon` on an Item type, is a warning naming the note and the key, because
+the note still compiles correctly and a site template may read there what no
+document carries. `null` is never reported.
 
 #### The art slots
 
@@ -779,11 +772,11 @@ exactly as `seat` declares `place` — a bare shortcode takes its type from the
 declaration, and qualification climbs the same short-form ladder every other
 link uses.
 
-| field       | default type | accepts         | resolves into                 | on                                        |
-| ----------- | ------------ | --------------- | ----------------------------- | ----------------------------------------- |
-| `icon`      | `icon`       | `icon`, `image` | `document.img`                | every Actor/Item type, and embedded items |
-| `tokenIcon` | `icon`       | `icon`, `image` | `prototypeToken.texture.src`  | Actor types                               |
-| `banner`    | `image`      | `icon`, `image` | the site hero image, 1792×768 | any note; not a Foundry field             |
+| field       | default type | accepts         | resolves into                 | on                                          |
+| ----------- | ------------ | --------------- | ----------------------------- | ------------------------------------------- |
+| `icon`      | `icon`       | `icon`, `image` | `document.img`                | `being`, every Item type, `macro`, `bundle` |
+| `tokenIcon` | `icon`       | `icon`, `image` | `prototypeToken.texture.src`  | Actor types                                 |
+| `banner`    | `image`      | `icon`, `image` | the site hero image, 1792×768 | any note; not a Foundry field               |
 
 A map's `thumbnail` is not an art slot. It is a map field resolved into the
 Scene's `thumb` as a fixup — see [the thumbnail](#the-thumbnail).
@@ -823,16 +816,15 @@ are, so a key legal everywhere is stated once here rather than repeated in
 twenty-five tables where the one that was mistyped would be the one nobody
 noticed:
 
-| shared `data` property | Values                | Description                                                          |
-| ---------------------- | --------------------- | -------------------------------------------------------------------- |
-| `id`                   | `string`              | A pinned document identity.                                          |
-| `pack`                 | `string`              | The shared compendium route.                                         |
-| `packFolder`           | `Address` or pack map | The shared compendium folder Address.                                |
-| `harnworld`            | `{ realm?, ritual? }` | HârnWorld source details.                                            |
-| `harnworld.realm`      | `string`              | The HârnWorld realm the subject belongs to.                          |
-| `harnworld.ritual`     | `string[]`            | The HârnWorld religions the subject observes.                        |
-| `icon`                 | `Address`             | The document's profile art — an `icon` address, resolved into `img`. |
-| `banner`               | `Address`             | The page's hero image — an `image` address, cut to 1792×768.         |
+| shared `data` property | Values                | Description                                                  |
+| ---------------------- | --------------------- | ------------------------------------------------------------ |
+| `id`                   | `string`              | A pinned document identity.                                  |
+| `pack`                 | `string`              | The shared compendium route.                                 |
+| `packFolder`           | `Address` or pack map | The shared compendium folder Address.                        |
+| `harnworld`            | `{ realm?, ritual? }` | HârnWorld source details.                                    |
+| `harnworld.realm`      | `string`              | The HârnWorld realm the subject belongs to.                  |
+| `harnworld.ritual`     | `string[]`            | The HârnWorld religions the subject observes.                |
+| `banner`               | `Address`             | The page's hero image — an `image` address, cut to 1792×768. |
 
 `data.harnworld` takes two keys and nothing else: `realm`, a string naming the
 HârnWorld realm the subject belongs to, and `ritual`, a list of strings naming
@@ -845,10 +837,9 @@ data:
     ritual: [Larani, Peoni]
 ```
 
-`icon` is legal everywhere because most types compile into a document that
-carries one; where a type's passes emit none, the lint says so and the value is
-left alone, because a page template may still read it. `banner` reaches no
-compiled document at all, and a page is what every note publishes.
+`icon` is declared only for the types whose document carries art; see
+the art slots below. `banner` reaches no compiled document at
+all, and a page is what every note publishes, so it is legal everywhere.
 
 `tokenIcon` is narrower, and the Actor types' own tables name it. A map takes
 no art slot: its Scene is exported from Foundry and names its own art.
@@ -1060,8 +1051,11 @@ writes `banner: skillbnr` and a note borrowing another package's plate writes
 owning package, and each surface joins the suffix onto its own root — the site
 onto `site.assets`, the book onto the directory it stages banners into.
 
-**`banner: null` is how a note says it wants no plate.** It is a true statement
-on any type, and the frontmatter lint never reports it.
+**`banner: none` is how a note declines its hero image.** The word is never
+read as an Address: it resolves to no image, the page publishes a blank
+`data.banner`, and the theme draws the band with no picture and no warning. An
+Address that names no image is a finding at its own line and column, and `""`
+is an error. `banner: null` names no art and the page takes its type's default.
 
 #### The pack a note compiles into
 
@@ -1614,7 +1608,7 @@ prose: a field value is a reference something else will compile against, and it
 should say exactly what it points at.
 
 **A field can supply the type.** A field naming one kind of note declares its
-default — `seat` a `place`, `parents` an `affiliation`, `stations` a `lore` — so
+default — `seat` a `place`, `parents` an `affiliation`, `lore` a `lore` — so
 the type segment defaults from the declaration and a bare shortcode is the
 ordinary case, not an abbreviation of one. That is why the examples above read
 `tashal` rather than `place-tashal`: the shorter form carries the same
@@ -3514,7 +3508,6 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `templatePriority`                 | `number`                                       | Template priority, _null_ = not a template                                                                                                            |
 | `archetypes`                       | `Archetype[]`                                  | What sort of character this is. **Always an array** — character and npc require at least one; creature may omit it or write `[]`; `null` is an error. |
 | `occupation`                       | `string`                                       | Name of the character's occupation                                                                                                                    |
-| `stations`                         | `Address[]`                                    | Name of the stations the character belongs to                                                                                                         |
 | `lore`                             | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                                                                      |
 | `culture`                          | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
 | `homes`                            | `Address[]`                                    | Place the being calls home                                                                                                                            |

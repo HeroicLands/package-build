@@ -639,7 +639,9 @@ function checkDataReferences(note, field, value, segments, context, index) {
     const findings = [];
     const defaults = { ...context, type: field.ref };
     const accepted = field.accepts;
+    const slot = ART_SLOTS.find((candidate) => candidate.key === field.name);
     for (const check of checks) {
+        if (field.declines !== undefined && check.value === field.declines) continue;
         if (
             check.key &&
             field.keySelector === "subType" &&
@@ -661,10 +663,14 @@ function checkDataReferences(note, field, value, segments, context, index) {
                 reason = `accepts ${accepted.join(" or ")}, not ${tuple.type}`;
             else if (
                 index?.addressHit &&
-                !ART_SLOTS.some((slot) => slot.key === field.name) &&
+                (!slot || slot.declines !== undefined) &&
                 !index.addressHit(renderAddress(tuple))
             )
-                reason = `names ${renderAddress(tuple)}, which does not resolve in this package or its declared dependencies`;
+                reason =
+                    `names ${renderAddress(tuple)}, which does not resolve in this package or its declared dependencies` +
+                    (slot?.declines === undefined ?
+                        ""
+                    :   `; write \`${slot.declines}\` to decline the image on purpose`);
         }
         if (!reason) continue;
         const path = ["data", ...segments, ...check.path];

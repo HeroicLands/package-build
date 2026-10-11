@@ -87,7 +87,7 @@ import { SYSTEM_IDS } from "./systems.mjs";
 // The retirement window for a renamed type, read rather than restated: a
 // vocabulary that answered only to the current spelling would report every key
 // of an unswept note as unknown.
-import { currentType } from "./ids.mjs";
+import { currentType, packForType } from "./ids.mjs";
 // What a place is next to and reachable from — the two relation lists and
 // the checks that hold them to their closed sets and to each other.
 import { checkBorders, checkRoutes } from "./place-relations.mjs";
@@ -164,6 +164,9 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *   so each takes a row labelled and anchored by the post's own name.
  * @property {"subType"} [keySelector] - An alternative `subType:<skill-subtype>` key.
  * @property {readonly string[]} [accepts] - Allowed Address types, separate from `ref`.
+ * @property {string} [declines] - The literal value that declines the art this
+ *   Address field names. It is not an Address, is never resolved, and is not
+ *   reported as unresolved.
  * @property {readonly ("prose"|"event")[]} [anchors] - The anchor kinds an
  *   Address here may name with `#<anchor>`. Absent, an anchor is refused.
  * @property {boolean} [single] - The Address names exactly one event: an
@@ -502,13 +505,10 @@ export const NOTE_TOP_LEVEL_KEY_SET = Object.freeze(new Set(NOTE_TOP_LEVEL_KEYS)
  * row in twenty-five tables would be twenty-five chances for one of them to
  * disagree with the rest.
  *
- * Both are art slots, and they are legal everywhere for different reasons.
- * `icon` is the document's profile art and most types compile into a document
- * that carries one; where a type's passes emit none, the frontmatter lint says
- * so as a warning rather than the vocabulary refusing the key, because the
- * value may still be read by a page template. `banner` reaches no compiled
- * document at all — it is the page's hero image — and a page is what every note
- * publishes.
+ * `banner` is an art slot legal everywhere: it reaches no compiled document, it
+ * is the page's hero image, and a page is what every note publishes. `icon` is
+ * not shared; it is declared by {@link ICON_FIELD} for the types whose
+ * document carries art.
  *
  * @type {readonly DataFieldSpec[]}
  */
@@ -552,22 +552,52 @@ export const SHARED_DATA_FIELDS = Object.freeze([
         describe: "HârnWorld source details shared by every system — `realm` and `ritual`.",
     }),
     Object.freeze({
-        name: "icon",
-        ...LINK,
-        ref: "icon",
-        accepts: ART_SLOTS.find((slot) => slot.key === "icon").accepts,
-        describe: "The document's profile art — an `icon` address, resolved into `img`.",
-    }),
-    Object.freeze({
         name: "banner",
         ...LINK,
         ref: "image",
         accepts: ART_SLOTS.find((slot) => slot.key === "banner").accepts,
+        declines: ART_SLOTS.find((slot) => slot.key === "banner").declines,
         describe:
-            "The page's hero image — an `image` address, cut to 1792×768. " +
-            "Reaches no compiled document.",
+            "The page's hero image — an `image` address, cut to 1792×768, or `none` " +
+            "to decline a hero image. Reaches no compiled document.",
     }),
 ]);
+
+/**
+ * The profile-art field, declared for the types whose document carries art.
+ *
+ * @type {DataFieldSpec}
+ */
+const ICON_FIELD = Object.freeze({
+    name: "icon",
+    ...LINK,
+    ref: "icon",
+    accepts: ART_SLOTS.find((slot) => slot.key === "icon").accepts,
+    describe: "The document's profile art — an `icon` address, resolved into `img`.",
+});
+
+/**
+ * The document types whose builder emits `icon` art: the Actor, Item and Macro
+ * passes and the Adventure (bundle) pass. A Scene and a JournalEntry carry
+ * none. Every pass declares this through its `emitsArt`, and a test holds the
+ * two statements together.
+ *
+ * @type {ReadonlySet<string>}
+ */
+const ICON_DOCUMENT_TYPES = new Set(["Actor", "Item", "Macro", "Adventure"]);
+
+/**
+ * Whether a note type compiles into a document carrying `icon` art.
+ *
+ * A folder and a homepage route like any other type but compile into no art.
+ *
+ * @param {string} type - The current content type.
+ * @returns {boolean} Whether `data.icon` is declared for the type.
+ */
+function emitsIcon(type) {
+    if (type === "folder" || type === "homepage") return false;
+    return ICON_DOCUMENT_TYPES.has(packForType(type).docType);
+}
 
 /**
  * An Address naming one event: `place-ironfells#sack`, or a note holding
@@ -978,13 +1008,6 @@ export const NOTE_VOCABULARY = Object.freeze({
             TEMPLATE_PRIORITY,
             { name: "archetypes", ...TEXT_LIST, describe: "Archetypal behaviours the being fits." },
             { name: "occupation", ...TEXT, describe: "What the being does for a living." },
-            {
-                name: "stations",
-                ...LINKS,
-                ref: "lore",
-                accepts: ["lore"],
-                describe: "Stations the being holds.",
-            },
             {
                 name: "lore",
                 ...LINKS,
@@ -2017,7 +2040,12 @@ export function dataFields(type, vocabulary = NOTE_VOCABULARY) {
     if (!entry) return undefined;
     // The shared keys first, so a type's own declarations keep their authored
     // order behind them and a reader meets the art before the mechanics.
-    return Object.freeze([...SHARED_DATA_FIELDS, ...(entry.data ?? [])]);
+    const key = currentType(type);
+    return Object.freeze([
+        ...SHARED_DATA_FIELDS,
+        ...(emitsIcon(key) ? [ICON_FIELD] : []),
+        ...(entry.data ?? []),
+    ]);
 }
 
 /**

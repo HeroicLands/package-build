@@ -175,14 +175,15 @@ describe("every slot is a key some type accepts", () => {
         expect(missing.map((slot) => slot.key)).toEqual([]);
     });
 
-    it("accepts `icon` and `banner` on every type, whatever its own vocabulary", () => {
-        // The two that are legal everywhere, including on the types whose own
-        // `data:` vocabulary is empty and which therefore have no list to put a
-        // row in.
+    it("accepts `banner` on every type, and `icon` on the types that emit it", () => {
+        // `banner` is legal everywhere, including on the types whose own `data:`
+        // vocabulary is empty. `icon` follows what the passes emit.
         for (const type of Object.keys(NOTE_VOCABULARY)) {
             const names = (dataFields(type) ?? []).map((field: { name: string }) => field.name);
-            expect(names, type).toContain("icon");
             expect(names, type).toContain("banner");
+            expect(names.includes("icon"), type).toBe(
+                emittedArtFor(type)?.art.includes("icon") ?? false,
+            );
         }
     });
 });

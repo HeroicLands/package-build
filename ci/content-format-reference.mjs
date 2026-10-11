@@ -21,6 +21,7 @@ import {
     NOTE_TOP_LEVEL_FIELDS,
     NOTE_VOCABULARY,
     SHARED_DATA_FIELDS,
+    dataFields,
 } from "../engine/note-vocabulary.mjs";
 import { EXPRESSION_HELPERS } from "../engine/markdown-expressions.mjs";
 import { PAGE_LIST_ATTRIBUTES } from "../engine/page-lists.mjs";
@@ -107,7 +108,7 @@ const rows = [
     "",
     "## Shared `data` fields",
     "",
-    "These fields are accepted by every note type. A field's value can still be irrelevant to a particular output; the build reports that where it can.",
+    "These fields are accepted by every note type. A field's value can still be irrelevant to a particular output; the build reports that where it can. `data.icon` is not shared: it is listed under each type whose document carries art.",
     "",
     "| Field | Shape | Meaning |",
     "| --- | --- | --- |",
@@ -136,13 +137,12 @@ for (const [type, spec] of contract.types) {
         );
     }
     rows.push("| Field | Shape | Meaning |", "| --- | --- | --- |");
+    const typeData = dataFields(type).filter((field) => !SHARED_DATA_FIELDS.includes(field));
     rows.push(
-        ...(declared.data?.length ?
-            fields(declared.data)
-        :   ["| — | — | No type-specific `data` fields. |"]),
+        ...(typeData.length ? fields(typeData) : ["| — | — | No type-specific `data` fields. |"]),
     );
     rows.push("");
-    rows.push(...innerKeyTable(declared.data ?? []));
+    rows.push(...innerKeyTable(typeData));
     const claims = contract.claims.filter((claim) => !claim.shared && claim.noteType === type);
     if (claims.length) {
         rows.push("**System mappings**", "", "| Source | System | Target |", "| --- | --- | --- |");

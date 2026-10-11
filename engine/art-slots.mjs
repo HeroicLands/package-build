@@ -23,6 +23,9 @@
  *   `icon` while its accepted set also takes `image`. A value naming a type
  *   outside it is an error, against this set rather than against `type`.
  * @property {boolean} document - Whether the slot reaches a compiled document.
+ * @property {string} [declines] - The literal value that declines the slot's
+ *   art on purpose. It is never read as an Address: it resolves to no image and
+ *   is emitted as a blank, which a theme reads as "draw none".
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -76,6 +79,12 @@ export const ART_SLOTS = Object.freeze([
         // fitted to whatever room it has, so no slot but this one states a
         // size.
         size: Object.freeze({ width: 1792, height: 768 }),
-        describe: "The page's hero image, cut to 1792×768. Reaches no compiled document.",
+        // `none` is the one way to decline a hero image. It is a word rather
+        // than a blank because `""` is refused: a blank is how an unfinished
+        // note looks, and declining has to be said on purpose.
+        declines: "none",
+        describe:
+            "The page's hero image, cut to 1792×768; `none` declines it. " +
+            "Reaches no compiled document.",
     }),
 ]);

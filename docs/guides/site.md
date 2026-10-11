@@ -153,7 +153,7 @@ tree rather than about one note, so the build replaces whatever a note wrote.
 
 Artwork addresses are rewritten in place under `data`. A page's `data.icon`,
 `data.tokenIcon` and `data.banner` carry the URLs the site serves rather than the
-addresses the note authored, and there are four cases to tell apart:
+addresses the note authored, and there are five cases to tell apart:
 
 | The note writes              | The page carries |
 | ---------------------------- | ---------------- |
@@ -161,12 +161,15 @@ addresses the note authored, and there are four cases to tell apart:
 | an address nothing answers   | no key at all    |
 | `null`                       | `null`           |
 | `""`                         | `""`             |
+| `data.banner: none`          | `""`             |
 
 An address nothing answers is deleted rather than written through, so an absent
 key is the ordinary case for a theme to render nothing against, and no page
 reaches a reader carrying a broken image source. The two empties are distinct
 and both survive: `null` is a note naming no art, where a default may apply,
-and `""` is a note refusing art, where no default may replace it.
+and `""` is a note refusing art, where no default may replace it. A note
+writes `none` to refuse a hero image, since `""` is an error in authored
+frontmatter.
 
 The build writes these keys; [what the theme draws](../reference/theme-pages.md)
 describes the panel each one feeds — the infobox, the hero band, the related
