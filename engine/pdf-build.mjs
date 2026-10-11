@@ -86,7 +86,7 @@ import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 import { noteFile } from "./index-records.mjs";
 import { coverage, isPrintable } from "./pdf-coverage.mjs";
-import { openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
+import { cachedDependencies, openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
 import {
     collectContentPages,
@@ -820,14 +820,22 @@ async function prepareWorld(resolved, { contentBase, findings, resolveReplacemen
     // The corpus, once — the same records the index, the site and the SQL
     // tables read, so the book cannot select a note the other surfaces do not
     // have.
+    const parsed = new Map();
     const records = indexRecordsFor({
         contentBase,
         config: resolved,
         skipDirectories: resolved.skipDirectories,
+        parsed,
     });
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "content-pdf-"));
-    const db = await openNotesDatabase(records, { dir, audience: "public" });
+    // The one database over the corpus: the books' filters, the generated
+    // sections and every authored query read it.
+    const db = await openNotesDatabase(records, {
+        dir,
+        dependencies: await cachedDependencies(resolved),
+        audience: "public",
+    });
 
     // Pages, indexed and gated exactly as the site does. A book of a tree whose
     // addresses collide would print the wrong entry under the right name.
@@ -884,6 +892,8 @@ async function prepareWorld(resolved, { contentBase, findings, resolveReplacemen
         config: resolved,
         skipDirectories: resolved.skipDirectories,
         records,
+        parsed,
+        database: db,
         audience: "public",
     });
     // The address space an `![[…]]` embed resolves against — the same one the

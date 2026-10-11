@@ -893,11 +893,13 @@ function lintCommand() {
                 // not take every other finding in the tree with it, and the
                 // reader needs a line to open, not a stack.
                 const corpusProblems = [];
+                const parsed = new Map();
                 const records = indexRecordsFor({
                     contentBase: root,
                     config,
                     skipDirectories: config.skipDirectories,
                     problems: corpusProblems,
+                    parsed,
                 });
                 for (const problem of corpusProblems) emitDiagnostic(problem);
                 // An error whatever the command's own strictness: the note is
@@ -923,6 +925,7 @@ function lintCommand() {
                     sqlTables: await prepareTreeSqlTables(root, {
                         config,
                         records,
+                        parsed,
                         skipDirectories: config.skipDirectories,
                     }),
                 });
@@ -1370,11 +1373,13 @@ function linksCommand() {
                 // Enumerated once and shared, as in `lint`, and a note
                 // it cannot record is reported rather than thrown.
                 const corpusProblems = [];
+                const parsed = new Map();
                 const records = indexRecordsFor({
                     contentBase,
                     config,
                     ...scope,
                     problems: corpusProblems,
+                    parsed,
                 });
                 for (const problem of corpusProblems) emitDiagnostic(problem);
                 // An error whatever the command's own strictness: the note is
@@ -1388,6 +1393,7 @@ function linksCommand() {
                     sqlTables: await prepareTreeSqlTables(contentBase, {
                         config,
                         records,
+                        parsed,
                         ...scope,
                     }),
                 });
@@ -2088,11 +2094,13 @@ function reachabilityCommand() {
                 const dir = String(argv.dir).replace(/\/+$/, "");
                 const scope = { skipDirectories: config.skipDirectories };
                 const corpusProblems = [];
+                const parsed = new Map();
                 const records = indexRecordsFor({
                     contentBase,
                     config,
                     ...scope,
                     problems: corpusProblems,
+                    parsed,
                 });
                 for (const problem of corpusProblems) emitDiagnostic(problem);
                 // An error whatever the command's own strictness: the note is
@@ -2106,6 +2114,7 @@ function reachabilityCommand() {
                     sqlTables: await prepareTreeSqlTables(contentBase, {
                         config,
                         records,
+                        parsed,
                         ...scope,
                     }),
                 });

@@ -21,7 +21,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { expandContentTables } from "../engine/content-tables.mjs";
-import { EVENT_VIEWS } from "../engine/event-views.mjs";
+import { EVENT_VIEWS, selfForms } from "../engine/event-views.mjs";
 import { parseMarkdownFile } from "../engine/helpers.mjs";
 import { openNotesDatabase, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 
@@ -203,27 +203,73 @@ describe("a region's chronology", () => {
     });
 });
 
-describe("the batched own-row check", () => {
-    it("names the same places as counting each place's own rows one at a time", async () => {
-        const records = collectContentIndex(dir, { contentPackage: PACKAGE, skipDirectories: [] });
+describe("the batched existence check", () => {
+    it.each(EVENT_VIEWS.filter((view: any) => view.owners).map((view: any) => view.slug))(
+        "names the same notes as counting each note's %s rows one at a time",
+        async (slug) => {
+            const records = collectContentIndex(dir, {
+                contentPackage: PACKAGE,
+                skipDirectories: [],
+            });
+            const db = await openNotesDatabase(records, { audience: "public" });
+            try {
+                const view: any = EVENT_VIEWS.find((one: any) => one.slug === slug);
+                const shape = {
+                    parents: true,
+                    locus: true,
+                    reach: true,
+                    who: true,
+                    accounts: true,
+                    follows: true,
+                    depth: true,
+                } as any;
+                const selves = records
+                    .filter((record: any) => !record.documents && view.applies(record))
+                    .map((record: any) => selfForms(record));
+                const batched: Set<string> = await view.owners(db, selves, shape);
+                const counted = new Set<string>();
+                for (const self of selves) {
+                    const query = view.query(self, shape);
+                    const { rows } = await db.query(
+                        `SELECT count(*) AS n FROM (${query.own ?? query.fence})`,
+                    );
+                    if (Number(rows[0].n) > 0) counted.add(self[0]);
+                }
+                expect(counted.size).toBeGreaterThan(0);
+                expect(counted.size).toBeLessThan(selves.length);
+                expect([...batched].sort()).toEqual([...counted].sort());
+            } finally {
+                await db.close();
+            }
+        },
+    );
+});
+
+describe("a shared database and parse", () => {
+    it("give the same results as a preparation that opens and parses its own, and leave the database open", async () => {
+        const parsed = new Map();
+        const records = collectContentIndex(dir, {
+            contentPackage: PACKAGE,
+            skipDirectories: [],
+            parsed,
+        });
+        expect(parsed.size).toBe(Object.keys(NOTES).length);
         const db = await openNotesDatabase(records, { audience: "public" });
         try {
-            const chronology: any = EVENT_VIEWS[0];
-            const shape = { parents: true, locus: true, reach: true } as any;
-            const roots = records
-                .filter((record: any) => record.type === "place")
-                .map((record: any) => `${PACKAGE}-note-place-${record.shortcode}`);
-            const batched: Set<string> = await chronology.owners(db, roots, shape);
-            const counted = new Set<string>();
-            for (const root of roots) {
-                const { rows } = await db.query(
-                    `SELECT count(*) AS n FROM (${chronology.query([root], shape).own})`,
-                );
-                if (Number(rows[0].n) > 0) counted.add(root);
+            const options = { records, config: { contentPackage: PACKAGE } as any };
+            const own: any = await prepareTreeSqlTables(dir, options);
+            const shared: any = await prepareTreeSqlTables(dir, {
+                ...options,
+                parsed,
+                database: db,
+            });
+            expect([...shared.keys()].sort()).toEqual([...own.keys()].sort());
+            for (const [file, results] of own) {
+                expect(JSON.stringify(shared.get(file)), file).toBe(JSON.stringify(results));
+                expect(shared.get(file).generated, file).toBe(results.generated);
             }
-            expect(counted.size).toBeGreaterThan(0);
-            expect(counted.size).toBeLessThan(roots.length);
-            expect([...batched].sort()).toEqual([...counted].sort());
+            const { rows } = await db.query("SELECT count(*) AS n FROM notes");
+            expect(Number(rows[0].n)).toBeGreaterThan(0);
         } finally {
             await db.close();
         }

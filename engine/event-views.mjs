@@ -60,13 +60,13 @@ const BY_DATE = "ORDER BY e.whenSort NULLS LAST, e.address";
  * Address in each form an event may name it by, and the shape of the corpus —
  * or `null` where the corpus states nothing the view could select. A view's
  * `own` query, where it has one, is what decides whether the view has rows;
- * a view with `owners` answers that for many notes in one query, given their
- * first Address forms.
+ * a view with `owners` answers that for many notes in one query, given each
+ * note's Address forms.
  *
  * @type {ReadonlyArray<Readonly<{slug: string, heading: string,
  *   applies: (record: object) => boolean,
  *   query: (self: string[], shape: CorpusShape) => {fence: string, own?: string}|null,
- *   owners?: (db: object, roots: string[], shape: CorpusShape) => Promise<Set<string>>}>>}
+ *   owners?: (db: object, selves: string[][], shape: CorpusShape) => Promise<Set<string>>}>>}
  */
 export const EVENT_VIEWS = Object.freeze([
     Object.freeze({
@@ -83,6 +83,8 @@ export const EVENT_VIEWS = Object.freeze([
             record.type === "being" ||
             record.type === "affiliation" ||
             (record.type === "lore" && record.subType === "culture"),
+        owners: (db, selves, shape) =>
+            namedOwners(db, selves, "SELECT unnest(who).ref AS ref FROM events", shape.who),
         query: (self, shape) => {
             if (!shape.who) return null;
             const named = `list_filter(e.who, w -> w.ref IN (${literals(self)}))`;
@@ -106,6 +108,13 @@ export const EVENT_VIEWS = Object.freeze([
             record.type === "affiliation" ||
             record.type === "place" ||
             (record.type === "lore" && record.subType === "culture"),
+        owners: (db, selves, shape) =>
+            namedOwners(
+                db,
+                selves,
+                'SELECT account."by" AS ref FROM (SELECT unnest(accounts) AS account FROM events)',
+                shape.accounts,
+            ),
         query: (self, shape) => {
             if (!shape.accounts) return null;
             return {
@@ -126,6 +135,14 @@ export const EVENT_VIEWS = Object.freeze([
         slug: "followed",
         heading: "What followed",
         applies: (record) => Array.isArray(record.data?.events) && record.data.events.length > 0,
+        owners: (db, selves, shape) =>
+            namedOwners(
+                db,
+                selves,
+                "SELECT split_part(edge.event, '#', 1) AS ref " +
+                    "FROM (SELECT unnest(follows) AS edge FROM events)",
+                shape.follows,
+            ),
         query: (self, shape) => {
             if (!shape.follows) return null;
             const edges =
@@ -157,6 +174,34 @@ export const EVENT_VIEWS = Object.freeze([
  * @property {boolean} depth - Some event states `depth`.
  */
 
+/**
+ * Which notes an event names, asked of every note in one query rather than one
+ * query per note: the references the events state are listed once and joined to
+ * every note's Address forms.
+ *
+ * @param {object} db - From {@link module:engine/sql-tables.openNotesDatabase}.
+ * @param {string[][]} selves - Each note's Address, in each form.
+ * @param {string} refs - A query selecting one `ref` per reference an event
+ *   states.
+ * @param {boolean} stated - Whether the corpus states the field `refs` reads.
+ * @returns {Promise<Set<string>>} The first form of each note some event names.
+ */
+async function namedOwners(db, selves, refs, stated) {
+    if (!stated) return new Set();
+    const values = selves
+        .flatMap((forms) => forms.map((form) => `(${literal(forms[0])}, ${literal(form)})`))
+        .join(", ");
+    const { rows } = await db.query(
+        [
+            `WITH selves(root, form) AS (VALUES ${values}),`,
+            `named AS (${refs})`,
+            "SELECT DISTINCT selves.root AS root",
+            "FROM named JOIN selves ON selves.form = named.ref",
+        ].join("\n"),
+    );
+    return new Set(rows.map((row) => String(row.root)));
+}
+
 /** The `reach` clauses felt in the places `here` holds. */
 function chronologyFelt() {
     return 'list_filter(e."where".reach, r -> list_contains(here.places, r.place))';
@@ -186,12 +231,15 @@ function chronologyOwnRows(shape) {
  * is paid once for the whole corpus instead of once per place.
  *
  * @param {object} db - From {@link module:engine/sql-tables.openNotesDatabase}.
- * @param {string[]} roots - Each place's Address in the `note` system.
+ * @param {string[][]} selves - Each place's Address, in each form; the `note`
+ *   system's is the first.
  * @param {CorpusShape} shape - What the corpus states.
  * @returns {Promise<Set<string>>} The roots with at least one own row.
  */
-async function chronologyOwners(db, roots, shape) {
-    const values = [...new Set(roots)].map((root) => `(${literal(root)})`).join(", ");
+async function chronologyOwners(db, selves, shape) {
+    const values = [...new Set(selves.map((self) => self[0]))]
+        .map((root) => `(${literal(root)})`)
+        .join(", ");
     const below =
         shape.parents ?
             [
@@ -299,7 +347,7 @@ async function corpusShape(db) {
  * @param {object} record - The note's index record.
  * @returns {string[]} The forms, the `note` one first.
  */
-function selfForms(record) {
+export function selfForms(record) {
     const tuple = {
         package: String(record.package),
         type: String(record.type),
@@ -348,15 +396,15 @@ export async function eventViewSections(db, records, fileOf, only) {
     const owned = new Map();
     for (const view of EVENT_VIEWS) {
         if (!view.owners) continue;
-        const roots = [];
+        const selves = [];
         for (const record of all) {
             if (!record?.address || record.documents || !record.shortcode) continue;
             if (only !== undefined && fileOf(record) !== only) continue;
             if (!view.applies(record) || authoredSection(record, view.slug)) continue;
             const self = selfForms(record);
-            if (view.query(self, shape)) roots.push(self[0]);
+            if (view.query(self, shape)) selves.push(self);
         }
-        if (roots.length) owned.set(view.slug, await view.owners(db, roots, shape));
+        if (selves.length) owned.set(view.slug, await view.owners(db, selves, shape));
     }
     for (const record of all) {
         if (!record?.address || record.documents || !record.shortcode) continue;

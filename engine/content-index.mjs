@@ -1023,6 +1023,9 @@ export function resolveCultures(records, { contentPackage, contentBase, foreignR
  * @param {(key: string) => ({culture?: unknown}|undefined)} [options.foreignRecord] -
  *   Another package's entry for a canonical address, read for a parent that
  *   package publishes; see {@link resolveCultures}.
+ * @param {Map<string, {body: string, frontmatter: object|null}>} [options.parsed] -
+ *   Filled with each note's body and its frontmatter as authored, keyed by the
+ *   note's file, so a later pass reads the notes this walk already parsed.
  * @returns {Array<Record<string, any>>} The records, in a total order that does
  *   not depend on directory-read order.
  */
@@ -1036,6 +1039,7 @@ export function collectContentIndex(
         problems,
         addressContext,
         foreignRecord,
+        parsed,
     },
 ) {
     const records = [];
@@ -1107,6 +1111,9 @@ export function collectContentIndex(
     );
 
     for (const { frontmatter, body, bodyLine, absPath } of parsedNotes) {
+        // Before the index derives anything onto the frontmatter, so a later
+        // pass reads the note as authored.
+        parsed?.set(absPath, { body, frontmatter: structuredClone(frontmatter) });
         const fm = frontmatter ?? {};
         applyComputedBeingAge(fm, present, dates);
         const relPath = path.relative(contentBase, absPath);
@@ -1315,6 +1322,10 @@ function dependencyAddresses(config) {
  *   aborting the derivation. Omitted, the note throws — which is the contract
  *   the emitter needs, since an index missing a note asserts that it does not
  *   exist.
+ * @param {Map<string, {body: string, frontmatter: object|null}>} [opts.parsed] -
+ *   Filled with each note's body and authored frontmatter, keyed by the note's
+ *   file. Handed to {@link module:engine/sql-tables.prepareTreeSqlTables}, it
+ *   spares that pass reading and parsing every note again.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
 export function indexRecordsFor({
@@ -1323,6 +1334,7 @@ export function indexRecordsFor({
     config,
     skipDirectories,
     problems,
+    parsed,
 } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = contentBase ?? resolved.paths.content;
@@ -1348,6 +1360,7 @@ export function indexRecordsFor({
         manifest: foundryIdentities(resolved),
         problems,
         foreignRecord,
+        parsed,
     });
 }
 

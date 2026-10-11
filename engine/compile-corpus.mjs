@@ -73,15 +73,17 @@ export async function buildCompileCorpus({
 }) {
     const resolved = config ?? loadPackConfig();
     const collected = problems ?? [];
+    const parsed = new Map();
     const records = indexRecordsFor({
         contentBase,
         assetsBase,
         config: resolved,
         skipDirectories,
         problems: collected,
+        parsed,
     });
     const corpusOptions = { config: resolved, records };
-    const sqlOptions = { ...corpusOptions, skipDirectories };
+    const sqlOptions = { ...corpusOptions, skipDirectories, parsed };
     return {
         records,
         problems: collected,

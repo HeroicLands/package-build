@@ -821,9 +821,11 @@ export async function generatedSectionsFor(
  *   From {@link generatedSectionsFor}.
  * @param {Array<{source: string, markdown: string, frontmatter?: object}>} sources -
  *   The bodies to answer, extended in place.
+ * @param {Map<string, {body: string, frontmatter: object|null}>} [parsed] -
+ *   Notes already parsed, keyed by file; a note absent from it is read.
  * @returns {void}
  */
-export function joinGeneratedSections(generated, sources) {
+export function joinGeneratedSections(generated, sources, parsed) {
     for (const [absPath, text] of generated.sections) {
         const source = sources.find((one) => one.source === absPath);
         if (source) {
@@ -831,7 +833,7 @@ export function joinGeneratedSections(generated, sources) {
             continue;
         }
         if (!generated.views.has(absPath)) continue;
-        const { body, frontmatter } = parseMarkdownFile(absPath);
+        const { body, frontmatter } = parsed?.get(absPath) ?? parseMarkdownFile(absPath);
         sources.push({
             source: absPath,
             markdown: appendGeneratedSections(body, text),
@@ -859,6 +861,23 @@ export function attachGeneratedSections(prepared, generated) {
 }
 
 /**
+ * Each declared dependency's cached index, as {@link openNotesDatabase} attaches
+ * them. Empty where none has been fetched.
+ *
+ * @param {object} [config] - Resolved configuration, defaulting to ambient.
+ * @returns {Promise<Array<{id: string, file: string}>>} The dependencies.
+ */
+export async function cachedDependencies(config) {
+    try {
+        const { cachedMetadataIndexes } = await import("./metadata-index.mjs");
+        const { loadPackConfig } = await import("./pack-config.mjs");
+        return cachedMetadataIndexes(config ?? loadPackConfig());
+    } catch {
+        return [];
+    }
+}
+
+/**
  * Answer every `sql` directive in a content tree.
  *
  * The one entry point each pass uses, so the compiler, the link checker and the
@@ -882,6 +901,14 @@ export function attachGeneratedSections(prepared, generated) {
  * @param {object[]} [opts.records] - Index records the caller already derived.
  *   A command that also builds a link index holds them already, and deriving
  *   them twice is the duplicated-corpus failure this closes.
+ * @param {Map<string, {body: string, frontmatter: object|null}>} [opts.parsed] -
+ *   The notes {@link module:engine/content-index.indexRecordsFor} parsed for
+ *   `records`, keyed by file, so no note is parsed twice. A note absent from it
+ *   is read.
+ * @param {object} [opts.database] - An open notes database over `records`, from
+ *   {@link openNotesDatabase} with this call's `audience` and the declared
+ *   dependencies from {@link cachedDependencies}. It is queried and left open;
+ *   absent, one is opened and closed here.
  * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes.
  * @param {Map<string, object>} [opts.foreignIndex] - The fetched indexes the
  *   generated sections take in, where the caller holds them already; absent,
@@ -892,15 +919,16 @@ export function attachGeneratedSections(prepared, generated) {
  */
 export async function prepareTreeSqlTables(
     contentBase,
-    { config, skipDirectories, records, audience = "all", foreignIndex } = {},
+    { config, skipDirectories, records, parsed, database, audience = "all", foreignIndex } = {},
 ) {
     // Imported here rather than at module scope: the index reaches the pack
     // compilers through `manifest-emit` → `journals`, so a static import from a
     // module they load would close a cycle and leave `BasePackCompiler`
     // uninitialised for whichever module the runtime happened to load first.
     const { indexRecordsFor } = await import("./content-index.mjs");
+    const notes = parsed ?? new Map();
     const indexRecords = (
-        records ?? indexRecordsFor({ contentBase, config, skipDirectories })
+        records ?? indexRecordsFor({ contentBase, config, skipDirectories, parsed: notes })
     ).filter((record) => audience !== "public" || !isGmNote(record));
 
     // Which notes carry a directive, discovered over the same corpus every
@@ -916,7 +944,7 @@ export async function prepareTreeSqlTables(
     for (const record of indexRecords) {
         if (!isNoteRecord(record)) continue;
         const absPath = noteFile(contentBase, record);
-        const { body, frontmatter } = parseMarkdownFile(absPath);
+        const { body, frontmatter } = notes.get(absPath) ?? parseMarkdownFile(absPath);
         if (
             body &&
             (findSqlBlocks(body).length ||
@@ -964,7 +992,7 @@ export async function prepareTreeSqlTables(
         );
     if (!needsDatabase) {
         const pageOnly = new Map();
-        joinGeneratedSections(derivedOnly, sources);
+        joinGeneratedSections(derivedOnly, sources, notes);
         pageOnly.inline = new Map();
         pageOnly.pageLists = preparePageLists(indexRecords, sources);
         attachGeneratedSections(pageOnly, derivedOnly);
@@ -989,20 +1017,17 @@ export async function prepareTreeSqlTables(
     // same cycle reason the index is, and tolerated when absent: a tree with no
     // `sql` directive never reaches this line, and one whose dependency has not
     // been fetched already fails earlier with a message naming the fetch.
-    let dependencies = [];
-    try {
-        const { cachedMetadataIndexes } = await import("./metadata-index.mjs");
-        const { loadPackConfig } = await import("./pack-config.mjs");
-        dependencies = cachedMetadataIndexes(config ?? loadPackConfig());
-    } catch {
-        dependencies = [];
-    }
-    const db = await openNotesDatabase(indexRecords, { dependencies, audience });
+    const db =
+        database ??
+        (await openNotesDatabase(indexRecords, {
+            dependencies: await cachedDependencies(config),
+            audience,
+        }));
     try {
         const generated = await generatedSectionsFor(db, indexRecords, contentBase, {
             derived: derivedOnly.derived,
         });
-        joinGeneratedSections(generated, sources);
+        joinGeneratedSections(generated, sources, notes);
         const prepared = await prepareSqlTables(db, sources, {
             linkable: (ref) => addresses.has(renderAddress(ref)),
             records: indexRecords,
@@ -1011,6 +1036,6 @@ export async function prepareTreeSqlTables(
         attachGeneratedSections(prepared, generated);
         return prepared;
     } finally {
-        await db.close();
+        if (!database) await db.close();
     }
 }
