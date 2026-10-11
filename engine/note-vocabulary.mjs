@@ -200,6 +200,8 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *   entries are not Addresses (`entryKind` says that).
  * @property {object} [values] - What the value under each key of a keyed map
  *   is, where the keys are data rather than declared names.
+ * @property {readonly string[]} [allowed] - The closed set a present string
+ *   value is one of; any other word is a finding at the value.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -246,6 +248,18 @@ const NUM = Object.freeze({ shape: "number", kind: "number" });
 
 /** A string, including the enumerated-value fields the format spells as one. */
 const TEXT = Object.freeze({ shape: "string", kind: "string" });
+
+/** The words a being's `gender` takes. */
+const BEING_GENDERS = Object.freeze(["male", "female", "nonbinary", "none", "other"]);
+
+/** The words a being's `frame` takes, lightest to heaviest. */
+const BEING_FRAMES = Object.freeze(["scant", "light", "medium", "heavy", "massive"]);
+
+/** Words as code spans, joined by commas and a final "or". */
+function wordList(words) {
+    const spans = words.map((word) => `\`${word}\``);
+    return `${spans.slice(0, -1).join(", ")} or ${spans.at(-1)}`;
+}
 
 /** A list. */
 const LIST = Object.freeze({ shape: "list", kind: "list" });
@@ -1016,8 +1030,9 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "gender",
                 ...TEXT,
+                allowed: BEING_GENDERS,
                 describe:
-                    "One of `male`, `female`, `nonbinary`, `none` or `other`. " +
+                    `One of ${wordList(BEING_GENDERS)}. ` +
                     "`none` says the being has no gender; an absent field says its " +
                     "gender is unrecorded.",
             },
@@ -1088,8 +1103,8 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "frame",
                 ...TEXT,
-                describe:
-                    "Relative frame — one of `scant`, `light`, `medium`, `heavy` or `massive`.",
+                allowed: BEING_FRAMES,
+                describe: `Relative frame — one of ${wordList(BEING_FRAMES)}.`,
             },
             { name: "appearance.eye_color", ...TEXT, describe: "Eye colour." },
             { name: "appearance.hair_color", ...TEXT, describe: "Hair colour." },

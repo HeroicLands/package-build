@@ -287,19 +287,23 @@ export function checkDataKeys(note, fields) {
             );
             return;
         }
-        if (spec.allowed && !spec.allowed.includes(value)) {
-            const guess = typeof value === "string" ? nearest(value, spec.allowed) : undefined;
-            findings.push(
-                finding(
-                    path,
-                    `\`${pathLabel(path)}\` should be ${spec.allowed.map((word) => `\`${word}\``).join(" or ")}, ` +
-                        `but reads ${JSON.stringify(value)}` +
-                        (guess ? `. Did you mean "${guess}"?` : ""),
-                ),
-            );
-            return;
-        }
+        if (!inAllowed(spec, value, path)) return;
         walk(spec, value, path);
+    };
+
+    /** Whether a present value is in the spec's closed set, if it has one; else a finding. */
+    const inAllowed = (spec, value, path) => {
+        if (!spec.allowed || spec.allowed.includes(value)) return true;
+        const guess = typeof value === "string" ? nearest(value, spec.allowed) : undefined;
+        findings.push(
+            finding(
+                path,
+                `\`${pathLabel(path)}\` should be ${spec.allowed.map((word) => `\`${word}\``).join(" or ")}, ` +
+                    `but reads ${JSON.stringify(value)}` +
+                    (guess ? `. Did you mean "${guess}"?` : ""),
+            ),
+        );
+        return false;
     };
 
     /** Close one map to its declared keys, and walk each that is present. */
@@ -341,7 +345,8 @@ export function checkDataKeys(note, fields) {
         // A dotted group's own shape is checked here: the container check
         // reads its members' leaves and has nothing to say about the group.
         if (spec.grouped) visit(spec, value, path);
-        else if (fitsKind(value, spec.kind)) walk(spec, value, path);
+        else if (fitsKind(value, spec.kind) && inAllowed(spec, value, path))
+            walk(spec, value, path);
     }
     return findings;
 }
