@@ -508,17 +508,17 @@ name form resolves before reaching here.
 **Type:** object · **Optional** · every key defaults to the conventional
 HeroicLands layout, resolved against `rootDir`:
 
-| Key                     | Default                  | What it is                                                                                      |
-| ----------------------- | ------------------------ | ----------------------------------------------------------------------------------------------- |
-| `paths.content`         | `assets/content`         | The content tree root.                                                                          |
-| `paths.assets`          | `assets`                 | The asset roots' parent, holding `icons/`, `images/` and `audio/`.                              |
-| `paths.contentIndex`    | `build/content-index`    | Where `content-index` writes this package's note index. Derived and disposable.                 |
-| `paths.packJson`        | `build/packs-json`       | Build-only per-entry JSON intermediate.                                                         |
-| `paths.stage`           | `build/stage/packs`      | Compiled LevelDB packs.                                                                         |
-| `paths.unpack`          | `build/tmp/packs`        | Where `unpack` extracts JSON back to.                                                           |
-| `paths.foreignCache`    | `build/cache/foreign`    | Where a dependency declaring `itemCatalog: true` or `assetArchive: true` is unpacked.           |
-| `paths.metadataCache`   | `build/cache/metadata`   | Where a dependency's published content index is fetched to, for every declared dependency.      |
-| `paths.navigationCache` | `build/cache/navigation` | Where the site navigation heroiclands.org publishes is fetched to, for the generated Hugo menu. |
+| Key                     | Default                  | What it is                                                                                                                         |
+| ----------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `paths.content`         | `assets/content`         | The content tree root.                                                                                                             |
+| `paths.assets`          | `assets`                 | The asset roots' parent, holding `icons/`, `images/` and `audio/`.                                                                 |
+| `paths.contentIndex`    | `build/content-index`    | Where `content-index` writes this package's note index. Derived and disposable.                                                    |
+| `paths.packJson`        | `build/packs-json`       | Build-only per-entry JSON intermediate.                                                                                            |
+| `paths.stage`           | `build/stage/packs`      | Compiled LevelDB packs.                                                                                                            |
+| `paths.unpack`          | `build/tmp/packs`        | Where `unpack` extracts JSON back to.                                                                                              |
+| `paths.foreignCache`    | `build/cache/foreign`    | Where a dependency declaring `itemCatalog: true` or `assetArchive: true` is unpacked.                                              |
+| `paths.metadataCache`   | `build/cache/metadata`   | Where a published content index is fetched to, for every declared dependency and every relationship declaring `itemCatalog: true`. |
+| `paths.navigationCache` | `build/cache/navigation` | Where the site navigation heroiclands.org publishes is fetched to, for the generated Hugo menu.                                    |
 
 Every configured path must be **relative** — an absolute one would escape
 the repository the config anchors:
@@ -1256,7 +1256,9 @@ Omit it where the two are the same word, which they are for every system:
 `itemCatalog` opts into extracting the named package's Item packs so the
 actors pass can resolve embedded items this repository does not hold — off
 by default, since depending on a package is not the same as needing its
-item catalogue at build time. It requires a `manifest`:
+item catalogue at build time. A relationship of any kind that declares it
+also has its content index fetched and read, so the lint resolves the same
+embedded-item addresses the compile does. It requires a `manifest`:
 
 > ``package-build config: `relationships.<kind>[<index>].itemCatalog` must be true or false.``
 

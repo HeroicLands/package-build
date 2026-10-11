@@ -79,7 +79,9 @@ const STAMP = ".complete";
  * `conflicts` are declarations *about* other packages rather than dependencies
  * on them, so an address resolved through one would emit a link into a package
  * the consumer does not require — a defect in the citing note, not a lookup to
- * satisfy.
+ * satisfy. A relationship of either kind that declares `itemCatalog: true` is
+ * the exception: its items are embedded in this package's own documents, so
+ * its index is read whatever its kind (see {@link metadataRelationships}).
  *
  * @type {readonly string[]}
  */
@@ -95,6 +97,12 @@ export const METADATA_RELATIONSHIP_KINDS = Object.freeze(["systems", "requires"]
  * item references; a package citing addresses
  * and needing no items is the mirror of it. Gating the index on the catalogue
  * flag would serve neither.
+ *
+ * **Includes a relationship of any kind declaring `itemCatalog: true`.** The
+ * compile resolves an embedded item through that catalogue however the
+ * relationship is declared — a `recommends` entry keeps a module installable
+ * under any system and still supplies the items its beings embed — so the lint
+ * resolves the same addresses through the same package's index.
  *
  * **Excludes a relationship declaring `contentIndex: false`.** That opts a
  * dependency out of both edges at once: it is a Foundry dependency only, cited
@@ -113,9 +121,19 @@ export const METADATA_RELATIONSHIP_KINDS = Object.freeze(["systems", "requires"]
  */
 export function metadataRelationships(config) {
     const out = [];
-    for (const kind of METADATA_RELATIONSHIP_KINDS) {
+    const seen = new Set();
+    const declared = Object.keys(config?.relationships ?? {});
+    const kinds = [
+        ...METADATA_RELATIONSHIP_KINDS,
+        ...declared.filter((kind) => !METADATA_RELATIONSHIP_KINDS.includes(kind)),
+    ];
+    for (const kind of kinds) {
+        const dependency = METADATA_RELATIONSHIP_KINDS.includes(kind);
         for (const rel of config?.relationships?.[kind] ?? []) {
             if (rel.contentIndex === false) continue;
+            if (!dependency && rel.itemCatalog !== true) continue;
+            if (seen.has(rel.id)) continue;
+            seen.add(rel.id);
             out.push({
                 id: rel.id,
                 manifest: rel.manifest,

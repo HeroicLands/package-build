@@ -795,7 +795,8 @@ function findLocalIndex(root, name) {
  * Fetch every declared dependency's content index.
  *
  * A wider set than {@link fetchAllCatalogs}: an index is fetched for *every*
- * dependency, a catalogue only for those declaring `itemCatalog: true`. See
+ * dependency, plus every other relationship declaring `itemCatalog: true`; a
+ * catalogue only for those declaring `itemCatalog: true`. See
  * {@link metadataRelationships} for why the two sets differ.
  *
  * @param {object} config - The resolved build configuration.

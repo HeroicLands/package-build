@@ -1458,7 +1458,9 @@ package-build deps fetch [--from <zip|dir>] [--id <id>]
 **DESCRIPTION**
 
 The only action is `fetch`, which fills three caches under `build/cache/`:
-the **content index** of every declared dependency, the **item catalogue or
+the **content index** of every declared dependency and of every
+`recommends` or `conflicts` relationship that declares `itemCatalog: true`,
+the **item catalogue or
 asset archive** of those that additionally declare `itemCatalog: true` or
 `assetArchive: true`, and the **site navigation** —
 `https://www.heroiclands.org/nav.json`, the header menu every package site
