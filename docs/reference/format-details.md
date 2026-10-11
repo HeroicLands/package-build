@@ -104,6 +104,11 @@ A note profile begins with `Name`. For a being with a top-level `subType`, it
 follows with `Type: Character`, `Type: NPC`, or `Type: Creature`. A being with
 no subtype has no `Type` row.
 
+The `Culture` row shows the note's resolved culture, so a place or an
+affiliation shows the culture it inherits. A culture note has no `Culture` row:
+its resolved culture is its own Address, whether it leaves the field out or
+names itself. See [Culture in the index](#culture-in-the-index).
+
 **Embedded models link to documentation in an infobox.** The model Address
 continues to identify the native Item used for compilation. Its displayed link
 uses that same package, type and Shortcode under `note`, which names the
@@ -2627,7 +2632,9 @@ documentation entry, so `type = 'miscgear'` selects the items and never their
 journals. A nested field is addressed exactly as a note authors it —
 `sohl.weight`, `name.full`, `file.path` — because the index is read as JSON and
 every nested object is inferred as a struct. A field a note type does not carry
-reads `NULL` rather than failing.
+reads `NULL` rather than failing. `data.culture` is the one field that reads as
+a derived value: the note's own culture, or the one it inherits. See
+[Culture in the index](#culture-in-the-index).
 
 **`notes` leaves out stubs; `entries` does not.** Both carry a derived `state`
 column — `stub`, `draft` or `full` — and `notes` is exactly
@@ -2721,6 +2728,136 @@ table would otherwise need: the authored `ORDER BY` decides the section order to
 
 **Beware `packFolder`.** It is a note's _pack_ folder, not its directory — the
 directory is `file.folder`.
+
+##### Culture in the index
+
+`data.culture` in the index is the note's **resolved** culture, which is its
+authored value where it states one and a derived value where it does not. The
+resolved value is written into the index as a canonical Address string, such as
+`reedflats-note-lore-reedfolk`, so a table selects by it directly.
+
+The culture of a note, in order:
+
+1. Its own `data.culture`, when it states one.
+2. For a `lore` note of `subType: culture`: itself. A culture note may leave the
+   field out or state it as its own Address, and its resolved culture is its own
+   Address either way.
+3. For a `place` or an `affiliation`: the resolved cultures of its
+   `data.parents` — places through their parent places, affiliations through
+   their parent affiliations — found recursively, so a culture stated three
+   levels up reaches the bottom.
+4. For an affiliation of `subType: polity` that still has none: the resolved
+   cultures of its places, pooled as one set — its `data.seat` and every place
+   whose `data.government` names the polity.
+5. Otherwise none. A parent or place that resolves to nothing contributes
+   nothing.
+
+A `being` and a `doc` of `subType: settingguide` read as the value they state and
+nothing more; every other `lore` note reads as its own value, and every other
+note type reads as none.
+
+Sources that agree give that culture. Sources that name different cultures, on a
+note that states none of its own, are an **error**, and that note gets no
+culture. The error is located at the `parents:` key; for the pooled places of a
+polity it is located at the `seat:` key, or at the `data:` line when the polity
+states no seat. Stating `data.culture` on the note settles the matter, because
+an own value is never compared with its sources. A note whose parent raised the
+error reads that parent as resolving to nothing, so one disagreement is reported
+once, at the note where the sources meet.
+
+Here a region states a culture and the places inside it carry it down:
+
+```markdown
+---
+shortcode: reedflats
+name: { full: Reed Flats }
+type: place
+subType: region
+description: A marsh region.
+data:
+  culture: lore-reedfolk
+---
+```
+
+```markdown
+---
+shortcode: saltmarsh
+name: { full: Saltmarsh }
+type: place
+subType: district
+description: A salt marsh.
+data:
+  parents: [place-reedflats]
+---
+```
+
+```markdown
+---
+shortcode: eelwick
+name: { full: Eelwick }
+type: place
+subType: settlement
+description: A fishing village.
+data:
+  parents: [place-saltmarsh]
+---
+```
+
+`saltmarsh` and `eelwick` state no culture and index as `reedflats-note-lore-reedfolk`.
+Because the index carries the resolved value, one query selects the region and
+everything beneath it, and `IS NULL` selects the notes that have no culture:
+
+````markdown
+```sql
+SELECT address.slug AS _ref, name.full AS "Name"
+FROM notes
+WHERE type = 'place' AND data.culture = 'reedflats-note-lore-reedfolk'
+ORDER BY name.full
+```
+````
+
+````markdown
+```sql
+SELECT address.slug AS _ref, name.full AS "Name"
+FROM notes
+WHERE type = 'place' AND data.culture IS NULL
+```
+````
+
+A place whose parents sit in different cultures must say which it belongs to.
+With a second region `stonecrest` that states `culture: lore-hillfolk`, a place
+on the border between the two:
+
+```markdown
+---
+shortcode: causeway
+name: { full: The Causeway }
+type: place
+subType: site
+description: A road between marsh and ridge.
+data:
+  parents: [place-reedflats, place-stonecrest]
+---
+```
+
+fails the content-index build with one located error per conflict:
+
+```text
+assets/content/Places/Causeway.md:8:3: error: data.parents resolve to different cultures (reedflats-note-lore-reedfolk via reedflats, reedflats-note-lore-hillfolk via stonecrest); state data.culture
+```
+
+The conflict fails the content-index build, and every other command that reads
+the index without collecting problems, listing every conflict in one run. Adding
+`culture: lore-reedfolk` under `data:` on `causeway` removes it. A fetched
+dependency's index carries each note's resolved culture, so a parent in another
+package contributes the culture that package resolved for it.
+
+The index record carries the resolved culture, and every pass that reads the
+record reads it too: lint, the pack compile and the site build all see a
+place's inherited culture, and a culture note's own Address, as its
+`data.culture`. A resolved value always passes the checks that scope the field,
+because a culture note resolves to itself and an inherited value names a culture
+note. The infobox shows a note's resolved culture, except a culture note's own.
 
 ##### Reading another package's notes
 
@@ -3935,8 +4072,15 @@ rank names the standing, and the standing says.
 | `economy`                                       | `Address[]`                                        | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default         |
 | `lore`                                          | `Address[]`                                        | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
 | `parents`                                       | `Address[]`                                        | Affiliations that this affiliation is subordinate to                                           |
+| `culture`                                       | `Address`                                          | The people this affiliation belongs to, naming a lore note with `subType: culture`             |
 | `relations`                                     | `Map<Address, Standing>`                           | Standing with other affiliations, keyed by the other body's Address                            |
 | `relations.<Address>`                           | `aligned`, `unaligned`, `rival` or `nemesis`       | The standing this body holds toward that one; any other value is an error at the value         |
+
+**An affiliation names the people it belongs to in `data.culture`.** An
+affiliation that names none takes its culture from its `data.parents`. A
+`polity` that still has none takes the culture of its places: its `data.seat`
+together with every place whose `data.government` names it. See
+[Culture in the index](#culture-in-the-index).
 
 **A faith tradition is not its god.** An `affiliation` of subType
 `faithtradition` is a _religion_ — a practice, with an ordained priesthood, a
@@ -4572,44 +4716,48 @@ data:
 The saga lists under **In song and story** on `place-ironfells`, which holds the
 sack, on `place-east` and on `lore-fords`.
 
-Calendar fields are written only on a `calendar` note, and `culture`, `form`, `subjects` and
-`language` only on a `literature` note; written on any other lore subType, each is an error at
-its own key.
+Calendar fields are written only on a `calendar` note, and `form`, `subjects` and `language`
+only on a `literature` note; written on any other lore subType, each is an error at its own key.
+`culture` may be written on any lore subType. A culture note is itself the culture, so it
+leaves the field out or names itself, by its shortcode or by any longer form of its Address;
+naming any other note is an error at the value. A `lore` note that states no culture has
+none, since a `lore` note has no `data.parents` to inherit through; a culture note reads as
+its own Address in the index. See [Culture in the index](#culture-in-the-index).
 
-| `data` property            | Values                                                                        | Description                                                                                                           |
-| -------------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `epoch`                    | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                                  |
-| `months`                   | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                    |
-| `months[].name`            | `string`, required                                                            | The month's name                                                                                                      |
-| `months[].abbreviation`    | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `months[].days`            | `integer`, required                                                           | How many days the month holds                                                                                         |
-| `weekdays`                 | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                          |
-| `weekdays[].name`          | `string`, required                                                            | The day's name                                                                                                        |
-| `weekdays[].abbreviation`  | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `seasons`                  | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                            |
-| `seasons[].name`           | `string`, required                                                            | The season's name                                                                                                     |
-| `seasons[].abbreviation`   | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `seasons[].start`          | `integer`, required                                                           | The one-based day of the year it begins; starts increase down the list                                                |
-| `namedDays`                | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                              |
-| `namedDays[].name`         | `string`, required                                                            | The day's name                                                                                                        |
-| `namedDays[].abbreviation` | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `namedDays[].day`          | `integer`, required                                                           | The one-based day of the year it names, distinct within the calendar                                                  |
-| `eras`                     | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                                 |
-| `eras[].shortcode`         | `string`, required                                                            | The era's own segment of `<calendar>.<era>`, unique within the calendar                                               |
-| `eras[].name`              | `string`, required                                                            | The era's name                                                                                                        |
-| `eras[].marker`            | `string`                                                                      | Uppercase letters and digits, beginning with a letter, unique across the corpus; an authored date names the era by it |
-| `eras[].abbreviation`      | `string`                                                                      | Its short form, for a compact date                                                                                    |
-| `eras[].proclaimedBy`      | `Address`                                                                     | The body that began the reckoning                                                                                     |
-| `eras[].start`             | `null` or `integer`, required                                                 | The calendar year the era begins; `null` for the era before year 1                                                    |
-| `eras[].label`             | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                            |
-| `eras[].label.after`       | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                      |
-| `eras[].label.before`      | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                    |
-| `formats`                  | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                    |
-| `culture`                  | `Address`                                                                     | `literature` only: the people whose work it is, naming a lore note with `subType: culture`                            |
-| `form`                     | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text     |
-| `subjects`                 | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`            |
-| `language`                 | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                         |
-| `events`                   | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                         |
+| `data` property            | Values                                                                        | Description                                                                                                                                                  |
+| -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `epoch`                    | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                                                                         |
+| `months`                   | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                                                           |
+| `months[].name`            | `string`, required                                                            | The month's name                                                                                                                                             |
+| `months[].abbreviation`    | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `months[].days`            | `integer`, required                                                           | How many days the month holds                                                                                                                                |
+| `weekdays`                 | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                                                                 |
+| `weekdays[].name`          | `string`, required                                                            | The day's name                                                                                                                                               |
+| `weekdays[].abbreviation`  | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `seasons`                  | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                                                                   |
+| `seasons[].name`           | `string`, required                                                            | The season's name                                                                                                                                            |
+| `seasons[].abbreviation`   | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `seasons[].start`          | `integer`, required                                                           | The one-based day of the year it begins; starts increase down the list                                                                                       |
+| `namedDays`                | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                                                                     |
+| `namedDays[].name`         | `string`, required                                                            | The day's name                                                                                                                                               |
+| `namedDays[].abbreviation` | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `namedDays[].day`          | `integer`, required                                                           | The one-based day of the year it names, distinct within the calendar                                                                                         |
+| `eras`                     | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                                                                        |
+| `eras[].shortcode`         | `string`, required                                                            | The era's own segment of `<calendar>.<era>`, unique within the calendar                                                                                      |
+| `eras[].name`              | `string`, required                                                            | The era's name                                                                                                                                               |
+| `eras[].marker`            | `string`                                                                      | Uppercase letters and digits, beginning with a letter, unique across the corpus; an authored date names the era by it                                        |
+| `eras[].abbreviation`      | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
+| `eras[].proclaimedBy`      | `Address`                                                                     | The body that began the reckoning                                                                                                                            |
+| `eras[].start`             | `null` or `integer`, required                                                 | The calendar year the era begins; `null` for the era before year 1                                                                                           |
+| `eras[].label`             | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                                                                   |
+| `eras[].label.after`       | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                                                             |
+| `eras[].label.before`      | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                                                           |
+| `formats`                  | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                                                           |
+| `culture`                  | `Address`                                                                     | The people this lore belongs to — for a `literature` note, the people whose work it is — naming a lore note with `subType: culture`; not on a `culture` note |
+| `form`                     | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text                                            |
+| `subjects`                 | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                   |
+| `language`                 | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                                                                |
+| `events`                   | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                |
 
 `data.events` is available on every `lore` subType, and is described in full under [Events](#events).
 
@@ -4821,6 +4969,7 @@ level with no background prints nothing.
 | `purpose`                         | `placeCharacter` tag                                                             | The reason a settlement, site, or structure exists                                                        |
 | `lore`                            | `Address[]`                                                                      | Lore concerning this place — its peoples, its law, its calendar, its history                              |
 | `parents`                         | `Address[]`                                                                      | Enclosing places within which this place is located                                                       |
+| `culture`                         | `Address`                                                                        | The people this place belongs to, naming a lore note with `subType: culture`                              |
 | `population`                      | `number`                                                                         | Approximate population (precision 2 significant digits)                                                   |
 | `government`                      | `Address` or `null` (default type: `affiliation`)                                | Governing affiliation; explicit null means complete anarchy. Omission warns only for positive population. |
 | `market`                          | `number`                                                                         | Market class, 1 to 6 — what trade a settlement supports                                                   |
@@ -5118,6 +5267,11 @@ urban.
 
 **A place declares what is true of its ground.** It names its governing affiliation
 in `data.government`; maps name the place they depict through `data.place`.
+A place may name the people it belongs to in `data.culture`. A place that names
+none takes its culture from its `data.parents`, so a region states the culture
+once and the districts and settlements inside it carry it without repeating it;
+[Culture in the index](#culture-in-the-index) gives the rule and a worked
+example.
 The place's `lore` links cover its peoples, calendar, law and history. Political
 languages belong to a polity's `sohl.system.commonSkills`, while the note's
 `description` provides its page summary.
@@ -5152,9 +5306,22 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
 - howto: A task with an outcome, written as the steps that reach it.
 - concept: An explanation of how something works and why it is shaped that way, read to understand rather than to follow.
-- settingguide: An orientation to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
+- settingguide: A culture's guide to the setting, which names its culture in `data.culture`. It orients a reader to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
 
-A `doc` declares no properties of its own.
+| `data` property | Values    | Description                                                                                                           |
+| --------------- | --------- | --------------------------------------------------------------------------------------------------------------------- |
+| `culture`       | `Address` | `settingguide` only, and required there: the culture the guide introduces, naming a lore note with `subType: culture` |
+
+A setting guide introduces one culture's view of the setting, so it names that
+culture, and a `doc` of any other `subType` has no culture of its own to name.
+A setting guide without `data.culture` is an error at its `subType:` line;
+`data.culture` on any other `doc` subType is an error at its key. The value
+names a `lore` note of `subType: culture`, and a setting guide's culture is the
+one it states: it inherits nothing, because a `doc` has no `data.parents`. The
+other notes that may state a culture are described under
+[`place`](#type-place), [`affiliation`](#type-affiliation) and
+[`lore`](#type-lore), and [Culture in the index](#culture-in-the-index) gives
+the value each one reads as.
 
 Choose `settingguide` for an entry point that stands on its own while guiding
 players and GMs into a setting. A `concept` explains one subject, a `reference`
@@ -5170,6 +5337,8 @@ name: { full: The Reed Flats Guide }
 type: doc
 subType: settingguide
 description: A starting point for adventures in the Reed Flats.
+data:
+  culture: lore-reedfolk
 ---
 
 The Reed Flats are a network of marsh settlements linked by river trade.

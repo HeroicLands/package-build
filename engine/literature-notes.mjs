@@ -13,7 +13,9 @@
 
 /**
  * A work a people tells, sings or writes: the `literature` lore subType and the
- * four optional facts such a note may state about itself.
+ * three optional facts only such a note may state about itself. Whose work it
+ * is, `data.culture`, is a field every lore note but a culture note may state,
+ * declared in `culture-choice.mjs`.
  *
  * `DataFieldSpec` declares the keys a type accepts, not the subType that may
  * write them, so {@link checkLiteratureNote} scopes these keys to `literature`
@@ -23,7 +25,6 @@
  */
 
 import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
-import { checkCultureChoice } from "./culture-choice.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 /** The `lore` subType whose notes are works of literature. */
@@ -66,20 +67,11 @@ export function checkLanguageChoice(note, { index } = {}) {
 }
 
 /**
- * The fields a `literature` note may state. Every one is optional.
+ * The fields only a `literature` note may state. Every one is optional.
  *
  * @type {ReadonlyArray<object>}
  */
 export const LITERATURE_FIELDS = Object.freeze([
-    {
-        name: "culture",
-        shape: "an Address",
-        kind: "address",
-        ref: "lore",
-        accepts: ["lore"],
-        check: checkCultureChoice,
-        describe: "The people whose work this is, as a culture lore note.",
-    },
     {
         name: "form",
         shape: "string",

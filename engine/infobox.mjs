@@ -119,6 +119,7 @@ import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { readAliasedField } from "./retired-fields.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
+import { cultureNamesItself } from "./culture-choice.mjs";
 import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
 import { displayBeingHeight, displayBeingWeight } from "./being-measurements.mjs";
 import {
@@ -960,7 +961,8 @@ export function linkValue(ref, resolve, hint) {
  * order, minus what {@link NOTE_FIELD_PRESENTATION} withholds and minus every
  * field the note left empty. A being's top-level `subType` adds its profile
  * type. A type that declares no `data:` fields still gets the box, because
- * `Name` is a fact about every note.
+ * `Name` is a fact about every note. `data.culture` is the resolved culture,
+ * inherited ones included, and is left out where it names the note itself.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {object} [options] - Options.
@@ -1028,6 +1030,9 @@ function noteBox(
         // behaviour and is `readAliasedField`'s answer, not a second one.
         const own = getFrontmatter(data, field.name, undefined);
         let raw = own !== undefined ? own : readAliasedField(fm, field.name, { inData: true });
+        // A culture note resolves to itself, and a row linking it to itself
+        // says nothing.
+        if (field.name === "culture" && cultureNamesItself(fm, raw, { contentPackage })) continue;
         if (
             ((fm?.type === "being" && ["born", "died"].includes(field.name)) ||
                 (fm?.type === "place" && field.name === "present")) &&

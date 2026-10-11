@@ -56,6 +56,7 @@ types:
             - economy
             - lore
             - parents
+            - culture
             - relations
         subTypes:
             - guild
@@ -293,6 +294,7 @@ types:
             - purpose
             - lore
             - parents
+            - culture
             - population
             - government
             - market
@@ -336,7 +338,8 @@ types:
             - adventure
             - encounter
     doc:
-        data: []
+        data:
+            - culture
         subTypes:
             - rules
             - userguide

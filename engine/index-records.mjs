@@ -110,15 +110,17 @@ export function noteFile(contentBase, record) {
 }
 
 /**
- * The note's own frontmatter, as authored, from an index record.
+ * The note's frontmatter from an index record, without the keys the index
+ * derives.
  *
  * The inverse of the record's spread, and exact rather than best-effort: a
  * record is the note's frontmatter plus {@link DERIVED_KEYS}, and a note that
  * authors one of those keys fails the walk — so removing them cannot remove
  * anything the note wrote. That enforced pairing is what lets a pass read the
- * corpus from the index and still lint, route or compile what the *author*
- * typed, rather than reasoning about `address:` and `anchors:` as though
- * someone had written them.
+ * corpus from the index without reasoning about `address:` and `anchors:` as
+ * though someone had written them. The record's `data.culture` is the note's
+ * resolved culture, so a pass reading the frontmatter sees an inherited culture
+ * as well as a written one.
  *
  * Lives beside the list it is the inverse of, so the two cannot drift.
  *

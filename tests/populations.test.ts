@@ -555,7 +555,17 @@ describe("the checks are the ones the vocabulary declares", () => {
     });
 
     it("checks a `doc` note's cited figures", () => {
-        expect(NOTE_VOCABULARY.doc.check).toBe(checkCitedPopulations);
+        // The `doc` check also scopes `data.culture` to setting guides; on a
+        // genre that states none, it says exactly what the citation rule says.
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-populations-"));
+        const base = writeTree(root, CASES["disputed figure"].broken);
+        const index = buildLinkIndex(base, { skipDirectories: [] });
+        const census = index.notes.find((note: { file: string }) =>
+            note.file.endsWith("Census.md"),
+        );
+        const cited = checkCitedPopulations(census, { index });
+        expect(cited).not.toEqual([]);
+        expect(NOTE_VOCABULARY.doc.check(census, { index })).toEqual(cited);
     });
 
     it("declares no rule about a region's urban share", () => {

@@ -366,7 +366,9 @@ order.
 gives a usable overview of areas, peoples, institutions, and daily life, then
 links to the detailed notes. Use `subType: settingguide` for that entry point;
 `concept` explains one subject, `reference` serves lookup, and `userguide`
-explains the Foundry controls. For example, a guide at
+explains the Foundry controls. A setting guide is a culture's guide to the
+setting, so it names its culture in `data.culture`, the Address of a `lore` note
+of `subType: culture`; a setting guide without one is an error. For example, a guide at
 `assets/content/Guides/Reed_Flats.md` can begin:
 
 ```markdown
@@ -376,6 +378,8 @@ name: { full: The Reed Flats Guide }
 type: doc
 subType: settingguide
 description: A starting point for adventures in the Reed Flats.
+data:
+  culture: lore-reedfolk
 ---
 
 The river trade links the settlements of the Reed Flats. Their routes and
