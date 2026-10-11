@@ -267,8 +267,8 @@ function readPackageJson(rootDir) {
     } catch (err) {
         throw new Error(
             `package-build: ${manifestPath} could not be read, and the ` +
-                `configuration derives its Foundry package id, system version, ` +
-                `homepage and author from it.`,
+                `configuration derives its Foundry package id, system version ` +
+                `and homepage from it.`,
             { cause: err },
         );
     }
@@ -555,24 +555,18 @@ export function configFromData(data, configPath) {
         input.foundryPackage = foundryPackageId(rootDir);
     }
 
-    // `homepage` and `author` are the same kind of fact, transcribed the same
-    // way, and read regardless of `packageKind`: a documentation package
-    // publishes a site too, and needs both for it.
-    for (const [field, label] of [
-        ["homepage", "`homepage`"],
-        ["author", "`author`"],
-    ]) {
-        if (input[field] !== undefined) {
-            throw new Error(
-                `package-build: ${configPath} declares \`${field}\`, which a data ` +
-                    `configuration may not: it is \`package.json\`'s own ${label}. ` +
-                    `Remove the key.`,
-            );
-        }
+    // `homepage` is `package.json`'s own, transcribed, and read regardless of
+    // `packageKind`: a documentation package publishes a site too, and needs
+    // it for that.
+    if (input.homepage !== undefined) {
+        throw new Error(
+            `package-build: ${configPath} declares \`homepage\`, which a data ` +
+                `configuration may not: it is \`package.json\`'s own \`homepage\`. ` +
+                `Remove the key.`,
+        );
     }
     const { pkg } = readPackageJson(rootDir);
     if (pkg.homepage !== undefined) input.homepage = pkg.homepage;
-    if (pkg.author !== undefined) input.author = pkg.author;
 
     if (input.itemBuilders !== undefined) {
         const declared = input.itemBuilders;

@@ -120,17 +120,18 @@ async function appendTree(archive, root, date) {
  *   Determines both asset names.
  * @param {string} [opts.metadataDir] - Where the build writes its content
  *   index, consulted when the advertised file was not staged.
- * @param {boolean} [opts.pdf] - Whether to build the book that ships beside the
+ * @param {boolean} [opts.pdf] - Whether to build the books that ship beside the
  *   archive. `true` by default; `false` skips the build and reports the skip.
  * @returns {Promise<{zip: string, manifest: string, metadata?: string,
- *   schema?: string, pdf?: string, pdfFindings: object[], pdfSkipped: string|null,
+ *   schema?: string, pdfs: string[], pdfFindings: object[], pdfSkipped: string|null,
  *   bytes: number, version: string}>} The paths written, what the book build
  *   found, the archive's size, and the version the manifest declares.
  *   `metadata` is absent when the manifest advertises no content index,
- *   `schema` is absent when the stage carries no `schema.json`, and `pdf` is
- *   absent when no book was written. `pdfSkipped` is `null` when a book was
- *   built, and otherwise the reason none was — itself `null` when the book
- *   builder could not be loaded, which is reported through `pdfFindings`.
+ *   `schema` is absent when the stage carries no `schema.json`, and `pdfs` is
+ *   every book's PDF that was written, in declared order. `pdfSkipped` is
+ *   `null` when a book was built, and otherwise the reason none was — itself
+ *   `null` when the book builder could not be loaded or a book failed, which
+ *   is reported through `pdfFindings`.
  * @throws {Error} When the stage has no manifest — there is nothing to release,
  *   and an archive without one installs as nothing.
  */
@@ -190,23 +191,24 @@ export async function packRelease({
     const book =
         pdf ?
             await packReleasePdf({ out, version: manifest.version })
-        :   { pdf: null, findings: [], reason: "the release was asked not to build one" };
+        :   { pdfs: [], findings: [], reason: "the release was asked not to build one" };
 
     return {
         zip: zipPath,
         manifest: path.join(out, manifestName),
         ...(metadata ? { metadata } : {}),
         ...(schema ? { schema } : {}),
-        ...(book.pdf ? { pdf: book.pdf } : {}),
+        pdfs: book.pdfs,
         pdfFindings: book.findings,
-        pdfSkipped: book.pdf ? null : book.reason,
+        pdfSkipped: book.pdfs.length ? null : book.reason,
         bytes: archive.pointer(),
         version: manifest.version,
     };
 }
 
 /**
- * Build the book that ships beside the archive.
+ * Build the books that ship beside the archive — every one `pdf.books`
+ * declares.
  *
  * **Imported when it is used, not when this module is.** The book build pulls
  * in a markdown parser, DuckDB and the whole content engine; `release.mjs`
@@ -223,8 +225,9 @@ export async function packRelease({
  * @param {object} opts - Options.
  * @param {string} opts.out - The release directory.
  * @param {string} opts.version - The version the manifest declares.
- * @returns {Promise<{pdf: string|null, findings: object[], reason: string|null}>}
- *   What was built, and what was found on the way.
+ * @returns {Promise<{pdfs: string[], findings: object[], reason: string|null}>}
+ *   Each book's PDF that was built, in declared order, and what was found on
+ *   the way.
  */
 async function packReleasePdf({ out, version }) {
     let buildPdf;
@@ -232,7 +235,7 @@ async function packReleasePdf({ out, version }) {
         ({ buildPdf } = await import("./engine/pdf-build.mjs"));
     } catch (err) {
         return {
-            pdf: null,
+            pdfs: [],
             findings: [
                 {
                     severity: "warning",
@@ -243,7 +246,11 @@ async function packReleasePdf({ out, version }) {
         };
     }
     const result = await buildPdf({ out, version });
-    return { pdf: result.pdf, findings: result.findings, reason: result.reason };
+    return {
+        pdfs: result.books.map((book) => book.pdf).filter((pdf) => pdf),
+        findings: result.findings,
+        reason: result.reason,
+    };
 }
 
 /**

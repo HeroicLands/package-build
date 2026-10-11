@@ -82,7 +82,10 @@ describe("package-build init", () => {
                 expect(pkg.scripts["build:noci"]).toMatch(/build:stage-reset build:db/);
             }
             expect(config.publish.address.prefix).toBe("");
-            expect(config.pdf.document).toBe("book.yaml");
+            expect(config.pdf.books).toEqual([
+                { id: "book", title: "Guidebook", document: "book.yaml", out: "guidebook" },
+            ]);
+            expect(config.authors).toEqual([{ name: "Example Author" }]);
             if (kind === "documentation") {
                 expect(config.packs).toBeUndefined();
                 expect(config.packageBuild).toBeUndefined();
@@ -166,7 +169,9 @@ describe("package-build init", () => {
             const before = fs.readdirSync(target).sort();
             const checked = run("init", "--check", target);
             expect(checked.status).not.toBe(0);
-            expect(checked.stderr).toContain("book document tree is missing");
+            expect(checked.stderr).toMatch(
+                /package-build\.config\.yaml:\d+:\d+: error: book `book`: the document tree `book\.yaml` does not exist/,
+            );
             expect(fs.readdirSync(target).sort()).toEqual(before);
         },
         subprocessTimeout(2),

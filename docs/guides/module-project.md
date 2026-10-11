@@ -634,9 +634,7 @@ packageBuild:
 
   manifest:
     title: Acme Bestiary
-    description: Creatures of the reed flats, as compendium journals.
-    authors:
-      - name: Acme
+    descriptionHtml: Creatures of the reed flats, as compendium journals.
     license: LICENSE.md
     readme: README.md
     languages:
@@ -653,14 +651,21 @@ packageBuild:
 `assets:` is a copy list, from the repository into the stage. `manifest:` is
 everything about the manifest that cannot be derived from `package.json` or from
 the keys above — the human-facing identity, and the files Foundry links to.
-`title` is required by Foundry and has no derivation; supply it.
+`title` is required by Foundry and has no derivation; supply it. The manifest's
+`authors` is derived too, from the top-level `authors` list, which names the
+package's people once for the manifest, the site and the book:
+
+```yaml
+authors:
+  - name: Acme
+```
 
 `packFolders` may name only packs this package ships, and the build compares the
 two lists rather than trusting them to agree:
 
 ```console
 $ npx package-build manifest
-package-build.config.yaml:36:21: error: packFolders: folder "Acme Bestiary" names pack "items", which this package does not ship (packs: journals)
+package-build.config.yaml:34:21: error: packFolders: folder "Acme Bestiary" names pack "items", which this package does not ship (packs: journals)
 package-build: packFolders names 1 pack this package does not ship (reported above). Foundry skips a name it cannot resolve, so the folder would ship missing those packs — correct `packageBuild.manifest.packFolders`.
 ```
 
@@ -866,8 +871,9 @@ None of them is needed to build a package.
 
 **A website.** Every package publishes one — at the least, the homepage note
 from step 5 — at `https://www.heroiclands.org/<contentPackage>/`. Add that
-address to `package.json` as `homepage`, with a `description` and an `author`
-beside it, and add a `packageBuild.manifest.title`. The theme the site renders
+address to `package.json` as `homepage`, with a `description` beside it, list
+the package's people in `authors` in `package-build.config.yaml`, and add a
+`packageBuild.manifest.title`. The theme the site renders
 through ships with this package, so nothing else is installed. Then `package-build deps fetch` caches the
 organisation's navigation, and `package-build site` writes the whole Hugo
 source tree under `build/hugo/` — the configuration generated from those

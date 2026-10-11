@@ -30,7 +30,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 
-import { defineConfig, PACKAGE_KINDS, PACK_DOCUMENT_TYPES } from "../content-config.mjs";
+import {
+    AUTHOR_ROLES,
+    defineConfig,
+    PACKAGE_KINDS,
+    PACK_DOCUMENT_TYPES,
+} from "../content-config.mjs";
 import { resolvePackageBuildConfig, DERIVED_MANIFEST_KEYS } from "../config.mjs";
 
 const DOC = readFileSync(path.resolve(__dirname, "../docs/configuration.md"), "utf8");
@@ -211,12 +216,11 @@ describe("every nested key list is documented", () => {
     });
 
     it("`pdf` and its nested shapes", () => {
+        const book = { id: "core", title: "t", document: "d" };
         assertDocuments(
             "pdf",
             allowedKeys(() =>
-                defineConfig(
-                    minimal({ pdf: { __unrecognised__: true, title: "t", document: "d" } }),
-                ),
+                defineConfig(minimal({ pdf: { __unrecognised__: true, books: [book] } })),
             ),
         );
         assertDocuments(
@@ -224,11 +228,35 @@ describe("every nested key list is documented", () => {
             allowedKeys(() =>
                 defineConfig(
                     minimal({
-                        pdf: { title: "t", document: "d", fonts: { __unrecognised__: true } },
+                        pdf: { books: [book], fonts: { __unrecognised__: true } },
                     }),
                 ),
             ),
         );
+        assertDocuments(
+            "pdf.books[]",
+            allowedKeys(() =>
+                defineConfig(minimal({ pdf: { books: [{ ...book, __unrecognised__: true }] } })),
+            ),
+        );
+    });
+
+    it("`authors[]` and its closed `role` list", () => {
+        assertDocuments(
+            "authors[]",
+            allowedKeys(() =>
+                defineConfig(minimal({ authors: [{ name: "n", __unrecognised__: true }] })),
+            ),
+        );
+        // The roles are read out of the validator's own refusal, so a role
+        // added to the list and not to the document fails here.
+        const message = thrown(() =>
+            defineConfig(minimal({ authors: [{ name: "n", role: "__unrecognised__" }] })),
+        );
+        const roles = /must be one of: (.+)\.$/.exec(message)?.[1]?.split(", ") ?? [];
+        expect(roles.length, message).toBeGreaterThan(1);
+        expect(roles).toEqual([...AUTHOR_ROLES]);
+        assertValuesDocumented(roles, (value) => `\`${value}\``);
     });
 
     it("`compatibility`", () => {

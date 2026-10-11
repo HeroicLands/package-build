@@ -118,26 +118,25 @@ describe("what the loader derives from where the file sits", () => {
         );
     });
 
-    it("takes homepage and author from the adjacent package.json", () => {
+    it("takes homepage from the adjacent package.json, and the byline from `authors`", () => {
         const root = repoDir({
             "package.json": JSON.stringify({
                 name: "sohl",
                 version: "1.2.3",
                 homepage: "https://www.heroiclands.org/sohl/",
-                author: "Toasty <toasty@heroiclands.org> (https://heroiclands.org)",
+                author: "Someone Else <else@example.org>",
             }),
         });
-        const config = resolveIn(root, minimal());
+        const config = resolveIn(root, {
+            ...minimal(),
+            authors: [{ name: "Toasty", email: "toasty@heroiclands.org" }],
+        });
 
         expect(config.homepage).toBe("https://www.heroiclands.org/sohl/");
-        expect(config.author).toEqual({
-            name: "Toasty",
-            email: "toasty@heroiclands.org",
-            url: "https://heroiclands.org",
-        });
+        expect(config.author).toEqual({ name: "Toasty", email: "toasty@heroiclands.org" });
     });
 
-    it("is null for homepage and author when package.json declares neither", () => {
+    it("is null for homepage and the byline when neither is declared", () => {
         const config = resolveIn(repoDir(), minimal());
 
         expect(config.homepage).toBeNull();
@@ -149,7 +148,7 @@ describe("what the loader derives from where the file sits", () => {
             /homepage/,
         );
         expect(() => resolveIn(repoDir(), { ...minimal(), author: "Someone Else" })).toThrow(
-            /author/,
+            /`author` is not a recognized option/,
         );
     });
 

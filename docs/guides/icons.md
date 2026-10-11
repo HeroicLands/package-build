@@ -103,8 +103,10 @@ book:
 
 ```yaml
 pdf:
-  title: The Setting Guide
-  document: book.yaml
+  books:
+    - id: guide
+      title: The Setting Guide
+      document: book.yaml
   iconFonts:
     fontawesome: assets/fonts/fa-solid-900.ttf
 ```

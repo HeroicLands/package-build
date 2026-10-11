@@ -2317,8 +2317,8 @@ content table, authored where every other page is.
 Three things are written, and nothing outside `build/`:
 
 - `build/hugo/hugo.toml`, generated on every run from `package.json`
-  (`homepage`, `description`, `author`), `package-build.config.yaml`
-  (`packageBuild.manifest.title`, `site.assets`, `site.notfound`,
+  (`homepage`, `description`), `package-build.config.yaml`
+  (`authors`, `packageBuild.manifest.title`, `site.assets`, `site.notfound`,
   `site.hugo`), the organisation's constants, the shared theme's own
   location, and the navigation `deps fetch` cached. Every value's source is
   listed under
@@ -2372,17 +2372,18 @@ $ package-build site
 
 **NAME**
 
-Build the book the content tree publishes as.
+Build the books the content tree publishes as.
 
 **SYNOPSIS**
 
 ```
-package-build pdf [--out <path>] [--book-version <version>] [--compile]
+package-build pdf [--book <id>] [--out <path>] [--book-version <version>] [--compile]
 ```
 
 **DESCRIPTION**
 
-Builds the book the content tree publishes as — the third surface beside
+Builds every book `pdf.books` declares, in the order declared, or with
+`--book <id>` the one book with that `id` — the third surface beside
 `package compile` and `site`, reporting in the same `file:line:column:
 severity: message` shape both of those use. **Not building a book is a
 normal outcome and exits 0**: a package publishing only a homepage, one
@@ -2390,26 +2391,53 @@ with no `pdf:` block, and one with no content tree have each said they
 publish no book, and failing the command over that would break the release
 of every package that is not a book. `--compile` (on by default) runs the
 Typst compiler; `--no-compile` emits the Typst source and stops there,
-which is what lets the source be inspected or compiled by hand. Reads the
-content tree named by `pdf.document` and `paths.content`; writes the
-`.typ` source and, unless `--no-compile`, the `.pdf`, to `--out` or the
-configured `pdf.out`.
+which is what lets the source be inspected or compiled by hand.
+
+Each book reads its tree from its inline `contents` or the file its
+`document` names, and the notes under `paths.content`. It writes
+`<out>-<version>.typ` and, unless `--no-compile`, `<out>-<version>.pdf`, where
+`<out>` is the book's file stem (default `<contentPackage>-<id>`) and
+`<version>` is `--book-version`; with no version the files are `<out>.typ` and
+`<out>.pdf`. Every book is written into `--out`, or the configured `pdf.out`,
+or `build/dist`.
+
+A book's `coverImage`, `document` and `front` files are checked first; a
+missing one is an error at its key in the configuration, and that book is not
+built while the others are. An `--book` naming no declared book is an error at
+`pdf.books` that lists the declared ids.
+
+Every declared book's queries run before any book is written, so coverage is
+reported over the whole set even with `--book`: a printable note no book selects
+is a finding at its `type:` line, at the severity `pdf.coverage` names. A book
+whose queries select no note is an error at `pdf.books[].id` and is not built.
+A section whose queries select none is left out without a finding. Each book's
+pictures are staged under a directory named for its file stem beside its
+source.
+
+For each book written, the command prints a line of counts and the paths of
+its source and PDF, each prefixed with the book's `id`. It then prints, per
+declared book, its entries, distinct notes and notes without a culture, the
+totals, and one line per note several books select, naming its home book.
 
 **OPTIONS**
 
 | Option           | Type    | Default                  | Description                                                        |
 | ---------------- | ------- | ------------------------ | ------------------------------------------------------------------ |
-| `--out`          | string  | the configured `pdf.out` | Write the book here instead.                                       |
-| `--book-version` | string  | —                        | Stamp this version on the title page and in the file name.         |
+| `--book`         | string  | every declared book      | Build only the book with this `id`.                                |
+| `--out`          | string  | the configured `pdf.out` | Write the books here instead.                                      |
+| `--book-version` | string  | —                        | Stamp this version on the title page and in each file name.        |
 | `--compile`      | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops. |
 
 **EXIT STATUS**
 
 0 when there is a stated reason not to build (only a homepage note, no `pdf:`
-block, no content tree). 1 if the document tree
-`pdf.document` names cannot be read or parsed, or on any other thrown
-error. Otherwise 0 — findings inside a book that did build (a filter that
-matched nothing, for instance) are reported but never fail the command.
+block, no content tree). 1 when any finding is an error — an unknown `--book`,
+a missing `coverImage`, `document` or `front` file, a tree that cannot be read
+or parsed, a book that selects no note, an uncovered note under
+`pdf.coverage: error`, a link that resolves nowhere — when a requested book was not
+written or did not compile, or on any other thrown error. Otherwise 0:
+warnings, such as a picture the book cannot carry, are reported but do not
+fail the command.
 
 **EXAMPLES**
 
@@ -2417,8 +2445,14 @@ matched nothing, for instance) are reported but never fail the command.
 $ package-build pdf
 […] No book built: no `pdf:` block is configured, so this package publishes no book
 
-$ package-build pdf --no-compile
-demo-book: error: the document tree named by `pdf.document` cannot be read
+$ package-build pdf --book nope --no-compile
+package-build.config.yaml:12:5: error: --book `nope` names no declared book; declared: core, vedyara
+
+$ package-build pdf --book-version 1.4.0 --no-compile
+[…] core: 1734 entr(ies) and 3 prose file(s) across 41 section(s)
+[…] core: Typst source: build/pdf/thalorna-1.4.0.typ
+[…] vedyara: 28 entr(ies) and 1 prose file(s) across 4 section(s)
+[…] vedyara: Typst source: build/pdf/thalorna-vedyara-1.4.0.typ
 ```
 
 **SEE ALSO**

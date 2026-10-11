@@ -80,11 +80,12 @@ import { fileURLToPath } from "node:url";
 
 import YAML from "yaml";
 
-import { loadPackConfig } from "./pack-config.mjs";
+import { CONFIG_FILENAMES, loadPackConfig, packConfigPath } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
-import { isNoteRecord, isStub, noteFile } from "./index-records.mjs";
+import { noteFile } from "./index-records.mjs";
+import { coverage, isPrintable } from "./pdf-coverage.mjs";
 import { openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
 import {
@@ -102,7 +103,12 @@ import {
 } from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
-import { positionOfLiteral } from "./diagnostics.mjs";
+import {
+    positionOfFrontmatterPath,
+    positionOfLiteral,
+    positionOfYamlPath,
+    yamlKeyPath,
+} from "./diagnostics.mjs";
 import { artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
 import { expandContentTables } from "./content-tables.mjs";
@@ -138,7 +144,7 @@ import {
     resolveDanglingLabels,
 } from "./pdf-render.mjs";
 import { draftNoticeTypst } from "./draft-notice.mjs";
-import { isDraftNote, isGmNote } from "./note-vocabulary.mjs";
+import { isDraftNote } from "./note-vocabulary.mjs";
 import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
@@ -357,21 +363,33 @@ const BOOK_MAP_DIR = "maps";
  * @param {object} config - The resolved configuration.
  * @param {string} outDir - Where the book is written.
  * @param {object[]} findings - Collected here rather than thrown.
+ * @param {string} treeFile - The file the book's tree was read from — its
+ *   `document`, or the configuration for a tree written inline — which is
+ *   where a banner is declared.
+ * @param {string} [treeText] - That file's source, so a finding is located at
+ *   the `banner:` key that declared the value.
  * @returns {Map<string, string>} Declared path → the staged file's path,
  *   relative to the `.typ`.
  */
-export function stageBanners(entries, config, outDir, findings = []) {
+export function stageBanners(entries, config, outDir, findings, treeFile, treeText = "") {
     const staged = new Map();
     const seen = new Set();
     for (const entry of entries ?? []) {
         const declared = entry?.presentation?.page?.banner;
         if (typeof declared !== "string" || !declared.trim() || seen.has(declared)) continue;
         seen.add(declared);
+        // The banner is declared by the `page:` mapping in force for the entry,
+        // which the plan carries as the path to the section that wrote it.
+        const at =
+            Array.isArray(entry.pageAt) ?
+                positionOfYamlPath(treeText, [...entry.pageAt, "banner"], { key: true })
+            :   {};
         const from = path.resolve(config.rootDir, declared);
         const within = path.relative(config.rootDir, from);
         if (within.startsWith("..") || path.isAbsolute(within)) {
             findings.push({
-                file: config.pdf.document,
+                file: treeFile,
+                ...at,
                 severity: "warning",
                 message:
                     `the banner \`${declared}\` is outside this package, so the section ` +
@@ -386,7 +404,8 @@ export function stageBanners(entries, config, outDir, findings = []) {
             fs.copyFileSync(from, dest);
         } catch (err) {
             findings.push({
-                file: config.pdf.document,
+                file: treeFile,
+                ...at,
                 severity: "warning",
                 message:
                     `the banner \`${declared}\` cannot be read, so the section plate is ` +
@@ -404,15 +423,15 @@ export function stageBanners(entries, config, outDir, findings = []) {
  *
  * The zip and the manifest take their names from the manifest, so an asset's
  * name and its advertised URL cannot disagree. A PDF has no advertised URL, so
- * its name is a free choice — which is exactly why it is fixed here rather than
- * left for each of six consumers to invent.
+ * its name is the book's own file stem — its `out`, default
+ * `<contentPackage>-<id>` — with the version appended.
  *
- * @param {string} artifact - The package's artifact name.
+ * @param {string} stem - The book's file stem.
  * @param {string} version - The version being released.
- * @returns {string} `<artifact>-<version>.pdf`, or `<artifact>.pdf` unversioned.
+ * @returns {string} `<stem>-<version>.pdf`, or `<stem>.pdf` unversioned.
  */
-export function pdfFileName(artifact, version) {
-    const safe = String(artifact || "content").replace(/[^\w.-]+/g, "-");
+export function pdfFileName(stem, version) {
+    const safe = String(stem || "content").replace(/[^\w.-]+/g, "-");
     return version ? `${safe}-${version}.pdf` : `${safe}.pdf`;
 }
 
@@ -420,9 +439,10 @@ export function pdfFileName(artifact, version) {
  * Read and parse the declared document tree.
  *
  * @param {string} file - Absolute path to the document tree.
+ * @param {string} field - The key that names it, for the finding.
  * @returns {{raw: unknown, text: string, findings: object[]}} What it held.
  */
-function readDocumentTree(file) {
+function readDocumentTree(file, field) {
     let text;
     try {
         text = fs.readFileSync(file, "utf8");
@@ -434,7 +454,7 @@ function readDocumentTree(file) {
                 {
                     file,
                     severity: "error",
-                    message: "the document tree named by `pdf.document` cannot be read",
+                    message: `the document tree named by \`${field}\` cannot be read`,
                 },
             ],
         };
@@ -457,10 +477,45 @@ function readDocumentTree(file) {
 }
 
 /**
- * Build the book.
+ * The configuration file a finding about a configured key names.
+ *
+ * The path the loader read when it loaded the configuration; for a
+ * configuration handed in by a caller, the one configuration file in its
+ * `rootDir`, which is where a YAML configuration always sits.
+ *
+ * @param {object|undefined} config - The configuration the caller supplied.
+ * @param {string} rootDir - The resolved configuration's root.
+ * @returns {string} Its absolute path, or `rootDir` when there is none to name.
+ */
+function configFileFor(config, rootDir) {
+    if (!config) return packConfigPath();
+    const found = CONFIG_FILENAMES.map((name) => path.join(rootDir, name)).find((file) =>
+        fs.existsSync(file),
+    );
+    return found ?? rootDir;
+}
+
+/**
+ * Build the books the `pdf:` block declares — every one, or the one `book`
+ * names.
+ *
+ * Every declared book's filters run against one corpus and one database first,
+ * so coverage and each note's home book are computed over the whole set
+ * whichever books are requested. A book whose filters select no note is an
+ * error at its `id` and is not built; a section that selects none is left out.
+ *
+ * A finding about a configured key — an unknown `--book`, a `coverImage`,
+ * `document` or `front` file that does not exist — names the configuration
+ * file and, for a YAML one, the line and column of that key. A book with a
+ * missing file is not built; the others still are.
  *
  * @param {object} [opts] - Options.
  * @param {object} [opts.config] - A resolved configuration; loaded when absent.
+ * @param {string} [opts.configPath] - The file `config` was read from, for
+ *   findings at a configured key. Defaults to the file the loader read, or to
+ *   the configuration file in `config.rootDir`.
+ * @param {string} [opts.book] - The `id` of the one book to build; every book
+ *   when absent.
  * @param {string} [opts.out] - Where to write, overriding `pdf.out`.
  * @param {string} [opts.version] - Stamped on the title page and the file name.
  * @param {boolean} [opts.compile] - Whether to run Typst. False leaves the
@@ -469,10 +524,21 @@ function readDocumentTree(file) {
  *   module:engine/asset-replacement.resolveAssetReplacement}, for tests.
  *   Loaded from that module otherwise, and only when a relationship declares
  *   `assetReplacement: true` — a build with none never imports it.
- * @returns {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.
+ * @returns {Promise<{built: boolean, reason: string|null, findings: object[],
+ *   imageReports: object[], books: Array<{id: string, title: string,
+ *   built: boolean, typ: string, pdf: string|null, stats: object}>,
+ *   homes: Map<string, string>, summary: object|null}>}
+ *   `built` is true when every requested book was written (and compiled, when
+ *   asked); `books` holds each book whose source was written. `homes` maps a
+ *   selected note's canonical address to the id of the first book that selects
+ *   it, and `summary` is {@link module:engine/pdf-coverage.coverage}'s, over
+ *   every declared book whichever was requested; both are empty when a book's
+ *   selection could not be read.
  */
 export async function buildPdf({
     config,
+    configPath,
+    book,
     out,
     version = "",
     compile = true,
@@ -480,53 +546,248 @@ export async function buildPdf({
 } = {}) {
     const resolved = config ?? loadPackConfig();
     const findings = [];
+    const none = (reason) => ({
+        built: false,
+        reason,
+        findings,
+        imageReports: [],
+        books: [],
+        homes: new Map(),
+        summary: null,
+    });
 
-    // The fence, first — before the tree is read, before anything is walked.
+    // The fence, first — before any tree is read, before anything is walked.
     if (!publishesContentPages(resolved)) {
-        return {
-            built: false,
-            reason:
-                fs.existsSync(resolved.paths.content) ?
-                    "The content tree contains only a homepage, so there is no book to build."
-                :   "this package has no content tree, so there is nothing to print",
-            findings,
-            typ: null,
-            pdf: null,
-            stats: null,
-        };
+        return none(
+            fs.existsSync(resolved.paths.content) ?
+                "The content tree contains only a homepage, so there is no book to build."
+            :   "this package has no content tree, so there is nothing to print",
+        );
     }
     if (!resolved.pdf) {
-        return {
-            built: false,
-            reason: "no `pdf:` block is configured, so this package publishes no book",
-            findings,
-            typ: null,
-            pdf: null,
-            stats: null,
-        };
+        return none("no `pdf:` block is configured, so this package publishes no book");
     }
-
     const contentBase = resolved.paths.content;
     if (!fs.existsSync(contentBase)) {
-        return {
-            built: false,
-            reason: "this package has no content tree, so there is nothing to print",
-            findings,
-            typ: null,
-            pdf: null,
-            stats: null,
-        };
+        return none("this package has no content tree, so there is nothing to print");
     }
 
-    const tree = readDocumentTree(resolved.pdf.document);
-    findings.push(...tree.findings);
-    if (!tree.raw) {
-        return { built: false, reason: null, findings, typ: null, pdf: null, stats: null };
+    const configFile = configPath ?? configFileFor(config, resolved.rootDir);
+    // Only a YAML configuration is searched for positions: JavaScript fed to a
+    // YAML parser parses as something, and a position that is wrong is worse
+    // than none.
+    let configText = "";
+    if (/\.ya?ml$/i.test(configFile)) {
+        try {
+            configText = fs.readFileSync(configFile, "utf8");
+        } catch {
+            configText = "";
+        }
+    }
+    const atKey = (field) => ({
+        file: configFile,
+        ...positionOfYamlPath(configText, yamlKeyPath(field), { key: true }),
+    });
+
+    const declared = resolved.pdf.books.map((entry, index) => ({ book: entry, index }));
+    const requested =
+        book === undefined ? declared : declared.filter((entry) => entry.book.id === book);
+    if (!requested.length) {
+        findings.push({
+            ...atKey("pdf.books"),
+            severity: "error",
+            message:
+                `--book \`${book}\` names no declared book; declared: ` +
+                declared.map((entry) => entry.book.id).join(", "),
+        });
+        return none(null);
     }
 
-    const parsed = parseDocumentTree(tree.raw, { text: tree.text });
-    findings.push(...parsed.findings.map((f) => ({ file: resolved.pdf.document, ...f })));
+    const outDir = path.resolve(
+        resolved.rootDir,
+        out || resolved.pdf.out || path.join("build", "dist"),
+    );
 
+    const world = await prepareWorld(resolved, { contentBase, findings, resolveReplacement });
+    if (!world) return none(null);
+
+    const books = [];
+    const imageReports = [];
+    let built = true;
+    let homes = new Map();
+    let summary = null;
+    try {
+        // Every declared book's filters run before any book renders, because
+        // coverage and the home book are properties of the whole set.
+        const selections = [];
+        for (const { book: entry, index } of declared) {
+            const where = `pdf.books[${index}]`;
+            const wanted = requested.some((r) => r.index === index);
+            // Checked here rather than when the configuration loads, so a command
+            // that builds no book never fails for a cover held outside the tree.
+            // A book that is not requested is read for its selection alone.
+            const missing = [
+                ...(wanted && entry.coverImage ?
+                    [[`${where}.coverImage`, entry.coverImage, "cover image"]]
+                :   []),
+                ...(entry.document ? [[`${where}.document`, entry.document, "document tree"]] : []),
+                ...(wanted ?
+                    entry.front.map((file, j) => [
+                        `${where}.front[${j}]`,
+                        file,
+                        "front-matter file",
+                    ])
+                :   []),
+            ].filter(([, file]) => !fs.existsSync(file));
+            for (const [field, file, what] of missing) {
+                findings.push({
+                    ...atKey(field),
+                    severity: "error",
+                    message:
+                        `book \`${entry.id}\`: the ${what} \`` +
+                        `${path.relative(resolved.rootDir, file).split(path.sep).join("/")}\` ` +
+                        (wanted ?
+                            "does not exist, so the book is not built"
+                        :   "does not exist, so coverage cannot be computed"),
+                });
+            }
+            if (missing.length) {
+                selections.push({ usable: false, broken: true });
+                continue;
+            }
+            selections.push(
+                await selectBook(entry, index, {
+                    world,
+                    configFile,
+                    configText,
+                    findings,
+                }),
+            );
+        }
+
+        // Coverage, over every book whether or not it renders.
+        let unprinted = [];
+        let unprintedKnown = true;
+        if (resolved.pdf.unprinted) {
+            try {
+                ({ rows: unprinted } = await world.db.query(
+                    `SELECT * FROM notes WHERE ${resolved.pdf.unprinted}`,
+                ));
+            } catch (err) {
+                unprintedKnown = false;
+                findings.push({
+                    ...atKey("pdf.unprinted"),
+                    severity: "error",
+                    message:
+                        "the query did not run, so coverage cannot be computed — " +
+                        String(err.message).split("\n")[0],
+                });
+            }
+        }
+        if (unprintedKnown && selections.every((selection) => selection.usable)) {
+            const covered = coverage({
+                books: declared.map(({ book: entry }, i) => ({
+                    id: entry.id,
+                    records: selections[i].records,
+                })),
+                corpus: world.records,
+                unprinted,
+                mode: resolved.pdf.coverage,
+                locate: (record) => locateType(contentBase, record),
+            });
+            findings.push(...covered.findings);
+            homes = covered.homes;
+            summary = covered.summary;
+        }
+
+        // Each requested book renders in configuration order, one at a time.
+        for (const { book: entry, index } of requested) {
+            const selection = selections[index];
+            if (!selection.usable) {
+                built = false;
+                continue;
+            }
+            if (!selection.records.length) {
+                built = false;
+                // A tree that failed to read already has its findings.
+                if (!selection.broken) {
+                    findings.push({
+                        ...atKey(`pdf.books[${index}].id`),
+                        severity: "error",
+                        message: `book \`${entry.id}\` selects no note`,
+                    });
+                }
+                continue;
+            }
+            const result = await buildBook(entry, {
+                resolved,
+                world,
+                selection,
+                authors: resolved.authors ?? [],
+                copyright: resolved.pdf.copyright,
+                license: resolved.pdf.license,
+                outDir,
+                contentBase,
+                version,
+                compile,
+                findings,
+            });
+            imageReports.push(...(result.imageReports ?? []));
+            if (!result.built) built = false;
+            if (result.typ) {
+                books.push({
+                    id: entry.id,
+                    title: entry.title,
+                    built: result.built,
+                    typ: result.typ,
+                    pdf: result.pdf,
+                    stats: result.stats,
+                });
+            }
+        }
+    } finally {
+        await world.db.close?.();
+        fs.rmSync(world.dir, { recursive: true, force: true });
+    }
+    return { built, reason: null, findings, imageReports, books, homes, summary };
+}
+
+/**
+ * Where a note's `type:` key sits, for a finding about the note as a whole.
+ *
+ * @param {string} contentBase - The content tree.
+ * @param {object} record - The note's index record.
+ * @returns {{file: string, line?: number, column?: number}} The note's file and,
+ *   when the key is found, its line and column.
+ */
+function locateType(contentBase, record) {
+    const file = noteFile(contentBase, record);
+    let raw;
+    try {
+        raw = fs.readFileSync(file, "utf8");
+    } catch {
+        return { file };
+    }
+    return { file, ...positionOfFrontmatterPath(raw, ["type"], { key: true }) };
+}
+
+/**
+ * Everything every book reads and none writes: the corpus, the notes database,
+ * the collected pages and their gates, the SQL tables, the address space
+ * pictures resolve against and the staging options.
+ *
+ * Built once per run. A book renders from it; coverage and the home book are
+ * computed over it.
+ *
+ * @param {object} resolved - The resolved configuration.
+ * @param {object} shared - Options.
+ * @param {string} shared.contentBase - The content tree.
+ * @param {object[]} shared.findings - Collected here rather than thrown.
+ * @param {Function} [shared.resolveReplacement] - As {@link buildPdf}.
+ * @returns {Promise<object|null>} The world, or null when a site gate fired
+ *   and the findings say why.
+ */
+async function prepareWorld(resolved, { contentBase, findings, resolveReplacement }) {
     // The corpus, once — the same records the index, the site and the SQL
     // tables read, so the book cannot select a note the other surfaces do not
     // have.
@@ -538,15 +799,6 @@ export async function buildPdf({
 
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "content-pdf-"));
     const db = await openNotesDatabase(records, { dir, audience: "public" });
-    const ran = await runTreeFilters(parsed.nodes, db, {
-        // A stub is a note and is deliberately in the corpus, but it has no
-        // body — selecting one would print a blank page under its name.
-        keep: (record) => isNoteRecord(record) && !isStub(record) && !isGmNote(record),
-        text: tree.text,
-    });
-    findings.push(...ran.findings.map((f) => ({ file: resolved.pdf.document, ...f })));
-
-    const plan = planDocument(parsed.nodes, { selections: ran.selections });
 
     // Pages, indexed and gated exactly as the site does. A book of a tree whose
     // addresses collide would print the wrong entry under the right name.
@@ -594,7 +846,7 @@ export async function buildPdf({
                 });
             }
         }
-        return { built: false, reason: null, findings, typ: null, pdf: null, stats: null };
+        return null;
     }
 
     const byFile = new Map(collected.pages.map((page) => [page.file, page]));
@@ -626,10 +878,129 @@ export async function buildPdf({
             (assetReplacementRelationships(resolved).length ? resolveAssetReplacement : null),
     };
 
-    const outDir = path.resolve(
-        resolved.rootDir,
-        out || resolved.pdf.out || path.join("build", "dist"),
-    );
+    return {
+        records,
+        db,
+        dir,
+        site,
+        gates,
+        byFile,
+        universe,
+        sqlTables,
+        assets,
+        md,
+        glyphs,
+        stagingOpts,
+    };
+}
+
+/**
+ * Read one book's tree and run its filters against the shared database.
+ *
+ * @param {import("../content-config.mjs").ResolvedPdfBook} book - The book.
+ * @param {number} index - Its place in `pdf.books`.
+ * @param {object} shared - What the selection reads.
+ * @param {object} shared.world - From {@link prepareWorld}.
+ * @param {string} shared.configFile - The configuration file.
+ * @param {string} shared.configText - Its text, for positions.
+ * @param {object[]} shared.findings - Collected here rather than thrown.
+ * @returns {Promise<{usable: boolean, broken: boolean, treeFile?: string,
+ *   treeText?: string, plan?: object, records?: object[]}>} `usable` is false when the tree
+ *   cannot be read; `broken` is true when it was read with findings;
+ *   `records` holds every record the filters selected, a repeat counted again.
+ */
+async function selectBook(book, index, { world, configFile, configText, findings }) {
+    // The tree is written inline in the configuration or kept in its own
+    // file, and every finding about it names whichever file holds it.
+    let treeFile;
+    let treeText;
+    let raw;
+    let at;
+    if (book.contents) {
+        treeFile = configFile;
+        treeText = configText;
+        raw = { contents: book.contents };
+        at = ["pdf", "books", index];
+    } else {
+        const tree = readDocumentTree(book.document, `pdf.books[${index}].document`);
+        findings.push(...tree.findings);
+        if (!tree.raw) return { usable: false, broken: true };
+        treeFile = book.document;
+        treeText = tree.text;
+        raw = tree.raw;
+        at = [];
+    }
+
+    const parsed = parseDocumentTree(raw, { text: treeText, at });
+    const parseFindings = parsed.findings.map((f) => ({ file: treeFile, ...f }));
+    findings.push(...parseFindings);
+    const ran = await runTreeFilters(parsed.nodes, world.db, {
+        // A stub is a note and is deliberately in the corpus, but it has no
+        // body — selecting one would print a blank page under its name.
+        keep: isPrintable,
+        text: treeText,
+    });
+    const filterFindings = ran.findings.map((f) => ({ file: treeFile, ...f }));
+    findings.push(...filterFindings);
+    return {
+        usable: true,
+        broken: [...parseFindings, ...filterFindings].some((f) => f.severity === "error"),
+        treeFile,
+        treeText,
+        plan: planDocument(parsed.nodes, { selections: ran.selections }),
+        records: [...ran.selections.values()].flat(),
+    };
+}
+
+/**
+ * Build one book.
+ *
+ * Everything a book does not share with its siblings — its tree, its title,
+ * subtitle and cover, its front matter and its file stem — is read from
+ * `book`; everything shared from `shared`. The corpus, the database, the site
+ * gates and the book's selection are computed before any book renders. Pictures
+ * are staged under a directory named for the book's file stem, so one book's
+ * resampling cannot change a file another book's source names.
+ *
+ * @param {import("../content-config.mjs").ResolvedPdfBook} book - The book.
+ * @param {object} shared - What every book is built with.
+ * @param {object} shared.resolved - The resolved configuration.
+ * @param {number} shared.index - The book's place in `pdf.books`.
+ * @param {object} shared.world - From {@link prepareWorld}.
+ * @param {{treeFile: string, treeText: string, plan: object}} shared.selection - From
+ *   {@link selectBook}.
+ * @param {readonly object[]} shared.authors - The top-level `authors`.
+ * @param {string} shared.copyright - `pdf.copyright`; `""` when none.
+ * @param {string} shared.license - `pdf.license`; `""` when none.
+ * @param {string} shared.outDir - Where the book is written.
+ * @param {string} shared.contentBase - The content tree.
+ * @param {string} shared.version - Stamped on the title page and the file name.
+ * @param {boolean} shared.compile - Whether to run Typst.
+ * @param {Function} [shared.resolveReplacement] - As {@link buildPdf}.
+ * @param {object[]} shared.findings - Collected here rather than thrown.
+ * @returns {Promise<{built: boolean, typ: string|null, pdf: string|null,
+ *   stats: object|null, imageReports?: object[]}>} What was written.
+ */
+async function buildBook(book, shared) {
+    const { resolved, world, selection, outDir, contentBase, version, compile, findings } = shared;
+
+    const { treeFile, treeText, plan } = selection;
+    // The directory this book stages its pictures in, beside its source.
+    const stageDir = pdfFileName(book.out, "").replace(/\.pdf$/, "");
+    const inBook = (relative) => `${stageDir}/${relative}`;
+    /**
+     * {@link stagedImagePath}, with the file placed in this book's directory.
+     *
+     * @param {string} src - The authored address.
+     * @returns {{from: string, to: string}|null} As {@link stagedImagePath}.
+     */
+    const stage = (src) => {
+        const staged = stagedImagePath(src, resolved, world.stagingOpts);
+        return staged && { ...staged, to: inBook(staged.to) };
+    };
+    const { records, site, gates, byFile, universe, sqlTables, assets, md, glyphs, stagingOpts } =
+        world;
+
     fs.mkdirSync(outDir, { recursive: true });
 
     /** @type {Map<string, string>} Authored address → the staged file's path. */
@@ -659,14 +1030,32 @@ export async function buildPdf({
      * @returns {void}
      */
     const stageImages = (body, file, columns = 2) => {
+        // A finding about an image is located by searching the note for the
+        // address the body matched, at the occurrence this image is among the
+        // body's images of that address. Read once, and only for a finding.
+        let raw;
+        const seenHere = new Map();
+        /** @param {string} src @returns {{line?: number, column?: number}} */
+        const where = (src, occurrence) => {
+            if (raw === undefined) {
+                try {
+                    raw = fs.readFileSync(file, "utf8");
+                } catch {
+                    raw = "";
+                }
+            }
+            return positionOfLiteral(raw, src, occurrence);
+        };
         for (const image of imagesIn(body)) {
             const src = image.src;
+            const occurrence = (seenHere.get(src) ?? 0) + 1;
+            seenHere.set(src, occurrence);
             // A generated section's drawing is the one this build drew beside
             // its source — see `drawn` below — and is vector, so nothing
             // resamples it.
             const drawing = generatedDrawing(src);
             if (drawing) {
-                if (drawn.maps.has(drawing)) images.set(src, `${BOOK_MAP_DIR}/${drawing}`);
+                if (drawn.maps.has(drawing)) images.set(src, inBook(`${BOOK_MAP_DIR}/${drawing}`));
                 continue;
             }
             const directive = parseImageDirective(image.directive);
@@ -698,19 +1087,30 @@ export async function buildPdf({
             // is mechanical and named in the message.
             const problem = pathnameProblem(src);
             if (problem) {
-                findings.push({ file, severity: "error", message: problem });
+                findings.push({
+                    file,
+                    ...where(src, occurrence),
+                    severity: "error",
+                    message: problem,
+                });
                 continue;
             }
             let staged;
             try {
-                staged = stagedImagePath(src, resolved, stagingOpts);
+                staged = stage(src);
             } catch (err) {
-                findings.push({ file, severity: "error", message: err.message });
+                findings.push({
+                    file,
+                    ...where(src, occurrence),
+                    severity: "error",
+                    message: err.message,
+                });
                 continue;
             }
             if (!staged) {
                 findings.push({
                     file,
+                    ...where(src, occurrence),
                     severity: "warning",
                     message:
                         `\`${src}\` names a file this package does not ship, so the book ` +
@@ -726,6 +1126,7 @@ export async function buildPdf({
             } catch (err) {
                 findings.push({
                     file,
+                    ...where(src, occurrence),
                     severity: "warning",
                     message:
                         `\`${src}\` cannot be read from ` +
@@ -766,7 +1167,7 @@ export async function buildPdf({
     const resolveRole = (address) => embedRole(assets, address);
     const pathRoles = pathnameRoles(assets);
     const frontFigures = new Map();
-    for (const file of resolved.pdf.front) {
+    for (const file of book.front) {
         try {
             const scan = scanFigures(fs.readFileSync(file, "utf8"), { resolveRole });
             // Numbered here, because a number runs across the whole book and only
@@ -802,7 +1203,7 @@ export async function buildPdf({
     // any body is rendered so the section's image names a file the book holds.
     // A place's map is printed there, inside its entry, and nowhere else.
     const drawn = drawMapsFrom(records, {
-        outDir: path.join(outDir, BOOK_MAP_DIR),
+        outDir: path.join(outDir, stageDir, BOOK_MAP_DIR),
         foreignIndex: gates.foreign.index,
         config: resolved,
         only: plan.entries
@@ -1081,7 +1482,7 @@ export async function buildPdf({
                 text = fs.readFileSync(file, "utf8");
             } catch {
                 findings.push({
-                    file: resolved.pdf.document,
+                    file: treeFile,
                     severity: "error",
                     message: `the prose file \`${entry.file}\` cannot be read`,
                 });
@@ -1117,7 +1518,7 @@ export async function buildPdf({
         });
     }
 
-    const front = resolved.pdf.front.map((file, index) => {
+    const front = book.front.map((file, position) => {
         try {
             const text = fs.readFileSync(file, "utf8");
             stageImages(text, file, 1);
@@ -1127,7 +1528,7 @@ export async function buildPdf({
                 glyphs,
                 images,
                 assets: imageAssets,
-                footnotePrefix: `footnote-front-${index + 1}`,
+                footnotePrefix: `footnote-front-${position + 1}`,
                 captions: frontFigures.get(file),
                 url: site,
                 indexMentions: true,
@@ -1138,20 +1539,31 @@ export async function buildPdf({
             findings.push({
                 file,
                 severity: "error",
-                message: "the front-matter file named by `pdf.front` cannot be read",
+                message: `the front-matter file named by \`pdf.books[${index}].front\` cannot be read`,
             });
             return "";
         }
     });
 
-    const banners = stageBanners(plan.entries, resolved, outDir, findings);
+    const banners = new Map(
+        [
+            ...stageBanners(
+                plan.entries,
+                resolved,
+                path.join(outDir, stageDir),
+                findings,
+                treeFile,
+                treeText,
+            ),
+        ].map(([declared, to]) => [declared, inBook(to)]),
+    );
     for (const [declared, to] of banners) {
         const from = path.resolve(resolved.rootDir, declared);
         imageCandidates.set(`banner:${declared}`, {
             from,
             to,
             relative: path.relative(resolved.rootDir, from),
-            file: resolved.pdf.document,
+            file: treeFile,
             uses: [{ width: PDF_PAGE.width, height: Infinity }],
         });
     }
@@ -1162,19 +1574,31 @@ export async function buildPdf({
         if (!maps.has(anchor)) maps.set(anchor, []);
         maps.get(anchor).push(page);
     };
-    const stageMapBackground = (entry, value, title) => {
+    const stageMapBackground = (entry, value, title, keyPath) => {
         const file = noteFile(contentBase, entry.record);
+        // Located at the frontmatter key that declared the value. Read only
+        // for a finding.
+        const where = () => {
+            let raw = "";
+            try {
+                raw = fs.readFileSync(file, "utf8");
+            } catch {
+                return {};
+            }
+            return positionOfFrontmatterPath(raw, keyPath);
+        };
         const found = artPathname(assets, value, "image", ["image", "icon"]);
         let staged;
         try {
-            staged = stagedImagePath(found.pathname ?? value, resolved, stagingOpts);
+            staged = stage(found.pathname ?? value);
         } catch (err) {
-            findings.push({ file, severity: "error", message: err.message });
+            findings.push({ file, ...where(), severity: "error", message: err.message });
             return;
         }
         if (!staged || !fs.existsSync(staged.from)) {
             findings.push({
                 file,
+                ...where(),
                 severity: "warning",
                 message: `the map background "${value}" cannot be resolved for the book`,
             });
@@ -1218,32 +1642,75 @@ export async function buildPdf({
                 :   []),
             ];
             const fixups = entry.record.data?.fixup;
-            const fixup = (Array.isArray(fixups) ? fixups : []).find((item) =>
+            const fixupIndex = (Array.isArray(fixups) ? fixups : []).findIndex((item) =>
                 paths.includes(item?.path),
             );
+            const fixup = fixupIndex < 0 ? undefined : fixups[fixupIndex];
             const value = fixup?.value ?? level.background?.src;
+            // The key that supplied the value: the fixup's, else the Scene's.
+            const keyPath =
+                fixup?.value ?
+                    ["data", "fixup", fixupIndex, "value"]
+                :   ["data", "scene", "levels", index, "background", "src"];
             if (value)
-                stageMapBackground(entry, value, level.name ? `${title}: ${level.name}` : title);
+                stageMapBackground(
+                    entry,
+                    value,
+                    level.name ? `${title}: ${level.name}` : title,
+                    keyPath,
+                );
+        }
+    }
+
+    // The cover is staged like a banner and resampled to the larger of the
+    // two sizes that fill the page when cropped.
+    let cover = "";
+    if (book.coverImage) {
+        cover = inBook(`cover/${path.basename(book.coverImage)}`);
+        try {
+            fs.mkdirSync(path.dirname(path.join(outDir, cover)), { recursive: true });
+            fs.copyFileSync(book.coverImage, path.join(outDir, cover));
+            imageCandidates.set(`cover:${book.coverImage}`, {
+                from: book.coverImage,
+                to: cover,
+                relative: path.relative(resolved.rootDir, book.coverImage),
+                file: treeFile,
+                uses: [
+                    { width: PDF_PAGE.width, height: Infinity },
+                    { width: Infinity, height: PDF_PAGE.height },
+                ],
+            });
+        } catch (err) {
+            cover = "";
+            findings.push({
+                file: treeFile,
+                severity: "warning",
+                message: `the cover image \`${book.coverImage}\` cannot be read, so the book opens on its title page: ${err.message}`,
+            });
         }
     }
 
     const assembled = renderBook({
         plan,
         bodies,
-        title: resolved.pdf.title,
-        subtitle: resolved.pdf.subtitle,
+        title: book.title,
+        subtitle: book.subtitle,
         front,
         fonts: resolved.pdf.fonts,
         version,
         preamble: infoboxTypstPreamble(),
         banners,
         maps,
+        coverImage: cover,
+        authors: shared.authors,
+        copyright: shared.copyright,
+        license: shared.license,
     });
     // Last, over the whole document: a reference can only be checked once every
     // declaration is in one string, and Typst treats a dangling one as fatal.
     const source = resolveDanglingLabels(assembled, findings);
 
-    const stem = pdfFileName(resolved.foundryPackage?.id ?? resolved.contentPackage, version);
+    const stem = pdfFileName(book.out, version);
     const typPath = path.join(outDir, stem.replace(/\.pdf$/, ".typ"));
     const pdfPath = path.join(outDir, stem);
     fs.writeFileSync(typPath, source);
@@ -1252,32 +1719,16 @@ export async function buildPdf({
 
     const stats = { ...plan.stats, entries: plan.entries.length, bytes: source.length };
     if (!compile) {
-        return {
-            built: true,
-            reason: null,
-            findings,
-            imageReports,
-            typ: typPath,
-            pdf: null,
-            stats,
-        };
+        return { built: true, imageReports, typ: typPath, pdf: null, stats };
     }
 
     const compiled = compileTypst(typPath, pdfPath, resolved.pdf);
     findings.push(...compiled.findings);
     if (!compiled.ok) {
         findings.push({ file: typPath, severity: "error", message: compiled.message });
-        return {
-            built: false,
-            reason: null,
-            findings,
-            imageReports,
-            typ: typPath,
-            pdf: null,
-            stats,
-        };
+        return { built: false, imageReports, typ: typPath, pdf: null, stats };
     }
-    return { built: true, reason: null, findings, imageReports, typ: typPath, pdf: pdfPath, stats };
+    return { built: true, imageReports, typ: typPath, pdf: pdfPath, stats };
 }
 
 /**

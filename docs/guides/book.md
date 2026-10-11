@@ -9,7 +9,7 @@ subType: howto
 
 `package-build pdf` selects notes from a content package and sets them as a
 PDF. The website can publish the whole content tree; the book follows the
-ordered document tree named by `pdf.document`. This makes the book's contents
+ordered document tree each book declares. This makes the book's contents
 an editorial choice. A note outside every selection remains in the content
 package and on its site, but it has no book entry.
 
@@ -18,23 +18,36 @@ produce the PDF. Typst must be available on `PATH`, or named with `pdf.binary`.
 The [command reference](../commands.md) lists the CLI options; the
 [configuration reference](../configuration.md) lists the `pdf` keys.
 
-## Declare the book
+## Declare the books
 
-Give the book a title and document tree:
+`pdf.books` lists one entry per PDF. A package that publishes one book lists
+one; a package that publishes a world book and a book for each culture lists
+them all, and `package-build pdf` builds every one. Each book needs an `id`, a
+`title` and its tree of contents:
 
 ```yaml
 pdf:
-  title: The Setting Guide
-  document: book.yaml
   out: build/pdf
+  books:
+    - id: guide
+      title: The Setting Guide
+      subtitle: A Reader's Companion
+      document: book.yaml
+      out: setting
 ```
 
 A tree containing only a homepage has no content pages for a book. With no
-`pdf` block or no content tree, the command has nothing to build. `pdf.title`
-and `pdf.document` are required together when `pdf` is declared.
+`pdf` block or no content tree, the command has nothing to build and exits 0.
 
-`book.yaml` contains an ordered list of sections. Each section contains prose
-files, note filters, or nested sections:
+### The tree: `document` or `contents`
+
+The tree is an ordered list of sections. Each section contains prose files,
+note filters, or nested sections. A book gives its tree in exactly one of two
+ways: `document` names a file that holds it, and `contents` writes it inline
+in the configuration. A file suits a long tree; inline suits a short book that
+reads best beside the other books it shares a package with.
+
+`book.yaml` holds the tree under a `contents:` key:
 
 ```yaml
 contents:
@@ -49,17 +62,244 @@ contents:
           - filter: "type = 'place' AND subType = 'settlement'"
 ```
 
+The same tree written inline sits under the book's own `contents`, without the
+outer key:
+
+```yaml
+pdf:
+  books:
+    - id: guide
+      title: The Setting Guide
+      contents:
+        - sectionName: Introduction
+          contents:
+            - file: prose/introduction.md
+        - sectionName: Places
+          contents:
+            - filter: "type = 'place'"
+```
+
+A finding about an inline tree names `package-build.config.yaml` at the line
+of the offending key; a finding about a tree file names that file.
+
 The build keeps the order of prose and subsections as written. Notes selected
 by a filter are ordered by their folded display name. The filter is a SQL
 `WHERE` clause over this package's `notes` table; the build supplies
-`SELECT * FROM notes`. A filter cannot choose another package's notes. It is
-an error when a filter selects no printable note, while notes that no filter
-selects are simply outside this volume. A note selected more than once prints
-at each selected position; inbound book links reach its first occurrence.
+`SELECT * FROM notes`. A filter cannot choose another package's notes. A
+book's `front` lists Markdown files placed before its contents.
 
-The document tree can include a section with prose and no selected notes, for
-example a preface. Empty sections do not print. `pdf.front` lists Markdown
-files placed before the book's contents.
+### The file stem and `--book`
+
+A book's PDF is named `<out>-<version>.pdf`, where `out` is the book's **file
+stem**. Without an `out`, the stem is `<package>-<id>`. A stem is one path
+segment with no directory, and two books may not resolve to the same stem. The
+version comes from `--book-version`; with none, the file is `<out>.pdf`. Every
+book is written into the directory `pdf.out` names. A package that publishes
+one book and keeps a file name of the form `<package>-<version>.pdf` declares
+`out: <package>`.
+
+`package-build pdf` builds every declared book in the order declared. `--book
+<id>` builds the one book with that `id`:
+
+```bash
+package-build pdf --book vedyara
+```
+
+Coverage and home books, described below, are computed over every declared
+book even when `--book` renders only one.
+
+### Sections that select nothing
+
+A section whose filters select no printable note is left out of the book
+without a finding. A tree can therefore carry a section for a culture or a
+period before any note belongs to it, and the book prints nothing for it.
+
+A section that holds prose and no selected notes, such as a preface, prints
+its prose. A **book** whose filters select no note at all, whatever prose it
+holds, is an error at its `id`, and that book is not built while the others
+are:
+
+```text
+package-build.config.yaml:9:15: error: book `sinale` selects no note
+```
+
+## Coverage and home books
+
+Several books draw on one content package, so the question "is every note in
+some book?" belongs to the set of books, not to any one of them. After every
+book's filters have run against the one corpus, the build reports each
+printable note that no book selects. A **printable** note is a note that is
+neither a stub nor tagged `gm`, and that `pdf.unprinted` does not name.
+
+Two shared keys under `pdf` control the report:
+
+- `pdf.unprinted` is a `WHERE` clause over `notes` that names notes belonging
+  in no book, such as folder notes: `unprinted: "type = 'folder'"`. Coverage
+  skips them. It has no default, so set it for any note type that has no place
+  in a book.
+- `pdf.coverage` is `warning` (the default), `error` or `off`. A printable note
+  no book selects is reported at that severity, at the note's `type:` line.
+  `off` reports nothing. `error` makes the command exit 1.
+
+The finding carries the standard shape, `file:line:column: severity: message`,
+with the path of the note relative to the working directory:
+
+```text
+assets/content/Guides/Fieldcraft.md:2:1: warning: no book selects this note; add it to a book's query or to `pdf.unprinted`
+```
+
+To clear the finding, add the note to a book's query or name it in
+`pdf.unprinted`.
+
+### A note several books select
+
+A note may be selected by more than one book, and it prints in each. Its
+**home book** is the first book in `pdf.books` that selects it. A note a book
+selects twice counts as that one book's and prints at each position.
+
+The home is a property of the order the books are listed in and the queries
+they hold. To move a note's home, reorder the books, or narrow the query of the
+book that currently holds it so that it no longer selects the note. Nothing
+else sets a home.
+
+### Worked example: two culture books and a World book
+
+A package publishes a book for each of two cultures and a World book that
+gathers every region:
+
+```yaml
+pdf:
+  out: build/pdf
+  unprinted: "type = 'folder'"
+  books:
+    - id: vedyara
+      title: Vedyara
+      contents:
+        - sectionName: Vedyara
+          contents:
+            - filter: "data.culture = 'thalorna-note-lore-vedyariclt'"
+    - id: okharin
+      title: Okharin
+      contents:
+        - sectionName: Okharin
+          contents:
+            - filter: "data.culture = 'thalorna-note-lore-okharinclt'"
+    - id: world
+      title: The World of Thalorna
+      contents:
+        - sectionName: Regions
+          contents:
+            - filter: "type = 'place' AND subType = 'region'"
+```
+
+The content tree holds these notes:
+
+| Note                   | Type and subtype  | Culture | Selected by      |
+| ---------------------- | ----------------- | ------- | ---------------- |
+| `Places/Ashmere.md`    | place, region     | Vedyara | `vedyara`, world |
+| `Places/Fordholm.md`   | place, settlement | Vedyara | `vedyara`        |
+| `Places/Stormhaven.md` | place, settlement | Okharin | `okharin`        |
+| `Places/The Reach.md`  | place, region     | none    | `world`          |
+| `Guides/Fieldcraft.md` | doc, howto        | none    | no book          |
+| `Folders/Places.md`    | folder            | none    | `pdf.unprinted`  |
+
+`Ashmere` is a region of the Vedyara culture, so both the `vedyara` book and
+the `world` book select it. `vedyara` is listed first, so it is Ashmere's home.
+`Fieldcraft` matches no filter, so it is the one coverage finding. The folder
+note is named by `pdf.unprinted` and is not a candidate at all.
+
+Running `package-build pdf` first reports one finding on stderr:
+
+```text
+assets/content/Guides/Fieldcraft.md:2:1: warning: no book selects this note; add it to a book's query or to `pdf.unprinted`
+```
+
+then, for each book, a line counting its entries, prose files and sections and
+the path of its Typst source (and of its PDF when Typst compiles it), and then
+the summary:
+
+```text
+vedyara: 2 entries, 2 notes, 0 without a culture
+okharin: 1 entry, 1 note, 0 without a culture
+world: 2 entries, 2 notes, 1 without a culture
+5 printable notes, 1 in no book, 1 in pdf.unprinted
+Ashmere (Places/Ashmere.md) is printed by vedyara, world; home: vedyara
+```
+
+Each book line gives its entries (a note printed at two positions is two
+entries), its distinct notes, and how many of those carry no `data.culture`.
+The `world` book's count of one is `The Reach`. The note path in the summary is
+relative to the content root, while a finding's path is relative to the working
+directory. The totals line counts the
+printable notes that are not in `pdf.unprinted`, the ones among them that no
+book selects, and the notes `pdf.unprinted` names. A final line appears for
+every note that several books select, in book order and then path order,
+naming the books that print it and its home.
+
+To make `world` the home of Ashmere, list it before `vedyara`. To keep
+`vedyara` first and still have `world` own the region, narrow the `vedyara`
+filter with `AND NOT (type = 'place' AND subType = 'region')`; Ashmere is then
+selected by `world` alone, its home is `world`, and its summary line
+disappears.
+
+## The cover page and the title page
+
+A book opens on a **cover page** when it declares a `coverImage`, a path
+resolved against the directory the configuration sits in:
+
+```yaml
+books:
+  - id: world
+    title: The World of Thalorna
+    subtitle: A Song of Heroic Lands Sourcebook
+    coverImage: assets/images/covers/world.webp
+    document: world.yaml
+```
+
+The image fills the page, cropped to fit, and is page 1. The book's title and
+subtitle are centred in white in the upper third, over a translucent dark band
+so they read over any art. The cover carries no running footer and no page
+number. A book without `coverImage` begins on its title page.
+
+The **title page** shows the book's title, subtitle and version, then the
+package's people, one per line. The people come from the top-level `authors`
+list, shared by every book, each entry a `name` and an optional `role`:
+
+```yaml
+authors:
+  - name: Tom Rodriguez
+    role: author
+  - name: Tom Rodriguez
+    role: artist
+  - name: Ada Quill
+```
+
+A person with a role prints as `Name, Role` with the role in title case, and
+one without prints as `Name`. The role is one of `author`, `designer`,
+`developer`, `editor`, `proofreader`, `artist`, `cartographer`, `layout`,
+`playtester` and `translator`. A person who holds two roles is listed twice.
+
+```text
+Tom Rodriguez, Author
+Tom Rodriguez, Artist
+Ada Quill
+```
+
+At the foot of the title page sit the copyright and licence statements, set
+under `pdf` and shared by every book:
+
+```yaml
+pdf:
+  copyright: © 2026 Tom Rodriguez
+  license: |
+    Text is licensed under CC BY-SA 4.0.
+    Code is licensed under GPL-3.0-or-later.
+```
+
+Both are optional, and the foot prints whichever is given. `copyright` is one
+line; `license` may run to several. The [configuration
+reference](../configuration.md#authors) lists the `authors` keys and the
+closed role list.
 
 ## Control a section's page
 
@@ -155,8 +395,10 @@ for them. A package can choose families and add a font directory:
 
 ```yaml
 pdf:
-  title: The Setting Guide
-  document: book.yaml
+  books:
+    - id: guide
+      title: The Setting Guide
+      document: book.yaml
   fonts:
     serif: Libertinus Serif
     sans: Libertinus Sans
@@ -181,6 +423,7 @@ the font registry.
 package-build pdf
 package-build pdf --no-compile
 package-build pdf --out build/book
+package-build pdf --book vedyara
 ```
 
 `--no-compile` emits the Typst source and staged images without invoking

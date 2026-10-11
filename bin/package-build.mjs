@@ -214,8 +214,16 @@ function initCommand() {
             const root = path.resolve(args.directory ?? process.cwd());
             if (args.check) {
                 const findings = checkProject(root);
-                for (const { file, message } of findings) {
-                    console.error(`${path.join(root, file)}: error: ${message}`);
+                for (const { file, line, column, message } of findings) {
+                    console.error(
+                        formatDiagnostic({
+                            file: path.join(root, file),
+                            line,
+                            column,
+                            severity: "error",
+                            message,
+                        }),
+                    );
                 }
                 if (findings.length) process.exitCode = 1;
                 else console.log(`package-build: ${root} is ready to build.`);
@@ -1440,11 +1448,19 @@ function releaseCommand() {
             // book that would not set is a problem to fix rather than a reason
             // to have published nothing.
             for (const finding of result.pdfFindings ?? []) {
-                console.error(`${finding.file ?? "book"}: ${finding.severity}: ${finding.message}`);
+                console.error(
+                    formatDiagnostic({
+                        ...finding,
+                        ...(finding.file ?
+                            { file: path.relative(process.cwd(), finding.file) }
+                        :   {}),
+                    }),
+                );
             }
-            if (result.pdf) {
-                console.log(`📕 Book: ${path.relative(config.rootDir, result.pdf)}`);
-            } else if (result.pdfSkipped) {
+            for (const pdf of result.pdfs ?? []) {
+                console.log(`📕 Book: ${path.relative(config.rootDir, pdf)}`);
+            }
+            if (!result.pdfs?.length && result.pdfSkipped) {
                 console.log(`   No book: ${result.pdfSkipped}`);
             }
         }),

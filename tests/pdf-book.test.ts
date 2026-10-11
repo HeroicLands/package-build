@@ -106,8 +106,11 @@ function makeRepo(mode: "homepage" | "content", withPdf = true, withTree = true)
     if (withPdf) {
         config.push(
             "pdf:",
-            "    title: The Test Volume",
-            "    document: book.yaml",
+            "    unprinted: \"type = 'homepage'\"",
+            "    books:",
+            "        - id: core",
+            "          title: The Test Volume",
+            "          document: book.yaml",
             "    fonts:",
             "        serif: Libertinus Serif",
         );
@@ -164,11 +167,12 @@ it.skipIf(!HAS_TYPST)(
                 fs.readdirSync(dist).find((file) => file.endsWith(".pdf"))!,
             );
             expect(fs.statSync(pdf).size).toBeGreaterThan(0);
-            expect(fs.statSync(path.join(dist, "assets/images/portrait.webp")).size).toBeLessThan(
-                source.length,
-            );
             expect(
-                (await sharp(path.join(dist, "assets/images/portrait.webp")).metadata()).width,
+                fs.statSync(path.join(dist, "sohl-core/assets/images/portrait.webp")).size,
+            ).toBeLessThan(source.length);
+            expect(
+                (await sharp(path.join(dist, "sohl-core/assets/images/portrait.webp")).metadata())
+                    .width,
             ).toBe(Math.round((3.2 / 2.54) * 300));
             expect(fs.readFileSync(image).equals(source)).toBe(true);
             expect(built.out).toContain("book image assets/images/portrait.webp");
@@ -284,9 +288,15 @@ it(
                     "<!-- markdownlint-enable MD034 -->",
                 ].join("\n") + "\n",
             );
-            fs.appendFileSync(
-                path.join(dir, "package-build.config.yaml"),
-                ["    front:", "        - book-front.md"].join("\n") + "\n",
+            const configPath = path.join(dir, "package-build.config.yaml");
+            fs.writeFileSync(
+                configPath,
+                fs
+                    .readFileSync(configPath, "utf8")
+                    .replace(
+                        "          document: book.yaml\n",
+                        "          document: book.yaml\n          front:\n              - book-front.md\n",
+                    ),
             );
 
             const built = build(dir, "--no-compile");
@@ -627,21 +637,23 @@ describe("place maps and map notes", () => {
                 const entry = source.slice(source.indexOf(`)[${name}]`));
                 const section = entry.slice(entry.indexOf("From here"));
                 expect(section, name).toMatch(
-                    new RegExp(`^From here[\\s\\S]*?"maps/from-${name}\\.svg"`),
+                    new RegExp(`^From here[\\s\\S]*?"sohl-core/maps/from-${name}\\.svg"`),
                 );
                 expect(source.match(new RegExp(`maps/from-${name}\\.svg`, "g")), name).toHaveLength(
                     1,
                 );
             }
             expect(source).not.toContain("[From here: alpha]");
-            expect(fs.readFileSync(path.join(dist, "maps", "from-alpha.svg"), "utf8")).toContain(
-                "<svg",
-            );
+            expect(
+                fs.readFileSync(path.join(dist, "sohl-core", "maps", "from-alpha.svg"), "utf8"),
+            ).toContain("<svg");
             expect(source).not.toContain("maps/from-gamma.svg");
             expect(source).toContain(
-                '#book-place-map([Regional Chart], "assets/images/regional.svg")',
+                '#book-place-map([Regional Chart], "sohl-core/assets/images/regional.svg")',
             );
-            expect(source).toContain('#book-place-map([Tavern Scene], "assets/images/tavern.svg")');
+            expect(source).toContain(
+                '#book-place-map([Tavern Scene], "sohl-core/assets/images/tavern.svg")',
+            );
             expect(source).toContain("page(columns: 1, flipped: true)");
 
             if (HAS_TYPST) {
@@ -730,7 +742,7 @@ it(
             const built = build(dir, "--no-compile");
             expect(built.status, built.out).toBe(0);
             const dist = path.join(dir, "build", "dist");
-            const staged = path.join(dist, "assets/images/battle.webp");
+            const staged = path.join(dist, "sohl-core/assets/images/battle.webp");
             expect((await sharp(staged).metadata()).width).toBe(
                 Math.round((11 - (2 * 1.9) / 2.54) * 300),
             );
@@ -743,7 +755,7 @@ it(
                 "utf8",
             );
             expect(typ).toContain(
-                '#book-place-map([Battle Map: Ground], "assets/images/battle.webp")',
+                '#book-place-map([Battle Map: Ground], "sohl-core/assets/images/battle.webp")',
             );
             expect(typ).toContain("page(columns: 1, flipped: true)");
             if (HAS_TYPST) expect(build(dir).status).toBe(0);

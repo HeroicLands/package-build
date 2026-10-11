@@ -31,8 +31,8 @@
  *   `descriptionHtml` is the one exception, folded into the derived
  *   `description` below rather than surviving under its own name.
  * - **Derived** — the identity, the description (from `descriptionHtml`), the
- *   version, the release addresses, the compatibility ranges and the pack
- *   list. Declaring `description` directly is an error rather than an
+ *   version, the authors, the release addresses, the compatibility ranges and
+ *   the pack list. Declaring `description` directly is an error rather than an
  *   override: the authored copy would be silently overwritten.
  * - **Computed** — namespaced `flags` a repository works out for itself.
  *
@@ -478,8 +478,9 @@ function requireManifestTitle(config) {
  *   a key Foundry adds later needs no release of this package. The one
  *   exception is `descriptionHtml`, folded into the description below rather
  *   than surviving under its own name.
- * - **Derived** — the identity, the description, the release addresses, the
- *   version, the Foundry and system compatibility ranges, and the pack list.
+ * - **Derived** — the identity, the description, the authors (the top-level
+ *   `authors` list without its roles), the release addresses, the version, the
+ *   Foundry and system compatibility ranges, and the pack list.
  *   These are refused if also declared (`description` directly; `descriptionHtml`
  *   is how it is authored) and the two would disagree with nothing to say so.
  * - **Computed** — namespaced `flags` a repository works out for itself, merged
@@ -519,6 +520,12 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
     // in it. Set only when the repository actually declares one.
     if (descriptionHtml !== undefined) derived.description = descriptionHtml;
     if (config.compatibility) derived.compatibility = config.compatibility;
+    // Foundry's author schema is name, email, url, discord and flags; a role
+    // is the book's, printed on its title page, and the manifest ships what
+    // it is given.
+    if (config.authors?.length) {
+        derived.authors = config.authors.map(({ role: _role, ...person }) => ({ ...person }));
+    }
 
     // `requiresSystem` is the gate half of the declare/require split. It
     // emits the `relationships.systems` entry Foundry's `supportsSystem` reads,

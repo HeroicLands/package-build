@@ -28,7 +28,7 @@ will find the row that produced it.
 ### Two ways to write it
 
 Every configuration ends at the same `defineConfig`, but reaches it by one of
-two routes, and three keys behave differently depending on which:
+two routes, and four keys behave differently depending on which:
 
 |                  | `package-build.config.yaml` (data)                                                                   | `package-build.config.mjs` (code)                                                                                               |
 | ---------------- | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
@@ -36,7 +36,6 @@ two routes, and three keys behave differently depending on which:
 | `rootDir`        | Forbidden — always the directory the file sits in                                                    | Authored, typically `import.meta.dirname`                                                                                       |
 | `foundryPackage` | Forbidden — always the adjacent `package.json` `name`                                                | Authored                                                                                                                        |
 | `homepage`       | Forbidden — always the adjacent `package.json` `homepage`                                            | Authored                                                                                                                        |
-| `author`         | Forbidden — always the adjacent `package.json` `author`                                              | Authored                                                                                                                        |
 | `itemBuilders`   | A **name** (`sohl`, `hm3`) or list of names, resolved against the registries this package ships      | The registry object itself — real builder functions, which only code can carry                                                  |
 
 A file is chosen by its extension: `package-build.config.yaml`, then
@@ -66,7 +65,7 @@ authoring.
 | [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                         |
 | [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                         |
 | [`homepage`](#homepage)                     | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                    |
-| [`author`](#author)                         | string, or `{name, email?, url?}`                                          | no (`.mjs` only — derived in YAML)                                                                 | `null`                    |
+| [`authors`](#authors)                       | list of `{name, email?, url?, discord?, role?}`                            | no                                                                                                 | `[]`                      |
 | [`packageKind`](#packagekind)               | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                         |
 | [`stats`](#stats)                           | object                                                                     | yes; refused in a `documentation` package                                                          | —                         |
 | [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                      |
@@ -88,7 +87,7 @@ authoring.
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -100,12 +99,11 @@ refuses an authored `rootDir` earlier, with its own message — see
 
 Seven values in the resolved configuration are never transcribed by an author
 — they are computed from where the file sits, from the adjacent
-`package.json`, from the package kind, or from a name naming a table this
-package already ships. Authoring `rootDir`, `foundryPackage`, `homepage`,
-`author` or `stats.systemVersion` yourself is an **error**, not an override: a
-transcribed copy is free to drift from what it copied, which is exactly how
-`stats.systemVersion` once sat at a stale version for four releases while
-nothing said so. `assetRoot` has no author-facing spelling to refuse in the
+`package.json`, from the package kind, from `authors`, or from a name naming a
+table this package already ships. Authoring `rootDir`, `foundryPackage`,
+`homepage`, `author` or `stats.systemVersion` yourself is an **error**, not an
+override: a transcribed copy is free to drift from what it copied, with
+nothing to say so. `assetRoot` has no author-facing spelling to refuse in the
 first place — it is never a key at all, only ever a computed value.
 
 #### `rootDir`
@@ -144,7 +142,7 @@ which applies before either loader form gets a chance to derive anything.
 
   If the adjacent `package.json` cannot be read, or declares no `name`:
 
-  > `package-build: <package.json path> could not be read, and the configuration derives its Foundry package id, system version, homepage and author from it.`
+  > `package-build: <package.json path> could not be read, and the configuration derives its Foundry package id, system version and homepage from it.`
 
   > ``package-build: <package.json path> declares no `name`, which is what the Foundry package id is derived from.``
 
@@ -188,22 +186,17 @@ before the generated `baseURL` is written, so a missing or mismatched
 
 #### `author`
 
-The package's byline, normalised from either of npm's `author` forms — a
-string (`"Name <email> (url)"`, with the email and the URL both optional) or
-an object (`{name, email?, url?}`) — to the object form. `null` when the
-package declares none.
+The package's byline: the first entry of [`authors`](#authors), in npm's
+`author` shape — `{name, email?, url?}`, without `discord` or `role`. The site
+build writes its `name` as `params.author`. `null` when `authors` is empty.
 
-- In a **YAML** configuration, writing `author:` is refused; the loader reads
-  it from the adjacent `package.json` `author` instead:
+`author` is never written, in either configuration form. Writing it is refused
+as an unknown key, at the key's own line, because `authors` is the one list a
+package names its people in:
 
-  > ``package-build: <config file> declares `author`, which a data configuration may not: it is `package.json`'s own `author`. Remove the key.``
+> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog).``
 
-- In an **`.mjs`** configuration, `author` is an ordinary optional key, in
-  either form:
-
-  > ``package-build config: `author` must be `"Name"`, `"Name <email>"`, `"Name (url)"` or `"Name <email> (url)"` — npm's own `author` forms.``
-
-  > ``package-build config: `author` must be a string or an object with `name`, `email` and `url`.``
+`package.json`'s own `author` is npm's and is not read.
 
 #### `assetRoot`
 
@@ -349,10 +342,58 @@ package id:
 See [Derived values](#derived-values) — forbidden in a YAML configuration,
 optional (a non-empty string) in an `.mjs` one.
 
-### `author`
+### `authors`
 
-See [Derived values](#derived-values) — forbidden in a YAML configuration,
-optional (either of npm's forms) in an `.mjs` one.
+**Type:** list of mappings · **Optional** · default `[]`.
+
+The people who made the package, in the order they are credited. It is the one
+place a package names them:
+
+- the generated Foundry manifest's `authors` is this list with each entry's
+  `role` dropped, because Foundry's author schema has no role — so
+  `packageBuild.manifest.authors` is refused (see
+  [`packageBuild.manifest`](#packagebuildmanifest));
+- the site's byline, `params.author`, is the first entry's `name` (see the
+  derived [`author`](#author));
+- a book's title page lists every entry, one per line, as `Name` or
+  `Name, Role`.
+
+```yaml
+authors:
+  - name: Tom Rodriguez
+    email: toasty@heroiclands.org
+    url: https://www.heroiclands.org/
+    role: author
+  - name: A. Painter
+    discord: apainter
+    role: artist
+  - name: A. Painter
+    role: cartographer
+```
+
+| Key                 | Type   | Required | Meaning                                                     |
+| ------------------- | ------ | -------- | ----------------------------------------------------------- |
+| `authors[].name`    | string | yes      | As printed and as the manifest carries it.                  |
+| `authors[].email`   | string | no       | Carried to the manifest; the first entry's is the byline's. |
+| `authors[].url`     | string | no       | Carried to the manifest; the first entry's is the byline's. |
+| `authors[].discord` | string | no       | A Discord handle, carried to the manifest.                  |
+| `authors[].role`    | string | no       | One role from the closed list below.                        |
+
+`role` is one of `author`, `designer`, `developer`, `editor`, `proofreader`,
+`artist`, `cartographer`, `layout`, `playtester` and `translator`, printed in
+title case after the name. An entry carries one role; a person with two is
+listed twice, as above. Any other value is refused at its key:
+
+> ``package-build config: `authors[0].role` must be one of: author, designer, developer, editor, proofreader, artist, cartographer, layout, playtester, translator.``
+
+An entry with no `name`, a key outside the table, or a list that is not a list
+is refused at its key:
+
+> ``package-build config: `authors[0].name` must be a non-empty string.``
+
+> ``package-build config: `authors[0].handle` is not a recognized option (expected one of: name, email, url, discord, role).``
+
+> ``package-build config: `authors` must be a list of people, each a mapping with at least a `name`.``
 
 ### `packageKind`
 
@@ -1038,7 +1079,7 @@ in it has one source, and that source is where it is edited:
 | `taxonomies`                      | the toolchain — never written, because `taxonomy` and `term` are disabled kinds                                                                         |
 | `outputs`                         | the toolchain — never written, because every listing kind is disabled                                                                                   |
 | `params.description`              | `site.description`, which is required                                                                                                                   |
-| `params.author`                   | `package.json` `author`, its `name`; absent when the package declares none                                                                              |
+| `params.author`                   | the first entry of `authors`, its `name`; absent when `authors` is empty                                                                                |
 | `params.cdnBaseURL`               | `site.assets`, which is required                                                                                                                        |
 | `params.brand`                    | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                       |
 | `params.notfound`                 | `site.notfound`; absent when undeclared                                                                                                                 |
@@ -1077,49 +1118,184 @@ Every other key is `site.hugo`'s to add.
 
 **Type:** object · **Optional** · default `null` (no book is built).
 
-The content tree published as a book — a **selection**, not a rendering of
-everything: `pdf.document` names the tree that says which notes the volume
-carries and in what order, parsed by `engine/pdf-toc.mjs`'s
-`parseDocumentTree` and not validated here. Whether a book is built at all
-determined by the authored content tree: a tree containing only a homepage has
-no content pages for a book.
+The content tree published as books — each a **selection**, not a rendering of
+everything. `pdf.books` lists the books, one entry per PDF; each book's tree
+says which notes that volume carries and in what order, and is parsed by
+`engine/pdf-toc.mjs`'s `parseDocumentTree` when the book is built. Whether any
+book is built at all is determined by the authored content tree: a tree
+containing only a homepage has no content pages for a book.
 
 Each selected place with a border or route receives a dedicated full-page
 vector itinerary after its entry. A selected map note prints each of its
 exported Scene's level backgrounds on its own page. The npm-installed Graphviz
 runtime draws itineraries.
 
+A package with one book declares a list of one:
+
 ```yaml
 pdf:
-  title: The Hârn Ensemble
-  document: book.yaml
-  fonts:
-    serif: Libertinus Serif
-    mono: DejaVu Sans Mono
+  out: build/pdf
+  books:
+    - id: core
+      title: The Hârn Ensemble
+      document: book.yaml
+      out: harnensemble
 ```
 
-| Key             | Type                        | Required | Default                |
-| --------------- | --------------------------- | -------- | ---------------------- |
-| `pdf.title`     | string                      | yes      | —                      |
-| `pdf.document`  | string (path)               | yes      | —                      |
-| `pdf.subtitle`  | string                      | no       | `""`                   |
-| `pdf.out`       | string                      | no       | `""`                   |
-| `pdf.front`     | string[] (markdown files)   | no       | `[]`                   |
-| `pdf.fonts`     | object                      | no       | all empty              |
-| `pdf.iconFonts` | object (family → font file) | no       | `{}`                   |
-| `pdf.binary`    | string                      | no       | `""` — found on `PATH` |
+Two books, one tree kept in a file and one written inline, sharing their faces
+and the copyright and licence statements:
 
-`pdf.title` and `pdf.document` are required **together** — a document with
-no title produces a file whose name and cover say nothing about what a
-reader downloaded, and a title with no document has nothing to print:
+```yaml
+pdf:
+  out: build/pdf
+  fonts:
+    serif: Libertinus Serif
+  copyright: © 2026 Tom Rodriguez
+  license: |
+    Text is licensed under CC BY-SA 4.0.
+    Code is licensed under GPL-3.0-or-later.
+  books:
+    - id: core
+      title: The World of Thalorna
+      subtitle: A Song of Heroic Lands Sourcebook
+      coverImage: assets/images/covers/core.webp
+      document: book.yaml
+      out: thalorna
+    - id: vedyara
+      title: Vedyara
+      subtitle: A Gazetteer of Thalorna
+      front:
+        - assets/book/vedyara-preface.md
+      contents:
+        - sectionName: Vedyara
+          contents:
+            - filter: "type = 'place' AND data.culture = 'thalorna-note-lore-vedyariclt'"
+```
 
-> ``package-build config: `pdf.title` must be a non-empty string.``
+`package-build pdf` builds both: `build/pdf/thalorna-<version>.pdf` and
+`build/pdf/thalorna-vedyara-<version>.pdf`. `--book vedyara` builds the second
+alone.
 
-> ``package-build config: `pdf.document` must be a non-empty string.``
+The keys of `pdf` itself are shared by every book:
+
+| Key             | Type                          | Required | Default                |
+| --------------- | ----------------------------- | -------- | ---------------------- |
+| `pdf.books`     | list of books                 | yes      | —                      |
+| `pdf.out`       | string (directory)            | no       | `""` — `build/dist`    |
+| `pdf.fonts`     | object                        | no       | all empty              |
+| `pdf.iconFonts` | object (family → font file)   | no       | `{}`                   |
+| `pdf.binary`    | string                        | no       | `""` — found on `PATH` |
+| `pdf.unprinted` | string (`WHERE` clause)       | no       | `""`                   |
+| `pdf.coverage`  | `warning` \| `error` \| `off` | no       | `warning`              |
+| `pdf.copyright` | string (one line)             | no       | `""`                   |
+| `pdf.license`   | string (one or more lines)    | no       | `""`                   |
+
+- `pdf.out` is the **directory** every book is written into; `package-build pdf
+--out` overrides it.
+- `pdf.unprinted` is a `WHERE` clause over `notes` naming the notes that belong
+  in no book, such as `"type IN ('folder', 'homepage')"`. Coverage skips them.
+  A clause that does not run is an error at `pdf.unprinted`, and coverage is
+  not reported for that run.
+- `pdf.coverage` says how a printable note that no book selects is reported:
+  `warning` (the default), `error`, or `off` to say nothing. A printable note
+  is a note that is neither a stub nor tagged `gm`, and that `pdf.unprinted`
+  does not name. Each finding sits at the note's `type:` line:
+
+  > ``assets/content/Guides/Fieldcraft.md:2:1: warning: no book selects this note; add it to a book's query or to `pdf.unprinted```
+
+  Coverage is computed over every book in `pdf.books`, including when
+  `package-build pdf --book` builds only one.
+
+- A note several books select prints in each of them. Its **home book** is the
+  first book in `pdf.books` that selects it; a note a book selects twice is
+  still one book's, and prints at each position. After the books are built the
+  command prints, per book, its entries, its distinct notes and how many of
+  those carry no `data.culture`, then the totals, then one line per note
+  several books select, naming its home.
+- `pdf.copyright` is the copyright statement, one line, such as
+  `© 2026 Tom Rodriguez`. `pdf.license` is the licence statement and may run to
+  several lines, such as a Creative Commons notice or a trademark notice the
+  material's terms require. Every book carries the same two; neither has a
+  per-book form, and neither do the [`authors`](#authors), which every book
+  lists.
+
+Each entry of `pdf.books` is one PDF:
+
+| Key                      | Type                      | Required       | Default                 |
+| ------------------------ | ------------------------- | -------------- | ----------------------- |
+| `pdf.books[].id`         | string                    | yes            | —                       |
+| `pdf.books[].title`      | string                    | yes            | —                       |
+| `pdf.books[].subtitle`   | string                    | no             | `""`                    |
+| `pdf.books[].coverImage` | string (path)             | no             | `""` — no cover         |
+| `pdf.books[].front`      | string[] (markdown files) | no             | `[]`                    |
+| `pdf.books[].out`        | string (file stem)        | no             | `<contentPackage>-<id>` |
+| `pdf.books[].contents`   | list (the tree, inline)   | one of the two | —                       |
+| `pdf.books[].document`   | string (path to the tree) | one of the two | —                       |
+
+- `id` is lowercase letters, digits and hyphens, starting with a letter or
+  digit. It is what `--book <id>` names and the tail of the default file stem.
+  Each `id` is used once.
+- `contents` is the tree written inline — the same `sectionName` /
+  `contents` / `filter` / `file` shape a tree file holds under its own
+  `contents:` key — and `document` names the file holding it. A book declares
+  exactly one of the two. A finding about an inline tree names
+  `package-build.config.yaml` at the line of the offending key.
+- `out` is the book's **file stem**: the PDF is `<out>-<version>.pdf` (or
+  `<out>.pdf` with no version) inside `pdf.out`. It is one path segment —
+  letters, digits, `.`, `_` and `-`. Two books resolving to one stem, whether
+  declared or defaulted, are refused, since the second would overwrite the
+  first. A package with one book keeps the file name `<package>-<version>.pdf`
+  by declaring `out: <package>`.
+- `coverImage` names the picture that opens the book as page 1: it fills the
+  page, cropped to fit, with the title and subtitle centred in white over a
+  translucent dark band across the upper third. The cover carries no footer or
+  page number. A book without `coverImage` opens on its title page, which
+  lists the title, subtitle and version, then the [`authors`](#authors) one
+  per line as `Name` or `Name, Role`, and sets `pdf.copyright` and
+  `pdf.license` at its foot.
+- A section whose queries select no note is left out of the book without a
+  finding. A book whose queries select no note at all is an error at its `id`
+  and is not built:
+
+  > ``package-build.config.yaml:9:15: error: book `sinale` selects no note``
+
+- `coverImage`, `document` and each `front` file resolve against the directory
+  the configuration sits in. Whether each exists is checked when the book is
+  built — by `package-build pdf`, by a release, and by `package-build init
+--check` — and never when the configuration loads, so `lint`, `site` and
+  every other command run without a cover held outside the tree. A missing
+  file is an error at its key, and that book is not built:
+
+  > ``package-build.config.yaml:14:11: error: book `core`: the cover image `assets/images/covers/core.webp` does not exist, so the book is not built``
+
+Every refusal names its key, and a YAML configuration's refusal starts with the
+file, line and column the key is written at:
+
+> ``package-build config: `pdf.books` is required — list the books this package publishes, one entry each.``
+
+> ``package-build config: `pdf.books` must be a non-empty list of books.``
+
+> ``package-build config: `pdf.books[1].id` is `core`, which names a book more than once.``
+
+> ``package-build config: `pdf.books[0].id` is `Core Book`, which is not lowercase letters, digits and hyphens starting with a letter or digit (^[a-z0-9][a-z0-9-]*$) — it is written as `--book <id>` and ends the book's default file name.``
+
+> ``package-build config: `pdf.books[0].title` must be a non-empty string.``
+
+> ``package-build config: `pdf.books[0]` must declare exactly one of `contents` and `document` — the tree written inline, or the file holding it.``
+
+> ``package-build config: `pdf.books[0].out` is `dist/core`, which is not a file stem — letters, digits, `.`, `_` and `-`, with no directory; the directory is `pdf.out`.``
+
+> ``package-build config: `pdf.books[1].out` gives the file stem `same`, which `pdf.books[0]` already uses — the second book would overwrite the first.``
+
+> ``package-build config: `pdf.books[0].front` must be a list of markdown files.``
+
+> ``package-build config: `pdf.books[0].<key>` is not a recognized option (expected one of: id, title, subtitle, coverImage, front, out, contents, document).``
+
+> ``package-build config: `pdf.coverage` must be one of: warning, error, off.``
+
+> ``package-build config: `pdf.copyright` must be one line — the licence statement is the one that runs on.``
 
 > ``package-build config: `pdf` must be a mapping.``
-
-> ``package-build config: `pdf.front` must be a list of markdown files.``
 
 `pdf.fonts` names font **families**, not files — the renderer asks the font
 stack for a family by name:
@@ -1156,7 +1332,10 @@ books.
 
 Any other key on `pdf` is refused:
 
-> ``package-build config: `pdf.<key>` is not a recognized option (expected one of: title, subtitle, document, out, front, fonts, iconFonts, binary).``
+> ``package-build config: `pdf.<key>` is not a recognized option (expected one of: books, out, fonts, iconFonts, binary, unprinted, coverage, copyright, license).``
+
+A book's own keys — `title`, `subtitle`, `document` and `front` — are refused
+on `pdf` itself by this message, at the key's own line.
 
 ### `compatibility`
 
@@ -1691,18 +1870,19 @@ survives into the manifest under its own name. `package.json.description` is
 npm package metadata. It does not supply the Foundry description or the site
 description (see [`site.description`](#site)); each surface has its own copy.
 
-| Forbidden key                         | Derived from                                                     |
-| ------------------------------------- | ---------------------------------------------------------------- |
-| `packageBuild.manifest.id`            | `foundryPackage`, itself derived from `package.json` `name`      |
-| `packageBuild.manifest.version`       | `package.json` `version`                                         |
-| `packageBuild.manifest.description`   | `packageBuild.manifest.descriptionHtml`                          |
-| `packageBuild.manifest.url`           | `package.json` `repository`                                      |
-| `packageBuild.manifest.bugs`          | `package.json` `repository`                                      |
-| `packageBuild.manifest.manifest`      | `package.json` `repository` and the release tag                  |
-| `packageBuild.manifest.download`      | `package.json` `repository` and the release tag                  |
-| `packageBuild.manifest.compatibility` | the top level of `package-build.config.yaml`                     |
-| `packageBuild.manifest.relationships` | the top level of `package-build.config.yaml`                     |
-| `packageBuild.manifest.packs`         | the `packs` list at the top level of `package-build.config.yaml` |
+| Forbidden key                         | Derived from                                                                                  |
+| ------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `packageBuild.manifest.id`            | `foundryPackage`, itself derived from `package.json` `name`                                   |
+| `packageBuild.manifest.version`       | `package.json` `version`                                                                      |
+| `packageBuild.manifest.authors`       | the `authors` list at the top level of package-build.config.yaml, without each entry's `role` |
+| `packageBuild.manifest.description`   | `packageBuild.manifest.descriptionHtml`                                                       |
+| `packageBuild.manifest.url`           | `package.json` `repository`                                                                   |
+| `packageBuild.manifest.bugs`          | `package.json` `repository`                                                                   |
+| `packageBuild.manifest.manifest`      | `package.json` `repository` and the release tag                                               |
+| `packageBuild.manifest.download`      | `package.json` `repository` and the release tag                                               |
+| `packageBuild.manifest.compatibility` | the top level of `package-build.config.yaml`                                                  |
+| `packageBuild.manifest.relationships` | the top level of `package-build.config.yaml`                                                  |
+| `packageBuild.manifest.packs`         | the `packs` list at the top level of `package-build.config.yaml`                              |
 
 > ``package-build config: `packageBuild.manifest.version` is derived from package.json `version` and must not be declared — it would be overwritten, and the two would disagree with nothing to say so.``
 
@@ -1929,7 +2109,9 @@ the source directory:
 | `packs[].folders`                                                                                                                                                                                                                                                                           | Retired — a folder is a note (`type: folder`), materialised by the pack whose documents reference it.                                                  |
 | `rootDir`                                                                                                                                                                                                                                                                                   | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
 | `foundryPackage`                                                                                                                                                                                                                                                                            | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
-| `homepage`, `author`                                                                                                                                                                                                                                                                        | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage` and `author`.                                                  |
+| `homepage`                                                                                                                                                                                                                                                                                  | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage`.                                                               |
+| `author`                                                                                                                                                                                                                                                                                    | Refused as an unknown key — the byline is the first entry of [`authors`](#authors).                                                                    |
+| `packageBuild.manifest.authors`                                                                                                                                                                                                                                                             | Forbidden — derived from [`authors`](#authors), without each entry's `role`.                                                                           |
 | `stats.systemId`                                                                                                                                                                                                                                                                            | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
 | `stats.systemVersion`                                                                                                                                                                                                                                                                       | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
 | `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs`                                                                                                                                             | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |

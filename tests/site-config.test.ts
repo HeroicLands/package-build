@@ -96,7 +96,6 @@ beforeAll(() => {
             version: "1.0.0",
             description: "A demonstration module.",
             homepage: "https://www.heroiclands.org/demo/",
-            author: "Ann Author <ann@example.org>",
         }),
     );
     write(
@@ -116,7 +115,7 @@ function configFor(overrides: Record<string, unknown> = {}, site: Record<string,
         packageKind: "modules",
         compatibility: { minimum: "14.359" },
         homepage: "https://www.heroiclands.org/demo/",
-        author: { name: "Ann Author" },
+        authors: [{ name: "Ann Author" }],
         stats: { lastModifiedBy: "demobuilder0000" },
         packs: [{ name: "items", type: "Item" }],
         packageBuild: { manifest: { title: "The Demo Module" } },
@@ -319,9 +318,9 @@ describe("the generated configuration", () => {
 
     it("leaves an absent optional value off rather than writing an empty one", () => {
         // `assets` and `description` are required — see the guards below —
-        // so `author` is the only value left that is genuinely optional.
+        // so the byline is the only value left that is genuinely optional.
         const out = hugoConfig({
-            config: configFor({ author: undefined }),
+            config: configFor({ authors: undefined }),
             navigation: NAVIGATION,
             themesDir: THEMES_DIR,
         });

@@ -29,7 +29,7 @@ stats: { lastModifiedBy: preflightbuild00 }
 packs:
   - { name: journals, type: JournalEntry, default: true }
 publish: {}
-pdf: { title: Demo, document: book.yaml }
+pdf: { books: [{ id: core, title: Demo, document: book.yaml }] }
 `,
     );
     fs.mkdirSync(path.join(root, "assets/content"), { recursive: true });

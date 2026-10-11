@@ -307,8 +307,11 @@ function makeFixture() {
             "    - name: items",
             "      type: Item",
             "pdf:",
-            "    title: The Test Volume",
-            "    document: book.yaml",
+            "    unprinted: \"type = 'homepage'\"",
+            "    books:",
+            "        - id: core",
+            "          title: The Test Volume",
+            "          document: book.yaml",
             "    fonts:",
             "        serif: Libertinus Serif",
         ].join("\n") + "\n",
@@ -322,7 +325,7 @@ function makeFixture() {
  * returned object rather than through the YAML file, since the validator
  * that reads the YAML does not accept `assetReplacement` yet.
  */
-function resolveFixtureConfig(dir, { declareReplacement = true } = {}) {
+function resolveFixtureConfig(dir, { declareReplacement = true, books } = {}) {
     const base = configFromData(
         {
             contentPackage: "sohl",
@@ -331,8 +334,8 @@ function resolveFixtureConfig(dir, { declareReplacement = true } = {}) {
             stats: { lastModifiedBy: "sohlbuilder00000" },
             packs: [{ name: "items", type: "Item" }],
             pdf: {
-                title: "The Test Volume",
-                document: "book.yaml",
+                unprinted: "type = 'homepage'",
+                books: books ?? [{ id: "core", title: "The Test Volume", document: "book.yaml" }],
                 fonts: { serif: "Libertinus Serif" },
             },
         },
@@ -403,7 +406,7 @@ describe("buildPdf staging a replacement", () => {
 
         expect(result.findings).toEqual([]);
         expect(result.built).toBe(true);
-        const staged = path.join(dir, "build", "dist", "assets", "icons", "anvil.svg");
+        const staged = path.join(dir, "build", "dist", "sohl-core", "assets", "icons", "anvil.svg");
         expect(fs.readFileSync(staged, "utf8")).toBe("<svg>replacement</svg>");
     });
 
@@ -433,6 +436,143 @@ describe("buildPdf staging a replacement", () => {
                     'the map background "thalornaaltart-none-icon-anvil" cannot be resolved',
                 ),
             }),
+        ]);
+    });
+
+    it("locates the missing-image warning at the picture's line and column in the note", async () => {
+        const dir = makeFixture();
+        dirs.push(dir);
+        process.env.PACKAGE_BUILD_CONFIG = path.join(dir, "package-build.config.yaml");
+        const config = resolveFixtureConfig(dir, { declareReplacement: false });
+        cacheReplacement(config);
+        const note = path.join(dir, "assets", "content", "Gear", "dagger.md");
+        const lines = [
+            "---",
+            "type: weapongear",
+            "shortcode: dagger",
+            "name:",
+            "  full: Dagger",
+            "---",
+            "",
+            "A blade.",
+            "",
+            "![One](https://cdn.example.org/images/one.webp) and ![Again](https://cdn.example.org/images/one.webp)",
+            "",
+            "Text  ![Two](https://cdn.example.org/images/two.webp)",
+            "",
+        ];
+        fs.writeFileSync(note, lines.join("\n"));
+
+        const result = await buildPdf({
+            config,
+            compile: false,
+            resolveReplacement: stubResolver(),
+        });
+
+        const missing = result.findings.filter((f) =>
+            f.message.includes("names a file this package does not ship"),
+        );
+        // A repeated address is reported once, at its first occurrence.
+        expect(missing.map((f) => [f.line, f.column, f.message.split("`")[1]])).toEqual([
+            [10, lines[9].indexOf("https://") + 1, "https://cdn.example.org/images/one.webp"],
+            [12, lines[11].indexOf("https://") + 1, "https://cdn.example.org/images/two.webp"],
+        ]);
+    });
+
+    it("locates the map-background warning at the fixup key that supplied the value", async () => {
+        const dir = makeFixture();
+        dirs.push(dir);
+        process.env.PACKAGE_BUILD_CONFIG = path.join(dir, "package-build.config.yaml");
+        const config = resolveFixtureConfig(dir, { declareReplacement: false });
+        cacheReplacement(config);
+
+        const result = await buildPdf({
+            config,
+            compile: false,
+            resolveReplacement: stubResolver(),
+        });
+
+        const note = path.join(dir, "assets", "content", "Places", "realm.md");
+        const lines = fs.readFileSync(note, "utf8").split("\n");
+        const at = lines.findIndex((l) => l.includes("value: thalornaaltart-none-icon-anvil"));
+        const found = result.findings.filter((f) => f.message.includes("map background"));
+        expect(found.map((f) => [f.file, f.line, f.column])).toEqual([
+            [note, at + 1, lines[at].indexOf("thalornaaltart-none-icon-anvil") + 1],
+        ]);
+    });
+
+    it("locates a banner finding at the `banner:` key of the section that declared it", async () => {
+        const dir = makeFixture();
+        dirs.push(dir);
+        process.env.PACKAGE_BUILD_CONFIG = path.join(dir, "package-build.config.yaml");
+        const config = resolveFixtureConfig(dir);
+        cacheReplacement(config);
+        const book = [
+            "contents:",
+            "  - sectionName: Gear",
+            "    page:",
+            "      banner: ../outside.webp",
+            "    contents:",
+            "      - filter: \"type = 'weapongear'\"",
+            "      - sectionName: Blades",
+            "        contents:",
+            "          - filter: \"type = 'weapongear'\"",
+            "  - sectionName: Places",
+            "    contents:",
+            "      - filter: \"type = 'map'\"",
+        ];
+        fs.writeFileSync(path.join(dir, "book.yaml"), book.join("\n") + "\n");
+
+        const result = await buildPdf({
+            config,
+            compile: false,
+            resolveReplacement: stubResolver(),
+        });
+
+        // One finding for the declared value, at the key that wrote it, though
+        // the nested section inherits it.
+        const found = result.findings.filter((f) => f.message.includes("is outside this package"));
+        expect(found.map((f) => [f.file, f.line, f.column])).toEqual([
+            [path.join(dir, "book.yaml"), 4, book[3].indexOf("banner") + 1],
+        ]);
+    });
+
+    it("locates a banner finding in the tree file of the book whose section declared it", async () => {
+        const dir = makeFixture();
+        dirs.push(dir);
+        process.env.PACKAGE_BUILD_CONFIG = path.join(dir, "package-build.config.yaml");
+        const config = resolveFixtureConfig(dir, {
+            books: [
+                { id: "core", title: "The Test Volume", document: "book.yaml" },
+                { id: "second", title: "The Second Volume", document: "second.yaml" },
+            ],
+        });
+        cacheReplacement(config);
+        const plain = ["contents:", "  - sectionName: Gear", "    contents:"];
+        const second = [
+            "# a leading comment",
+            "contents:",
+            "  - sectionName: Gear",
+            "    page:",
+            "      banner: ../outside.webp",
+            "    contents:",
+            "      - filter: \"type = 'weapongear'\"",
+        ];
+        fs.writeFileSync(
+            path.join(dir, "book.yaml"),
+            [...plain, "      - filter: \"type = 'weapongear'\""].join("\n") + "\n",
+        );
+        fs.writeFileSync(path.join(dir, "second.yaml"), second.join("\n") + "\n");
+
+        const result = await buildPdf({
+            config,
+            compile: false,
+            resolveReplacement: stubResolver(),
+        });
+
+        const found = result.findings.filter((f) => f.message.includes("is outside this package"));
+        expect(found.map((f) => [f.file, f.line, f.column])).toEqual([
+            [path.join(dir, "second.yaml"), 5, second[4].indexOf("banner") + 1],
         ]);
     });
 

@@ -348,10 +348,9 @@ describe("runTreeFilters", () => {
         },
     });
 
-    it("reports a filter that selects nothing, with its position", async () => {
-        // The distinction that makes this consistent with an unselected note
-        // being fine: a *clause* matching nothing is either wrong or left over,
-        // and in both cases the tree should not carry it.
+    it("gives an empty selection and no finding for a filter that selects nothing", async () => {
+        // Coverage reports what no book selects; a clause matching nothing is
+        // an empty section, which the plan drops.
         const text = `
 contents:
   - sectionName: Affiliations
@@ -364,11 +363,7 @@ contents:
             db({ "type = 'affiliation'": [] }),
             { text },
         );
-        expect(findings).toHaveLength(1);
-        expect(findings[0].severity).toBe("error");
-        expect(findings[0].message).toMatch(/selected no notes/);
-        expect(findings[0].message).toMatch(/Affiliations/);
-        expect(findings[0].line).toBe(5);
+        expect(findings).toEqual([]);
         expect(selections.get(nodes[0].items[0].id)).toEqual([]);
     });
 

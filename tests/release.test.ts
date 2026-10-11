@@ -202,7 +202,7 @@ describe("packRelease", () => {
             "system.json": JSON.stringify({ version: "1.0.0" }),
         });
         const result = await packRelease({ stageDir, outDir, pdf: false });
-        expect(result.pdf).toBeUndefined();
+        expect(result.pdfs).toEqual([]);
         expect(result.pdfFindings).toEqual([]);
         expect(result.pdfSkipped).toMatch(/asked not to build one/);
     });

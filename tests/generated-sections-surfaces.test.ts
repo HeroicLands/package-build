@@ -202,8 +202,11 @@ function repo(): string {
             "    - { name: items, label: Items, type: Item, system: sohl, mayBeEmpty: true }",
             "    - { name: journals, label: Journals, type: JournalEntry, default: true }",
             "pdf:",
-            "    title: The Test Volume",
-            "    document: book.yaml",
+            "    unprinted: \"type IN ('homepage', 'lore') OR shortcode = 'mere'\"",
+            "    books:",
+            "        - id: core",
+            "          title: The Test Volume",
+            "          document: book.yaml",
             "    fonts:",
             "        serif: Libertinus Serif",
         ].join("\n") + "\n",
@@ -424,7 +427,9 @@ describe("in the book", () => {
         expect(ford.match(/from-ford\.svg/g)).toHaveLength(1);
         expect(book.source.match(/from-ford\.svg/g)).toHaveLength(1);
         expect(ford.indexOf("From here")).toBeLessThan(ford.indexOf("from-ford.svg"));
-        expect(fs.existsSync(path.join(root, "build/dist/maps/from-ford.svg"))).toBe(true);
+        expect(fs.existsSync(path.join(root, "build/dist/demo-core/maps/from-ford.svg"))).toBe(
+            true,
+        );
     });
 
     it.runIf(HAS_TYPST && HAS_PDFTOTEXT)(

@@ -19,6 +19,7 @@ import YAML from "yaml";
 import prettier from "prettier";
 import prettierConfig from "../prettier-config.mjs";
 import { CONFIG_FILENAMES, configFromData } from "./pack-config.mjs";
+import { positionOfYamlPath } from "./diagnostics.mjs";
 import { checkLabelRegistry } from "../labels.mjs";
 import { formatNoteFrontmatter } from "./note-format.mjs";
 
@@ -134,6 +135,7 @@ function projectConfig(answers) {
     const config = {
         contentPackage: answers.contentPackage,
         packageKind: answers.kind,
+        authors: [{ name: answers.author }],
     };
     if (answers.kind !== "documentation") {
         config.compatibility = {
@@ -144,7 +146,19 @@ function projectConfig(answers) {
         config.packs = [{ name: "journals", label: "Journals", type: "JournalEntry" }];
     }
     config.publish = { address: { prefix: "" } };
-    config.pdf = { title: answers.title, document: "book.yaml", out: "build/pdf" };
+    // The stem is the package's own name, so the one book is
+    // `<package>-<version>.pdf` rather than `<package>-<id>-<version>.pdf`.
+    config.pdf = {
+        out: "build/pdf",
+        books: [
+            {
+                id: "book",
+                title: answers.title,
+                document: "book.yaml",
+                out: answers.contentPackage,
+            },
+        ],
+    };
     config.site = {
         ...(answers.kind === "documentation" ? { title: answers.title } : {}),
         assets: "https://cdn.heroiclands.org",
@@ -160,7 +174,6 @@ function projectConfig(answers) {
             manifest: {
                 title: answers.title,
                 descriptionHtml: answers.description,
-                authors: [{ name: answers.author }],
                 license: "LICENSE.md",
                 readme: "README.md",
                 languages: [{ lang: "en", name: "English", path: "lang/en.json" }],
@@ -457,10 +470,12 @@ export function checkProject(rootDir) {
         }
     }
     let config;
+    let configSource = "";
     if (names.length === 1 && names[0] !== "package-build.config.mjs") {
         const file = names[0];
         try {
             const source = fs.readFileSync(path.join(root, file), "utf8");
+            configSource = source;
             config = YAML.parse(source);
             configFromData(config, path.join(root, file));
         } catch (err) {
@@ -471,10 +486,29 @@ export function checkProject(rootDir) {
         if (!nonempty(config.site?.assets) || !nonempty(config.site?.description)) {
             add(names[0], "site.assets and site.description are required for the website");
         }
-        if (!nonempty(config.pdf?.title) || !nonempty(config.pdf?.document)) {
-            add(names[0], "pdf.title and pdf.document are required for the book");
-        } else if (!fs.existsSync(path.join(root, config.pdf.document))) {
-            add(config.pdf.document, "the book document tree is missing");
+        const books = config.pdf?.books;
+        if (!Array.isArray(books) || books.length === 0) {
+            add(names[0], "pdf.books is required for the book");
+        } else {
+            books.forEach((book, i) => {
+                for (const [keyPath, file, what] of [
+                    [["document"], book?.document, "document tree"],
+                    [["coverImage"], book?.coverImage, "cover image"],
+                    ...(Array.isArray(book?.front) ?
+                        book.front.map((entry, j) => [["front", j], entry, "front-matter file"])
+                    :   []),
+                ]) {
+                    if (nonempty(file) && !fs.existsSync(path.join(root, file))) {
+                        findings.push({
+                            file: names[0],
+                            ...positionOfYamlPath(configSource, ["pdf", "books", i, ...keyPath], {
+                                key: true,
+                            }),
+                            message: `book \`${book.id}\`: the ${what} \`${file}\` does not exist`,
+                        });
+                    }
+                }
+            });
         }
         if (config.packageKind !== "documentation") {
             if (!nonempty(config.packageBuild?.manifest?.title)) {

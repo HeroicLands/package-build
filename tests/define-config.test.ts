@@ -175,7 +175,7 @@ describe("defineConfig", () => {
     });
 });
 
-describe("defineConfig — homepage and author", () => {
+describe("defineConfig — homepage and authors", () => {
     it("is null for both when a package declares neither", () => {
         const config = defineConfig(minimal());
 
@@ -192,11 +192,19 @@ describe("defineConfig — homepage and author", () => {
         expect(config.homepage).toBe("https://www.heroiclands.org/sohl/");
     });
 
-    // npm's own two forms, both normalising to the object shape.
-    it("normalises author's string form", () => {
+    it("derives the byline from the first of `authors`, in npm's shape", () => {
         const config = defineConfig({
             ...minimal(),
-            author: "Toasty <toasty@heroiclands.org> (https://heroiclands.org)",
+            authors: [
+                {
+                    name: "Toasty",
+                    email: "toasty@heroiclands.org",
+                    url: "https://heroiclands.org",
+                    discord: "toasty",
+                    role: "author",
+                },
+                { name: "Second" },
+            ],
         } as ContentBuildConfigInput);
 
         expect(config.author).toEqual({
@@ -206,43 +214,31 @@ describe("defineConfig — homepage and author", () => {
         });
     });
 
-    it("normalises author's string form with no email or url", () => {
-        const config = defineConfig({
-            ...minimal(),
-            author: "Toasty",
-        } as ContentBuildConfigInput);
-
-        expect(config.author).toEqual({ name: "Toasty" });
-    });
-
-    it("normalises author's object form", () => {
-        const config = defineConfig({
-            ...minimal(),
-            author: { name: "Toasty", email: "toasty@heroiclands.org" },
-        } as ContentBuildConfigInput);
-
-        expect(config.author).toEqual({
-            name: "Toasty",
-            email: "toasty@heroiclands.org",
-        });
-    });
-
-    it("refuses an author object with an unrecognised key", () => {
+    it("refuses an `author` key, which `authors` replaces as the one list", () => {
         expect(() =>
             defineConfig({
                 ...minimal(),
-                author: { name: "Toasty", handle: "@toasty" },
+                author: "Toasty",
             } as unknown as ContentBuildConfigInput),
-        ).toThrow(/author\.handle/);
+        ).toThrow(/`author` is not a recognized option/);
+    });
+
+    it("refuses an author with an unrecognised key", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                authors: [{ name: "Toasty", handle: "@toasty" }],
+            } as unknown as ContentBuildConfigInput),
+        ).toThrow(/authors\[0\]\.handle/);
     });
 
     it("refuses an author with no name", () => {
         expect(() =>
             defineConfig({
                 ...minimal(),
-                author: { email: "toasty@heroiclands.org" },
+                authors: [{ email: "toasty@heroiclands.org" }],
             } as unknown as ContentBuildConfigInput),
-        ).toThrow(/author\.name/);
+        ).toThrow(/authors\[0\]\.name/);
     });
 });
 

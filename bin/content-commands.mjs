@@ -47,6 +47,7 @@ import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs
 import { compilesFoundryDocuments, publishesContentPages } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { buildPdf } from "../engine/pdf-build.mjs";
+import { summaryLines } from "../engine/pdf-coverage.mjs";
 import {
     fetchAllCatalogs,
     fetchCatalogFromPath,
@@ -1690,9 +1691,10 @@ function contentIndexCommand() {
 }
 
 /**
- * `package-build pdf` — build the book the content tree publishes as.
+ * `package-build pdf` — build the books the content tree publishes as.
  *
- * The third surface, beside `package compile` and `site`. It takes the same
+ * The third surface, beside `package compile` and `site`. It builds every book
+ * `pdf.books` declares, or the one `--book <id>` names, and takes the same
  * `--out` override the site command does, and reports what it found in the same
  * `file:line:column: severity: message` shape every other pass here uses — so
  * one editor, one CI annotator and one `grep` read all three.
@@ -1707,11 +1709,15 @@ function contentIndexCommand() {
 function pdfCommand() {
     return {
         command: "pdf",
-        describe: "Build the content tree as a PDF",
+        describe: "Build the content tree as one PDF per declared book",
         builder: (yargs) => {
             yargs
+                .option("book", {
+                    describe: "Build only the book with this `id`. Every declared book by default.",
+                    type: "string",
+                })
                 .option("out", {
-                    describe: "Write the book here instead of the configured `pdf.out`.",
+                    describe: "Write the books here instead of the configured `pdf.out`.",
                     type: "string",
                 })
                 .option("book-version", {
@@ -1730,6 +1736,7 @@ function pdfCommand() {
         handler: async (argv) => {
             try {
                 const result = await buildPdf({
+                    ...(argv.book !== undefined ? { book: String(argv.book) } : {}),
                     ...(argv.out ? { out: argv.out } : {}),
                     ...(argv.bookVersion ? { version: String(argv.bookVersion) } : {}),
                     compile: argv.compile !== false,
@@ -1746,28 +1753,30 @@ function pdfCommand() {
                     log.info(`${report.file}: ${report.message}`);
                 }
 
-                if (!result.built) {
-                    // A reason is a deliberate no-op — the fence, an absent
-                    // block, an absent tree. No reason means the findings above
-                    // say what went wrong, and those decide the exit code.
-                    if (result.reason) {
-                        log.info(`No book built: ${result.reason}`);
-                        return;
-                    }
-                    process.exitCode = 1;
+                // A reason is a deliberate no-op — the fence, an absent block,
+                // an absent tree. No reason means the findings above say what
+                // went wrong, and those decide the exit code.
+                if (result.reason) {
+                    log.info(`No book built: ${result.reason}`);
                     return;
                 }
 
-                const { stats } = result;
-                log.info(
-                    `${stats.notes} entr(ies) and ${stats.prose} prose file(s) across ` +
-                        `${stats.sections} section(s)` +
-                        (stats.repeated ?
-                            `, ${stats.repeated} of them printed more than once`
-                        :   ""),
-                );
-                log.info(`Typst source: ${result.typ}`);
-                if (result.pdf) log.info(`Book: ${result.pdf}`);
+                for (const book of result.books) {
+                    const { stats } = book;
+                    log.info(
+                        `${book.id}: ${stats.notes} entr(ies) and ${stats.prose} prose ` +
+                            `file(s) across ${stats.sections} section(s)` +
+                            (stats.repeated ?
+                                `, ${stats.repeated} of them printed more than once`
+                            :   ""),
+                    );
+                    log.info(`${book.id}: Typst source: ${book.typ}`);
+                    if (book.pdf) log.info(`${book.id}: Book: ${book.pdf}`);
+                }
+                if (result.summary) {
+                    for (const line of summaryLines(result.summary)) log.info(line);
+                }
+                if (!result.built) process.exitCode = 1;
                 if (errors) process.exitCode = 1;
             } catch (err) {
                 reportFailure(err);

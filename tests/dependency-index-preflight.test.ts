@@ -36,7 +36,7 @@ relationships:
 packs:
   - { name: items, type: Item }
 publish: {}
-pdf: { title: Demo, document: book.yaml }
+pdf: { books: [{ id: core, title: Demo, document: book.yaml }] }
 `,
     );
     fs.mkdirSync(path.join(root, "assets/content"), { recursive: true });
@@ -113,7 +113,10 @@ describe("dependency index preflight", () => {
                     configPath,
                     fs
                         .readFileSync(configPath, "utf8")
-                        .replace("pdf: { title: Demo, document: book.yaml }", ""),
+                        .replace(
+                            "pdf: { books: [{ id: core, title: Demo, document: book.yaml }] }",
+                            "",
+                        ),
                 );
                 expect(run(root, ["pdf"]).output).not.toContain(
                     "content index has not been fetched",

@@ -292,7 +292,9 @@ describe("the command's real surface, extracted from source", () => {
     it(
         "shows PDF options in command help",
         () => {
-            expect(commandHelp("pdf")).toContain("--book-version");
+            const help = commandHelp("pdf");
+            expect(help).toContain("--book-version");
+            expect(help).toMatch(/--book\s/);
         },
         SUBPROCESS_TEST_TIMEOUT,
     );

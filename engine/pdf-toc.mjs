@@ -22,9 +22,10 @@
  *
  * Three consequences follow, and they are behaviour rather than oversights:
  *
- * - **A note no clause selects is not in the book.** A project decides what its
- *   own volume carries, so an omission is an editorial act and this pass has no
- *   standing to call it a defect.
+ * - **A note no clause selects is not in the book.** This pass has no standing
+ *   to call that a defect: whether a note belongs in some other book of the
+ *   package is a question about every book at once, which the coverage report
+ *   ({@link module:engine/pdf-coverage}) answers.
  * - **A note several clauses select appears several times.** A reference work
  *   may legitimately carry an entry under more than one heading, so each
  *   occurrence is its own page, its own outline node and its own anchor — and
@@ -169,20 +170,25 @@ const QUALIFIED_TABLE = /\bfrom\s+["'`]?[A-Za-z_][\w-]*["'`]?\s*\./i;
  * @param {object} [opts] - Options.
  * @param {string} [opts.text] - The file's source, for finding positions. Every
  *   finding without one is still reported, just without a locator.
+ * @param {Array<string|number>} [opts.at] - Where `raw` sits in `text`: `[]`
+ *   for a tree file, `["pdf", "books", i]` for a tree written inline in the
+ *   configuration. Every key path — and so every position, here and in
+ *   {@link runTreeFilters} — starts with it.
  * @returns {{nodes: object[], findings: object[]}} The flattened tree and what
  *   was wrong with it.
  */
-export function parseDocumentTree(raw, { text } = {}) {
+export function parseDocumentTree(raw, { text, at = [] } = {}) {
     const findings = [];
     const nodes = [];
     if (!raw || typeof raw !== "object" || !Array.isArray(raw.contents)) {
         findings.push({
             severity: "error",
             message: "the document tree must be a mapping with a `contents:` list",
+            ...(at.length ? position(text, at) : {}),
         });
         return { nodes, findings };
     }
-    walkSections(raw.contents, ["contents"], [], {}, { nodes, findings, text });
+    walkSections(raw.contents, [...at, "contents"], [], {}, { nodes, findings, text });
     return { nodes, findings };
 }
 
@@ -199,9 +205,11 @@ export function parseDocumentTree(raw, { text } = {}) {
  * @param {string[]} trail - Section titles above this level.
  * @param {object} inherited - Presentation from ancestors.
  * @param {object} ctx - `{ nodes, findings, text }`, accumulated.
+ * @param {Array<string|number>} [inheritedPageAt] - Where the `page:` mapping
+ *   the ancestors left in force is declared, when one is.
  * @returns {void}
  */
-function walkSections(contents, keyPath, trail, inherited, ctx) {
+function walkSections(contents, keyPath, trail, inherited, ctx, inheritedPageAt) {
     contents.forEach((entry, i) => {
         const at = [...keyPath, i];
         if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
@@ -241,6 +249,9 @@ function walkSections(contents, keyPath, trail, inherited, ctx) {
         for (const key of PRESENTATION_KEYS) {
             if (entry[key] !== undefined) presentation[key] = entry[key];
         }
+        // A section's own `page:` replaces the inherited one whole, so the
+        // mapping in force is declared on the nearest section that wrote one.
+        const pageAt = entry.page !== undefined ? [...at, "page"] : inheritedPageAt;
 
         const here = [...trail, title];
         const list = Array.isArray(entry.contents) ? entry.contents : [];
@@ -256,10 +267,11 @@ function walkSections(contents, keyPath, trail, inherited, ctx) {
             depth: here.length,
             keyPath: at,
             presentation,
+            pageAt,
             items: collectItems(list, [...at, "contents"], here, ctx),
         });
 
-        walkSections(list, [...at, "contents"], here, presentation, ctx);
+        walkSections(list, [...at, "contents"], here, presentation, ctx, pageAt);
     });
 }
 
@@ -357,14 +369,10 @@ function finding(ctx, keyPath, message, opts) {
  * something that is not a note, and unable to pick up the `doc<type>`
  * documentation rows that ride the same index as the notes they document.
  *
- * **A filter that selects nothing is an error**, and the distinction that makes
- * that consistent is worth stating. A *note* no clause selects is expected: the
- * book is a selection and a project decides what its own volume carries. A
- * *clause* that selects no note is not the same thing — a filter is a deliberate
- * act, so one matching nothing is either wrong or left over from a structure
- * that has moved on, and in both cases the tree should not carry it. Reported
- * with the section's name and the filter's position, so the choice between
- * fixing it and deleting it is the author's.
+ * **A filter that selects nothing is not a finding.** A section whose clauses
+ * select nothing is left out of the plan, and a book whose clauses select
+ * nothing at all is refused by the build. Notes that a mistyped clause fails to
+ * take are reported by the coverage check, which names each one.
  *
  * @param {object[]} nodes - From {@link parseDocumentTree}.
  * @param {{query: (sql: string) => Promise<{rows: object[]}>}} db - An open
@@ -383,18 +391,7 @@ export async function runTreeFilters(nodes, db, { keep = () => true, text } = {}
             const where = `\`${node.trail.join(" › ")}\``;
             try {
                 const { rows } = await db.query(`SELECT * FROM notes WHERE ${item.where}`);
-                const kept = rows.filter(keep);
-                selections.set(item.id, kept);
-                if (!kept.length) {
-                    findings.push({
-                        severity: "error",
-                        message:
-                            `${where}: the filter selected no notes — ` +
-                            `\`${item.where}\` matches nothing in this project, so ` +
-                            `either it is wrong or the section should not be here`,
-                        ...position(text, [...item.keyPath, "filter"]),
-                    });
-                }
+                selections.set(item.id, rows.filter(keep));
             } catch (err) {
                 findings.push({
                     severity: "error",
@@ -426,11 +423,8 @@ export async function runTreeFilters(nodes, db, { keep = () => true, text } = {}
  *
  * **A section with nothing in it does not print**, and emptiness is judged after
  * its descendants are: a section holding only sections that all resolved to
- * nothing is itself empty. In a correct tree this never fires — a filter that
- * selects nothing is reported by {@link runTreeFilters} as the error it is — so
- * this is the graceful half of that failure rather than a feature: a build whose
- * filters are broken still produces a readable document to look at while they
- * are fixed. A section holding only prose is not empty; it is a preface.
+ * nothing is itself empty. The omission is silent. A section holding only prose
+ * is not empty; it is a preface.
  *
  * @param {object[]} nodes - From {@link parseDocumentTree}.
  * @param {object} [opts] - Options.
@@ -502,6 +496,7 @@ function emitSection(node, nodes, ctx) {
         trail: node.trail,
         depth: node.depth,
         presentation: node.presentation,
+        pageAt: node.pageAt,
         anchor: anchorFor(slugify(node.trail.join(" ")) || "section", ctx.seen),
     });
 
@@ -521,6 +516,7 @@ function emitSection(node, nodes, ctx) {
                 trail: node.trail,
                 depth: node.depth,
                 presentation: node.presentation,
+                pageAt: node.pageAt,
                 anchor: anchorFor(slugify(item.file.replace(/\.md$/i, "")) || "prose", ctx.seen),
             });
             contributed++;
@@ -542,6 +538,7 @@ function emitSection(node, nodes, ctx) {
                 trail: node.trail,
                 depth: node.depth,
                 presentation: node.presentation,
+                pageAt: node.pageAt,
                 anchor,
             });
             contributed++;

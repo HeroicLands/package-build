@@ -582,6 +582,18 @@ export function publishesContentPages(config) {
  */
 
 /**
+ * One person in the top-level `authors` list.
+ *
+ * @typedef {object} AuthorSpec
+ * @property {string} name       As printed.
+ * @property {string} [email]
+ * @property {string} [url]
+ * @property {string} [discord]  A Discord handle, as Foundry's author schema
+ *                               carries one.
+ * @property {string} [role]     One of {@link AUTHOR_ROLES}.
+ */
+
+/**
  * The configuration a consumer writes.
  *
  * @typedef {object} ContentBuildConfigInput
@@ -601,9 +613,10 @@ export function publishesContentPages(config) {
  *                                          the site build's `baseURL`. Checked
  *                                          by `checkHomepage` in
  *                                          `config.mjs`.
- * @property {string|{name: string, email?: string, url?: string}} [author]
- *                                          `package.json`'s own `author`, in
- *                                          either of npm's forms.
+ * @property {AuthorSpec[]} [authors]       The people who made the
+ *                                          package. The Foundry manifest's
+ *                                          `authors` and the site's byline
+ *                                          are generated from it.
  * @property {PackageKind} packageKind      Whether the package is a system, a
  *                                          module, or documentation — the kind
  *                                          that publishes a site and a book
@@ -669,10 +682,13 @@ export function publishesContentPages(config) {
  * @property {string|null} homepage    `package.json`'s own `homepage`,
  *                                     checked by `checkHomepage` in
  *                                     `config.mjs`.
+ * @property {readonly Readonly<AuthorSpec>[]} authors  The people who made
+ *                                     the package, in the order declared; `[]`
+ *                                     when none are.
  * @property {Readonly<{name: string, email?: string, url?: string}>|null} author
- *                                     `package.json`'s own `author`, normalised
- *                                     from either of npm's forms; `null` when
- *                                     the package declares none.
+ *                                     Derived: the first of `authors`, in npm's
+ *                                     `author` shape — the site's byline.
+ *                                     `null` when no author is declared.
  * @property {PackageKind} packageKind
  * @property {string|null} assetRoot   Derived, and **conditional**: the served
  *                                     Foundry asset root,
@@ -744,7 +760,7 @@ const CONFIG_KEYS = [
     "contentPackage",
     "foundryPackage",
     "homepage",
-    "author",
+    "authors",
     "packageKind",
     "stats",
     "itemBuilders",
@@ -783,7 +799,41 @@ const SITE_KEYS = [
 ];
 const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
 const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
-const PDF_KEYS = ["title", "subtitle", "document", "out", "front", "fonts", "iconFonts", "binary"];
+const PDF_KEYS = [
+    "books",
+    "out",
+    "fonts",
+    "iconFonts",
+    "binary",
+    "unprinted",
+    "coverage",
+    "copyright",
+    "license",
+];
+const PDF_BOOK_KEYS = [
+    "id",
+    "title",
+    "subtitle",
+    "coverImage",
+    "front",
+    "out",
+    "contents",
+    "document",
+];
+/**
+ * How a printable note no book selects is reported: `pdf.coverage`.
+ *
+ * @type {readonly string[]}
+ */
+const PDF_COVERAGE = Object.freeze(["warning", "error", "off"]);
+/**
+ * What a book `id` may be. It is written on the command line as `--book <id>`
+ * and is the tail of the book's default file stem, so it takes the charset a
+ * file name and an address segment share.
+ */
+const PDF_BOOK_ID = /^[a-z0-9][a-z0-9-]*$/;
+/** What a book's file stem may be: one path segment, no directory. */
+const PDF_BOOK_STEM = /^[\w.-]+$/;
 const PDF_FONT_KEYS = ["serif", "sans", "mono", "path"];
 const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" });
 const DOC_PAGE_KEYS = ["title", "out", "preamble", "frontmatter"];
@@ -808,7 +858,28 @@ export const RELATIONSHIP_KEYS = [
     "contentIndex",
     "assetReplacement",
 ];
-const AUTHOR_KEYS = ["name", "email", "url"];
+const AUTHOR_KEYS = ["name", "email", "url", "discord", "role"];
+/**
+ * The closed list a person's `role` in `authors` is drawn from.
+ *
+ * One role per entry: a person with two roles is listed twice. Printed in
+ * title case after the name on a book's title page; the Foundry manifest,
+ * whose author schema has no role, never receives it.
+ *
+ * @type {readonly string[]}
+ */
+export const AUTHOR_ROLES = Object.freeze([
+    "author",
+    "designer",
+    "developer",
+    "editor",
+    "proofreader",
+    "artist",
+    "cartographer",
+    "layout",
+    "playtester",
+    "translator",
+]);
 const ITEM_BUILDER_KEYS = ["system", "img", "fields"];
 const ITEM_REGISTRY_KEYS = ["system", "builders"];
 const PACK_KEYS = [
@@ -1029,52 +1100,60 @@ function optionalString(value, field) {
 }
 
 /**
- * npm's `author` field, in either of its two forms.
+ * The people who made the package: the top-level `authors` list.
  *
- * `package.json` accepts a single string — `"Name <email> (url)"`, with the
- * email and the URL both optional — or an object carrying the same three
- * parts. Both normalise to one shape, so the site build reads one field
- * instead of branching on which form a repository happened to write.
+ * The one place a package names its people. The Foundry manifest's `authors`
+ * is generated from it with `role` dropped, because Foundry's author schema
+ * has none; the byline the site build reads is its first entry's name, email
+ * and URL. Each entry is `{name, email?, url?, discord?, role?}`, and `role`
+ * is drawn from {@link AUTHOR_ROLES}.
  *
- * @type {RegExp}
+ * @param {unknown} value - The declared `authors`, or `undefined`.
+ * @returns {readonly Readonly<AuthorSpec>[]} The entries, frozen; `[]` when
+ *   none are declared.
  */
-const AUTHOR_STRING = /^([^<(]*?)\s*(?:<([^>]*)>)?\s*(?:\(([^)]*)\))?\s*$/;
+function normalizeAuthors(value) {
+    if (value === undefined) return Object.freeze([]);
+    if (!Array.isArray(value)) {
+        fail("authors", "must be a list of people, each a mapping with at least a `name`");
+    }
+    return Object.freeze(
+        value.map((entry, i) => {
+            const where = `authors[${i}]`;
+            if (!isPlainObject(entry)) fail(where, "must be a mapping with at least a `name`");
+            const person = /** @type {Record<string, unknown>} */ (entry);
+            rejectUnknownKeys(person, AUTHOR_KEYS, `${where}.`);
+            const out = { name: requireNonEmptyString(person.name, `${where}.name`) };
+            for (const key of ["email", "url", "discord"]) {
+                if (person[key] !== undefined) {
+                    out[key] = requireNonEmptyString(person[key], `${where}.${key}`);
+                }
+            }
+            if (person.role !== undefined) {
+                if (typeof person.role !== "string" || !AUTHOR_ROLES.includes(person.role)) {
+                    fail(`${where}.role`, `must be one of: ${AUTHOR_ROLES.join(", ")}`);
+                }
+                out.role = person.role;
+            }
+            return Object.freeze(out);
+        }),
+    );
+}
 
 /**
- * @param {unknown} value - The declared `author`, or `undefined`.
- * @returns {Readonly<{name: string, email?: string, url?: string}>|null}
- *   `null` when the package declares none.
+ * The package's byline: the first of `authors`, as npm's `author` shape.
+ *
+ * @param {readonly Readonly<AuthorSpec>[]} authors - From {@link normalizeAuthors}.
+ * @returns {Readonly<{name: string, email?: string, url?: string}>|null} `null`
+ *   when no author is declared.
  */
-function normalizeAuthor(value) {
-    if (value === undefined) return null;
-    if (typeof value === "string") {
-        const match = AUTHOR_STRING.exec(value.trim());
-        const name = match?.[1]?.trim();
-        if (!match || !name) {
-            fail(
-                "author",
-                'must be `"Name"`, `"Name <email>"`, `"Name (url)"` or ' +
-                    '`"Name <email> (url)"` — npm\'s own `author` forms',
-            );
-        }
-        return Object.freeze({
-            name: /** @type {string} */ (name),
-            ...(match[2] ? { email: match[2] } : {}),
-            ...(match[3] ? { url: match[3] } : {}),
-        });
-    }
-    if (!isPlainObject(value)) {
-        fail("author", "must be a string or an object with `name`, `email` and `url`");
-    }
-    const author = /** @type {Record<string, unknown>} */ (value);
-    rejectUnknownKeys(author, AUTHOR_KEYS, "author.");
-    const name = requireNonEmptyString(author.name, "author.name");
+function bylineOf(authors) {
+    const [first] = authors;
+    if (!first) return null;
     return Object.freeze({
-        name,
-        ...(author.email !== undefined ?
-            { email: optionalString(author.email, "author.email") }
-        :   {}),
-        ...(author.url !== undefined ? { url: optionalString(author.url, "author.url") } : {}),
+        name: first.name,
+        ...(first.email !== undefined ? { email: first.email } : {}),
+        ...(first.url !== undefined ? { url: first.url } : {}),
     });
 }
 
@@ -1609,7 +1688,7 @@ export const DERIVED_HUGO_KEYS = Object.freeze({
         "the toolchain, which renders a site as its homepage and its pages: no " +
         "output format is declared, because every listing kind is disabled",
     "params.description": "`site.description`",
-    "params.author": "package.json `author`",
+    "params.author": "the first entry of `authors`",
     "params.cdnBaseURL": "`site.assets`",
     "params.brand": "the organisation's brand links, in `engine/site-config.mjs`",
     "params.notfound": "`site.notfound`",
@@ -1833,46 +1912,65 @@ function normalizeSite(value) {
 }
 
 /**
- * The `pdf` section — the book the content tree is published as.
+ * One declared book, resolved.
+ *
+ * @typedef {object} ResolvedPdfBook
+ * @property {string} id          Its name on the command line, `--book <id>`.
+ * @property {string} title
+ * @property {string} subtitle    `""` when none is declared.
+ * @property {string} coverImage  Absolute; `""` when none is declared.
+ *                                Whether the file exists is checked when the
+ *                                book is built, not here.
+ * @property {readonly string[]} front  Absolute paths of the front matter.
+ * @property {string} out         The file stem; the version is appended.
+ * @property {readonly object[]|null} contents  The tree written inline, or
+ *                                `null` when `document` names a file.
+ * @property {string} document    Absolute path of the tree's file, or `""`
+ *                                when the tree is written inline.
+ */
+
+/**
+ * The `pdf` section — the books the content tree is published as.
  *
  * A third surface beside the packs and the website, and the one that is a
- * **selection** rather than a rendering of everything: `document:` names the
- * tree that says which notes the volume carries and in what order, because a
- * book is an editorial act where a site is an index. That file is the
- * consumer's, parsed by {@link module:engine/pdf-toc.parseDocumentTree}, and
- * nothing about its shape is validated here — this block says only where it is.
+ * **selection** rather than a rendering of everything: each book's tree says
+ * which notes the volume carries and in what order, because a book is an
+ * editorial act where a site is an index. A tree is written inline as
+ * `contents:` or kept in the file `document:` names, and is parsed by
+ * {@link module:engine/pdf-toc.parseDocumentTree} when the book is built;
+ * nothing about its shape is validated here.
  *
- * **Nothing here is an address or a brand.** The title, the subtitle, the front
- * matter and the faces are every one of them the publishing repository's to
- * choose, which is the whole reason they are configuration: the engine that
- * sets the book must be able to set somebody else's book.
+ * `books` is the one required key. The rest of the block — faces, icon fonts,
+ * the compiler, the output directory, what no book prints, how an unprinted
+ * note is reported, and the copyright and licence statements — is shared by
+ * every book. Each book's `out` is a file stem (default
+ * `<contentPackage>-<id>`), and two books resolving to one stem is refused,
+ * since the second would overwrite the first.
+ *
+ * Paths resolve against `rootDir` here; whether `coverImage`, `document` and
+ * each `front` file exist is checked when a book is built, so a command that
+ * builds no book never fails for a missing cover.
+ *
+ * **Nothing here is an address or a brand.** The titles, the front matter and
+ * the faces are every one of them the publishing repository's to choose, which
+ * is the whole reason they are configuration: the engine that sets the book
+ * must be able to set somebody else's book.
  *
  * A PDF is built when the authored tree contains content pages and the `pdf`
- * block names a document tree. See {@link publishesContentPages}.
+ * block is present. See {@link publishesContentPages}.
  *
  * @param {unknown} value - The `pdf` block, or `undefined`.
  * @param {string} rootDir - The repository root configured paths resolve against.
+ * @param {string} contentPackage - The package name a default stem starts with.
  * @returns {Readonly<object>|null} It, frozen; `null` when the block is absent.
  */
-function normalizePdf(value, rootDir) {
+function normalizePdf(value, rootDir, contentPackage) {
     if (value === undefined) return null;
     if (!isPlainObject(value)) fail("pdf", "must be a mapping");
     const input = /** @type {Record<string, unknown>} */ (value);
     rejectUnknownKeys(input, PDF_KEYS, "pdf.");
 
-    // Both required, and required together: a document with no tree has nothing
-    // to print, and a tree with no title produces a file whose name and cover
-    // say nothing about what a reader downloaded.
-    const title = requireNonEmptyString(input.title, "pdf.title");
-    const document = requireNonEmptyString(input.document, "pdf.document");
-
-    const front = [];
-    if (input.front !== undefined) {
-        if (!Array.isArray(input.front)) fail("pdf.front", "must be a list of markdown files");
-        input.front.forEach((entry, i) => {
-            front.push(requireNonEmptyString(entry, `pdf.front[${i}]`));
-        });
-    }
+    const books = normalizePdfBooks(input.books, rootDir, contentPackage);
 
     let fonts = EMPTY_PDF_FONTS;
     if (input.fonts !== undefined) {
@@ -1919,15 +2017,21 @@ function normalizePdf(value, rootDir) {
         }
     }
 
+    const coverage = input.coverage === undefined ? "warning" : input.coverage;
+    if (typeof coverage !== "string" || !PDF_COVERAGE.includes(coverage)) {
+        fail("pdf.coverage", `must be one of: ${PDF_COVERAGE.join(", ")}`);
+    }
+    const copyright =
+        input.copyright === undefined ?
+            ""
+        :   requireNonEmptyString(input.copyright, "pdf.copyright");
+    if (/[\r\n]/.test(copyright.trim())) {
+        fail("pdf.copyright", "must be one line — the licence statement is the one that runs on");
+    }
+
     return Object.freeze({
-        title,
-        subtitle:
-            input.subtitle === undefined ?
-                ""
-            :   requireNonEmptyString(input.subtitle, "pdf.subtitle"),
-        document: path.resolve(rootDir, document),
+        books,
         out: input.out === undefined ? "" : requireNonEmptyString(input.out, "pdf.out"),
-        front: Object.freeze(front.map((f) => path.resolve(rootDir, f))),
         fonts,
         iconFonts: Object.freeze(iconFonts),
         // Where the Typst binary is, when it is not simply `typst` on PATH.
@@ -1935,7 +2039,137 @@ function normalizePdf(value, rootDir) {
         // platform-specific binary in the dependency tree of three repositories
         // that mostly do not build books.
         binary: input.binary === undefined ? "" : requireNonEmptyString(input.binary, "pdf.binary"),
+        // A `WHERE` clause over `notes` naming what belongs in no book.
+        unprinted:
+            input.unprinted === undefined ?
+                ""
+            :   requireNonEmptyString(input.unprinted, "pdf.unprinted"),
+        coverage,
+        copyright: copyright.trim(),
+        license:
+            input.license === undefined ?
+                ""
+            :   requireNonEmptyString(input.license, "pdf.license").trim(),
     });
+}
+
+/**
+ * The `pdf.books` list, each entry resolved.
+ *
+ * @param {unknown} value - The declared `books`.
+ * @param {string} rootDir - What a path resolves against.
+ * @param {string} contentPackage - The head of a default file stem.
+ * @returns {readonly Readonly<ResolvedPdfBook>[]} The books, frozen.
+ */
+function normalizePdfBooks(value, rootDir, contentPackage) {
+    if (value === undefined) {
+        fail("pdf.books", "is required — list the books this package publishes, one entry each");
+    }
+    if (!Array.isArray(value) || value.length === 0) {
+        fail("pdf.books", "must be a non-empty list of books");
+    }
+    const ids = new Set();
+    /** @type {Map<string, number>} Stem → the book that took it. */
+    const stems = new Map();
+    return Object.freeze(
+        value.map((entry, i) => {
+            const where = `pdf.books[${i}]`;
+            if (!isPlainObject(entry)) fail(where, "must be a mapping");
+            const book = /** @type {Record<string, unknown>} */ (entry);
+            rejectUnknownKeys(book, PDF_BOOK_KEYS, `${where}.`);
+
+            const id = requireNonEmptyString(book.id, `${where}.id`);
+            if (!PDF_BOOK_ID.test(id)) {
+                fail(
+                    `${where}.id`,
+                    `is \`${id}\`, which is not lowercase letters, digits and hyphens ` +
+                        `starting with a letter or digit (${PDF_BOOK_ID.source}) — it is ` +
+                        "written as `--book <id>` and ends the book's default file name",
+                );
+            }
+            if (ids.has(id)) fail(`${where}.id`, `is \`${id}\`, which names a book more than once`);
+            ids.add(id);
+            const title = requireNonEmptyString(book.title, `${where}.title`);
+
+            // One tree, from exactly one place: two would leave the reader to
+            // guess which is printed, and none prints nothing.
+            if ((book.contents === undefined) === (book.document === undefined)) {
+                fail(
+                    where,
+                    "must declare exactly one of `contents` and `document` — the tree " +
+                        "written inline, or the file holding it",
+                );
+            }
+            let contents = null;
+            if (book.contents !== undefined) {
+                if (!Array.isArray(book.contents)) {
+                    fail(`${where}.contents`, "must be a list of sections");
+                }
+                contents = Object.freeze(structuredClone(book.contents));
+            }
+
+            const front = [];
+            if (book.front !== undefined) {
+                if (!Array.isArray(book.front)) {
+                    fail(`${where}.front`, "must be a list of markdown files");
+                }
+                book.front.forEach((file, j) => {
+                    front.push(
+                        path.resolve(rootDir, requireNonEmptyString(file, `${where}.front[${j}]`)),
+                    );
+                });
+            }
+
+            let out = `${contentPackage}-${id}`;
+            let stemAt = `${where}.id`;
+            if (book.out !== undefined) {
+                out = requireNonEmptyString(book.out, `${where}.out`);
+                stemAt = `${where}.out`;
+                if (!PDF_BOOK_STEM.test(out)) {
+                    fail(
+                        `${where}.out`,
+                        `is \`${out}\`, which is not a file stem — letters, digits, ` +
+                            "`.`, `_` and `-`, with no directory; the directory is `pdf.out`",
+                    );
+                }
+            }
+            const taken = stems.get(out);
+            if (taken !== undefined) {
+                fail(
+                    stemAt,
+                    `gives the file stem \`${out}\`, which \`pdf.books[${taken}]\` already ` +
+                        "uses — the second book would overwrite the first",
+                );
+            }
+            stems.set(out, i);
+
+            return Object.freeze({
+                id,
+                title,
+                subtitle:
+                    book.subtitle === undefined ?
+                        ""
+                    :   requireNonEmptyString(book.subtitle, `${where}.subtitle`),
+                coverImage:
+                    book.coverImage === undefined ?
+                        ""
+                    :   path.resolve(
+                            rootDir,
+                            requireNonEmptyString(book.coverImage, `${where}.coverImage`),
+                        ),
+                front: Object.freeze(front),
+                out,
+                contents,
+                document:
+                    book.document === undefined ?
+                        ""
+                    :   path.resolve(
+                            rootDir,
+                            requireNonEmptyString(book.document, `${where}.document`),
+                        ),
+            });
+        }),
+    );
 }
 
 /**
@@ -2799,6 +3033,7 @@ export function defineConfig(config) {
         new Set([...itemTypes, ...ACTOR_TYPES, "macro", ...MAP_TYPES]),
     );
     const compatibility = normalizeCompatibility(input.compatibility, "compatibility");
+    const authors = normalizeAuthors(input.authors);
     if (!documentation && compatibility === null)
         fail("compatibility.minimum", "is required for a Foundry package");
 
@@ -2813,7 +3048,8 @@ export function defineConfig(config) {
         // `checkHomepage` in `config.mjs`.
         homepage:
             input.homepage === undefined ? null : requireNonEmptyString(input.homepage, "homepage"),
-        author: normalizeAuthor(input.author),
+        authors,
+        author: bylineOf(authors),
         packageKind: /** @type {PackageKind} */ (packageKind),
         // Foundry serves a package's files from `<kind>/<id>/`, so this is the
         // one place `systems/sohl` (or `modules/harn-ensemble`) is spelled.
@@ -2883,7 +3119,9 @@ export function defineConfig(config) {
         packDirectories: Object.freeze(packDirectories),
         docs: normalizeDocs(input.docs),
         site: normalizeSite(input.site),
-        pdf: normalizePdf(input.pdf, rootDir),
+        // Validated above, in `contentPackage`: a book's default file stem is
+        // `<contentPackage>-<id>`.
+        pdf: normalizePdf(input.pdf, rootDir, /** @type {string} */ (input.contentPackage)),
         compatibility,
         relationships: normalizeRelationships(input.relationships),
         systems,

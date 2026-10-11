@@ -1606,6 +1606,27 @@ export function bookTypstPreamble() {
         '#let book-accent = rgb("#7c3b1e")',
         '#let book-head = rgb("#5e2b14")',
         '#let book-faint = rgb("#6b6357")',
+        // The cover is a page of its own: the picture fills it, cropped to fit as
+        // a section banner is, and the title and subtitle sit in white over a
+        // translucent dark band across the upper third so they read over any
+        // art. It carries no running foot or number, and counts as page 1.
+        "#let book-cover(path, title, subtitle) = page(margin: 0pt, fill: book-ink, footer: none)[\n" +
+            '  #place(top + left, image(path, width: 100%, height: 100%, fit: "cover"))\n' +
+            "  #place(top + left, rect(width: 100%, height: 33.4%, fill: rgb(10, 8, 6, 170)))\n" +
+            "  #place(top + left, block(width: 100%, height: 33.4%)[\n" +
+            "    #align(center + horizon)[\n" +
+            "      #block(width: 80%)[\n" +
+            "        #set par(justify: false, first-line-indent: 0em)\n" +
+            "        #set text(fill: white, hyphenate: false)\n" +
+            '        #text(size: 34pt, weight: "bold")[#title]\n' +
+            '        #if subtitle != "" [\n' +
+            "          #v(0.6em)\n" +
+            "          #text(size: 16pt)[#subtitle]\n" +
+            "        ]\n" +
+            "      ]\n" +
+            "    ]\n" +
+            "  ])\n" +
+            "]",
         "#let book-ornament = box(baseline: 1pt, " +
             "rotate(45deg, rect(width: 3pt, height: 3pt, fill: book-accent)))",
         "#let book-footer(name) = context {\n" +
@@ -1756,6 +1777,18 @@ export function bookTypstPreamble() {
 }
 
 /**
+ * One author as the title page prints it: `Name`, or `Name, Role` with the
+ * role in title case.
+ *
+ * @param {{name: string, role?: string}} person - An entry of `authors`.
+ * @returns {string} The line.
+ */
+function authorLine({ name, role }) {
+    if (!role) return name;
+    return `${name}, ${role.charAt(0).toUpperCase()}${role.slice(1)}`;
+}
+
+/**
  * The whole book, as one Typst document.
  *
  * **Pure, and that is the point.** The book's structural properties
@@ -1858,6 +1891,14 @@ export function bookTypstPreamble() {
  *   plate draws without a picture.
  * @param {Map<string, {path: string, title: string}>} [opts.maps] - An entry
  *   anchor to its SVG path and page heading. Each map takes a page after its entry.
+ * @param {string} [opts.coverImage] - The staged cover picture, relative to the
+ *   `.typ`. When given the book opens on a full-page cover, page 1, with the
+ *   title and subtitle over it; without one the book opens on the title page.
+ * @param {Array<{name: string, role?: string}>} [opts.authors] - Printed on the
+ *   title page one per line, as `Name` or `Name, Role`.
+ * @param {string} [opts.copyright] - The title page foot's first line.
+ * @param {string} [opts.license] - The title page foot's remaining lines; a
+ *   line break in it starts a new line.
  * @returns {string} A complete `.typ` document.
  */
 export function renderBook({
@@ -1871,6 +1912,10 @@ export function renderBook({
     preamble = "",
     banners = new Map(),
     maps = new Map(),
+    coverImage = "",
+    authors = [],
+    copyright = "",
+    license = "",
 } = {}) {
     // The two halves of one superfamily, chosen together: matched metrics are
     // most of why the sans can carry every heading over a serif body without
@@ -1930,6 +1975,14 @@ export function renderBook({
         out.push("");
     }
 
+    // The cover, when the book has one, is page 1.
+    if (coverImage) {
+        out.push(
+            `#book-cover("${escapeTypstString(coverImage)}", ` +
+                `"${escapeTypstString(title)}", "${escapeTypstString(subtitle)}")`,
+        );
+    }
+
     // Title page.
     out.push("#align(center + horizon)[");
     out.push(`  #text(size: 30pt, weight: "bold")[${escapeTypst(title)}]`);
@@ -1941,7 +1994,29 @@ export function renderBook({
         out.push("  #v(2em)");
         out.push(`  #text(size: 10pt)[${escapeTypst(version)}]`);
     }
+    if (authors.length) {
+        out.push("  #v(2.5em)");
+        out.push("  #set par(first-line-indent: 0em, justify: false)");
+        out.push(
+            "  #text(size: 12pt)[" +
+                authors.map((person) => escapeTypst(authorLine(person))).join(" \\\n  ") +
+                "]",
+        );
+    }
     out.push("]");
+    const foot = [copyright, ...String(license).split(/\r?\n/)]
+        .map((line) => line.trim())
+        .filter(Boolean);
+    if (foot.length) {
+        out.push("#place(bottom + center)[");
+        out.push("  #set par(first-line-indent: 0em, justify: false)");
+        out.push(
+            "  #block(width: 80%)[#text(size: 8.5pt, fill: book-faint)[" +
+                foot.map((line) => escapeTypst(line)).join(" \\\n  ") +
+                "]]",
+        );
+        out.push("]");
+    }
     out.push("#pagebreak()");
     out.push("");
 

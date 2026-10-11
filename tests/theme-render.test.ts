@@ -202,7 +202,7 @@ beforeAll(async () => {
         packageKind: "modules",
         compatibility: { minimum: "14.359" },
         homepage: "https://www.heroiclands.org/demo/",
-        author: { name: "Ann Author" },
+        authors: [{ name: "Ann Author" }],
         packageBuild: { manifest: { title: "The Demo" } },
         stats: { lastModifiedBy: "demobuilder0000" },
         packs: [{ name: "journals", type: "JournalEntry" }],
