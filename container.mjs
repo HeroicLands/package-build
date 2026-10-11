@@ -418,6 +418,61 @@ export function runDocker(args) {
 }
 
 /**
+ * The `docker run` argument vector for a short-lived container that runs a
+ * shell script against a stage's data root.
+ *
+ * It uses the stage's own image and mounts the data root at `/data`, so the
+ * script sees files exactly as the Foundry container does. Under rootless
+ * Docker, only the container's user namespace can unlink what the container's
+ * user wrote, and only it can hand files to that user.
+ *
+ * @param {object} opts
+ * @param {string} opts.image - Image reference.
+ * @param {string} opts.dataRoot - Host directory to mount at `/data`.
+ * @param {string} opts.script - A `sh` script; `$1`, `$2` … are `args`.
+ * @param {string[]} [opts.args] - Positional arguments for the script.
+ * @param {string|null} [opts.user] - `--user` value; `null` runs as the image's
+ *   own user.
+ * @returns {string[]} Arguments after `docker`.
+ */
+export function dataRootScriptArgs({ image, dataRoot, script, args = [], user = null }) {
+    const argv = [
+        "run",
+        "--rm",
+        "--volume",
+        `${path.resolve(dataRoot)}:/data`,
+        "--entrypoint",
+        "sh",
+    ];
+    if (user?.trim()) argv.push("--user", user.trim());
+    argv.push(image, "-c", script, "sh", ...args);
+    return argv;
+}
+
+/**
+ * Run a shell script against a stage's data root in a throwaway container.
+ *
+ * @param {object} opts - As for {@link dataRootScriptArgs}.
+ * @returns {string} The script's standard output.
+ * @throws {Error} When `docker` is missing or the script exits non-zero.
+ */
+export function runDataRootScript(opts) {
+    const result = spawnSync("docker", dataRootScriptArgs(opts), { encoding: "utf8" });
+    if (result.error?.code === "ENOENT") {
+        throw new Error(
+            "docker was not found on PATH. Install Docker and make sure the `docker` CLI is available.",
+        );
+    }
+    if (result.status !== 0) {
+        throw new Error(
+            `A helper container failed (exit ${result.status}): ` +
+                `${(result.stderr || result.stdout || "").trim()}`,
+        );
+    }
+    return result.stdout ?? "";
+}
+
+/**
  * Run the `docker` CLI and capture its output, tolerating failure.
  *
  * @param {string[]} args - Arguments after `docker`.

@@ -26,6 +26,7 @@ import {
     E2E_GM_ID,
     E2E_SCENE_ID,
     defaultSceneDocument,
+    deployForContainer,
     findExecutable,
     freshResults,
     gmDocument,
@@ -36,8 +37,10 @@ import {
     parseFastArgs,
     resolveE2EWorld,
     resolveSweepVersion,
+    seedTestWorld,
     suiteExecutables,
     suiteVerdict,
+    waitForWorld,
     worldManifest,
 } from "../e2e.mjs";
 
@@ -352,5 +355,124 @@ describe("evidence that the suite ran", () => {
         );
 
         fs.rmSync(root, { recursive: true, force: true });
+    });
+});
+
+describe("seeding a world the container's user can use", () => {
+    /** Seed into a scratch data root, recording each helper-container call. */
+    async function seed(containerUser: string | null = null) {
+        const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "pb-seed-"));
+        const calls: Record<string, unknown>[] = [];
+        const worldDir = path.join(dataRoot, "Data", "worlds", "sohl-e2e");
+        let hostWrites: string[] = [];
+        const runScript = (opts: Record<string, unknown>) => {
+            calls.push(opts);
+            if (calls.length === 2) {
+                // What the host has written by the time the world is handed
+                // over: the final world directory must still be untouched.
+                hostWrites = fs.existsSync(worldDir) ? fs.readdirSync(worldDir) : [];
+            }
+            return calls.length === 1 ? "1000:1000\n" : "";
+        };
+        await seedTestWorld({
+            config: config({
+                e2eStage: "test",
+                compatibilityMinimum: "14",
+                systemId: "sohl",
+                e2eDocuments: {},
+                containerStages: {},
+                containerImage: null,
+                containerName: null,
+                rootDir: dataRoot,
+            }),
+            packageJson: { version: "1.0.0" },
+            env: {
+                FOUNDRYVTT_TEST_DATA: dataRoot,
+                ...(containerUser ? { FOUNDRYVTT_CONTAINER_USER: containerUser } : {}),
+            },
+            runScript,
+        } as never);
+        return { dataRoot, calls, hostWrites, worldDir };
+    }
+
+    it("builds the databases outside the world and never touches the world itself", async () => {
+        // A LevelDB the host user writes carries a LOCK the container's user
+        // cannot take, so the host must not leave one in the world directory.
+        const { dataRoot, hostWrites, worldDir } = await seed();
+
+        expect(hostWrites).toEqual([]);
+        expect(fs.existsSync(worldDir)).toBe(false);
+        const locks = fs
+            .readdirSync(path.join(dataRoot, ".seed-sohl-e2e", "data", "users"))
+            .filter((name) => name === "LOCK");
+        expect(locks).toEqual(["LOCK"]);
+    });
+
+    it("replaces the old world as root, so files the container wrote do not stop it", async () => {
+        const { calls } = await seed();
+        const finish = calls[1] as { user: string; script: string; args: string[] };
+
+        expect(finish.user).toBe("0:0");
+        expect(finish.script).toContain('rm -rf "/data/Data/worlds/$1"');
+        expect(finish.script).toContain('mv "/data/$2" "/data/Data/worlds/$1"');
+        expect(finish.args).toEqual(["sohl-e2e", ".seed-sohl-e2e", "1000:1000"]);
+    });
+
+    it("hands the world to the user the container runs as", async () => {
+        const { calls } = await seed("0:0");
+        const ask = calls[0] as { user: string | null; script: string };
+        const finish = calls[1] as { script: string; args: string[] };
+
+        expect(ask.user).toBe("0:0");
+        expect(ask.script).toContain("id -u");
+        expect(finish.script).toContain('chown -R "$3" "/data/Data/worlds/$1"');
+        expect(finish.args[2]).toMatch(/^\d+:\d+$/);
+    });
+});
+
+describe("the world-activation timeout", () => {
+    it("names the stage in the log command, so it can be pasted as written", async () => {
+        await expect(
+            waitForWorld({
+                url: "http://localhost:1",
+                container: "none",
+                stage: "test",
+                timeoutMs: 0,
+            }),
+        ).rejects.toThrow("Check `package-build container test logs`.");
+    });
+});
+
+describe("deploying the package for the container's user", () => {
+    it("removes the old install and hands over the new one, as root, around the copy", async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-deploy-"));
+        const dataRoot = path.join(root, "data");
+        fs.mkdirSync(path.join(root, "build", "stage", "packs", "actors"), { recursive: true });
+        fs.writeFileSync(path.join(root, "build", "stage", "packs", "actors", "LOCK"), "");
+        const installed = path.join(dataRoot, "Data", "systems", "sohl");
+        const events: string[] = [];
+        const runScript = (opts: Record<string, unknown>) => {
+            events.push(`${String(opts.script)} | installed=${fs.existsSync(installed)}`);
+            return String(opts.script).includes("id -u") ? "1000:1000" : "";
+        };
+
+        await deployForContainer({
+            config: config({
+                e2eStage: "test",
+                stageDir: "build/stage",
+                rootDir: root,
+                compatibilityMinimum: "14",
+                containerStages: {},
+            }),
+            env: { FOUNDRYVTT_TEST_DATA: dataRoot },
+            runScript,
+        } as never);
+
+        expect(events).toEqual([
+            'rm -rf "/data/$1" | installed=false',
+            'echo "$(id -u):$(id -g)" | installed=true',
+            'chown -R "$2" "/data/$1" | installed=true',
+        ]);
+        expect(fs.existsSync(path.join(installed, "packs", "actors", "LOCK"))).toBe(true);
     });
 });

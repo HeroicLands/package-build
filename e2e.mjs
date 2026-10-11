@@ -46,13 +46,14 @@ import path from "node:path";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
 
-import { deployStage } from "./deploy.mjs";
+import { deployStage, isRemoteTarget, packageSubpath } from "./deploy.mjs";
 import {
     containerAction,
     containerExists,
     dataEnvVar,
     resolveContainer,
     resolveDataRoot,
+    runDataRootScript,
     runDocker,
     runningFoundryContainers,
 } from "./container.mjs";
@@ -365,24 +366,41 @@ export function parseFastArgs(argv, build) {
  *
  * Writes `world.json` and compiles each LevelDB collection from JSON, so the
  * result is a genuine world Foundry launches without migration or setup. The
- * world directory is wiped and rewritten each time, which is what makes a run
- * repeatable.
+ * world directory is replaced each time, which is what makes a run repeatable.
+ *
+ * The world is built in a staging directory beside the worlds, then moved into
+ * place and handed to the Foundry container's user by a throwaway container
+ * mounting the same data root. Replacing the old world happens there too. Both
+ * halves matter: a database the host user wrote cannot be locked by the
+ * container's user, and a directory the container's user wrote (such as the
+ * `lost/` folder Foundry's repair makes) cannot be unlinked by the host user.
  *
  * @param {object} opts
  * @param {object} opts.config - The resolved package-build configuration.
  * @param {object} opts.packageJson - The repository's `package.json`.
  * @param {NodeJS.ProcessEnv} [opts.env] - Environment to read.
  * @param {(message: string) => void} [opts.log] - Progress reporting.
+ * @param {(opts: object) => string} [opts.runScript] - Runs a shell script in a
+ *   throwaway container on the data root; replaceable for tests.
  * @returns {Promise<{worldDir: string, world: E2EWorld}>} Where it landed.
  */
-export async function seedTestWorld({ config, packageJson, env = process.env, log = () => {} }) {
+export async function seedTestWorld({
+    config,
+    packageJson,
+    env = process.env,
+    log = () => {},
+    runScript = runDataRootScript,
+}) {
     const stage = config.e2eStage;
     const dataRoot = requireIsolatedDataRoot(stage, env);
     const world = resolveE2EWorld(config, env);
 
     const worldDir = path.join(dataRoot, "Data", "worlds", world.worldId);
-    await fs.rm(worldDir, { recursive: true, force: true });
-    await fs.mkdir(worldDir, { recursive: true });
+    // Beside `Data/`, not inside it, so Foundry never sees a half-built world.
+    const stagingName = `.seed-${world.worldId}`;
+    const stagingDir = path.join(dataRoot, stagingName);
+    await fs.rm(stagingDir, { recursive: true, force: true });
+    await fs.mkdir(stagingDir, { recursive: true });
 
     const coreVersion = String(config.compatibilityMinimum ?? "").split(".")[0];
     if (!coreVersion) {
@@ -394,7 +412,7 @@ export async function seedTestWorld({ config, packageJson, env = process.env, lo
     }
 
     await fs.writeFile(
-        path.join(worldDir, "world.json"),
+        path.join(stagingDir, "world.json"),
         JSON.stringify(
             worldManifest({
                 ...world,
@@ -427,7 +445,7 @@ export async function seedTestWorld({ config, packageJson, env = process.env, lo
     }
 
     const { compilePack } = await import("@foundryvtt/foundryvtt-cli");
-    const sourceRoot = path.join(worldDir, ".seed-src");
+    const sourceRoot = path.join(stagingDir, ".seed-src");
     for (const [collection, documents] of Object.entries(collections)) {
         const sourceDir = path.join(sourceRoot, collection);
         await fs.mkdir(sourceDir, { recursive: true });
@@ -453,16 +471,116 @@ export async function seedTestWorld({ config, packageJson, env = process.env, lo
     for (const collection of await fs.readdir(sourceRoot)) {
         await compilePack(
             path.join(sourceRoot, collection),
-            path.join(worldDir, "data", collection),
+            path.join(stagingDir, "data", collection),
             { log: false },
         );
     }
     await fs.rm(sourceRoot, { recursive: true, force: true });
 
+    // Hand the world to the user Foundry runs as.
+    const container = resolveContainer({ stage, config, env });
+    const owner = containerOwner({ container, dataRoot, runScript });
+    runScript({
+        image: container.image,
+        dataRoot,
+        user: "0:0",
+        script: [
+            "set -e",
+            'rm -rf "/data/Data/worlds/$1"',
+            "mkdir -p /data/Data/worlds",
+            'mv "/data/$2" "/data/Data/worlds/$1"',
+            'chown -R "$3" "/data/Data/worlds/$1"',
+        ].join("\n"),
+        args: [world.worldId, stagingName, owner],
+    });
+
     log(`Seeded world '${world.worldId}' at ${worldDir}`);
     log(`  GM user:  ${world.gmName} (id ${world.gmId})`);
     log(`  password: ${world.gmPassword}`);
     return { worldDir, world };
+}
+
+/**
+ * The `uid:gid` the Foundry container runs as, asked of the container's own
+ * user so it is right whatever `--user` or the image says.
+ *
+ * @param {object} opts
+ * @param {import("./container.mjs").ResolvedContainer} opts.container - The stage's container.
+ * @param {string} opts.dataRoot - The stage's local data root.
+ * @param {(opts: object) => string} opts.runScript - Throwaway-container runner.
+ * @returns {string} For example `1000:1000`.
+ * @throws {Error} When the answer is not a numeric pair.
+ */
+function containerOwner({ container, dataRoot, runScript }) {
+    const owner = runScript({
+        image: container.image,
+        dataRoot,
+        user: container.user,
+        script: 'echo "$(id -u):$(id -g)"',
+    }).trim();
+    if (!/^\d+:\d+$/.test(owner)) {
+        throw new Error(`Could not determine the container's user: '${owner}'.`);
+    }
+    return owner;
+}
+
+/**
+ * Deploy the staged package to the end-to-end stage so the container's user
+ * can run it.
+ *
+ * The package's databases (compendium packs) are written by the host user, and
+ * Foundry cannot lock them unless it owns them; a pack Foundry has repaired
+ * holds directories the host user cannot unlink. So the previous install is
+ * removed, and the new one handed over, by a throwaway container on the same
+ * data root. A remote destination is deployed as {@link deployStage} does.
+ *
+ * @param {object} opts
+ * @param {object} opts.config - The resolved package-build configuration.
+ * @param {NodeJS.ProcessEnv} [opts.env] - Environment to read.
+ * @param {(message: string) => void} [opts.log] - Progress reporting.
+ * @param {(opts: object) => string} [opts.runScript] - Throwaway-container runner.
+ * @returns {Promise<void>}
+ */
+export async function deployForContainer({
+    config,
+    env = process.env,
+    log = () => {},
+    runScript = runDataRootScript,
+}) {
+    const stage = config.e2eStage;
+    const target = env[dataEnvVar(stage)]?.trim() ?? "";
+    const local = target !== "" && !isRemoteTarget(target);
+    const relative = packageSubpath(config.packageKind, config.packageId).join("/");
+    const container = resolveContainer({ stage, config, env });
+
+    if (local) {
+        runScript({
+            image: container.image,
+            dataRoot: target,
+            user: "0:0",
+            script: 'rm -rf "/data/$1"',
+            args: [relative],
+        });
+    }
+    await deployStage({
+        stage,
+        source: path.join(config.rootDir, config.stageDir),
+        packageKind: config.packageKind,
+        packageId: config.packageId,
+        env,
+        prefix: config.envPrefix,
+        log,
+    });
+    if (local) {
+        const owner = containerOwner({ container, dataRoot: target, runScript });
+        runScript({
+            image: container.image,
+            dataRoot: target,
+            user: "0:0",
+            script: 'chown -R "$2" "/data/$1"',
+            args: [relative, owner],
+        });
+    }
 }
 
 /**
@@ -543,7 +661,7 @@ export async function waitForWorld({ url, container, stage, timeoutMs = 180_000,
     }
     throw new Error(
         `Timed out after ${Math.round(timeoutMs / 1000)}s waiting for the ` +
-            `world to activate. Check \`package-build container logs\`.`,
+            `world to activate. Check \`package-build container ${stage} logs\`.`,
     );
 }
 
@@ -944,15 +1062,7 @@ export async function e2eRun({
     }
 
     log(`▸ deploy ${stage}`);
-    await deployStage({
-        stage,
-        source: path.join(config.rootDir, config.stageDir),
-        packageKind: config.packageKind,
-        packageId: config.packageId,
-        env,
-        prefix: config.envPrefix,
-        log,
-    });
+    await deployForContainer({ config, env, log });
 
     log("▸ seed");
     const { world } = await seedTestWorld({ config, packageJson, env, log });
@@ -1044,15 +1154,7 @@ export async function e2eFast({ config, argv = [], env = process.env, log = () =
     const exists = containerExists(container.name);
 
     log(`▸ deploy ${stage}`);
-    await deployStage({
-        stage,
-        source: path.join(config.rootDir, config.stageDir),
-        packageKind: config.packageKind,
-        packageId: config.packageId,
-        env,
-        prefix: config.envPrefix,
-        log,
-    });
+    await deployForContainer({ config, env, log });
 
     const action = !exists || recreate ? "recreate" : "restart";
     log(`▸ container ${action}`);
