@@ -97,7 +97,7 @@ describe("a being's standing names the body that confers it", () => {
         expect(field.entryKind).toBe("address");
         expect(field.standings).toBe(true);
         expect(field.check).toBe(checkStandings);
-        expect(STANDING_KEYS).toEqual(["rank", "office"]);
+        expect(STANDING_KEYS).toEqual(["rank", "office", "societies"]);
     });
 
     it("stops advertising standings on data.lore", () => {

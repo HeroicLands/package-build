@@ -42,10 +42,11 @@
  * **A membership is derived, never authored here.** `data.affiliations` names
  * the bodies a being belongs to and the standing it holds in each, and each
  * entry becomes one embedded affiliation item: the entry's `rank` is that
- * item's `system.level` and its `office` is `system.office`. A standing is a
- * fact about the setting rather than about one system — it does not become true
- * because SoHL is installed — so the system block states none of it, and a
- * sheet and a page cannot come to disagree.
+ * item's `system.level`, its `office` is `system.office`, and the first of its
+ * `societies` is `system.society`, the one society the SoHL item carries. A
+ * standing is a fact about the setting rather than about one system — it does
+ * not become true because SoHL is installed — so the system block states none
+ * of it, and a sheet and a page cannot come to disagree.
  *
  * Not a standalone script — exports the `Actors` compiler class, imported and
  * driven by `engine/generate.mjs`. Must run after the items passes, since it
@@ -216,7 +217,8 @@ export class Actors extends SystemActorCompiler {
      * The body's own compiled item is the model, so a membership carries
      * whatever that body declares — its subtype, its common skills, its
      * standings toward others — and the being adds only what is true of *this*
-     * membership: the rung it stands on and the post it holds.
+     * membership: the rung it stands on, the post it holds, and the society it
+     * is held in.
      *
      * A being naming a body that compiles to no item is a finding rather than a
      * silently dropped membership: the note says the being belongs somewhere,
@@ -236,9 +238,12 @@ export class Actors extends SystemActorCompiler {
             if (!shortcode) continue;
             const level = Number(standing?.rank);
             const office = typeof standing?.office === "string" ? standing.office.trim() : "";
+            const [first] = Array.isArray(standing?.societies) ? standing.societies : [];
+            const society = typeof first === "string" ? first.trim() : "";
             const system = {
                 ...(Number.isFinite(level) ? { level } : {}),
                 ...(office ? { office } : {}),
+                ...(society ? { society } : {}),
             };
             const embedded = this.resolveEmbedded(
                 itemsMap,

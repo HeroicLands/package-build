@@ -179,6 +179,10 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
  *   one — `icon` for `icon` and `tokenIcon`, `image` for `banner` — so `icon: anvil` names `icon-anvil` while a value carrying the
  *   separator states its own address. Distinct from a `FieldSpec`'s `code`
  *   ({@link module:engine/field-spec}), which names a **Shortcode** instead.
+ * @property {string} [sceneProperty] - On a map, the exported Scene property an
+ *   Address field's resolved path is written into, as a `data.fixup` path. The
+ *   Scene compile applies the field as one more fixup — see
+ *   {@link module:engine/exported-scene}.
  * @property {"pack"} [keys] - For a `scalar-or-map` field, what its keys name.
  *   `"pack"` means each is a pack this package declares, so a key naming none
  *   is a finding of its own: it addresses a hierarchy nothing will ever read.
@@ -1864,6 +1868,18 @@ export const NOTE_VOCABULARY = Object.freeze({
                     ]),
                 }),
                 describe: "Asset address replacements in an exported Scene.",
+            },
+            {
+                name: "thumbnail",
+                ...LINK,
+                ref: "image",
+                accepts: Object.freeze(["image"]),
+                // The Scene property the resolved path is written into, as a
+                // fixup path: the compile applies it as one more `data.fixup`.
+                sceneProperty: ".thumb",
+                describe:
+                    "The map's thumbnail — an `image` address, resolved into the Scene's " +
+                    "`thumb` the way a `data.fixup` entry is. Background art is untouched.",
             },
             {
                 name: "place",

@@ -1367,7 +1367,7 @@ Macros pack compiler — produces JSON pack files for the "macros" Foundry compe
 
 ### `engine.exportedScene`
 
-An exported Foundry Scene's compile. A map note carries its Scene as exported from Foundry at `data.scene`; this passes it through, applying `data.fixup`, keying each embedded document that carries an `_id`, and binding pins marked `#anchor` to the note's own journal pages. Nothing else inside the Scene is checked.
+An exported Foundry Scene's compile. A map note carries its Scene as exported from Foundry at `data.scene`; this passes it through, applying its fixups — `data.fixup`, and each map field that declares a Scene property, such as `data.thumbnail` — keying each embedded document that carries an `_id`, and binding pins marked `#anchor` to the note's own journal pages. Nothing else inside the Scene is checked.
 
 | Export               | Signature                                                                              | Returns                            | Use it when                                          |
 | -------------------- | -------------------------------------------------------------------------------------- | ---------------------------------- | ---------------------------------------------------- |

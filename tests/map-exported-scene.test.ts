@@ -58,18 +58,24 @@ const UNDECLARED = [
 ];
 
 describe("a map note's data", () => {
-    it("declares exactly scene, fixup and place of its own", () => {
+    it("declares exactly scene, fixup, thumbnail and place of its own", () => {
         // `dataFields` adds the keys every document-producing type shares.
         expect(NOTE_VOCABULARY.map.data.map((field: any) => field.name)).toEqual([
             "scene",
             "fixup",
+            "thumbnail",
             "place",
         ]);
     });
 
     it("is stated the same way by the format contract", () => {
         const format = loadContentFormat();
-        expect([...format.types.get("map")!.dataKeys].sort()).toEqual(["fixup", "place", "scene"]);
+        expect([...format.types.get("map")!.dataKeys].sort()).toEqual([
+            "fixup",
+            "place",
+            "scene",
+            "thumbnail",
+        ]);
     });
 
     it("keeps all four subtypes", () => {

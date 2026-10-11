@@ -17,7 +17,7 @@
  *
  * A map note carries its Scene as exported from Foundry, at `data.scene`. The
  * build never constructs a Scene: {@link module:engine/exported-scene} passes
- * the export through, applying `data.fixup` and binding pins marked `#anchor`
+ * the export through, applying its fixups and binding pins marked `#anchor`
  * to the note's own journal pages.
  *
  * **Two outputs, for two different jobs.**

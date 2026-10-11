@@ -84,10 +84,11 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Inner keys** — a key a field's value does not declare is an error at its own line and column.
 
-| Key                                  | Shape                                                                                                                        | Required | Meaning                                                               |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- | -------- | --------------------------------------------------------------------- |
-| `data.affiliations.<Address>.rank`   | the level on that body's own ladder, as a whole number — an ordinary member is `1`, and `0` is the rung for someone cast out | yes      | The level on the body's own `governance.ranks` ladder.                |
-| `data.affiliations.<Address>.office` | a post from that body's `governance.offices`                                                                                 | no       | A post the body names in its `governance.offices`, where one is held. |
+| Key                                     | Shape                                                                                                                        | Required | Meaning                                                                                                                    |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `data.affiliations.<Address>.rank`      | the level on that body's own ladder, as a whole number — an ordinary member is `1`, and `0` is the rung for someone cast out | yes      | The level on the body's own `governance.ranks` ladder.                                                                     |
+| `data.affiliations.<Address>.office`    | a post from that body's `governance.offices`                                                                                 | no       | A post the body names in its `governance.offices`, where one is held.                                                      |
+| `data.affiliations.<Address>.societies` | a list of society names                                                                                                      | no       | The societies the membership is held in, by name. SoHL carries one, the first, as the affiliation item's `system.society`. |
 
 **System mappings**
 
@@ -583,11 +584,12 @@ Lore records in-world knowledge. A `culture` describes a people; a `custom` desc
 
 **Subtypes:** `battlemap`, `localmap`, `regionalmap`, `totm`.
 
-| Field        | Shape                                            | Meaning                                                                                                                                                                                     |
-| ------------ | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `data.scene` | an object — a Foundry Scene document as exported | The Foundry Scene as exported, passed through unchanged apart from `data.fixup` and its pins marked `#anchor`. Nothing inside it is checked; the book prints its levels' background images. |
-| `data.fixup` | list of `{ path, type, value }`                  | Asset address replacements in an exported Scene.                                                                                                                                            |
-| `data.place` | an Address                                       | The place this map depicts. Named here and not on the place, because a place has several maps and a map depicts one place.                                                                  |
+| Field            | Shape                                            | Meaning                                                                                                                                                                                     |
+| ---------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data.scene`     | an object — a Foundry Scene document as exported | The Foundry Scene as exported, passed through unchanged apart from `data.fixup` and its pins marked `#anchor`. Nothing inside it is checked; the book prints its levels' background images. |
+| `data.fixup`     | list of `{ path, type, value }`                  | Asset address replacements in an exported Scene.                                                                                                                                            |
+| `data.thumbnail` | an Address                                       | The map's thumbnail — an `image` address, resolved into the Scene's `thumb` the way a `data.fixup` entry is. Background art is untouched.                                                   |
+| `data.place`     | an Address                                       | The place this map depicts. Named here and not on the place, because a place has several maps and a map depicts one place.                                                                  |
 
 **Inner keys** — a key a field's value does not declare is an error at its own line and column.
 

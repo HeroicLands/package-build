@@ -2463,9 +2463,10 @@ from them.
 
 A map note is a different thing: it carries a Scene exported from Foundry under
 `data.scene`, on every map subtype. The pack compiler passes it through, binds
-pins marked `#anchor` to pages from the map note's Markdown, and applies
-`data.fixup`, which resolves asset Addresses into selected fields of the
-exported Scene; a missing path or asset is a build error.
+pins marked `#anchor` to pages from the map note's Markdown, and applies the
+fixups — `data.fixup` and `data.thumbnail`, the Scene's `thumb` — which resolve
+asset Addresses into selected fields of the exported Scene; a missing path or
+asset is a build error.
 
 The four drawings, any of which may be asked for in one run:
 

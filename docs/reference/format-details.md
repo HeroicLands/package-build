@@ -140,7 +140,7 @@ or it is a **source system's own detail**, which no surface's box shows:
 | a calendar's `months`, `weekdays`, `seasons`, `namedDays`, `eras`, `formats` | calendar machinery, not a summary row                      |
 | a map's `scene`, `fixup`                                                     | canvas machinery, not a summary row                        |
 | `harnworld`                                                                  | HârnWorld source detail, which no surface's box shows      |
-| the art slots                                                                | an image, which rule 2 keeps out of the box                |
+| the art slots, and a map's `thumbnail`                                       | an image, which rule 2 keeps out of the box                |
 
 **A field whose value holds maps is drawn by what its declaration says the
 maps are**, and a map is never set as text:
@@ -784,6 +784,9 @@ link uses.
 | `icon`      | `icon`       | `icon`, `image` | `document.img`                | every Actor/Item type, and embedded items |
 | `tokenIcon` | `icon`       | `icon`, `image` | `prototypeToken.texture.src`  | Actor types                               |
 | `banner`    | `image`      | `icon`, `image` | the site hero image, 1792×768 | any note; not a Foundry field             |
+
+A map's `thumbnail` is not an art slot. It is a map field resolved into the
+Scene's `thumb` as a fixup — see [the thumbnail](#the-thumbnail).
 
 Every slot is authored under `data:`:
 
@@ -3505,35 +3508,36 @@ Generates a living (or undead, or spirit) being.
 
 See [a being's subtype describes the subject](#a-beings-subtype-describes-the-subject).
 
-| `data` property                 | Values                                         | Description                                                                                                                                           |
-| ------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `tokenIcon`                     | `Address`                                      | What a token on the canvas wears — an `icon` address; defaults to `icon`                                                                              |
-| `templatePriority`              | `number`                                       | Template priority, _null_ = not a template                                                                                                            |
-| `archetypes`                    | `Archetype[]`                                  | What sort of character this is. **Always an array** — character and npc require at least one; creature may omit it or write `[]`; `null` is an error. |
-| `occupation`                    | `string`                                       | Name of the character's occupation                                                                                                                    |
-| `stations`                      | `Address[]`                                    | Name of the stations the character belongs to                                                                                                         |
-| `lore`                          | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                                                                      |
-| `culture`                       | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
-| `homes`                         | `Address[]`                                    | Place the being calls home                                                                                                                            |
-| `affiliations`                  | `Map<Address, Membership>`                     | Bodies the being belongs to, keyed by Address, each entry the standing it holds there                                                                 |
-| `affiliations.<Address>.rank`   | `integer`, required                            | The level on that body's own `governance.ranks` ladder; `1` is an ordinary member, `0` someone cast out                                               |
-| `affiliations.<Address>.office` | `string`                                       | A post that body names in its `governance.offices`, where the being holds one                                                                         |
-| `socialTies`                    | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                                                                                   |
-| `gender`                        | `male \| female \| other`                      | Gender of the character                                                                                                                               |
-| `species`                       | `Address`                                      | Being's species (lore)                                                                                                                                |
-| `born`                          | `date \| unknown`                              | When the being was born; absent, it was never born                                                                                                    |
-| `calendar`                      | `Address`                                      | Calendar note used to print the being's dates                                                                                                         |
-| `died`                          | `date \| unknown`                              | When the being died; absent, it is alive                                                                                                              |
-| `age`                           | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                                                                         |
-| `ageYears`                      | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this                                                        |
-| `height`                        | `1.91m \| 6' 3"`                               | Height in metres or feet and inches                                                                                                                   |
-| `weight`                        | `85kg \| 187 lbs`                              | Body weight in kilograms or pounds                                                                                                                    |
-| `frame`                         | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                                                                                   |
-| `appearance.eye_color`          | `string`                                       | Eye color                                                                                                                                             |
-| `appearance.hair_color`         | `string`                                       | Hair color                                                                                                                                            |
-| `appearance.skin_color`         | `string`                                       | Skin color                                                                                                                                            |
-| `appearance.complexion`         | `string`                                       | Complexion                                                                                                                                            |
-| `appearance.extra_features`     | `string[]`                                     | Extra features                                                                                                                                        |
+| `data` property                    | Values                                         | Description                                                                                                                                           |
+| ---------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tokenIcon`                        | `Address`                                      | What a token on the canvas wears — an `icon` address; defaults to `icon`                                                                              |
+| `templatePriority`                 | `number`                                       | Template priority, _null_ = not a template                                                                                                            |
+| `archetypes`                       | `Archetype[]`                                  | What sort of character this is. **Always an array** — character and npc require at least one; creature may omit it or write `[]`; `null` is an error. |
+| `occupation`                       | `string`                                       | Name of the character's occupation                                                                                                                    |
+| `stations`                         | `Address[]`                                    | Name of the stations the character belongs to                                                                                                         |
+| `lore`                             | `Address[]`                                    | Other lore concerning this being, such as social standing or law                                                                                      |
+| `culture`                          | `Address`                                      | Primary culture, naming a lore note with `subType: culture`                                                                                           |
+| `homes`                            | `Address[]`                                    | Place the being calls home                                                                                                                            |
+| `affiliations`                     | `Map<Address, Membership>`                     | Bodies the being belongs to, keyed by Address, each entry the standing it holds there                                                                 |
+| `affiliations.<Address>.rank`      | `integer`, required                            | The level on that body's own `governance.ranks` ladder; `1` is an ordinary member, `0` someone cast out                                               |
+| `affiliations.<Address>.office`    | `string`                                       | A post that body names in its `governance.offices`, where the being holds one                                                                         |
+| `affiliations.<Address>.societies` | `string[]`                                     | The societies the membership is held in, by name; SoHL carries the first as `system.society`                                                          |
+| `socialTies`                       | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                                                                                   |
+| `gender`                           | `male \| female \| other`                      | Gender of the character                                                                                                                               |
+| `species`                          | `Address`                                      | Being's species (lore)                                                                                                                                |
+| `born`                             | `date \| unknown`                              | When the being was born; absent, it was never born                                                                                                    |
+| `calendar`                         | `Address`                                      | Calendar note used to print the being's dates                                                                                                         |
+| `died`                             | `date \| unknown`                              | When the being died; absent, it is alive                                                                                                              |
+| `age`                              | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                                                                         |
+| `ageYears`                         | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this                                                        |
+| `height`                           | `1.91m \| 6' 3"`                               | Height in metres or feet and inches                                                                                                                   |
+| `weight`                           | `85kg \| 187 lbs`                              | Body weight in kilograms or pounds                                                                                                                    |
+| `frame`                            | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                                                                                   |
+| `appearance.eye_color`             | `string`                                       | Eye color                                                                                                                                             |
+| `appearance.hair_color`            | `string`                                       | Hair color                                                                                                                                            |
+| `appearance.skin_color`            | `string`                                       | Skin color                                                                                                                                            |
+| `appearance.complexion`            | `string`                                       | Complexion                                                                                                                                            |
+| `appearance.extra_features`        | `string[]`                                     | Extra features                                                                                                                                        |
 
 Author `data.height` as a string of decimal metres (`1.91m` or `1.91 m`) or
 whole feet with optional inches (`6'`, `6'3"`, or `6' 3"`). Inches must be
@@ -3559,14 +3563,15 @@ data:
 
 #### The bodies a being belongs to, and its standing in each
 
-**Membership**: `{rank: number, office: string}` — `rank` required, `office` not.
+**Membership**: `{rank: number, office: string, societies: string[]}` — `rank`
+required, `office` and `societies` not.
 
 `data.affiliations` is a **map keyed by the body's Address**, and each entry is
 the standing the being holds in that body. The key is what makes the pair
 expressible: a being in two bodies holds a standing in each, and two bodies may
 call a rung the same word.
 
-An entry carries two keys and nothing else:
+An entry carries three keys and nothing else:
 
 - **`rank`** — **required**, a **number**, the level on that body's own
   `governance.ranks` ladder. The body declares `{level, title, description}` for
@@ -3574,6 +3579,9 @@ An entry carries two keys and nothing else:
   for what its level 5 is called.
 - **`office`** — optional, a **string**, matched against the keys of that body's
   `governance.offices` map.
+- **`societies`** — optional, a **list of names**, the societies the membership
+  is held in. It is always a list, even with one name; a bare string is an
+  error at the key.
 
 **Every entry states a `rank`**, because belonging to a body is holding some
 standing in it. Where nothing more is known the rung is `1`, the ordinary
@@ -3591,7 +3599,7 @@ An entry carrying a rank and no office is complete.
 ```yaml
 data:
   affiliations:
-    affiliation-vrystwldtrbs: { rank: 5, office: War Chief }
+    affiliation-vrystwldtrbs: { rank: 5, office: War Chief, societies: [Vrystwald] }
     affiliation-greenwardens: { rank: 1 }
     affiliation-silverguild: { rank: 0 }
 ```
@@ -3616,7 +3624,9 @@ anchored by its name, so the post a being holds is described where the body
 declares it.
 
 For SoHL, a being embeds one affiliation item per entry: `rank` **is** that
-item's `system.level` and `office` its `system.office`. A standing is a fact
+item's `system.level`, `office` its `system.office`, and the first name in
+`societies` its `system.society`. The SoHL item holds one society, so only the
+first name reaches it. A standing is a fact
 about the setting rather than about one system, so the `sohl:` block states
 none of it.
 
@@ -4864,7 +4874,7 @@ Braced custom forms such as `{era}` are equivalent to bracketed custom forms. A 
 
 A map note has its own prose and a Foundry Scene. A map can depict a place or an encounter. Several maps can depict the same place; the map names that place with `data.place`, while the place note does not list its maps.
 
-**The Scene is made in Foundry.** Walls, lights, sounds, regions, levels and pins are drawn in Foundry's Scene editor, exported, and carried by the note at `data.scene`. The build passes the Scene through: it applies `data.fixup`, binds pins marked `#anchor` to this note's pages, and checks nothing else inside it.
+**The Scene is made in Foundry.** Walls, lights, sounds, regions, levels and pins are drawn in Foundry's Scene editor, exported, and carried by the note at `data.scene`. The build passes the Scene through: it applies the fixups — `data.fixup` and `data.thumbnail` — binds pins marked `#anchor` to this note's pages, and checks nothing else inside it.
 
 **subType**:
 
@@ -4882,6 +4892,7 @@ A subtype says what kind of map the note is. Every subtype carries an exported S
 | `fixup[].path`  | `string`, required        | The exported field to replace, as a property path from `data.scene`                                                                                                                                                                                                  |
 | `fixup[].type`  | `address`, required       | What `value` is                                                                                                                                                                                                                                                      |
 | `fixup[].value` | `Address`, required       | The asset Address whose path replaces the exported one                                                                                                                                                                                                               |
+| `thumbnail`     | Address                   | The map's thumbnail, an `image` Address written into the Scene's `thumb` as a fixup — see [The thumbnail](#the-thumbnail)                                                                                                                                            |
 | `place`         | Address                   | Depicted place, when one exists                                                                                                                                                                                                                                      |
 
 `data.scene` must be an object, and that is the only check made of it: its keys
@@ -4937,6 +4948,32 @@ data:
       - { _id: NNNNNNNNNNNNNNNN, text: "#myanchor1", x: 950, y: 2350 }
 ---
 # Big Bad Wolf {#myanchor1}
+```
+
+#### The thumbnail
+
+`data.thumbnail` names the picture Foundry shows for the Scene in its
+directory and compendium lists. It is an `image` Address, and a bare shortcode
+reads as one: `thumbnail: wolfdenthumb` names `image-wolfdenthumb`. An Address
+of any other type, `icon` included, is an error at the key.
+
+The thumbnail is a fixup the note does not have to spell. The map vocabulary
+declares that `thumbnail` belongs in the Scene's `thumb`, so the build adds
+`{ path: ".thumb", type: address, value: <thumbnail> }` to the note's fixups
+and applies it with the rest: the Address must resolve, and the exported Scene
+must carry `thumb`, as every Foundry export does. A `data.fixup` entry whose
+`path` is also `.thumb` is an error, because one would overwrite the other.
+The thumbnail is independent of the background art, which keeps its exported
+path or its own fixup.
+
+```yaml
+data:
+  thumbnail: wolfdenthumb
+  scene:
+    name: Wolf Den Scene
+    thumb: null
+    levels:
+      - { _id: defaultLevel0000, background: { src: modules/maps/den.webp } }
 ```
 
 When the Scene has pins, its Adventure bundle carries the Scene and the JournalEntry generated from its Markdown. Importing that bundle preserves the IDs the pins address. The maps naming one `data.place` share one Adventure.

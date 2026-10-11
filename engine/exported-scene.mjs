@@ -14,6 +14,8 @@
 /** Preserve an exported Foundry Scene while binding marked pins to note pages. */
 
 import { journalPageId, splitPages } from "./journals.mjs";
+import { dataFields } from "./note-vocabulary.mjs";
+import { isAddressTuple, renderAddress } from "./address.mjs";
 
 const EMBEDDED = Object.freeze([
     "drawings",
@@ -105,36 +107,88 @@ function fixupTarget(scene, path) {
     return { parent: current, key: last.key };
 }
 
-/** Apply author-declared asset address replacements to an exported Scene. */
-function applyFixups(scene, fixups, resolveAddress) {
-    if (fixups === undefined) return;
-    if (!Array.isArray(fixups)) throw new Error("`data.fixup` must be an array");
-    for (const [index, fixup] of fixups.entries()) {
-        if (
-            !fixup ||
-            typeof fixup !== "object" ||
-            Array.isArray(fixup) ||
-            fixup.type !== "address" ||
-            typeof fixup.value !== "string" ||
-            !fixup.value
-        ) {
+/**
+ * Every fixup a map note states, each with the key it was authored at.
+ *
+ * Two sources, applied by one mechanism. `data.fixup` names its Scene paths
+ * outright. A map field declaring a `sceneProperty` — `thumbnail`, written into
+ * `.thumb` — names the Scene property in the vocabulary instead, so the note
+ * states only the Address and the compile adds the entry. A declared field and
+ * an authored entry writing one property is refused: either would silently
+ * overwrite the other.
+ *
+ * @param {object} fm - The map note's frontmatter.
+ * @returns {Array<{label: string, fixup: unknown}>} The fixups, authored first.
+ * @throws {Error} When `data.fixup` is not a list, or two fixups write one path.
+ */
+function noteFixups(fm) {
+    const authored = fm.data?.fixup;
+    if (authored !== undefined && !Array.isArray(authored)) {
+        throw new Error("`data.fixup` must be an array");
+    }
+    const out = (authored ?? []).map((fixup, index) => ({ label: `data.fixup[${index}]`, fixup }));
+    for (const field of dataFields("map") ?? []) {
+        if (!field.sceneProperty) continue;
+        const value = fm.data?.[field.name];
+        if (value === undefined || value === null || value === "") continue;
+        const label = `data.${field.name}`;
+        const clash = out.find(({ fixup }) => fixup?.path === field.sceneProperty);
+        if (clash) {
             throw new Error(
-                `data.fixup[${index}] needs path, type: address, and an asset address value`,
+                `\`${label}\` and \`${clash.label}\` both write \`${field.sceneProperty}\`; ` +
+                    `keep one of them`,
             );
         }
-        const { parent, key } = fixupTarget(scene, fixup.path);
-        if (typeof parent[key] !== "string" && parent[key] !== null) {
-            throw new Error(`Scene fixup path "${fixup.path}" must name a string asset field`);
-        }
-        if (typeof resolveAddress !== "function") {
-            throw new Error("Scene address fixups need an asset resolver");
-        }
-        const resolved = resolveAddress(fixup.value);
-        if (typeof resolved !== "string" || !resolved) {
-            throw new Error(`Scene fixup address "${fixup.value}" does not resolve to an asset`);
-        }
-        parent[key] = resolved;
+        out.push({
+            label,
+            fixup: {
+                path: field.sceneProperty,
+                type: "address",
+                value: isAddressTuple(value) ? renderAddress(value) : value,
+            },
+        });
     }
+    return out;
+}
+
+/** Apply a map note's asset address replacements to its exported Scene. */
+function applyFixups(scene, fixups, resolveAddress) {
+    for (const { label, fixup } of fixups) {
+        try {
+            applyFixup(scene, label, fixup, resolveAddress);
+        } catch (error) {
+            // An entry the compile added says which key the note wrote, since
+            // the path it failed on appears nowhere in the note.
+            if (label.startsWith("data.fixup[")) throw error;
+            throw new Error(`\`${label}\`: ${error.message}`, { cause: error });
+        }
+    }
+}
+
+/** Resolve one fixup's Address and write its path into the Scene. */
+function applyFixup(scene, label, fixup, resolveAddress) {
+    if (
+        !fixup ||
+        typeof fixup !== "object" ||
+        Array.isArray(fixup) ||
+        fixup.type !== "address" ||
+        typeof fixup.value !== "string" ||
+        !fixup.value
+    ) {
+        throw new Error(`${label} needs path, type: address, and an asset address value`);
+    }
+    const { parent, key } = fixupTarget(scene, fixup.path);
+    if (typeof parent[key] !== "string" && parent[key] !== null) {
+        throw new Error(`Scene fixup path "${fixup.path}" must name a string asset field`);
+    }
+    if (typeof resolveAddress !== "function") {
+        throw new Error("Scene address fixups need an asset resolver");
+    }
+    const resolved = resolveAddress(fixup.value);
+    if (typeof resolved !== "string" || !resolved) {
+        throw new Error(`Scene fixup address "${fixup.value}" does not resolve to an asset`);
+    }
+    parent[key] = resolved;
 }
 
 /**
@@ -165,8 +219,9 @@ function keyDocuments(docs, collection, parentIds, sceneId) {
  * Compile a Foundry Scene export into a pack document.
  *
  * The Scene passes through as exported. Only the note-derived Scene ID,
- * compendium metadata, `data.fixup` and pins marked `#anchor` change; nothing
- * else inside the Scene is read or checked.
+ * compendium metadata, the fixups — `data.fixup` and the map fields that
+ * declare a Scene property, such as `data.thumbnail` — and pins marked
+ * `#anchor` change; nothing else inside the Scene is read or checked.
  *
  * @param {object} fm - The map note's frontmatter.
  * @param {string} markdown - Its converted Markdown body.
@@ -184,7 +239,7 @@ export function buildExportedScene(fm, markdown, { journalEntryId, stats, resolv
         throw new Error("a map note needs a derived 16-character Scene ID");
     }
     const scene = structuredClone(source);
-    applyFixups(scene, fm.data?.fixup, resolveAddress);
+    applyFixups(scene, noteFixups(fm), resolveAddress);
     scene._id = fm.id;
     scene._key = `!scenes!${fm.id}`;
     if (stats) scene._stats = stats;

@@ -318,6 +318,7 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     // Scene itself, not a fact a summary row can carry.
     "map.scene": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
     "map.fixup": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
+    "map.thumbnail": Object.freeze({ withheld: "an image, which the box never carries" }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),

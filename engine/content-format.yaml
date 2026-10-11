@@ -280,6 +280,7 @@ types:
         data:
             - scene
             - fixup
+            - thumbnail
             - place
         subTypes:
             - battlemap

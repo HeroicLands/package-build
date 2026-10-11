@@ -49,6 +49,11 @@ slots. A pathname with slashes or an extension is not an art-slot address.
 | `data.tokenIcon` | Actor token art; follows `data.icon` when unset |
 | `data.banner`    | Page hero image for the site                    |
 
+A map's picture in Foundry's Scene lists is not an art slot: a `map` note names
+it with `data.thumbnail`, an `image` Address the build writes into the Scene's
+`thumb`. The [map reference](../reference/format-details.md#the-thumbnail)
+describes it.
+
 An Item without `data.icon` uses its builder's configured default art. An
 Actor without `data.icon` uses its compiled default art. Write `data.icon`
 when the note needs a particular image. A portrait within the prose is an
@@ -123,6 +128,6 @@ The content index assigns addresses to image assets. The lint reports unknown
 inline names and invalid art addresses. A documentation package has no packs,
 so it skips `package compile`. Inspect a compiled Actor or Item's
 `img`, an Actor's `prototypeToken.texture.src`, and a map's `background.src`
-when checking document art. Inspect the site page and emitted Typst source for
+and `thumb` when checking document art. Inspect the site page and emitted Typst source for
 inline icons and banners. The [command reference](../commands.md) gives the
 available build and lint options.
