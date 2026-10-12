@@ -83,7 +83,7 @@ import { packForType } from "./ids.mjs";
 // What a place is next to and reachable from — the two relation lists and
 // the checks that hold them to their closed sets and to each other.
 import { checkBorders, checkRoutes } from "./place-relations.mjs";
-import { BORDER_FIELDS, ROUTE_FIELDS } from "./place-relation-terms.mjs";
+import { AGGREGATE_PLACE_SUBTYPES, BORDER_FIELDS, ROUTE_FIELDS } from "./place-relation-terms.mjs";
 import {
     CALENDAR_FIELDS,
     INVARIANT_FIELDS,
@@ -1734,7 +1734,9 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe:
                     "The governing affiliation Address; the default target type is affiliation. " +
                     "Explicit null means complete anarchy. " +
-                    "A positive population with no government key produces an advisory.",
+                    "A positive population with no government key produces an advisory, " +
+                    `except on a place of subtype ${AGGREGATE_PLACE_SUBTYPES.join(", ")}, ` +
+                    "which holds several governments at once.",
             },
             {
                 name: "market",

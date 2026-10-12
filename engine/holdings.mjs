@@ -23,6 +23,7 @@
 import { isAddressTuple, ownDocumentSystem, parseAddress, renderAddress } from "./address.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
+import { AGGREGATE_PLACE_SUBTYPES } from "./place-relation-terms.mjs";
 
 /** @typedef {{title:string,url?:string,address:string,type:string,subType?:string}} HoldingsEntry */
 /**
@@ -259,14 +260,16 @@ export function holdingsPages(nodes, { governmentNodes = [] } = {}) {
  * Property presence distinguishes omitted government from explicit null,
  * which means complete anarchy. Non-null values are validated by the declared
  * affiliation reference field. Neither geographic containment nor tenure
- * supplies this fact, and the rule is independent of place subtype.
+ * supplies this fact. A place of an aggregate subtype
+ * ({@link AGGREGATE_PLACE_SUBTYPES}: world, continent, region) holds several
+ * governments at once and is never advised.
  *
  * @param {object} note - The note with parsed frontmatter and raw source.
  * @returns {object[]} Located warning findings.
  */
 export function checkGovernment(note) {
     const fm = note.fm ?? {};
-    if (fm.type !== "place") return [];
+    if (fm.type !== "place" || AGGREGATE_PLACE_SUBTYPES.includes(fm.subType)) return [];
     const data = fm.data;
     if (!data || typeof data !== "object" || Array.isArray(data)) return [];
     const population = data.population;

@@ -172,3 +172,12 @@ export const BORDER_KEYS = Object.freeze(BORDER_FIELDS.map((field) => field.name
 
 /** The keys a `routes` entry carries. @type {readonly string[]} */
 export const ROUTE_KEYS = Object.freeze(ROUTE_FIELDS.map((field) => field.name));
+
+/**
+ * The place subtypes that stand for an aggregate of governed places: a world,
+ * a continent or a region holds several governments at once, so no single
+ * `data.government` is true of it and none is advised.
+ *
+ * @type {readonly string[]}
+ */
+export const AGGREGATE_PLACE_SUBTYPES = Object.freeze(["world", "continent", "region"]);

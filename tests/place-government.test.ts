@@ -30,7 +30,7 @@ describe("explicit place government", () => {
         decodeNoteAddresses(fm, { package: "demo" });
         expect(fm.data.government).toMatchObject({ type: "affiliation", shortcode: "temple" });
     });
-    it.each(["settlement", "site", "structure", "feature", "region", "world"])(
+    it.each(["settlement", "site", "structure", "feature", "celestial"])(
         "uses population for %s",
         (subType) => {
             for (const population of [undefined, null, 0]) {
@@ -49,6 +49,20 @@ describe("explicit place government", () => {
             );
         },
     );
+
+    it.each(["world", "continent", "region"])(
+        "never advises a missing government on a %s",
+        (subType) => {
+            const populated = note({ population: 100 }, subType);
+            expect(checkGovernment(populated)).toEqual([]);
+            expect(NOTE_VOCABULARY.place.check?.(populated, {})).toEqual([]);
+        },
+    );
+
+    it("describes the exemption in the government field", () => {
+        const field = dataFields("place")?.find((entry) => entry.name === "government");
+        expect(field?.describe).toContain("world, continent, region");
+    });
 
     it.each(["", 42, [], {}, "missing", "demo-note-place-town"].map((value) => [value]))(
         "rejects invalid government %j",
