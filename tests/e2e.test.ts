@@ -475,4 +475,50 @@ describe("deploying the package for the container's user", () => {
         ]);
         expect(fs.existsSync(path.join(installed, "packs", "actors", "LOCK"))).toBe(true);
     });
+
+    it.skipIf(process.getuid?.() === 0)(
+        "removes, as root, a backup an earlier deployment left beside the package",
+        async () => {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-deploy-"));
+            const dataRoot = path.join(root, "data");
+            fs.mkdirSync(path.join(root, "build", "stage"), { recursive: true });
+            fs.writeFileSync(path.join(root, "build", "stage", "system.json"), "{}");
+            const stale = path.join(dataRoot, "Data", "systems", "sohl.old-1");
+            fs.mkdirSync(path.join(stale, "owned"), { recursive: true });
+            fs.writeFileSync(path.join(stale, "owned", "system.json"), "{}");
+            // Owned by the container's user: the host user cannot unlink it.
+            fs.chmodSync(path.join(stale, "owned"), 0o555);
+            const removedAsRoot: unknown[] = [];
+            const runScript = (opts: Record<string, unknown>) => {
+                const args = (opts.args as string[] | undefined) ?? [];
+                if (String(opts.script) === 'rm -rf "/data/$1"' && args[0]?.includes(".old-")) {
+                    removedAsRoot.push([opts.user, args[0]]);
+                    const tree = path.join(dataRoot, args[0]);
+                    fs.chmodSync(path.join(tree, "owned"), 0o755);
+                    fs.rmSync(tree, { recursive: true, force: true });
+                }
+                return String(opts.script).includes("id -u") ? "1000:1000" : "";
+            };
+
+            try {
+                await deployForContainer({
+                    config: config({
+                        e2eStage: "test",
+                        stageDir: "build/stage",
+                        rootDir: root,
+                        compatibilityMinimum: "14",
+                        containerStages: {},
+                    }),
+                    env: { FOUNDRYVTT_TEST_DATA: dataRoot },
+                    runScript,
+                } as never);
+
+                expect(removedAsRoot).toEqual([["0:0", "Data/systems/sohl.old-1"]]);
+                expect(fs.readdirSync(path.join(dataRoot, "Data", "systems"))).toEqual(["sohl"]);
+            } finally {
+                if (fs.existsSync(stale)) fs.chmodSync(path.join(stale, "owned"), 0o755);
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+    );
 });

@@ -217,10 +217,12 @@ export function resolveFoundryVersion(
 /**
  * The image a run uses.
  *
- * `FOUNDRYVTT_CONTAINER_IMAGE` wins, then `packageBuild.container.image`, then
- * felddy's major tag for whichever version the package already implies — the
- * pinned build, or failing that the compatibility floor. Only a package that
- * claims neither floats.
+ * `FOUNDRYVTT_CONTAINER_IMAGE` wins, then `packageBuild.container.image`. A
+ * pinned exact build takes felddy's tag for that build: each image installs its
+ * own build by default and warns that a different `FOUNDRY_VERSION` "may not
+ * function properly". Otherwise felddy's major tag for whichever version the
+ * package implies — the pin, or failing that the compatibility floor. Only a
+ * package that claims neither floats.
  *
  * @param {object} [opts]
  * @param {NodeJS.ProcessEnv} [opts.env] - Environment to read.
@@ -238,6 +240,7 @@ export function resolveImage({
     const explicit = env.FOUNDRYVTT_CONTAINER_IMAGE?.trim();
     if (explicit) return explicit;
     if (image) return image;
+    if (EXACT_BUILD.test(version ?? "")) return `felddy/foundryvtt:${version}`;
     const major = (version ?? compatibilityMinimum ?? "").split(".")[0];
     return major ? `felddy/foundryvtt:${major}` : FLOATING_IMAGE;
 }
@@ -331,6 +334,52 @@ export function passthroughEnv(env = process.env) {
     return pairs;
 }
 
+/** The account variables the image signs in to foundryvtt.com with. */
+const ACCOUNT_VARIABLES = Object.freeze(["FOUNDRY_USERNAME", "FOUNDRY_PASSWORD"]);
+
+/** The shortest value the image reads as a licence key rather than an index. */
+const LICENSE_KEY_MIN_LENGTH = 24;
+
+/**
+ * Whether the image has to sign in to foundryvtt.com to start.
+ *
+ * Given `FOUNDRY_USERNAME` and `FOUNDRY_PASSWORD`, the image signs in and asks
+ * for a download URL on every container it creates, even when the release is
+ * already in its cache. Each of those is a request foundryvtt.com rate-limits,
+ * and one refused with HTTP 429 stops the container before Foundry starts. The
+ * account serves two purposes only: downloading a release that is not cached,
+ * and fetching a licence key for an unlicensed data root. When neither applies
+ * the account is withheld, and the release installs from the cache with no
+ * network request.
+ *
+ * The image caches `foundryvtt-<version>.zip` in the mounted cache, or in
+ * `container_cache` beneath the data root when no cache is mounted.
+ *
+ * @param {object} opts
+ * @param {string|null} [opts.cacheDir] - The host cache mounted into the container.
+ * @param {string} opts.dataRoot - The host data root mounted at `/data`.
+ * @param {string|null} [opts.version] - The pinned build; with none, the
+ *   archive's name is unknown.
+ * @param {string|null} [opts.licenseKey] - The licence key the image is given.
+ * @param {(file: string) => boolean} [opts.fileExists] - Replaceable for tests.
+ * @returns {boolean} Whether to pass the account through.
+ */
+export function needsFoundryAccount({
+    cacheDir = null,
+    dataRoot,
+    version = null,
+    licenseKey = null,
+    fileExists = (file) => fs.existsSync(file),
+}) {
+    if (!version) return true;
+    const cache = cacheDir ?? path.join(dataRoot, "container_cache");
+    if (!fileExists(path.join(cache, `foundryvtt-${version}.zip`))) return true;
+    const licensed =
+        (licenseKey?.length ?? 0) >= LICENSE_KEY_MIN_LENGTH ||
+        fileExists(path.join(dataRoot, "Config", "license.json"));
+    return !licensed;
+}
+
 /**
  * The full `docker run` argument vector for a stage's container.
  *
@@ -348,6 +397,8 @@ export function passthroughEnv(env = process.env) {
  * @param {string|null} [opts.version] - Exact build to pin.
  * @param {string|null} [opts.world] - World to auto-launch; `""` forces none.
  * @param {string|null} [opts.licenseKey] - Dedicated licence key.
+ * @param {boolean} [opts.account] - Whether to pass `FOUNDRY_USERNAME` and
+ *   `FOUNDRY_PASSWORD` through; see {@link needsFoundryAccount}.
  * @param {string|null} [opts.user] - `--user` value to run the container as.
  *   `felddy/foundryvtt` runs Foundry as user 1000 and ignores `FOUNDRY_UID` and
  *   `FOUNDRY_GID`; under rootless Docker, container root is the host user, so
@@ -365,6 +416,7 @@ export function dockerRunArgs({
     version = null,
     world = null,
     licenseKey = null,
+    account = true,
     user = null,
 }) {
     const args = [
@@ -386,6 +438,7 @@ export function dockerRunArgs({
         args.push("--volume", `${cacheDir}:${CACHE_MOUNT}`, "-e", `CONTAINER_CACHE=${CACHE_MOUNT}`);
     }
     for (const [key, value] of passthroughEnv(env)) {
+        if (!account && ACCOUNT_VARIABLES.includes(key)) continue;
         args.push("-e", `${key}=${value}`);
     }
     if (version) args.push("-e", `FOUNDRY_VERSION=${version}`);
@@ -470,6 +523,63 @@ export function runDataRootScript(opts) {
         );
     }
     return result.stdout ?? "";
+}
+
+/**
+ * A tree's path beneath the data root, as the helper container sees it there.
+ *
+ * @param {string} dataRoot - Host directory mounted at `/data`.
+ * @param {string} tree - A host path beneath it.
+ * @returns {string} The `/`-separated path relative to the data root.
+ * @throws {Error} When the tree is the data root or lies outside it.
+ */
+function beneathDataRoot(dataRoot, tree) {
+    const relative = path.relative(path.resolve(dataRoot), path.resolve(tree));
+    if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+        throw new Error(`${tree} is not beneath the data root ${dataRoot}.`);
+    }
+    return relative.split(path.sep).join("/");
+}
+
+/**
+ * A remover for trees under a stage's data root that the container's user
+ * owns, run as root in a throwaway container on that data root — the same
+ * mechanism that hands an end-to-end install to the container's user.
+ *
+ * @param {object} opts
+ * @param {ResolvedContainer} opts.container - The stage's container.
+ * @param {(opts: object) => string} [opts.runScript] - Throwaway-container runner.
+ * @returns {(tree: string, where: {dataRoot: string}) => void} Removes one tree.
+ */
+export function containerTreeRemover({ container, runScript = runDataRootScript }) {
+    return (tree, { dataRoot }) => {
+        const relative = beneathDataRoot(dataRoot, tree);
+        runScript({
+            image: container.image,
+            dataRoot,
+            user: "0:0",
+            script: 'rm -rf "/data/$1"',
+            args: [relative],
+        });
+    };
+}
+
+/**
+ * The command {@link containerTreeRemover} runs, written out for a person to
+ * paste when the deploy could not run it.
+ *
+ * @param {object} opts
+ * @param {string} opts.image - Image reference.
+ * @param {string} opts.dataRoot - Host directory mounted at `/data`.
+ * @param {string} opts.tree - The tree to remove, beneath the data root.
+ * @returns {string} A `docker run` command line.
+ */
+export function containerRemovalCommand({ image, dataRoot, tree }) {
+    const relative = beneathDataRoot(dataRoot, tree);
+    return (
+        `docker run --rm --user 0:0 --volume ${path.resolve(dataRoot)}:/data ` +
+        `--entrypoint rm ${image} -rf /data/${relative}`
+    );
 }
 
 /**
@@ -627,6 +737,12 @@ export function startContainer(container, { dataRoot, env = process.env, log = (
             version: container.version,
             world: container.world,
             licenseKey: container.licenseKey,
+            account: needsFoundryAccount({
+                cacheDir: container.cacheDir,
+                dataRoot,
+                version: container.version,
+                licenseKey: container.licenseKey ?? env.FOUNDRY_LICENSE_KEY?.trim() ?? null,
+            }),
             user: container.user,
         }),
     );

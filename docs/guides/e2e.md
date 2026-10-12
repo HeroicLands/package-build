@@ -57,6 +57,9 @@ this harness and a Foundry license available to the test container:
 FOUNDRYVTT_TEST_DATA=/path/to/isolated-foundry-test-data
 FOUNDRYVTT_TEST_LICENSE_KEY=replace-with-test-license-key
 FOUNDRYVTT_TEST_PORT=30003
+FOUNDRYVTT_CACHE=/path/to/foundry-release-cache
+FOUNDRY_USERNAME=your-foundryvtt-com-account
+FOUNDRY_PASSWORD=replace-with-account-password
 # FOUNDRYVTT_TEST_VERSION=14.367
 ```
 
@@ -82,7 +85,13 @@ own `.env.local` because that ignored file is not copied with the branch.
 The test data path is a Foundry data root, beneath which the harness creates
 `Data/worlds/` and installs the package. Use an absolute path; `~` and shell
 variables are not expanded in `.env.local`. Set `FOUNDRYVTT_TEST_VERSION` to
-select a specific Foundry build for routine runs. Under rootless Docker, set
+select a specific Foundry build for routine runs; the container then runs the
+image made for that build. The first run downloads the release, which needs
+`FOUNDRY_USERNAME` and `FOUNDRY_PASSWORD`, and the image keeps the archive in
+`FOUNDRYVTT_CACHE`, or in `container_cache` beneath the data root when that is
+unset. Once the archive is cached and the stage has a licence, later runs
+start without signing in to foundryvtt.com, so its rate limit never stops a
+run. Under rootless Docker, set
 `FOUNDRYVTT_CONTAINER_USER=0:0`: container root is then the host user, so every
 file under the data root belongs to them, where the image would otherwise run
 Foundry as user 1000. With the local settings in place, seed the world:

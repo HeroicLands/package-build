@@ -87,7 +87,7 @@ import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
 import { checkForeignAssetBindings } from "../engine/asset-bindings.mjs";
-import { formatDiagnostic } from "../engine/diagnostics.mjs";
+import { emitDiagnostic, formatDiagnostic } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
@@ -117,8 +117,15 @@ import { findHardcodedText, findTemplateSyntaxErrors } from "../templates.mjs";
 import { checkBundleLoading } from "../bundle.mjs";
 import { packRelease } from "../release.mjs";
 import { writeManifest } from "../manifest.mjs";
-import { deployStage } from "../deploy.mjs";
-import { CONTAINER_ACTIONS, containerAction } from "../container.mjs";
+import { deployStage, resolveStage } from "../deploy.mjs";
+import {
+    CONTAINER_ACTIONS,
+    containerAction,
+    containerRemovalCommand,
+    containerTreeRemover,
+    dataEnvVar,
+    resolveContainer,
+} from "../container.mjs";
 import { E2E_MODES, e2eFast, e2eRun, e2eSweep, seedTestWorld } from "../e2e.mjs";
 import { reportFindings } from "./report.mjs";
 import { formatGenerated } from "../engine/format-generated.mjs";
@@ -1491,15 +1498,38 @@ function deployCommand() {
 
             await loadEnvironment(config);
 
-            const { stage } = await deployStage({
+            // The container is resolved only once the host user is refused a
+            // removal, so a deploy that meets no refusal needs no container.
+            const containerFor = () =>
+                resolveContainer({ stage: resolveStage(args.stage), config });
+            const { stage, leftovers, remote } = await deployStage({
                 stage: args.stage,
                 source: path.join(config.rootDir, config.stageDir),
                 packageKind: config.packageKind,
                 packageId: config.packageId,
                 prefix: config.envPrefix,
                 log: (message) => console.log(message),
+                removeTree: (tree, where) =>
+                    containerTreeRemover({ container: containerFor() })(tree, where),
             });
             console.log(`Deployed stage '${stage}' successfully.`);
+            for (const leftover of leftovers) {
+                const remedy =
+                    remote ?
+                        "remove it on the host as the user that owns its files"
+                    :   `remove it with \`${containerRemovalCommand({
+                            image: containerFor().image,
+                            dataRoot: process.env[dataEnvVar(stage)].trim(),
+                            tree: leftover.path,
+                        })}\``;
+                emitDiagnostic({
+                    file: leftover.path,
+                    severity: "warning",
+                    message:
+                        `the new package is installed, but its previous tree could ` +
+                        `not be removed (${leftover.reason}); ${remedy}`,
+                });
+            }
         }),
     };
 }

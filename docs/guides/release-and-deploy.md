@@ -116,6 +116,11 @@ for the package. Paths in `.env.local` are literal: `~` and shell variables
 are not expanded. Keep stage paths pointed at distinct Foundry data roots.
 The deploy command stages a complete copy beside the installed package and
 swaps it into place, so it does not rewrite open LevelDB files one by one.
+It then removes the previous tree, and any an earlier deploy left behind;
+files Foundry's container wrote there are
+removed through a throwaway container of the stage's image, and a tree that
+still cannot be removed is reported as a warning naming it, without failing the
+deploy.
 For a remote destination it uses the SSH agent unless the stage names an
 explicit key. The `container` command manages the Foundry Docker instance for
 the same stage;

@@ -261,6 +261,151 @@ describe("deployLocal — atomic staged swap (safe with a live server)", () => {
     });
 });
 
+/**
+ * Lock a directory against the host user, the way a tree written by a
+ * container's mapped user is locked: its entries cannot be unlinked, so a
+ * recursive remove fails with `EACCES`. Root ignores the mode, so the tests
+ * that rely on it cannot run as root.
+ */
+async function lockTree(dir: string): Promise<() => Promise<void>> {
+    await fs.chmod(dir, 0o555);
+    return () => fs.chmod(dir, 0o755);
+}
+
+const asRoot = process.getuid?.() === 0;
+
+describe.skipIf(asRoot)("deployLocal — removing the previous tree", () => {
+    let ws: { root: string; src: string; dest: string };
+
+    beforeEach(async () => {
+        ws = await makeWorkspace();
+        await fs.writeFile(path.join(ws.src, "system.json"), "new");
+        await fs.mkdir(path.join(ws.dest, "owned"), { recursive: true });
+        await fs.writeFile(path.join(ws.dest, "owned", "LICENSE.md"), "old");
+    });
+    afterEach(async () => {
+        for (const sibling of await listSiblings(ws.dest)) {
+            await fs
+                .chmod(path.join(path.dirname(ws.dest), sibling, "owned"), 0o755)
+                .catch(() => {});
+        }
+        await fs.rm(ws.root, { recursive: true, force: true });
+    });
+
+    it("hands a tree the host user cannot unlink to the injected remover", async () => {
+        await lockTree(path.join(ws.dest, "owned"));
+        const removed: string[] = [];
+        const removeTree = async (tree: string) => {
+            removed.push(tree);
+            await fs.chmod(path.join(tree, "owned"), 0o755);
+            await fs.rm(tree, { recursive: true, force: true });
+        };
+
+        const result = await deployLocal(ws.src, ws.dest, { removeTree });
+
+        expect(removed).toEqual([`${ws.dest}.old-${process.pid}`]);
+        expect(result.leftovers).toEqual([]);
+        expect(await readMaybe(path.join(ws.dest, "system.json"))).toBe("new");
+        expect(await listSiblings(ws.dest)).toEqual([]);
+    });
+
+    it("never calls the remover when the host user can remove the tree", async () => {
+        const removeTree = async () => {
+            throw new Error("not expected");
+        };
+
+        const result = await deployLocal(ws.src, ws.dest, { removeTree });
+
+        expect(result.leftovers).toEqual([]);
+        expect(await listSiblings(ws.dest)).toEqual([]);
+    });
+
+    it("installs and reports the leftover tree when no remover can clear it", async () => {
+        await lockTree(path.join(ws.dest, "owned"));
+        const removeTree = async () => {
+            throw new Error("A helper container failed (exit 125):\ndocker was not found on PATH.");
+        };
+
+        const result = await deployLocal(ws.src, ws.dest, { removeTree });
+
+        const old = `${ws.dest}.old-${process.pid}`;
+        expect(result.leftovers).toMatchObject([{ path: old }]);
+        // On one line, so the warning that carries it stays one diagnostic.
+        expect(result.leftovers[0]?.reason).toBe(
+            "A helper container failed (exit 125): docker was not found on PATH.",
+        );
+        // The install is complete, and the previous tree keeps its name and
+        // its contents.
+        expect(await readMaybe(path.join(ws.dest, "system.json"))).toBe("new");
+        expect(await readMaybe(path.join(old, "owned", "LICENSE.md"))).toBe("old");
+    });
+
+    it("reports the leftover tree, naming the refusal, when there is no remover", async () => {
+        await lockTree(path.join(ws.dest, "owned"));
+
+        const result = await deployLocal(ws.src, ws.dest);
+
+        expect(result.leftovers).toMatchObject([{ path: `${ws.dest}.old-${process.pid}` }]);
+        expect(result.leftovers[0]?.reason).toMatch(/EACCES/);
+        expect(await readMaybe(path.join(ws.dest, "system.json"))).toBe("new");
+    });
+
+    it("sweeps a backup an earlier deployment left under another pid", async () => {
+        const stale = `${ws.dest}.old-1`;
+        await fs.mkdir(stale, { recursive: true });
+        await fs.writeFile(path.join(stale, "system.json"), "stale");
+
+        const result = await deployLocal(ws.src, ws.dest);
+
+        expect(result.leftovers).toEqual([]);
+        expect(await listSiblings(ws.dest)).toEqual([]);
+    });
+
+    it("hands a stale backup the host user cannot unlink to the injected remover", async () => {
+        const stale = `${ws.dest}.old-1`;
+        await fs.mkdir(path.join(stale, "owned"), { recursive: true });
+        await fs.writeFile(path.join(stale, "owned", "LICENSE.md"), "stale");
+        await lockTree(path.join(stale, "owned"));
+        const removed: string[] = [];
+        const removeTree = async (tree: string) => {
+            removed.push(tree);
+            await fs.chmod(path.join(tree, "owned"), 0o755);
+            await fs.rm(tree, { recursive: true, force: true });
+        };
+
+        const result = await deployLocal(ws.src, ws.dest, { removeTree });
+
+        expect(removed).toEqual([stale]);
+        expect(result.leftovers).toEqual([]);
+        expect(await listSiblings(ws.dest)).toEqual([]);
+    });
+
+    it("reports each stale backup it cannot remove", async () => {
+        const stale = `${ws.dest}.old-1`;
+        await fs.mkdir(path.join(stale, "owned"), { recursive: true });
+        await fs.writeFile(path.join(stale, "owned", "LICENSE.md"), "stale");
+        await lockTree(path.join(stale, "owned"));
+
+        const result = await deployLocal(ws.src, ws.dest);
+
+        expect(result.leftovers).toMatchObject([{ path: stale }]);
+        expect(result.leftovers[0]?.reason).toMatch(/EACCES/);
+        expect(await readMaybe(path.join(ws.dest, "system.json"))).toBe("new");
+    });
+
+    it("leaves a sibling that is not one of its backups alone", async () => {
+        const others = [`${ws.dest}-thalorna`, `${ws.dest}.older`, `${ws.dest}.old`];
+        for (const other of others) await fs.mkdir(other, { recursive: true });
+
+        const result = await deployLocal(ws.src, ws.dest);
+
+        expect(result.leftovers).toEqual([]);
+        expect((await listSiblings(ws.dest)).sort()).toEqual(
+            others.map((other) => path.basename(other)).sort(),
+        );
+    });
+});
+
 describe("deployStage", () => {
     let ws: { root: string; src: string; dest: string };
 
@@ -301,6 +446,35 @@ describe("deployStage", () => {
             await readMaybe(path.join(dataRoot, "Data", "modules", "sohl-thalorna", "system.json")),
         ).toBe("v1");
     });
+
+    it.skipIf(asRoot)(
+        "passes the data root to the remover and returns any leftover tree",
+        async () => {
+            const dataRoot = path.join(ws.root, "fvtt");
+            const dest = path.join(dataRoot, "Data", "systems", "sohl");
+            await fs.mkdir(path.join(dest, "owned"), { recursive: true });
+            await fs.writeFile(path.join(dest, "owned", "LICENSE.md"), "old");
+            await lockTree(path.join(dest, "owned"));
+            const calls: [string, { dataRoot: string }][] = [];
+            const removeTree = async (tree: string, where: { dataRoot: string }) => {
+                calls.push([tree, where]);
+            };
+
+            const result = await deployStage({
+                stage: "test",
+                source: ws.src,
+                packageKind: "systems",
+                packageId: "sohl",
+                env: { FOUNDRYVTT_TEST_DATA: dataRoot },
+                removeTree,
+            });
+
+            const old = `${dest}.old-${process.pid}`;
+            expect(calls).toEqual([[old, { dataRoot }]]);
+            expect(result.leftovers).toMatchObject([{ path: old }]);
+            await fs.chmod(path.join(old, "owned"), 0o755);
+        },
+    );
 
     it("refuses an unknown stage, naming the valid ones", async () => {
         await expect(

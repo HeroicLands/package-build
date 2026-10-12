@@ -22,8 +22,11 @@ import {
     CACHE_MOUNT,
     CONTAINER_PORT,
     containerName,
+    containerRemovalCommand,
+    containerTreeRemover,
     dataEnvVar,
     dockerRunArgs,
+    needsFoundryAccount,
     passthroughEnv,
     resolveContainer,
     resolveDataRoot,
@@ -141,9 +144,17 @@ describe("which Foundry build a run pins", () => {
 });
 
 describe("which image a run uses", () => {
-    it("takes the major from the pinned build", () => {
-        expect(resolveImage({ version: "14.359" })).toBe("felddy/foundryvtt:14");
-        expect(resolveImage({ version: "12.331" })).toBe("felddy/foundryvtt:12");
+    it("takes the image built for the pinned build", () => {
+        // The image's own version is the build it installs by default; a pin
+        // on a major tag installs one build with another build's entrypoint.
+        expect(resolveImage({ version: "14.359" })).toBe("felddy/foundryvtt:14.359");
+        expect(resolveImage({ version: "14.359", compatibilityMinimum: "14.300" })).toBe(
+            "felddy/foundryvtt:14.359",
+        );
+    });
+
+    it("takes the major from a pinned build that names no build number", () => {
+        expect(resolveImage({ version: "12" })).toBe("felddy/foundryvtt:12");
     });
 
     it("falls back to the major of the compatibility floor", () => {
@@ -206,6 +217,76 @@ describe("the environment the container is created with", () => {
     });
 });
 
+describe("whether the image has to sign in to foundryvtt.com", () => {
+    const cached = new Set(["/host/zips/foundryvtt-14.359.zip"]);
+    const fileExists = (file: string) => cached.has(file);
+    const key = "ABCD-EFGH-IJKL-MNOP-QRST-UVWX";
+
+    it("does not, when the pinned release is cached and a licence key is given", () => {
+        expect(
+            needsFoundryAccount({
+                cacheDir: "/host/zips",
+                dataRoot: "/data-e2e",
+                version: "14.359",
+                licenseKey: key,
+                fileExists,
+            }),
+        ).toBe(false);
+    });
+
+    it("does not, when the pinned release is cached and the data root is licensed", () => {
+        const files = new Set([
+            "/data-e2e/container_cache/foundryvtt-14.359.zip",
+            "/data-e2e/Config/license.json",
+        ]);
+        // With no cache of its own, the image caches beneath the data root.
+        expect(
+            needsFoundryAccount({
+                cacheDir: null,
+                dataRoot: "/data-e2e",
+                version: "14.359",
+                fileExists: (file: string) => files.has(file),
+            }),
+        ).toBe(false);
+    });
+
+    it("does, when the pinned release is not cached", () => {
+        expect(
+            needsFoundryAccount({
+                cacheDir: "/host/zips",
+                dataRoot: "/data-e2e",
+                version: "14.368",
+                licenseKey: key,
+                fileExists,
+            }),
+        ).toBe(true);
+    });
+
+    it("does, when no build is pinned, since the archive's name is unknown", () => {
+        expect(
+            needsFoundryAccount({
+                cacheDir: "/host/zips",
+                dataRoot: "/data-e2e",
+                version: null,
+                licenseKey: key,
+                fileExists,
+            }),
+        ).toBe(true);
+    });
+
+    it("does, when the account is where the licence comes from", () => {
+        expect(
+            needsFoundryAccount({
+                cacheDir: "/host/zips",
+                dataRoot: "/data-e2e",
+                version: "14.359",
+                licenseKey: "1",
+                fileExists,
+            }),
+        ).toBe(true);
+    });
+});
+
 describe("the docker run argument vector", () => {
     const base = {
         name: "sohl-foundry-test",
@@ -261,6 +342,15 @@ describe("the docker run argument vector", () => {
 
     it("omits --user when the user is blank", () => {
         expect(dockerRunArgs({ ...base, user: "  " })).not.toContain("--user");
+    });
+
+    it("withholds the foundryvtt.com account when the image does not need it", () => {
+        const env = { FOUNDRY_USERNAME: "toasty", FOUNDRY_PASSWORD: "x", FOUNDRY_ADMIN_KEY: "a" };
+        const args = dockerRunArgs({ ...base, env, account: false }).join(" ");
+        expect(args).not.toContain("FOUNDRY_USERNAME");
+        expect(args).not.toContain("FOUNDRY_PASSWORD");
+        expect(args).toContain("FOUNDRY_ADMIN_KEY=a");
+        expect(dockerRunArgs({ ...base, env }).join(" ")).toContain("FOUNDRY_USERNAME=toasty");
     });
 
     it("lets a per-stage licence beat the one passed through", () => {
@@ -327,5 +417,61 @@ describe("resolving a stage from configuration", () => {
         for (const env of [{}, { FOUNDRYVTT_CONTAINER_USER: "  " }]) {
             expect(resolveContainer({ stage: "test", config: config(), env }).user).toBeNull();
         }
+    });
+});
+
+describe("removing a tree the container's user owns", () => {
+    const container = { image: "felddy/foundryvtt:14" } as never;
+
+    it("removes it as root inside a throwaway container on the same data root", () => {
+        const calls: object[] = [];
+        const remove = containerTreeRemover({
+            container,
+            runScript: (opts: object) => {
+                calls.push(opts);
+                return "";
+            },
+        });
+
+        remove("/srv/fvtt/Data/systems/sohl.old-42", { dataRoot: "/srv/fvtt" });
+
+        expect(calls).toEqual([
+            {
+                image: "felddy/foundryvtt:14",
+                dataRoot: "/srv/fvtt",
+                user: "0:0",
+                script: 'rm -rf "/data/$1"',
+                args: ["Data/systems/sohl.old-42"],
+            },
+        ]);
+    });
+
+    it("refuses a tree outside the data root, and the root itself", () => {
+        const remove = containerTreeRemover({
+            container,
+            runScript: () => {
+                throw new Error("not expected");
+            },
+        });
+
+        expect(() => remove("/srv/other/sohl.old-42", { dataRoot: "/srv/fvtt" })).toThrow(
+            /not beneath the data root/,
+        );
+        expect(() => remove("/srv/fvtt", { dataRoot: "/srv/fvtt" })).toThrow(
+            /not beneath the data root/,
+        );
+    });
+
+    it("spells out the same removal as a command a person can paste", () => {
+        expect(
+            containerRemovalCommand({
+                image: "felddy/foundryvtt:14",
+                dataRoot: "/srv/fvtt",
+                tree: "/srv/fvtt/Data/systems/sohl.old-42",
+            }),
+        ).toBe(
+            "docker run --rm --user 0:0 --volume /srv/fvtt:/data --entrypoint rm " +
+                "felddy/foundryvtt:14 -rf /data/Data/systems/sohl.old-42",
+        );
     });
 });

@@ -47,9 +47,11 @@ import process from "node:process";
 import { spawnSync } from "node:child_process";
 
 import { deployStage, isRemoteTarget, packageSubpath } from "./deploy.mjs";
+import { emitDiagnostic } from "./engine/diagnostics.mjs";
 import {
     containerAction,
     containerExists,
+    containerTreeRemover,
     dataEnvVar,
     resolveContainer,
     resolveDataRoot,
@@ -562,7 +564,7 @@ export async function deployForContainer({
             args: [relative],
         });
     }
-    await deployStage({
+    const { leftovers } = await deployStage({
         stage,
         source: path.join(config.rootDir, config.stageDir),
         packageKind: config.packageKind,
@@ -570,7 +572,15 @@ export async function deployForContainer({
         env,
         prefix: config.envPrefix,
         log,
+        removeTree: containerTreeRemover({ container, runScript }),
     });
+    for (const leftover of leftovers) {
+        emitDiagnostic({
+            file: leftover.path,
+            severity: "warning",
+            message: `the new package is installed, but this previous tree could not be removed (${leftover.reason})`,
+        });
+    }
     if (local) {
         const owner = containerOwner({ container, dataRoot: target, runScript });
         runScript({

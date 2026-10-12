@@ -195,6 +195,65 @@ async function exists(p) {
 }
 
 /**
+ * A previous package tree a deploy could not remove after the swap.
+ *
+ * @typedef {object} LeftoverTree
+ * @property {string} path - The tree, still under its `….old-<pid>` name.
+ * @property {string} reason - Why the last attempt to remove it failed.
+ */
+
+/**
+ * Removes a tree the host user cannot, typically by acting as the user that
+ * owns its files. Receives the tree and the stage's data root.
+ *
+ * @callback RemoveTree
+ * @param {string} tree - The tree to remove.
+ * @param {{dataRoot: string}} where - The data root the tree sits beneath.
+ * @returns {void|Promise<void>}
+ */
+
+/**
+ * @param {unknown} err - What a removal threw.
+ * @returns {string} Its message on one line, so it fits in one diagnostic.
+ */
+function reasonOf(err) {
+    return (err instanceof Error ? err.message : String(err)).replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Remove the previous tree once the new one is in place.
+ *
+ * Foundry running in a container writes files owned by the container's user,
+ * which under a rootless runtime is a mapped uid the host user cannot unlink.
+ * A refusal is handed to `removeTree`, which can act as that user. The install
+ * is already complete by then, so a tree neither can remove is reported rather
+ * than thrown, and keeps its name so it is never mistaken for anything else.
+ *
+ * @param {string} old - The previous tree.
+ * @param {((tree: string) => void|Promise<void>)|undefined} removeTree - The fallback remover.
+ * @returns {Promise<LeftoverTree|null>} The tree left behind, or `null`.
+ */
+async function removePrevious(old, removeTree) {
+    try {
+        await fs.rm(old, { recursive: true, force: true });
+        return null;
+    } catch (err) {
+        const code = /** @type {NodeJS.ErrnoException} */ (err).code;
+        if (!removeTree || (code !== "EACCES" && code !== "EPERM")) {
+            return { path: old, reason: reasonOf(err) };
+        }
+    }
+    try {
+        await removeTree(old);
+    } catch (err) {
+        return { path: old, reason: reasonOf(err) };
+    }
+    return (await exists(old)) ?
+            { path: old, reason: "the tree is still present after the fallback removal" }
+        :   null;
+}
+
+/**
  * Mirror the staged build into a local directory via a staged, atomic swap.
  *
  * The live destination is never mutated in place — see the module header for
@@ -202,9 +261,13 @@ async function exists(p) {
  *
  * @param {string} srcAbs - The staged tree.
  * @param {string} destDir - Where the package installs.
- * @returns {Promise<void>}
+ * @param {object} [opts]
+ * @param {(tree: string) => void|Promise<void>} [opts.removeTree] - Removes a
+ *   previous tree the host user is refused permission to remove.
+ * @returns {Promise<{leftovers: LeftoverTree[]}>} The previous trees that
+ *   could not be removed; the new one is installed either way.
  */
-export async function deployLocal(srcAbs, destDir) {
+export async function deployLocal(srcAbs, destDir, { removeTree } = {}) {
     const staging = `${destDir}.staging-${process.pid}`;
     const old = `${destDir}.old-${process.pid}`;
 
@@ -220,7 +283,37 @@ export async function deployLocal(srcAbs, destDir) {
     const hadDest = await exists(destDir);
     if (hadDest) await fs.rename(destDir, old);
     await fs.rename(staging, destDir);
-    if (hadDest) await fs.rm(old, { recursive: true, force: true });
+
+    // 3. Remove every previous tree beside it: this deployment's own, and any
+    //    an earlier one could not remove. A leftover still carries a manifest,
+    //    so Foundry reads it as a second copy of the package.
+    const leftovers = [];
+    for (const tree of await previousTrees(destDir)) {
+        const leftover = await removePrevious(tree, removeTree);
+        if (leftover) leftovers.push(leftover);
+    }
+    return { leftovers };
+}
+
+/**
+ * The previous trees a local deploy has set aside beside a package:
+ * `<id>.old-<pid>`, whichever process's pid it carries.
+ *
+ * @param {string} destDir - Where the package installs.
+ * @returns {Promise<string[]>} Their paths, sorted.
+ */
+async function previousTrees(destDir) {
+    const prefix = `${path.basename(destDir)}.old-`;
+    const entries = await fs.readdir(path.dirname(destDir), { withFileTypes: true });
+    return entries
+        .filter(
+            (entry) =>
+                entry.isDirectory() &&
+                entry.name.startsWith(prefix) &&
+                /^\d+$/.test(entry.name.slice(prefix.length)),
+        )
+        .map((entry) => path.join(path.dirname(destDir), entry.name))
+        .sort();
 }
 
 /**
@@ -235,7 +328,8 @@ export async function deployLocal(srcAbs, destDir) {
  * @param {string} remoteDir - Where the package installs on the host.
  * @param {object} [opts]
  * @param {(uploaded: string) => void} [opts.onUpload] - Per-file progress.
- * @returns {Promise<void>}
+ * @returns {Promise<{leftovers: LeftoverTree[]}>} The previous tree when it
+ *   could not be removed; the new one is installed either way.
  */
 export async function deployRemote(conn, srcAbs, remoteDir, { onUpload } = {}) {
     const { default: Client } = await import("ssh2-sftp-client");
@@ -255,7 +349,13 @@ export async function deployRemote(conn, srcAbs, remoteDir, { onUpload } = {}) {
         const hadDest = Boolean(await sftp.exists(remoteDir));
         if (hadDest) await sftp.rename(remoteDir, old);
         await sftp.rename(staging, remoteDir);
-        if (hadDest) await sftp.rmdir(old, true);
+        if (!hadDest) return { leftovers: [] };
+        try {
+            await sftp.rmdir(old, true);
+            return { leftovers: [] };
+        } catch (err) {
+            return { leftovers: [{ path: old, reason: reasonOf(err) }] };
+        }
     } finally {
         await sftp.end();
     }
@@ -273,7 +373,10 @@ export async function deployRemote(conn, srcAbs, remoteDir, { onUpload } = {}) {
  * @param {NodeJS.ProcessEnv} [opts.env] - The environment to read.
  * @param {string} [opts.prefix] - Fallback variable prefix for SFTP overrides.
  * @param {(message: string) => void} [opts.log] - Progress reporting.
- * @returns {Promise<{stage: string, destination: string, remote: boolean}>}
+ * @param {RemoveTree} [opts.removeTree] - Removes a previous local tree the
+ *   host user is refused permission to remove.
+ * @returns {Promise<{stage: string, destination: string, remote: boolean, leftovers: LeftoverTree[]}>}
+ *   `leftovers` names each previous tree the deploy installed past but could not remove.
  * @throws {Error} On an unknown stage, or one with no destination configured.
  */
 export async function deployStage({
@@ -284,6 +387,7 @@ export async function deployStage({
     env = process.env,
     prefix = "SOHL",
     log = () => {},
+    removeTree,
 }) {
     const name = resolveStage(stage);
     const envVarName = STAGE_ENV_MAP[name];
@@ -312,14 +416,16 @@ export async function deployStage({
             prefix,
         });
         log(`Deploying ${source} → ${conn.username}@${conn.host}:${remoteDir} (sftp)`);
-        await deployRemote(conn, source, remoteDir, {
+        const { leftovers } = await deployRemote(conn, source, remoteDir, {
             onUpload: (f) => log(`  ${f}`),
         });
-        return { stage: name, destination: remoteDir, remote: true };
+        return { stage: name, destination: remoteDir, remote: true, leftovers };
     }
 
     const destDir = path.join(dataRoot, ...segments);
     log(`Deploying ${source} → ${destDir} (local copy)`);
-    await deployLocal(source, destDir);
-    return { stage: name, destination: destDir, remote: false };
+    const { leftovers } = await deployLocal(source, destDir, {
+        removeTree: removeTree && ((tree) => removeTree(tree, { dataRoot })),
+    });
+    return { stage: name, destination: destDir, remote: false, leftovers };
 }

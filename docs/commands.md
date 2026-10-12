@@ -1195,6 +1195,19 @@ Foundry holds its LevelDB packs open and a replacement written underneath it
 corrupts them. `.env.local` and `.env` are loaded first. Reads
 `packageBuild.stageDir`; writes into the stage's data directory.
 
+Once the new tree is in place, the previous one — renamed aside to
+`<id>.old-<pid>` — is removed, along with any `<id>.old-<pid>` an earlier
+deploy left beside the package, whatever its pid. A leftover tree still holds
+a manifest, so Foundry reads it as a second copy of the package and logs it as
+an invalid one on every start. Foundry running in a container writes files
+owned by the container's user, which under rootless Docker is a mapped uid the
+host user cannot unlink. When the host user is refused, a throwaway container
+of the stage's image removes the tree as root on the same data root, the
+mechanism `e2e` uses to hand its install to Foundry. If that fails too — no
+`docker`, or a remote destination — the deploy still succeeds: it prints a
+warning for each leftover tree, naming it and the command that removes it,
+and leaves the tree under its `.old-<pid>` name for the next deploy to sweep.
+
 **OPTIONS**
 
 | Positional | Type   | Default | Description                                     |
@@ -1209,7 +1222,8 @@ only).
 **EXIT STATUS**
 
 1 if `FOUNDRYVTT_<STAGE>_DATA` is unset. 1 on any other thrown error.
-Otherwise 0.
+Otherwise 0, including when the previous tree is left behind with a warning:
+the new package is installed either way.
 
 **EXAMPLES**
 
@@ -1220,6 +1234,11 @@ package-build: No destination configured for stage 'dev'. Set FOUNDRYVTT_DEV_DAT
 $ FOUNDRYVTT_DEV_DATA=/tmp/pb-docs-demo-410-data package-build deploy dev
 Deploying /private/tmp/pb-docs-demo-410/build/stage → /tmp/pb-docs-demo-410-data/Data/modules/demo-package (local copy)
 Deployed stage 'dev' successfully.
+
+$ package-build deploy test
+Deploying /srv/pkg/build/stage → /srv/fvtt-test/Data/systems/sohl (local copy)
+Deployed stage 'test' successfully.
+/srv/fvtt-test/Data/systems/sohl.old-4242: warning: the new package is installed, but its previous tree could not be removed (docker was not found on PATH. Install Docker and make sure the `docker` CLI is available.); remove it with `docker run --rm --user 0:0 --volume /srv/fvtt-test:/data --entrypoint rm felddy/foundryvtt:14 -rf /data/Data/systems/sohl.old-4242`
 ```
 
 **SEE ALSO**
@@ -1248,16 +1267,30 @@ first.
 
 `start` requires the stage's data root to exist and runs the image, passing
 through `FOUNDRYVTT_<STAGE>_VERSION`, `FOUNDRYVTT_<STAGE>_WORLD` and
-`FOUNDRYVTT_<STAGE>_LICENSE_KEY` when set. `stop` stops it. `restart` stops
+`FOUNDRYVTT_<STAGE>_LICENSE_KEY` when set. Every other `FOUNDRY_*` and
+`CONTAINER_*` variable passes through too, except that `FOUNDRY_USERNAME` and
+`FOUNDRY_PASSWORD` are withheld when the image has no use for them: the pinned
+build's `foundryvtt-<version>.zip` is already in the cache (`FOUNDRYVTT_CACHE`,
+or `container_cache` beneath the data root when that is unset) and a licence
+is available without the account (a licence key of 24 characters or more, or
+`Config/license.json` in the data root). Given an account, the image signs in
+to foundryvtt.com and requests a download URL on every container it creates,
+cached or not, and a request refused with HTTP 429 stops it before Foundry
+starts. `stop` stops it. `restart` stops
 it, clears a stale lock left by an unclean shutdown, and starts it again —
 not `docker restart`, which leaves no window to clear the lock. `recreate`
 removes the container first, so a changed world, license or cache
 environment variable actually takes effect, then starts fresh. `rm` removes
 the container. `status` runs `docker ps` filtered to this stage's container
-name. `logs` follows its log. `pull` pulls the configured image
-(`FOUNDRYVTT_CONTAINER_IMAGE`, then `packageBuild.container.image`, then a
-floating `felddy/foundryvtt:release` tag when the package declares no
-`compatibility.minimum`).
+name. `logs` follows its log. `pull` pulls the configured image.
+
+The image is `FOUNDRYVTT_CONTAINER_IMAGE`, then `packageBuild.container.image`,
+then felddy's tag for the pinned build (`felddy/foundryvtt:14.359` for a stage
+pinned to `14.359`), because each image installs its own build by default and
+warns that a different `FOUNDRY_VERSION` may not work with it. A stage with no
+exact pin takes the major tag of its pin or of `compatibility.minimum`
+(`felddy/foundryvtt:14`), and a package that declares neither floats on
+`felddy/foundryvtt:release`.
 
 **OPTIONS**
 
