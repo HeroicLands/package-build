@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 23.2.1
+
+### Patch Changes
+
+A documented label whose name contains a digit, such as `e2e`, now passes the labels check.
+
 ## 23.2.0
 
 ### Minor Changes
