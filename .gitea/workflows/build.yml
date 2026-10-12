@@ -26,7 +26,7 @@ jobs:
         # the host-mode runner's user cannot do.
         runs-on: ubuntu-vm
         steps:
-            - uses: actions/checkout@v7
+            - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
             # Wants a checkout and nothing else, so it runs before the install
             # and fails in seconds rather than after one. The rule — deferred
             # work is an issue, not a marker in a comment — and its
@@ -41,7 +41,7 @@ jobs:
             # `node_modules/`, so scanning the tree is both exact and
             # self-extending.
             - name: Check for forbidden markers
-              uses: HeroicLands/.github/actions/todos@main
+              uses: HeroicLands/.github/actions/todos@6ed646d38b0cf4f5eed4a31dcc44bfca2bfd0158 # main
               with:
                   paths: .
 
@@ -67,7 +67,7 @@ jobs:
                       exit 1
                   fi
                   echo "No node_modules path is tracked."
-            - uses: actions/setup-node@v7
+            - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
               with:
                   node-version: 24
                   cache: npm
