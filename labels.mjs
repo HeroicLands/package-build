@@ -70,7 +70,7 @@ function positionOfLabel(text, name) {
 function positionOfDocRow(text, name) {
     const lines = text.split("\n");
     for (let i = 0; i < lines.length; i += 1) {
-        const m = lines[i].match(/^\|\s*`([a-z][a-z-]*)`\s*\|/);
+        const m = lines[i].match(/^\|\s*`([a-z][a-z0-9-]*)`\s*\|/);
         if (m && m[1] === name) return { line: i + 1, column: lines[i].indexOf(name) + 1 };
     }
     return {};
@@ -95,7 +95,7 @@ export function documentedLabels(text) {
     const section = lines.slice(start, after < 0 ? lines.length : after);
     const names = new Set();
     for (const line of section) {
-        const m = line.match(/^\|\s*`([a-z][a-z-]*)`\s*\|/);
+        const m = line.match(/^\|\s*`([a-z][a-z0-9-]*)`\s*\|/);
         if (m) names.add(m[1]);
     }
     return { names, found: true };

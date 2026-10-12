@@ -34,6 +34,20 @@ describe("the label registry's two faces", () => {
         expect(r.count).toBe(3);
     });
 
+    it("accepts a label name containing digits", () => {
+        const r = checkLabelRegistry({
+            registryText: registry("e2e", "i18n-docs"),
+            docText: doc("e2e", "i18n-docs"),
+        });
+        expect(r.registry).toEqual([]);
+        expect(r.doc).toEqual([]);
+        expect(documentedLabels(doc("e2e")).names.has("e2e")).toBe(true);
+    });
+
+    it("still ignores a table row whose first cell is not a label name", () => {
+        expect(documentedLabels(doc("2e2", "Upper")).names.size).toBe(0);
+    });
+
     it("reports a registry label the documentation omits, at its line", () => {
         const r = checkLabelRegistry({
             registryText: registry("system", "orphan"),
