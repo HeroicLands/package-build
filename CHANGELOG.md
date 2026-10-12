@@ -1,5 +1,68 @@
 # @heroiclands/package-build
 
+## 23.2.0
+
+### Minor Changes
+
+**Books**
+
+- `pdf:` declares its books in a `books:` list; a configuration that still writes `pdf.title` or `pdf.document` fails. To move, put `title`, `subtitle`, `document` and `front` into one `pdf.books` entry with an `id`; `fonts`, `iconFonts`, `binary` and `out` stay directly under `pdf:`.
+- `package-build pdf` builds every declared book, and `--book <id>` builds one. Each book's PDF is named from its `out` stem (default `<package>-<id>`) and the version; write `out: <package>` to keep a single book's file name.
+
+**Authors**
+
+- Authors are listed once, in a top-level `authors` list, each with an optional role; the Foundry manifest's authors and the site's byline come from it. Move `packageBuild.manifest.authors` up to `authors`; the manifest block refuses it.
+
+**Cultures**
+
+- A setting guide must name the culture it introduces in `data.culture`. Places, affiliations and every kind of lore may name theirs; other `doc` notes may not, and a culture note may state it only as itself.
+
+**Closed note fields**
+
+- `icon` is accepted only on beings, Items, macros and bundles; a document, map, lore, place or scenario that writes it is refused at the key. An empty `icon`, `tokenIcon` or `banner` is an error at its line.
+- A `data.banner` naming no image is an error at its line, and `data.affiliations` written as a list is an error at its line.
+- A note or a being's `items:` entry with an undeclared `type` is refused at its `type:` line, including `character`, `creature`, `armor`, `concoction`, `projectile` and the map types `battlemap`, `localmap` and `regionalmap`.
+- A `data:` property written at the top level, or in a `sohl:` or `hm3:` block, is an error at its own line; `archetype`, `relation`, `birthday`, a being's `stations`, and top-level `draft`, `aliases`, `section`, `traits` and `folder` are unrecognized keys.
+- Address shortcodes must be lowercase; a reference that spells one with capitals is an error.
+- Undeclared configuration keys, such as `packs[].folders` and `site.trees`, are refused as unrecognized options, and `package-build content-format notes` is not a command.
+
+### Patch Changes
+
+**Books**
+
+- A run reports every printable note no book selects, as a warning by default; `pdf.coverage` makes it an error or silences it, and `pdf.unprinted` names notes that belong in no book.
+- A note several books select prints in each, and the summary names its home book, the first in the list; a cross-reference to a note in another book names that book and its page.
+- Each book's index lists its own notes.
+- A section whose queries select nothing is left out of the book; a book that selects nothing at all is an error.
+- A book can open with a full-page cover image under its title, and its title page lists the authors, the copyright and the licence.
+- `package-build pdf --list-assets` prints the output path of each declared book as JSON, without building anything.
+
+**Cultures**
+
+- A place takes the culture of the places it sits within, and an affiliation that of the bodies it answers to; a polity with neither takes that of its seat and the places it governs. Content tables, book queries and place and affiliation pages use that inherited culture.
+- A note whose parents belong to different cultures is an error until it names its own.
+
+**Pages and maps**
+
+- A page declines its hero image with `data.banner: none`, and a `data.banner` image resolves to the picture it names on homepages and content pages alike.
+- A map note can name its thumbnail with `data.thumbnail`, an image Address, and the compiled Scene shows that picture in Foundry's Scene lists without changing the map's background art.
+
+**Beings**
+
+- A membership in `data.affiliations` can list the societies it is held in with `societies`; on SoHL, the first society named becomes the membership's society on the character sheet.
+- Compiled actors and items keep their default artwork under the HM3 system's asset layout.
+- `package-build lint` resolves a being's embedded `model:` addresses against a `recommends` system that declares `itemCatalog: true`, as the compile does.
+
+**Dependencies**
+
+- A dependency whose cached index comes from an older package-build fails naming that dependency and the fix: update it, then run `package-build deps fetch`.
+
+**Foundry test containers and deployment**
+
+- An e2e run seeds its test world as the container's user and launches it, even after Foundry has repaired a database in it; when the world does not activate, the hint names the stage, so `package-build container <stage> logs` can be pasted as written.
+- A container pinned to an exact Foundry build runs that build's own image, such as `felddy/foundryvtt:14.359`, and with the build cached and a licence present it starts without signing in to foundryvtt.com.
+- A deployment removes its previous package tree even when Foundry's container owns the files in it, and sweeps away the `<id>.old-<pid>` trees earlier deployments left; a tree that still cannot be removed is a warning naming the command that removes it.
+
 ## 23.1.1
 
 ### Patch Changes
