@@ -1521,7 +1521,7 @@ Every module beneath `./hm3` is also reachable as its own entry point, e.g. `@he
 import { hm3DefaultItemArt, documentSubtypes } from "@heroiclands/package-build/hm3";
 
 console.log(hm3DefaultItemArt("weapongear"));
-// -> "systems/hm3/images/icons/svg/sword.svg"
+// -> "hm3/assets/icons/sword.svg"
 console.log(documentSubtypes.HM3_TYPE_KEY);
 // -> "type"
 ```

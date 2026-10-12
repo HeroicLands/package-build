@@ -116,8 +116,8 @@ export const CHARACTER_FIELDS = Object.freeze([
  * @type {Readonly<Record<string, string>>}
  */
 const DEFAULT_IMG = Object.freeze({
-    character: "systems/hm3/images/svg/knight-silhouette.svg",
-    creature: "systems/hm3/images/svg/monster-silhouette.svg",
+    character: "systems/hm3/assets/images/knightsilhouette.svg",
+    creature: "systems/hm3/assets/images/monstersilhouette.svg",
 });
 
 /**
@@ -166,9 +166,9 @@ function defaultActorImg(subType) {
  * @type {Readonly<Record<string, string>>}
  */
 const EMBEDDED_ITEM_ART = Object.freeze({
-    invocation: "systems/hm3/images/icons/svg/circle.svg",
-    psionic: "systems/hm3/images/icons/svg/psionics.svg",
-    spell: "systems/hm3/images/icons/svg/pentacle.svg",
+    invocation: "systems/hm3/assets/icons/circle.svg",
+    psionic: "systems/hm3/assets/icons/psionics.svg",
+    spell: "systems/hm3/assets/icons/pentacle.svg",
 });
 
 /**

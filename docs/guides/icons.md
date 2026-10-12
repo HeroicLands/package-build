@@ -63,7 +63,10 @@ it does not set a document's profile art. The
 slot's type and document destination.
 
 A being's `subType` selects its compiled default art: `character` and `npc`
-use person art, and `creature` uses creature art.
+use person art, and `creature` uses creature art. HM3's built-in Actor and Item
+defaults point into the system's `assets/images/` and `assets/icons/` trees,
+introduced by [HM3's asset-path migration](https://git.pupluppy.org/HeroicLands/HarnMaster-3-FoundryVTT/pulls/60).
+Use these defaults with an HM3 release that includes those assets.
 
 ## Write an inline icon in prose
 

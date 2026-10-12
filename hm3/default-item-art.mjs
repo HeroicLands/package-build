@@ -41,15 +41,15 @@
  * @type {Readonly<Record<string, string>>}
  */
 export const HM3_DEFAULT_ITEM_ART = Object.freeze({
-    armorgear: "hm3/assets/images/icons/svg/armor.svg",
-    armorlocation: "hm3/assets/images/icons/svg/anatomy.svg",
-    containergear: "hm3/assets/images/icons/svg/sack.svg",
-    miscgear: "hm3/assets/images/icons/svg/miscgear.svg",
-    mysticalability: "hm3/assets/images/icons/svg/psionics.svg",
-    projectilegear: "hm3/assets/images/icons/svg/arrow.svg",
-    skill: "hm3/assets/images/icons/svg/skills.svg",
-    trauma: "hm3/assets/images/icons/svg/injury.svg",
-    weapongear: "hm3/assets/images/icons/svg/sword.svg",
+    armorgear: "hm3/assets/icons/armor.svg",
+    armorlocation: "hm3/assets/icons/anatomy.svg",
+    containergear: "hm3/assets/icons/sack.svg",
+    miscgear: "hm3/assets/icons/miscgear.svg",
+    mysticalability: "hm3/assets/icons/psionics.svg",
+    projectilegear: "hm3/assets/icons/arrow.svg",
+    skill: "hm3/assets/icons/skills.svg",
+    trauma: "hm3/assets/icons/injury.svg",
+    weapongear: "hm3/assets/icons/sword.svg",
 });
 
 /**

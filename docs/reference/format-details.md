@@ -1007,10 +1007,10 @@ nothing of (`/systems/dnd5e/icons/spell.webp`).
 replacement. It is a Foundry address written where an ownership statement
 belongs: it resolves for Foundry and for nothing else, because neither the
 website nor the book has any such directory. `systems/sohl/assets/ui/logo.webp`
-is written `sohl/assets/ui/logo.webp`, and `systems/hm3/images/svg/sword.svg` —
+is written `sohl/assets/ui/logo.webp`, and `systems/hm3/assets/icons/sword.svg` —
 where the package serves its pictures from its own root — is written
-`hm3/assets/images/svg/sword.svg`, because `assets/` is where a package's files
-sit in every derived form.
+`hm3/assets/icons/sword.svg`, because `assets/` is where a package's files sit
+in every derived form.
 
 `worlds/` is not a Foundry root for this purpose. A package may not ship files
 out of a world, so a note writing one has made a different mistake and gets the

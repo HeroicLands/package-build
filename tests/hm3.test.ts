@@ -16,7 +16,7 @@
  * for its own system.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -33,6 +33,7 @@ import { compilerFor } from "../engine/generate.mjs";
 import { Bundles } from "../engine/bundles.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 import { HM3_ITEM_BUILDERS } from "../hm3/item-builders.mjs";
+import { HM3_DEFAULT_ITEM_ART } from "../hm3/default-item-art.mjs";
 import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 import { Hm3Items } from "../hm3/items.mjs";
 import { Hm3Actors } from "../hm3/actors.mjs";
@@ -496,6 +497,26 @@ A soldier's blade.
 The blade is broad and well balanced.
 `;
 
+const CREATURE = `---
+name:
+  full: White Hart
+id: EEEEEEEEEEEEEEEE
+shortcode: whitehart
+type: being
+hm3:
+  pack: actors-hm3
+  type: creature
+---
+
+# Appearance {#appearance}
+
+A white hart.
+
+# Dossier {#dossier}
+
+The stag has no fear of the forest.
+`;
+
 const KNIGHT = `---
 name:
   full: Sir Aldric
@@ -562,6 +583,7 @@ describe("one note carrying both blocks compiles a document in each system", () 
             "Broadsword.md": SWORD,
             "Aldric.md": KNIGHT,
             "Training_Sword.md": TEMPLATE_SWORD,
+            "White_Hart.md": CREATURE,
         });
         roots.push(root);
         result = compile(root);
@@ -597,7 +619,9 @@ describe("one note carrying both blocks compiles a document in each system", () 
 
     it("gives each item its own system's default art", () => {
         expect(packDocs(root, "items-sohl").Broadsword.img).toMatch(/^systems\/sohl\//);
-        expect(packDocs(root, "items-hm3").Broadsword.img).toMatch(/^systems\/hm3\//);
+        expect(packDocs(root, "items-hm3").Broadsword.img).toBe(
+            "systems/hm3/assets/icons/sword.svg",
+        );
     });
 
     it("stamps each document for its own system", () => {
@@ -614,6 +638,12 @@ describe("one note carrying both blocks compiles a document in each system", () 
     it("compiles the being into a SoHL `being` and an HM3 `character`", () => {
         expect(packDocs(root, "actors-sohl")["Sir Aldric"].type).toBe("being");
         expect(packDocs(root, "actors-hm3")["Sir Aldric"].type).toBe("character");
+    });
+
+    it("uses HM3's character and creature defaults in compiled actor documents", () => {
+        const actors = packDocs(root, "actors-hm3");
+        expect(actors["Sir Aldric"].img).toBe("systems/hm3/assets/images/knightsilhouette.svg");
+        expect(actors["White Hart"].img).toBe("systems/hm3/assets/images/monstersilhouette.svg");
     });
 
     it("writes each actor's shared facts at its own system's paths", () => {
@@ -664,6 +694,7 @@ describe("one note carrying both blocks compiles a document in each system", () 
             "Broadsword",
             "Sir Aldric",
             "Training Sword",
+            "White Hart",
         ]);
     });
 });
@@ -765,6 +796,25 @@ Seeing what is not there.
     );
 });
 
+describe("HM3's default art uses its current asset layout", () => {
+    it("pairs every item builder with the icon path HM3 ships", () => {
+        expect(HM3_DEFAULT_ITEM_ART).toEqual({
+            armorgear: "hm3/assets/icons/armor.svg",
+            armorlocation: "hm3/assets/icons/anatomy.svg",
+            containergear: "hm3/assets/icons/sack.svg",
+            miscgear: "hm3/assets/icons/miscgear.svg",
+            mysticalability: "hm3/assets/icons/psionics.svg",
+            projectilegear: "hm3/assets/icons/arrow.svg",
+            skill: "hm3/assets/icons/skills.svg",
+            trauma: "hm3/assets/icons/injury.svg",
+            weapongear: "hm3/assets/icons/sword.svg",
+        });
+        for (const [type, builder] of Object.entries(HM3_ITEM_BUILDERS)) {
+            expect(builder.img, type).toBe(HM3_DEFAULT_ITEM_ART[type]);
+        }
+    });
+});
+
 describe("an embedded reference naming a mysticalability subtype carries default art", () => {
     /** A fresh HM3 Actor pass. Nothing here walks a tree or reads a pack. */
     function hm3Actors() {
@@ -788,10 +838,19 @@ describe("an embedded reference naming a mysticalability subtype carries default
         }
     });
 
+    it("keeps an explicit actor icon ahead of the subtype default", () => {
+        const pack = hm3Actors();
+        vi.spyOn(pack, "artPath").mockReturnValue("resolved-explicit-icon.svg");
+        expect(pack.actorArt({ data: { icon: "valid-icon-address" } }, "fallback.svg")).toEqual({
+            img: "resolved-explicit-icon.svg",
+            token: "resolved-explicit-icon.svg",
+        });
+    });
+
     it.each([
-        ["spell", "systems/hm3/images/icons/svg/pentacle.svg"],
-        ["invocation", "systems/hm3/images/icons/svg/circle.svg"],
-        ["psionic", "systems/hm3/images/icons/svg/psionics.svg"],
+        ["spell", "systems/hm3/assets/icons/pentacle.svg"],
+        ["invocation", "systems/hm3/assets/icons/circle.svg"],
+        ["psionic", "systems/hm3/assets/icons/psionics.svg"],
     ])("gives a standalone %s entry its subtype's own default art", (subType, expected) => {
         const pack = hm3Actors();
         const doc = pack.resolveEmbedded(
