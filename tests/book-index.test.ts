@@ -67,6 +67,88 @@ describe("index terms", () => {
         expect(event).toMatchObject({ see: "Zed Keep", slug: "place-zed" });
     });
 
+    describe("leading heads", () => {
+        const heads = ["Kingdom of ", "Faith of ", "Ritual:"];
+        const plan = [
+            note("targud", "Kingdom of Targud"),
+            note("kuga", "Faith of Kuga"),
+            note("bless", "Ritual: Blessing"),
+            note("plain", "Zed Keep"),
+        ];
+        const named = indexTerms(plan, { heads });
+
+        it("files a note again under the rest of its name, with the head after a comma and without its trailing colon", () => {
+            expect(named.map((t: any) => t.name)).toEqual([
+                "Blessing, Ritual",
+                "Faith of Kuga",
+                "Kingdom of Targud",
+                "Kuga, Faith of",
+                "Ritual: Blessing",
+                "Targud, Kingdom of",
+                "Zed Keep",
+            ]);
+        });
+
+        it("gives the inverted entry the note's pages, not a cross-reference", () => {
+            const inverted = named.find((t: any) => t.name === "Targud, Kingdom of");
+            expect(inverted).toMatchObject({ slug: "place-targud", letter: "T" });
+            expect(inverted).not.toHaveProperty("see");
+        });
+
+        it("leaves a name with no listed head as it is, and inverts nothing without heads", () => {
+            expect(named.filter((t: any) => t.slug === "place-plain")).toHaveLength(1);
+            expect(indexTerms(plan).map((t: any) => t.name)).toEqual([
+                "Faith of Kuga",
+                "Kingdom of Targud",
+                "Ritual: Blessing",
+                "Zed Keep",
+            ]);
+        });
+
+        it("matches a head only at the start, and not when nothing follows it", () => {
+            const odd = indexTerms([note("a", "The Kingdom of Ash"), note("b", "Kingdom of ")], {
+                heads,
+            });
+            expect(odd.map((t: any) => t.name)).toEqual(["Kingdom of", "The Kingdom of Ash"]);
+        });
+
+        it("prefers the longest matching head and files the note once under it", () => {
+            const t = indexTerms([note("a", "Faith of the Sea")], {
+                heads: ["Faith of ", "Faith"],
+            });
+            expect(t.map((x: any) => x.name)).toEqual(["Faith of the Sea", "the Sea, Faith of"]);
+        });
+
+        it("adds no duplicate when an alias already states the inverted form", () => {
+            const t = indexTerms(
+                [
+                    note("targud", "Kingdom of Targud", {
+                        name: { full: "Kingdom of Targud", aliases: ["Targud, Kingdom of"] },
+                    }),
+                ],
+                { heads },
+            );
+            expect(t.filter((x: any) => x.name === "Targud, Kingdom of")).toHaveLength(1);
+            expect(t.find((x: any) => x.name === "Targud, Kingdom of")).not.toHaveProperty("see");
+        });
+
+        it("qualifies an inverted entry that collides with another note's entry", () => {
+            const withKind = (slug: string, name: string, subType: string) =>
+                note(slug, name, { type: "place", subType, address: { slug, canonical: slug } });
+            const t = indexTerms(
+                [
+                    withKind("k", "Kingdom of Targud", "kingdom"),
+                    withKind("c", "Targud, Kingdom of", "city"),
+                ],
+                { heads },
+            );
+            const names = t.map((x: any) => x.name);
+            expect(new Set(names).size).toBe(names.length);
+            expect(names).toContain("Targud, Kingdom of (kingdom)");
+            expect(names).toContain("Targud, Kingdom of (city)");
+        });
+    });
+
     it("lists a note selected twice once", () => {
         const twice = indexTerms([...PLAN.entries, PLAN.entries[3]]);
         expect(twice.filter((t: any) => t.name === "Apple Hill")).toHaveLength(1);

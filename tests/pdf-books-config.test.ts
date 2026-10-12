@@ -189,6 +189,14 @@ describe("pdf.books — accepted", () => {
         expect(config.pdf.license).toBe("Licensed CC BY-SA 4.0.\nSee LICENSE.md.");
     });
 
+    it("indexHeads lists the leading words the index inverts, and defaults to none", () => {
+        const config = load(
+            data({ pdf: { indexHeads: ["Kingdom of ", "Ritual:"], books: [CORE] } }),
+        );
+        expect(config.pdf.indexHeads).toEqual(["Kingdom of ", "Ritual:"]);
+        expect(load(data({ pdf: { books: [CORE] } })).pdf.indexHeads).toEqual([]);
+    });
+
     it("coverage defaults to warning, and the statements to empty", () => {
         const config = load(data({ pdf: { books: [CORE] } }));
         expect(config.pdf.coverage).toBe("warning");
@@ -344,6 +352,18 @@ describe("pdf.books — refused, each at its key", () => {
             field: "pdf.copyright",
             line: /copyright:/,
             message: /one line/,
+        },
+        {
+            name: "indexHeads that is not a list",
+            input: data({ pdf: { indexHeads: "Kingdom of", books: [CORE] } }),
+            field: "pdf.indexHeads",
+            line: /indexHeads: Kingdom of/,
+        },
+        {
+            name: "an index head that is blank",
+            input: data({ pdf: { indexHeads: ["Faith of", "  "], books: [CORE] } }),
+            field: "pdf.indexHeads[1]",
+            line: /- " {2}"/,
         },
         {
             name: "a licence that is not a string",

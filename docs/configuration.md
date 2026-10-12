@@ -1161,6 +1161,7 @@ The keys of `pdf` itself are shared by every book:
 | `pdf.unprinted`    | string (`WHERE` clause)       | no       | `""`                   |
 | `pdf.coverage`     | `warning` \| `error` \| `off` | no       | `warning`              |
 | `pdf.indexSeeAlso` | boolean                       | no       | `false`                |
+| `pdf.indexHeads`   | string[]                      | no       | `[]` — none inverted   |
 | `pdf.copyright`    | string (one line)             | no       | `""`                   |
 | `pdf.license`      | string (one or more lines)    | no       | `""`                   |
 
@@ -1185,6 +1186,15 @@ The keys of `pdf` itself are shared by every book:
   `Name: _Book title_, p. N` with the page the note's entry starts on in its
   home book. It is `false` by default, and the index then lists only the notes
   the book is home to. See [The index](guides/book.md#the-index).
+- `pdf.indexHeads` lists leading words that open many names, such as
+  `Kingdom of ` or `Ritual:`. Each is matched literally against the start of
+  a note's `name.full`, so a head that ends in a space includes it. A note
+  whose name opens with one is also filed in the index under the rest of its
+  name, followed by the head without its trailing space or colon: `Kingdom of
+Targud` is also listed as `Targud, Kingdom of`, with the same pages as the
+  note's own entry. Where several heads match, the longest applies. A blank
+  entry, or a value that is not a list of strings, is an error at the offending
+  key. See [The index](guides/book.md#the-index).
 - A note several books select prints in each of them. Its **home book** is the
   first book in `pdf.books` that selects it; a note a book selects twice is
   still one book's, and prints at each position. After the books are built the

@@ -67,6 +67,34 @@ export function evalArgs(typPath, fontArgs) {
 }
 
 /**
+ * Say why a finished Typst process failed.
+ *
+ * A process killed by a signal has no exit status and prints nothing, so the
+ * signal is named; `SIGKILL` is the kernel's out-of-memory kill. Otherwise the
+ * first line the compiler printed is the reason, and the exit code stands in
+ * when it printed none.
+ *
+ * @param {{status: number | null, signal: string | null, stderr?: string | null, stdout?: string | null}} result -
+ *   The finished process.
+ * @param {string} binary - The Typst binary.
+ * @param {string} subcommand - The Typst subcommand that ran.
+ * @returns {string} The reason, ready to follow the failing command's name.
+ */
+export function typstFailure(result, binary, subcommand) {
+    const command = `\`${binary} ${subcommand}\``;
+    if (result.signal) {
+        const hint = result.signal === "SIGKILL" ? " (most often the memory limit)" : "";
+        return `${command} was killed by ${result.signal}${hint}`;
+    }
+    const detail = String(result.stderr || result.stdout || "")
+        .trim()
+        .split("\n")[0];
+    return detail ?
+            `${command} failed: ${detail}`
+        :   `${command} exited with code ${result.status} and printed nothing`;
+}
+
+/**
  * Measure the page each labelled entry of a book starts on.
  *
  * @param {string} typPath - The `.typ` file.
@@ -87,12 +115,7 @@ export function readEntryPages(typPath, fontArgs, binary = "typst") {
         return fail(`could not run \`${binary}\`: ${err.message}`);
     }
     if (result.error) return fail(`could not run \`${binary}\`: ${result.error.message}`);
-    if (result.status !== 0) {
-        const detail = String(result.stderr || result.stdout || "")
-            .trim()
-            .split("\n")[0];
-        return fail(`\`${binary} eval\` failed: ${detail}`);
-    }
+    if (result.status !== 0) return fail(typstFailure(result, binary, "eval"));
     let rows;
     try {
         rows = JSON.parse(result.stdout);

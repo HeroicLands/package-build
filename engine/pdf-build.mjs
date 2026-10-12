@@ -86,7 +86,14 @@ import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 import { noteFile } from "./index-records.mjs";
 import { coverage, isPrintable, recordKey } from "./pdf-coverage.mjs";
-import { elsewhereFor, homeEntries, movedPages, pageTable, readEntryPages } from "./pdf-pages.mjs";
+import {
+    elsewhereFor,
+    homeEntries,
+    movedPages,
+    pageTable,
+    readEntryPages,
+    typstFailure,
+} from "./pdf-pages.mjs";
 import { cachedDependencies, openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
 import {
@@ -1166,6 +1173,7 @@ async function buildBook(book, shared) {
     // another book is a reprint, and its term is in that book's index.
     const index = {
         owns: (entry) => (shared.homes?.get(recordKey(entry.record)) ?? book.id) === book.id,
+        heads: resolved.pdf.indexHeads,
         ...(elsewhere?.seeAlso ? { foreign: elsewhere.listed } : {}),
     };
 
@@ -2054,14 +2062,7 @@ export function compileTypst(typPath, pdfPath, pdf = {}) {
         };
     }
     if (result.status !== 0) {
-        const detail = String(result.stderr || result.stdout || "")
-            .trim()
-            .split("\n")[0];
-        return {
-            ok: false,
-            message: `\`${binary} compile\` failed: ${detail}`,
-            findings: [],
-        };
+        return { ok: false, message: typstFailure(result, binary, "compile"), findings: [] };
     }
     return { ok: true, message: "", findings: typstWarnings(result.stderr) };
 }

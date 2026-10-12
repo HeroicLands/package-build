@@ -776,6 +776,7 @@ const PDF_KEYS = [
     "unprinted",
     "coverage",
     "indexSeeAlso",
+    "indexHeads",
     "copyright",
     "license",
 ];
@@ -1920,6 +1921,17 @@ function normalizePdf(value, rootDir, contentPackage) {
         fail("pdf.copyright", "must be one line — the licence statement is the one that runs on");
     }
 
+    /** @type {string[]} */
+    const indexHeads = [];
+    if (input.indexHeads !== undefined) {
+        if (!Array.isArray(input.indexHeads)) fail("pdf.indexHeads", "must be a list of strings");
+        input.indexHeads.forEach((head, i) => {
+            const field = `pdf.indexHeads[${i}]`;
+            if (typeof head !== "string" || !head.trim()) fail(field, "must be a non-empty string");
+            indexHeads.push(head);
+        });
+    }
+
     return Object.freeze({
         books,
         out: input.out === undefined ? "" : requireNonEmptyString(input.out, "pdf.out"),
@@ -1939,6 +1951,9 @@ function normalizePdf(value, rootDir, contentPackage) {
         // Whether an index names a note another book prints, as
         // `Name: Book title, p. N`.
         indexSeeAlso: optionalBoolean(input.indexSeeAlso, "pdf.indexSeeAlso", false),
+        // Leading words an index inverts: `Kingdom of ` files `Kingdom of
+        // Targud` again as `Targud, Kingdom of`.
+        indexHeads: Object.freeze(indexHeads),
         copyright: copyright.trim(),
         license:
             input.license === undefined ?

@@ -409,8 +409,18 @@ notes the book prints.
 | Term                     | Source                | Shown as                                                                           |
 | ------------------------ | --------------------- | ---------------------------------------------------------------------------------- |
 | A note's name            | `name.full`           | the page of the note's entry in **bold**, then the pages of every authored mention |
+| A name without its head  | `name.full`           | the same pages as the note's entry, filed as `Targud, Kingdom of`                  |
 | An alias                 | `name.aliases`        | _see_ the note's name                                                              |
 | An event's in-world name | `data.events[].names` | _see_ the name of the note that holds the event                                    |
+
+A name that opens with a generic word a reader would not look under, such as
+`Kingdom of Targud` or `Ritual: Blessing`, is also filed under the rest of the
+name when [`pdf.indexHeads`](../configuration.md) lists that opening: with
+`indexHeads: ["Kingdom of ", "Ritual:"]` the index lists `Targud, Kingdom of`
+and `Blessing, Ritual`, each with the pages of the note's entry. No alias is
+needed to find the note under its distinctive word. An inverted entry that would
+print the same as another note's term is told apart by the note's subtype, then
+its parent place, as any two equal terms are.
 
 To get a term into the index, give the note a `name.full`, add an alias or an
 event name, or link to the note from prose with a wikilink. A wikilink to a note

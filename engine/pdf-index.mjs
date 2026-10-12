@@ -25,6 +25,9 @@
  *
  * - A note's own entry lists its name, with the entry's page in bold.
  * - An authored mention of a note in the book adds the page it appears on.
+ * - A note whose name opens with one of the book's `pdf.indexHeads` is also
+ *   filed under the rest of its name, with the head after a comma
+ *   (`Targud, Kingdom of`), and that entry carries the note's pages.
  * - An alias (`name.aliases`) and an event's in-world name
  *   (`data.events[].names`) list a cross-reference to the note's name.
  *
@@ -96,6 +99,9 @@ function letterOf(key) {
  * @param {object} [opts] - Options.
  * @param {(entry: object) => boolean} [opts.owns] - Whether this book is the
  *   entry's home. Every entry when absent.
+ * @param {string[]} [opts.heads] - Leading words (`pdf.indexHeads`) matched
+ *   literally against the start of a name; a name that opens with one is also
+ *   listed as `<rest>, <head>`, the head without its trailing space or colon. None when absent.
  * @param {Array<{slug: string, name: string, title: string, page: string|number}>} [opts.foreign] -
  *   Notes another book prints, listed as `Name: Book title, p. N` once this
  *   book mentions them.
@@ -103,7 +109,8 @@ function letterOf(key) {
  *   foreign?: {title: string, page: string}}>} Terms with `see` set for a
  *   cross-reference to the main name it points at.
  */
-export function indexTerms(entries, { owns = () => true, foreign = [] } = {}) {
+export function indexTerms(entries, { owns = () => true, foreign = [], heads = [] } = {}) {
+    const byLength = [...heads].sort((a, b) => b.length - a.length);
     const terms = [];
     const info = new Map();
     const nameByCanonical = new Map();
@@ -130,6 +137,12 @@ export function indexTerms(entries, { owns = () => true, foreign = [] } = {}) {
         });
         terms.push({ name, slug, main: true });
         const taken = new Set([sortKey(name)]);
+        const head = byLength.find((one) => name.startsWith(one) && name.slice(one.length).trim());
+        if (head) {
+            const inverted = `${name.slice(head.length).trim()}, ${head.replace(/[\s:]+$/, "")}`;
+            taken.add(sortKey(inverted));
+            terms.push({ name: inverted, slug, main: false, inverted: true });
+        }
         const names = [
             ...(Array.isArray(entry.record?.name?.aliases) ? entry.record.name.aliases : []),
             ...(Array.isArray(entry.record?.data?.events) ? entry.record.data.events : []).flatMap(
@@ -174,7 +187,7 @@ export function indexTerms(entries, { owns = () => true, foreign = [] } = {}) {
     const keyed = terms.map((term, i) => ({
         name: shown[i],
         slug: term.slug,
-        ...(term.main ? {} : { see: mainShown.get(term.slug) }),
+        ...(term.main || term.inverted ? {} : { see: mainShown.get(term.slug) }),
         key: sortKey(shown[i]),
     }));
     const listed = new Set(terms.map((term) => term.slug));
