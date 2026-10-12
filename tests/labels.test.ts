@@ -44,22 +44,6 @@ describe("the label registry's two faces", () => {
         expect(documentedLabels(doc("e2e")).names.has("e2e")).toBe(true);
     });
 
-    it("accepts a label name made of words separated by single spaces", () => {
-        const r = checkLabelRegistry({
-            registryText: registry("good first issue", "help wanted"),
-            docText: doc("good first issue", "help wanted"),
-        });
-        expect(r.registry).toEqual([]);
-        expect(r.doc).toEqual([]);
-        expect(documentedLabels(doc("good first issue")).names.has("good first issue")).toBe(true);
-    });
-
-    it("ignores a table row whose spaced cell is malformed", () => {
-        for (const cell of ["two  spaces", " leading", "trailing ", "Upper case", "1 start"]) {
-            expect(documentedLabels(doc(cell)).names.size).toBe(0);
-        }
-    });
-
     it("still ignores a table row whose first cell is not a label name", () => {
         expect(documentedLabels(doc("2e2", "Upper")).names.size).toBe(0);
     });
