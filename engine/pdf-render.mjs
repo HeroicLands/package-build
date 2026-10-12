@@ -475,6 +475,9 @@ function reportUnrenderable(source, definitions, opts, original) {
  *   at. Every link the book sets as a URL is resolved against it, because a
  *   reader holding a PDF has no page to resolve a path against — see
  *   {@link renderLink}.
+ * @param {{get: (key: string) => ({title: string, page: string|number}|undefined)}} [opts.elsewhere] -
+ *   The notes another book is home to, by the slug and addresses a link reaches
+ *   them through — see {@link crossBookReference}.
  * @param {boolean} [opts.generated] - Whether the Markdown is a note's
  *   generated sections rather than its author's text — see
  *   {@link module:engine/generated-sections}. Their links follow the rules
@@ -518,6 +521,7 @@ export function markdownToTypst(markdown, opts = {}) {
         headingOffset,
         anchorPrefix,
         url: opts.url,
+        elsewhere: opts.elsewhere,
         indexMentions: opts.indexMentions === true,
         generated: Boolean(opts.generated),
         seen: new Map(),
@@ -1361,6 +1365,10 @@ function pageOfLabel(label) {
  * usable; one whose target the book leaves out is its words alone, with no
  * link and no finding.
  *
+ * **A link to a note another book is home to** is not a link: a PDF link cannot
+ * leave its file. It is set as {@link crossBookReference}, in generated text
+ * and authored prose alike, and adds nothing to the index.
+ *
  * The address slug is read from the tail of the URL, which is where every
  * address this toolchain publishes puts it — `…/<type>-<shortcode>/`. A
  * cross-package URL resolved through the link manifest is on another package's
@@ -1395,8 +1403,31 @@ function renderLink(href, inner, ctx) {
         const marker = ctx.indexMentions && slug ? indexMarker(slug) : "";
         return `${link}${marker}`;
     }
+    const away = ctx.elsewhere?.get(slug);
+    if (away) {
+        // A mention in authored prose is what lists the note, under
+        // `pdf.indexSeeAlso`.
+        const marker = ctx.indexMentions && ctx.elsewhere.seeAlso ? indexMarker(away.slug) : "";
+        return `${crossBookReference(inner, away)}${marker}`;
+    }
     if (!url || ctx.generated) return inner;
     return `#link("${escapeTypstString(absolutePageUrl(url, ctx.url))}")[${inner}]`;
+}
+
+/**
+ * A reference to a note another book prints, as Typst: the words the link
+ * carried, then the book and the page, `Name (_Book title_, p. 12)`.
+ *
+ * The space before the page number does not break, so a number never starts a
+ * line of its own.
+ *
+ * @param {string} inner - The already-rendered link text.
+ * @param {{title: string, page: string|number}} away - The home book's title
+ *   and the page the entry starts on.
+ * @returns {string} Typst markup.
+ */
+export function crossBookReference(inner, away) {
+    return `${inner} (#emph[${escapeTypst(away.title)}], p.~${away.page})`;
 }
 
 /**
@@ -1899,6 +1930,9 @@ function authorLine({ name, role }) {
  * @param {string} [opts.copyright] - The title page foot's first line.
  * @param {string} [opts.license] - The title page foot's remaining lines; a
  *   line break in it starts a new line.
+ * @param {object} [opts.index] - As {@link module:engine/pdf-index.indexTerms}:
+ *   `owns` limits the index to the notes this book is home to, and `foreign`
+ *   (present only under `pdf.indexSeeAlso`) lists notes another book prints.
  * @returns {string} A complete `.typ` document.
  */
 export function renderBook({
@@ -1916,6 +1950,7 @@ export function renderBook({
     authors = [],
     copyright = "",
     license = "",
+    index = {},
 } = {}) {
     // The two halves of one superfamily, chosen together: matched metrics are
     // most of why the sans can carry every heading over a serif body without
@@ -1928,7 +1963,7 @@ export function renderBook({
     const out = [];
 
     out.push(bookTypstPreamble());
-    out.push(indexPreamble());
+    out.push(indexPreamble({ seeAlso: index.foreign !== undefined }));
     out.push("");
     out.push(`#set document(title: "${escapeTypstString(title)}")`);
     // Cream stock and dark ink rather than a dark screen theme: 2,000 pages of
@@ -2106,8 +2141,8 @@ export function renderBook({
         }
     }
 
-    const index = indexChapter(plan?.entries, title);
-    if (index) out.push(index);
+    const chapter = indexChapter(plan?.entries, title, index);
+    if (chapter) out.push(chapter);
 
     return `${out.join("\n")}\n`;
 }

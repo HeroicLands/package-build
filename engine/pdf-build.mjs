@@ -85,7 +85,8 @@ import { routerFor } from "./pack-router.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 import { noteFile } from "./index-records.mjs";
-import { coverage, isPrintable } from "./pdf-coverage.mjs";
+import { coverage, isPrintable, recordKey } from "./pdf-coverage.mjs";
+import { elsewhereFor, homeEntries, movedPages, pageTable, readEntryPages } from "./pdf-pages.mjs";
 import { cachedDependencies, openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
 import {
@@ -548,7 +549,13 @@ function configFileFor(config, rootDir) {
  * @param {string} [opts.out] - Where to write, overriding `pdf.out`.
  * @param {string} [opts.version] - Stamped on the title page and the file name.
  * @param {boolean} [opts.compile] - Whether to run Typst. False leaves the
- *   `.typ` source, which is what the unit tests read.
+ *   `.typ` source, which is what the unit tests read, and runs a single pass:
+ *   a reference to a note another book is home to prints `p. ?`. True renders
+ *   every book, measures the page each entry starts on, writes `pages.json`
+ *   into the output directory, and renders again with those pages — see
+ *   {@link module:engine/pdf-pages}.
+ * @param {Function} [opts.readPages] - {@link
+ *   module:engine/pdf-pages.readEntryPages}, for tests.
  * @param {Function} [opts.resolveReplacement] - {@link
  *   module:engine/asset-replacement.resolveAssetReplacement}, for tests.
  *   Loaded from that module otherwise, and only when a relationship declares
@@ -571,6 +578,7 @@ export async function buildPdf({
     out,
     version = "",
     compile = true,
+    readPages = readEntryPages,
     resolveReplacement,
 } = {}) {
     const resolved = config ?? loadPackConfig();
@@ -729,50 +737,176 @@ export async function buildPdf({
             summary = covered.summary;
         }
 
-        // Each requested book renders in configuration order, one at a time.
-        for (const { book: entry, index } of requested) {
+        // Which books render, and which of those the caller asked for. A book
+        // whose selection could not be read, or selects nothing, is reported
+        // when it is requested and left out of the page table either way.
+        const buildable = [];
+        for (const { book: entry, index } of declared) {
             const selection = selections[index];
+            const wanted = requested.some((r) => r.index === index);
             if (!selection.usable) {
-                built = false;
+                if (wanted) built = false;
                 continue;
             }
             if (!selection.records.length) {
-                built = false;
-                // A tree that failed to read already has its findings.
-                if (!selection.broken) {
-                    findings.push({
-                        ...atKey(`pdf.books[${index}].id`),
-                        severity: "error",
-                        message: `book \`${entry.id}\` selects no note`,
-                    });
+                if (wanted) {
+                    built = false;
+                    // A tree that failed to read already has its findings.
+                    if (!selection.broken) {
+                        findings.push({
+                            ...atKey(`pdf.books[${index}].id`),
+                            severity: "error",
+                            message: `book \`${entry.id}\` selects no note`,
+                        });
+                    }
                 }
                 continue;
             }
-            const result = await buildBook(entry, {
-                resolved,
-                world,
-                selection,
-                authors: resolved.authors ?? [],
-                copyright: resolved.pdf.copyright,
-                license: resolved.pdf.license,
-                outDir,
-                contentBase,
-                version,
-                compile,
-                findings,
-            });
-            imageReports.push(...(result.imageReports ?? []));
-            if (!result.built) built = false;
-            if (result.typ) {
-                books.push({
-                    id: entry.id,
-                    title: entry.title,
-                    built: result.built,
-                    typ: result.typ,
-                    pdf: result.pdf,
-                    stats: result.stats,
+            buildable.push({ entry, index, selection, wanted });
+        }
+
+        // The books that render are the books that are measured, so a page
+        // table is only ever read from the books it describes.
+        const toRender = compile ? buildable : buildable.filter((b) => b.wanted);
+        const homed = homeEntries({
+            books: buildable.map((b) => ({
+                id: b.entry.id,
+                title: b.entry.title,
+                plan: b.selection.plan,
+            })),
+            homes,
+        });
+
+        /**
+         * Render every book once against a page table.
+         *
+         * @param {Record<string, {book: string, page: number}>|undefined} table
+         * @returns {Promise<{written: Map<string, object>, local: object[], used: number}>}
+         */
+        const renderAll = async (table) => {
+            const local = [];
+            const written = new Map();
+            let used = 0;
+            for (const { entry, selection } of toRender) {
+                const elsewhere = elsewhereFor({
+                    entries: homed,
+                    book: entry.id,
+                    printed: selection.plan.links,
+                    table,
+                    seeAlso: resolved.pdf.indexSeeAlso,
                 });
+                const result = await buildBook(entry, {
+                    resolved,
+                    world,
+                    selection,
+                    authors: resolved.authors ?? [],
+                    copyright: resolved.pdf.copyright,
+                    license: resolved.pdf.license,
+                    outDir,
+                    contentBase,
+                    version,
+                    findings: local,
+                    elsewhere,
+                    homes,
+                });
+                used += elsewhere.used;
+                written.set(entry.id, result);
             }
+            return { written, local, used };
+        };
+
+        /**
+         * Lay every written book out and read the page each entry starts on.
+         *
+         * @param {Map<string, object>} written - From {@link renderAll}.
+         * @returns {{table: Record<string, {book: string, page: number}>|null,
+         *   message: string}} The table, or null with why it could not be read.
+         */
+        const measureAll = (written) => {
+            const fontArgs = typstFontArgs(resolved.pdf);
+            const measured = new Map();
+            for (const { entry } of toRender) {
+                const result = readPages(
+                    written.get(entry.id).typ,
+                    fontArgs,
+                    resolved.pdf.binary || "typst",
+                );
+                if (!result.ok) return { table: null, message: result.message };
+                measured.set(entry.id, result.pages);
+            }
+            return { table: pageTable(homed, measured), message: "" };
+        };
+
+        // The first pass prints `p. ?` for every note another book is home to.
+        // Without Typst there is nothing to measure, and that pass is the
+        // output.
+        let pass = await renderAll(undefined);
+        if (compile) {
+            const unread = (message) => {
+                findings.push({
+                    file: configFile,
+                    severity: "error",
+                    message: `the page of each entry could not be read: ${message}`,
+                });
+                built = false;
+            };
+            let measure = measureAll(pass.written);
+            if (!measure.table) unread(measure.message);
+            else {
+                let table = measure.table;
+                // A second pass prints the measured pages. Those words change
+                // the layout, so the pages are measured again: when none moved
+                // the pass stands, and when any did the books are rendered a
+                // final time against the new table and whatever still differs
+                // is reported.
+                if (pass.used) {
+                    pass = await renderAll(table);
+                    measure = measureAll(pass.written);
+                    if (!measure.table) unread(measure.message);
+                    else if (movedPages(table, measure.table).length) {
+                        const printed = measure.table;
+                        pass = await renderAll(printed);
+                        measure = measureAll(pass.written);
+                        if (!measure.table) unread(measure.message);
+                        else {
+                            for (const moved of movedPages(printed, measure.table)) {
+                                const home = homed.find((h) => h.key === moved.key);
+                                findings.push({
+                                    file: noteFile(contentBase, home.record),
+                                    severity: "warning",
+                                    message:
+                                        `\`${home.record?.name?.full ?? home.slug}\` starts on page ` +
+                                        `${moved.after} of \`${home.title}\`, but the references ` +
+                                        `to it in other books print page ${moved.before}`,
+                                });
+                            }
+                        }
+                    }
+                    table = measure.table ?? table;
+                }
+                fs.mkdirSync(outDir, { recursive: true });
+                fs.writeFileSync(
+                    path.join(outDir, "pages.json"),
+                    `${JSON.stringify(table, null, 2)}\n`,
+                );
+            }
+        }
+        findings.push(...pass.local);
+
+        for (const { entry, wanted } of toRender) {
+            if (!wanted) continue;
+            const result = pass.written.get(entry.id);
+            imageReports.push(...(result.imageReports ?? []));
+            const ok = compile ? compileBook(result, resolved.pdf, findings) : true;
+            if (!ok) built = false;
+            books.push({
+                id: entry.id,
+                title: entry.title,
+                built: ok,
+                typ: result.typ,
+                pdf: compile && ok ? result.pdf : null,
+                stats: result.stats,
+            });
         }
     } finally {
         await world.db.close?.();
@@ -1014,14 +1148,26 @@ async function selectBook(book, index, { world, configFile, configText, findings
  * @param {string} shared.outDir - Where the book is written.
  * @param {string} shared.contentBase - The content tree.
  * @param {string} shared.version - Stamped on the title page and the file name.
- * @param {boolean} shared.compile - Whether to run Typst.
+ * @param {Map<string, string>} [shared.homes] - Each note's key → its home
+ *   book's id.
+ * @param {{get: Function}} [shared.elsewhere] - From
+ *   {@link module:engine/pdf-pages.elsewhereFor}: the notes another book is
+ *   home to, which this book names by book and page rather than links.
  * @param {Function} [shared.resolveReplacement] - As {@link buildPdf}.
  * @param {object[]} shared.findings - Collected here rather than thrown.
  * @returns {Promise<{built: boolean, typ: string|null, pdf: string|null,
- *   stats: object|null, imageReports?: object[]}>} What was written.
+ *   stats: object|null, imageReports?: object[]}>} What was written: the
+ *   source and its resampled pictures. The compile is {@link compileBook}'s.
  */
 async function buildBook(book, shared) {
-    const { resolved, world, selection, outDir, contentBase, version, compile, findings } = shared;
+    const { resolved, world, selection, outDir, contentBase, version, findings, elsewhere } =
+        shared;
+    // The index lists the notes this book is home to; a note whose home is
+    // another book is a reprint, and its term is in that book's index.
+    const index = {
+        owns: (entry) => (shared.homes?.get(recordKey(entry.record)) ?? book.id) === book.id,
+        ...(elsewhere?.seeAlso ? { foreign: elsewhere.listed } : {}),
+    };
 
     const { treeFile, treeText, plan } = selection;
     // The directory this book stages its pictures in, beside its source.
@@ -1458,6 +1604,7 @@ async function buildBook(book, shared) {
                 headingOffset,
                 anchorPrefix,
                 url: site,
+                elsewhere,
                 findings,
                 file: page.file,
                 bodyLine: page.bodyLine,
@@ -1485,7 +1632,7 @@ async function buildBook(book, shared) {
             contentPackage: gates.index.contentPackage,
         });
         const panel = infoboxesToTypst(boxes, {
-            link: (value) => linkToTypst(value, plan.links, labelFor, site),
+            link: (value) => linkToTypst(value, plan.links, labelFor, site, elsewhere),
         });
         // Whether the entry is settled comes before anything it says: the
         // notice leads the leaf, before the authored body.
@@ -1540,6 +1687,7 @@ async function buildBook(book, shared) {
                     anchorPrefix: entry.anchor,
                     captions: prepared.get(entry.anchor).numberedFigures,
                     url: site,
+                    elsewhere,
                     indexMentions: true,
                     findings,
                     file,
@@ -1570,6 +1718,7 @@ async function buildBook(book, shared) {
                 footnotePrefix: `footnote-front-${position + 1}`,
                 captions: frontFigures.get(file),
                 url: site,
+                elsewhere,
                 indexMentions: true,
                 findings,
                 file,
@@ -1744,6 +1893,7 @@ async function buildBook(book, shared) {
         authors: shared.authors,
         copyright: shared.copyright,
         license: shared.license,
+        index,
     });
     // Last, over the whole document: a reference can only be checked once every
     // declaration is in one string, and Typst treats a dangling one as fatal.
@@ -1757,17 +1907,25 @@ async function buildBook(book, shared) {
     const imageReports = await resamplePdfImages(imageCandidates, outDir);
 
     const stats = { ...plan.stats, entries: plan.entries.length, bytes: source.length };
-    if (!compile) {
-        return { built: true, imageReports, typ: typPath, pdf: null, stats };
-    }
+    return { built: true, imageReports, typ: typPath, pdf: pdfPath, stats };
+}
 
-    const compiled = compileTypst(typPath, pdfPath, resolved.pdf);
+/**
+ * Compile one written book.
+ *
+ * @param {{typ: string, pdf: string}} written - From {@link buildBook}.
+ * @param {object} pdf - The resolved `pdf:` block.
+ * @param {object[]} findings - Collected here rather than thrown.
+ * @returns {boolean} Whether the PDF was written.
+ */
+function compileBook(written, pdf, findings) {
+    const compiled = compileTypst(written.typ, written.pdf, pdf);
     findings.push(...compiled.findings);
     if (!compiled.ok) {
-        findings.push({ file: typPath, severity: "error", message: compiled.message });
-        return { built: false, imageReports, typ: typPath, pdf: null, stats };
+        findings.push({ file: written.typ, severity: "error", message: compiled.message });
+        return false;
     }
-    return { built: true, imageReports, typ: typPath, pdf: pdfPath, stats };
+    return true;
 }
 
 /**
@@ -1808,19 +1966,23 @@ export const BOOK_FONTS_PATH = path.join(
  * @returns {string[]} The arguments, in order.
  */
 export function typstArgs(typPath, pdfPath, pdf = {}) {
+    return ["compile", ...typstFontArgs(pdf), typPath, pdfPath];
+}
+
+/**
+ * The flags that decide which faces a layout uses, shared by the compile and by
+ * the page measurement so both lay the book out in the same metrics.
+ *
+ * @param {object} [pdf] - The resolved `pdf:` block.
+ * @returns {string[]} The arguments, in order.
+ */
+export function typstFontArgs(pdf = {}) {
     // One flag, the paths joined by the platform's separator: the compiler
     // takes a list, and the shipped faces come first so a consumer's own
     // directory extends the set rather than standing in for it.
     const fontPaths = [BOOK_FONTS_PATH];
     if (pdf.fonts?.path) fontPaths.push(pdf.fonts.path);
-    return [
-        "compile",
-        "--ignore-system-fonts",
-        "--font-path",
-        fontPaths.join(path.delimiter),
-        typPath,
-        pdfPath,
-    ];
+    return ["--ignore-system-fonts", "--font-path", fontPaths.join(path.delimiter)];
 }
 
 /**

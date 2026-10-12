@@ -1151,17 +1151,18 @@ alone.
 
 The keys of `pdf` itself are shared by every book:
 
-| Key             | Type                          | Required | Default                |
-| --------------- | ----------------------------- | -------- | ---------------------- |
-| `pdf.books`     | list of books                 | yes      | —                      |
-| `pdf.out`       | string (directory)            | no       | `""` — `build/dist`    |
-| `pdf.fonts`     | object                        | no       | all empty              |
-| `pdf.iconFonts` | object (family → font file)   | no       | `{}`                   |
-| `pdf.binary`    | string                        | no       | `""` — found on `PATH` |
-| `pdf.unprinted` | string (`WHERE` clause)       | no       | `""`                   |
-| `pdf.coverage`  | `warning` \| `error` \| `off` | no       | `warning`              |
-| `pdf.copyright` | string (one line)             | no       | `""`                   |
-| `pdf.license`   | string (one or more lines)    | no       | `""`                   |
+| Key                | Type                          | Required | Default                |
+| ------------------ | ----------------------------- | -------- | ---------------------- |
+| `pdf.books`        | list of books                 | yes      | —                      |
+| `pdf.out`          | string (directory)            | no       | `""` — `build/dist`    |
+| `pdf.fonts`        | object                        | no       | all empty              |
+| `pdf.iconFonts`    | object (family → font file)   | no       | `{}`                   |
+| `pdf.binary`       | string                        | no       | `""` — found on `PATH` |
+| `pdf.unprinted`    | string (`WHERE` clause)       | no       | `""`                   |
+| `pdf.coverage`     | `warning` \| `error` \| `off` | no       | `warning`              |
+| `pdf.indexSeeAlso` | boolean                       | no       | `false`                |
+| `pdf.copyright`    | string (one line)             | no       | `""`                   |
+| `pdf.license`      | string (one or more lines)    | no       | `""`                   |
 
 - `pdf.out` is the **directory** every book is written into; `package-build pdf
 --out` overrides it.
@@ -1179,6 +1180,11 @@ The keys of `pdf` itself are shared by every book:
   Coverage is computed over every book in `pdf.books`, including when
   `package-build pdf --book` builds only one.
 
+- `pdf.indexSeeAlso` adds a line to a book's index for each note that another
+  book prints and this book mentions in authored prose, written
+  `Name: _Book title_, p. N` with the page the note's entry starts on in its
+  home book. It is `false` by default, and the index then lists only the notes
+  the book is home to. See [The index](guides/book.md#the-index).
 - A note several books select prints in each of them. Its **home book** is the
   first book in `pdf.books` that selects it; a note a book selects twice is
   still one book's, and prints at each position. After the books are built the

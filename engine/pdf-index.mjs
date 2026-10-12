@@ -88,11 +88,22 @@ function letterOf(key) {
 /**
  * Every term the book's index lists, in index order.
  *
+ * A book lists the notes it is home to. An entry `owns` rejects is a reprint of
+ * another book's note: it prints there, and its term belongs to its home
+ * book's index.
+ *
  * @param {object[]} entries - The plan's entries.
- * @returns {Array<{letter: string, name: string, slug: string, see?: string}>}
- *   Terms with `see` set for a cross-reference to the main name it points at.
+ * @param {object} [opts] - Options.
+ * @param {(entry: object) => boolean} [opts.owns] - Whether this book is the
+ *   entry's home. Every entry when absent.
+ * @param {Array<{slug: string, name: string, title: string, page: string|number}>} [opts.foreign] -
+ *   Notes another book prints, listed as `Name: Book title, p. N` once this
+ *   book mentions them.
+ * @returns {Array<{letter: string, name: string, slug: string, see?: string,
+ *   foreign?: {title: string, page: string}}>} Terms with `see` set for a
+ *   cross-reference to the main name it points at.
  */
-export function indexTerms(entries) {
+export function indexTerms(entries, { owns = () => true, foreign = [] } = {}) {
     const terms = [];
     const info = new Map();
     const nameByCanonical = new Map();
@@ -103,7 +114,7 @@ export function indexTerms(entries) {
         if (canonical && name) nameByCanonical.set(String(canonical), name);
     }
     for (const entry of entries ?? []) {
-        if (entry?.kind !== "note") continue;
+        if (entry?.kind !== "note" || !owns(entry)) continue;
         const slug = slugOf(entry.record);
         const name = String(entry.record?.name?.full ?? "").trim();
         if (!slug || !name || info.has(slug)) continue;
@@ -166,6 +177,18 @@ export function indexTerms(entries) {
         ...(term.main ? {} : { see: mainShown.get(term.slug) }),
         key: sortKey(shown[i]),
     }));
+    const listed = new Set(terms.map((term) => term.slug));
+    for (const other of foreign) {
+        const name = String(other.name ?? "").trim();
+        if (!other.slug || !name || listed.has(other.slug)) continue;
+        listed.add(other.slug);
+        keyed.push({
+            name,
+            slug: other.slug,
+            foreign: { title: String(other.title), page: String(other.page) },
+            key: sortKey(name),
+        });
+    }
     keyed.sort((a, b) => {
         const la = letterOf(a.key);
         const lb = letterOf(b.key);
@@ -190,9 +213,12 @@ export function indexTerms(entries) {
 /**
  * The Typst function definitions the markers and the chapter rely on.
  *
+ * @param {object} [opts] - Options.
+ * @param {boolean} [opts.seeAlso] - Whether the chapter may list notes another
+ *   book prints.
  * @returns {string} Typst source.
  */
-export function indexPreamble() {
+export function indexPreamble({ seeAlso = false } = {}) {
     return [
         // Zero-size and invisible; the label is what the chapter queries.
         "#let book-ix(key, main: false) = [#metadata((key: key, main: main)) <book-index>]",
@@ -218,10 +244,25 @@ export function indexPreamble() {
         "  }",
         "  let letter = none",
         "  for term in terms {",
+        ...(seeAlso ?
+            [
+                // A note another book prints is listed once this book mentions it.
+                '    let away = term.at("foreign", default: none)',
+                "    if away != none and by.at(term.slug, default: ()).len() == 0 { continue }",
+            ]
+        :   []),
         "    if term.letter != letter {",
         "      letter = term.letter",
         "      heading(level: 5, outlined: false, bookmarked: false)[#letter]",
         "    }",
+        ...(seeAlso ?
+            [
+                "    if away != none {",
+                "      par[#term.name: #emph[#away.title], p. #away.page]",
+                "      continue",
+                "    }",
+            ]
+        :   []),
         "    if term.see != none {",
         "      let main = merged(term.slug).filter(p => p.main)",
         "      let shown = if main.len() > 0 { link(main.first().loc)[#term.see] } else { term.see }",
@@ -241,16 +282,22 @@ export function indexPreamble() {
  *
  * @param {object[]} entries - The plan's entries.
  * @param {string} title - The book's title, which kicks the chapter.
+ * @param {object} [opts] - As {@link indexTerms}.
  * @returns {string} Typst source, or "" when the book has nothing to index.
  */
-export function indexChapter(entries, title) {
-    const terms = indexTerms(entries);
+export function indexChapter(entries, title, opts = {}) {
+    const terms = indexTerms(entries, opts);
     if (!terms.length) return "";
     const rows = terms.map(
         (term) =>
             `(letter: "${escapeString(term.letter)}", name: "${escapeString(term.name)}", ` +
             `slug: "${escapeString(term.slug)}", see: ${
                 term.see === undefined ? "none" : `"${escapeString(term.see)}"`
+            }${
+                term.foreign === undefined ?
+                    ""
+                :   `, foreign: (title: "${escapeString(term.foreign.title)}", ` +
+                    `page: "${escapeString(term.foreign.page)}")`
             })`,
     );
     return [

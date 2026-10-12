@@ -36,7 +36,12 @@
 
 import { encodeAddresses } from "./address-values.mjs";
 import { sectionHolds } from "./infobox.mjs";
-import { absolutePageUrl, escapeTypst, escapeTypstString } from "./pdf-render.mjs";
+import {
+    absolutePageUrl,
+    crossBookReference,
+    escapeTypst,
+    escapeTypstString,
+} from "./pdf-render.mjs";
 
 /**
  * How many cells an attribute grid packs into a row.
@@ -239,12 +244,19 @@ export function sectionHasContent(section) {
  * @param {Map<string, string>} links - Address slug → the book's anchor.
  * @param {(anchor: string) => string} labelFor - The anchor's Typst label.
  * @param {string} [site] - The absolute address this book's pages are served at.
+ * @param {{get: (key: string) => (object|undefined)}} [elsewhere] - The notes
+ *   another book is home to. One of them is not a link — a PDF link cannot
+ *   leave its file — and is set as
+ *   {@link module:engine/pdf-render.crossBookReference}.
  * @returns {string} Typst markup.
  */
-export function linkToTypst(value, links, labelFor, site) {
+export function linkToTypst(value, links, labelFor, site, elsewhere) {
     const text = escapeTypst(value?.text ?? "");
-    const anchor = value?.address ? links?.get(encodeAddresses(value.address)) : undefined;
+    const address = value?.address ? encodeAddresses(value.address) : undefined;
+    const anchor = address ? links?.get(address) : undefined;
     if (anchor) return `#link(<${labelFor(anchor)}>)[${text}]`;
+    const away = address ? elsewhere?.get(address) : undefined;
+    if (away) return crossBookReference(text, away);
     if (value?.url)
         return `#link("${escapeTypstString(absolutePageUrl(value.url, site))}")[${text}]`;
     return text;

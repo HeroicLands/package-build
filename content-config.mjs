@@ -775,6 +775,7 @@ const PDF_KEYS = [
     "binary",
     "unprinted",
     "coverage",
+    "indexSeeAlso",
     "copyright",
     "license",
 ];
@@ -1935,6 +1936,9 @@ function normalizePdf(value, rootDir, contentPackage) {
                 ""
             :   requireNonEmptyString(input.unprinted, "pdf.unprinted"),
         coverage,
+        // Whether an index names a note another book prints, as
+        // `Name: Book title, p. N`.
+        indexSeeAlso: optionalBoolean(input.indexSeeAlso, "pdf.indexSeeAlso", false),
         copyright: copyright.trim(),
         license:
             input.license === undefined ?

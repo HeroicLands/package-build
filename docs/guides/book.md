@@ -162,6 +162,61 @@ they hold. To move a note's home, reorder the books, or narrow the query of the
 book that currently holds it so that it does not select the note. Nothing
 else sets a home.
 
+### A reference to a note in another book
+
+A PDF link cannot reach into another file, so a wikilink to a note that another
+book is home to is not a link. It prints the words the link carried, then the
+home book's title and the page the note's entry starts on there:
+
+```text
+the Lyrebird Inn (The Tenebrae Volume, p. 214)
+```
+
+Which form a wikilink takes depends on where its target is printed:
+
+| The target is                                                 | The link prints                           |
+| ------------------------------------------------------------- | ----------------------------------------- |
+| An entry of the same book, including a note the book reprints | An internal destination                   |
+| An entry of another book, and not of this one                 | `Name (_Book title_, p. N)`, with no link |
+| A note in no book                                             | The web address of the note's page        |
+
+The page is the page the PDF itself numbers, which is the number printed in the
+footer and used by the contents and the index, so the printed `p. N` is the
+physical page of the PDF. A note the book reprints, or prints in two places,
+has one page in its home book: a reference from a third book names the home
+book and the page of the home book's first entry for it. Infobox links and
+generated sections follow the same table.
+
+The page is read from the laid-out book, so the build makes two passes:
+
+1. **Pass one** renders every declared book, with `p. ?` in place of each
+   cross-book page, lays each out with `typst eval`, and writes
+   `pages.json` beside the books in `pdf.out`:
+
+   ```json
+   {
+     "sohl-thalorna-place-lyrebird-inn": { "book": "tenebrae", "page": 214 }
+   }
+   ```
+
+   The keys are the notes' canonical addresses in sorted order; the file is
+   identical across builds of unchanged sources.
+
+2. **Pass two** renders every book again with those pages and lays them out
+   again. The words `(The Tenebrae Volume, p. 214)` are wider than `p. ?`, so a
+   page can move. When no page moved, pass two is the output. When one did, the
+   build renders once more with the new pages and reports every note whose page
+   still differs from the page printed for it, as a warning at the note's file.
+
+A build that prints no cross-book reference, such as a package with one book,
+is laid out once. Rendering and laying out every book happens for each build
+with `--book` too, because a page in one book is read from another; only the
+requested books are compiled. `--no-compile` runs neither pass: the source
+prints `p. ?` for each cross-book reference and no `pages.json` is written.
+
+Two builds produce identical PDFs only when Typst embeds the same creation
+time. Set `SOURCE_DATE_EPOCH` for a reproducible build.
+
 ### Worked example: two culture books and a World book
 
 A package publishes a book for each of two cultures and a World book that
@@ -363,6 +418,25 @@ the book prints adds the page it appears on. A term mentioned several times on
 one page lists that page once, and a note printed under more than one section
 is listed once, with every page it occupies.
 
+**An index lists the notes its own book is home to.** A note's home is the
+first book in `pdf.books` that selects it. In a package of several books:
+
+- A note a book reprints from another book's home has no entry in the
+  reprinting book. Its term, with its aliases and event names, is in its home
+  book's index, and a link to it from the reprinting book adds nothing there.
+- The pages an index lists are those of its own book, taken from the same table
+  as the cross-book references (`pages.json`), so the page a reference prints
+  for a note is the page its home book's index lists for the note's own entry.
+- A mention of a note another book prints is not a term of the mentioning
+  book. The mention reads `Name (_Book title_, p. N)` in the text, and the note's
+  entry and its page are in the other book's index.
+
+Set [`pdf.indexSeeAlso`](../configuration.md) to `true` to list those mentions
+too. Each note another book prints that this book mentions in authored prose
+then has a line, filed under its name:
+
+> Sword: _Book A_, p. 12
+
 Two kinds of link add nothing:
 
 - **Links in generated sections** such as "Within" or "Governed by". They name
@@ -427,7 +501,7 @@ package-build pdf --book vedyara
 ```
 
 `--no-compile` emits the Typst source and staged images without invoking
-Typst. The source and assets sit under the output directory, because Typst
+Typst, and so without measuring pages. The source and assets sit under the output directory, because Typst
 reads paths relative to its compilation root. An authored image from this
 package can be staged into the book. A remote image or one owned by another
 package cannot be read by this build; the build reports that limitation.
@@ -446,7 +520,10 @@ so their links follow their own rule, because a book is often a selection:
 - A name whose note is in the book is an internal link followed by the page
   that note's entry starts on, printed as the contents prints it:
   `Ford (p. 12)`. The number is Typst's own, read after layout.
-- A name whose note is not in the book is printed as plain text, with no link,
-  no page and no finding.
+- A name whose note is printed by another book is followed by that book and
+  page, `Ford (_The Tenebrae Volume_, p. 12)`, with no link; see
+  [a reference to a note in another book](#a-reference-to-a-note-in-another-book).
+- A name whose note is in no book is printed as plain text, with no link, no
+  page and no finding.
 
 Links an author wrote keep the rules above and carry no page number.
