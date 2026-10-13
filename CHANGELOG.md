@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 23.3.2
+
+### Patch Changes
+
+- Cultures can inherit their language and appearance from parent cultures when generating characters.
+
 ## 23.3.1
 
 ### Patch Changes
