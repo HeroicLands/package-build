@@ -29,11 +29,39 @@ function* markdownFiles(root) {
 
 /** Preserve offsets while excluding literal examples from link scanning. */
 export function maskMarkdownCode(source, spans = true) {
-    const pattern =
-        spans ?
-            /```[\s\S]*?```|~~~[\s\S]*?~~~|``[^`]*``|`[^`]*`/g
-        :   /```[\s\S]*?```|~~~[\s\S]*?~~~/g;
-    return source.replace(pattern, (match) => match.replace(/[^\n]/g, " "));
+    const mask = (value) => value.replace(/[^\n]/g, " ");
+    let fence;
+    let body = "";
+    for (const line of source.match(/[^\n]*\n|[^\n]+$/g) || []) {
+        if (fence) {
+            body += mask(line);
+            const close = line.match(/^ {0,3}(`+|~+)[ \t]*\r?\n?$/);
+            if (close && close[1][0] === fence[0] && close[1].length >= fence.length)
+                fence = undefined;
+        } else {
+            const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)/);
+            if (open && (open[1][0] !== "`" || !open[2].includes("`"))) {
+                fence = open[1];
+                body += mask(line);
+            } else body += line;
+        }
+    }
+    if (!spans) return body;
+    const delimiters = [...body.matchAll(/`+/g)];
+    let offset = 0;
+    let result = "";
+    for (let i = 0; i < delimiters.length; i++) {
+        const start = delimiters[i];
+        const end = delimiters.findIndex(
+            (candidate, index) => index > i && candidate[0].length === start[0].length,
+        );
+        if (end < 0) continue;
+        const stop = delimiters[end].index + delimiters[end][0].length;
+        result += body.slice(offset, start.index) + mask(body.slice(start.index, stop));
+        offset = stop;
+        i = end;
+    }
+    return result + body.slice(offset);
 }
 
 /** GitHub heading slug, retaining separate spaces after punctuation removal. */
@@ -50,11 +78,16 @@ export function docHeadingSlug(value) {
 export function docAnchors(source) {
     const body = maskMarkdownCode(source, false);
     const anchors = new Set();
+    const suffixes = new Map();
     for (const [, heading] of body.matchAll(/^#{1,6}\s+(.+?)\s*#*$/gm)) {
         const explicit = splitHeadingAttributes(heading);
-        anchors.add(
-            explicit.id || docHeadingSlug(explicit.text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")),
-        );
+        const base =
+            explicit.id || docHeadingSlug(explicit.text.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1"));
+        let anchor = base;
+        let suffix = suffixes.get(base) || 0;
+        while (anchors.has(anchor)) anchor = `${base}-${++suffix}`;
+        suffixes.set(base, suffix);
+        anchors.add(anchor);
     }
     for (const [, anchor] of body.matchAll(/<a\s[^>]*(?:id|name)="([^"]+)"/g)) {
         anchors.add(anchor);

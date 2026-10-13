@@ -127,7 +127,7 @@ of two ways, and the difference is who resolved it: a content page carries
 `data.banner`, which the build resolved from the asset Address the note
 declared into the address its asset host serves; a hand-authored page carries
 a top-level `banner:`, which the theme resolves against `params.cdnBaseURL`
-(see [`params.cdnBaseURL`](../configuration.md#what-a-consumer-must-supply)).
+(see [`params.cdnBaseURL`](../configuration.md#the-generated-hugo-configuration)).
 
 **Resolution order.**
 
@@ -303,7 +303,7 @@ fails this theme's own check until the slot table gives it a maximum.
 wrapping. On narrow screens, figures remain in document order without text
 wrapping. An image's label is alternative text, carried on the image itself
 for a reader who cannot see it, and is not drawn beneath the picture. See
-[figures and numbered references](../authoring/links-and-markup.md#figures-and-numbered-references)
+[captions and numbered references](../authoring/links-and-markup.md#captions-and-numbered-references)
 for how an author writes `size`, `float` and a role.
 
 ## A numbered figure
@@ -479,8 +479,9 @@ The home page declares no `infoboxes:`, `related:`, `date:` or `tags:`, so
 those pieces of a page stay silent.
 
 **No `type` at all** — a site whose home page is a set of entry points into
-everything it publishes — renders the featured grid documented under
-[`params.home`](../configuration.md#what-a-consumer-must-supply).
+everything it publishes — renders the featured grid from `params.home`.
+A package-build configuration supplies those values through
+[`site.hugo`](../configuration.md#site).
 
 ### A section landing
 

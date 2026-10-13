@@ -8,7 +8,7 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { checkDocIndex, checkDocLinks } from "../engine/docs-checks.mjs";
+import { checkDocIndex, checkDocLinks, docAnchors } from "../engine/docs-checks.mjs";
 
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
 function fixture(files: Record<string, string>) {
@@ -22,6 +22,37 @@ function fixture(files: Record<string, string>) {
 }
 
 describe("documentation checks", () => {
+    it("recognizes headings around inline backticks and fences of different lengths", () => {
+        const source = [
+            "# Guide",
+            "> ``a literal ending in `backticks```",
+            "## Visible",
+            "````md",
+            "```",
+            "# Hidden",
+            "```",
+            "````",
+            "## After",
+            "~~~~",
+            "~~~",
+            "# Also hidden",
+            "~~~~",
+            "## Last",
+        ].join("\n");
+        expect([...docAnchors(source)]).toEqual(["guide", "visible", "after", "last"]);
+    });
+
+    it("assigns duplicate heading slugs without colliding with authored suffixes", () => {
+        const source = "# Topic\n## Topic-1\n## Topic\n### Topic\n## Topic-1\n";
+        expect([...docAnchors(source)]).toEqual([
+            "topic",
+            "topic-1",
+            "topic-2",
+            "topic-3",
+            "topic-1-1",
+        ]);
+    });
+
     it(
         "emits a located CLI diagnostic for a dead relative link",
         () => {

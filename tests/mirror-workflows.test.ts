@@ -76,6 +76,25 @@ const NPM_PUBLISH =
 const github = workflows(".github/workflows");
 const gitea = workflows(".gitea/workflows");
 
+describe("documentation link enforcement", () => {
+    it("runs the links check in lint and in both build workflows", () => {
+        const { scripts } = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+        expect(scripts.lint.split(/\s+/)).toContain("lint:docs-links");
+        expect(scripts["lint:docs-links"]).toBe("node bin/package-build.mjs docs links");
+        for (const [forge, files] of [
+            ["GitHub", github],
+            ["Gitea", gitea],
+        ] as const) {
+            const jobs = files.get("build.yml")!.parsed.jobs!;
+            const steps = Object.values(jobs).flatMap((job) => job.steps ?? []);
+            expect(steps, `${forge} build omits documentation links`).toContainEqual({
+                name: "Documentation links",
+                run: "npm run lint:docs-links",
+            });
+        }
+    });
+});
+
 describe("the GitHub mirror's workflows", () => {
     it("are found at all, so the cases below are not vacuous", () => {
         expect([...github.keys()]).toContain("release.yml");

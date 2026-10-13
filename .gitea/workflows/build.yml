@@ -74,16 +74,34 @@ jobs:
             - run: npm ci
             - name: Formatting
               run: npm run format:check
-            # Separate steps rather than folded into `npm run lint`, which
-            # chains them with `&&`: a formatting failure would short-circuit
-            # the chain and hide every finding behind it. As separate steps the
-            # failing one is named in the checks UI. `npm run lint` exists for
-            # running them all locally in one command.
+            # Separate steps name each check in the checks UI. `npm run lint`
+            # runs the checks locally in parallel and aggregates their output.
             #
             # This repository *provides* `package-build markdown`, so it runs
             # it too.
             - name: Markdown
               run: npm run lint:markdown
+            - name: Documentation links
+              run: npm run lint:docs-links
+            - name: Documentation links reject broken anchors
+              run: |
+                  set -eu
+                  backup="$(mktemp)"
+                  log="$(mktemp)"
+                  cp docs/content-format.md "$backup"
+                  trap 'cp "$backup" docs/content-format.md' EXIT
+                  printf '\n[Lint probe](content-format.md#docs-link-lint-probe-missing)\n' >> docs/content-format.md
+                  status=0
+                  npm run lint >"$log" 2>&1 || status=$?
+                  cat "$log"
+                  if [ "$status" -eq 0 ]; then
+                      echo "The lint chain accepted a broken documentation anchor." >&2
+                      exit 1
+                  fi
+                  grep -F 'link content-format.md#docs-link-lint-probe-missing points at an anchor nobody declares' "$log"
+                  cp "$backup" docs/content-format.md
+                  trap - EXIT
+                  npm run lint:docs-links
             # Every `system.*` target docs/content-format.md names, against a
             # published schema.json. Run against a committed fixture rather
             # than a real system's artifact: this package ships no system, and

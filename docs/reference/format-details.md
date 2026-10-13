@@ -1916,7 +1916,7 @@ largest print slot needs. Both exempt a vector asset, which carries no pixel
 dimensions and no aspect that survives being drawn at a nominal size.
 
 `role: map` also selects a captioned image's counter — see
-[figures and numbered references](../authoring/links-and-markup.md#figures-and-numbered-references).
+[captions and numbered references](../authoring/links-and-markup.md#captions-and-numbered-references).
 A fence whose picture draws an address with that role counts as `Map` rather
 than `Figure`, on every surface that numbers it, because the role is the one
 fact the fence's own markup cannot state.
