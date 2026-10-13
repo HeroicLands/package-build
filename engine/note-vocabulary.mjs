@@ -117,6 +117,7 @@ import {
     profileLookKeys,
     requiredHeightGenders,
 } from "./appearance-profile.mjs";
+import { checkExtraFeatures } from "./appearance-features.mjs";
 import { LANGUAGE_FIELD, LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
 import { checkLanguageNames, requiredGivenGenders } from "./language-names.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
@@ -272,9 +273,9 @@ function lookWords(rows) {
  *
  * Each field is closed to its list: any other value, an empty one included, is
  * a finding at the value naming the words it takes. `appearance.complexion`
- * takes one word or a list of them, and each entry is checked on its own.
- * `appearance.extra_features` is not here: it is free text, a list of the marks
- * no word covers.
+ * is a list of words, each entry checked on its own. `appearance.extra_features`
+ * is not here: it is a list of the physical marks no word covers, held to the
+ * rules of `appearance-features.mjs`.
  *
  * @type {Readonly<Record<string, readonly LookWord[]>>}
  */
@@ -596,15 +597,18 @@ const TEXT_LIST = Object.freeze({
 });
 
 /**
- * One value, or several.
- *
- * The two are the same fact at different lengths rather than two different
- * facts, so a single value means a list of one and a consumer reads one shape.
+ * A being's complexion: a list of complexion words, `[]` included. The shape
+ * names the list form, because the finding an author meets for a single word
+ * quotes it.
  */
-const TEXT_OR_LIST = Object.freeze({
-    shape: "string or list",
-    kind: "string-or-list",
-    entries: Object.freeze({ kind: "string", shape: "a string" }),
+const COMPLEXION_LIST = Object.freeze({
+    shape: "a list of words, such as `[weathered]` or `[]`",
+    kind: "list",
+    entries: Object.freeze({
+        kind: "string",
+        shape: "a string",
+        allowed: lookValues("appearance.complexion"),
+    }),
 });
 
 /** A single Address. */
@@ -1454,22 +1458,26 @@ export const NOTE_VOCABULARY = Object.freeze({
             lookField("appearance.skin_color", "Skin colour"),
             {
                 ...lookField("appearance.complexion", "The skin's condition"),
-                ...TEXT_OR_LIST,
+                ...COMPLEXION_LIST,
+                required: true,
                 describe:
-                    `The skin's condition: ${wordList(lookValues("appearance.complexion"))}, ` +
-                    "one word or a list of several, because a face carries more than one at " +
-                    "once. A single word means a list of one. See " +
+                    `The skin's condition, as a list of ${wordList(lookValues("appearance.complexion"))}: ` +
+                    "`[weathered, freckled]`, `[clear]` for unremarked skin, or `[]` where no " +
+                    "condition is established. Required once a being states an appearance; a " +
+                    "single word outside a list is an error. See " +
                     "[a being's look](format-details.md#a-beings-look) for what each word means.",
-                entries: Object.freeze({
-                    kind: "string",
-                    shape: "a string",
-                    allowed: lookValues("appearance.complexion"),
-                }),
             },
             {
                 name: "appearance.extra_features",
                 ...TEXT_LIST,
-                describe: "Anything else a stranger would notice, in free text.",
+                check: (note) => checkExtraFeatures(note, BEING_LOOK_VOCABULARY),
+                describe:
+                    "The visible physical marks no word covers, each a short plain description " +
+                    "of one: `a burn scar on the left forearm`, `a missing finger`. An entry " +
+                    "stating a hair, eye or skin colour or a skin condition, gear or clothing, a " +
+                    "voice, behaviour or manner, an impression, handedness, sterility or an " +
+                    "apparent age is an error, as is any punctuation but a hyphen or apostrophe " +
+                    "inside a word. See [a being's look](format-details.md#a-beings-look).",
             },
         ]),
     }),

@@ -29,10 +29,10 @@ describe("a being's described fields", () => {
         expect(text).not.toContain("large");
     });
 
-    it("lets a complexion hold one value or several", () => {
+    it("holds a complexion as a required list, never one word", () => {
         const declared = field("being", "appearance.complexion");
-        expect(declared.kind).toBe("string-or-list");
-        expect(declared.shape).toBe("string or list");
+        expect(declared.kind).toBe("list");
+        expect(declared.required).toBe(true);
     });
 
     it("leaves the other appearance colours holding one value each", () => {
@@ -62,7 +62,6 @@ describe("a complexion of several values", () => {
     };
 
     it("says complexion once however many values there are", () => {
-        expect(clause("weathered")).toBe("weathered complexion");
         expect(clause(["weathered"])).toBe("weathered complexion");
         expect(clause(["weathered", "ruddy"])).toBe("weathered and ruddy complexion");
         expect(clause(["weathered", "ruddy", "scarred"])).toBe(

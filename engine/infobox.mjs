@@ -506,15 +506,15 @@ export function humanizeValue(value) {
 /**
  * Several enumerated values as one clause — `weathered, ruddy and scarred`.
  *
- * A field that admits one value or a list of them reads as a single phrase, so
- * the noun it qualifies is said once rather than once per value. Internal: the
- * phrase that wants it is declared in this module.
+ * A list field reads as a single phrase, so the noun it qualifies is said
+ * once rather than once per value. Internal: the phrase that wants it is
+ * declared in this module.
  *
- * @param {unknown} value - One value, or a list of them.
+ * @param {unknown} value - A list of values.
  * @returns {string} The text.
  */
 function humanizedList(value) {
-    const parts = (Array.isArray(value) ? value : [value])
+    const parts = (Array.isArray(value) ? value : [])
         .filter((entry) => entry !== undefined && entry !== null && entry !== "")
         .map((entry) => humanizeValue(entry));
     if (parts.length < 2) return parts[0] ?? "";

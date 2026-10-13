@@ -86,6 +86,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             "died",
             "height",
             "weight",
+            "appearance.extra_features",
         ],
         fm: () => ({
             type: "being",
@@ -99,6 +100,10 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                 died: "unknown",
                 height: "1.91m",
                 weight: "85kg",
+                appearance: {
+                    complexion: ["weathered"],
+                    extra_features: ["a burn scar on the left forearm"],
+                },
             },
         }),
     },

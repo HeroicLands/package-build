@@ -23,7 +23,9 @@ from those references. See [place governments](docs/authoring/frontmatter.md#pla
 A being's `data.gender`, `data.frame`, `data.appearance.eye_color`,
 `hair_color`, `skin_color` and `complexion` take their words from one closed
 vocabulary, and any other value is a located build error naming the words the
-field takes. `data.appearance.extra_features` is free text. See
+field takes. `complexion` is a list, required once a being states an
+appearance. `data.appearance.extra_features` lists the being's visible
+physical marks, each a short plain description of one. See
 [a being's look](docs/reference/format-details.md#a-beings-look).
 
 A `lore` note of `subType: culture` may state `data.appearanceProfile`: words

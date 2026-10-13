@@ -185,7 +185,8 @@ export function mapEntriesOf(value) {
  *
  * @param {readonly object[]} fields - The type's `data:` declaration.
  * @returns {object[]} One spec per top-level key, a dotted group as a `map`
- *   whose `fields` are its members, with `grouped: true`.
+ *   whose `fields` are its members, with `grouped: true`, and each member
+ *   marked `kindChecked`.
  */
 export function topLevelSpecs(fields) {
     const out = [];
@@ -202,7 +203,10 @@ export function topLevelSpecs(fields) {
             groups.set(head, group);
             out.push(group);
         }
-        group.members.push({ ...field, name: rest.join(".") });
+        // The frontmatter lint's container check has already held a dotted
+        // field's leaf to its kind; `kindChecked` keeps the walk from saying
+        // so a second time.
+        group.members.push({ ...field, name: rest.join("."), kindChecked: true });
     }
     for (const group of groups.values()) {
         group.fields = topLevelSpecs(group.members);
@@ -285,6 +289,7 @@ export function checkDataKeys(note, fields) {
     const visit = (spec, value, path) => {
         if (value === undefined || value === null) return;
         if (!fitsKind(value, spec.kind)) {
+            if (spec.kindChecked && !spec.fields) return;
             findings.push(
                 finding(
                     path,

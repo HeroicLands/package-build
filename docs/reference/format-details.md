@@ -3616,8 +3616,8 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `appearance.eye_color`             | a word                                         | Eye colour — see [a being's look](#a-beings-look)                                                                                                     |
 | `appearance.hair_color`            | a word                                         | Hair colour — see [a being's look](#a-beings-look)                                                                                                    |
 | `appearance.skin_color`            | a word                                         | Skin colour — see [a being's look](#a-beings-look)                                                                                                    |
-| `appearance.complexion`            | `word \| word[]`                               | The skin's condition, one word or several — see [a being's look](#a-beings-look)                                                                      |
-| `appearance.extra_features`        | `string[]`                                     | Anything else a stranger would notice, in free text                                                                                                   |
+| `appearance.complexion`            | `word[]`, required with `appearance`           | The skin's condition, a list of words — see [a being's look](#a-beings-look)                                                                          |
+| `appearance.extra_features`        | `string[]`                                     | The visible physical marks no word covers — see [a being's look](#a-beings-look)                                                                      |
 
 Author `data.height` as a string of decimal metres (`1.91m` or `1.91 m`) or
 whole feet with optional inches (`6'`, `6'3"`, or `6' 3"`). Inches must be
@@ -3648,15 +3648,45 @@ vocabulary**, so every package describes a face in the same terms and a
 misspelt or invented word is caught. `data.gender`, `data.frame`,
 `data.appearance.eye_color`, `data.appearance.hair_color` and
 `data.appearance.skin_color` each take one word from their own list.
-`data.appearance.complexion` takes one word or a list of them, since a face
-carries more than one condition at once; a single word means a list of one.
 Any other value — a word from another field's list, a variant spelling such as
 `gray` for `grey`, or an empty string — is an error at the value, naming the
 words the field takes. Leave a field out when the fact is unrecorded.
 
-`data.appearance.extra_features` is not closed. It is a list of free-text
-marks — a scar and where it came from, a missing finger, a limp — for what no
-word in the vocabulary covers.
+**`data.appearance.complexion` is a list, and a being that states an appearance
+must state it.** A face carries more than one condition at once, so the field
+is always a list of complexion words: `[weathered, freckled]`, `[clear]` for
+skin with nothing remarkable about it, or `[]` where no condition is
+established. A single word written outside a list, such as `complexion: clear`,
+is an error that asks for the list, and so is an `appearance` map with no
+`complexion` or a `complexion` of `null`.
+
+**`data.appearance.extra_features` lists the visible physical marks no word
+covers** — a scar and where it is, a missing finger, a tattoo, a limp. Each
+entry is a short plain description of one mark. The closed fields above carry
+everything else, so an entry is an error at that entry when it:
+
+- states a hair, eye or skin colour or a skin condition, which belong in
+  `hair_color`, `eye_color`, `skin_color` and `complexion` — `auburn hair`,
+  `red eyes`, `milky white eyes`, `brown and black hair`, `pale skin`,
+  `weathered complexion`, `freckled`;
+- names gear, clothing or a weapon — `a mail shirt kept oiled`,
+  `carries a heavy battleaxe`;
+- describes a voice or speech — `speaks with a lisp`;
+- describes behaviour, manner or temperament — `fidgets constantly`,
+  `an infectious grin`, `hyperactive`;
+- gives an impression of looks or presence — `startlingly beautiful`,
+  `a commanding presence`, and `a beautiful tattoo of a crane` too, mark or not;
+- states handedness, sterility or an apparent age — `left handed`, `sterile`,
+  `a boyish face that makes him look younger`;
+- carries any punctuation, apart from a hyphen or an apostrophe between two
+  letters. `ink-stained fingers` and `a lion's mane` are marks; `Scar: left
+cheek` and `a scar on the cheek, from a duel` are not.
+
+A mark that names the skin it sits on is still a mark: `a burn scar on the left
+forearm` and `a brand scarred into the skin above the heart` are features. A
+tattoo, scar or brand may show gear or a gesture, as in `a tattoo of a knight's
+helmet`, and stands; the voice, impression, handedness, sterility and age rules
+hold even for a mark.
 
 ```yaml
 data:
@@ -3669,6 +3699,7 @@ data:
     complexion: [weathered, freckled]
     extra_features:
       - a burn scar across the back of the left hand
+      - ink-stained fingers
 ```
 
 The words, and what each means:

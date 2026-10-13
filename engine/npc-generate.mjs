@@ -40,7 +40,8 @@
  *   being in the package already holds it.
  * - `type: being`, `subType: npc`, `tags: [generated, draft]`.
  * - `frame`, and `appearance.eye_color`, `hair_color`, `skin_color` and
- *   `complexion` — weighted draws from the culture's appearance profile.
+ *   `complexion` — weighted draws from the culture's appearance profile;
+ *   `complexion` is a list of the one word drawn.
  * - `height` — from the profile's range for the gender, in feet and inches.
  * - `weight` — from the height and the frame's body-mass band, in pounds.
  * - `born` — an adult age of {@link ADULT_AGE} years before the package's
@@ -346,8 +347,7 @@ export function appearanceParagraph({ name, age, gender, height, frame, appearan
     const sentences = [`${first}.`];
 
     const look = appearance ?? {};
-    const complexion = [look.complexion ?? []]
-        .flat()
+    const complexion = (Array.isArray(look.complexion) ? look.complexion : [])
         .filter(Boolean)
         .map((w) => wordLabel("appearance.complexion", w));
     const parts = [
@@ -491,7 +491,8 @@ export function generateNpc(spec, context) {
     const appearance = { ...look };
     for (const key of profileLookKeys(BEING_LOOK_VOCABULARY)) {
         if (key === "frame" || given(look[key])) continue;
-        appearance[key] = weighted(profile[key], draw(`data.appearance.${key}`));
+        const word = weighted(profile[key], draw(`data.appearance.${key}`));
+        appearance[key] = key === "complexion" ? [word] : word;
     }
     if (!given(look.extra_features)) appearance.extra_features = [];
 

@@ -1898,7 +1898,10 @@ checks frontmatter against the declared vocabulary and each system's `sohl:`
 / `hm3:` block, the package's charset (so a book can pick a font that covers
 it), that an icon a note writes is one the registry declares, and that
 markup inside a note's body does not smuggle in a character the charset
-check cannot see. `--no-references` turns off the check that a frontmatter
+check cannot see. A being's appearance is held to
+[a being's look](reference/format-details.md#a-beings-look): `complexion` a
+list, and `extra_features` only short plain descriptions of physical marks.
+`--no-references` turns off the check that a frontmatter
 shortcode reference lands, including references in schema-declared system
 fields, for a tree whose cross-package references it cannot see. Address
 references in system fields resolve against this package and its declared
@@ -2923,7 +2926,7 @@ data:
     eye_color: brown
     hair_color: black
     skin_color: brown
-    complexion: clear
+    complexion: [clear]
     extra_features: []
 ---
 

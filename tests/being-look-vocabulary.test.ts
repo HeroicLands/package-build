@@ -9,7 +9,7 @@ import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 /**
  * A being's gender, frame and appearance take their words from one closed
- * vocabulary, and `appearance.extra_features` stays free text.
+ * vocabulary. What `appearance.extra_features` admits is `being-appearance.test.ts`'s.
  *
  * The fields are named here and their words read from the declaration, so a
  * word added to the vocabulary is covered without an edit. Every assertion
@@ -101,18 +101,21 @@ describe("a being's look takes its words from a closed vocabulary", () => {
     });
 
     for (const field of CLOSED_FIELDS) {
+        // A complexion is a list, so each word is written as a list of one.
+        const listed = field === "appearance.complexion";
+        const as = (word: string) => (listed ? [word] : word);
         describe(`data.${field}`, () => {
             it("accepts every word of its vocabulary", () => {
                 for (const { value } of LOOK[field] ?? []) {
-                    expect(findingsOn(field, value), value).toEqual([]);
+                    expect(findingsOn(field, as(value)), value).toEqual([]);
                 }
             });
 
             it("refuses a word outside it, naming every allowed word", () => {
-                const note = being(field, "turquoise");
-                const findings = findingsOn(field, "turquoise");
+                const note = being(field, as("turquoise"));
+                const findings = findingsOn(field, as("turquoise"));
                 expect(findings).toHaveLength(1);
-                const at = valueAt(note, field);
+                const at = valueAt(note, field, listed ? 0 : undefined);
                 expect(formatDiagnostic(findings[0])).toMatch(
                     new RegExp(`^${file}:${at.line}:${at.column}: error: `),
                 );
@@ -123,13 +126,13 @@ describe("a being's look takes its words from a closed vocabulary", () => {
             });
 
             it("refuses an empty value, which is no word", () => {
-                expect(findingsOn(field, "")).toHaveLength(1);
+                expect(findingsOn(field, as(""))).toHaveLength(1);
             });
 
             it("refuses a near-miss spelling of a word", () => {
                 const first = LOOK[field]?.[0]?.value ?? "word";
                 const spelt = first.toUpperCase();
-                const findings = findingsOn(field, spelt);
+                const findings = findingsOn(field, as(spelt));
                 expect(findings).toHaveLength(1);
                 expect(findings[0].message).toContain(JSON.stringify(spelt));
             });
@@ -183,8 +186,12 @@ describe("a being's look takes its words from a closed vocabulary", () => {
         expect(graying[0].message).toContain('Did you mean "greying_brown"?');
     });
 
-    it("leaves extra_features free text", () => {
-        const features = ["a burn scar across the left hand", "turquoise", "Walks with a limp"];
+    it("admits a physical mark among the extra features", () => {
+        const features = [
+            "a burn scar across the left hand",
+            "a missing finger",
+            "Walks with a limp",
+        ];
         expect(findingsOn("appearance.extra_features", features)).toEqual([]);
     });
 });
