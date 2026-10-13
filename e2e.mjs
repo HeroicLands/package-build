@@ -636,26 +636,48 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * @param {string} opts.url - The container's base URL.
  * @param {string} opts.container - The container name, for its log.
  * @param {string} opts.stage - The stage, named in a licence failure.
+ * @param {string} [opts.dataRoot] - The stage's data root, named when its licence is unsigned.
+ * @param {(container: string) => string} [opts.readLog] - Reads the container's log since it started.
  * @param {number} [opts.timeoutMs] - How long to wait.
  * @param {(message: string) => void} [opts.log] - Progress reporting.
  * @returns {Promise<void>} Resolves once the world is active.
  * @throws {Error} On a licence failure or a timeout.
  */
-export async function waitForWorld({ url, container, stage, timeoutMs = 180_000, log = () => {} }) {
+export async function waitForWorld({
+    url,
+    container,
+    stage,
+    dataRoot,
+    readLog = captureContainerLog,
+    timeoutMs = 180_000,
+    log = () => {},
+}) {
     const join = `${url}/join`;
     const deadline = Date.now() + timeoutMs;
     log(`Waiting for the world at ${join} …`);
     while (Date.now() < deadline) {
-        const logs = captureContainerLog(container);
+        const logs = readLog(container);
+        if (/software license requires signature/i.test(logs)) {
+            throw new Error(
+                "The Foundry licence is not signed, so Foundry serves its licence " +
+                    "page and no world activates. Each installation fetches its own " +
+                    "signature with the owner's Foundry account, once per data root: " +
+                    `run \`package-build container ${stage} start\` with no world ` +
+                    `(FOUNDRYVTT_${stage.toUpperCase()}_WORLD unset), open the stage in a ` +
+                    "browser and accept the licence agreement. The signature then " +
+                    `persists in Config/license.json${dataRoot ? ` under ${dataRoot}` : " in the data root"}. ` +
+                    "The image applies the key but never signs it.",
+            );
+        }
         if (/license verification failed/i.test(logs)) {
             throw new Error(
                 "Foundry licence verification failed. The end-to-end container " +
-                    "needs its own SIGNED licence: dedicate one with " +
-                    `FOUNDRYVTT_${stage.toUpperCase()}_LICENSE_KEY ` +
-                    "plus FOUNDRY_USERNAME/FOUNDRY_PASSWORD so the image signs " +
-                    "it — a bare key stays unsigned, and another installation's " +
-                    "license.json does not verify. A licence shared with a " +
-                    "running container is single-seat and will fail too.",
+                    "needs its own signed licence, set with " +
+                    `FOUNDRYVTT_${stage.toUpperCase()}_LICENSE_KEY and signed by ` +
+                    "accepting the licence agreement in Foundry's own page once " +
+                    "per data root. Another installation's license.json does not " +
+                    "verify, and a licence shared with a running container is " +
+                    "single-seat and will fail too.",
             );
         }
         try {
@@ -677,12 +699,15 @@ export async function waitForWorld({ url, container, stage, timeoutMs = 180_000,
 
 /**
  * @param {string} container - Container name.
- * @returns {string} The tail of its log, or `""`.
+ * @returns {string} Its log since it last started, or `""`.
  */
 function captureContainerLog(container) {
-    const result = spawnSync("docker", ["logs", "--tail", "40", container], {
+    const started = spawnSync("docker", ["inspect", "-f", "{{.State.StartedAt}}", container], {
         encoding: "utf8",
     });
+    const since = (started.stdout ?? "").trim();
+    const args = since ? ["logs", "--since", since, container] : ["logs", container];
+    const result = spawnSync("docker", args, { encoding: "utf8" });
     return `${result.stdout ?? ""}${result.stderr ?? ""}`;
 }
 
@@ -1098,6 +1123,7 @@ export async function e2eRun({
             url: container.url,
             container: container.name,
             stage,
+            dataRoot: resolveDataRoot(stage, { env }),
             log,
         });
         return runSuite({
@@ -1175,6 +1201,7 @@ export async function e2eFast({ config, argv = [], env = process.env, log = () =
         url: container.url,
         container: container.name,
         stage,
+        dataRoot: resolveDataRoot(stage, { env }),
         log,
     });
 

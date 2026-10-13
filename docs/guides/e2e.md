@@ -91,7 +91,14 @@ image made for that build. The first run downloads the release, which needs
 `FOUNDRYVTT_CACHE`, or in `container_cache` beneath the data root when that is
 unset. Once the archive is cached and the stage has a licence, later runs
 start without signing in to foundryvtt.com, so its rate limit never stops a
-run. Under rootless Docker, set
+run. A key alone does not sign the licence. The image applies
+`FOUNDRYVTT_TEST_LICENSE_KEY` and nothing more; the signature comes from
+accepting the licence agreement in Foundry's own page, once per data root, and
+then persists in `Config/license.json` there. On a fresh data root, start the
+stage with no world (`package-build container test start`), open it in a
+browser and accept the agreement. A run against an unsigned licence fails at
+once saying so, naming the data root, instead of waiting for a world that never
+activates. Under rootless Docker, set
 `FOUNDRYVTT_CONTAINER_USER=0:0`: container root is then the host user, so every
 file under the data root belongs to them, where the image would otherwise run
 Foundry as user 1000. With the local settings in place, seed the world:

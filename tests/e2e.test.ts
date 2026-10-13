@@ -443,6 +443,55 @@ describe("the world-activation timeout", () => {
     });
 });
 
+describe("a Foundry licence that is not signed", () => {
+    const unsigned = [
+        "[info] Authenticating with foundryvtt.com",
+        "[info] Applying license key passed via FOUNDRY_LICENSE_KEY.",
+        "Software license requires signature.",
+    ].join("\n");
+
+    it("fails at once, naming the data root and the one-time signing step", async () => {
+        const reads: number[] = [];
+        const error = await waitForWorld({
+            url: "http://localhost:1",
+            container: "none",
+            stage: "test",
+            dataRoot: "/srv/fvtt-test",
+            readLog: () => {
+                reads.push(1);
+                return unsigned;
+            },
+        }).catch((e: Error) => e);
+
+        expect(error).toBeInstanceOf(Error);
+        const message = (error as Error).message;
+        expect(message).toContain("not signed");
+        expect(message).toContain("/srv/fvtt-test");
+        expect(message).toContain("Config/license.json");
+        expect(message).toContain("package-build container test start");
+        expect(message).toMatch(/accept the (licen[sc]e )?agreement/i);
+        expect(message).toContain("own signature");
+        expect(message).not.toMatch(/image signs/i);
+        expect(reads).toHaveLength(1);
+    });
+
+    it("is read from a log that the join polling would have scrolled past", async () => {
+        const noisy = [
+            unsigned,
+            ...Array.from({ length: 200 }, () => "Created client session"),
+        ].join("\n");
+
+        await expect(
+            waitForWorld({
+                url: "http://localhost:1",
+                container: "none",
+                stage: "test",
+                readLog: () => noisy,
+            }),
+        ).rejects.toThrow(/not signed/);
+    });
+});
+
 describe("deploying the package for the container's user", () => {
     it("removes the old install and hands over the new one, as root, around the copy", async () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-deploy-"));
