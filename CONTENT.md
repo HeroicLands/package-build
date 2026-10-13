@@ -19,3 +19,9 @@ A place declares its government through `data.government`, an `Address` whose
 default target type is `affiliation`. Explicit `null` means complete anarchy;
 omission leaves government unknown. Governing bodies receive their place lists
 from those references. See [place governments](docs/authoring/frontmatter.md#place-governments).
+
+A being's `data.gender`, `data.frame`, `data.appearance.eye_color`,
+`hair_color`, `skin_color` and `complexion` take their words from one closed
+vocabulary, and any other value is a located build error naming the words the
+field takes. `data.appearance.extra_features` is free text. See
+[a being's look](docs/reference/format-details.md#a-beings-look).

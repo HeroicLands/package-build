@@ -18,6 +18,7 @@ import { formatGenerated } from "../engine/format-generated.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     BEING_ARCHETYPES,
+    BEING_LOOK_VOCABULARY,
     NOTE_TOP_LEVEL_FIELDS,
     NOTE_VOCABULARY,
     SHARED_DATA_FIELDS,
@@ -236,20 +237,42 @@ const details = fs.readFileSync(detailsPath, "utf8");
 if (!/<!-- archetypes:start -->[\s\S]*?<!-- archetypes:end -->/.test(details)) {
     throw new Error("The archetype reference requires its generation markers");
 }
+if (!/<!-- being-look:start -->[\s\S]*?<!-- being-look:end -->/.test(details)) {
+    throw new Error("The being-look reference requires its generation markers");
+}
 const archetypes = Object.entries(BEING_ARCHETYPES)
     .map(([name, meaning]) => `- ${name}: ${meaning}`)
     .join("\n");
+// One table per field of a being's look, every word with its label and meaning,
+// written from the declaration the lint closes each field to.
+const beingLook = Object.entries(BEING_LOOK_VOCABULARY)
+    .flatMap(([field, words]) => [
+        `**\`data.${field}\`**`,
+        "",
+        "| Word | Label | Meaning |",
+        "| --- | --- | --- |",
+        ...words.map(
+            ({ value, label, describe }) => `| \`${value}\` | ${cell(label)} | ${cell(describe)} |`,
+        ),
+        "",
+    ])
+    .join("\n");
 const updatedDetails = await formatGenerated(
-    details.replace(
-        /<!-- archetypes:start -->[\s\S]*?<!-- archetypes:end -->/,
-        `<!-- archetypes:start -->\n${archetypes}\n<!-- archetypes:end -->`,
-    ),
+    details
+        .replace(
+            /<!-- archetypes:start -->[\s\S]*?<!-- archetypes:end -->/,
+            `<!-- archetypes:start -->\n${archetypes}\n<!-- archetypes:end -->`,
+        )
+        .replace(
+            /<!-- being-look:start -->[\s\S]*?<!-- being-look:end -->/,
+            `<!-- being-look:start -->\n\n${beingLook}\n<!-- being-look:end -->`,
+        ),
     detailsPath,
 );
 if (process.argv.includes("--check")) {
     if (details !== updatedDetails) {
         console.error(
-            "docs/reference/format-details.md: error: run node ci/content-format-reference.mjs to refresh the archetype reference",
+            "docs/reference/format-details.md: error: run node ci/content-format-reference.mjs to refresh the archetype and being-look references",
         );
         process.exitCode = 1;
     }

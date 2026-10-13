@@ -242,16 +242,191 @@ const NUM = Object.freeze({ shape: "number", kind: "number" });
 /** A string, including the enumerated-value fields the format spells as one. */
 const TEXT = Object.freeze({ shape: "string", kind: "string" });
 
+/**
+ * One word of a closed vocabulary: the value a note writes, the label a reader
+ * sees it by, and what it means.
+ *
+ * @typedef {object} LookWord
+ * @property {string} value - The word as a note writes it.
+ * @property {string} label - The word as a reader sees it.
+ * @property {string} describe - What it means, in one line.
+ */
+
+/** A frozen word list from `[value, label, describe]` rows. */
+function lookWords(rows) {
+    return Object.freeze(
+        rows.map(([value, label, describe]) => Object.freeze({ value, label, describe })),
+    );
+}
+
+/**
+ * The words a being's look is stated in, keyed by the `data:` field that takes
+ * them.
+ *
+ * Each field is closed to its list: any other value, an empty one included, is
+ * a finding at the value naming the words it takes. `appearance.complexion`
+ * takes one word or a list of them, and each entry is checked on its own.
+ * `appearance.extra_features` is not here: it is free text, a list of the marks
+ * no word covers.
+ *
+ * @type {Readonly<Record<string, readonly LookWord[]>>}
+ */
+export const BEING_LOOK_VOCABULARY = Object.freeze({
+    gender: lookWords([
+        ["female", "Female", "Female."],
+        ["male", "Male", "Male."],
+        ["nonbinary", "Nonbinary", "Neither male nor female."],
+        ["none", "None", "The being has no gender, as against one that is simply unrecorded."],
+        ["other", "Other", "A gender none of these words fits."],
+    ]),
+    frame: lookWords([
+        ["scant", "Scant", "Very thin, with little flesh over the bone."],
+        ["light", "Light", "Slender, narrow through shoulder and hip."],
+        ["medium", "Medium", "The ordinary build, neither slight nor heavy."],
+        ["heavy", "Heavy", "Broad and solid, in muscle or in flesh."],
+        ["massive", "Massive", "Exceptionally large in frame."],
+    ]),
+    "appearance.eye_color": lookWords([
+        ["amber", "Amber", "Golden or coppery, with no grey or green in it; the honey-toned eye."],
+        [
+            "black",
+            "Black",
+            "An iris that cannot be told from the pupil in any light, darker than `dark_brown`.",
+        ],
+        ["blue", "Blue", "Unmixed blue, from pale ice to deep sea."],
+        ["brown", "Brown", "Mid-brown, the iris pattern still legible in ordinary light."],
+        ["dark_brown", "Dark Brown", "Brown so deep the iris barely separates from the pupil."],
+        ["grey", "Grey", "Grey or grey-blue, cool and without green."],
+        ["green", "Green", "Green dominant, with no brown ring worth naming."],
+        [
+            "hazel",
+            "Hazel",
+            "Brown and green together, often shifting with the light; the commonest mixed eye.",
+        ],
+        ["violet", "Violet", "The pink-violet of an iris carrying no pigment."],
+    ]),
+    "appearance.hair_color": lookWords([
+        ["auburn", "Auburn", "Red-brown with the red dominant."],
+        ["black", "Black", "True black, with no brown cast in sunlight."],
+        ["blonde", "Blonde", "Light yellow, from near-white to wheat."],
+        ["brown", "Brown", "Mid-brown, neither dark nor reddish."],
+        [
+            "chestnut",
+            "Chestnut",
+            "Mid-brown with a red cast, the brown dominant — between brown and auburn.",
+        ],
+        ["dark_blonde", "Dark Blonde", "Blonde darkened towards light brown."],
+        ["dark_brown", "Dark Brown", "Brown approaching black, still brown in sunlight."],
+        ["grey", "Grey", "Grey throughout, with nothing of the original colour left to read."],
+        ["greying_black", "Greying Black", "Black still dominant, grey coming in."],
+        ["greying_brown", "Greying Brown", "Brown still dominant, grey coming in."],
+        ["red", "Red", "Ginger or copper, the red unmixed with brown."],
+        ["silver", "Silver", "Grey with a bright metallic sheen rather than a dull cast."],
+        [
+            "strawberry_blond",
+            "Strawberry Blond",
+            "Pale red-gold: blonde with a red cast, lighter than red.",
+        ],
+        ["white", "White", "Wholly white, whether from age or from carrying no pigment."],
+    ]),
+    "appearance.skin_color": lookWords([
+        [
+            "pale",
+            "Pale",
+            "The lightest skin, which burns rather than browns; also skin carrying no pigment.",
+        ],
+        ["fair", "Fair", "Light with a pink cast, burning before it browns."],
+        ["light", "Light", "Light and neutral, browning without burning readily."],
+        ["medium", "Medium", "Neither light nor dark, with no strong cast either way."],
+        ["olive", "Olive", "Medium with a green-grey cast."],
+        ["tawny", "Tawny", "Light brown, warm rather than olive."],
+        ["golden", "Golden", "Light to medium with a yellow cast."],
+        ["tanned", "Tanned", "Medium, darkened by sun rather than by birth."],
+        ["swarthy", "Swarthy", "Dark with an olive or sallow cast, between olive and brown."],
+        ["brown", "Brown", "Mid-brown."],
+        [
+            "dark",
+            "Dark",
+            "Darker than brown with no particular cast; the general word where no finer shade is stated.",
+        ],
+        ["dark_brown", "Dark Brown", "Deep brown."],
+        ["ebony", "Ebony", "The darkest skin, near-black."],
+    ]),
+    "appearance.complexion": lookWords([
+        ["ashen", "Ashen", "Grey and drained; the skin of serious illness, shock or terror."],
+        ["blotchy", "Blotchy", "Uneven in colour, patched red or pale."],
+        ["chapped", "Chapped", "Reddened and cracked by cold and wind."],
+        ["clear", "Clear", "Free of blemish, mark or broken vessel."],
+        ["freckled", "Freckled", "Freckled, in patches or across the whole face."],
+        ["jaundiced", "Jaundiced", "Yellowed, the colour a failing liver gives."],
+        ["leathery", "Leathery", "Thickened and toughened by years of exposure."],
+        ["oily", "Oily", "Carrying a greasy sheen."],
+        ["pasty", "Pasty", "Pale and doughy; the skin of indoor work and poor feeding."],
+        ["pimpled", "Pimpled", "Presently broken out, with pimples at brow, cheek or jaw."],
+        ["pockmarked", "Pockmarked", "Pitted by pox, or by deep pimples long since healed."],
+        ["rough", "Rough", "Coarse in texture, without the wear of outdoor work."],
+        ["ruddy", "Ruddy", "High colour at cheek and nose, from weather, drink or constitution."],
+        ["sallow", "Sallow", "Yellowish and bloodless."],
+        [
+            "scabrous",
+            "Scabrous",
+            "Rough and scaling, the skin of a lasting complaint such as eczema.",
+        ],
+        [
+            "scarred",
+            "Scarred",
+            "Marked by healed wounds. `extra_features` says where and from what.",
+        ],
+        ["smooth", "Smooth", "Even in texture, whatever marks it carries."],
+        ["sun_kissed", "Sun-Kissed", "Browned by sun on skin not naturally that dark."],
+        ["sunburnt", "Sunburnt", "Presently burned, red and peeling."],
+        ["translucent", "Translucent", "So pale the vessels show through."],
+        [
+            "vitiligo",
+            "Vitiligo",
+            "Patched with white where the skin has lost its colour, most often at face, hands and mouth. The tone it has lost is still what `skin_color` states.",
+        ],
+        ["wan", "Wan", "Pale and drained; the skin of exhaustion or convalescence."],
+        ["weathered", "Weathered", "Worn and lined by sun and wind; the skin of outdoor work."],
+        ["wrinkled", "Wrinkled", "Deeply lined by age."],
+    ]),
+});
+
+/** The values of one field of {@link BEING_LOOK_VOCABULARY}. */
+function lookValues(field) {
+    return Object.freeze(BEING_LOOK_VOCABULARY[field].map(({ value }) => value));
+}
+
 /** The words a being's `gender` takes. */
-const BEING_GENDERS = Object.freeze(["male", "female", "nonbinary", "none", "other"]);
+const BEING_GENDERS = lookValues("gender");
 
 /** The words a being's `frame` takes, lightest to heaviest. */
-const BEING_FRAMES = Object.freeze(["scant", "light", "medium", "heavy", "massive"]);
+const BEING_FRAMES = lookValues("frame");
 
 /** Words as code spans, joined by commas and a final "or". */
 function wordList(words) {
     const spans = words.map((word) => `\`${word}\``);
     return `${spans.slice(0, -1).join(", ")} or ${spans.at(-1)}`;
+}
+
+/**
+ * A string field closed to one list of {@link BEING_LOOK_VOCABULARY}, its words
+ * named in the reference and their meanings linked.
+ *
+ * @param {string} name - The field, as declared.
+ * @param {string} what - What the field states, without a closing stop.
+ * @returns {object} The declaration.
+ */
+function lookField(name, what) {
+    const allowed = lookValues(name);
+    return {
+        name,
+        ...TEXT,
+        allowed,
+        describe:
+            `${what}: one of ${wordList(allowed)}. ` +
+            "See [a being's look](format-details.md#a-beings-look) for what each word means.",
+    };
 }
 
 /** A list. */
@@ -1043,7 +1218,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe:
                     `One of ${wordList(BEING_GENDERS)}. ` +
                     "`none` says the being has no gender; an absent field says its " +
-                    "gender is unrecorded.",
+                    "gender is unrecorded. See [a being's look](format-details.md#a-beings-look) " +
+                    "for what each word means.",
             },
             {
                 name: "species",
@@ -1113,22 +1289,31 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "frame",
                 ...TEXT,
                 allowed: BEING_FRAMES,
-                describe: `Relative frame — one of ${wordList(BEING_FRAMES)}.`,
+                describe:
+                    `Relative frame — one of ${wordList(BEING_FRAMES)}. ` +
+                    "See [a being's look](format-details.md#a-beings-look) for what each word means.",
             },
-            { name: "appearance.eye_color", ...TEXT, describe: "Eye colour." },
-            { name: "appearance.hair_color", ...TEXT, describe: "Hair colour." },
-            { name: "appearance.skin_color", ...TEXT, describe: "Skin colour." },
+            lookField("appearance.eye_color", "Eye colour"),
+            lookField("appearance.hair_color", "Hair colour"),
+            lookField("appearance.skin_color", "Skin colour"),
             {
-                name: "appearance.complexion",
+                ...lookField("appearance.complexion", "The skin's condition"),
                 ...TEXT_OR_LIST,
                 describe:
-                    "The skin's condition — one value, or several, because a face " +
-                    "carries more than one at once. A single value means a list of one.",
+                    `The skin's condition: ${wordList(lookValues("appearance.complexion"))}, ` +
+                    "one word or a list of several, because a face carries more than one at " +
+                    "once. A single word means a list of one. See " +
+                    "[a being's look](format-details.md#a-beings-look) for what each word means.",
+                entries: Object.freeze({
+                    kind: "string",
+                    shape: "a string",
+                    allowed: lookValues("appearance.complexion"),
+                }),
             },
             {
                 name: "appearance.extra_features",
                 ...TEXT_LIST,
-                describe: "Anything else a stranger would notice.",
+                describe: "Anything else a stranger would notice, in free text.",
             },
         ]),
     }),

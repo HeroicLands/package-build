@@ -491,7 +491,7 @@ export function humanizeFieldName(name) {
 }
 
 /**
- * An enumerated value as a reader sees it: `graying_brown` → `graying brown`.
+ * An enumerated value as a reader sees it: `greying_brown` → `greying brown`.
  *
  * @param {unknown} value - The authored value.
  * @returns {string} The text.

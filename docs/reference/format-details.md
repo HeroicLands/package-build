@@ -3505,7 +3505,7 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `affiliations.<Address>.office`    | `string`                                       | A post that body names in its `governance.offices`, where the being holds one                                                                         |
 | `affiliations.<Address>.societies` | `string[]`                                     | The societies the membership is held in, by name; SoHL carries the first as `system.society`                                                          |
 | `socialTies`                       | `Map<Address, Tie>`                            | Defining support and opposition, directed from this being to others                                                                                   |
-| `gender`                           | `male \| female \| other`                      | Gender of the character                                                                                                                               |
+| `gender`                           | `male \| female \| nonbinary \| none \| other` | Gender of the being — see [a being's look](#a-beings-look)                                                                                            |
 | `species`                          | `Address`                                      | Being's species (lore)                                                                                                                                |
 | `born`                             | `date \| unknown`                              | When the being was born; absent, it was never born                                                                                                    |
 | `calendar`                         | `Address`                                      | Calendar note that prints the being's dates                                                                                                           |
@@ -3514,12 +3514,12 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `ageYears`                         | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this                                                        |
 | `height`                           | `1.91m \| 6' 3"`                               | Height in metres or feet and inches                                                                                                                   |
 | `weight`                           | `85kg \| 187 lbs`                              | Body weight in kilograms or pounds                                                                                                                    |
-| `frame`                            | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                                                                                   |
-| `appearance.eye_color`             | `string`                                       | Eye color                                                                                                                                             |
-| `appearance.hair_color`            | `string`                                       | Hair color                                                                                                                                            |
-| `appearance.skin_color`            | `string`                                       | Skin color                                                                                                                                            |
-| `appearance.complexion`            | `string`                                       | Complexion                                                                                                                                            |
-| `appearance.extra_features`        | `string[]`                                     | Extra features                                                                                                                                        |
+| `frame`                            | `scant \| light \| medium \| heavy \| massive` | Relative frame — see [a being's look](#a-beings-look)                                                                                                 |
+| `appearance.eye_color`             | a word                                         | Eye colour — see [a being's look](#a-beings-look)                                                                                                     |
+| `appearance.hair_color`            | a word                                         | Hair colour — see [a being's look](#a-beings-look)                                                                                                    |
+| `appearance.skin_color`            | a word                                         | Skin colour — see [a being's look](#a-beings-look)                                                                                                    |
+| `appearance.complexion`            | `word \| word[]`                               | The skin's condition, one word or several — see [a being's look](#a-beings-look)                                                                      |
+| `appearance.extra_features`        | `string[]`                                     | Anything else a stranger would notice, in free text                                                                                                   |
 
 Author `data.height` as a string of decimal metres (`1.91m` or `1.91 m`) or
 whole feet with optional inches (`6'`, `6'3"`, or `6' 3"`). Inches must be
@@ -3542,6 +3542,142 @@ data:
   culture: lore-vedyariclt
   lore: [lore-marchlaw]
 ```
+
+#### A being's look
+
+**A being's gender, frame and appearance are stated in words from one closed
+vocabulary**, so every package describes a face in the same terms and a
+misspelt or invented word is caught. `data.gender`, `data.frame`,
+`data.appearance.eye_color`, `data.appearance.hair_color` and
+`data.appearance.skin_color` each take one word from their own list.
+`data.appearance.complexion` takes one word or a list of them, since a face
+carries more than one condition at once; a single word means a list of one.
+Any other value — a word from another field's list, a variant spelling such as
+`gray` for `grey`, or an empty string — is an error at the value, naming the
+words the field takes. Leave a field out when the fact is unrecorded.
+
+`data.appearance.extra_features` is not closed. It is a list of free-text
+marks — a scar and where it came from, a missing finger, a limp — for what no
+word in the vocabulary covers.
+
+```yaml
+data:
+  gender: female
+  frame: light
+  appearance:
+    eye_color: dark_brown
+    hair_color: greying_black
+    skin_color: olive
+    complexion: [weathered, freckled]
+    extra_features:
+      - a burn scar across the back of the left hand
+```
+
+The words, and what each means:
+
+<!-- being-look:start -->
+
+**`data.gender`**
+
+| Word        | Label     | Meaning                                                            |
+| ----------- | --------- | ------------------------------------------------------------------ |
+| `female`    | Female    | Female.                                                            |
+| `male`      | Male      | Male.                                                              |
+| `nonbinary` | Nonbinary | Neither male nor female.                                           |
+| `none`      | None      | The being has no gender, as against one that is simply unrecorded. |
+| `other`     | Other     | A gender none of these words fits.                                 |
+
+**`data.frame`**
+
+| Word      | Label   | Meaning                                       |
+| --------- | ------- | --------------------------------------------- |
+| `scant`   | Scant   | Very thin, with little flesh over the bone.   |
+| `light`   | Light   | Slender, narrow through shoulder and hip.     |
+| `medium`  | Medium  | The ordinary build, neither slight nor heavy. |
+| `heavy`   | Heavy   | Broad and solid, in muscle or in flesh.       |
+| `massive` | Massive | Exceptionally large in frame.                 |
+
+**`data.appearance.eye_color`**
+
+| Word         | Label      | Meaning                                                                            |
+| ------------ | ---------- | ---------------------------------------------------------------------------------- |
+| `amber`      | Amber      | Golden or coppery, with no grey or green in it; the honey-toned eye.               |
+| `black`      | Black      | An iris that cannot be told from the pupil in any light, darker than `dark_brown`. |
+| `blue`       | Blue       | Unmixed blue, from pale ice to deep sea.                                           |
+| `brown`      | Brown      | Mid-brown, the iris pattern still legible in ordinary light.                       |
+| `dark_brown` | Dark Brown | Brown so deep the iris barely separates from the pupil.                            |
+| `grey`       | Grey       | Grey or grey-blue, cool and without green.                                         |
+| `green`      | Green      | Green dominant, with no brown ring worth naming.                                   |
+| `hazel`      | Hazel      | Brown and green together, often shifting with the light; the commonest mixed eye.  |
+| `violet`     | Violet     | The pink-violet of an iris carrying no pigment.                                    |
+
+**`data.appearance.hair_color`**
+
+| Word               | Label            | Meaning                                                                   |
+| ------------------ | ---------------- | ------------------------------------------------------------------------- |
+| `auburn`           | Auburn           | Red-brown with the red dominant.                                          |
+| `black`            | Black            | True black, with no brown cast in sunlight.                               |
+| `blonde`           | Blonde           | Light yellow, from near-white to wheat.                                   |
+| `brown`            | Brown            | Mid-brown, neither dark nor reddish.                                      |
+| `chestnut`         | Chestnut         | Mid-brown with a red cast, the brown dominant — between brown and auburn. |
+| `dark_blonde`      | Dark Blonde      | Blonde darkened towards light brown.                                      |
+| `dark_brown`       | Dark Brown       | Brown approaching black, still brown in sunlight.                         |
+| `grey`             | Grey             | Grey throughout, with nothing of the original colour left to read.        |
+| `greying_black`    | Greying Black    | Black still dominant, grey coming in.                                     |
+| `greying_brown`    | Greying Brown    | Brown still dominant, grey coming in.                                     |
+| `red`              | Red              | Ginger or copper, the red unmixed with brown.                             |
+| `silver`           | Silver           | Grey with a bright metallic sheen rather than a dull cast.                |
+| `strawberry_blond` | Strawberry Blond | Pale red-gold: blonde with a red cast, lighter than red.                  |
+| `white`            | White            | Wholly white, whether from age or from carrying no pigment.               |
+
+**`data.appearance.skin_color`**
+
+| Word         | Label      | Meaning                                                                                     |
+| ------------ | ---------- | ------------------------------------------------------------------------------------------- |
+| `pale`       | Pale       | The lightest skin, which burns rather than browns; also skin carrying no pigment.           |
+| `fair`       | Fair       | Light with a pink cast, burning before it browns.                                           |
+| `light`      | Light      | Light and neutral, browning without burning readily.                                        |
+| `medium`     | Medium     | Neither light nor dark, with no strong cast either way.                                     |
+| `olive`      | Olive      | Medium with a green-grey cast.                                                              |
+| `tawny`      | Tawny      | Light brown, warm rather than olive.                                                        |
+| `golden`     | Golden     | Light to medium with a yellow cast.                                                         |
+| `tanned`     | Tanned     | Medium, darkened by sun rather than by birth.                                               |
+| `swarthy`    | Swarthy    | Dark with an olive or sallow cast, between olive and brown.                                 |
+| `brown`      | Brown      | Mid-brown.                                                                                  |
+| `dark`       | Dark       | Darker than brown with no particular cast; the general word where no finer shade is stated. |
+| `dark_brown` | Dark Brown | Deep brown.                                                                                 |
+| `ebony`      | Ebony      | The darkest skin, near-black.                                                               |
+
+**`data.appearance.complexion`**
+
+| Word          | Label       | Meaning                                                                                                                                             |
+| ------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ashen`       | Ashen       | Grey and drained; the skin of serious illness, shock or terror.                                                                                     |
+| `blotchy`     | Blotchy     | Uneven in colour, patched red or pale.                                                                                                              |
+| `chapped`     | Chapped     | Reddened and cracked by cold and wind.                                                                                                              |
+| `clear`       | Clear       | Free of blemish, mark or broken vessel.                                                                                                             |
+| `freckled`    | Freckled    | Freckled, in patches or across the whole face.                                                                                                      |
+| `jaundiced`   | Jaundiced   | Yellowed, the colour a failing liver gives.                                                                                                         |
+| `leathery`    | Leathery    | Thickened and toughened by years of exposure.                                                                                                       |
+| `oily`        | Oily        | Carrying a greasy sheen.                                                                                                                            |
+| `pasty`       | Pasty       | Pale and doughy; the skin of indoor work and poor feeding.                                                                                          |
+| `pimpled`     | Pimpled     | Presently broken out, with pimples at brow, cheek or jaw.                                                                                           |
+| `pockmarked`  | Pockmarked  | Pitted by pox, or by deep pimples long since healed.                                                                                                |
+| `rough`       | Rough       | Coarse in texture, without the wear of outdoor work.                                                                                                |
+| `ruddy`       | Ruddy       | High colour at cheek and nose, from weather, drink or constitution.                                                                                 |
+| `sallow`      | Sallow      | Yellowish and bloodless.                                                                                                                            |
+| `scabrous`    | Scabrous    | Rough and scaling, the skin of a lasting complaint such as eczema.                                                                                  |
+| `scarred`     | Scarred     | Marked by healed wounds. `extra_features` says where and from what.                                                                                 |
+| `smooth`      | Smooth      | Even in texture, whatever marks it carries.                                                                                                         |
+| `sun_kissed`  | Sun-Kissed  | Browned by sun on skin not naturally that dark.                                                                                                     |
+| `sunburnt`    | Sunburnt    | Presently burned, red and peeling.                                                                                                                  |
+| `translucent` | Translucent | So pale the vessels show through.                                                                                                                   |
+| `vitiligo`    | Vitiligo    | Patched with white where the skin has lost its colour, most often at face, hands and mouth. The tone it has lost is still what `skin_color` states. |
+| `wan`         | Wan         | Pale and drained; the skin of exhaustion or convalescence.                                                                                          |
+| `weathered`   | Weathered   | Worn and lined by sun and wind; the skin of outdoor work.                                                                                           |
+| `wrinkled`    | Wrinkled    | Deeply lined by age.                                                                                                                                |
+
+<!-- being-look:end -->
 
 #### The bodies a being belongs to, and its standing in each
 

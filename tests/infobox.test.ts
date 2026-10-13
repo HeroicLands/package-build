@@ -952,7 +952,7 @@ describe("the closed vocabularies", () => {
 
     it("capitalises an enumerated value and leaves prose alone", () => {
         expect(presentValue("male")).toBe("Male");
-        expect(presentValue("graying_brown")).toBe("Graying Brown");
+        expect(presentValue("greying_brown")).toBe("Greying Brown");
         expect(presentValue("a dispossessed noble")).toBe("a dispossessed noble");
     });
 });

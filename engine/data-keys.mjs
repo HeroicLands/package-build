@@ -289,9 +289,13 @@ export function checkDataKeys(note, fields) {
         walk(spec, value, path);
     };
 
-    /** Whether a present value is in the spec's closed set, if it has one; else a finding. */
+    /**
+     * Whether a present value is in the spec's closed set, if it has one; else a
+     * finding. A list is not itself a word: its entries are checked against
+     * their own declaration as the walk reaches them.
+     */
     const inAllowed = (spec, value, path) => {
-        if (!spec.allowed || spec.allowed.includes(value)) return true;
+        if (!spec.allowed || Array.isArray(value) || spec.allowed.includes(value)) return true;
         const guess = typeof value === "string" ? nearest(value, spec.allowed) : undefined;
         findings.push(
             finding(
