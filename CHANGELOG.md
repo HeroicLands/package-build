@@ -1,5 +1,22 @@
 # @heroiclands/package-build
 
+## 23.3.0
+
+### Minor Changes
+
+**Being notes**
+
+- A being's eye, hair and skin colour and its complexion now take words from a fixed list, alongside gender and frame, and any other value fails `package-build lint` naming the accepted words.
+- Variant spellings and empty values are refused too: write `grey` rather than `gray`, and leave a field out when it is unrecorded.
+- A complexion takes one word or a list of them; distinguishing marks stay free text in `extra_features`.
+- The format reference lists every word with what it means.
+
+### Patch Changes
+
+A region can list its settlements in a table under `## Settlements` — name, market, people and holder, one row each — tagged with how its countryside is held: `held`, `endowed`, `registered`, `kin` or `polis`. `package-build lint` checks the table's columns, its market classes and figures, that a holder suits the region's model, and that every linked row agrees with the settlement's own note.
+
+`e2e` now says when the Foundry licence is unsigned, and how to sign it, instead of timing out waiting for a world.
+
 ## 23.2.2
 
 ### Patch Changes
