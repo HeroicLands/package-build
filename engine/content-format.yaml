@@ -703,6 +703,12 @@ vocabularies:
         - "4"
         - "5"
         - "6"
+    holdingModel:
+        - held
+        - endowed
+        - registered
+        - kin
+        - polis
     bearing:
         - N
         - NE

@@ -507,6 +507,19 @@ What trade a settlement supports (`data.market`): the six-step scale, stated onc
 | `marketClass`    | `marketClass(value)`   | `object\|undefined` | the class a value names, for rendering what a number means                                        |
 | `checkMarket`    | `checkMarket(note)`    | `object[]`          | linting a place's `market` — a value off the scale, located at the value that states it           |
 
+### `engine.settlementTables`
+
+A region's settlements table — a markdown table under `## Settlements` on a `place` note, one row per settlement with its market, its people and its holder — held to its declared columns, to the holding model the region's tags name, and to the notes its rows link. `package-build lint` runs it as part of the `place` check; a note with no such table is not read.
+
+| Export                   | Signature                                | Returns                                 | Use it when                                                                                                       |
+| ------------------------ | ---------------------------------------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `HOLDING_MODELS`         | `const HOLDING_MODELS`                   | `readonly object[]`                     | the holding models in order, each its `tag`, the `holder` its Held by cell names, and whether a `person` may hold |
+| `SETTLEMENT_COLUMNS`     | `const SETTLEMENT_COLUMNS`               | `readonly object[]`                     | the table's columns in header order, each its `name` and whether it is `required`                                 |
+| `SETTLEMENTS_HEADING`    | `const SETTLEMENTS_HEADING`              | `string`                                | the level-two heading text a settlements table stands under                                                       |
+| `SETTLEMENT_TABLE_RULES` | `const SETTLEMENT_TABLE_RULES`           | `readonly object[]`                     | the rules in order, each its `name` — the prefix its findings carry — and what it `describe`s                     |
+| `findSettlementTables`   | `findSettlementTables(raw)`              | `{ heading: number, tables: object[] }` | reading a note's settlements tables, each with its header, its rows' cells and their 1-based lines and columns    |
+| `checkSettlementTables`  | `checkSettlementTables(note, { index })` | `object[]`                              | linting a place note's settlements tables against the corpus the index holds                                      |
+
 ### `engine.mapPlaces`
 
 The places a map is drawn from — this package's index records and every fetched dependency's entries, read through one shape — and what their `parents` say: the world, the continents, each place's continent, and everything the containment tree can get wrong, reported as findings located at the entry that states it.

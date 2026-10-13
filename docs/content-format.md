@@ -90,6 +90,8 @@ The [first-note guide](authoring/first-note.md) shows the build commands and how
 
 Place notes may declare a governing affiliation with `data.government`, or explicit `null` for complete anarchy. Positive population with an omitted government produces an advisory. See [place governments](authoring/frontmatter.md#place-governments).
 
+A region may list its settlements in a table under `## Settlements` — name, market, people and holder, one row each — tagged with the holding model it is written in. A row links the settlement's note where one exists, and `package-build lint` holds the two to agreement. See [a region's settlements table](reference/format-details.md#a-regions-settlements-table).
+
 Places, affiliations, lore and beings may name their culture in `data.culture`, and a `doc` of `subType: settingguide` must. A place or affiliation that names none inherits the culture of its parents. See [culture in the index](reference/format-details.md#culture-in-the-index).
 
 Blockquote alerts use `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, or `[!]`, with optional attributes after the marker. They replace the former info and warn div fences; secret blocks remain supported. See [alerts](authoring/links-and-markup.md#alerts).

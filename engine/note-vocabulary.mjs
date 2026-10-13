@@ -127,6 +127,7 @@ import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 // finding an author meets state one list.
 import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
+import { checkSettlementTables } from "./settlement-tables.mjs";
 
 /**
  * One `data:` key a note type may carry.
@@ -643,17 +644,23 @@ const CHARGES = Object.freeze([
 /**
  * Everything `place` asks of a whole note.
  *
- * Two questions about one subject, and they are independent: who governs this
- * inhabited place, and — where the note is a body rather than somewhere within one — what
- * the body states about itself. A type declares one whole-note check, so the
- * two are composed here rather than either being folded into the other.
+ * Three questions about one subject, and they are independent: who governs
+ * this inhabited place, what the body states about itself where the note is a
+ * body rather than somewhere within one, and whether a region's settlements
+ * table agrees with its holding model and the notes it links. A type declares
+ * one whole-note check, so the three are composed here rather than any being
+ * folded into another.
  *
  * @param {object} note - The note.
  * @param {object} [opts] - The lint's options, passed through unchanged.
- * @returns {object[]} Findings from both.
+ * @returns {object[]} Findings from all three.
  */
 function checkPlace(note, opts) {
-    return [...checkGovernment(note), ...checkWorldFacts(note, opts)];
+    return [
+        ...checkGovernment(note),
+        ...checkWorldFacts(note, opts),
+        ...checkSettlementTables(note, opts),
+    ];
 }
 
 /** Validate a being's authored date using the shared note-date grammar. */
