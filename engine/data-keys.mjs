@@ -33,6 +33,11 @@
  *   Shortcode, a pack, a name), and this describes the value under each key.
  *   The keys themselves are checked as the field's `keyKind` says.
  *
+ * A map declaring both `fields` and `values` holds its declared keys, each
+ * checked by its own declaration, beside keys named by the author, each
+ * checked by `values`. A language's `data.names` is one: `pattern` and
+ * `given` beside the lists the language names for itself.
+ *
  * Dotted field names (`appearance.eye_color`) declare a container's keys by
  * their segments, and the container is closed to them just the same.
  *
@@ -57,7 +62,7 @@ import { nearest } from "./near-miss.mjs";
  * @property {string} name - The key as an author writes it.
  * @property {string} [kind] - Its value's shape: `string`, `date`, `number`,
  *   `integer`, `boolean`, `address`, `list`, `map`, `scalar-or-map`,
- *   or `string-or-list` — see {@link fitsKind}. Absent, the check
+ *   `string-or-list`, or `string-list-or-map` — see {@link fitsKind}. Absent, the check
  *   makes no claim about the value.
  * @property {readonly string[]} [allowed] - The closed set a present value is
  *   one of, where the key takes a fixed word.
@@ -145,6 +150,10 @@ export function fitsKind(value, kind) {
             return isScalar(value) || fitsKind(value, "map");
         case "string-or-list":
             return isScalar(value) || Array.isArray(value);
+        // One value, a list of them described by `entries`, or a map of them
+        // described by `values`.
+        case "string-list-or-map":
+            return fitsKind(value, "string-or-list") || fitsKind(value, "map");
         default:
             return true;
     }
@@ -258,7 +267,7 @@ export function checkDataKeys(note, fields) {
      */
     const walk = (spec, value, path) => {
         if (spec.fields && isPlainMap(value)) {
-            closeMap(spec.fields, value, path);
+            closeMap(spec.fields, value, path, spec.values);
             return;
         }
         if (Array.isArray(value)) {
@@ -308,11 +317,18 @@ export function checkDataKeys(note, fields) {
         return false;
     };
 
-    /** Close one map to its declared keys, and walk each that is present. */
-    const closeMap = (inner, value, path) => {
+    /**
+     * Close one map to its declared keys, and walk each that is present. With
+     * `rest`, a key it does not declare is walked against `rest` instead.
+     */
+    const closeMap = (inner, value, path, rest) => {
         const names = inner.map((spec) => spec.name);
         for (const key of Object.keys(value)) {
             if (names.includes(key)) continue;
+            if (rest) {
+                visit(rest, value[key], [...path, key]);
+                continue;
+            }
             const guess = nearest(key, names);
             findings.push(
                 finding(

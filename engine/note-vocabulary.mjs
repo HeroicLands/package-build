@@ -111,7 +111,13 @@ import { checkNoteEvents } from "./note-events.mjs";
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 import { EVENT_ENTRY } from "./note-event-terms.mjs";
 import { CULTURE_FIELD, checkCultureSubType } from "./culture-choice.mjs";
-import { LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
+import {
+    checkAppearanceProfile,
+    profileLookKeys,
+    requiredHeightGenders,
+} from "./appearance-profile.mjs";
+import { LANGUAGE_FIELD, LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
+import { checkLanguageNames, requiredGivenGenders } from "./language-names.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
@@ -428,6 +434,155 @@ function lookField(name, what) {
             "See [a being's look](format-details.md#a-beings-look) for what each word means.",
     };
 }
+
+/**
+ * A culture's `data.appearanceProfile`: weighted words for each being-look
+ * field but `gender`, and height ranges keyed by gender. Its keys and the words
+ * each takes are read from {@link BEING_LOOK_VOCABULARY}; what a profile means
+ * and how `package-build npc new` draws from it is in `appearance-profile.mjs`.
+ *
+ * @type {DataFieldSpec}
+ */
+const APPEARANCE_PROFILE_FIELD = Object.freeze({
+    name: "appearanceProfile",
+    kind: "map",
+    shape: "an appearance profile",
+    check: (note) => checkAppearanceProfile(note, BEING_LOOK_VOCABULARY),
+    describe:
+        "What this culture's people look like, for `package-build npc new`: " +
+        `${wordList(profileLookKeys(BEING_LOOK_VOCABULARY)).replace(/ or (?!.* or )/, " and ")} ` +
+        "each map words of that field's vocabulary to positive weights, and `height` maps a " +
+        "gender to a `{min, max}` range, " +
+        `${wordList([...requiredHeightGenders()]).replace(" or ", " and ")} required. A culture ` +
+        "note only. See [appearance profiles](format-details.md#appearance-profiles).",
+    fields: Object.freeze([
+        ...profileLookKeys(BEING_LOOK_VOCABULARY).map((key) =>
+            Object.freeze({
+                name: key,
+                kind: "map",
+                shape: "a map of words to weights",
+                required: true,
+                describe: `Weighted \`${key}\` words; a word left out is never drawn.`,
+                values: Object.freeze({
+                    kind: "number",
+                    shape: "a positive weight",
+                    describe: "The word's weight against the others in its map.",
+                }),
+            }),
+        ),
+        Object.freeze({
+            name: "height",
+            kind: "map",
+            shape: "a map of genders to height ranges",
+            required: true,
+            describe:
+                "Height ranges keyed by gender; a gender with no range draws from the span " +
+                "of every range stated.",
+            values: Object.freeze({
+                kind: "map",
+                shape: "a height range",
+                describe: "The shortest and tallest height drawn.",
+                fields: Object.freeze([
+                    Object.freeze({
+                        name: "min",
+                        kind: "string",
+                        required: true,
+                        shape: "a height in metres or feet and inches",
+                        describe: "The shortest height drawn.",
+                    }),
+                    Object.freeze({
+                        name: "max",
+                        kind: "string",
+                        required: true,
+                        shape: "a height in metres or feet and inches",
+                        describe: "The tallest height drawn.",
+                    }),
+                ]),
+            }),
+        }),
+    ]),
+});
+
+/**
+ * A language's `data.names`: the pattern its speakers' names are built by and
+ * the lists each part is drawn from. Its keys beyond `pattern` and `given` are
+ * named by the language, so the map declares no closed inner keys and
+ * {@link checkLanguageNames} checks the whole of it; what the lists mean and
+ * how `package-build npc new` draws from them is in `language-names.mjs`.
+ *
+ * @type {DataFieldSpec}
+ */
+const NAMES_FIELD = Object.freeze({
+    name: "names",
+    kind: "map",
+    shape: "a language's name lists",
+    check: (note) => checkLanguageNames(note, BEING_LOOK_VOCABULARY),
+    describe:
+        "How this language's speakers are named, for `package-build npc new`: `pattern` " +
+        'builds a name from placeholders such as "{given} {clan}" and literal text, `given` ' +
+        "maps a gender to a list of given names, " +
+        `${wordList([...requiredGivenGenders()]).replace(" or ", " and ")} required, and ` +
+        "every other key is a list of names a placeholder of the same name draws from. A " +
+        "language skill note only. See [name lists](format-details.md#name-lists).",
+    fields: Object.freeze([
+        Object.freeze({
+            name: "pattern",
+            kind: "string-list-or-map",
+            required: true,
+            shape: 'a pattern such as "{given} {clan}", a list of them, or a map of genders to either',
+            describe:
+                "How a name is built: each `{list}` placeholder is filled from the list of " +
+                "that name, `{given.<gender>}` from that gender's given names, and the text " +
+                "around them is written as it stands. A list states every form a name may " +
+                "take; a map keyed by gender states each gender's forms, and a gender with " +
+                "none takes every pattern stated.",
+            entries: Object.freeze({
+                kind: "string",
+                shape: "a pattern",
+                describe: "One form a name may take.",
+            }),
+            values: Object.freeze({
+                kind: "string-or-list",
+                shape: "a pattern or a list of them",
+                describe: "The forms a name of that gender may take.",
+                entries: Object.freeze({
+                    kind: "string",
+                    shape: "a pattern",
+                    describe: "One form a name of that gender may take.",
+                }),
+            }),
+        }),
+        Object.freeze({
+            name: "given",
+            kind: "map",
+            required: true,
+            shape: "a map of genders to lists of names",
+            describe:
+                "Given names by gender word. A gender with no list draws from every given " +
+                "list together.",
+            values: Object.freeze({
+                kind: "list",
+                shape: "a list of names",
+                describe: "The given names of one gender.",
+                entries: Object.freeze({
+                    kind: "string",
+                    shape: "a name",
+                    describe: "One name, as written.",
+                }),
+            }),
+        }),
+    ]),
+    values: Object.freeze({
+        kind: "list",
+        shape: "a list of names",
+        describe: "A list a placeholder of the same name draws from, such as `clan` or `family`.",
+        entries: Object.freeze({
+            kind: "string",
+            shape: "a name",
+            describe: "One name, as written.",
+        }),
+    }),
+});
 
 /** A list. */
 const LIST = Object.freeze({ shape: "list", kind: "list" });
@@ -1659,6 +1814,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                 accepts: ["skill"],
                 describe: "The skill this one specialises.",
             },
+            NAMES_FIELD,
         ]),
     }),
 
@@ -1833,7 +1989,8 @@ export const NOTE_VOCABULARY = Object.freeze({
         // A lore note is prose, and what it *is* about is its subType — with
         // two exceptions. A calendar is a division of the year, and a division
         // is data; a work of literature states in what tongue it is and what it
-        // concerns. The checks scope each family to the subType that means it,
+        // concerns, and a culture what tongue it speaks and what its people look
+        // like. The checks scope each family to the subType that means it,
         // because `DataFieldSpec` declares the keys a type accepts and not the
         // subType that may write them. Any lore note may name the people it
         // belongs to; a culture note names only itself.
@@ -1852,7 +2009,9 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "culture, and states the field only as itself.",
             },
             ...LITERATURE_FIELDS,
+            LANGUAGE_FIELD,
             EVENTS_FIELD,
+            APPEARANCE_PROFILE_FIELD,
         ]),
     }),
 

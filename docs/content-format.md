@@ -94,6 +94,8 @@ A region may list its settlements in a table under `## Settlements` — name, ma
 
 A being states its gender, frame and appearance in words from one closed vocabulary: `data.gender`, `data.frame`, and `data.appearance.eye_color`, `hair_color`, `skin_color` and `complexion` each take only the words listed for them, and any other value is an error at the value. `data.appearance.extra_features` stays free text. See [a being's look](reference/format-details.md#a-beings-look).
 
+A culture note may state what its people look like in `data.appearanceProfile`: weighted words for frame, eyes, hair, skin and complexion, and height ranges by gender, all from the same vocabulary. A culture names its tongue in `data.language`, and that language skill note may state `data.names`: the patterns its speakers' names are built by and the lists each part is drawn from. `package-build npc new` writes a complete npc note from a spec of a culture and a gender, drawing the name from those lists and everything else the spec leaves out from the profile. See [appearance profiles](reference/format-details.md#appearance-profiles), [name lists](reference/format-details.md#name-lists) and [the command](commands.md#package-build-npc-new).
+
 Places, affiliations, lore and beings may name their culture in `data.culture`, and a `doc` of `subType: settingguide` must. A place or affiliation that names none inherits the culture of its parents. See [culture in the index](reference/format-details.md#culture-in-the-index).
 
 Blockquote alerts use `[!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, or `[!]`, with optional attributes after the marker. They replace the former info and warn div fences; secret blocks remain supported. See [alerts](authoring/links-and-markup.md#alerts).

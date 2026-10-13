@@ -202,6 +202,7 @@ types:
             - templatePriority
             - masteryLevel
             - parentSkill
+            - names
         subTypes:
             - social
             - nature
@@ -258,6 +259,7 @@ types:
             - subjects
             - language
             - events
+            - appearanceProfile
         subTypes:
             - cosmology
             - deity

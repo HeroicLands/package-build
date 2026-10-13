@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseContentFormat } from "../engine/content-format.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
+import { checkDataKeys } from "../engine/data-keys.mjs";
 import { NOTE_VOCABULARY, SHARED_DATA_FIELDS } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
@@ -70,6 +71,11 @@ function unstated(spec: Spec, path: string): string | undefined {
             return children();
         case "map":
             if (!spec.fields && !spec.values) return `${path}: a map declaring no keys or values`;
+            return children();
+        case "string-list-or-map":
+            if (!spec.entryKind && !spec.entries)
+                return `${path}: a list form declaring no entries`;
+            if (!spec.values) return `${path}: a map form declaring no values`;
             return children();
         case "scalar-or-map":
             if (!spec.entryKind && !spec.fields && !spec.values)
@@ -261,6 +267,54 @@ describe("an undeclared inner key is a finding at its own position", () => {
                 message: expect.stringMatching(/"relm" is not a key of `data\.harnworld`.*realm/),
             }),
         );
+    });
+
+    it("walks a key a map does not declare against its `values`, where it declares both", () => {
+        const spec = {
+            name: "names",
+            kind: "map",
+            shape: "lists",
+            describe: "",
+            fields: [
+                { name: "pattern", kind: "string", required: true, shape: "text", describe: "" },
+            ],
+            values: {
+                kind: "list",
+                shape: "a list",
+                describe: "",
+                entries: { kind: "string", shape: "a name", describe: "" },
+            },
+        };
+        const raw = [
+            "---",
+            "data:",
+            "    names:",
+            "        pattern: x",
+            "        clan: Zekar",
+            "        kin: [a, 5]",
+            "---",
+            "",
+        ].join("\n");
+        const note = {
+            file: "assets/content/Note.md",
+            raw,
+            fm: { data: { names: { pattern: "x", clan: "Zekar", kin: ["a", 5] } } },
+        };
+        const findings = checkDataKeys(note, [spec]);
+        expect(findings).toEqual([
+            expect.objectContaining({
+                line: 5,
+                column: 15,
+                message: expect.stringMatching(/data\.names\.clan.*a list/),
+            }),
+            expect.objectContaining({
+                line: 6,
+                message: expect.stringMatching(/data\.names\.kin\[1\].*a name/),
+            }),
+        ]);
+        expect(checkDataKeys({ ...note, fm: { data: { names: { clan: [] } } } }, [spec])).toEqual([
+            expect.objectContaining({ message: expect.stringContaining("must state `pattern`") }),
+        ]);
     });
 
     it("refuses a key two levels in, inside a list entry of a keyed map", () => {

@@ -25,3 +25,17 @@ A being's `data.gender`, `data.frame`, `data.appearance.eye_color`,
 vocabulary, and any other value is a located build error naming the words the
 field takes. `data.appearance.extra_features` is free text. See
 [a being's look](docs/reference/format-details.md#a-beings-look).
+
+A `lore` note of `subType: culture` may state `data.appearanceProfile`: words
+of that vocabulary, each with a positive weight, for `frame`, `eye_color`,
+`hair_color`, `skin_color` and `complexion`, and a `height` range for at least
+`female` and `male`. `package-build npc new` draws a new npc of that culture
+from it. See
+[appearance profiles](docs/reference/format-details.md#appearance-profiles).
+
+A culture may name the tongue its people speak in `data.language`, a `skill`
+note of `subType: language`. That language may state `data.names`: a
+`pattern` such as `"{given} {clan}"` — or a list of them, or a map of genders to
+them — `given` names listed by gender, and every other list the patterns name. `package-build npc new` draws a culture's names
+from them, and checks a name it is given against them. See
+[name lists](docs/reference/format-details.md#name-lists).

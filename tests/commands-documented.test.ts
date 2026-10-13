@@ -227,9 +227,9 @@ const nodes = allNodes();
 const doc = fs.readFileSync(DOC_PATH, "utf8");
 
 describe("the command's real surface, extracted from source", () => {
-    it("has 37 top-level commands", () => {
+    it("has 38 top-level commands", () => {
         const topLevel = nodes.filter((n) => n.path.length === 1);
-        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(37);
+        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(38);
     });
 
     it("includes `package-build site-root`", () => {
@@ -390,11 +390,20 @@ interface DocSection {
     body: string;
 }
 
-/** Every `### ...` command section in a markdown document, heading paired with body. */
+/**
+ * Every `### ...` command section in a markdown document, heading paired with
+ * body. A `#` line inside a code fence is the example's text, not a heading.
+ */
 function commandSections(source: string): DocSection[] {
     const sections: DocSection[] = [];
     let current: DocSection | null = null;
+    let fenced = false;
     for (const line of source.split("\n")) {
+        if (/^\s*(?:```|~~~)/.test(line)) fenced = !fenced;
+        if (fenced || /^\s*(?:```|~~~)/.test(line)) {
+            if (current) current.body += line + "\n";
+            continue;
+        }
         const h3 = line.match(/^### (.+)$/);
         if (h3) {
             if (current) sections.push(current);

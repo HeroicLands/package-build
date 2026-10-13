@@ -70,7 +70,11 @@ const index = {
     addressHit: (address: string) => HITS[address] ?? false,
 };
 
-/** The fields each fixture covers, kept beside the fixture that answers for it. */
+/**
+ * The fields each fixture covers, kept beside the fixture that answers for it.
+ * Keyed by type, or by `<type>:<subType>` where a field belongs to one subType
+ * and the type's main fixture is another.
+ */
 const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
     being: {
         covers: [
@@ -180,6 +184,42 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             },
         }),
     },
+    "lore:culture": {
+        covers: ["appearanceProfile"],
+        fm: () => ({
+            type: "lore",
+            subType: "culture",
+            shortcode: "cultureone",
+            data: {
+                appearanceProfile: {
+                    frame: { light: 1, medium: 2 },
+                    eye_color: { brown: 1 },
+                    hair_color: { black: 1 },
+                    skin_color: { olive: 1 },
+                    complexion: { clear: 1 },
+                    height: {
+                        female: { min: "1.5m", max: "1.7m" },
+                        male: { min: "1.6m", max: "1.85m" },
+                    },
+                },
+            },
+        }),
+    },
+    "skill:language": {
+        covers: ["names"],
+        fm: () => ({
+            type: "skill",
+            subType: "language",
+            shortcode: "languageone",
+            data: {
+                names: {
+                    pattern: "{given} {clan}",
+                    given: { female: ["Agosi"], male: ["Aguri"] },
+                    clan: ["Zekar"],
+                },
+            },
+        }),
+    },
     doc: {
         covers: ["culture"],
         fm: () => ({
@@ -191,9 +231,18 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
     },
 };
 
-/** A decoded note for one type, built once per test from its fixture. */
-function decodedNote(type: string) {
-    const fm = decodeNoteAddresses(FIXTURES[type].fm(), { package: "thalorna", system: "note" });
+/** The fixture that covers one field of a type. */
+function fixtureFor(type: string, name: string) {
+    return Object.entries(FIXTURES).find(
+        ([key, fixture]) => key.split(":")[0] === type && fixture.covers.includes(name),
+    )?.[1];
+}
+
+/** A decoded note for one field of a type, built once per test from its fixture. */
+function decodedNote(type: string, name: string) {
+    const fixture = fixtureFor(type, name);
+    if (!fixture) throw new Error(`${type}.${name} has no fixture`);
+    const fm = decodeNoteAddresses(fixture.fm(), { package: "thalorna", system: "note" });
     return { fm, file: `${type}.md`, raw: "" };
 }
 
@@ -207,7 +256,7 @@ describe("every field declaring both a kind and a check", () => {
         // than silently going untested.
         expect(fields.length).toBeGreaterThan(0);
         for (const { type, name } of fields) {
-            const covers = FIXTURES[type]?.covers ?? [];
+            const covers = fixtureFor(type, name)?.covers ?? [];
             expect(covers, `${type}.${name} needs a fixture covering it`).toContain(name);
         }
         const coveredCount = Object.values(FIXTURES).reduce((n, f) => n + f.covers.length, 0);
@@ -216,7 +265,7 @@ describe("every field declaring both a kind and a check", () => {
 
     it("accepts its own documented form once the note boundary has decoded it", () => {
         for (const { type, name } of fields) {
-            const note = decodedNote(type);
+            const note = decodedNote(type, name);
             const field = (dataFields(type) ?? []).find((f: any) => f.name === name);
             const findings = field.check(note, { index });
             expect(findings, `${type}.${name}`).toEqual([]);

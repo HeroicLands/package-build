@@ -31,6 +31,7 @@
  *   npx package-build map [--tree] [--from <shortcode>] [--chart <shortcode>] [--travel] [--out <dir>]
  *   npx package-build reachability <dir> [file] [--index <shortcode>]
  *   npx package-build addresses diff --from <zip|dir> [--strict]
+ *   npx package-build npc new (--spec <json> | --specfile <path>) [--seed <text>] [--out <path>]
  *
  * In a consuming repository, wrapped as npm scripts — SoHL spells them:
  *   npm run build:compiledb                // → … package compile (all packs)
@@ -112,7 +113,12 @@ import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-
 import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 // The one place a link finding is worded, shared with both builds.
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
-import { emitDiagnostic, positionOfLiteral } from "../engine/diagnostics.mjs";
+import {
+    emitDiagnostic,
+    positionOfFrontmatterPath,
+    positionOfLiteral,
+    positionOfYamlPath,
+} from "../engine/diagnostics.mjs";
 import { reportFindings } from "./report.mjs";
 import {
     readItemAddresses,
@@ -127,6 +133,14 @@ import { CHART_HORIZON_DAYS } from "../engine/map-layout.mjs";
 import { GRAPHVIZ_ENGINES } from "../engine/map-graphviz.mjs";
 import { loadMapWorld } from "../engine/map-places.mjs";
 import { encodeAddresses } from "../engine/address-values.mjs";
+import YAML from "yaml";
+import { worldInvariants } from "../engine/calendar-notes.mjs";
+import { reckoningContext } from "../engine/reckoning-markers.mjs";
+import { BEING_LOOK_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { profileFindings } from "../engine/appearance-profile.mjs";
+import { namesFindings } from "../engine/language-names.mjs";
+import { parseAddress, renderAddress } from "../engine/address.mjs";
+import { cultureKey, generateNpc, npcDefaults, npcSpecProblems } from "../engine/npc-generate.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -241,7 +255,8 @@ export function registerContentCommands(cli) {
         )
         .command(withIndexPreflight(mapCommand()))
         .command(withIndexPreflight(reachabilityCommand()))
-        .command(addressesCommand());
+        .command(addressesCommand())
+        .command(withIndexPreflight(npcCommand()));
 }
 
 /** Optional sentence findings and note-level readability reports. */
@@ -489,6 +504,12 @@ function docsCommand() {
                 describe: "Documentation root for the links and index checks.",
                 type: "string",
                 default: "docs",
+            });
+            yargs.option("seed", {
+                describe:
+                    "Text that seeds generation beside the spec, to draw a different person " +
+                    "from the same spec.",
+                type: "string",
             });
             yargs.option("out", {
                 describe: "Write to this file instead of the configured location.",
@@ -1555,6 +1576,12 @@ function contentIndexCommand() {
                 describe: "Content tree to read. Defaults to the configured contentBase.",
                 type: "string",
             });
+            yargs.option("seed", {
+                describe:
+                    "Text that seeds generation beside the spec, to draw a different person " +
+                    "from the same spec.",
+                type: "string",
+            });
             yargs.option("out", {
                 describe:
                     "Directory to write into. Defaults to the configured " +
@@ -2508,6 +2535,270 @@ function packageCommand() {
                             entryName: entry,
                         });
                 }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * Read an `npc new` spec from `--spec` or `--specfile`.
+ *
+ * @param {{spec?: string, specfile?: string}} argv
+ * @returns {{spec: unknown, file?: string, text?: string}} The spec as parsed,
+ *   and the file and text it was read from where it came from a file.
+ */
+function readNpcSpec(argv) {
+    if (argv.spec !== undefined) {
+        try {
+            return { spec: JSON.parse(argv.spec) };
+        } catch (err) {
+            throw new Error(`\`--spec\` is not JSON: ${err.message}`);
+        }
+    }
+    const file = argv.specfile;
+    const ext = path.extname(file).toLowerCase();
+    if (![".json", ".yaml", ".yml"].includes(ext))
+        throw new Error(`\`--specfile\` ${file} must be a .json, .yaml or .yml file`);
+    let text;
+    try {
+        text = fs.readFileSync(file, "utf8");
+    } catch (err) {
+        throw new Error(`\`--specfile\` ${file} cannot be read: ${err.message}`);
+    }
+    try {
+        return { spec: ext === ".json" ? JSON.parse(text) : YAML.parse(text), file, text };
+    } catch (err) {
+        throw Object.assign(new Error(`${file}: error: ${err.message.split("\n")[0]}`), {
+            located: true,
+        });
+    }
+}
+
+/**
+ * An error located at a note, or at one key of its frontmatter where the note
+ * states it.
+ *
+ * @param {{file?: string, raw?: string}} note - Where the note is.
+ * @param {Array<string|number>} keyPath - The frontmatter key at fault, or the
+ *   map a missing key belongs in.
+ * @param {string} message - What is wrong.
+ * @returns {Error} The error, for `reportFailure` to print as a diagnostic.
+ */
+function noteError(note, keyPath, message) {
+    if (!note.file) return new Error(message);
+    return Object.assign(new Error(message), {
+        file: note.file,
+        keyPath,
+        position: positionOfFrontmatterPath(note.raw ?? "", keyPath, { key: true }),
+    });
+}
+
+/**
+ * `npc new`: resolve the spec's culture through the content tree, then the
+ * culture's appearance profile, its language and the language's name lists,
+ * and write the note. A missing link at any step is an error naming the note
+ * to fix.
+ *
+ * @param {object} config - The resolved pack configuration.
+ * @param {{spec?: string, specfile?: string, seed?: string, out?: string}} argv
+ */
+function newNpc(config, argv) {
+    const { spec, file: specFile, text: specText } = readNpcSpec(argv);
+    const problems = npcSpecProblems(spec);
+    if (problems.length) throw new Error(`npc new: ${problems.join("; ")}`);
+    if (argv.out && fs.existsSync(argv.out))
+        throw new Error(`${argv.out} already exists, and \`npc new\` never overwrites a note`);
+
+    const root = config.paths.content;
+    const records = indexRecordsFor({
+        contentBase: root,
+        config,
+        skipDirectories: config.skipDirectories,
+        problems: [],
+    });
+    const index = buildLinkIndex(root, {
+        config,
+        records,
+        skipDirectories: config.skipDirectories,
+    });
+    const located = (hit) => ({
+        file: hit.file ? path.relative(process.cwd(), hit.file) : undefined,
+        raw: hit.raw,
+    });
+
+    const written = spec.data.culture;
+    const key = cultureKey(written, index);
+    const hit = key ? index.addressHit(key) : undefined;
+    if (!hit)
+        throw new Error(
+            `\`data.culture\` ${JSON.stringify(written)} names no note in this package or ` +
+                "its dependencies",
+        );
+    const culture = hit.fm ?? hit;
+    if (String(culture.type ?? hit.type) !== "lore" || culture.subType !== "culture")
+        throw new Error(
+            `\`data.culture\` ${JSON.stringify(written)} is not a culture: it names a ` +
+                `${culture.type ?? hit.type ?? "note"} of subType ${culture.subType ?? "none"}`,
+        );
+    const cultureNote = located(hit);
+    const profile = culture.data?.appearanceProfile;
+    if (profile === undefined || profile === null)
+        throw noteError(
+            cultureNote,
+            ["data"],
+            `${key} states no \`data.appearanceProfile\`, so \`npc new\` cannot draw its ` +
+                "people's look",
+        );
+    const profileErrors = profileFindings(
+        { file: cultureNote.file, raw: hit.raw, fm: culture },
+        BEING_LOOK_VOCABULARY,
+    );
+    if (profileErrors.length) {
+        for (const finding of profileErrors) emitDiagnostic(finding);
+        throw new Error(`${key}'s appearance profile has ${profileErrors.length} problem(s)`);
+    }
+
+    const tongue = culture.data?.language;
+    if (tongue === undefined || tongue === null)
+        throw noteError(
+            cultureNote,
+            ["data"],
+            `${key} states no \`data.language\`, so \`npc new\` has no name lists to draw ` +
+                "from; name the language skill note its people speak",
+        );
+    const tuple = parseAddress(tongue, {
+        package: index.contentPackage,
+        system: "note",
+        type: "skill",
+        types: index.types,
+        packages: index.packages,
+    });
+    const languageKey = tuple.reason ? undefined : renderAddress(tuple);
+    const languageHit = languageKey ? index.addressHit(languageKey) : undefined;
+    if (!languageHit)
+        throw noteError(
+            cultureNote,
+            ["data", "language"],
+            `${key}'s \`data.language\` names no note in this package or its dependencies`,
+        );
+    const language = languageHit.fm ?? languageHit;
+    if (String(language.type ?? languageHit.type) !== "skill" || language.subType !== "language")
+        throw noteError(
+            cultureNote,
+            ["data", "language"],
+            `${key}'s \`data.language\` ${languageKey} is not a language: it names a ` +
+                `${language.type ?? languageHit.type ?? "note"} of subType ` +
+                `${language.subType ?? "none"}`,
+        );
+    const languageNote = located(languageHit);
+    const names = language.data?.names;
+    if (names === undefined || names === null)
+        throw noteError(
+            languageNote,
+            ["data"],
+            `${languageKey} states no \`data.names\`, so \`npc new\` has no name lists to ` +
+                `draw ${key}'s names from`,
+        );
+    const namesErrors = namesFindings(
+        { file: languageNote.file, raw: languageHit.raw, fm: language },
+        BEING_LOOK_VOCABULARY,
+    );
+    if (namesErrors.length) {
+        for (const finding of namesErrors) emitDiagnostic(finding);
+        throw new Error(`${languageKey}'s name lists have ${namesErrors.length} problem(s)`);
+    }
+
+    const { taken, ...defaults } = npcDefaults(index, key);
+    if (typeof spec.shortcode === "string" && taken.has(spec.shortcode))
+        throw new Error(`\`shortcode: ${spec.shortcode}\` already names a being in this package`);
+    let text;
+    try {
+        ({ text } = generateNpc(spec, {
+            profile,
+            names,
+            language: languageKey,
+            seed: argv.seed,
+            present: worldInvariants(index).present,
+            dateContext: reckoningContext(index),
+            defaults,
+            taken,
+        }));
+    } catch (err) {
+        // A name that does not fit is the spec's fault, so a spec file
+        // locates it at the name it states.
+        if (specFile && Array.isArray(err?.keyPath))
+            Object.assign(err, {
+                file: specFile,
+                position: positionOfYamlPath(specText ?? "", err.keyPath),
+            });
+        throw err;
+    }
+    if (!argv.out) {
+        process.stdout.write(text);
+        return;
+    }
+    fs.mkdirSync(path.dirname(argv.out), { recursive: true });
+    try {
+        fs.writeFileSync(argv.out, text, { flag: "wx" });
+    } catch (err) {
+        if (err?.code === "EEXIST")
+            throw new Error(`${argv.out} already exists, and \`npc new\` never overwrites a note`);
+        throw err;
+    }
+}
+
+/**
+ * `package-build npc new` — a complete NPC being note from a spec, its
+ * appearance drawn from its culture's profile.
+ *
+ * @returns {object} The yargs command module.
+ */
+function npcCommand() {
+    return {
+        command: "npc <action>",
+        describe:
+            "Write a new NPC being note from a spec, its culture's appearance profile and " +
+            "its language's name lists",
+        builder: (yargs) => {
+            yargs.positional("action", {
+                describe: "The action to perform.",
+                type: "string",
+                choices: ["new"],
+            });
+            yargs.option("spec", {
+                describe:
+                    "The spec as a JSON string: frontmatter fields, with `data.culture` and " +
+                    "`data.gender` required.",
+                type: "string",
+            });
+            yargs.option("specfile", {
+                describe: "The spec as a .json, .yaml or .yml file.",
+                type: "string",
+            });
+            yargs.option("seed", {
+                describe:
+                    "Text that seeds generation beside the spec, to draw a different person " +
+                    "from the same spec.",
+                type: "string",
+            });
+            yargs.option("out", {
+                describe:
+                    "Write the note to this new file instead of standard output. An " +
+                    "existing file is never overwritten.",
+                type: "string",
+            });
+            yargs.check((parsed) => {
+                if ((parsed.spec === undefined) === (parsed.specfile === undefined))
+                    throw new Error("`npc new` takes exactly one of `--spec` and `--specfile`");
+                return true;
+            });
+        },
+        handler: async (argv) => {
+            try {
+                newNpc(loadPackConfig(), argv);
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

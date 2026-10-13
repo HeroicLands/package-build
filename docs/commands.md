@@ -2766,3 +2766,186 @@ $ package-build addresses diff --from build/dist/module.zip
 
 `package-build package <action> [pack] [entry]`, `package-build deps fetch`,
 [Diagnostics](diagnostics.md).
+
+### `package-build npc new`
+
+**NAME**
+
+Write a new NPC being note from a spec, its look drawn from its culture's
+appearance profile and its name from its culture's language.
+
+**SYNOPSIS**
+
+```
+package-build npc new (--spec <json> | --specfile <path>) [--seed <text>] [--out <path>]
+```
+
+**DESCRIPTION**
+
+Writes one `type: being`, `subType: npc` note: the full `data` block, an
+`# Appearance {#appearance}` section and a `# Dossier {#dossier}` section, with
+no system block. The note goes to standard output, or to a new file with
+`--out`.
+
+The spec is a possibly incomplete set of frontmatter fields, given as a JSON
+string with `--spec` or as a `.json`, `.yaml` or `.yml` file with
+`--specfile`; exactly one of the two is required. `data.culture` and
+`data.gender` are required in it. Every field the spec gives is written
+exactly as given, at every depth, and every field it leaves out is generated:
+
+| Field                                                   | Generated value                                                                                                                           |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `name.full`                                             | Drawn from the culture's language's name lists by one of its patterns for `data.gender`, the given name from the list for that gender.    |
+| `shortcode`                                             | The name transliterated to lowercase letters and digits and cut to twelve characters; a counter replaces its tail where a being holds it. |
+| `type`, `subType`, `tags`                               | `being`, `npc`, `[generated, draft]`.                                                                                                     |
+| `data.icon`, `data.species`, `data.packFolder`          | The commonest value among the package's npcs of the same culture, else among all its npcs; left out where none states one.                |
+| `data.archetypes`                                       | `[commoner]`, the archetype of a person who fits no more specific one.                                                                    |
+| `data.templatePriority`, `data.occupation`, `data.died` | `null`.                                                                                                                                   |
+| `data.lore`, `data.homes`                               | `[]`.                                                                                                                                     |
+| `data.affiliations`                                     | `{}`.                                                                                                                                     |
+| `data.born`                                             | An adult age of 18 to 60 years before the package's present, as a `<year>.<day>` date; `unknown` where the package states no present.     |
+| `data.frame`, `data.appearance.*`                       | Weighted draws from the culture's appearance profile; `extra_features` is `[]`.                                                           |
+| `data.height`                                           | From the profile's range for the gender, in feet and inches.                                                                              |
+| `data.weight`                                           | From the height and the frame's body-mass band, in pounds. A spec giving height and weight but no frame gets the frame they imply.        |
+
+Generation is seeded from the spec itself, through a canonical serialisation
+that sorts every map's keys: the same spec always writes the same note, whether
+or not it states a name, and the order the spec writes its fields in changes
+nothing. `--seed` adds text to that seed, so the same spec with a different
+`--seed` writes a different person; two people drawn from a spec that states
+only the culture and the gender differ only by their seeds.
+
+`data.culture` resolves as any culture reference does, through this package's
+content tree and its dependencies, and must name a `lore` note of
+`subType: culture`. The culture supplies two things, and the command refuses a
+culture missing either, with an error at the culture note:
+
+- **Its look**, from `data.appearanceProfile`: the words and ranges every
+  appearance field is drawn from. See
+  [appearance profiles](reference/format-details.md#appearance-profiles).
+- **Its names**, from the language skill note its `data.language` names, whose
+  `data.names` holds the pattern and the lists. A language with no
+  `data.names` is an error at the language note. See
+  [name lists](reference/format-details.md#name-lists).
+
+A profile or name lists with problems are refused with a finding at each.
+
+A spec that states `name.full` keeps it, and the name must fit the language's
+lists: one of the patterns for `data.gender`, with every placeholder filled by
+a name of its list, the given name from the list for `data.gender`. A name that does not fit is an
+error naming the part that fails and the language it was checked against; from
+a `--specfile`, the error is located at the name in the file. Where the
+gender has no given list of its own, the given name is drawn from, and
+checked against, every given list together.
+
+Two top-level spec keys are section bodies rather than frontmatter.
+`appearance` is the Appearance section's markdown, written verbatim with its
+newlines and spacing; without it, the section is a paragraph written from the
+data. `dossier` is the Dossier section's markdown, likewise verbatim; without
+it, the section is its heading alone.
+
+**OPTIONS**
+
+| Positional | Type                 | Default | Description            |
+| ---------- | -------------------- | ------- | ---------------------- |
+| `action`   | string, one of `new` | —       | The action to perform. |
+
+| Option       | Type   | Default         | Description                                                                      |
+| ------------ | ------ | --------------- | -------------------------------------------------------------------------------- |
+| `--spec`     | string | —               | The spec as a JSON string. Exactly one of `--spec` and `--specfile` is required. |
+| `--specfile` | string | —               | The spec as a `.json`, `.yaml` or `.yml` file.                                   |
+| `--seed`     | string | —               | Text that seeds generation beside the spec, to draw a different person.          |
+| `--out`      | string | standard output | Write the note to this new file. An existing file is never overwritten.          |
+
+**EXIT STATUS**
+
+1 if neither or both of `--spec` and `--specfile` are given, if the spec
+cannot be read or lacks `data.culture` or `data.gender`, if `data.culture`
+names no culture note, if the culture states no appearance profile or no
+language, if its language states no name lists, if the profile or the lists
+have problems, if the spec's `name.full` does not fit the lists, if the spec's
+`shortcode` already names a being, or if `--out` names a file that exists.
+Otherwise 0.
+
+**EXAMPLES**
+
+A spec, `spec.yaml`, stating the culture, the gender, two archetypes, an
+occupation and the dossier, and no name:
+
+```yaml
+data:
+  culture: khelathi
+  gender: male
+  archetypes: [warrior, mariner]
+  occupation: River Fleet Officer
+dossier: |
+  He holds a commission in the river fleet, and his service is a matter of
+  record rather than of reputation.
+```
+
+Run against a package whose world states `present: "720.300"`, whose
+`khelathi` culture carries the profile in
+[appearance profiles](reference/format-details.md#appearance-profiles) and
+names `language: skill-khelathilng`, and whose language carries the lists in
+[name lists](reference/format-details.md#name-lists):
+
+```
+$ package-build npc new --specfile spec.yaml
+---
+shortcode: khelemureziq
+name: {full: Khelemûr ez Iqu}
+type: being
+subType: npc
+tags: [generated, draft]
+data:
+  templatePriority: null
+  archetypes: [warrior, mariner]
+  occupation: River Fleet Officer
+  lore: []
+  culture: khelathi
+  homes: []
+  affiliations: {}
+  gender: male
+  born: "699.134"
+  died: null
+  height: 5' 11"
+  weight: 167 lbs
+  frame: medium
+  appearance:
+    eye_color: brown
+    hair_color: black
+    skin_color: brown
+    complexion: clear
+    extra_features: []
+---
+
+# Appearance {#appearance}
+
+Khelemûr ez Iqu is a 21-year-old man who stands 5'11" tall with a medium build. He has brown skin, clear complexion, black hair, and brown eyes.
+
+# Dossier {#dossier}
+
+He holds a commission in the river fleet, and his service is a matter of
+record rather than of reputation.
+```
+
+A spec file, `bad.yaml`, stating a name whose second part is in no list:
+
+```
+$ package-build npc new --specfile bad.yaml
+bad.yaml:2:9: error: name.full "Aguri ez Lut" does not fit the names of demo-note-skill-khelathilng: "Lut", the {place} part, is not in the place list
+```
+
+A spec inline, for a culture that names no language:
+
+```
+$ package-build npc new --spec '{"data":{"culture":"plainfolk","gender":"female"}}'
+assets/content/Cultures/Plainfolk.md:6:1: error: demo-note-lore-plainfolk states no `data.language`, so `npc new` has no name lists to draw from; name the language skill note its people speak
+```
+
+**SEE ALSO**
+
+`package-build lint [root]`,
+[Appearance profiles](reference/format-details.md#appearance-profiles),
+[Name lists](reference/format-details.md#name-lists),
+[A being's look](reference/format-details.md#a-beings-look).

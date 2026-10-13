@@ -13,13 +13,17 @@
 
 /**
  * A work a people tells, sings or writes: the `literature` lore subType and the
- * three optional facts only such a note may state about itself. Whose work it
- * is, `data.culture`, is a field every lore note but a culture note may state,
+ * optional facts only such a note may state about itself. Whose work it is,
+ * `data.culture`, is a field every lore note but a culture note may state,
  * declared in `culture-choice.mjs`.
  *
+ * `data.language` is shared with the `culture` subType: a work names the
+ * tongue it is composed in, and a culture names the tongue its people speak,
+ * whose name lists `package-build npc new` draws from.
+ *
  * `DataFieldSpec` declares the keys a type accepts, not the subType that may
- * write them, so {@link checkLiteratureNote} scopes these keys to `literature`
- * the way the calendar check scopes its own to `calendar`.
+ * write them, so {@link checkLiteratureNote} scopes these keys to the subTypes
+ * that mean them, the way the calendar check scopes its own to `calendar`.
  *
  * @module
  */
@@ -29,6 +33,9 @@ import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 /** The `lore` subType whose notes are works of literature. */
 export const LITERATURE_SUBTYPE = "literature";
+
+/** The `lore` subTypes that may name a language. */
+export const LANGUAGE_SUBTYPES = Object.freeze([LITERATURE_SUBTYPE, "culture"]);
 
 /**
  * Require `data.language` to address a `skill` note whose subType is
@@ -67,7 +74,27 @@ export function checkLanguageChoice(note, { index } = {}) {
 }
 
 /**
- * The fields only a `literature` note may state. Every one is optional.
+ * `data.language`: the tongue a work is composed in, or the tongue a culture's
+ * people speak. Optional on both.
+ *
+ * @type {object}
+ */
+export const LANGUAGE_FIELD = Object.freeze({
+    name: "language",
+    shape: "an Address",
+    kind: "address",
+    ref: "skill",
+    accepts: Object.freeze(["skill"]),
+    check: checkLanguageChoice,
+    describe:
+        "The tongue the work is composed in, or on a culture note the tongue its people " +
+        "speak, as a language skill note. `package-build npc new` draws a culture's names " +
+        "from its language's `data.names`. A `literature` or `culture` note only.",
+});
+
+/**
+ * The fields only a `literature` note may state, beside the shared
+ * {@link LANGUAGE_FIELD}. Every one is optional.
  *
  * @type {ReadonlyArray<object>}
  */
@@ -90,39 +117,47 @@ export const LITERATURE_FIELDS = Object.freeze([
             "The beings, places, gods and other notes the work concerns, and each " +
             "event it concerns, named as `place-ironfells#sack`.",
     },
-    {
-        name: "language",
-        shape: "an Address",
-        kind: "address",
-        ref: "skill",
-        accepts: ["skill"],
-        check: checkLanguageChoice,
-        describe: "The tongue the work is composed in, as a language skill note.",
-    },
 ]);
 
 const LITERATURE_KEYS = Object.freeze(LITERATURE_FIELDS.map((field) => field.name));
 
 /**
- * Refuse a literature field on a lore note of any other subType.
+ * Refuse a literature field on a lore note of any other subType, and
+ * `data.language` on a lore note that is neither a work nor a culture.
  *
  * @param {object} note
- * @returns {object[]} One error per literature key written off `literature`.
+ * @returns {object[]} One error per key written off the subTypes that take it.
  */
 export function checkLiteratureNote(note) {
     const type = String(note?.type ?? note?.fm?.type ?? "").toLowerCase();
     const subType = String(note?.fm?.subType ?? "").toLowerCase();
-    if (type !== "lore" || subType === LITERATURE_SUBTYPE) return [];
+    if (type !== "lore") return [];
     const data = note?.fm?.data;
     if (!data || typeof data !== "object" || Array.isArray(data)) return [];
-    return LITERATURE_KEYS.filter((key) => data[key] !== undefined && data[key] !== null).map(
-        (key) => ({
-            file: note.file,
-            ...positionOfFrontmatterPath(note.raw ?? "", ["data", key], { key: true }),
-            severity: "error",
-            message:
-                `\`data.${key}\` describes a work of literature, and this note's ` +
-                `\`subType\` is not \`literature\``,
-        }),
-    );
+    const stated = (key) => data[key] !== undefined && data[key] !== null;
+    const finding = (key, message) => ({
+        file: note.file,
+        ...positionOfFrontmatterPath(note.raw ?? "", ["data", key], { key: true }),
+        severity: "error",
+        message,
+    });
+    const findings = [];
+    if (subType !== LITERATURE_SUBTYPE)
+        for (const key of LITERATURE_KEYS.filter(stated))
+            findings.push(
+                finding(
+                    key,
+                    `\`data.${key}\` describes a work of literature, and this note's ` +
+                        `\`subType\` is not \`literature\``,
+                ),
+            );
+    if (!LANGUAGE_SUBTYPES.includes(subType) && stated(LANGUAGE_FIELD.name))
+        findings.push(
+            finding(
+                LANGUAGE_FIELD.name,
+                "`data.language` names the tongue of a work of literature or of a culture, " +
+                    "and this note's `subType` is neither `literature` nor `culture`",
+            ),
+        );
+    return findings;
 }

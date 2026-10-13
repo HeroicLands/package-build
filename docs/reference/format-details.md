@@ -3679,6 +3679,164 @@ The words, and what each means:
 
 <!-- being-look:end -->
 
+#### Appearance profiles
+
+**A culture states what its people look like in `data.appearanceProfile`**, and
+`package-build npc new` draws a person of that culture from it — see
+[the command](../commands.md#package-build-npc-new). Only a `lore` note of
+`subType: culture` takes the key; on any other note it is an error at the key.
+
+The profile has six keys, all required:
+
+- `frame`, `eye_color`, `hair_color`, `skin_color` and `complexion` each map
+  words of that field's [vocabulary](#a-beings-look) to positive weights. A
+  word's chance of being drawn is its weight over the sum of the weights in its
+  map; a word left out is never drawn.
+- `height` maps a `gender` word to a range, `{min, max}`, each a height in
+  metres or feet and inches as `data.height` takes it. `female` and `male` are
+  required. A gender with no range of its own draws from the span of every
+  range the profile states.
+
+Weight is not in the profile. It follows from the height and frame drawn: each
+frame word means a band of body-mass index, so a heavy frame always weighs more
+than a light one of the same height.
+
+| Frame     | Body-mass index (kg/m²) |
+| --------- | ----------------------- |
+| `scant`   | 16.5 to 19              |
+| `light`   | 19 to 21.5              |
+| `medium`  | 21.5 to 24.5            |
+| `heavy`   | 24.5 to 28              |
+| `massive` | 28 to 33                |
+
+```yaml
+shortcode: khelathi
+name: { full: The Khelâthi }
+type: lore
+subType: culture
+data:
+  appearanceProfile:
+    frame: { light: 2, medium: 5, heavy: 2 }
+    eye_color: { brown: 6, dark_brown: 3, hazel: 1 }
+    hair_color: { black: 6, dark_brown: 3 }
+    skin_color: { tawny: 5, olive: 3, brown: 2 }
+    complexion: { clear: 3, weathered: 2, smooth: 2 }
+    height:
+      female:
+        min: 4' 11"
+        max: 5' 8"
+      male:
+        min: 5' 4"
+        max: 6' 3"
+```
+
+`package-build lint` checks the profile, with a finding at the word, weight or
+key at fault: a word outside its field's vocabulary or from another field's
+list, a weight that is not a positive number, a word map with no words, a
+missing key, a missing `female` or `male` range, a height that does not read,
+a range whose `min` is above its `max`, and a `height` key that is not a
+gender.
+
+`package-build npc new` refuses a culture that states no profile, naming the
+culture note.
+
+#### Name lists
+
+**A language states how its speakers are named in `data.names`**, and
+`package-build npc new` draws a person's name from it, or checks a name it is
+given against it — see [the command](../commands.md#package-build-npc-new).
+Only a `skill` note of `subType: language` takes the key; on any other skill it
+is an error at the key. A culture reaches the lists through `data.language`,
+which names the language skill note its people speak, so cultures sharing a
+tongue share its lists.
+
+The lists have two required keys, and any number of lists named by the
+language:
+
+- `pattern` is the name's shape: placeholders such as `{given}` and `{clan}`,
+  each naming a list, with the text around them written as it stands. Text may
+  sit directly against a placeholder, as `sen` does in `"{given.male}sen"`.
+  `"{given} {clan}"` puts the given name first, `"{family} {given}"` puts the
+  family name first, and `"{given} yra {clan}"` joins the two with a particle.
+  A pattern takes one of three forms:
+  - **one pattern**, which every name takes;
+  - **a list of patterns**, for a tongue whose people are named in several
+    forms — by standing, by place, or by given name alone. A name may take any
+    of them, and a drawn name takes one of them;
+  - **a map of `gender` words** to a pattern or a list of them, for a tongue
+    whose forms differ by gender. A gender with no pattern of its own takes
+    every pattern stated.
+- `given` maps a `gender` word to a list of given names. `female` and `male`
+  are required. `{given}` draws from the list for the person's gender, or from
+  every given list together where that gender has none. `{given.<gender>}`
+  draws from that gender's list whatever the person's gender, as a patronymic
+  draws a father's name.
+- Every other key is a list of names that the placeholder of the same name
+  draws from. A list name is letters, digits and underscores, beginning with a
+  letter.
+
+Each placeholder draws one name from its list, each name as likely as any
+other, and a drawn name takes one of its gender's patterns, each as likely as
+any other.
+
+A tongue whose people are named by standing states each form in a list:
+
+```yaml
+shortcode: khelathilng
+name: { full: Khelâthi Language }
+type: skill
+subType: language
+data:
+  names:
+    pattern: ["{given} {house}", "{given} ez {place}", "{given}"]
+    given:
+      female: [Rethutê, Agosi, Ahmuzê]
+      male: [Aguri, Khelemûr, Gezebari]
+    house: [Reth'el'Lêru, Uqa'el'Lêru]
+    place: [Zileti, Iqu, Lut-Psaqa]
+```
+
+A Khelâthi culture names its tongue with `language: skill-khelathilng`. A
+person drawn from these lists is called something like _Rethutê Reth'el'Lêru_,
+_Khelemûr ez Iqu_ or _Ahmuzê_, and a name an author gives in any of the three
+forms fits. A name fits when it takes one of the gender's patterns with every
+placeholder filled by a name of its list, the given name from the list for the
+person's gender: _Agosi ez Zileti_ fits a woman and not a man, and _Aguri ez
+Lut_ fits nobody, because _Lut_ is not in `place`. Names compare in Unicode
+NFC, so a precomposed and a decomposed accent are the same letter.
+
+A tongue whose people carry a parent's name, with an ending that depends on
+their own gender, keys its patterns by gender:
+
+```yaml
+shortcode: northlng
+name: { full: Northern Language }
+type: skill
+subType: language
+data:
+  names:
+    pattern:
+      male: "{given} {given.male}sen"
+      female: "{given} {given.male}dóttir"
+    given:
+      female: [Sigrid, Astrid, Ragna]
+      male: [Ulf, Harald, Torvald]
+```
+
+A man drawn from these lists is called something like _Ulf Torvaldsen_ and a
+woman _Astrid Ulfdóttir_: the second name is a man's given name either way,
+with the ending the pattern for the person's gender gives it. _Ulf
+Haralddóttir_ does not fit a man, because it has the form of the women's
+pattern.
+
+`package-build lint` checks the lists, with a finding at the pattern, list,
+name or key at fault: a pattern with an unmatched brace or no placeholder, a
+placeholder that names no list, a `{given.<gender>}` whose gender has no given
+list, a dotted placeholder on a list other than `given`, a list that no pattern
+names, a list name a placeholder cannot spell, an empty list of patterns or of
+names, an empty name, a missing `pattern` or `given`, a missing `female` or
+`male` list, and a `pattern` or `given` key that is not a gender.
+
 #### The bodies a being belongs to, and its standing in each
 
 **Membership**: `{rank: number, office: string, societies: string[]}` — `rank`
@@ -4684,11 +4842,16 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 - combat
 - combattechnique
 
-| `data` property    | Values    | Description                                |
-| ------------------ | --------- | ------------------------------------------ |
-| `templatePriority` | `number`  | Template priority, _null_ = not a template |
-| `masteryLevel`     | `number`  | HM3 mastery level                          |
-| `parentSkill`      | `Address` | Parent skill this skill specializes        |
+| `data` property      | Values                                                            | Description                                                                                                                                                            |
+| -------------------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `templatePriority`   | `number`                                                          | Template priority, _null_ = not a template                                                                                                                             |
+| `masteryLevel`       | `number`                                                          | HM3 mastery level                                                                                                                                                      |
+| `parentSkill`        | `Address`                                                         | Parent skill this skill specializes                                                                                                                                    |
+| `names`              | `{ pattern, given, <name>... }`                                   | `language` only: how its speakers are named, for `package-build npc new` — see [name lists](#name-lists)                                                               |
+| `names.pattern`      | `string`, `string[]` or map of `gender` words to either, required | Placeholders such as `{given}`, `{given.male}` and `{clan}`, each naming a list, with literal text around them; a list states several forms, a map each gender's forms |
+| `names.given`        | map of `gender` words to lists of names, required                 | Given names by gender; `female` and `male` are required                                                                                                                |
+| `names.given.<name>` | `string[]`                                                        | The given names of one gender                                                                                                                                          |
+| `names.<name>`       | `string[]`                                                        | A list the placeholder of the same name draws from                                                                                                                     |
 
 if a `sohl` property is present, a SoHL item of type "skill" is created.
 
@@ -4851,40 +5014,49 @@ naming any other note is an error at the value. A `lore` note that states no cul
 none, since a `lore` note has no `data.parents` to inherit through; a culture note reads as
 its own Address in the index. See [Culture in the index](#culture-in-the-index).
 
-| `data` property            | Values                                                                        | Description                                                                                                                                                  |
-| -------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `epoch`                    | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                                                                         |
-| `months`                   | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                                                           |
-| `months[].name`            | `string`, required                                                            | The month's name                                                                                                                                             |
-| `months[].abbreviation`    | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
-| `months[].days`            | `integer`, required                                                           | How many days the month holds                                                                                                                                |
-| `weekdays`                 | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                                                                 |
-| `weekdays[].name`          | `string`, required                                                            | The day's name                                                                                                                                               |
-| `weekdays[].abbreviation`  | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
-| `seasons`                  | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                                                                   |
-| `seasons[].name`           | `string`, required                                                            | The season's name                                                                                                                                            |
-| `seasons[].abbreviation`   | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
-| `seasons[].start`          | `integer`, required                                                           | The one-based day of the year it begins; starts increase down the list                                                                                       |
-| `namedDays`                | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                                                                     |
-| `namedDays[].name`         | `string`, required                                                            | The day's name                                                                                                                                               |
-| `namedDays[].abbreviation` | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
-| `namedDays[].day`          | `integer`, required                                                           | The one-based day of the year it names, distinct within the calendar                                                                                         |
-| `eras`                     | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                                                                        |
-| `eras[].shortcode`         | `string`, required                                                            | The era's own segment of `<calendar>.<era>`, unique within the calendar                                                                                      |
-| `eras[].name`              | `string`, required                                                            | The era's name                                                                                                                                               |
-| `eras[].marker`            | `string`                                                                      | Uppercase letters and digits, beginning with a letter, unique across the corpus; an authored date names the era by it                                        |
-| `eras[].abbreviation`      | `string`                                                                      | Its short form, for a compact date                                                                                                                           |
-| `eras[].proclaimedBy`      | `Address`                                                                     | The body that began the reckoning                                                                                                                            |
-| `eras[].start`             | `null` or `integer`, required                                                 | The calendar year the era begins; `null` for the era before year 1                                                                                           |
-| `eras[].label`             | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                                                                   |
-| `eras[].label.after`       | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                                                             |
-| `eras[].label.before`      | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                                                           |
-| `formats`                  | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                                                           |
-| `culture`                  | `Address`                                                                     | The people this lore belongs to — for a `literature` note, the people whose work it is — naming a lore note with `subType: culture`; not on a `culture` note |
-| `form`                     | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text                                            |
-| `subjects`                 | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                   |
-| `language`                 | `Address`                                                                     | `literature` only: the tongue it is composed in, naming a skill note with `subType: language`                                                                |
-| `events`                   | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                |
+| `data` property                       | Values                                                                        | Description                                                                                                                                                                                                                                  |
+| ------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `epoch`                               | canonical `<year>.<day>`                                                      | The canonical day that equals calendar year 1, day 1                                                                                                                                                                                         |
+| `months`                              | `{ name, abbreviation?, days }[]`                                             | Ordered months; their days sum to the world's year                                                                                                                                                                                           |
+| `months[].name`                       | `string`, required                                                            | The month's name                                                                                                                                                                                                                             |
+| `months[].abbreviation`               | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                           |
+| `months[].days`                       | `integer`, required                                                           | How many days the month holds                                                                                                                                                                                                                |
+| `weekdays`                            | `{ name, abbreviation? }[]`                                                   | Ordered week days, indexed from zero; weeks run continuously                                                                                                                                                                                 |
+| `weekdays[].name`                     | `string`, required                                                            | The day's name                                                                                                                                                                                                                               |
+| `weekdays[].abbreviation`             | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                           |
+| `seasons`                             | `{ name, abbreviation?, start }[]`                                            | Seasons starting on one-based days of year                                                                                                                                                                                                   |
+| `seasons[].name`                      | `string`, required                                                            | The season's name                                                                                                                                                                                                                            |
+| `seasons[].abbreviation`              | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                           |
+| `seasons[].start`                     | `integer`, required                                                           | The one-based day of the year it begins; starts increase down the list                                                                                                                                                                       |
+| `namedDays`                           | `{ name, abbreviation?, day }[]`                                              | Names assigned to one-based days of year                                                                                                                                                                                                     |
+| `namedDays[].name`                    | `string`, required                                                            | The day's name                                                                                                                                                                                                                               |
+| `namedDays[].abbreviation`            | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                           |
+| `namedDays[].day`                     | `integer`, required                                                           | The one-based day of the year it names, distinct within the calendar                                                                                                                                                                         |
+| `eras`                                | `{ shortcode, name, abbreviation?, marker?, proclaimedBy?, start, label? }[]` | Year counts; `start` is `null` or an in-calendar year                                                                                                                                                                                        |
+| `eras[].shortcode`                    | `string`, required                                                            | The era's own segment of `<calendar>.<era>`, unique within the calendar                                                                                                                                                                      |
+| `eras[].name`                         | `string`, required                                                            | The era's name                                                                                                                                                                                                                               |
+| `eras[].marker`                       | `string`                                                                      | Uppercase letters and digits, beginning with a letter, unique across the corpus; an authored date names the era by it                                                                                                                        |
+| `eras[].abbreviation`                 | `string`                                                                      | Its short form, for a compact date                                                                                                                                                                                                           |
+| `eras[].proclaimedBy`                 | `Address`                                                                     | The body that began the reckoning                                                                                                                                                                                                            |
+| `eras[].start`                        | `null` or `integer`, required                                                 | The calendar year the era begins; `null` for the era before year 1                                                                                                                                                                           |
+| `eras[].label`                        | `string` or `{ after?, before? }`                                             | How a date in the era reads, around one `{date}` slot; a string is `after`                                                                                                                                                                   |
+| `eras[].label.after`                  | `string`                                                                      | How a date from the era's start reads, with exactly one `{date}`                                                                                                                                                                             |
+| `eras[].label.before`                 | `string`                                                                      | How a date before the era's start reads, with exactly one `{date}`                                                                                                                                                                           |
+| `formats`                             | map of names to Calendaria patterns                                           | Named date formats; `std` is the preferred default                                                                                                                                                                                           |
+| `culture`                             | `Address`                                                                     | The people this lore belongs to — for a `literature` note, the people whose work it is — naming a lore note with `subType: culture`; not on a `culture` note                                                                                 |
+| `form`                                | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text                                                                                                                            |
+| `subjects`                            | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                                                                                                   |
+| `language`                            | `Address`                                                                     | `literature` and `culture` only: the tongue a work is composed in, or a culture's people speak, naming a skill note with `subType: language`; `package-build npc new` draws a culture's names from that language's [name lists](#name-lists) |
+| `events`                              | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                                                                                                |
+| `appearanceProfile`                   | `{ frame, eye_color, hair_color, skin_color, complexion, height }`            | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                                                                                                     |
+| `appearanceProfile.frame`             | map of `frame` words to positive weights, required                            | How often each frame is drawn                                                                                                                                                                                                                |
+| `appearanceProfile.eye_color`         | map of `eye_color` words to positive weights, required                        | How often each eye colour is drawn                                                                                                                                                                                                           |
+| `appearanceProfile.hair_color`        | map of `hair_color` words to positive weights, required                       | How often each hair colour is drawn                                                                                                                                                                                                          |
+| `appearanceProfile.skin_color`        | map of `skin_color` words to positive weights, required                       | How often each skin colour is drawn                                                                                                                                                                                                          |
+| `appearanceProfile.complexion`        | map of `complexion` words to positive weights, required                       | How often each complexion is drawn                                                                                                                                                                                                           |
+| `appearanceProfile.height`            | map of `gender` words to `{ min, max }`, required                             | Height ranges by gender; `female` and `male` are required                                                                                                                                                                                    |
+| `appearanceProfile.height.<name>.min` | height in metres or feet and inches, required                                 | The shortest height drawn for that gender                                                                                                                                                                                                    |
+| `appearanceProfile.height.<name>.max` | height in metres or feet and inches, required                                 | The tallest height drawn for that gender                                                                                                                                                                                                     |
 
 `data.events` is available on every `lore` subType, and is described in full under [Events](#events).
 

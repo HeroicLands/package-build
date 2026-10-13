@@ -87,9 +87,20 @@ describe("a work of literature", () => {
                 file,
                 line: 6,
                 severity: "error",
-                message: expect.stringContaining("`data.language` describes a work of literature"),
+                message: expect.stringContaining("`subType` is neither `literature` nor `culture`"),
             }),
         ]);
+    });
+
+    it("shares its language with a culture note, which names the tongue its people speak", () => {
+        expect(lint(lore("culture", { language: "skill-nordmal" }))).toEqual([]);
+        expect(lint(lore("culture", { language: "skill-smithing" }))).toContainEqual(
+            expect.objectContaining({
+                line: 5,
+                severity: "error",
+                message: expect.stringContaining("not a skill whose subType is language"),
+            }),
+        );
     });
 
     it("requires its culture to be a culture note", () => {
