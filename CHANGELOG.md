@@ -1,5 +1,13 @@
 # @heroiclands/package-build
 
+## 23.2.2
+
+### Patch Changes
+
+A book author can list leading words such as "Kingdom of" or "Ritual:" under `pdf.indexHeads`, and the index also files those notes under the rest of the name, so "Kingdom of Targud" is found under Targud.
+
+A book whose Typst is killed, most often by the memory limit, now fails naming the signal instead of an empty reason, and a Typst that exits silently reports its exit code.
+
 ## 23.2.1
 
 ### Patch Changes
