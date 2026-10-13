@@ -412,6 +412,7 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
     }
 
     for (const field of fields) {
+        if (note.inheritedCultureFields?.has(field.name)) continue;
         if (!field.kind) continue;
         const segments = field.name.split(".");
         let value = entries;
@@ -457,7 +458,12 @@ function checkDataContainer(note, { type, fields, packs, addressContext, index }
 
     // One level down and every level below: each field's value is closed to
     // the inner keys its declaration states, as the container is to its own.
-    findings.push(...checkDataKeys(note, fields));
+    findings.push(
+        ...checkDataKeys(
+            note,
+            fields.filter((field) => !note.inheritedCultureFields?.has(field.name)),
+        ),
+    );
 
     return findings;
 }
@@ -600,6 +606,13 @@ function checkDataReferences(note, field, value, segments, context, index) {
                     :   `; write \`${slot.declines}\` to decline the image on purpose`);
         }
         if (!reason) continue;
+        if (
+            note.fm?.type === "lore" &&
+            note.fm?.subType === "culture" &&
+            field.name === "parents" &&
+            note.reportedCultureParents?.has(check.path[0])
+        )
+            continue;
         const path = ["data", ...segments, ...check.path];
         findings.push({
             file: note.file,
@@ -1526,6 +1539,7 @@ export function lintNote(
         // way a wikilink would. The linter names no such field itself; the
         // vocabulary does, beside the field.
         for (const field of fields) {
+            if (note.inheritedCultureFields?.has(field.name)) continue;
             if (typeof field.check !== "function") continue;
             findings.push(...field.check(note, { index }));
         }

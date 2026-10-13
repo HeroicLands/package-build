@@ -484,6 +484,17 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // place or affiliation inherits from a parent here without
                 // walking that parent's own chain.
                 culture: record.data?.culture ?? undefined,
+                ...(parts.type === "lore" && record.subType === "culture" ?
+                    {
+                        data: {
+                            language: record.data?.language,
+                            appearanceProfile: record.data?.appearanceProfile,
+                        },
+                    }
+                :   {}),
+                ...(parts.type === "skill" && record.subType === "language" ?
+                    { data: { names: record.data?.names } }
+                :   {}),
                 population: record.data?.population ?? undefined,
                 ...(Object.hasOwn(record.data ?? {}, "government") ?
                     { government: record.data.government }

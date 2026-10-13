@@ -247,6 +247,7 @@ types:
         subTypes: []
     lore:
         data:
+            - parents
             - epoch
             - months
             - weekdays

@@ -55,6 +55,7 @@
 import { readWikilink } from "./wikilink-syntax.mjs";
 import { encodeAddresses } from "./address-values.mjs";
 import fs from "node:fs";
+import { cultureRecordProblems, cultureInheritedFields } from "./culture-parents.mjs";
 import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
@@ -224,6 +225,14 @@ export function buildLinkIndex(
         const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
         const type = record.type.toLowerCase();
         const note = { file: absPath, rel, fm, body, raw, type };
+        const hierarchyProblems = cultureRecordProblems(record);
+        note.inheritedCultureFields = cultureInheritedFields(record);
+        if (hierarchyProblems)
+            note.reportedCultureParents = new Set(
+                hierarchyProblems
+                    .filter((problem) => problem.file === absPath)
+                    .map((problem) => problem.parentIndex),
+            );
 
         for (const hit of frontmatterWikilinks(fm)) {
             frontmatterLinks.push({ note, ...hit });

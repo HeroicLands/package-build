@@ -2715,6 +2715,104 @@ table would otherwise need: the authored `ORDER BY` decides the section order to
 **Beware `packFolder`.** It is a note's _pack_ folder, not its directory — the
 directory is `file.folder`.
 
+##### Culture parents and inherited fields
+
+A `lore` note of `subType: culture` may list the larger cultures it belongs to
+in `data.parents`. Each entry is an Address naming another culture lore note;
+a missing target, a target of another type or subtype, and a parent cycle are
+errors at the offending list entry. No other lore subtype accepts the key.
+
+A culture inherits `data.language` and `data.appearanceProfile` independently
+when it leaves either field out. A stated value wins for that field. The
+profile is inherited as one complete object; its weights and ranges are not
+merged with another profile. Parents are searched in listed order, depth-first:
+the first parent's chain is searched before the next parent's chain. Sources
+at the same depth that disagree on a field produce a finding. Nothing is
+inherited through a broken parent address.
+
+The emitted content-index JSONL carries the resolved fields in the child's
+`data`, exactly as if the child had stated them. `package-build npc new` and
+other consumers read those resolved values; they do not walk culture parents.
+The child's `data.culture` remains its own Address. A being, place or
+affiliation naming the parent in `data.culture` belongs to that named culture;
+it does not match the parent's children.
+
+These complete notes give Riverfolk their parent culture's tongue and profile:
+
+```markdown
+---
+shortcode: reedfolk
+name: { full: Reedfolk }
+type: lore
+subType: culture
+data:
+  language: skill-reedtongue
+  appearanceProfile:
+    frame: { medium: 1 }
+    eye_color: { brown: 1 }
+    hair_color: { black: 1 }
+    skin_color: { tawny: 1 }
+    complexion: { clear: 1 }
+    height:
+      female: { min: 1.5m, max: 1.7m }
+      male: { min: 1.6m, max: 1.8m }
+---
+
+Reedfolk share the reed tongue and live along the marsh's waterways. Their
+settlements trade by boat, hold seasonal gatherings and pass their stories
+between families at those gatherings.
+```
+
+```markdown
+---
+shortcode: riverfolk
+name: { full: Riverfolk }
+type: lore
+subType: culture
+data:
+  parents: [lore-reedfolk]
+---
+
+Riverfolk belong to the Reedfolk culture and share its tongue. They live
+beside the river's deep channels, where their boats carry grain, timber and
+woven reeds between settlements.
+```
+
+The parent names this language note, whose lists supply generated names:
+
+```markdown
+---
+shortcode: reedtongue
+name: { full: Reed Tongue }
+type: skill
+subType: language
+data:
+  pack: skills
+  names:
+    pattern: "{given} {kin}"
+    given:
+      female: [Nara]
+      male: [Taro]
+    kin: [Mori]
+---
+
+The reed tongue is spoken beside the marsh's waterways. Its speakers use a
+given name followed by a family name, and carry those names between river
+settlements with their trade.
+```
+
+In a package named `reedflats`, the Riverfolk index record carries the Reedfolk
+profile and `data.language` as a published Address object:
+
+```json
+{ "address": "reedflats-note-skill-reedtongue", "anchor": null, "anchorKind": null }
+```
+
+Adding `language: skill-rivertongue` to Riverfolk's `data` selects that language
+instead while retaining the inherited profile, provided the named language
+note exists. Stating an `appearanceProfile` there replaces the inherited
+profile while leaving the inherited tongue in place.
+
 ##### Culture in the index
 
 `data.culture` in the index is the note's **resolved** culture, which is its
@@ -3737,8 +3835,9 @@ missing key, a missing `female` or `male` range, a height that does not read,
 a range whose `min` is above its `max`, and a `height` key that is not a
 gender.
 
-`package-build npc new` refuses a culture that states no profile, naming the
-culture note.
+`package-build npc new` refuses a culture with no resolved profile, naming the
+culture note. A culture may obtain the complete profile from its
+[parents](#culture-parents-and-inherited-fields).
 
 #### Name lists
 
@@ -5006,13 +5105,18 @@ data:
 The saga lists under **In song and story** on `place-ironfells`, which holds the
 sack, on `place-east` and on `lore-fords`.
 
-Calendar fields are written only on a `calendar` note, and `form`, `subjects` and `language`
-only on a `literature` note; written on any other lore subType, each is an error at its own key.
+Calendar fields are written only on a `calendar` note, `form` and `subjects`
+only on a `literature` note, `language` only on `literature` and `culture`, and
+`parents` only on `culture`. Written on any other lore subtype, each is an
+error at its own key.
 `culture` may be written on any lore subType. A culture note is itself the culture, so it
 leaves the field out or names itself, by its shortcode or by any longer form of its Address;
 naming any other note is an error at the value. A `lore` note that states no culture has
-none, since a `lore` note has no `data.parents` to inherit through; a culture note reads as
-its own Address in the index. See [Culture in the index](#culture-in-the-index).
+none; a culture note reads as its own Address in the index, including when it
+names parent cultures. Culture parents supply language and appearance fields,
+not a different cultural identity. See
+[Culture parents](#culture-parents-and-inherited-fields) and
+[Culture in the index](#culture-in-the-index).
 
 | `data` property                       | Values                                                                        | Description                                                                                                                                                                                                                                  |
 | ------------------------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -5046,6 +5150,7 @@ its own Address in the index. See [Culture in the index](#culture-in-the-index).
 | `culture`                             | `Address`                                                                     | The people this lore belongs to — for a `literature` note, the people whose work it is — naming a lore note with `subType: culture`; not on a `culture` note                                                                                 |
 | `form`                                | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text                                                                                                                            |
 | `subjects`                            | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                                                                                                   |
+| `parents`                             | `Address[]`                                                                   | `culture` only: the larger cultures this one belongs to; each target is a culture lore note — see [culture parents](#culture-parents-and-inherited-fields)                                                                                   |
 | `language`                            | `Address`                                                                     | `literature` and `culture` only: the tongue a work is composed in, or a culture's people speak, naming a skill note with `subType: language`; `package-build npc new` draws a culture's names from that language's [name lists](#name-lists) |
 | `events`                              | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                                                                                                |
 | `appearanceProfile`                   | `{ frame, eye_color, hair_color, skin_color, complexion, height }`            | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                                                                                                     |

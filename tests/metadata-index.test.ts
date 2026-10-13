@@ -309,6 +309,33 @@ describe("resolving foreign addresses from cached indexes", () => {
         ]);
     });
 
+    it("carries published name lists only for foreign language skills", () => {
+        const names = {
+            pattern: "{given} {clan}",
+            given: { female: ["Ara"], male: ["Oren"] },
+            clan: ["Vale"],
+        };
+        cacheIndex("thalorna", "0.1.0", [
+            record({
+                type: "skill",
+                subType: "language",
+                shortcode: "tongue",
+                address: { canonical: "thalorna-note-skill-tongue", slug: "skill-tongue" },
+                data: { names },
+            }),
+            record({
+                type: "skill",
+                subType: "physical",
+                shortcode: "other",
+                address: { canonical: "thalorna-note-skill-other", slug: "skill-other" },
+                data: { names },
+            }),
+        ]);
+        const { index } = loadForeignIndexes(config(), ["sohl"]);
+        expect(index.get("thalorna-note-skill-tongue")?.data).toEqual({ names });
+        expect(index.get("thalorna-note-skill-other")?.data).toBeUndefined();
+    });
+
     // The bug that killed the vendored manifest: SoHL's committed copy held
     // 2,101 entries whose address was the old name-derived form, so every link
     // it rendered resolved at build time and 404'd for the reader. A URL

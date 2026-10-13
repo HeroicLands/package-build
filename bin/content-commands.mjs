@@ -141,6 +141,7 @@ import { profileFindings } from "../engine/appearance-profile.mjs";
 import { namesFindings } from "../engine/language-names.mjs";
 import { parseAddress, renderAddress } from "../engine/address.mjs";
 import { cultureKey, generateNpc, npcDefaults, npcSpecProblems } from "../engine/npc-generate.mjs";
+import { cultureFieldSource, cultureHierarchyProblems } from "../engine/culture-parents.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -2613,11 +2614,12 @@ function newNpc(config, argv) {
         throw new Error(`${argv.out} already exists, and \`npc new\` never overwrites a note`);
 
     const root = config.paths.content;
+    const corpusProblems = [];
     const records = indexRecordsFor({
         contentBase: root,
         config,
         skipDirectories: config.skipDirectories,
-        problems: [],
+        problems: corpusProblems,
     });
     const index = buildLinkIndex(root, {
         config,
@@ -2643,6 +2645,12 @@ function newNpc(config, argv) {
             `\`data.culture\` ${JSON.stringify(written)} is not a culture: it names a ` +
                 `${culture.type ?? hit.type ?? "note"} of subType ${culture.subType ?? "none"}`,
         );
+    const hierarchyProblems = cultureHierarchyProblems(records, key);
+    for (const problem of hierarchyProblems) emitDiagnostic(problem);
+    if (hierarchyProblems.some((problem) => problem.severity === "error")) {
+        process.exitCode = 1;
+        return;
+    }
     const cultureNote = located(hit);
     const profile = culture.data?.appearanceProfile;
     if (profile === undefined || profile === null)
@@ -2652,8 +2660,13 @@ function newNpc(config, argv) {
             `${key} states no \`data.appearanceProfile\`, so \`npc new\` cannot draw its ` +
                 "people's look",
         );
+    const profileSource = cultureFieldSource(records, key, "appearanceProfile") ?? hit;
     const profileErrors = profileFindings(
-        { file: cultureNote.file, raw: hit.raw, fm: culture },
+        {
+            file: located(profileSource).file,
+            raw: profileSource.raw,
+            fm: profileSource.fm ?? profileSource,
+        },
         BEING_LOOK_VOCABULARY,
     );
     if (profileErrors.length) {
@@ -2669,6 +2682,8 @@ function newNpc(config, argv) {
             `${key} states no \`data.language\`, so \`npc new\` has no name lists to draw ` +
                 "from; name the language skill note its people speak",
         );
+    const languageSource = cultureFieldSource(records, key, "language") ?? hit;
+    const languageSourceNote = located(languageSource);
     const tuple = parseAddress(tongue, {
         package: index.contentPackage,
         system: "note",
@@ -2680,14 +2695,14 @@ function newNpc(config, argv) {
     const languageHit = languageKey ? index.addressHit(languageKey) : undefined;
     if (!languageHit)
         throw noteError(
-            cultureNote,
+            languageSourceNote,
             ["data", "language"],
             `${key}'s \`data.language\` names no note in this package or its dependencies`,
         );
     const language = languageHit.fm ?? languageHit;
     if (String(language.type ?? languageHit.type) !== "skill" || language.subType !== "language")
         throw noteError(
-            cultureNote,
+            languageSourceNote,
             ["data", "language"],
             `${key}'s \`data.language\` ${languageKey} is not a language: it names a ` +
                 `${language.type ?? languageHit.type ?? "note"} of subType ` +

@@ -185,12 +185,13 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     "lore:culture": {
-        covers: ["appearanceProfile"],
+        covers: ["appearanceProfile", "parents"],
         fm: () => ({
             type: "lore",
             subType: "culture",
             shortcode: "cultureone",
             data: {
+                parents: [],
                 appearanceProfile: {
                     frame: { light: 1, medium: 2 },
                     eye_color: { brown: 1 },

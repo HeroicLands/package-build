@@ -86,6 +86,7 @@
  */
 
 import { isAddressSegment } from "./address-charset.mjs";
+import { cultureInheritance, reportCultureParents } from "./culture-parents.mjs";
 import {
     formatDiagnostic,
     locateFrontmatterKey,
@@ -1178,6 +1179,27 @@ export function collectContentIndex(
     // is found by its canonical address. Before the sort, which reads nothing
     // the pass writes.
     resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems });
+    const cultureNotes = records
+        .filter((record) => isNoteRecord(record) && record.type === "lore")
+        .map((record) => ({
+            fm: record,
+            file: noteFile(contentBase, record),
+            raw: fs.readFileSync(noteFile(contentBase, record), "utf8"),
+        }));
+    const cultureByKey = new Map(
+        cultureNotes.map((note) => [
+            canonicalKey(contentPackage, "note", "lore", note.fm.shortcode),
+            note,
+        ]),
+    );
+    const inheritance = cultureInheritance({
+        contentPackage,
+        notes: cultureNotes,
+        addressHit: (key) => cultureByKey.get(key) ?? foreignRecord?.(key),
+    });
+    reportCultureParents(inheritance.findings, problems);
+    for (const [note, inherited] of inheritance.values)
+        if (Object.keys(inherited).length) note.fm.data = { ...note.fm.data, ...inherited };
 
     // Sorted at every depth like a note's record, and for the same reason: the
     // declaration order of the `asset` fields is a fact about the emitter, not

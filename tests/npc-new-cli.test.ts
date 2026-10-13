@@ -226,6 +226,225 @@ describe("package-build npc new", () => {
     );
 
     it(
+        "draws a child culture's name and appearance from its resolved parent fields",
+        () => {
+            const file = path.join(root, "assets/content/Cultures/Childfolk.md");
+            try {
+                culture("Childfolk", "childfolk", "  parents: [lore-khelathi]\n");
+                const generated = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({ data: { culture: "childfolk", gender: "female" } }),
+                );
+                expect({
+                    status: generated.status,
+                    stdout: generated.stdout,
+                    stderr: generated.stderr,
+                }).toEqual({
+                    status: 0,
+                    stdout: expect.stringMatching(/^---\n/),
+                    stderr: "",
+                });
+                const fm = frontmatterOf(generated.stdout);
+                expect(fm.data.culture).toBe("childfolk");
+                const [given, kin] = fm.name.full.split(" ");
+                expect(["Agosi", "Rethutê"]).toContain(given);
+                expect(["Zekar", "Lêru", "Iqu"]).toContain(kin);
+                expect(["light", "medium", "heavy"]).toContain(fm.data.frame);
+                expect(["tawny", "olive", "brown"]).toContain(fm.data.appearance.skin_color);
+            } finally {
+                fs.rmSync(file, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "keeps a child culture's own language while inheriting its appearance profile",
+        () => {
+            const cultureFile = path.join(root, "assets/content/Cultures/Ownwords.md");
+            const languageFile = path.join(root, "assets/content/Skills/Ownwords.md");
+            try {
+                culture(
+                    "Ownwords",
+                    "ownwords",
+                    "  parents: [lore-khelathi]\n  language: skill-ownwordslng\n",
+                );
+                language(
+                    "Ownwords",
+                    "ownwordslng",
+                    '  names:\n    pattern: "{given} {kin}"\n' +
+                        "    given:\n      female: [Nara]\n      male: [Taro]\n    kin: [Mori]\n",
+                );
+                const generated = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({ data: { culture: "ownwords", gender: "female" } }),
+                );
+                expect({
+                    status: generated.status,
+                    stdout: generated.stdout,
+                    stderr: generated.stderr,
+                }).toEqual({
+                    status: 0,
+                    stdout: expect.stringMatching(/^---\n/),
+                    stderr: "",
+                });
+                const fm = frontmatterOf(generated.stdout);
+                expect(fm.name.full).toBe("Nara Mori");
+                expect(fm.data.culture).toBe("ownwords");
+                expect(["light", "medium", "heavy"]).toContain(fm.data.frame);
+                expect(["tawny", "olive", "brown"]).toContain(fm.data.appearance.skin_color);
+            } finally {
+                fs.rmSync(cultureFile, { force: true });
+                fs.rmSync(languageFile, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "refuses a culture parent cycle even when its own language and profile are complete",
+        () => {
+            const file = path.join(root, "assets/content/Cultures/Loopfolk.md");
+            try {
+                culture(
+                    "Loopfolk",
+                    "loopfolk",
+                    "  parents: [lore-loopfolk]\n  language: skill-khelathilng\n" + PROFILE,
+                );
+                const generated = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({ data: { culture: "loopfolk", gender: "female" } }),
+                );
+                expect(generated.status).toBe(1);
+                expect(generated.stdout).toBe("");
+                expect(generated.stderr).toMatch(
+                    /^assets\/content\/Cultures\/Loopfolk\.md:\d+:\d+: error: .*cycle/m,
+                );
+            } finally {
+                fs.rmSync(file, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "refuses conflicting parent languages instead of generating from the first one",
+        () => {
+            const cultureFile = path.join(root, "assets/content/Cultures/Dividedfolk.md");
+            const parentFile = path.join(root, "assets/content/Cultures/Otherfolk.md");
+            try {
+                culture("Otherfolk", "otherfolk", "  language: skill-silentlng\n" + PROFILE);
+                culture(
+                    "Dividedfolk",
+                    "dividedfolk",
+                    "  parents: [lore-khelathi, lore-otherfolk]\n" + PROFILE,
+                );
+                const generated = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({ data: { culture: "dividedfolk", gender: "female" } }),
+                );
+                expect(generated.status).toBe(1);
+                expect(generated.stdout).toBe("");
+                expect(generated.stderr).toMatch(
+                    /^assets\/content\/Cultures\/Dividedfolk\.md:\d+:\d+: error: .*language/m,
+                );
+            } finally {
+                fs.rmSync(cultureFile, { force: true });
+                fs.rmSync(parentFile, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "generates from a valid culture when an unrelated culture has a parent cycle",
+        () => {
+            const file = path.join(root, "assets/content/Cultures/Unrelatedloop.md");
+            try {
+                culture("Unrelatedloop", "unrelatedloop", "  parents: [lore-unrelatedloop]\n");
+                const generated = run("npc", "new", "--spec", JSON.stringify(SPEC));
+                expect(generated.status).toBe(0);
+                expect(frontmatterOf(generated.stdout).name.full).toBe(SPEC.name.full);
+            } finally {
+                fs.rmSync(file, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "locates a malformed inherited appearance profile on its authored grandparent",
+        () => {
+            const files = ["Grandfolk", "Middlefolk", "Youngfolk"].map((name) =>
+                path.join(root, `assets/content/Cultures/${name}.md`),
+            );
+            try {
+                culture(
+                    "Grandfolk",
+                    "grandfolk",
+                    "  language: skill-khelathilng\n" +
+                        PROFILE.replace("light: 2, medium: 5, heavy: 2", "medium: 0"),
+                );
+                culture("Middlefolk", "middlefolk", "  parents: [lore-grandfolk]\n");
+                culture("Youngfolk", "youngfolk", "  parents: [lore-middlefolk]\n");
+                const generated = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({ data: { culture: "youngfolk", gender: "female" } }),
+                );
+                expect(generated.status).toBe(1);
+                expect(generated.stdout).toBe("");
+                expect(generated.stderr).toMatch(
+                    /^assets\/content\/Cultures\/Grandfolk\.md:9:22: error: .*positive/m,
+                );
+                expect(generated.stderr).not.toMatch(
+                    /^assets\/content\/Cultures\/(?:Middlefolk|Youngfolk)\.md:/m,
+                );
+            } finally {
+                for (const file of files) fs.rmSync(file, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "locates a broken inherited language on the parent that states it",
+        () => {
+            const parentFile = path.join(root, "assets/content/Cultures/Lostwords.md");
+            const childFile = path.join(root, "assets/content/Cultures/Quietfolk.md");
+            try {
+                culture("Lostwords", "lostwords", "  language: skill-missinglng\n" + PROFILE);
+                culture("Quietfolk", "quietfolk", "  parents: [lore-lostwords]\n");
+                const generated = run(
+                    "npc",
+                    "new",
+                    "--spec",
+                    JSON.stringify({ data: { culture: "quietfolk", gender: "female" } }),
+                );
+                expect(generated.status).toBe(1);
+                expect(generated.stdout).toBe("");
+                expect(generated.stderr).toMatch(
+                    /^assets\/content\/Cultures\/Lostwords\.md:7:3: error: .*data.language.*names no note/m,
+                );
+                expect(generated.stderr).not.toMatch(/^assets\/content\/Cultures\/Quietfolk\.md:/m);
+            } finally {
+                fs.rmSync(parentFile, { force: true });
+                fs.rmSync(childFile, { force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
         "refuses a supplied name that does not fit the language's lists, naming the part",
         () => {
             const unlisted = run(

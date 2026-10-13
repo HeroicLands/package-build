@@ -111,6 +111,7 @@ import { checkNoteEvents } from "./note-events.mjs";
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 import { EVENT_ENTRY } from "./note-event-terms.mjs";
 import { CULTURE_FIELD, checkCultureSubType } from "./culture-choice.mjs";
+import { checkCultureParents } from "./culture-parents.mjs";
 import {
     checkAppearanceProfile,
     profileLookKeys,
@@ -2001,6 +2002,15 @@ export const NOTE_VOCABULARY = Object.freeze({
         ],
         data: Object.freeze([
             ...CALENDAR_FIELDS,
+            {
+                name: "parents",
+                ...LINKS,
+                ref: "lore",
+                accepts: ["lore"],
+                check: checkCultureParents,
+                describe:
+                    "Culture only: parent culture lore notes, searched in listed depth-first order for omitted language and appearance profile fields.",
+            },
             {
                 ...CULTURE_FIELD,
                 describe:

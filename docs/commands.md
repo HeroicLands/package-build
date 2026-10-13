@@ -2828,6 +2828,14 @@ culture missing either, with an error at the culture note:
   `data.names` is an error at the language note. See
   [name lists](reference/format-details.md#name-lists).
 
+The content-index JSONL resolves a culture's `data.language` and
+`data.appearanceProfile` before this command reads them. A child culture may
+inherit each omitted field from its `data.parents`, while a stated value keeps
+precedence. The command consumes the resolved values and keeps the selected
+child culture on the generated note. A parent cycle or conflicting inherited
+sources are errors; complete fields on the selected culture do not excuse a
+cycle. See [culture parents](reference/format-details.md#culture-parents-and-inherited-fields).
+
 A profile or name lists with problems are refused with a finding at each.
 
 A spec that states `name.full` keeps it, and the name must fit the language's
