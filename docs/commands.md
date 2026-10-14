@@ -789,50 +789,6 @@ package-build: 1 template(s) fully localized and compiling.
 `package-build lang check`, `package-build lang coverage`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
-### `package-build labels check`
-
-**NAME**
-
-Compare the machine label registry against the documented reference table
-(`check` is the only action).
-
-**SYNOPSIS**
-
-```
-package-build labels check [--registry <path>] [--doc <path>]
-```
-
-**DESCRIPTION**
-
-Compares the machine label registry synced to GitHub against the documented
-reference table, and reports where they disagree — a label the registry has
-that the table does not, or the reverse. Neither derives from the other, so
-nothing else notices when they drift. Reads both files named below; writes
-nothing.
-
-**OPTIONS**
-
-| Option       | Type   | Default                      | Description                                                    |
-| ------------ | ------ | ---------------------------- | -------------------------------------------------------------- |
-| `--registry` | string | `.github/labels.yml`         | The machine registry synced to GitHub.                         |
-| `--doc`      | string | `.github/ISSUE_REPORTING.md` | The documented reference whose §3 table lists the same labels. |
-
-**EXIT STATUS**
-
-1 if either file does not exist. 1 if the registry and the table disagree on
-any label. Otherwise 0.
-
-**EXAMPLES**
-
-```
-$ package-build labels check --registry .github/labels.yml --doc .github/ISSUE_REPORTING.md
-package-build: registry and §3 agree (11 labels).
-```
-
-**SEE ALSO**
-
-None.
-
 ### `package-build bump [packages..]`
 
 **NAME**

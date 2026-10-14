@@ -46,7 +46,7 @@ project. They are not redefined here.
 - An **epic** MUST link its sub-issues and SHOULD carry little implementation
   detail of its own.
 - A **spike** MUST state the question it answers and its timebox.
-- A **refactor** changing no external behaviour is a **task**, tagged `tech-debt`.
+- A **refactor** changing no external behaviour is a **task**, tagged `flag/tech-debt`.
 
 **What "broken" means here.** A build that fails loudly is the easy case. The
 costly failures in this repository are the **quiet** ones — a note whose
@@ -74,37 +74,30 @@ Medium · Low**.
 narrow the trigger. Five packages compile through this toolchain and take its
 output on trust; a silent wrong emission ships to a world.
 
-## 3. Labels — the closed registry
+## 3. Labels
 
-Labels are **subject matter only**. The registry is `.github/labels.yml`, and it
-is **closed**: a label not listed there is deleted from the repository, and from
-every issue carrying it, on the next sync. Editing the registry means editing
-both that file and this table — `package-build labels check` (run as
-`npm run lint:labels`) fails when they disagree.
+Labels are **organisation-level**. They are defined once, in `labels.yml` of
+`HeroicLands/.github`, and every repository in the organisation carries the same
+set; this repository defines none of its own. Editing the set means editing that
+file.
 
-| Label             | Use it for                                                                               |
-| ----------------- | ---------------------------------------------------------------------------------------- |
-| `documentation`   | The README, docs/, JSDoc, process.                                                       |
-| `devops`          | Build, tooling, CI, release, repo config.                                                |
-| `tests`           | The vitest suite, its fixtures, and the e2e harness this package ships to consumers.     |
-| `layout`          | Templates, partials, shortcodes — the structure a page renders into.                     |
-| `styling`         | CSS, fonts, images, icons, palette — how a rendered page looks.                          |
-| `security`        | Evaluating untrusted note content, path traversal, subprocess handling.                  |
-| `tech-debt`       | Restructuring or cleanup of working code; refactors.                                     |
-| `regression`      | Something that previously worked and stopped. Pairs with type **bug**.                   |
-| `breaking-change` | Alters the configuration contract, a CLI, an emitted document shape, or the note format. |
-| `blocked`         | Cannot proceed until an external dependency or another issue clears.                     |
-| `duplicate`       | Already exists.                                                                          |
-| `question`        | Further information is requested.                                                        |
-| `wontfix`         | Will not be worked on.                                                                   |
+| Group         | Labels                                                                                                                       |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `type/`       | `type/bug`, `type/feature`, `type/epic`, `type/task`, `type/spike` — exactly one per issue                                   |
+| `resolution/` | `resolution/duplicate`, `resolution/wontfix`                                                                                 |
+| `status/`     | `status/blocked`, `status/question`                                                                                          |
+| `flag/`       | `flag/breaking-change`, `flag/security`, `flag/regression`, `flag/tech-debt`                                                 |
+| `area/`       | `area/documentation`, `area/devops`, `area/tests`, `area/content`, `area/system`, `area/site`, `area/layout`, `area/styling` |
+| (none)        | `ci/e2e`                                                                                                                     |
 
-There is **no** `bug` or `enhancement` label — work shape is a _type_, so
+There is **no** `bug` or `enhancement` label — work shape is `type/<shape>`, so
 filtering on such a label returns nothing.
 
-There is also no `content` or `system` label. This repository holds no compendium
+An `area/` label names the subject matter. This repository holds no compendium
 content and no game system: an issue about what a note _says_ belongs to the
 repository shipping that note, and only an issue about what the toolchain _does
-with_ it belongs here.
+with_ it belongs here, so `area/content`, `area/system` and `area/site` rarely
+apply.
 
 ## 4. Body structure by type
 
@@ -174,7 +167,7 @@ useful line in a report.
 "Done" is what the repository's own scripts assert:
 
 - `npm run lint` — formatting, markdown, YAML, the content-format declarations,
-  and the label registry against §3 above
+
 - `npm test` — the vitest suite
 - `npm run build:types` — the published `.d.mts` surface compiles
 

@@ -30,8 +30,7 @@ acme-bestiary/
 │   ├── config.json
 │   └── *.md                      # one per unreleased change
 ├── .github/
-│   ├── labels.yml                # the closed label registry
-│   ├── ISSUE_REPORTING.md        # §3 lists the same labels
+│   │   ├── ISSUE_REPORTING.md        # how issues are filed
 │   └── workflows/
 ├── assets/
 │   └── content/                  # authored Markdown notes
@@ -161,19 +160,18 @@ anything to remove.
 
 ### `lint:*` — the checks, one per question
 
-Seven checks, each answering one question and blind to what the others see.
+Six checks, each answering one question and blind to what the others see.
 They are separate scripts rather than one because a failing chain stops at its
 first failure, and knowing _which_ question failed is most of the diagnosis.
 
 ```json
-"lint": "run-s lint:format lint:markdown lint:addresses lint:content-links lint:lang lint:labels lint:changelog",
+"lint": "run-s lint:format lint:markdown lint:addresses lint:content-links lint:lang lint:changelog",
 "lint:format": "package-build format",
 "lint:markdown": "package-build markdown",
 "lint:markdown:fix": "package-build markdown --fix",
 "lint:addresses": "package-build lint",
 "lint:content-links": "package-build links",
 "lint:lang": "package-build lang check",
-"lint:labels": "package-build labels check",
 "lint:changelog": "package-build changelog check"
 ```
 
@@ -194,9 +192,6 @@ first failure, and knowing _which_ question failed is most of the diagnosis.
   `package-build lang coverage` and `package-build lang hardcoded`; a
   content-only package has nothing for those two to read, and each dies naming
   the glob that matched nothing rather than passing vacuously.
-- **`lint:labels`** — do `.github/labels.yml` and §3 of
-  `.github/ISSUE_REPORTING.md` still list the same labels? Neither derives from
-  the other, so nothing else notices when they drift.
 - **`lint:changelog`** — does every pending `.changeset/*.md` read like a
   release note rather than a pasted pull-request description? Passes
   trivially when nothing is pending: no pull request is required to carry a
@@ -499,46 +494,9 @@ tool:
 
 ## `.github/`
 
-Two files the toolchain reads, and they must agree.
-
-**`.github/labels.yml`** is the closed label registry — the machine-readable
-source of truth, synced to GitHub by the org-wide `labels` action. A label on
-GitHub that is not listed there is deleted on the next sync, which is what makes
-the set closed and why nothing invents one.
-
-```yaml
-- name: documentation
-  color: "0075ca"
-  description: Documentation about this repository — README, process, authoring guides.
-
-- name: devops
-  color: "e07b31"
-  description: Build, tooling, CI, release, repo config.
-```
-
-**`.github/ISSUE_REPORTING.md`** §3 is the same list in prose, for a human
-filing an issue. `package-build labels check` compares the two and fails when
-they disagree:
-
-```console
-$ npx package-build labels check
-package-build: registry and §3 agree (2 labels).
-```
-
-Neither file derives from the other, so this check is the only thing standing
-between them and a silent divergence. Editing the registry means editing both.
-
-Labels are **subject matter only**. Work shape — bug, feature, epic, task, spike
-— is an issue _type_, shared across the organization, so there is no `bug` label
-and filtering on one returns nothing.
-
-Neither file exists in a fresh repository, and `labels check` says so rather
-than passing vacuously:
-
-```console
-$ npx package-build labels check
-package-build: labels check: .github/labels.yml does not exist.
-```
+**`.github/ISSUE_REPORTING.md`** says how issues are filed. Labels are
+organisation-level and defined in `HeroicLands/.github`, so the repository
+carries no label registry of its own.
 
 `.github/workflows/` then carries the repository's own CI. The org-wide
 `HeroicLands/.github` repository supplies the shared composite actions those
@@ -549,17 +507,16 @@ site-deploy workflow, so a fix to any of them reaches every repository at once.
 
 A summary, because "where does this come from" is the question that recurs.
 
-| Read                                               | By                                                                                                        |
-| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `package.json`                                     | The Foundry package id, the version, the release addresses; the site's `baseURL`, description and author. |
-| `package-build.config.yaml`                        | Everything else about the build.                                                                          |
-| `assets/content/**/*.md`                           | Every content command.                                                                                    |
-| `.gitignore`                                       | `package-build format`, `package-build markdown`.                                                         |
-| `.prettierignore`                                  | `package-build format`.                                                                                   |
-| `.github/labels.yml`, `.github/ISSUE_REPORTING.md` | `package-build labels check`.                                                                             |
-| `lang/*.json`                                      | `package-build lang`.                                                                                     |
-| `.env.local`                                       | `package-build deploy`.                                                                                   |
-| `.github/workflows/build.yml`                      | The `pre-push` hook, for its step list.                                                                   |
+| Read                          | By                                                                                                        |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `package.json`                | The Foundry package id, the version, the release addresses; the site's `baseURL`, description and author. |
+| `package-build.config.yaml`   | Everything else about the build.                                                                          |
+| `assets/content/**/*.md`      | Every content command.                                                                                    |
+| `.gitignore`                  | `package-build format`, `package-build markdown`.                                                         |
+| `.prettierignore`             | `package-build format`.                                                                                   |
+| `lang/*.json`                 | `package-build lang`.                                                                                     |
+| `.env.local`                  | `package-build deploy`.                                                                                   |
+| `.github/workflows/build.yml` | The `pre-push` hook, for its step list.                                                                   |
 
 Everything written goes under `build/`. Nothing the toolchain generates is
 committed.

@@ -19,10 +19,10 @@
  * and nothing here reads that list, so forgetting is silent. Every local check
  * passes, because locally the file is simply there.
  *
- * 17.1.0 shipped exactly that way: `labels.mjs` was added and not whitelisted,
- * so `package-build labels check` resolved to nothing and every consumer got
- * `ERR_MODULE_NOT_FOUND` on a command the release notes announced. The failure
- * surfaces only in a consumer, after publish, which is the worst place for it.
+ * A release has shipped exactly that way: a module was added and not
+ * whitelisted, so its command resolved to nothing and every consumer got
+ * `ERR_MODULE_NOT_FOUND`. The failure surfaces only in a consumer, after
+ * publish, which is the worst place for it.
  *
  * This reads the imports out of `bin/` and requires each one's root module to
  * be covered — by name, or by a directory entry that contains it. It is a
@@ -64,7 +64,7 @@ describe("the published package carries what its CLI imports", () => {
     it("finds the imports to check, so the guard cannot pass vacuously", () => {
         const imports = rootImports();
         expect(imports.size).toBeGreaterThan(5);
-        expect([...imports.keys()]).toContain("labels.mjs");
+        expect([...imports.keys()]).toContain("lang.mjs");
     });
 
     it("publishes every root module a `bin/` entry point imports", () => {

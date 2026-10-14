@@ -7,10 +7,8 @@
 # so the single-package-group reasoning a consumer's dependabot.yml carries
 # for that scope does not apply.
 #
-# No `labels:` is set. There is no closed label registry here (no
-# `.github/labels.yml`, no labels-sync workflow), so nothing would prune an
-# unmanaged label the way it does in the consumer repositories — Dependabot's
-# own default `dependencies` label is fine as-is.
+# No `labels:` is set. Dependabot's own default `dependencies` label is
+# fine as-is.
 #
 # `@foundryvtt/foundryvtt-cli` and `classic-level` are each their own
 # ungrouped single-package entry, ordered ahead of the housekeeping catch-all,

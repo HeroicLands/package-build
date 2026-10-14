@@ -20,7 +20,6 @@ import prettier from "prettier";
 import prettierConfig from "../prettier-config.mjs";
 import { CONFIG_FILENAMES, configFromData } from "./pack-config.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
-import { checkLabelRegistry } from "../labels.mjs";
 import { formatNoteFrontmatter } from "./note-format.mjs";
 
 /** Package kinds the initializer can create. */
@@ -94,13 +93,12 @@ function projectScripts(answers) {
         "serve:site": "run-s build:deps build:content-index build:site-content serve:site-html",
         "serve:site-html": "hugo server --source build/hugo",
         "build:book": "package-build pdf",
-        lint: "run-s lint:format lint:markdown lint:addresses lint:content-links lint:labels",
+        lint: "run-s lint:format lint:markdown lint:addresses lint:content-links",
         "lint:format": "package-build format",
         "lint:markdown": "package-build markdown",
         "lint:markdown:fix": "package-build markdown --fix",
         "lint:addresses": "package-build lint",
         "lint:content-links": "package-build links",
-        "lint:labels": "package-build labels check",
         format: "package-build format --write",
         "format:check": "package-build format",
         changeset: "changeset",
@@ -125,8 +123,7 @@ function projectScripts(answers) {
         "push:qa": "package-build deploy qa",
         "push:prod": "package-build deploy prod",
     });
-    scripts.lint =
-        "run-s lint:format lint:markdown lint:lang lint:addresses lint:content-links lint:labels";
+    scripts.lint = "run-s lint:format lint:markdown lint:lang lint:addresses lint:content-links";
     return scripts;
 }
 
@@ -295,14 +292,6 @@ function projectText(answers) {
             updateInternalDependencies: "patch",
             ignore: [],
         }),
-        ".github/labels.yml": YAML.stringify([
-            {
-                name: "documentation",
-                color: "0075ca",
-                description: "Documentation and author guides.",
-            },
-            { name: "devops", color: "e07b31", description: "Build, CI, and release work." },
-        ]),
         ".github/ISSUE_REPORTING.md": [
             "# Issue reporting",
             "",
@@ -314,12 +303,9 @@ function projectText(answers) {
             "",
             "Use the organization issue type for a bug, feature, task, spike, or epic.",
             "",
-            "## 3. Labels — the closed registry",
+            "## 3. Labels",
             "",
-            "| Label | Use it for |",
-            "| ----- | ---------- |",
-            "| `documentation` | Documentation and author guides. |",
-            "| `devops` | Build, CI, and release work. |",
+            "Labels are organization-level, defined in `HeroicLands/.github`.",
             "",
         ].join("\n"),
         ".github/workflows/build.yml": [
@@ -437,7 +423,6 @@ export function checkProject(rootDir) {
         "README.md",
         "LICENSE.md",
         ".changeset/config.json",
-        ".github/labels.yml",
         ".github/ISSUE_REPORTING.md",
         ".github/workflows/build.yml",
     ];
@@ -524,16 +509,6 @@ export function checkProject(rootDir) {
         add("assets/content", "the content tree is missing");
     } else if (!fs.readdirSync(contentRoot).some((file) => file.endsWith(".md"))) {
         add("assets/content", "the content tree has no notes");
-    }
-    const labelsPath = path.join(root, ".github/labels.yml");
-    const reportingPath = path.join(root, ".github/ISSUE_REPORTING.md");
-    if (fs.existsSync(labelsPath) && fs.existsSync(reportingPath)) {
-        const result = checkLabelRegistry({
-            registryText: fs.readFileSync(labelsPath, "utf8"),
-            docText: fs.readFileSync(reportingPath, "utf8"),
-        });
-        for (const finding of result.registry) add(".github/labels.yml", finding.message);
-        for (const finding of result.doc) add(".github/ISSUE_REPORTING.md", finding.message);
     }
     return findings;
 }

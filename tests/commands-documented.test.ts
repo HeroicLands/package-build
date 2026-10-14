@@ -229,7 +229,7 @@ const doc = fs.readFileSync(DOC_PATH, "utf8");
 describe("the command's real surface, extracted from source", () => {
     it("has 39 top-level commands", () => {
         const topLevel = nodes.filter((n) => n.path.length === 1);
-        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(39);
+        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(38);
     });
 
     it("includes `package-build site-root`", () => {
@@ -344,8 +344,8 @@ describe("docs/commands.md documents every command, action and option", () => {
     }
 });
 
-describe("the seven options named nowhere before this document", () => {
-    const required = ["coverage", "doc", "fields", "id", "references", "registry", "root"];
+describe("the five options named nowhere before this document", () => {
+    const required = ["coverage", "fields", "id", "references", "root"];
     for (const name of required) {
         it(`documents \`--${name}\``, () => {
             expect(doc.includes(`\`--${name}\``)).toBe(true);

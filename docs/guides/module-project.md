@@ -861,7 +861,7 @@ everything that reads the tree runs before everything that writes the stage.
 
 [`project-setup.md`](../project-setup.md) turns this into npm scripts, and covers
 everything a repository carries beyond the build itself: the git hooks, the
-changeset directory, the label registry, and what each script in the chain is
+changeset directory, and what each script in the chain is
 for.
 
 ## What comes next

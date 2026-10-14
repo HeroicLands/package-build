@@ -284,7 +284,7 @@ when it reports at least one `error`-severity diagnostic. A `warning` alone
 never fails a run.** `bin/report.mjs`'s `reportFindings` draws this line once
 for the commands built from the package's pure rule functions (`package-build
 lint`, `package-build lang check`, `package-build lang coverage`,
-`package-build yaml`, `package-build labels check`): it emits every finding
+`package-build yaml`): it emits every finding
 and returns only the count whose `severity` is `error`, and the command sets
 `process.exitCode = 1` exactly when that count is nonzero. Commands whose
 findings are hand-assembled — `package-build links`, `package-build
@@ -335,7 +335,6 @@ over one would teach people to stop reading the report.
 | `package-build lang check`                       | any localization finding is `error`-severity                                                                                                                                                                                                                       |
 | `package-build lang coverage`                    | a referenced key is missing (`error`-severity); an unreferenced key is always advisory and never fails the run                                                                                                                                                     |
 | `package-build yaml [paths..]`                   | any YAML finding is `error`-severity                                                                                                                                                                                                                               |
-| `package-build labels check`                     | the label registry and the documented table disagree on any label                                                                                                                                                                                                  |
 
 Every command also fails on a thrown error unrelated to a
 diagnostic — a missing configuration, an unreadable file, a network failure —
