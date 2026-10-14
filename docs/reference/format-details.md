@@ -3742,29 +3742,44 @@ The words, and what each means:
 | `blue`       | Blue       | Unmixed blue, from pale ice to deep sea.                                           |
 | `brown`      | Brown      | Mid-brown, the iris pattern still legible in ordinary light.                       |
 | `dark_brown` | Dark Brown | Brown so deep the iris barely separates from the pupil.                            |
+| `gold`       | Gold       | A bright metallic yellow iris, brighter and colder than `amber`.                   |
 | `grey`       | Grey       | Grey or grey-blue, cool and without green.                                         |
 | `green`      | Green      | Green dominant, with no brown ring worth naming.                                   |
 | `hazel`      | Hazel      | Brown and green together, often shifting with the light; the commonest mixed eye.  |
+| `red`        | Red        | An iris that is red, as in some undead and elder folk.                             |
+| `pink`       | Pink       | A pale pink or rose iris, as in albinism.                                          |
+| `silver`     | Silver     | A grey iris with a bright metallic sheen rather than a dull cast.                  |
 | `violet`     | Violet     | The pink-violet of an iris carrying no pigment.                                    |
+| `white`      | White      | An iris white or near-white, so that the eye reads pale throughout.                |
+| `yellow`     | Yellow     | A pale, flat yellow iris without the warmth of `amber`.                            |
 
 **`data.appearance.hair_color`**
 
-| Word               | Label            | Meaning                                                                   |
-| ------------------ | ---------------- | ------------------------------------------------------------------------- |
-| `auburn`           | Auburn           | Red-brown with the red dominant.                                          |
-| `black`            | Black            | True black, with no brown cast in sunlight.                               |
-| `blonde`           | Blonde           | Light yellow, from near-white to wheat.                                   |
-| `brown`            | Brown            | Mid-brown, neither dark nor reddish.                                      |
-| `chestnut`         | Chestnut         | Mid-brown with a red cast, the brown dominant — between brown and auburn. |
-| `dark_blonde`      | Dark Blonde      | Blonde darkened towards light brown.                                      |
-| `dark_brown`       | Dark Brown       | Brown approaching black, still brown in sunlight.                         |
-| `grey`             | Grey             | Grey throughout, with nothing of the original colour left to read.        |
-| `greying_black`    | Greying Black    | Black still dominant, grey coming in.                                     |
-| `greying_brown`    | Greying Brown    | Brown still dominant, grey coming in.                                     |
-| `red`              | Red              | Ginger or copper, the red unmixed with brown.                             |
-| `silver`           | Silver           | Grey with a bright metallic sheen rather than a dull cast.                |
-| `strawberry_blond` | Strawberry Blond | Pale red-gold: blonde with a red cast, lighter than red.                  |
-| `white`            | White            | Wholly white, whether from age or from carrying no pigment.               |
+| Word                       | Label                    | Meaning                                                                                                                      |
+| -------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `auburn`                   | Auburn                   | Red-brown with the red dominant.                                                                                             |
+| `black`                    | Black                    | True black, with no brown cast in sunlight.                                                                                  |
+| `blonde`                   | Blonde                   | Light yellow, from near-white to wheat.                                                                                      |
+| `brown`                    | Brown                    | Mid-brown, neither dark nor reddish.                                                                                         |
+| `chestnut`                 | Chestnut                 | Mid-brown with a red cast, the brown dominant — between brown and auburn.                                                    |
+| `dark_blonde`              | Dark Blonde              | Blonde darkened towards light brown.                                                                                         |
+| `dark_brown`               | Dark Brown               | Brown approaching black, still brown in sunlight.                                                                            |
+| `grey`                     | Grey                     | Grey throughout, with nothing of the original colour left to read.                                                           |
+| `greying_auburn`           | Greying Auburn           | Auburn still dominant, grey coming in.                                                                                       |
+| `greying_black`            | Greying Black            | Black still dominant, grey coming in.                                                                                        |
+| `greying_blonde`           | Greying Blonde           | Blonde still dominant, grey coming in.                                                                                       |
+| `greying_brown`            | Greying Brown            | Brown still dominant, grey coming in.                                                                                        |
+| `greying_chestnut`         | Greying Chestnut         | Chestnut still dominant, grey coming in.                                                                                     |
+| `greying_dark_blonde`      | Greying Dark Blonde      | Dark Blonde still dominant, grey coming in.                                                                                  |
+| `greying_dark_brown`       | Greying Dark Brown       | Dark Brown still dominant, grey coming in.                                                                                   |
+| `greying_light_brown`      | Greying Light Brown      | Light Brown still dominant, grey coming in.                                                                                  |
+| `light_brown`              | Light Brown              | Brown lightened toward dark blonde: paler than `brown`, darker than `dark_blonde`.                                           |
+| `greying_red`              | Greying Red              | Red still dominant, grey coming in.                                                                                          |
+| `greying_strawberry_blond` | Greying Strawberry Blond | Strawberry Blond still dominant, grey coming in.                                                                             |
+| `red`                      | Red                      | Ginger or copper, the red unmixed with brown.                                                                                |
+| `silver`                   | Silver                   | A bright metallic pale between white and grey: the silver of great age, or the natural silver some elder folk are born with. |
+| `strawberry_blond`         | Strawberry Blond         | Pale red-gold: blonde with a red cast, lighter than red.                                                                     |
+| `white`                    | White                    | Wholly white, whether from age or from carrying no pigment.                                                                  |
 
 **`data.appearance.skin_color`**
 

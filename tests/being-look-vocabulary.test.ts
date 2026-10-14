@@ -161,6 +161,13 @@ describe("a being's look takes its words from a closed vocabulary", () => {
             ["appearance.skin_color", "swarthy"],
             ["appearance.hair_color", "strawberry_blond"],
             ["appearance.eye_color", "black"],
+            ["appearance.eye_color", "red"],
+            ["appearance.eye_color", "gold"],
+            ["appearance.eye_color", "yellow"],
+            ["appearance.eye_color", "white"],
+            ["appearance.eye_color", "silver"],
+            ["appearance.eye_color", "pink"],
+            ["appearance.hair_color", "light_brown"],
         ];
         for (const [field, value] of added) {
             expect(
@@ -178,12 +185,42 @@ describe("a being's look takes its words from a closed vocabulary", () => {
             expect(findings, field).toHaveLength(1);
             expect(findings[0].message).toContain('Did you mean "grey"?');
         }
-        for (const value of ["greying_black", "greying_brown"]) {
+        for (const value of [
+            "greying_auburn",
+            "greying_black",
+            "greying_blonde",
+            "greying_brown",
+            "greying_chestnut",
+            "greying_dark_blonde",
+            "greying_dark_brown",
+            "greying_light_brown",
+            "greying_red",
+            "greying_strawberry_blond",
+        ]) {
             expect(findingsOn("appearance.hair_color", value), value).toEqual([]);
         }
         const graying = findingsOn("appearance.hair_color", "graying_brown");
         expect(graying).toHaveLength(1);
         expect(graying[0].message).toContain('Did you mean "greying_brown"?');
+    });
+
+    it("gives every hair colour but grey, silver and white a greying form", () => {
+        const words = LOOK["appearance.hair_color"] ?? [];
+        const values = new Set(words.map((word) => word.value));
+        const bases = words.filter(
+            (word) =>
+                !word.value.startsWith("greying_") &&
+                !["grey", "silver", "white"].includes(word.value),
+        );
+        expect(bases.length).toBeGreaterThan(0);
+        for (const base of bases) {
+            const greying = words.find((word) => word.value === `greying_${base.value}`);
+            expect(values.has(`greying_${base.value}`), base.value).toBe(true);
+            expect(greying?.label, base.value).toBe(`Greying ${base.label}`);
+            expect(greying?.describe, base.value).toBe(
+                `${base.label} still dominant, grey coming in.`,
+            );
+        }
     });
 
     it("admits a physical mark among the extra features", () => {
