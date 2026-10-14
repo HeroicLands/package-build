@@ -1,5 +1,32 @@
 # @heroiclands/package-build
 
+## 23.5.0
+
+### Minor Changes
+
+**Affiliations**
+
+- `package-build lint` requires every affiliation's ladder to have a level-0 rung for those it excludes, beside its level-1 members.
+
+**Provenance**
+
+- Every icon and image must be covered by a provenance record, and every record must state `ai: true` or `ai: false`; a package missing either now fails its build until it adds them.
+
+**What a Foundry package ships**
+
+- A package ships only the icons and images whose provenance says `ai: false` under a public-domain, CC0, CC-BY, CC-BY-SA or Noun Project Pro licence; everything else stays in the repository.
+- Shipped pictures sit flat at the package root as `icons/<file>` and `images/<file>`, and compendium documents and the website point there; remove any `packageBuild.assets` row copying `assets/icons` or `assets/images`, which is now refused.
+- `asset-sets/default.json` in the package lists the shipped pictures, and each release attaches `icons.zip` and `images.zip`.
+- A picture the package leaves out shows the package's `missing` stand-in, and every picture reference in a compiled document records which asset it is.
+- Items created without art get their default icon again, at its flat `icons/` location.
+- A package can ship pictures under further licences by listing them in `packageBuild.shippingLicenses`; the default list still applies and `ai: true` pictures never ship.
+
+### Patch Changes
+
+- New `package-build cdn publish --set <file> --name <name>` uploads every icon and image a package has to its CDN folder, flat, and publishes the art the package leaves out as a named asset set a world can add.
+- A second run uploads nothing, and `--dry-run` lists what would upload; the bucket is read from `CDN_ENDPOINT`, `CDN_BUCKET`, `CDN_ACCESS_KEY_ID` and `CDN_SECRET_ACCESS_KEY`.
+- The end-to-end container can run an S3-compatible server beside Foundry: set `FOUNDRYVTT_CONTAINER_S3=1` and a suite can exercise S3 storage.
+
 ## 23.4.1
 
 ### Patch Changes
