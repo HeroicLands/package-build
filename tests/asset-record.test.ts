@@ -71,6 +71,20 @@ function assetTree(files: Record<string, string>): string {
     return base;
 }
 
+/** A complete provenance record, as YAML text. */
+const COMPLETE = ["attribution: Tom Rodriguez", "license: CC-BY-SA-4.0", "ai: false"].join("\n");
+
+/**
+ * A throwaway asset tree in which every root carries a complete record, for a
+ * case about something other than provenance.
+ */
+function coveredTree(files: Record<string, string>): string {
+    const roots = Object.fromEntries(
+        ASSET_TYPES.map((entry) => [`${entry.root}/${PROVENANCE_FILE}`, COMPLETE]),
+    );
+    return assetTree({ ...roots, ...files });
+}
+
 /** The record for one canonical address, or `undefined`. */
 function recordFor(records: Record<string, any>[], canonical: string) {
     return records.find((r) => r.address?.canonical === canonical);
@@ -83,7 +97,7 @@ describe("the asset record names every field the emitter declares", () => {
     });
 
     it("emits exactly the declared fields on every record", () => {
-        const base = assetTree({
+        const base = coveredTree({
             "icons/lorc/anvil.svg": "<svg/>",
             "images/beings/thorn.webp": "webp",
             "audio/swoosh.ogg": "ogg",
@@ -114,7 +128,7 @@ describe("the asset record names every field the emitter declares", () => {
 
 describe("an address is derived from the file, and from nothing above it", () => {
     it("takes the type from the root and the shortcode from the filename", () => {
-        const base = assetTree({
+        const base = coveredTree({
             "icons/game-icons/lorc/anvil.svg": "<svg/>",
             "images/beings/creatures/drake.webp": "webp",
             "audio/effects/swoosh1.ogg": "ogg",
@@ -128,14 +142,14 @@ describe("an address is derived from the file, and from nothing above it", () =>
     });
 
     it("records a path that walks back to the file, root included", () => {
-        const base = assetTree({ "icons/game-icons/lorc/anvil.svg": "<svg/>" });
+        const base = coveredTree({ "icons/game-icons/lorc/anvil.svg": "<svg/>" });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
         expect(record.asset.path).toBe("icons/game-icons/lorc/anvil.svg");
         expect(fs.existsSync(path.join(base, ...record.asset.path.split("/")))).toBe(true);
     });
 
     it("publishes no page, so the address carries no slug", () => {
-        const base = assetTree({ "icons/anvil.svg": "<svg/>" });
+        const base = coveredTree({ "icons/anvil.svg": "<svg/>" });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
         expect(record.address.slug).toBeUndefined();
     });
@@ -151,6 +165,7 @@ describe("an address is derived from the file, and from nothing above it", () =>
             [`icons/${PROVENANCE_FILE}`]: [
                 "attribution: Tom Rodriguez",
                 "license: CC-BY-SA-4.0",
+                "ai: false",
             ].join("\n"),
         });
         const records = collectAssetRecords(base, { contentPackage: "sohl" });
@@ -158,7 +173,7 @@ describe("an address is derived from the file, and from nothing above it", () =>
     });
 
     it("indexes nothing for a directory that is not a root", () => {
-        const base = assetTree({ "ui/logo.webp": "webp", "fonts/plex.woff2": "font" });
+        const base = coveredTree({ "ui/logo.webp": "webp", "fonts/plex.woff2": "font" });
         expect(collectAssetRecords(base, { contentPackage: "sohl" })).toEqual([]);
     });
 
@@ -170,7 +185,7 @@ describe("an address is derived from the file, and from nothing above it", () =>
 
 describe("two files under one root cannot claim one address", () => {
     it("fails the build, naming both", () => {
-        const base = assetTree({
+        const base = coveredTree({
             "icons/lorc/anvil.svg": "<svg/>",
             "icons/delapouite/anvil.svg": "<svg/>",
         });
@@ -178,7 +193,7 @@ describe("two files under one root cannot claim one address", () => {
     });
 
     it("reports it rather than throwing when a reader supplies `problems`", () => {
-        const base = assetTree({
+        const base = coveredTree({
             "icons/lorc/anvil.svg": "<svg/>",
             "icons/delapouite/anvil.svg": "<svg/>",
         });
@@ -191,7 +206,7 @@ describe("two files under one root cannot claim one address", () => {
     });
 
     it("lets one basename sit in two roots, which are two namespaces", () => {
-        const base = assetTree({ "icons/anvil.svg": "<svg/>", "images/anvil.webp": "webp" });
+        const base = coveredTree({ "icons/anvil.svg": "<svg/>", "images/anvil.webp": "webp" });
         const records = collectAssetRecords(base, { contentPackage: "sohl" });
         expect(records.map((r) => r.address.canonical).sort()).toEqual([
             "sohl-none-icon-anvil",
@@ -200,7 +215,7 @@ describe("two files under one root cannot claim one address", () => {
     });
 
     it("refuses a filename that is not a shortcode", () => {
-        const base = assetTree({ "images/ibm-plex-mono-v20.webp": "webp" });
+        const base = coveredTree({ "images/ibm-plex-mono-v20.webp": "webp" });
         expect(() => collectAssetRecords(base, { contentPackage: "sohl" })).toThrow(/shortcode/);
     });
 });
@@ -213,6 +228,7 @@ describe("provenance resolves per address", () => {
                 "source: https://thenounproject.com/",
                 "license: LicenseRef-NounProject-Pro",
                 "notes: Obtained under a subscription.",
+                "ai: false",
             ].join("\n"),
             "icons/noun/deep/anvil.svg": "<svg/>",
         });
@@ -225,11 +241,15 @@ describe("provenance resolves per address", () => {
         // A record above the root would speak for trees it says nothing about,
         // so `assets/provenance.yaml` reaches no address.
         const base = assetTree({
-            [PROVENANCE_FILE]: ["attribution: Nobody", "license: CC0"].join("\n"),
+            [PROVENANCE_FILE]: ["attribution: Nobody", "license: CC0", "ai: false"].join("\n"),
             "icons/anvil.svg": "<svg/>",
         });
-        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        const problems: any[] = [];
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl", problems });
         expect(record.asset.attribution).toBe("");
+        expect(problems.map((p) => p.message)).toEqual([
+            expect.stringMatching(/no provenance record covers this file/),
+        ]);
     });
 
     // The nearest record is the whole answer, so a deeper one that states less
@@ -240,11 +260,13 @@ describe("provenance resolves per address", () => {
                 "attribution: Tom Rodriguez",
                 "license: CC-BY-SA-4.0",
                 "notes: everything in this tree",
+                "ai: false",
             ].join("\n"),
             [`icons/game-icons/${PROVENANCE_FILE}`]: [
                 "attribution: Lorc",
                 "license: CC-BY-3.0",
                 "source: https://game-icons.net",
+                "ai: false",
             ].join("\n"),
             "icons/game-icons/anvil.svg": "<svg/>",
         });
@@ -260,21 +282,29 @@ describe("provenance resolves per address", () => {
                 "attribution: Tom Rodriguez",
                 "license: CC-BY-SA-4.0",
                 "notes: everything in this tree",
+                "ai: true",
             ].join("\n"),
             "icons/anvil.svg": "<svg/>",
-            "icons/anvil.svg.yaml": ["attribution: Lorc", "license: CC-BY-3.0"].join("\n"),
+            "icons/anvil.svg.yaml": ["attribution: Lorc", "license: CC-BY-3.0", "ai: false"].join(
+                "\n",
+            ),
         });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
         expect(record.asset.attribution).toBe("Lorc");
         expect(record.asset.license).toBe("CC-BY-3.0");
+        expect(record.asset.ai).toBe(false);
         // Replaced, not merged: the inherited note does not survive, which is
         // the whole reason a sidecar is written rather than a nearer directory.
         expect(record.asset.notes).toBe("");
     });
 
     it("states every field, blank where nothing records one", () => {
-        const base = assetTree({ "images/thorn.webp": "webp" });
-        const [record] = collectAssetRecords(base, { contentPackage: "harnensemble" });
+        const base = assetTree({
+            "images/thorn.webp": "webp",
+            "images/thorn.webp.yaml": ["attribution: ", "license: CC0-1.0", "ai: false"].join("\n"),
+        });
+        const problems: any[] = [];
+        const [record] = collectAssetRecords(base, { contentPackage: "harnensemble", problems });
         for (const field of ASSET_RECORD_FIELDS) {
             // `ai` is the one field whose blank is a boolean rather than an
             // empty string — every other field states nothing by carrying "".
@@ -319,12 +349,6 @@ describe("provenance resolves per address", () => {
         });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
         expect(record.asset.ai).toBe(true);
-    });
-
-    it("defaults `ai` to false when nothing states it", () => {
-        const base = assetTree({ "images/thorn.webp": "webp" });
-        const [record] = collectAssetRecords(base, { contentPackage: "harnensemble" });
-        expect(record.asset.ai).toBe(false);
     });
 
     it.each(["yes", "1", "maybe"])(
@@ -435,6 +459,7 @@ describe("`role` names what a picture is for, and is closed to the `image` type"
                 [`images/${PROVENANCE_FILE}`]: [
                     "attribution: Tom Rodriguez",
                     "license: CC-BY-SA-4.0",
+                    "ai: false",
                     `role: ${role}`,
                 ].join("\n"),
                 "images/thorn.webp": "webp",
@@ -488,7 +513,7 @@ describe("`role` names what a picture is for, and is closed to the `image` type"
 
 describe("`width` and `height` come from the walk, not from provenance", () => {
     it("measures a raster file's own pixel dimensions", () => {
-        const base = assetTree({});
+        const base = coveredTree({});
         fs.mkdirSync(path.join(base, "images"), { recursive: true });
         fs.writeFileSync(path.join(base, "images", "thorn.png"), pngBytes(640, 480));
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
@@ -497,7 +522,7 @@ describe("`width` and `height` come from the walk, not from provenance", () => {
     });
 
     it("leaves an SVG's dimensions blank, rather than guessing from a viewBox", () => {
-        const base = assetTree({
+        const base = coveredTree({
             "images/thorn.svg": '<svg viewBox="0 0 640 480"></svg>',
         });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
@@ -512,6 +537,7 @@ describe("a renderer sizes a picture by the pathname it resolved to", () => {
             [`images/${PROVENANCE_FILE}`]: [
                 "attribution: Tom Rodriguez",
                 "license: CC-BY-SA-4.0",
+                "ai: false",
                 "role: portrait",
             ].join("\n"),
         });
@@ -528,7 +554,7 @@ describe("a renderer sizes a picture by the pathname it resolved to", () => {
     });
 
     it("carries a vector's blank width and height through rather than dropping them", () => {
-        const base = assetTree({
+        const base = coveredTree({
             "icons/anvil.svg": "<svg/>",
         });
         const records = collectAssetRecords(base, { contentPackage: "sohl" });
@@ -538,7 +564,7 @@ describe("a renderer sizes a picture by the pathname it resolved to", () => {
     });
 
     it("omits a role an asset never declared, rather than a blank one", () => {
-        const base = assetTree({
+        const base = coveredTree({
             "images/map.webp": "webp",
         });
         const records = collectAssetRecords(base, { contentPackage: "sohl" });

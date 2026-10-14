@@ -22,22 +22,18 @@ const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 describe("resolveImg (content → Foundry img path translation)", () => {
     it("prefixes a bundled `icons/` path with the system asset root", () => {
         expect(resolveImg("icons/game-icons/lorc/monkey.svg")).toBe(
-            "systems/sohl/assets/icons/game-icons/lorc/monkey.svg",
+            "systems/sohl/icons/monkey.svg",
         );
-        expect(resolveImg("icons/other/sword.svg")).toBe(
-            "systems/sohl/assets/icons/other/sword.svg",
-        );
+        expect(resolveImg("icons/other/sword.svg")).toBe("systems/sohl/icons/sword.svg");
     });
 
     it("prefixes a bundled `images/` path with the same asset root", () => {
-        expect(resolveImg("images/creatures/dragon.webp")).toBe(
-            "systems/sohl/assets/images/creatures/dragon.webp",
-        );
+        expect(resolveImg("images/creatures/dragon.webp")).toBe("systems/sohl/images/dragon.webp");
     });
 
     it("resolves a package-qualified pathname to that package's install path", () => {
         expect(resolveImg("sohl/assets/icons/game-icons/lorc/monkey.svg")).toBe(
-            "systems/sohl/assets/icons/game-icons/lorc/monkey.svg",
+            "systems/sohl/icons/monkey.svg",
         );
     });
 
@@ -98,7 +94,7 @@ describe("an asset path's first segment says which package owns it", () => {
         // default-art path in a compiled `sohl-thalorna` document reads
         // `systems/sohl/…` rather than being rewritten under the module.
         expect(resolveImg("sohl/assets/icons/noun/shield.svg")).toBe(
-            "systems/sohl/assets/icons/noun/shield.svg",
+            "systems/sohl/icons/shield.svg",
         );
     });
 
@@ -166,10 +162,10 @@ describe("resolveImg for a non-`sohl` consumer", () => {
         // has to resolve to a different served root. Nothing but configuration
         // decides which.
         expect(resolveImg("icons/game-icons/lorc/monkey.svg", moduleConfig)).toBe(
-            "modules/sohl-thalorna/assets/icons/game-icons/lorc/monkey.svg",
+            "modules/sohl-thalorna/icons/monkey.svg",
         );
         expect(resolveImg("images/maps/keep.webp", moduleConfig)).toBe(
-            "modules/sohl-thalorna/assets/images/maps/keep.webp",
+            "modules/sohl-thalorna/images/keep.webp",
         );
     });
 
@@ -177,7 +173,7 @@ describe("resolveImg for a non-`sohl` consumer", () => {
         // `thalorna` is what the content is called; `sohl-thalorna` is what
         // Foundry installs. A note writes the first and never the second.
         expect(resolveImg("thalorna/assets/icons/other/sword.svg", moduleConfig)).toBe(
-            "modules/sohl-thalorna/assets/icons/other/sword.svg",
+            "modules/sohl-thalorna/icons/sword.svg",
         );
         expect(() => resolveImg("", moduleConfig)).toThrow(/empty pathname/);
     });
@@ -191,7 +187,7 @@ describe("resolveImg for a non-`sohl` consumer", () => {
             "modules/sohl-thalorna/assets/artwork/deity.webp",
         );
         expect(resolveImg("sohl/assets/icons/noun/shield.svg", moduleConfig)).toBe(
-            "systems/sohl/assets/icons/noun/shield.svg",
+            "systems/sohl/icons/shield.svg",
         );
     });
 });
@@ -285,16 +281,16 @@ const beingNote = (data: Record<string, unknown>) => ({
 describe("an item note's art obeys the ownership rule", () => {
     it("joins the record's path onto this package's asset root", () => {
         expect(items().buildEntry(skillNote({ icon: "awareness" }), "").img).toBe(
-            "systems/sohl/assets/icons/awareness.webp",
+            "systems/sohl/icons/awareness.webp",
         );
         expect(items().buildEntry(skillNote({ icon: "headgear" }), "").img).toBe(
-            "systems/sohl/assets/icons/other/head-gear.svg",
+            "systems/sohl/icons/head-gear.svg",
         );
     });
 
     it("reads a qualified address as the same file a bare one names", () => {
         expect(items().buildEntry(skillNote({ icon: "sohl-none-icon-custom" }), "").img).toBe(
-            "systems/sohl/assets/icons/custom.svg",
+            "systems/sohl/icons/custom.svg",
         );
     });
 });
@@ -307,8 +303,8 @@ describe("an actor note's art obeys the ownership rule, on every slot", () => {
             "",
         );
 
-        expect(doc.img).toBe("systems/sohl/assets/icons/game-icons/delapouite/person.svg");
-        expect(doc.prototypeToken.texture.src).toBe("systems/sohl/assets/icons/folk-token.webp");
+        expect(doc.img).toBe("systems/sohl/icons/person.svg");
+        expect(doc.prototypeToken.texture.src).toBe("systems/sohl/icons/folk-token.webp");
     });
 
     it("writes no `system.portrait` — a being's portrait is an image in its prose", () => {

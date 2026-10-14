@@ -27,12 +27,13 @@
  * slug. A reader tells the two shapes apart by the `asset` block, which is what
  * {@link module:engine/index-records.isAssetRecord} asks.
  *
- * **`path` is what makes resolution one step.** The record is emitted by the
- * package holding the bytes, so its path is that package's path — relative to
- * that package's `assets/` directory — and each consumer joins its own root onto
- * it. Foundry prefixes `<kind>/<foundry id>/assets/`, the website its CDN prefix
- * for the package, the book the asset base it was configured with. Nothing has
- * to be looked up a second time.
+ * **`path` is the source path.** The record is emitted by the package holding
+ * the bytes, so its path is that package's path — relative to that package's
+ * `assets/` directory — and names where the file sits in the repository. The
+ * book stages from it. Foundry and the website serve the **deployed** layout
+ * instead, `<icons|images>/<basename>`, which follows from the same path by
+ * dropping the directories between the type root and the file — see
+ * {@link module:engine/asset-shipping}.
  *
  * **Provenance resolves per address**, and the rule is stated rather than
  * inferred from a directory:
@@ -43,8 +44,14 @@
  *    sidecar exists precisely because that answer is wrong for this one file.
  * 2. Otherwise the nearest `provenance.yaml`, searching the file's own directory
  *    and then its ancestors, stopping at the type root.
- * 3. Otherwise nothing, and the record's provenance fields are blank. A package
- *    that records no attribution is a fact to state, not a walk to fail.
+ * 3. Otherwise nothing — and a file no record covers is a **finding** at the
+ *    file. Every asset states who holds its rights, the terms it is used under
+ *    and whether it is machine-generated, because the stage decides from those
+ *    three answers whether the file ships.
+ *
+ * Resolution is **per file**, never per folder. One directory routinely holds
+ * files covered by its own `provenance.yaml` beside files a sidecar answers for,
+ * so nothing reads one file's answer as its neighbour's.
  *
  * An unknown key in a provenance file is a **finding** rather than a silent
  * drop: `licence` beside `license` is otherwise an attribution record that looks
@@ -66,7 +73,7 @@ import path from "node:path";
 import YAML from "yaml";
 
 import { canonicalKey } from "./content-address.mjs";
-import { positionOfYamlPath } from "./diagnostics.mjs";
+import { formatDiagnostic, positionOfYamlPath } from "./diagnostics.mjs";
 import { ASSET_SYSTEM, ASSET_TYPES, imageDimensions, isAssetShortcode } from "./asset-types.mjs";
 
 /**
@@ -164,10 +171,12 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "ai",
         from: "provenance",
+        required: true,
         type: "boolean",
         describe:
             "Whether the file is machine-generated — the YAML boolean `true` " +
-            "or `false`, never a string.",
+            "or `false`, never a string. Required: a record that does not say " +
+            "is a finding, never read as `false`.",
     }),
     Object.freeze({
         name: "license",
@@ -258,6 +267,17 @@ const PROVENANCE_FIELD_BY_KEY = new Map(
 );
 
 /**
+ * What a file carries when its record omits a required key, by key.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+const MISSING_KEY_CONSEQUENCE = Object.freeze({
+    attribution: "no attribution",
+    license: "no licence",
+    ai: "no statement of whether it is machine-generated — and an unstated `ai` is never read as `false`, so none of them ships",
+});
+
+/**
  * Read one provenance file, reporting every key that is not a provenance key.
  *
  * @param {string} file - The provenance file.
@@ -289,7 +309,9 @@ function readProvenanceFile(file, findings) {
         });
         return {};
     }
-    if (parsed == null) return {};
+    // An empty file is a record that states nothing, and is held to the
+    // required keys below like any other.
+    if (parsed == null) parsed = {};
     if (typeof parsed !== "object" || Array.isArray(parsed)) {
         findings.push({
             file,
@@ -357,21 +379,24 @@ function readProvenanceFile(file, findings) {
     }
 
     // A record resolves wholesale — the nearest one is the whole answer, and no
-    // ancestor fills a key it leaves out. So an omitted `attribution` or
-    // `license` is not a value inherited from above; it is a file with no stated
-    // rights holder and no stated terms, which is the one thing a provenance
-    // record exists to prevent. Reported against the file rather than a line,
-    // because the fault is an absence and has no position.
+    // ancestor fills a key it leaves out. So an omitted `attribution`, `license`
+    // or `ai` is not a value inherited from above; it is a file with no stated
+    // rights holder, no stated terms, or no statement of whether a machine made
+    // it, which is the one thing a provenance record exists to prevent.
+    // Reported against the file rather than a line, because the fault is an
+    // absence and has no position. An `ai` that is present but not a boolean
+    // already has its own finding above.
     for (const key of REQUIRED_PROVENANCE_KEYS) {
-        if (out[key]) continue;
+        const field = PROVENANCE_FIELD_BY_KEY.get(key);
+        const stated = field?.type === "boolean" ? Object.hasOwn(parsed, key) : Boolean(out[key]);
+        if (stated) continue;
         findings.push({
             file,
             severity: "error",
             message:
                 `a provenance record states \`${key}\`, and this one does not. ` +
                 "A record replaces rather than extends the one above it, so every " +
-                "file it covers would carry no " +
-                (key === "license" ? "licence" : key),
+                `file it covers would carry ${MISSING_KEY_CONSEQUENCE[key] ?? `no ${key}`}`,
         });
     }
     return out;
@@ -497,8 +522,9 @@ function* walkAssetRoot(rootDir, extensions) {
  *   asserts that the address does not exist.
  * @returns {Array<Record<string, any>>} One record per addressable file, in walk
  *   order; the caller imposes the index's total order.
- * @throws {Error} When a file cannot be addressed and no `problems` array was
- *   supplied. `file` rides on the error.
+ * @throws {Error} When any finding is made and no `problems` array was
+ *   supplied. Its message is every finding as a located diagnostic line, one
+ *   per line; `file` and `position` name the first.
  */
 export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
     const records = [];
@@ -548,6 +574,17 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
                     // ancestor walk is not consulted when one is present.
                 :   inheritedProvenance(path.dirname(absPath), rootDir, cache, findings);
 
+            if (provenance === null) {
+                report(
+                    absPath,
+                    `no provenance record covers this file — add \`${path.basename(absPath)}` +
+                        `${PROVENANCE_SIDECAR_SUFFIX}\` beside it, or a \`${PROVENANCE_FILE}\` ` +
+                        `in its directory or one above it up to ${root}/. Every asset states ` +
+                        "its attribution, its licence and whether it is machine-generated, " +
+                        "and the stage ships a file only on those answers",
+                );
+            }
+
             for (const field of ASSET_RECORD_FIELDS) {
                 if (field.onlyType && field.onlyType !== type && provenance?.[field.name]) {
                     report(
@@ -584,10 +621,14 @@ export function collectAssetRecords(assetsBase, { contentPackage, problems }) {
 
     if (findings.length) {
         if (!problems) {
+            // Every finding, each a located diagnostic line, so a tree with a
+            // dozen uncovered files is fixed in one pass rather than one
+            // rebuild per file.
             const first = findings[0];
-            const err = new Error(first.message);
+            const err = new Error(findings.map(formatDiagnostic).join("\n"));
             err.file = first.file;
             if (first.line) err.position = { line: first.line, column: first.column };
+            /** @type {any} */ (err).located = true;
             throw err;
         }
         problems.push(...findings);

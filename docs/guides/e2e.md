@@ -159,3 +159,41 @@ major version or moving tag is refused, because the result must name the
 build actually tested. A passing sweep provides evidence for choosing a
 new `compatibility.verified` value; a routine run exercises the pinned
 minimum build.
+
+## An S3 server for the container
+
+A suite that exercises S3 storage needs an S3-compatible server the browser and
+Foundry both reach. Setting `FOUNDRYVTT_CONTAINER_S3=1` when a container is
+created (`start`, `recreate`; through `e2e:fast --recreate` as well) provides one.
+Without it nothing changes: no network, no server, no extra environment.
+
+With it, before Foundry starts:
+
+- A user-defined network named `<container>-net` is created, and the Foundry
+  container is created on it.
+- A SeaweedFS server (`chrislusf/seaweedfs:3.80`) named `<container>-s3` joins
+  the network under the alias `s3.localhost` and publishes port 8333. Chromium
+  resolves every `*.localhost` name to loopback, so `http://s3.localhost:8333`
+  reaches the server from the browser and, through the alias, from the
+  container. Its CORS allows every origin.
+- The bucket `sohl-e2e` is created. Anonymous read and the test credentials come
+  from the identities file the server is started with.
+- The repository's `cypress/s3/aws-e2e.json` is copied into the data root's
+  `Config/`, and the container is created with `FOUNDRY_AWS_CONFIG=aws-e2e.json`.
+
+The repository supplies both files: `cypress/s3/s3-identities.json` (the
+SeaweedFS identities, including an `anonymous` identity with `Read`) and
+`cypress/s3/aws-e2e.json` (Foundry's `awsConfig`, pointing at
+`http://s3.localhost:8333`). The credentials are test-only. A missing file stops
+the start and names it.
+
+```bash
+FOUNDRYVTT_CONTAINER_S3=1 npm run e2e:fast -- --recreate
+```
+
+The container's environment is fixed when it is created, so an existing
+container started with the variable set joins the network but keeps the
+environment it was created with; `--recreate` applies `FOUNDRY_AWS_CONFIG`.
+`package-build container <stage> rm` with the variable set removes the server
+and the network along with the container. The server is otherwise left running
+between runs, bucket intact.

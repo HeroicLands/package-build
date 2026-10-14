@@ -24,14 +24,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { Actors } from "../sohl/actors.mjs";
-import { DEFAULT_ITEM_ART } from "../sohl/default-item-art.mjs";
+import { defaultItemArt } from "../sohl/default-item-art.mjs";
+import { resolveImg } from "../engine/helpers.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 
 /** This package's own root — where its test fixtures live. */
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /** An `affiliation`'s default art, in the form a compiled document carries. */
-const AFFILIATION_ART = `systems/${DEFAULT_ITEM_ART.affiliation}`;
+const AFFILIATION_ART = resolveImg(defaultItemArt("affiliation"));
 
 /**
  * A compile index carrying one `image` asset, so an `icon` slot's authored
@@ -116,7 +117,7 @@ describe("an icon slot naming a type outside its default", () => {
                 "",
             );
             expect(pass.errorCount).toBe(0);
-            expect(doc.items[0].img).toBe("systems/sohl/assets/images/deities/agrik.webp");
+            expect(doc.items[0].img).toBe("systems/sohl/images/agrik.webp");
         });
     });
 

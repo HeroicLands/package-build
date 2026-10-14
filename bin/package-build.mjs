@@ -61,6 +61,7 @@
  *   npx package-build bundle check
  *   npx package-build release
  *   npx package-build deploy <stage>
+ *   npx package-build cdn publish --set <file> --name <display name> [--dry-run]
  *   npx package-build container <stage> <action>
  *   npx package-build e2e <seed|run|open|fast|sweep>
  *
@@ -87,13 +88,25 @@ import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
 import { checkForeignAssetBindings } from "../engine/asset-bindings.mjs";
-import { emitDiagnostic, formatDiagnostic } from "../engine/diagnostics.mjs";
+import { emitDiagnostic, formatDiagnostic, positionOfYamlPath } from "../engine/diagnostics.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, resetStage, stageAssets } from "../stage.mjs";
+import { rowsStagingPictureRoots, stagePackageAssets } from "../engine/asset-shipping.mjs";
 import { baseStyleStageEntry } from "../engine/base-styles.mjs";
+import {
+    CDN_ENV,
+    cdnCredentials,
+    noteArtFindings,
+    noteArtReferences,
+    planCdnPublish,
+    publicStore,
+    publishToCdn,
+    s3Store,
+    setFileProblem,
+} from "../engine/cdn-publish.mjs";
 import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
 import { emitCalendarArtifacts } from "../engine/calendar-artifacts.mjs";
 import { dateFromCalendar, dateToCalendar } from "../engine/date-conversion.mjs";
@@ -422,6 +435,62 @@ function cleanCommand() {
 }
 
 /**
+ * A finding for each `packageBuild.assets` row that would stage a picture root
+ * itself, located at the row's `from` when the configuration is YAML.
+ *
+ * @param {readonly {from: string, to: string}[]} rows - The configured rows.
+ * @param {{rootDir: string, assetsBase: string}} opts - Where they resolve.
+ * @returns {object[]} The findings.
+ */
+function pictureRootRowFindings(rows, { rootDir, assetsBase }) {
+    const offending = rowsStagingPictureRoots(rows, { rootDir, assetsBase });
+    if (!offending.length) return [];
+    const file = packConfigPath();
+    const text =
+        file.endsWith(".yaml") || file.endsWith(".yml") ? fs.readFileSync(file, "utf8") : "";
+    return offending.map(({ index, from, root }) => ({
+        file,
+        ...(text ? positionOfYamlPath(text, ["packageBuild", "assets", index, "from"]) : {}),
+        severity: "error",
+        message:
+            `\`packageBuild.assets[${index}]\` copies \`${from}\`, which reaches ${root}/ — ` +
+            "the stage copies the icon and image roots itself, flat and filtered by " +
+            "each file's provenance, so a row copying them would ship every file " +
+            "unfiltered. Remove the row",
+    }));
+}
+
+/**
+ * The repository's `packageBuild.assetTransform`, loaded.
+ *
+ * One loader for every command that writes a picture, so the stage and the CDN
+ * hold the same bytes for the same file.
+ *
+ * @param {object} config - The resolved package-build configuration.
+ * @returns {Promise<((sourcePath: string) => string|null|undefined)|undefined>}
+ *   The transform, or `undefined` when the repository names none.
+ */
+async function loadAssetTransform(config) {
+    if (!config.assetTransform) return undefined;
+    const module = await import(`file://${config.assetTransform}`).catch((err) =>
+        die(
+            `cannot load \`packageBuild.assetTransform\` ` +
+                `(${config.assetTransform}): ${err.message}`,
+        ),
+    );
+    const transform = module.transform;
+    if (typeof transform !== "function") {
+        die(
+            `\`packageBuild.assetTransform\` ` +
+                `(${config.assetTransform}) exports no \`transform\` ` +
+                `function. It must export ` +
+                `\`transform(sourcePath) -> string | null\`.`,
+        );
+    }
+    return transform;
+}
+
+/**
  * `assets` — stage the repository's static files into the package root.
  *
  * The table is data (`packageBuild.assets`). A repository that has to *change*
@@ -440,37 +509,22 @@ function assetsCommand() {
         builder: (y) => y,
         handler: handler(async () => {
             const config = loadPackageBuildConfig();
-            if (!config.assets.length && !config.baseStyles) {
-                console.log("package-build: no `packageBuild.assets` declared; nothing to stage.");
-                return;
-            }
-            const bindings = checkForeignAssetBindings(loadPackConfig(), {
-                assets: config.assets,
-            });
-            if (bindings.length) {
-                const error = new Error(bindings.map(formatDiagnostic).join("\n"));
+            const packConfig = loadPackConfig();
+            const assetsBase = packConfig.paths.assets;
+            const findings = [
+                ...pictureRootRowFindings(config.assets, {
+                    rootDir: config.rootDir,
+                    assetsBase,
+                }),
+                ...checkForeignAssetBindings(packConfig, { assets: config.assets }),
+            ];
+            if (findings.length) {
+                const error = new Error(findings.map(formatDiagnostic).join("\n"));
                 error.located = true;
                 die(error);
             }
 
-            let transform;
-            if (config.assetTransform) {
-                const module = await import(`file://${config.assetTransform}`).catch((err) =>
-                    die(
-                        `cannot load \`packageBuild.assetTransform\` ` +
-                            `(${config.assetTransform}): ${err.message}`,
-                    ),
-                );
-                transform = module.transform;
-                if (typeof transform !== "function") {
-                    die(
-                        `\`packageBuild.assetTransform\` ` +
-                            `(${config.assetTransform}) exports no \`transform\` ` +
-                            `function. It must export ` +
-                            `\`transform(sourcePath) -> string | null\`.`,
-                    );
-                }
-            }
+            const transform = await loadAssetTransform(config);
 
             // `to:` is relative to the staged package root, so a
             // repository's table reads `lang`, not `build/stage/lang`.
@@ -482,6 +536,35 @@ function assetsCommand() {
                 cwd: config.rootDir,
                 transform,
             });
+
+            // The picture roots, staged by the toolchain rather than by a row:
+            // flat, filtered by each file's provenance, and listed in the
+            // package's asset set.
+            const pictures = stagePackageAssets({
+                assetsBase,
+                contentPackage: packConfig.contentPackage,
+                stageDir: path.resolve(config.rootDir, config.stageDir),
+                // The manifest's title names the set; a package with none is
+                // named by its content package.
+                title:
+                    typeof config.manifest?.title === "string" && config.manifest.title.trim() ?
+                        config.manifest.title
+                    :   packConfig.contentPackage,
+                transform,
+                shippingLicenses: config.shippingLicenses,
+            });
+            if (pictures.findings.length) {
+                const error = new Error(pictures.findings.map(formatDiagnostic).join("\n"));
+                error.located = true;
+                die(error);
+            }
+            files += pictures.staged.length;
+            if (pictures.staged.length || pictures.excluded.length) {
+                console.log(
+                    `Pictures: ${pictures.staged.length} staged, ` +
+                        `${pictures.excluded.length} left out by provenance.`,
+                );
+            }
 
             // Staged in its own pass, without the repository's transform: the
             // sheet is this toolchain's file rather than one of the
@@ -1464,6 +1547,9 @@ function releaseCommand() {
                     }),
                 );
             }
+            for (const archive of result.pictures ?? []) {
+                console.log(`🖼  Pictures: ${path.relative(config.rootDir, archive)}`);
+            }
             for (const pdf of result.pdfs ?? []) {
                 console.log(`📕 Book: ${path.relative(config.rootDir, pdf)}`);
             }
@@ -1531,6 +1617,150 @@ function deployCommand() {
                 });
             }
         }),
+    };
+}
+
+/**
+ * `cdn publish` — upload every picture the package has to the CDN, and the art
+ * the package leaves out as a named asset set.
+ *
+ * The one writer to `<site.assets>/<package>/`. It is run by hand or by a
+ * dispatched workflow, never by a build or a release. The store is named by
+ * the `CDN_*` variables in `CDN_ENV`, read from the environment or
+ * `.env.local`; a dry run with none of them set compares against the public
+ * CDN instead.
+ *
+ * @returns {object} The yargs command module.
+ */
+function cdnPublishCommand() {
+    return {
+        command: "publish",
+        describe: "Upload every picture to the CDN and write a named asset set",
+        builder: (y) =>
+            y
+                .option("set", {
+                    type: "string",
+                    demandOption: true,
+                    describe: "The set file's name under the package's CDN root, e.g. ai-art.json",
+                })
+                .option("name", {
+                    type: "string",
+                    demandOption: true,
+                    describe: "The set's display name",
+                })
+                .option("dry-run", {
+                    type: "boolean",
+                    default: false,
+                    describe: "List what would upload and what is skipped; write nothing",
+                }),
+        handler: handler(async (args) => {
+            const config = loadPackageBuildConfig();
+            const packConfig = loadPackConfig();
+            await loadEnvironment(config);
+
+            const setProblem = setFileProblem(args.set);
+            if (setProblem) die(setProblem);
+            const name = String(args.name ?? "").trim();
+            if (!name) die("`--name` is blank; a set needs a display name");
+            const host = String(packConfig.site?.assets ?? "").trim();
+            if (!host) {
+                die(
+                    "`site.assets` is not declared, and it is the CDN root every picture " +
+                        "is published under",
+                );
+            }
+            const credentials = cdnCredentials(process.env);
+            if (!credentials && !args.dryRun) {
+                die(
+                    `no CDN store is configured: set ${Object.values(CDN_ENV).join(", ")} ` +
+                        "in the environment or `.env.local`",
+                );
+            }
+
+            const plan = planCdnPublish({
+                assetsBase: packConfig.paths.assets,
+                contentPackage: packConfig.contentPackage,
+                host,
+                setFile: args.set,
+                setName: name,
+                transform: await loadAssetTransform(config),
+                shippingLicenses: config.shippingLicenses,
+            });
+            if (plan.findings.length) {
+                const located = plan.findings.map((finding) => ({
+                    ...finding,
+                    file:
+                        path.isAbsolute(finding.file) ?
+                            path.relative(process.cwd(), finding.file)
+                        :   finding.file,
+                }));
+                reportFindings(located, {});
+                process.exitCode = 1;
+                return;
+            }
+            const excluded = new Set(
+                plan.uploads.filter((upload) => !upload.shipped).map((upload) => upload.record),
+            );
+            const references = noteArtReferences({
+                contentBase: packConfig.paths.content,
+                skipDirectories: packConfig.skipDirectories,
+                contentPackage: packConfig.contentPackage,
+                records: plan.records,
+            });
+
+            const store = credentials ? s3Store(credentials) : publicStore(host);
+            console.log(
+                `${args.dryRun ? "Dry run: comparing" : "Publishing"} ${plan.uploads.length} ` +
+                    `pictures against ${store.describe}.`,
+            );
+            const result = await publishToCdn(plan, {
+                store,
+                dryRun: args.dryRun,
+                log: (line) => console.log(`  ${line}`),
+            });
+            const failures = result.failed.map(({ upload, message }) => ({
+                file: path.relative(
+                    process.cwd(),
+                    path.join(packConfig.paths.assets, ...upload.record.asset.path.split("/")),
+                ),
+                severity: "error",
+                message: `${upload.key} did not upload: ${message}`,
+            }));
+            const failedCount = reportFindings(
+                [
+                    ...failures,
+                    ...noteArtFindings(references, {
+                        contentPackage: packConfig.contentPackage,
+                        published: result.published,
+                        excluded,
+                    }),
+                ],
+                {},
+            );
+            if (failedCount > 0) process.exitCode = 1;
+            const set = /** @type {NonNullable<typeof plan.set>} */ (plan.set);
+            const setState =
+                result.set === "skipped" ? "unchanged"
+                : result.set === "withheld" ? "withheld"
+                : args.dryRun ? "would change"
+                : "written";
+            console.log(
+                `${args.dryRun ? "Would upload" : "Uploaded"} ${result.uploaded.length}, ` +
+                    `skipped ${result.skipped.length}, failed ${result.failed.length}; ` +
+                    `${plan.cdnRoot}${args.set} lists ` +
+                    `${set.set.assets.length} left-out pictures (${setState}).`,
+            );
+        }),
+    };
+}
+
+/** Publish the package's pictures to the CDN. */
+function cdnCommand() {
+    return {
+        command: "cdn <action>",
+        describe: "Publish the package's pictures to the CDN",
+        builder: (yargs) => yargs.command(cdnPublishCommand()).demandCommand(1).strict(),
+        handler: () => {},
     };
 }
 
@@ -1749,6 +1979,7 @@ registerContentCommands(
         .command(bundleCommand())
         .command(releaseCommand())
         .command(deployCommand())
+        .command(cdnCommand())
         .command(containerCommand())
         .command(e2eCommand()),
 )

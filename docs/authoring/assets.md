@@ -26,15 +26,30 @@ The embed's label is alternative text. `![[icon-harbor|]]` is decorative. `size=
 
 ## Ownership and source records
 
-Record provenance for the assets you ship. Put `provenance.yaml` in an asset directory to describe files there and below, or put a YAML sidecar beside one asset to give that file its own record. A sidecar takes precedence over a directory record for that asset. An asset with no record still enters the index with blank provenance fields. Keep attribution with the authored asset so movement through the tree does not lose its source or license. See the [asset record reference](../reference/format-details.md#the-asset-record) for the accepted keys, inheritance, and examples.
+Every asset is covered by a provenance record. Put `provenance.yaml` in an asset directory to describe files there and below, or put a YAML sidecar named for the whole filename — `anvil.svg.yaml` — beside one asset to give that file its own record. A sidecar replaces the directory record for that asset; otherwise the nearest `provenance.yaml` in the file's directory or one above it, up to the type root, answers. Each file resolves on its own, so a directory may hold files its `provenance.yaml` covers beside files a sidecar answers for. A file no record covers is an error at the file. Keep attribution with the authored asset so movement through the tree does not lose its source or license. See the [asset record reference](../reference/format-details.md#the-asset-record) for the accepted keys, inheritance, and examples.
+
+Every record states `attribution`, `license` and `ai` — whether a machine made the file, as the YAML boolean `true` or `false`. A record that leaves `ai` out is an error at the record; it is never read as `false`.
+
+```yaml
+attribution: Tom Rodriguez
+license: CC-BY-SA-4.0
+ai: false
+```
 
 A directory of portraits also states what the pictures in it are for:
 
 ```yaml
 attribution: Tom Rodriguez
 license: CC-BY-SA-4.0
+ai: false
 role: portrait
 ```
+
+## What the Foundry package ships
+
+The repository keeps every picture; the Foundry package carries a filtered copy, laid out flat. A picture ships when its record says `ai: false` and its licence is one of `LicenseRef-PublicDomain`, `CC0-1.0`, `CC0`, `CC-BY-3.0`, `CC-BY-4.0`, `CC-BY-SA-4.0` or `LicenseRef-NounProject-Pro`, together with any licence the package adds under `packageBuild.shippingLicenses`. A shipped picture sits at `icons/<basename>` or `images/<basename>` at the package root, whatever directories it is kept in here, and the package's asset set, `asset-sets/default.json`, lists what it ships.
+
+A note may still name a picture the package does not ship. Its compiled document draws the package's stand-in instead — `icons/missing.<ext>` or `images/missing.<ext>`, which you provide as an ordinary human-made picture licensed to ship, addressed `<package>-none-icon-missing` and `<package>-none-image-missing` — and keeps the real picture's address, so a world that holds the real file can point back at it. A package that leaves out a picture a note names, and ships no stand-in of that type, fails the build at the note. See [what a package ships](../reference/format-details.md#what-a-package-ships).
 
 **A hero image is 1792×768.** `data.banner` fills one fixed strip wherever it is drawn, so every banner is cut to that size and a picture of any other size is a finding naming both sizes — resize the picture to match. That is the one size any art field requires.
 

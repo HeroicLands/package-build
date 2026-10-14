@@ -44,7 +44,7 @@ function treeWith(shortcode: string, width: number, height: number): string {
     fs.mkdirSync(path.join(base, "images"), { recursive: true });
     fs.writeFileSync(
         path.join(base, "images", PROVENANCE_FILE),
-        "attribution: Tom Rodriguez\nlicense: CC-BY-SA-4.0\n",
+        "attribution: Tom Rodriguez\nlicense: CC-BY-SA-4.0\nai: false\n",
     );
     fs.writeFileSync(path.join(base, "images", `${shortcode}.png`), pngBytes(width, height));
     return base;
@@ -113,7 +113,7 @@ describe("the size a hero image is cut to", () => {
         fs.mkdirSync(path.join(base, "images"), { recursive: true });
         fs.writeFileSync(
             path.join(base, "images", PROVENANCE_FILE),
-            "attribution: Tom Rodriguez\nlicense: CC-BY-SA-4.0\n",
+            "attribution: Tom Rodriguez\nlicense: CC-BY-SA-4.0\nai: false\n",
         );
         fs.writeFileSync(path.join(base, "images", "dawn.svg"), '<svg viewBox="0 0 10 10"></svg>');
         expect(

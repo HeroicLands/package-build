@@ -24,7 +24,10 @@
  * by what the manifest says, not chosen here — see `manifest.mjs`. A package
  * that publishes a DataModel schema (`packageBuild.schema`, staged through
  * `packageBuild.assets`) gets a fourth: `schema.json`, published whenever the
- * stage carries one and silently skipped otherwise.
+ * stage carries one and silently skipped otherwise. A package that stages
+ * pictures gets `icons.zip` and `images.zip` as well: each picture root of the
+ * stage with the package's asset set, `asset-sets/default.json`, for a GM
+ * placing the files by hand.
  *
  * Kept apart from `stage.mjs` because this is the only part of assembling a
  * package that needs a dependency. A repository that never cuts a release from
@@ -44,6 +47,7 @@ import path from "node:path";
 import { ZipArchive } from "archiver";
 
 import { SCHEMA_ARTIFACT_FILE } from "./engine/foreign-catalog.mjs";
+import { DEPLOYED_ASSET_TYPES, SHIPPED_SET_FILE } from "./engine/asset-shipping.mjs";
 
 /** The earliest instant a zip entry's date field can hold. */
 const ZIP_EPOCH_MS = Date.UTC(1980, 0, 1);
@@ -74,9 +78,10 @@ function archiveDate() {
  * @param {import("archiver").ZipArchive} archive
  * @param {string} root - The directory whose contents become the archive.
  * @param {Date} date - The date recorded on every entry.
+ * @param {string} [prefix] - Prepended to every entry's name, `/`-terminated.
  * @returns {Promise<void>}
  */
-async function appendTree(archive, root, date) {
+async function appendTree(archive, root, date, prefix = "") {
     /** @param {string} rel - Path relative to `root`, `/`-separated, or "". */
     async function walk(rel) {
         const entries = await fsp.readdir(path.join(root, rel), { withFileTypes: true });
@@ -88,11 +93,15 @@ async function appendTree(archive, root, date) {
         for (const entry of entries) {
             const name = rel ? `${rel}/${entry.name}` : entry.name;
             if (entry.isDirectory()) {
-                archive.append(Buffer.alloc(0), { name: `${name}/`, date, mode: 0o755 });
+                archive.append(Buffer.alloc(0), {
+                    name: `${prefix}${name}/`,
+                    date,
+                    mode: 0o755,
+                });
                 await walk(name);
             } else {
                 const body = await fsp.readFile(path.join(root, name));
-                archive.append(body, { name, date, mode: 0o644 });
+                archive.append(body, { name: `${prefix}${name}`, date, mode: 0o644 });
             }
         }
     }
@@ -123,9 +132,10 @@ async function appendTree(archive, root, date) {
  * @param {boolean} [opts.pdf] - Whether to build the books that ship beside the
  *   archive. `true` by default; `false` skips the build and reports the skip.
  * @returns {Promise<{zip: string, manifest: string, metadata?: string,
- *   schema?: string, pdfs: string[], pdfFindings: object[], pdfSkipped: string|null,
- *   bytes: number, version: string}>} The paths written, what the book build
- *   found, the archive's size, and the version the manifest declares.
+ *   schema?: string, pictures: string[], pdfs: string[], pdfFindings: object[],
+ *   pdfSkipped: string|null, bytes: number, version: string}>} The paths
+ *   written, what the book build found, the archive's size, and the version
+ *   the manifest declares. `pictures` is each picture archive written.
  *   `metadata` is absent when the manifest advertises no content index,
  *   `schema` is absent when the stage carries no `schema.json`, and `pdfs` is
  *   every book's PDF that was written, in declared order. `pdfSkipped` is
@@ -184,6 +194,7 @@ export async function packRelease({
 
     const metadata = await publishMetadataIndex({ manifest, stage, out, metadataDir });
     const schema = await publishSchemaAsset({ stage, out });
+    const pictures = await publishPictureArchives({ stage, out });
 
     // Last, and never fatal: the archive and the manifest are the release, and
     // a book that failed to set is a reported problem rather than a reason to
@@ -198,6 +209,7 @@ export async function packRelease({
         manifest: path.join(out, manifestName),
         ...(metadata ? { metadata } : {}),
         ...(schema ? { schema } : {}),
+        pictures,
         pdfs: book.pdfs,
         pdfFindings: book.findings,
         pdfSkipped: book.pdfs.length ? null : book.reason,
@@ -323,4 +335,54 @@ async function publishSchemaAsset({ stage, out }) {
     const dest = path.join(out, SCHEMA_ARTIFACT_FILE);
     await fsp.copyFile(src, dest);
     return dest;
+}
+
+/**
+ * Zip each picture root of the stage, with its asset set, beside the
+ * archive — `icons.zip` and `images.zip`.
+ *
+ * Each archive unpacks at a location's root: `icons/` or `images/`, and the
+ * `asset-sets/default.json` listing every picture the package ships. A stage
+ * with no such set staged no pictures and publishes neither.
+ *
+ * @param {object} opts
+ * @param {string} opts.stage - The staged tree.
+ * @param {string} opts.out - Where release assets are written.
+ * @returns {Promise<string[]>} The archives written.
+ */
+async function publishPictureArchives({ stage, out }) {
+    const list = path.join(stage, ...SHIPPED_SET_FILE.split("/"));
+    if (!fs.existsSync(list)) return [];
+    const written = [];
+    for (const { root } of DEPLOYED_ASSET_TYPES) {
+        const dir = path.join(stage, root);
+        if (!fs.existsSync(dir)) continue;
+        const zipPath = path.join(out, `${root}.zip`);
+        const output = fs.createWriteStream(zipPath);
+        const archive = new ZipArchive({ zlib: { level: 9 } });
+        const closed = new Promise((resolve, reject) => {
+            output.on("close", resolve);
+            output.on("error", reject);
+            archive.on("error", reject);
+            archive.on("warning", reject);
+        });
+        archive.pipe(output);
+        const date = archiveDate();
+        archive.append(Buffer.alloc(0), {
+            name: `${path.posix.dirname(SHIPPED_SET_FILE)}/`,
+            date,
+            mode: 0o755,
+        });
+        archive.append(await fsp.readFile(list), {
+            name: SHIPPED_SET_FILE,
+            date,
+            mode: 0o644,
+        });
+        archive.append(Buffer.alloc(0), { name: `${root}/`, date, mode: 0o755 });
+        await appendTree(archive, dir, date, `${root}/`);
+        await archive.finalize();
+        await closed;
+        written.push(zipPath);
+    }
+    return written;
 }

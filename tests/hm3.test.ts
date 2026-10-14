@@ -619,9 +619,7 @@ describe("one note carrying both blocks compiles a document in each system", () 
 
     it("gives each item its own system's default art", () => {
         expect(packDocs(root, "items-sohl").Broadsword.img).toMatch(/^systems\/sohl\//);
-        expect(packDocs(root, "items-hm3").Broadsword.img).toBe(
-            "systems/hm3/assets/icons/sword.svg",
-        );
+        expect(packDocs(root, "items-hm3").Broadsword.img).toBe("systems/hm3/icons/sword.svg");
     });
 
     it("stamps each document for its own system", () => {

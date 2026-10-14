@@ -672,7 +672,7 @@ describe("emitContentIndex", () => {
         fs.writeFileSync(path.join(assets, "icons", "anvil.svg"), "<svg/>");
         fs.writeFileSync(
             path.join(assets, "icons", "provenance.yaml"),
-            "attribution: Tom Rodriguez\nlicense: CC-BY-SA-4.0\n",
+            "attribution: Tom Rodriguez\nlicense: CC-BY-SA-4.0\nai: false\n",
         );
 
         const result = emitContentIndex({

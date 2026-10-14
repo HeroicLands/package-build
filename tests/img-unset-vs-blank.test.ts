@@ -76,9 +76,7 @@ describe("resolveImg treats an unset path as unset and an empty one as an error"
 
     it("still translates a bundled pathname, and still passes a URL through", () => {
         // The translation half is unchanged; only the empty cases moved.
-        expect(resolveImg("icons/other/sword.svg")).toBe(
-            "systems/sohl/assets/icons/other/sword.svg",
-        );
+        expect(resolveImg("icons/other/sword.svg")).toBe("systems/sohl/icons/sword.svg");
         expect(resolveImg("https://example.com/a.png")).toBe("https://example.com/a.png");
     });
 
@@ -114,10 +112,10 @@ describe("an item note's `img`", () => {
 
     // The registry's art is a pathname like any other, so the compiled value
     // is its resolved form rather than the map's own string.
-    const SKILL_ART = "systems/sohl/assets/icons/other/headgear.svg";
+    const SKILL_ART = "systems/sohl/icons/headgear.svg";
 
     it("falls back to the type's default art when the key is absent", () => {
-        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/assets/icons/other/headgear.svg");
+        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/icons/headgear.svg");
         expect(compiler().buildEntry(SKILL_FM, "").img).toBe(SKILL_ART);
     });
 
@@ -137,7 +135,7 @@ describe("an item note's `img`", () => {
         const pack = compiler();
         pack.linkIndex = indexWith("custom", "icon", "icons/custom.svg");
         expect(pack.buildEntry({ ...SKILL_FM, data: { icon: "custom" } }, "").img).toBe(
-            "systems/sohl/assets/icons/custom.svg",
+            "systems/sohl/icons/custom.svg",
         );
     });
 });

@@ -108,6 +108,8 @@ import { checkAuthoredSystemData, checkEmittedSystemData } from "./schema-check.
 // `engine/being-age.mjs`.
 import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
+import { loadPackConfig } from "./pack-config.mjs";
+import { annotateAssetReferences, assetReferenceLookup } from "./asset-references.mjs";
 
 /**
  * The tallies one pass accumulates while walking the tree.
@@ -448,6 +450,9 @@ export class BasePackCompiler {
 
     /** @type {object|undefined} */
     #stats;
+
+    /** Every picture a document can name, built once per pass. */
+    #assetLookup;
 
     /**
      * Whether this pass's pack is the one a claimed note belongs in.
@@ -1089,10 +1094,28 @@ export class BasePackCompiler {
     /**
      * Write one document into a directory, named for its name and id.
      *
+     * Every asset the document references states its address on the way out,
+     * and an asset its package does not ship is drawn by that package's
+     * stand-in — see {@link module:engine/asset-references}.
+     *
      * @param {string} dir - The destination directory.
      * @param {object} doc - The document.
+     * @param {string} [documentType] - Its Foundry document type; this pass's
+     *   own by default.
      */
-    writeTo(dir, doc) {
+    writeTo(dir, doc, documentType = this.docType) {
+        this.#assetLookup ??= assetReferenceLookup(this.linkIndex, loadPackConfig());
+        const reported = new Set();
+        annotateAssetReferences(doc, documentType, {
+            lookup: this.#assetLookup,
+            system: doc?._stats?.systemId ?? this.stats?.systemId,
+            report: (message) => {
+                if (reported.has(message)) return;
+                reported.add(message);
+                this.errorCount++;
+                this.noteError(message);
+            },
+        });
         fs.writeFileSync(
             path.join(dir, makeFilename(doc.name, doc._id)),
             JSON.stringify(doc, null, 2),

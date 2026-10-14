@@ -210,6 +210,10 @@ beforeAll(async () => {
     assets = path.join(tmp, "assets");
     fs.mkdirSync(path.join(assets, "images"), { recursive: true });
     fs.writeFileSync(path.join(assets, "images", "parchment.webp"), "webp");
+    fs.writeFileSync(
+        path.join(assets, "images", "provenance.yaml"),
+        "attribution: A\nlicense: CC0-1.0\nai: false\n",
+    );
 
     // Items first: the actors pass reads the compiled items as its sibling.
     compilers.items = new Items({ skipDirectories: [], contentBase: content, dest: dest("items") });

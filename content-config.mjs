@@ -69,7 +69,7 @@ import YAML from "yaml";
 // Leaves with no local imports of their own, so naming them here cannot close
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
-import { ASSET_TYPE_NAMES } from "./engine/asset-types.mjs";
+import { ASSET_TYPE_NAMES, shippingLicensesProblem } from "./engine/asset-types.mjs";
 import { isReservedPackage } from "./engine/packages.mjs";
 import { EMPTY_ICON_REGISTRY, checkIconRegistry } from "./engine/content-icons.mjs";
 import { MAP_TYPES, NO_PACK, PACK_BY_TYPE } from "./engine/ids.mjs";
@@ -2453,6 +2453,10 @@ function normalizePackageBuild(value) {
                 "reads, and that package validates what is inside it",
         );
     }
+    // Read by the asset reference pass as well as by the packaging commands, so
+    // a malformed list is refused wherever the configuration loads.
+    const problem = shippingLicensesProblem(value.shippingLicenses);
+    if (problem) fail("packageBuild.shippingLicenses", problem);
     return /** @type {Readonly<PackageBuildSection>} */ (deepFreeze(structuredClone(value)));
 }
 

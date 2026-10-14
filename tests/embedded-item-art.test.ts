@@ -35,10 +35,10 @@ import { loadPackConfig } from "../engine/pack-config.mjs";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /** The default a `miscgear` takes, in the form a compiled document carries. */
-const MISCGEAR_ART = "systems/sohl/assets/icons/other/questionmark.svg";
+const MISCGEAR_ART = "systems/sohl/icons/questionmark.svg";
 
 /** The default a `skill` takes, likewise resolved. */
-const SKILL_ART = "systems/sohl/assets/icons/other/headgear.svg";
+const SKILL_ART = "systems/sohl/icons/headgear.svg";
 
 /**
  * A compile index holding one icon, so an entry naming its address resolves.
@@ -134,7 +134,7 @@ describe("an entry that copies nothing", () => {
                 "",
             );
             expect(pass.errorCount).toBe(0);
-            expect(doc.items[0].img).toBe("systems/sohl/assets/icons/other/quiver.svg");
+            expect(doc.items[0].img).toBe("systems/sohl/icons/quiver.svg");
         });
     });
 
@@ -151,7 +151,7 @@ describe("an entry that copies nothing", () => {
                 ]),
                 "",
             );
-            expect(doc.items[0].img).toBe("systems/sohl/assets/icons/other/quiver.svg");
+            expect(doc.items[0].img).toBe("systems/sohl/icons/quiver.svg");
         });
     });
 
@@ -168,7 +168,7 @@ describe("an entry that copies nothing", () => {
                 "",
             );
             expect(pass.errorCount).toBe(0);
-            expect(DEFAULT_ITEM_ART.miscgear).toBe("sohl/assets/icons/other/questionmark.svg");
+            expect(DEFAULT_ITEM_ART.miscgear).toBe("sohl/icons/questionmark.svg");
             expect(doc.items[0].img).toBe(MISCGEAR_ART);
             expect(doc.items[1].img).toBe(SKILL_ART);
         });
@@ -214,24 +214,24 @@ describe("an entry that copies nothing", () => {
 describe("an entry that copies a `model:`", () => {
     it("keeps the catalogue document's art when it names none of its own", async () => {
         await withPass(
-            [compiledItem("miscgear", "sack", "systems/sohl/assets/icons/other/sack.svg")],
+            [compiledItem("miscgear", "sack", "systems/sohl/icons/sack.svg")],
             (pass) => {
                 const doc = pass.buildEntry(being([{ model: "miscgear-sack" }]), "");
                 expect(pass.errorCount).toBe(0);
-                expect(doc.items[0].img).toBe("systems/sohl/assets/icons/other/sack.svg");
+                expect(doc.items[0].img).toBe("systems/sohl/icons/sack.svg");
             },
         );
     });
 
     it("overrides it with the address the entry names", async () => {
         await withPass(
-            [compiledItem("miscgear", "sack", "systems/sohl/assets/icons/other/sack.svg")],
+            [compiledItem("miscgear", "sack", "systems/sohl/icons/sack.svg")],
             (pass) => {
                 const doc = pass.buildEntry(
                     being([{ model: "miscgear-sack", data: { icon: "quiver" } }]),
                     "",
                 );
-                expect(doc.items[0].img).toBe("systems/sohl/assets/icons/other/quiver.svg");
+                expect(doc.items[0].img).toBe("systems/sohl/icons/quiver.svg");
             },
         );
     });
@@ -257,7 +257,7 @@ describe("`data:` reaches no compiled document", () => {
 
     it("is held back from an entry copying a `model:`", async () => {
         await withPass(
-            [compiledItem("miscgear", "sack", "systems/sohl/assets/icons/other/sack.svg")],
+            [compiledItem("miscgear", "sack", "systems/sohl/icons/sack.svg")],
             (pass) => {
                 const doc = pass.buildEntry(
                     being([{ model: "miscgear-sack", data: { icon: "quiver" } }]),

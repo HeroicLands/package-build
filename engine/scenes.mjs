@@ -220,7 +220,7 @@ export class Scenes extends BasePackCompiler {
             // A scene that references nothing ships fine as a plain `scenes`
             // entry; only pins need the id-preserving import an Adventure gives.
             if (!place.pinned) continue;
-            this.writeTo(this.adventureDir, this.#buildAdventure(place));
+            this.writeTo(this.adventureDir, this.#buildAdventure(place), "Adventure");
             this.adventureCount++;
         }
     }

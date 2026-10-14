@@ -62,6 +62,7 @@ function sandbox(banners: { home?: string; page?: string }) {
         `---\ntype: doc\nsubType: rules\nshortcode: combat\nname:\n  full: Combat\n${data(banners.page)}---\n\nProse.\n`,
     );
     put("assets/images/hero.png", PNG);
+    put("assets/images/provenance.yaml", "attribution: A\nlicense: CC0-1.0\nai: false\n");
     return root;
 }
 

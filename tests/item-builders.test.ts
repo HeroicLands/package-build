@@ -19,7 +19,7 @@ import { fileURLToPath } from "node:url";
 // scripts live outside that tree.
 import { ITEM_BUILDERS } from "../sohl/item-builders.mjs";
 import { itemTypes, itemBuilder } from "../engine/item-registry.mjs";
-import { DEFAULT_ITEM_ART } from "../sohl/default-item-art.mjs";
+import { DEFAULT_ITEM_ART, defaultItemArt } from "../sohl/default-item-art.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { Items } from "../sohl/items.mjs";
@@ -72,12 +72,11 @@ describe("ITEM_BUILDERS (the one registry keyed by item type)", () => {
     it("pairs each type with its own entry from the one art map", () => {
         // Art travels with the builder now, so a consumer's own item type can
         // bring art of its own. For *this* registry that must change nothing:
-        // every entry's `img` is still the value `DEFAULT_ITEM_ART` holds, which
-        // is what keeps this build and `SohlItem.getDefaultArtwork` reading one
-        // map.
-        const art = DEFAULT_ITEM_ART as Record<string, string>;
+        // every entry's `img` is still the file `DEFAULT_ITEM_ART` holds, as an
+        // authored pathname, which is what keeps this build and
+        // `SohlItem.getDefaultArtwork` reading one map.
         for (const [type, entry] of Object.entries(BUILDERS)) {
-            expect((entry as { img: string }).img, type).toBe(art[subtype(type)]);
+            expect((entry as { img: string }).img, type).toBe(defaultItemArt(subtype(type)));
         }
     });
 });
@@ -158,8 +157,8 @@ describe("the art a compiled sohl item actually gets", () => {
         // value is the system's install path.
         const entry = compiler().buildEntry(SKILL_FM, "");
 
-        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/assets/icons/other/headgear.svg");
-        expect(entry.img).toBe("systems/sohl/assets/icons/other/headgear.svg");
+        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/icons/headgear.svg");
+        expect(entry.img).toBe("systems/sohl/icons/headgear.svg");
     });
 
     it("still lets a note override it", () => {
@@ -177,6 +176,6 @@ describe("the art a compiled sohl item actually gets", () => {
         };
         const entry = pack.buildEntry({ ...SKILL_FM, data: { icon: "custom" } }, "");
 
-        expect(entry.img).toBe("systems/sohl/assets/icons/custom.svg");
+        expect(entry.img).toBe("systems/sohl/icons/custom.svg");
     });
 });

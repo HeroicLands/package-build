@@ -20,6 +20,7 @@ import { itemTypes } from "../engine/item-docs.mjs";
 // two vocabularies are no longer the same string: the registry is keyed by the
 // note type (`armor`) and this map by the document subtype (`armorgear`), which
 // is what the runtime reads off a Foundry Item.
+import { resolveImg } from "../engine/helpers.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 
@@ -36,7 +37,7 @@ const EXPECTED_TYPES = [...itemTypes()].map(
 describe("default-item-art (single source of truth)", () => {
     it("maps every known item document subtype to a themed SoHL asset", () => {
         for (const type of EXPECTED_TYPES) {
-            expect(ART[type]).toMatch(/^sohl\/assets\/icons\/.+\.svg$/);
+            expect(ART[type]).toMatch(/^sohl\/icons\/[^/]+\.svg$/);
         }
     });
 
@@ -45,22 +46,20 @@ describe("default-item-art (single source of truth)", () => {
     });
 
     it("gives trauma and affliction the wound/sick icons (the regression)", () => {
-        expect(defaultItemArt("trauma")).toBe("sohl/assets/icons/other/injury.svg");
-        expect(defaultItemArt("affliction")).toBe("sohl/assets/icons/other/sick.svg");
+        expect(defaultItemArt("trauma")).toBe("sohl/assets/icons/injury.svg");
+        expect(defaultItemArt("affliction")).toBe("sohl/assets/icons/sick.svg");
     });
 
     it("returns the per-type default for a known type", () => {
-        expect(defaultItemArt("weapongear")).toBe("sohl/assets/icons/other/sword.svg");
-        expect(defaultItemArt("miscgear")).toBe("sohl/assets/icons/other/questionmark.svg");
+        expect(defaultItemArt("weapongear")).toBe("sohl/assets/icons/sword.svg");
+        expect(defaultItemArt("miscgear")).toBe("sohl/assets/icons/questionmark.svg");
     });
 
     it("is keyed by the document subtype, not the renamed note type", () => {
         // The three renamed types. The map stays on the document side —
         // `SohlItem.getDefaultArtwork` reads it with a Foundry Item's own
         // `type` — and `sohl/item-builders.mjs` translates before asking.
-        expect(defaultItemArt("armorgear")).toBe(
-            "sohl/assets/icons/game-icons/lorc/breastplate.svg",
-        );
+        expect(defaultItemArt("armorgear")).toBe("sohl/assets/icons/breastplate.svg");
         expect(ART["armor"]).toBeUndefined();
         expect(ART["concoction"]).toBeUndefined();
         expect(ART["projectile"]).toBeUndefined();
@@ -82,5 +81,26 @@ describe("default-item-art (single source of truth)", () => {
         // to Foundry's default for unknown/`base` types rather than throwing.
         expect(ART["base"]).toBeUndefined();
         expect(ART["trauma"]).toBeDefined();
+    });
+
+    it("is flat: every entry is `sohl/icons/<basename>`, never a nested source path", () => {
+        for (const [type, art] of Object.entries(DEFAULT_ITEM_ART)) {
+            expect(art, type).toMatch(/^sohl\/icons\/[^/]+\.svg$/);
+        }
+    });
+
+    it("resolves, as an authored pathname, to the install path the runtime builds", () => {
+        const config = {
+            contentPackage: "consumer",
+            packageKind: "modules",
+            assetRoot: "modules/consumer/assets",
+            foundryPackage: "consumer",
+            site: { assets: "" },
+            relationships: { systems: [{ id: "sohl" }] },
+        };
+        for (const [type, art] of Object.entries(DEFAULT_ITEM_ART)) {
+            // The runtime prefixes `systems/`; the build resolves the pathname.
+            expect(resolveImg(defaultItemArt(type), config as never), type).toBe(`systems/${art}`);
+        }
     });
 });

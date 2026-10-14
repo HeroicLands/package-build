@@ -149,6 +149,76 @@ export const ASSET_TYPES = Object.freeze([
 ]);
 
 /**
+ * The asset types that deploy flat — `icon` and `image`, never `audio`.
+ *
+ * @type {readonly import("./asset-types.mjs").AssetType[]}
+ */
+export const DEPLOYED_ASSET_TYPES = Object.freeze(
+    ASSET_TYPES.filter((entry) => entry.type === "icon" || entry.type === "image"),
+);
+
+/**
+ * The deployed roots, by name.
+ *
+ * @type {ReadonlySet<string>}
+ */
+const DEPLOYED_ROOTS = new Set(DEPLOYED_ASSET_TYPES.map((entry) => entry.root));
+
+/**
+ * Whether a source suffix sits under a picture root, and so deploys flat.
+ *
+ * @param {string} suffix - A path inside a package's `assets/` directory.
+ * @returns {boolean} True for `icons/…` and `images/…`.
+ */
+export function isDeployedSuffix(suffix) {
+    const segments = String(suffix).split("/");
+    return segments.length >= 2 && DEPLOYED_ROOTS.has(segments[0]);
+}
+
+/**
+ * A source suffix rewritten into the deployed layout.
+ *
+ * `images/beings/characters/thorn.webp` becomes `images/thorn.webp`. A suffix
+ * under no deployed root — `audio/…`, `ui/…`, `generated/…` — is returned
+ * unchanged, because only the picture roots deploy flat.
+ *
+ * @param {string} suffix - A path inside a package's `assets/` directory,
+ *   `/`-separated.
+ * @returns {string} The path the file has in a deployed location.
+ */
+export function deployedSuffix(suffix) {
+    if (!isDeployedSuffix(suffix)) return suffix;
+    const segments = String(suffix).split("/");
+    return `${segments[0]}/${segments[segments.length - 1]}`;
+}
+
+/**
+ * What is wrong with a package's `packageBuild.shippingLicenses`, or `""` when
+ * nothing is.
+ *
+ * The key lists licences a package adds to the default shipping list, spelled
+ * as provenance spells them: a list of non-empty strings with no duplicates.
+ *
+ * @param {unknown} value - The declared value; `undefined` is absent and fine.
+ * @returns {string} The problem as a clause, or `""`.
+ */
+export function shippingLicensesProblem(value) {
+    if (value === undefined) return "";
+    if (!Array.isArray(value)) return "must be a list of licence identifiers";
+    for (const [index, entry] of value.entries()) {
+        if (typeof entry !== "string" || entry.trim() === "") {
+            return `entry ${index} must be a non-empty string`;
+        }
+    }
+    const seen = new Set();
+    for (const entry of value) {
+        if (seen.has(entry)) return `lists \`${entry}\` more than once`;
+        seen.add(entry);
+    }
+    return "";
+}
+
+/**
  * Every asset type name.
  *
  * @type {ReadonlySet<string>}

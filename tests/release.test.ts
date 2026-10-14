@@ -197,6 +197,53 @@ describe("packRelease", () => {
         expect(fs.existsSync(path.join(outDir, "schema.json"))).toBe(false);
     });
 
+    it("publishes icons.zip and images.zip of the staged pictures, each with the asset set", async () => {
+        const list = JSON.stringify({
+            name: "SoHL — shipped art",
+            package: "sohl",
+            assets: [
+                {
+                    address: "sohl-none-icon-a",
+                    source: "../icons/a.svg",
+                    target: "icons/a.svg",
+                    size: 6,
+                },
+            ],
+        });
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ id: "sohl", version: "0.8.2" }),
+            "asset-sets/default.json": list,
+            "icons/a.svg": "<svg/>",
+            "images/b.webp": "b",
+        });
+
+        const result = await packRelease({ stageDir, outDir, artifact: "system", pdf: false });
+
+        expect(result.pictures.map((p: string) => path.basename(p))).toEqual([
+            "icons.zip",
+            "images.zip",
+        ]);
+        expect(zipEntries(path.join(outDir, "icons.zip"))).toEqual([
+            "asset-sets/default.json",
+            "icons/a.svg",
+        ]);
+        expect(zipEntries(path.join(outDir, "images.zip"))).toEqual([
+            "asset-sets/default.json",
+            "images/b.webp",
+        ]);
+    });
+
+    it("publishes no picture archives when the stage staged no pictures", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ id: "sohl", version: "0.8.2" }),
+        });
+
+        const result = await packRelease({ stageDir, outDir, artifact: "system", pdf: false });
+
+        expect(result.pictures).toEqual([]);
+        expect(fs.existsSync(path.join(outDir, "icons.zip"))).toBe(false);
+    });
+
     it("skips the book when asked, and says so", async () => {
         const { stageDir, outDir } = stage({
             "system.json": JSON.stringify({ version: "1.0.0" }),

@@ -57,6 +57,7 @@
  */
 
 import path from "node:path";
+import { shippingLicensesProblem } from "./engine/asset-types.mjs";
 import { fileURLToPath } from "node:url";
 import { loadPackConfig, locateConfigError, packConfigPath } from "./engine/pack-config.mjs";
 
@@ -65,6 +66,7 @@ const SECTION_KEYS = [
     "stageDir",
     "assets",
     "assetTransform",
+    "shippingLicenses",
     "baseStyles",
     "manifest",
     "manifestFlags",
@@ -556,6 +558,8 @@ function normalizeExceptions(value, field, where) {
  * @property {string} stageDir      The staged package root, relative to
  *                                   `rootDir`. Every asset `to:` lands under it.
  * @property {readonly Readonly<AssetSpec>[]} assets
+ * @property {readonly string[]} shippingLicenses  Licences this package adds to the
+ *                                   default shipping list.
  * @property {boolean} baseStyles    Whether the package takes the shared base
  *                                   stylesheet, staged into `stageDir` and
  *                                   named first in the manifest's `styles`.
@@ -785,6 +789,9 @@ export function resolvePackageBuildConfig(shared) {
     }
     const assets = (section.assets ?? []).map(normalizeAsset);
 
+    const shippingProblem = shippingLicensesProblem(section.shippingLicenses);
+    if (shippingProblem) fail("packageBuild.shippingLicenses", shippingProblem);
+
     const clean = section.clean ?? {};
     if (!isMapping(clean)) fail("packageBuild.clean", "must be a mapping");
     rejectUnknownKeys(
@@ -899,6 +906,9 @@ export function resolvePackageBuildConfig(shared) {
                 ARTIFACT_OF_KIND[/** @type {"systems"|"modules"} */ (shared.packageKind)]
             :   requireNonEmptyString(releaseInput.artifact, "packageBuild.release.artifact"),
         assets: Object.freeze(assets),
+        shippingLicenses: Object.freeze([
+            .../** @type {string[]} */ (section.shippingLicenses ?? []),
+        ]),
         // On by default, because the rules it carries are what compiled content
         // needs to be legible and a package that declined them by omission
         // would ship the content unstyled without anything saying so. A package

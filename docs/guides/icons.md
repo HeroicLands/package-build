@@ -68,6 +68,11 @@ defaults point into the system's `assets/images/` and `assets/icons/` trees,
 introduced by [HM3's asset-path migration](https://git.pupluppy.org/HeroicLands/HarnMaster-3-FoundryVTT/pulls/60).
 Use these defaults with an HM3 release that includes those assets.
 
+A compiled document reaches each icon in the deployed layout — the type root
+and the basename, `systems/sohl/icons/person.svg` — whatever directories hold
+it in the repository, and states its address in `flags.<system>.assets`. See
+[what a package ships](../reference/format-details.md#what-a-package-ships).
+
 ## Write an inline icon in prose
 
 Declare the glyph vocabulary in `package-build.config.yaml` or a separate YAML

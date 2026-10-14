@@ -60,7 +60,7 @@ describe("one authored pathname, four derived forms", () => {
             package: "thalorna",
             suffix: "images/map.webp",
             own: true,
-            foundry: "modules/sohl-thalorna/assets/images/map.webp",
+            foundry: "modules/sohl-thalorna/images/map.webp",
             local: "assets/images/map.webp",
             web: "https://cdn.example.org/thalorna/images/map.webp",
             pdf: "assets/images/map.webp",
@@ -76,9 +76,9 @@ describe("one authored pathname, four derived forms", () => {
             package: "sohl",
             suffix: "icons/noun/shield.svg",
             own: false,
-            foundry: "systems/sohl/assets/icons/noun/shield.svg",
+            foundry: "systems/sohl/icons/shield.svg",
             local: "assets/icons/noun/shield.svg",
-            web: "https://cdn.example.org/sohl/icons/noun/shield.svg",
+            web: "https://cdn.example.org/sohl/icons/shield.svg",
             pdf: "assets/icons/noun/shield.svg",
         });
     });
@@ -90,7 +90,7 @@ describe("one authored pathname, four derived forms", () => {
         const forms = resolvePathname("sohl-thalorna/assets/images/map.webp", thalorna) as never;
         expect(forms).toMatchObject({ package: "sohl-thalorna", foundry: null });
         expect(resolvePathname("thalorna/assets/images/map.webp", thalorna)).toMatchObject({
-            foundry: "modules/sohl-thalorna/assets/images/map.webp",
+            foundry: "modules/sohl-thalorna/images/map.webp",
             web: "https://cdn.example.org/thalorna/images/map.webp",
         });
     });
@@ -123,7 +123,7 @@ describe("one authored pathname, four derived forms", () => {
 
     it("has no web form with no asset host configured", () => {
         expect(resolvePathname("images/map.webp", hostless)).toMatchObject({
-            foundry: "modules/sohl-thalorna/assets/images/map.webp",
+            foundry: "modules/sohl-thalorna/images/map.webp",
             web: null,
         });
     });
@@ -244,7 +244,7 @@ describe("the packages a build can resolve against", () => {
             "sohl",
         ]);
         expect(resolvePathname("hm3/assets/images/svg/sword.svg", twoSystems)).toMatchObject({
-            foundry: "systems/hm3/assets/images/svg/sword.svg",
+            foundry: "systems/hm3/images/sword.svg",
             own: false,
         });
     });
@@ -264,7 +264,7 @@ describe("the packages a build can resolve against", () => {
             site: { assets: "https://cdn.example.org" },
         } as never) as never;
         expect(resolvePathname("thalorna/assets/images/map.webp", dependent)).toMatchObject({
-            foundry: "modules/sohl-thalorna/assets/images/map.webp",
+            foundry: "modules/sohl-thalorna/images/map.webp",
             web: "https://cdn.example.org/thalorna/images/map.webp",
         });
     });
@@ -300,7 +300,7 @@ describe("the website gets the same statement as the other three", () => {
 
         const art = data.data as Record<string, string>;
         expect(art.icon).toBe("https://cdn.example.org/thalorna/icons/thorn.svg");
-        expect(art.banner).toBe("https://cdn.example.org/thalorna/images/sections/lore.webp");
+        expect(art.banner).toBe("https://cdn.example.org/thalorna/images/lore.webp");
     });
 
     it("drops an address nothing answers rather than publishing it as written", () => {

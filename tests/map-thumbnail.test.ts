@@ -150,6 +150,10 @@ describe("a map's thumbnail", () => {
             fs.mkdirSync(contentBase);
             fs.mkdirSync(path.join(assetsBase, "images"), { recursive: true });
             fs.writeFileSync(path.join(assetsBase, "images", "valethumb.webp"), "webp");
+            fs.writeFileSync(
+                path.join(assetsBase, "images", "provenance.yaml"),
+                "attribution: A\nlicense: CC0-1.0\nai: false\n",
+            );
             fs.mkdirSync(sceneDir);
             fs.mkdirSync(adventureDir);
             fs.writeFileSync(
@@ -181,7 +185,7 @@ data:
             const files = fs.readdirSync(sceneDir).filter((file) => file.endsWith(".json"));
             expect(files).toHaveLength(1);
             const scene = JSON.parse(fs.readFileSync(path.join(sceneDir, files[0]), "utf8"));
-            expect(scene.thumb).toMatch(/assets\/images\/valethumb\.webp$/);
+            expect(scene.thumb).toMatch(/(^|\/)images\/valethumb\.webp$/);
             expect(scene.levels[0].background.src).toBe("other/maps/vale.webp");
         } finally {
             fs.rmSync(root, { recursive: true, force: true });

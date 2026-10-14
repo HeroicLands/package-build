@@ -193,6 +193,12 @@ export * as assetTypes from "./asset-types.mjs";
 /** The asset record: one index line per addressable file, and its provenance. */
 export * as assetIndex from "./asset-index.mjs";
 
+/** The deployed layout of a package's pictures, which of them ship, and its asset set. */
+export * as assetShipping from "./asset-shipping.mjs";
+
+/** The address every asset reference in a compiled document states. */
+export * as assetReferences from "./asset-references.mjs";
+
 /** The `<package>` segment's registry: the names no repository may claim. */
 export * as packages from "./packages.mjs";
 

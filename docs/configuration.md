@@ -206,6 +206,9 @@ against — the one reader of it is `resolveImg`
 `packageKind` and `foundryPackage`.
 
 - For a `systems` or `modules` package, `<packageKind>/<foundryPackage>/assets`.
+  A picture under `icons/` or `images/` is served flat from
+  `<packageKind>/<foundryPackage>/<icons|images>/<basename>` instead, the
+  layout the stage gives it; every other file keeps its path under `assets/`.
 - For a `documentation` package, `null` — Foundry serves no files for a
   package of this kind, and `documentation/null/assets` would be an address
   that resolves nowhere. `resolveImg` refuses rather than rooting a path
@@ -900,6 +903,12 @@ Absolute, and the trailing slash is trimmed:
 resolves every relative asset against it:
 
 > ``package-build config: `site.assets` is not declared, and a site build needs one — it is the host every package's imagery is served from, and the theme resolves every relative asset against it.``
+
+`package-build cdn publish` uploads the package's pictures under the same
+host, at `<site.assets>/<contentPackage>/icons/<basename>` and
+`…/images/<basename>`, which is the address the website gives each one. The
+bucket behind the CDN is served at `site.assets`, so an object's key is its
+path below this value.
 
 The generated Hugo configuration carries the same host as
 `params.cdnBaseURL`, which the theme resolves a relative asset path against.
@@ -1685,7 +1694,7 @@ validator.
 packageBuild:
   assets:
     - { from: lang, to: lang }
-    - { from: assets/icons, to: assets/icons }
+    - { from: assets/audio, to: assets/audio }
   assetTransform: ./utils/svg-theme.mjs
   stageDir: build/stage
   clean:
@@ -1701,6 +1710,7 @@ packageBuild:
 | [`packageBuild.stageDir`](#packagebuildstagedir-and-packagebuildassets)                    | string                                      | no       | `build/stage`                                              |
 | [`packageBuild.assets`](#packagebuildstagedir-and-packagebuildassets)                      | array                                       | no       | `[]`                                                       |
 | [`packageBuild.assetTransform`](#packagebuildassettransform-and-packagebuildmanifestflags) | string (path to a module)                   | no       | `null`                                                     |
+| [`packageBuild.shippingLicenses`](#packagebuildshippinglicenses)                           | array of strings                            | no       | `[]`                                                       |
 | [`packageBuild.baseStyles`](#packagebuildbasestyles)                                       | boolean                                     | no       | `true`                                                     |
 | [`packageBuild.manifest`](#packagebuildmanifest)                                           | object, pass-through                        | no       | `{}`                                                       |
 | [`packageBuild.manifestFlags`](#packagebuildassettransform-and-packagebuildmanifestflags)  | string (path to a module)                   | no       | `null`                                                     |
@@ -1715,7 +1725,7 @@ packageBuild:
 | [`packageBuild.proseLint`](#packagebuildproselint)                                         | object                                      | no       | `{age: 21, threshold: 5, minWords: 8, rules: readability}` |
 | [`packageBuild.proseScore`](#packagebuildprosescore)                                       | object                                      | no       | `{minWords: 80, bands: {}}`                                |
 
-> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, baseStyles, manifest, manifestFlags, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore).``
+> ``package-build config: `packageBuild.<key>` is not a recognised key (expected one of: stageDir, assets, assetTransform, shippingLicenses, baseStyles, manifest, manifestFlags, schema, clean, lang, deploy, release, bundle, container, e2e, proseLint, proseScore).``
 
 ### `packageBuild.proseLint`
 
@@ -1765,6 +1775,15 @@ table says `lang`, not `build/stage/lang`.
 `assets` is the table of staging copies: source path in the repository,
 destination under the staged package root.
 
+**The picture roots are not in it.** `package-build assets` stages
+`assets/icons/` and `assets/images/` itself — flat at the package root, and
+only the files whose provenance allows them to ship (see
+[what a package ships](reference/format-details.md#what-a-package-ships)). A
+row whose `from` is a picture root, a directory inside one, or a directory
+holding one is refused at the row:
+
+> ``package-build.config.yaml:<line>:<column>: error: `packageBuild.assets[<index>]` copies `<from>`, which reaches assets/images/ — the stage copies the icon and image roots itself, flat and filtered by each file's provenance, so a row copying them would ship every file unfiltered. Remove the row``
+
 | Key                             | Type                       | Required |
 | ------------------------------- | -------------------------- | -------- |
 | `packageBuild.assets[].from`    | string                     | yes      |
@@ -1800,6 +1819,24 @@ repository has to compute. Neither declares anything, both default to
 > ``package-build config: `packageBuild.assetTransform` must be a non-empty string.``
 
 > ``package-build config: `packageBuild.manifestFlags` must be a non-empty string.``
+
+### `packageBuild.shippingLicenses`
+
+Licences this package adds to the default shipping list. A picture ships in the
+Foundry package when its provenance says `ai: false` and its `license` is on the
+default list or on this one; the default list is never replaced, and `ai: true`
+never ships. Each entry is spelled exactly as provenance spells the licence.
+
+```yaml
+packageBuild:
+  shippingLicenses: [CC-BY-NC-SA-4.0]
+```
+
+> ``package-build config: `packageBuild.shippingLicenses` must be a list of licence identifiers.``
+
+> ``package-build config: `packageBuild.shippingLicenses` entry <index> must be a non-empty string.``
+
+> ``package-build config: `packageBuild.shippingLicenses` lists `<licence>` more than once.``
 
 ### `packageBuild.baseStyles`
 

@@ -145,13 +145,13 @@ describe("a `packagebuild` address has no Foundry form", () => {
 
     it("still resolves on the website, which is where a banner is read", () => {
         const forms = resolvePathname("packagebuild/assets/images/banners/skillbnr.webp", config)!;
-        expect(forms.web).toBe("https://cdn.example.org/packagebuild/images/banners/skillbnr.webp");
+        expect(forms.web).toBe("https://cdn.example.org/packagebuild/images/skillbnr.webp");
     });
 
     it("gives a package Foundry does install the address it serves", () => {
         // Guards the guard: were every package to yield `null`, the case above
         // would pass while saying nothing about this one.
         const forms = resolvePathname("sohl/assets/icons/other/sword.svg", config)!;
-        expect(forms.foundry).toBe("systems/sohl/assets/icons/other/sword.svg");
+        expect(forms.foundry).toBe("systems/sohl/icons/sword.svg");
     });
 });

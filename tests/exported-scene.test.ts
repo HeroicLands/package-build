@@ -172,6 +172,10 @@ describe("exported Foundry Scene", () => {
             fs.mkdirSync(contentBase);
             fs.mkdirSync(path.join(assetsBase, "images"), { recursive: true });
             fs.writeFileSync(path.join(assetsBase, "images", "parchment.webp"), "webp");
+            fs.writeFileSync(
+                path.join(assetsBase, "images", "provenance.yaml"),
+                "attribution: A\nlicense: CC0-1.0\nai: false\n",
+            );
             fs.mkdirSync(sceneDir);
             fs.mkdirSync(adventureDir);
             fs.writeFileSync(
@@ -217,7 +221,7 @@ The wolf waits here.
             const scene = JSON.parse(fs.readFileSync(path.join(sceneDir, files[0]), "utf8"));
             expect(scene.name).toBe("Wolf Den Scene");
             expect(scene.grid).toEqual({ type: 1, size: 100, distance: 5, units: "ft" });
-            expect(scene.levels[0].background.src).toMatch(/assets\/images\/parchment\.webp$/);
+            expect(scene.levels[0].background.src).toMatch(/(^|\/)images\/parchment\.webp$/);
             expect(scene.notes[0].text).toBe("Big Bad Wolf");
             expect(scene.notes[0].entryId).toMatch(/^[A-Za-z0-9]{16}$/);
             expect(scene.notes[0].pageId).toMatch(/^[A-Za-z0-9]{16}$/);

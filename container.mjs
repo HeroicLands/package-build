@@ -380,6 +380,216 @@ export function needsFoundryAccount({
     return !licensed;
 }
 
+/** The S3 image: MinIO images cannot be pulled everywhere, SeaweedFS can. */
+export const S3_IMAGE = "chrislusf/seaweedfs:3.80";
+
+/** The name the S3 server answers to on the shared network, and in `awsConfig`. */
+export const S3_ALIAS = "s3.localhost";
+
+/** The port the S3 server listens on and publishes. */
+export const S3_PORT = 8333;
+
+/** The bucket the S3 server is created with. */
+export const S3_BUCKET = "sohl-e2e";
+
+/** The consumer's S3 identities, relative to the repository root. */
+export const S3_IDENTITIES_FILE = "cypress/s3/s3-identities.json";
+
+/** The consumer's Foundry `awsConfig`, relative to the repository root. */
+export const S3_AWS_CONFIG_FILE = "cypress/s3/aws-e2e.json";
+
+/**
+ * Whether the S3 server is asked for: `FOUNDRYVTT_CONTAINER_S3` set to `1` or
+ * `true`. Anything else, including unset, leaves the container as it is.
+ *
+ * @param {NodeJS.ProcessEnv} [env] - Environment to read.
+ * @returns {boolean} Whether to run the S3 server.
+ */
+export function s3Requested(env = process.env) {
+    return ["1", "true"].includes(env.FOUNDRYVTT_CONTAINER_S3?.trim().toLowerCase() ?? "");
+}
+
+/**
+ * Everything the S3 opt-in does, as data.
+ *
+ * @typedef {object} S3Plan
+ * @property {string} network - The user-defined network the Foundry container
+ *   and the S3 server share.
+ * @property {string} server - The S3 server's container name.
+ * @property {string} identities - Absolute path of the identities file.
+ * @property {string} awsConfig - Absolute path of the Foundry `awsConfig`.
+ * @property {string} awsConfigName - The file's name under the data root's
+ *   `Config/`, and the value of `FOUNDRY_AWS_CONFIG`.
+ */
+
+/**
+ * The S3 plan for a container, or `null` when the opt-in is off.
+ *
+ * @param {object} opts
+ * @param {string} opts.name - The Foundry container's name.
+ * @param {string} opts.rootDir - The consumer repository root, which holds the
+ *   identities and the `awsConfig`.
+ * @param {NodeJS.ProcessEnv} [opts.env] - Environment to read.
+ * @returns {S3Plan|null} The plan.
+ */
+export function resolveS3({ name, rootDir, env = process.env }) {
+    if (!s3Requested(env)) return null;
+    return {
+        network: `${name}-net`,
+        server: `${name}-s3`,
+        identities: path.resolve(rootDir, S3_IDENTITIES_FILE),
+        awsConfig: path.resolve(rootDir, S3_AWS_CONFIG_FILE),
+        awsConfigName: path.basename(S3_AWS_CONFIG_FILE),
+    };
+}
+
+/**
+ * The `docker run` argument vector for the S3 server.
+ *
+ * @param {S3Plan} plan - The S3 plan.
+ * @returns {string[]} Arguments after `docker`.
+ */
+export function s3RunArgs(plan) {
+    return [
+        "run",
+        "--detach",
+        "--name",
+        plan.server,
+        "--network",
+        plan.network,
+        "--network-alias",
+        S3_ALIAS,
+        "--publish",
+        `${S3_PORT}:${S3_PORT}`,
+        "--volume",
+        `${plan.identities}:/etc/seaweedfs/s3.json:ro`,
+        S3_IMAGE,
+        "server",
+        "-dir=/data",
+        "-s3",
+        `-s3.port=${S3_PORT}`,
+        "-s3.config=/etc/seaweedfs/s3.json",
+        "-s3.allowedOrigins=*",
+    ];
+}
+
+/**
+ * The `docker exec` argument vector that runs one `weed shell` command in the
+ * S3 server.
+ *
+ * @param {S3Plan} plan - The S3 plan.
+ * @param {string} command - The shell command, such as `s3.bucket.list`.
+ * @returns {string[]} Arguments after `docker`.
+ */
+export function s3ShellArgs(plan, command) {
+    return [
+        "exec",
+        plan.server,
+        "sh",
+        "-c",
+        `echo "${command}" | weed shell -master=localhost:9333`,
+    ];
+}
+
+/**
+ * Start the S3 server on its network and create the bucket, unless it is
+ * already running, and copy the `awsConfig` into the data root.
+ *
+ * @param {object} opts
+ * @param {S3Plan} opts.plan - The S3 plan.
+ * @param {string} opts.dataRoot - The Foundry user-data root.
+ * @param {(message: string) => void} [opts.log] - Progress reporting.
+ * @param {(args: string[]) => number} [opts.run] - Runs docker, returning the
+ *   exit status.
+ * @param {(args: string[]) => string} [opts.capture] - Runs docker, returning
+ *   its stdout, or `""` on failure.
+ * @param {(ms: number) => void} [opts.sleep] - Waits.
+ * @param {number} [opts.attempts] - How often to ask the server whether it is
+ *   ready.
+ * @throws {Error} When an input file is missing or the server never answers.
+ */
+export function ensureS3({
+    plan,
+    dataRoot,
+    log = () => {},
+    run = runDocker,
+    capture = captureDocker,
+    sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms),
+    attempts = 60,
+}) {
+    for (const file of [plan.identities, plan.awsConfig]) {
+        if (!fs.existsSync(file)) {
+            throw new Error(`FOUNDRYVTT_CONTAINER_S3 needs ${file}, which does not exist.`);
+        }
+    }
+    const configDir = path.join(dataRoot, "Config");
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.copyFileSync(plan.awsConfig, path.join(configDir, plan.awsConfigName));
+
+    if (
+        !capture(["network", "ls", "--filter", `name=^${plan.network}$`, "--format", "{{.Name}}"])
+    ) {
+        run(["network", "create", plan.network]);
+    }
+    const present = capture([
+        "ps",
+        "-a",
+        "--filter",
+        `name=^${plan.server}$`,
+        "--format",
+        "{{.Names}}",
+    ]);
+    if (present.split("\n").includes(plan.server)) {
+        const running = capture([
+            "ps",
+            "--filter",
+            `name=^${plan.server}$`,
+            "--format",
+            "{{.Names}}",
+        ]);
+        if (!running.split("\n").includes(plan.server)) run(["start", plan.server]);
+        return;
+    }
+    log(`Starting S3 server '${plan.server}' (${S3_IMAGE}) as ${S3_ALIAS}:${S3_PORT}`);
+    const status = run(s3RunArgs(plan));
+    if (status !== 0) throw new Error(`Starting the S3 server failed with status ${status}.`);
+    // `weed shell` exits 0 whether or not the filer is up; it names the filers
+    // it found once there is one.
+    for (let attempt = 0; ; attempt++) {
+        if (capture(s3ShellArgs(plan, "s3.bucket.list")).includes("filers: [")) break;
+        if (attempt >= attempts) {
+            throw new Error(`The S3 server '${plan.server}' did not become ready.`);
+        }
+        sleep(1000);
+    }
+    run(s3ShellArgs(plan, `s3.bucket.create -name ${S3_BUCKET}`));
+}
+
+/**
+ * Remove the S3 server and its network, tolerating either being absent.
+ *
+ * @param {S3Plan} plan - The S3 plan.
+ * @param {(args: string[]) => number} [run] - Runs docker.
+ * @param {(args: string[]) => string} [capture] - Runs docker for its stdout.
+ */
+export function removeS3(plan, run = runDocker, capture = captureDocker) {
+    const present = capture([
+        "ps",
+        "-a",
+        "--filter",
+        `name=^${plan.server}$`,
+        "--format",
+        "{{.Names}}",
+    ]);
+    if (present.split("\n").includes(plan.server)) {
+        run(["stop", plan.server]);
+        run(["rm", plan.server]);
+    }
+    if (capture(["network", "ls", "--filter", `name=^${plan.network}$`, "--format", "{{.Name}}"])) {
+        run(["network", "rm", plan.network]);
+    }
+}
+
 /**
  * The full `docker run` argument vector for a stage's container.
  *
@@ -399,6 +609,11 @@ export function needsFoundryAccount({
  * @param {string|null} [opts.licenseKey] - Dedicated licence key.
  * @param {boolean} [opts.account] - Whether to pass `FOUNDRY_USERNAME` and
  *   `FOUNDRY_PASSWORD` through; see {@link needsFoundryAccount}.
+ * @param {string|null} [opts.network] - A user-defined network to attach the
+ *   container to as it is created, so it can reach the S3 server before Foundry
+ *   starts.
+ * @param {string|null} [opts.awsConfig] - Name of the `awsConfig` file under the
+ *   data root's `Config/`, passed as `FOUNDRY_AWS_CONFIG`.
  * @param {string|null} [opts.user] - `--user` value to run the container as.
  *   `felddy/foundryvtt` runs Foundry as user 1000 and ignores `FOUNDRY_UID` and
  *   `FOUNDRY_GID`; under rootless Docker, container root is the host user, so
@@ -417,6 +632,8 @@ export function dockerRunArgs({
     world = null,
     licenseKey = null,
     account = true,
+    network = null,
+    awsConfig = null,
     user = null,
 }) {
     const args = [
@@ -444,6 +661,8 @@ export function dockerRunArgs({
     if (version) args.push("-e", `FOUNDRY_VERSION=${version}`);
     if (world !== null) args.push("-e", `FOUNDRY_WORLD=${world}`);
     if (licenseKey) args.push("-e", `FOUNDRY_LICENSE_KEY=${licenseKey}`);
+    if (network) args.push("--network", network);
+    if (awsConfig) args.push("-e", `FOUNDRY_AWS_CONFIG=${awsConfig}`);
     if (user?.trim()) args.push("--user", user.trim());
     args.push(image);
     return args;
@@ -660,6 +879,7 @@ export function clearStaleLock(dataRoot, log = () => {}) {
  * @property {string|null} licenseKey
  * @property {string|null} cacheDir
  * @property {string|null} user - From `FOUNDRYVTT_CONTAINER_USER`.
+ * @property {S3Plan|null} s3 - Set by `FOUNDRYVTT_CONTAINER_S3`.
  */
 
 /**
@@ -680,9 +900,10 @@ export function resolveContainer({ stage, config, env = process.env }) {
         e2eStage: config.e2eStage,
     });
     const port = resolveStagePort(stage, { env, stages });
+    const name = containerName(config.packageId, stage, config.containerName);
     return {
         stage,
-        name: containerName(config.packageId, stage, config.containerName),
+        name,
         port,
         image: resolveImage({
             env,
@@ -696,6 +917,7 @@ export function resolveContainer({ stage, config, env = process.env }) {
         licenseKey: resolveLicenseKey(stage, env),
         cacheDir: env.FOUNDRYVTT_CACHE?.trim() || null,
         user: env.FOUNDRYVTT_CONTAINER_USER?.trim() || null,
+        s3: resolveS3({ name, rootDir: config.rootDir, env }),
     };
 }
 
@@ -710,10 +932,16 @@ export function resolveContainer({ stage, config, env = process.env }) {
  * @returns {number} The exit status.
  */
 export function startContainer(container, { dataRoot, env = process.env, log = () => {} }) {
+    // Before Foundry starts, so its S3 client finds the server on the first try.
+    if (container.s3) ensureS3({ plan: container.s3, dataRoot, log });
     if (containerExists(container.name)) {
         // Nothing is running against this data root — we are about to start it
         // — so any lock present was left by a previous crash.
         if (!containerExists(container.name, true)) clearStaleLock(dataRoot, log);
+        if (container.s3) {
+            // Fails harmlessly when the container is already on the network.
+            captureDocker(["network", "connect", container.s3.network, container.name]);
+        }
         log(`Starting existing container '${container.name}' → ${container.url}`);
         return runDocker(["start", container.name]);
     }
@@ -743,6 +971,8 @@ export function startContainer(container, { dataRoot, env = process.env, log = (
                 version: container.version,
                 licenseKey: container.licenseKey ?? env.FOUNDRY_LICENSE_KEY?.trim() ?? null,
             }),
+            network: container.s3?.network ?? null,
+            awsConfig: container.s3?.awsConfigName ?? null,
             user: container.user,
         }),
     );
@@ -818,6 +1048,7 @@ export function containerAction({ action, stage, config, env = process.env, log 
         }
         case "rm":
             removeContainer(container.name, log);
+            if (container.s3) removeS3(container.s3);
             return 0;
         case "status":
             return runDocker(["ps", "-a", "--filter", `name=^${container.name}$`]);

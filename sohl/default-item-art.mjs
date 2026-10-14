@@ -38,10 +38,12 @@
  * Injecting the map through configuration instead would re-open that drift,
  * because the two sides would once more be free to disagree.
  *
- * **Paths name the package that owns the file**, as every pathname does: these
- * icons are the `sohl` package's, so they are written `sohl/assets/…` and each
- * surface derives its own address from that. If a new item type is added, add
- * its default here.
+ * **Values are the deployed form of the file's path**, `sohl/icons/<basename>`:
+ * the owning package's name, then the flat location a staged package serves its
+ * icons from. A runtime prefixes `systems/` and has a Foundry address.
+ * {@link defaultItemArt} returns the same file as an authored pathname,
+ * `sohl/assets/icons/<basename>`, which is what the build resolves through
+ * `resolveImg`. If a new item type is added, add its default here.
  *
  * **The keys are SoHL *document* subtypes, not markdown note types.** The
  * runtime reads this with `itemData.type`, which is a Foundry Item subtype, and
@@ -53,19 +55,19 @@
  * build translates once and no second copy of those three rows exists.
  */
 export const DEFAULT_ITEM_ART = {
-    affiliation: "sohl/assets/icons/noun/shieldnn.svg",
-    affliction: "sohl/assets/icons/other/sick.svg",
-    armorgear: "sohl/assets/icons/game-icons/lorc/breastplate.svg",
-    attribute: "sohl/assets/icons/game-icons/lorc/charm.svg",
-    concoctiongear: "sohl/assets/icons/game-icons/badges/flask.svg",
-    containergear: "sohl/assets/icons/other/sack.svg",
-    miscgear: "sohl/assets/icons/other/questionmark.svg",
-    mystery: "sohl/assets/icons/game-icons/delapouite/sparkles.svg",
-    mysticalability: "sohl/assets/icons/other/handsparkles.svg",
-    projectilegear: "sohl/assets/icons/noun/arrow.svg",
-    skill: "sohl/assets/icons/other/headgear.svg",
-    trauma: "sohl/assets/icons/other/injury.svg",
-    weapongear: "sohl/assets/icons/other/sword.svg",
+    affiliation: "sohl/icons/shieldnn.svg",
+    affliction: "sohl/icons/sick.svg",
+    armorgear: "sohl/icons/breastplate.svg",
+    attribute: "sohl/icons/charm.svg",
+    concoctiongear: "sohl/icons/flask.svg",
+    containergear: "sohl/icons/sack.svg",
+    miscgear: "sohl/icons/questionmark.svg",
+    mystery: "sohl/icons/sparkles.svg",
+    mysticalability: "sohl/icons/handsparkles.svg",
+    projectilegear: "sohl/icons/arrow.svg",
+    skill: "sohl/icons/headgear.svg",
+    trauma: "sohl/icons/injury.svg",
+    weapongear: "sohl/icons/sword.svg",
 };
 
 /**
@@ -80,7 +82,8 @@ export const DEFAULT_ITEM_ART = {
  *
  * @param {string} type - The SoHL Item document subtype — `armorgear`, not the
  *   `armor` note type that compiles into one.
- * @returns {string} the default image path for that subtype.
+ * @returns {string} the default image as an authored pathname,
+ *   `sohl/assets/icons/<basename>`.
  */
 export function defaultItemArt(type) {
     if (!(type in DEFAULT_ITEM_ART)) {
@@ -91,5 +94,6 @@ export function defaultItemArt(type) {
     // The map's inferred type has no index signature — deliberately, so callers
     // reading it directly get the precise key set. The `in` guard above has
     // already proved this key is present.
-    return /** @type {Record<string, string>} */ (DEFAULT_ITEM_ART)[type];
+    const deployed = /** @type {Record<string, string>} */ (DEFAULT_ITEM_ART)[type];
+    return deployed.replace("/icons/", "/assets/icons/");
 }

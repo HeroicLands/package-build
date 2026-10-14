@@ -81,6 +81,16 @@ function makeRepo(mode: "homepage" | "content", withPdf = true, withTree = true)
         );
     }
 
+    // Every picture a case adds is covered by a record at its root, as every
+    // asset must be.
+    for (const root of ["icons", "images"]) {
+        fs.mkdirSync(path.join(dir, "assets", root), { recursive: true });
+        fs.writeFileSync(
+            path.join(dir, "assets", root, "provenance.yaml"),
+            "attribution: Tom Rodriguez\nlicense: CC-BY-SA-4.0\nai: false\n",
+        );
+    }
+
     fs.writeFileSync(
         path.join(dir, "book.yaml"),
         [
@@ -780,9 +790,12 @@ describe("a picture's declared role sizes it in the book", () => {
                 fs.mkdirSync(imageDir, { recursive: true });
                 fs.writeFileSync(
                     path.join(imageDir, "provenance.yaml"),
-                    ["attribution: Tom Rodriguez", "license: CC-BY-SA-4.0", "role: portrait"].join(
-                        "\n",
-                    ),
+                    [
+                        "attribution: Tom Rodriguez",
+                        "license: CC-BY-SA-4.0",
+                        "ai: false",
+                        "role: portrait",
+                    ].join("\n"),
                 );
                 const slot = BOOK_ROLE_SLOTS.portrait * pdfTextWidth;
                 const pixels = Math.ceil(slot * PDF_PAGE.dpi) + 600;

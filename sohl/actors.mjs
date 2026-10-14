@@ -55,7 +55,13 @@
  * @module
  */
 
-import { sohlField, resolveName, systemTemplatePriority, folderField } from "../engine/helpers.mjs";
+import {
+    sohlField,
+    resolveName,
+    systemTemplatePriority,
+    folderField,
+    resolveImg,
+} from "../engine/helpers.mjs";
 import { openingMasteryLevel } from "./skill-base.mjs";
 import { SystemActorCompiler, renderSection } from "../engine/actor-compiler.mjs";
 import { withDraftNotice } from "../engine/draft-notice.mjs";
@@ -84,9 +90,11 @@ const SYSTEM = SOHL_DOCUMENT_SUBTYPES.block;
 
 // Default art per actor **subtype**, applied when frontmatter supplies no `img`
 // / `portrait`. Beings default to the generic person icon; another subtype adds
-// its own entry here as the map gains a row for it.
+// its own entry here as the map gains a row for it. Each is an authored
+// pathname, resolved like any `img:`, so its Foundry path follows the deployed
+// layout of the package that ships it.
 const DEFAULT_IMG = {
-    being: "systems/sohl/assets/icons/game-icons/delapouite/person.svg",
+    being: "sohl/assets/icons/game-icons/delapouite/person.svg",
 };
 
 /**
@@ -313,7 +321,7 @@ export class Actors extends SystemActorCompiler {
         // The being's own default sits above the subtype's: only the note's
         // tags say whether it is a person or a creature, and only this pass
         // reads them.
-        const art = this.actorArt(fm, defaultActorImg(subType));
+        const art = this.actorArt(fm, resolveImg(defaultActorImg(subType)));
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
 

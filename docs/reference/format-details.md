@@ -917,7 +917,9 @@ of ownership** and every surface derives its own address from it.
 
 **The first segment names the package, when an `assets/` follows it.**
 Everything after that `assets/` is the _suffix_ — the path inside the package's
-shipped tree, and the one piece every derived form is built from. A pathname
+`assets/` directory, and the one piece every derived form is built from. A
+suffix under `icons/` or `images/` reaches Foundry and the website in the
+deployed layout, by type root and basename alone. A pathname
 that does not open `<package>/assets/` belongs to the package being compiled,
 and the whole of it is the suffix.
 
@@ -931,7 +933,7 @@ ships as the Foundry module `harn-ensemble`) writing `images/map.webp`:
 
 | Surface     | Address                                                    |
 | ----------- | ---------------------------------------------------------- |
-| **Foundry** | `modules/harn-ensemble/assets/images/map.webp`             |
+| **Foundry** | `modules/harn-ensemble/images/map.webp`                    |
 | **Local**   | `assets/images/map.webp`                                   |
 | **Web**     | `https://cdn.heroiclands.org/harnensemble/images/map.webp` |
 | **Book**    | `assets/images/map.webp`, staged beside the Typst source   |
@@ -941,9 +943,9 @@ system ships and this repository does not hold:
 
 | Surface     | Address                                                       |
 | ----------- | ------------------------------------------------------------- |
-| **Foundry** | `systems/sohl/assets/icons/noun/shieldnn.svg`                 |
+| **Foundry** | `systems/sohl/icons/shieldnn.svg`                             |
 | **Local**   | `assets/icons/noun/shieldnn.svg`, in the `sohl` repository    |
-| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shieldnn.svg`    |
+| **Web**     | `https://cdn.heroiclands.org/sohl/icons/shieldnn.svg`         |
 | **Book**    | not carried, unless a declared replacement carries it instead |
 
 **The content package name and Foundry id are separate values.**
@@ -1863,7 +1865,7 @@ nothing about itself, compiles into no document, and publishes no page, so the
 | `path`        | the walk   | Where the file sits inside the emitting package's asset directory.                                                                                                                                                                   |
 | `attribution` | provenance | The person holding the rights, to whom attribution is legally due.                                                                                                                                                                   |
 | `source`      | provenance | Where it came from — a URL, or a sentence.                                                                                                                                                                                           |
-| `ai`          | provenance | Whether the file is machine-generated — strictly the YAML boolean `true` or `false`; any other value is a finding, never a stringified record. Unstated resolves to `false`.                                                         |
+| `ai`          | provenance | Whether the file is machine-generated — strictly the YAML boolean `true` or `false`; any other value is a finding, never a stringified record. Required: a record that leaves it out is a finding, never read as `false`.            |
 | `license`     | provenance | The licence it is used under — an SPDX identifier, or terms.                                                                                                                                                                         |
 | `notes`       | provenance | Anything else a person reading the attribution needs.                                                                                                                                                                                |
 | `role`        | provenance | What the picture is for — `portrait`, `emblem`, `banner`, `plate` or `map`. Absent for an ordinary picture; a value outside that set is a finding. The `image` type only — a value on an `icon` address is a finding and is dropped. |
@@ -1874,17 +1876,21 @@ Every field is present on every record, blank where nothing states one. A fixed
 shape is what lets a consumer read `asset.license` without first asking whether
 the package happened to record one.
 
-**`path` is what makes resolution one step.** The record is emitted by the
-package holding the bytes, so the path is that package's path and each consumer
-joins its own root onto it:
+**`path` is the source path.** The record is emitted by the package holding
+the bytes, so the path is where the file sits in that package's repository. The
+book stages from it; Foundry and the website serve the **deployed layout**, the
+type root and the basename alone:
 
-| Consumer | `thalorna-none-image-thorn` resolves to                       |
-| -------- | ------------------------------------------------------------- |
-| Web      | `<cdn base>/thalorna/images/beings/characters/thorn.webp`     |
-| Book     | `<asset base>/thalorna/images/beings/characters/thorn.webp`   |
-| Foundry  | `modules/thalorna/assets/images/beings/characters/thorn.webp` |
+| Consumer | `thalorna-none-image-thorn` resolves to                     |
+| -------- | ----------------------------------------------------------- |
+| Web      | `<cdn base>/thalorna/images/thorn.webp`                     |
+| Book     | `<asset base>/thalorna/images/beings/characters/thorn.webp` |
+| Foundry  | `modules/thalorna/images/thorn.webp`                        |
 
-Foundry paths use the **Foundry package id**. The two values are both `thalorna`
+Foundry and the website serve a picture under `icons/` or `images/` flat, by
+type root and basename — see [what a package ships](#what-a-package-ships);
+every other file keeps its path under `assets/`, and the local and book forms
+keep the repository's arrangement. Foundry paths use the **Foundry package id**. The two values are both `thalorna`
 for this image; `harnensemble` content uses `harn-ensemble` in its Foundry paths.
 
 ##### What a role declares
@@ -1987,19 +1993,131 @@ One address resolves its record in this order:
 2. Otherwise the nearest `provenance.yaml`, searching the file's own directory
    and then its ancestors, **stopping at the type root**. A record above the root
    would speak for trees it says nothing about.
-3. Otherwise nothing, and the provenance fields are blank. A package that
-   records no attribution is a fact to state, not a walk to fail.
+3. Otherwise nothing, and that is a **finding at the file**: every asset is
+   covered by a record, because the stage decides from the record whether the
+   file ships.
+
+Resolution is per file. One directory routinely holds files its own
+`provenance.yaml` covers beside files a sidecar answers for, and each is
+resolved on its own.
 
 **The nearest record is the whole answer.** It is never merged with the one
 above it, so a record states every key it means to claim — which is what lets a
 reader open one file and know what the tree beneath it carries, instead of
 resolving a chain by hand.
 
-That is also why `attribution` and `license` are **required in any record that
-exists**: a key left out is not inherited from above, it is simply absent, so a
-record stating neither leaves every file it covers with no rights holder and no
-terms. Omitting one is a finding. `source`, `ai`, `notes` and `role` stay optional,
-because a blank is a truthful answer for each of them.
+That is also why `attribution`, `license` and `ai` are **required in every
+record**: a key left out is not inherited from above, it is simply absent, so a
+record stating none leaves every file it covers with no rights holder, no terms,
+or no statement of whether a machine made it. Omitting one is a finding at the
+record, which an empty file is held to as well. An unstated `ai` is never read as
+`false`. `source`, `notes` and `role` stay optional, because a blank is a
+truthful answer for each of them.
+
+##### What a package ships
+
+The repository keeps every picture; the Foundry package carries a filtered copy.
+`package-build assets` stages a file from `assets/icons/` or `assets/images/`
+only when its resolved record says `ai: false` **and** its `license` is one of:
+
+| Licence                      | Spelled                      |
+| ---------------------------- | ---------------------------- |
+| Public domain                | `LicenseRef-PublicDomain`    |
+| Creative Commons Zero        | `CC0-1.0`, or `CC0`          |
+| Creative Commons Attribution | `CC-BY-3.0`, `CC-BY-4.0`     |
+| Attribution-ShareAlike       | `CC-BY-SA-4.0`               |
+| Noun Project Pro             | `LicenseRef-NounProject-Pro` |
+
+The spelling is matched exactly; nothing is normalised. A package adds licences
+to this list with `packageBuild.shippingLicenses`, and ships under the list
+together with its additions. `ai: true` is never shipped, whatever the
+additions say. Audio is not filtered
+and not laid out flat — a package stages it with an ordinary
+`packageBuild.assets` row.
+
+**The deployed layout is flat.** A shipped picture sits at the package root as
+`icons/<basename>` or `images/<basename>`, whatever directories hold it in the
+repository. The root is the type and the basename is the shortcode with its
+extension, so the path follows from the address alone, and a root's shortcodes
+being one namespace is what keeps the flattening collision-free. The same
+layout serves Foundry (`modules/thalorna/images/thorn.webp`), the website's CDN
+(`<cdn base>/thalorna/images/thorn.webp`), and every location a world copies
+the pictures to.
+
+**The package's asset set**, `asset-sets/default.json` under the package
+root, lists what it ships. The name is fixed, so a world always finds the
+package's own set there:
+
+```json
+{
+  "name": "Thalorna — shipped art",
+  "package": "thalorna",
+  "assets": [
+    {
+      "address": "thalorna-none-icon-anvil",
+      "source": "../icons/anvil.svg",
+      "target": "icons/anvil.svg",
+      "size": 412
+    }
+  ]
+}
+```
+
+| Key       | What it says                                                                                                                                                                                    |
+| --------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `name`    | The set's display name: the package's manifest title with ` — shipped art` appended, or the content package without a title.                                                                    |
+| `package` | The content package — the addresses' first segment, not the Foundry id.                                                                                                                         |
+| `assets`  | One entry per file, in `target` order.                                                                                                                                                          |
+| `address` | The file's canonical address.                                                                                                                                                                   |
+| `target`  | The file's path relative to the location's root, in the deployed layout, extension included.                                                                                                    |
+| `source`  | Where the file is fetched from, resolved against the URL of the set file holding it — `new URL(source, setUrl)`. The package's own set sits in `asset-sets/`, so its `source` is `../<target>`. |
+| `size`    | The staged file's size in bytes.                                                                                                                                                                |
+
+`target` is never the record's source `path`. Each release attaches
+`icons.zip` and `images.zip` beside the package archive: one picture root of
+the stage each, with `asset-sets/default.json`, for a GM placing the files by
+hand.
+
+##### Every reference states its address
+
+A compiled document names a picture by its Foundry path, and beside each
+reference it states the picture's canonical address, so a world can rebuild the
+path for wherever it keeps the file:
+
+- **HTML.** Each `<img>` whose `src` names an asset carries
+  `data-asset="<address>"`.
+- **Path fields.** The address sits in `flags.<system>.assets` on the document
+  holding the field, as nested objects mirroring the field's path — never a
+  dotted key, which Foundry's `expandObject` splits. `<system>` is the system
+  the document is compiled for, its `_stats.systemId`.
+
+| Document                                    | Flag on                | Keys          |
+| ------------------------------------------- | ---------------------- | ------------- |
+| Actor, Item, ActiveEffect, Macro, RollTable | the document           | `img`         |
+| Actor token art                             | `prototypeToken.flags` | `texture.src` |
+| Table result                                | the result             | `img`         |
+| Journal image page                          | the page               | `src`         |
+
+```json
+"img": "modules/thalorna/icons/anvil.svg",
+"flags": { "sohl": { "assets": { "img": "thalorna-none-icon-anvil" } } },
+"prototypeToken": {
+    "texture": { "src": "modules/thalorna/icons/anvil.svg" },
+    "flags": { "sohl": { "assets": { "texture": { "src": "thalorna-none-icon-anvil" } } } }
+}
+```
+
+Embedded documents — an actor's items and effects, a journal's pages, an
+Adventure's contents — each carry their own. A path or an `<img>` naming no
+asset is left as it is.
+
+**A picture the package does not ship draws a stand-in.** A reference to an
+excluded picture compiles to its package's own stand-in,
+`<package>-none-icon-missing` or `<package>-none-image-missing` — a picture
+under `icons/` or `images/` named `missing`, human-made and licensed to ship —
+and keeps the excluded picture's address in its flag or `data-asset`. A
+package that leaves out a picture a note references and ships no stand-in of
+that type fails the build with an error at the referencing note.
 
 ##### A declared replacement resolves first
 

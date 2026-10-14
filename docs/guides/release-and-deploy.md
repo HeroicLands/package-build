@@ -47,7 +47,10 @@ manifest under `build/dist/`. The ZIP contains the staged tree at its root,
 which is the shape Foundry installs. When the manifest advertises a content
 index, the corresponding metadata JSONL is also placed beside the ZIP. A
 manifest that advertises an index the build has not produced fails the
-release. An opted-in staged `schema.json` is published beside it too.
+release. An opted-in staged `schema.json` is published beside it too. A
+package whose stage holds pictures also gets `icons.zip` and `images.zip`:
+each holds one picture root of the stage, flat, with the package's asset
+set `asset-sets/default.json`, so a GM can place the files by hand.
 
 When the package publishes content and has a book configuration, the release
 also builds a PDF beside the archive. Book findings are reported without
@@ -127,6 +130,38 @@ the same stage;
 `restart` stops it, clears a stale lock, then starts it. See the
 [container command](../commands.md#package-build-container-stage-action) for
 the other actions and environment variables.
+
+## Publish pictures to the CDN
+
+The website draws every picture a package has from
+`<site.assets>/<contentPackage>/`, and the art a Foundry package leaves out
+reaches a world from there as a named asset set. `package-build cdn publish`
+is the one command that writes there:
+
+```bash
+package-build cdn publish --set ai-art.json --name "Thalorna — illustrated" --dry-run
+package-build cdn publish --set ai-art.json --name "Thalorna — illustrated"
+```
+
+It uploads every icon and image flat, transformed as the stage transforms
+them, skips what the CDN already holds at the same size, and writes
+`<site.assets>/<contentPackage>/ai-art.json` listing the left-out pictures.
+Run it after the pictures or their provenance change; it is not part of a
+build or a release.
+
+The bucket's credentials go in `.env.local` beside the stage paths:
+
+```dotenv
+CDN_ENDPOINT=https://<account id>.r2.cloudflarestorage.com
+CDN_BUCKET=<bucket>
+CDN_ACCESS_KEY_ID=<access key id>
+CDN_SECRET_ACCESS_KEY=<secret access key>
+```
+
+A dry run with none of them set compares against the public CDN instead. A
+dispatched workflow passes the same four values as named secrets. See the
+[command reference](../commands.md#package-build-cdn-publish) for the set
+file's shape, the refusals and the exit status.
 
 ## Publish a package-build npm version
 

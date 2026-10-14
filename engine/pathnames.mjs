@@ -36,15 +36,23 @@
  * being built, and the whole of it is the suffix. That is the ordinary case and
  * the one nearly every note writes.
  *
- * The four forms, for a `harnensemble` note writing `images/map.webp`
+ * The four forms, for a `harnensemble` note writing `images/places/map.webp`
  * (`harnensemble` ships as the Foundry module `harn-ensemble`):
  *
  * | Form      | Address                                                       |
  * | --------- | ------------------------------------------------------------- |
- * | `foundry` | `modules/harn-ensemble/assets/images/map.webp`               |
- * | `local`   | `assets/images/map.webp`                                      |
+ * | `foundry` | `modules/harn-ensemble/images/map.webp`                      |
+ * | `local`   | `assets/images/places/map.webp`                               |
  * | `web`     | `https://cdn.heroiclands.org/harnensemble/images/map.webp`   |
- * | `pdf`     | `assets/images/map.webp`                                      |
+ * | `pdf`     | `assets/images/places/map.webp`                               |
+ *
+ * **Foundry and the website serve the deployed layout.** A suffix under
+ * `icons/` or `images/` reaches them flat — the type root and the basename,
+ * whatever directories the repository nests it in — because that is how the
+ * stage lays a package's pictures out and how the CDN holds them; see
+ * {@link module:engine/asset-shipping}. Every other suffix keeps its path, and
+ * sits under `assets/` in the install. `local` and `pdf` name the source file,
+ * so they keep the repository's own arrangement.
  *
  * **`<package>` and `<foundry-id>` are two different names.** The package is
  * `harnensemble` — what the content is called, what the website serves it under,
@@ -91,6 +99,7 @@
  */
 
 import { PACKAGEBUILD_PACKAGE } from "./packages.mjs";
+import { deployedSuffix, isDeployedSuffix } from "./asset-types.mjs";
 
 /**
  * The directory a package ships its files in, and the segment that marks a
@@ -146,7 +155,8 @@ export const PATHNAME_SURFACES = Object.freeze(["foundry", "local", "web", "pdf"
  *   package owns, `package` for an owned file.
  * @property {string|null} package  The content package that owns the file, or
  *   `null` when no package does.
- * @property {string|null} suffix  The path inside that package's shipped tree.
+ * @property {string|null} suffix  The path inside that package's `assets/`
+ *   directory, as its repository arranges it.
  * @property {boolean} own  Whether the owner is the package being built, and so
  *   whether `local` names a file this build may open.
  * @property {string|null} foundry  The address inside a Foundry install.
@@ -407,6 +417,10 @@ export function resolvePathname(raw, config) {
     const suffix = named ? segments.slice(2).join("/") : authored;
     const entry = owner ? packages.get(owner) : undefined;
     const host = String(config.site?.assets ?? "").replace(/\/+$/, "");
+    // A picture deploys flat at the package root; anything else keeps its
+    // path under the package's `assets/`.
+    const deployed = deployedSuffix(suffix);
+    const installed = isDeployedSuffix(suffix) ? deployed : `${ASSETS_SEGMENT}/${suffix}`;
 
     return {
         authored,
@@ -418,14 +432,11 @@ export function resolvePathname(raw, config) {
         // the first segment names a package this build has never heard of:
         // both are "there is no install path to derive", and guessing one
         // writes an address into a document nobody would check.
-        foundry:
-            entry?.root && entry.id ?
-                `${entry.root}/${entry.id}/${ASSETS_SEGMENT}/${suffix}`
-            :   null,
+        foundry: entry?.root && entry.id ? `${entry.root}/${entry.id}/${installed}` : null,
         local: `${ASSETS_SEGMENT}/${suffix}`,
         // `null` where no asset host is configured. The website is the one
         // surface whose address is not derivable from the repository itself.
-        web: host && owner ? `${host}/${owner}/${suffix}` : null,
+        web: host && owner ? `${host}/${owner}/${deployed}` : null,
         pdf: `${ASSETS_SEGMENT}/${suffix}`,
     };
 }

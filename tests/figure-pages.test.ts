@@ -30,14 +30,14 @@ describe("a single-asset fence with a plain caption", () => {
         const [page] = entryFor(`:@ The great beast. {#thorn}\n\n![Thorn](${THORN})`).pages;
         expect(page.type).toBe("image");
         expect(page.name).toBe("Figure 1");
-        expect(page.src).toBe("systems/sohl/assets/images/other/thorn.webp");
+        expect(page.src).toBe("systems/sohl/images/thorn.webp");
         expect(page.image.caption).toBe("The great beast.");
     });
 
     it("emits an image page for an SVG icon embed", () => {
         const [page] = entryFor(`:@ A worn anvil. {#anvil}\n\n![An anvil](${ANVIL_ICON})`).pages;
         expect(page.type).toBe("image");
-        expect(page.src).toBe("systems/sohl/assets/icons/other/anvil.svg");
+        expect(page.src).toBe("systems/sohl/icons/anvil.svg");
         expect(page.image.caption).toBe("A worn anvil.");
     });
 });

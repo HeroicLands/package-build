@@ -58,7 +58,7 @@ The command entries below list only their own options.
 the walk up from the working directory the CLI otherwise does — the only
 environment variable the toolchain itself reads for configuration
 resolution. `deploy`, `container` and `e2e` additionally read `FOUNDRYVTT_*`,
-documented where each applies.
+and `cdn publish` reads `CDN_*`, documented where each applies.
 
 An option name recurring across commands is not a recurring meaning —
 `--out`, `--check`, `--from` and `--strict` each carry their own default and
@@ -300,6 +300,16 @@ names a module in `packageBuild.assetTransform`, exporting
 anything else replaces its content. Reads every `from` path; writes into
 `packageBuild.stageDir`.
 
+Then stages the package's pictures itself. Every file under `assets/icons/`
+and `assets/images/` whose provenance says `ai: false` and whose licence is on
+the shipping list (the default list plus `packageBuild.shippingLicenses`) is copied flat to `icons/<basename>` or `images/<basename>`
+at the package root, through the same transform, and the package's asset set,
+`asset-sets/default.json`, lists what was staged. Everything else stays in the repository. See
+[what a package ships](reference/format-details.md#what-a-package-ships).
+A `packageBuild.assets` row that copies a picture root, a directory inside
+one, or a directory holding one is refused, because it would ship every file
+unfiltered.
+
 **OPTIONS**
 
 None.
@@ -307,15 +317,20 @@ None.
 **EXIT STATUS**
 
 1 if `packageBuild.assetTransform` is declared but cannot be loaded, or
-exports no `transform` function. 1 on any other thrown error. Otherwise 0 —
-including when `packageBuild.assets` is empty, which logs and stages nothing
-rather than failing.
+exports no `transform` function. 1 when a row copies a picture root, and 1 on
+any asset finding — a file no provenance record covers, a record missing
+`attribution`, `license` or `ai`, two files claiming one address — with
+nothing staged. 1 on any other thrown error. Otherwise 0.
 
 **EXAMPLES**
 
 ```
 $ package-build assets
-✅ Static assets staged (1 entries, 1 files).
+Pictures: 4 staged, 2 left out by provenance.
+✅ Static assets staged (2 entries, 9 files).
+
+$ package-build assets
+package-build.config.yaml:14:17: error: `packageBuild.assets[6]` copies `assets/images`, which reaches assets/images/ — the stage copies the icon and image roots itself, flat and filtered by each file's provenance, so a row copying them would ship every file unfiltered. Remove the row
 ```
 
 **SEE ALSO**
@@ -1138,7 +1153,9 @@ states it a second time. It also publishes the content index the manifest
 advertises (`flags.metadataUrl`) and, when the stage carries one,
 `schema.json` — a repository that names `build/schema.json` in
 `packageBuild.assets` gets it released beside the archive; one that does not
-gets none. When the content tree holds notes beyond its homepage, it
+gets none. When the stage carries `asset-sets/default.json`, it writes
+`icons.zip` and `images.zip` too, one per picture root the stage holds, each
+with that set. When the content tree holds notes beyond its homepage, it
 also builds the content-tree book (see `package-build pdf`) and reports it
 alongside the archive; `--no-pdf` skips that step for a release that has a
 tree but does not want the book this time. A book that fails to build is
@@ -1246,6 +1263,134 @@ Deployed stage 'test' successfully.
 `package-build container <stage> <action>`, `package-build e2e <action>`,
 [Configuration](configuration.md).
 
+### `package-build cdn publish`
+
+**NAME**
+
+Upload every picture the package has to the CDN, and publish the art the
+package leaves out as a named asset set.
+
+**SYNOPSIS**
+
+```
+package-build cdn publish --set <file> --name <display name> [--dry-run]
+```
+
+**DESCRIPTION**
+
+The one writer to `<site.assets>/<contentPackage>/`. It is run by hand, or by
+a manually dispatched workflow; no build or release runs it.
+
+Every icon and image under the package's picture roots is uploaded flat, as
+`icons/<basename>` or `images/<basename>` — shipped and left-out pictures
+alike, because the website draws every one of them from the same address the
+site build gives it. `packageBuild.assetTransform` runs on each file exactly
+as `package-build assets` runs it, so a picture on the CDN holds the bytes the
+staged package holds. SVG is served as `image/svg+xml`.
+
+The bucket is served at `site.assets`, so an object's key is its path below
+that address: `thalorna/images/thorn.webp` is
+`https://cdn.heroiclands.org/thalorna/images/thorn.webp`.
+
+`--set` names the set file, written at `<site.assets>/<contentPackage>/<file>`.
+It lists only the pictures the package leaves out — an address a set does not
+list resolves to the shipped copy — chosen by the same rule the stage applies,
+`packageBuild.shippingLicenses` included. Its shape is the shipped set's, with
+each `source` the file's absolute CDN address:
+
+```json
+{
+  "name": "Thalorna — illustrated",
+  "package": "thalorna",
+  "assets": [
+    {
+      "address": "thalorna-none-image-thorn",
+      "source": "https://cdn.heroiclands.org/thalorna/images/thorn.webp",
+      "target": "images/thorn.webp",
+      "size": 48213
+    }
+  ]
+}
+```
+
+Several sets may sit side by side under one package, each with its own file
+name. `default.json` is refused: it is the shipped set's name.
+
+A picture whose object already exists at the same size is skipped, and the set
+file is skipped when its bytes are unchanged, so a second run uploads nothing.
+A picture that fails to upload is reported and the rest carry on; the set file
+is then withheld, since it would list a file the CDN does not hold.
+
+**Refusals and reports.** A file under `icons/` or `images/` whose name is no
+address — a basename that is not a shortcode, or two files claiming one — and
+a provenance record that cannot be read stop the run before anything is
+uploaded, each reported against its file. A note naming a picture the package
+does not have, and a note naming left-out art that is not on the CDN when the
+run ends, are warnings at the note's line and column: an art slot under
+`data:`, an embed, or a body image.
+
+**Credentials.** The store is an S3-compatible bucket — Cloudflare R2 for
+`cdn.heroiclands.org` — signed with AWS Signature Version 4. Its settings are
+read from the environment, after `.env.local` and `.env` are loaded:
+
+| Variable                | What it is                                                                |
+| ----------------------- | ------------------------------------------------------------------------- |
+| `CDN_ENDPOINT`          | The S3 endpoint; for R2, `https://<account id>.r2.cloudflarestorage.com`. |
+| `CDN_BUCKET`            | The bucket served at `site.assets`.                                       |
+| `CDN_ACCESS_KEY_ID`     | The access key id of a token that can write the bucket.                   |
+| `CDN_SECRET_ACCESS_KEY` | That token's secret. Never printed.                                       |
+
+Setting some but not all of them is an error naming the missing ones. With
+none set, `--dry-run` compares against the public CDN at `site.assets`
+instead, read-only, and an upload is refused.
+
+A workflow calls the command the same way, passing the four values as named
+secrets in the step's environment:
+
+```yaml
+- run: npx package-build cdn publish --set ai-art.json --name "Thalorna — illustrated"
+  env:
+    CDN_ENDPOINT: ${{ secrets.CDN_ENDPOINT }}
+    CDN_BUCKET: ${{ secrets.CDN_BUCKET }}
+    CDN_ACCESS_KEY_ID: ${{ secrets.CDN_ACCESS_KEY_ID }}
+    CDN_SECRET_ACCESS_KEY: ${{ secrets.CDN_SECRET_ACCESS_KEY }}
+```
+
+**OPTIONS**
+
+| Option      | Type    | Default | Description                                                                 |
+| ----------- | ------- | ------- | --------------------------------------------------------------------------- |
+| `--set`     | string  | —       | Required. The set file's name under the package's CDN root, a `.json` file. |
+| `--name`    | string  | —       | Required. The set's display name.                                           |
+| `--dry-run` | boolean | `false` | List what would upload and what is skipped; write nothing.                  |
+
+**EXIT STATUS**
+
+1 when a picture's file has no address, when a picture fails to upload, when
+`--set` is `default.json` or a path, when `site.assets` is undeclared, and
+when an upload has no store configured. Warnings about notes do not change
+it. Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build cdn publish --set ai-art.json --name "Thalorna — illustrated" --dry-run
+Dry run: comparing 582 pictures against https://cdn.heroiclands.org, read-only.
+  would upload thalorna/icons/anvilbdg.svg (969 bytes)
+  …
+  would upload thalorna/ai-art.json (582 assets)
+Would upload 582, skipped 0, failed 0; https://cdn.heroiclands.org/thalorna/ai-art.json lists 582 left-out pictures (would change).
+
+$ package-build cdn publish --set default.json --name Shipped
+package-build: `--set default.json` is refused: `default.json` is the shipped set's name, the fallback every other set is read against. Name the set for its art
+```
+
+**SEE ALSO**
+
+`package-build assets`, `package-build release`,
+[Configuration](configuration.md#site),
+[Release and deploy](guides/release-and-deploy.md#publish-pictures-to-the-cdn).
+
 ### `package-build container <stage> <action>`
 
 **NAME**
@@ -1306,7 +1451,9 @@ exact pin takes the major tag of its pin or of `compatibility.minimum`
 mount), `FOUNDRYVTT_CONTAINER_USER` (passed to `docker run --user`; `0:0`
 under rootless Docker makes the data root's files belong to the host user,
 because the image otherwise runs Foundry as user 1000 and ignores
-`FOUNDRY_UID` and `FOUNDRY_GID`).
+`FOUNDRY_UID` and `FOUNDRY_GID`), `FOUNDRYVTT_CONTAINER_S3` (`1` or `true`
+runs an S3-compatible server beside the container; see
+[an S3 server for the container](guides/e2e.md#an-s3-server-for-the-container)).
 
 **EXIT STATUS**
 

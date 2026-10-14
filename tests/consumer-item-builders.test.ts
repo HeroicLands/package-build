@@ -45,7 +45,7 @@ const BARE_BUILDER = `{ relic: ${RELIC_SYSTEM} }`;
  * pathname, resolved against *this* consumer's asset root.
  */
 const RELIC_ART = "icons/relic.svg";
-const RELIC_ART_RESOLVED = "modules/sohl-relics/assets/icons/relic.svg";
+const RELIC_ART_RESOLVED = "modules/sohl-relics/icons/relic.svg";
 const PAIRED_BUILDER = `{
         relic: { system: ${RELIC_SYSTEM}, img: ${JSON.stringify(RELIC_ART)} },
     }`;
@@ -233,7 +233,7 @@ describe("a consumer's own itemBuilders table is the one that compiles", () => {
 });
 
 /** The file `RELIC_FM` names, after the asset-root resolution every note gets. */
-const NOTE_IMG_RESOLVED = "modules/sohl-relics/assets/icons/svg/item-bag.svg";
+const NOTE_IMG_RESOLVED = "modules/sohl-relics/icons/item-bag.svg";
 
 /** The same relic note, with no art of its own — the case #7 is about. */
 const RELIC_FM_NO_IMG = `{
