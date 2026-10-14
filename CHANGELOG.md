@@ -1,5 +1,12 @@
 # @heroiclands/package-build
 
+## 23.4.1
+
+### Patch Changes
+
+- Beings may give their hair as light brown or as greying in any color, and their eyes as red, gold, yellow, white, silver or pink.
+- Silver hair reads as a natural color as well as an aged one.
+
 ## 23.4.0
 
 ### Minor Changes
