@@ -3688,6 +3688,13 @@ tattoo, scar or brand may show gear or a gesture, as in `a tattoo of a knight's
 helmet`, and stands; the voice, impression, handedness, sterility and age rules
 hold even for a mark.
 
+A condition is a feature only through what it shows. Its visible sign is a mark
+— `trembling hands`, `one eye missing`, `a withered left arm` — and a skin sign
+the complexion words cover goes in `complexion`, so healed pox is `pockmarked`
+and acne scarring `scarred`. A condition with no visible sign, such as epilepsy,
+haemophilia or a parasite, stays in the being's prose and is not an appearance
+fact at all.
+
 ```yaml
 data:
   gender: female
