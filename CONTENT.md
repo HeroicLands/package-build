@@ -10,10 +10,14 @@ A folder note needs only a nonempty body: any content passes, tagged or not.
 Lint and publishing commands enforce the error; a description is not a body.
 
 An `affiliation` note must declare `data.governance.ranks` with a rung at
-`level: 1`. That rung gives an ordinary member a valid standing. Each rung
-states `level`, `title`, and `description`; one rung is enough if offices carry
-the other distinctions. A missing or empty ladder, or one without level 1,
-produces a located build error.
+`level: 0` and a rung at `level: 1`. Level 1 is the ordinary member; level 0
+names those the body excludes, in that body's own word for them. Each rung
+states `level`, `title`, and `description`. Those two rungs are the minimum;
+add higher ones only where the body truly has them. A rung is a standing, what
+a member is; an office in `governance.offices` is a post, what a member does,
+and leadership is normally an office held by the top rank. A missing or empty
+ladder, or one without level 0 or level 1, produces a located build error.
+See [the affiliation reference](docs/reference/format-details.md#type-affiliation).
 
 A place declares its government through `data.government`, an `Address` whose
 default target type is `affiliation`. Explicit `null` means complete anarchy;

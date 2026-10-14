@@ -33,6 +33,7 @@ const tribes = {
         governance: {
             ranks: [
                 { level: 0, title: "Vrystrith", description: "Outcast." },
+                { level: 1, title: "Kinsman", description: "Of the tribes." },
                 { level: 4, title: "Fródrád", description: "Respected." },
                 { level: 5, title: "Hárár", description: "First among them." },
             ],
@@ -193,7 +194,7 @@ describe("a being's standing names the body that confers it", () => {
     it("refuses a rung the named body does not confer", () => {
         const [finding] = checkStandings(note({ vrystwldtrbs: { rank: 3 } }), { index });
         expect(finding.message).toMatch(/rank 3 is not a level/);
-        expect(finding.message).toMatch(/0, 4, 5/);
+        expect(finding.message).toMatch(/0, 1, 4, 5/);
         expect(finding.severity).toBe("error");
         expect(finding.file).toBe("subject.md");
         expect(finding.line).toBeGreaterThan(0);
@@ -265,6 +266,7 @@ describe("the body is the single source for what a rung is called", () => {
     it("reads the ladder by its own levels and the roster through both spellings", () => {
         expect([...rankLadder(tribes.data.governance.ranks)]).toEqual([
             [0, "Vrystrith"],
+            [1, "Kinsman"],
             [4, "Fródrád"],
             [5, "Hárár"],
         ]);

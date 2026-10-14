@@ -53,12 +53,36 @@ explains routing for documents and their prose journals.
 
 A note can also produce a system document: an Actor, Item, Scene, or Macro according to its type and system blocks. The `sohl:` and `hm3:` blocks supply game-specific mechanics and overrides; they do not create separate prose. The JournalEntry is shared between systems.
 
-An `affiliation` note declares `data.governance.ranks` with at least one rung at
-`level: 1`. Each rung states `level`, `title`, and `description`. A being's
-`data.affiliations` entry names a rank on that body's ladder; level 1 is the
-ordinary standing when no higher rank applies. A single level-1 rung is enough
-when the body expresses its hierarchy through `governance.offices` instead.
-Missing ranks, an empty list, or a ladder without level 1 are build errors.
+An `affiliation` note declares `data.governance.ranks` with at least two rungs:
+`level: 0`, those the body excludes, and `level: 1`, its ordinary members. Every
+body that can name its members can name those it shuts out, whether or not it
+ever does, so both are required. Each rung states `level`, `title`, and
+`description`, and the level-0 title is the body's own word for the excluded
+rather than a generic "Excluded". A being's `data.affiliations` entry names a
+rank on that body's ladder; level 1 is the ordinary standing when no higher
+rank applies.
+
+Add rungs above level 1 only where the body truly has them, generally no more
+than five. A rung is a **standing**, what a member is; an entry in
+`governance.offices` is a **post**, what a member does. Leadership is normally
+an office held by the top rank rather than a rank above it, and a rank never
+falls when an office is left: a bishop stays a bishop after being Presiding
+Bishop.
+
+```yaml
+data:
+  governance:
+    ranks:
+      - { level: 0, title: Apostate, description: Put out of the communion. }
+      - { level: 1, title: Layman, description: A baptised member of the faith. }
+      - { level: 2, title: Priest, description: Ordained to serve a parish. }
+      - { level: 3, title: Bishop, description: Consecrated to oversee a diocese. }
+    offices:
+      Presiding Bishop: Chairs the synod of bishops for a term.
+```
+
+Missing ranks, an empty list, or a ladder without level 0 or level 1 are build
+errors, reported at the `ranks` key.
 
 | Authored section | SoHL Actor          | HM3 Actor            |
 | ---------------- | ------------------- | -------------------- |

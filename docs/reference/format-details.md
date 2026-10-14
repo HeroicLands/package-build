@@ -4537,18 +4537,19 @@ a propertied or senatorial order supplies nearly everyone who holds them, it is 
 **Democracy**.
 
 The distinction is not academic: it is the difference between a ladder whose top
-rungs are a class one is born or bought into, and one whose top rungs are an
-office one is voted into and then vacates. A republic's ladder therefore carries
-**both** — the civic status (Citizen) and the standing in the governing body above
-it (Senator) — because a citizen is not a member of the Senate, and conflating the
-two is the commonest way to get a non-monarchy wrong.
+rungs are a class one is born or bought into, and a body whose highest posts are
+offices one is voted into and then vacates. A republic's ladder therefore carries
+**both** standings — the civic status (Citizen) and the standing in the governing
+body above it (Senator) — because a citizen is not a member of the Senate, and
+conflating the two is the commonest way to get a non-monarchy wrong. The
+magistracies held for a term are offices, not rungs.
 
 **Rank**
 Definition of a level within the organization (e.g., Priest, Layperson, Member, Gang Leader, Master, etc.)
 
 | Property      | Required | Values    | Description                                                                                                                          |
 | ------------- | -------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `level`       | yes      | integer   | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
+| `level`       | yes      | integer   | The ranking within the affiliation: 0 those it excludes (expelled, excommunicated), 1 its ordinary members, higher values above them |
 | `title`       | yes      | string    | Title associated with the Rank                                                                                                       |
 | `description` | yes      | string    | Description of the Rank                                                                                                              |
 | `lore`        | no       | `Address` | The standing this rank _is_ — a `lore` note of subType `law`, shared with every other body that confers the same thing               |
@@ -4569,11 +4570,37 @@ moving two lines renames the standing. A body that confers two titles at one
 standing writes them as one rung — `title: Knight or Dame` — or gives each its
 own level.
 
+**Every ladder has rung 0 and rung 1.** Level 1 is the ordinary member, and level
+0 names those the body excludes. A body that can name its members can name those
+it shuts out, whether or not it ever does, so an affiliation whose
+`governance.ranks` lacks either is an **error** at the `ranks` key, as is one
+with no ladder at all. The level-0 title is the body's own word for the excluded
+— Outlaw, Apostate, Níðing — never a generic "Excluded".
+
+Those two rungs are the minimum. Add rungs above level 1 only where the body
+truly has them, generally no more than five. **A rung is a standing, what a member
+is; an office is a post, what a member does.** Leadership is normally an office
+held by the top rank rather than a rank above it, and a rank never falls when an
+office is left: a bishop stays a bishop after being Presiding Bishop.
+
+```yaml
+data:
+  governance:
+    ranks:
+      - { level: 0, title: Apostate, description: Put out of the communion. }
+      - { level: 1, title: Layman, description: A baptised member of the faith. }
+      - { level: 2, title: Priest, description: Ordained to serve a parish. }
+      - { level: 3, title: Bishop, description: Consecrated to oversee a diocese. }
+    offices:
+      Presiding Bishop: Chairs the synod of bishops for a term.
+```
+
 ```yaml
 data:
   governance:
     ranks:
       - { level: 0, title: Vrystrith, description: Kinless and owed nothing. }
+      - { level: 1, title: Kinsman, description: Born or adopted into a household. }
       - { level: 4, title: Fródrád, description: A householder whose word carries. }
       - level: 5
         title: Hárár
@@ -4609,7 +4636,7 @@ rank names the standing, and the standing says.
 | `symbol`                                        | `string`                                           | Its emblem in words: a feather atop a golden scale, a chisel carving a star                    |
 | `governance.model`                              | `GovernanceModel`                                  | Type of government structure, if applicable                                                    |
 | `governance.summary`                            | `string`                                           | summary of the governance situation                                                            |
-| `governance.ranks`                              | `Rank[]`                                           | The ranks available to members of the affiliation                                              |
+| `governance.ranks`                              | `Rank[]`                                           | The ranks the affiliation confers; level 0 and level 1 are required                            |
 | `governance.ranks[].level`                      | `integer`, required                                | The rung's position on this body's ladder; a member's `rank` names it                          |
 | `governance.ranks[].title`                      | `string`, required                                 | What the standing is called                                                                    |
 | `governance.ranks[].description`                | `string`, required                                 | What the standing is                                                                           |
@@ -4659,14 +4686,15 @@ the ranks and offices that exist, and a membership names which of them it holds.
 **Rank is the organisation's, not the member's.** A bare `level: 4` on a
 membership says nothing on its own; it means _Knight_ only because the polity
 declared that rung. So the ladder is authored once, on the body that confers it,
-and a member's rank is an index into it. Level 0 is reserved for the excluded —
-outlawed, expelled, excommunicated — which is a standing the organisation still
-recognises, and so still has to define.
+and a member's rank is an index into it. Level 0 is the excluded — outlawed,
+expelled, excommunicated — which is a standing the organisation still
+recognises, and so every ladder defines it beside level 1.
 
 **Offices are named, not ranked.** A Chancellor and a Marshal are both great
 officers and neither is above the other, so an office is a key with a
 description rather than a rung — and a being may hold an office at any rank, or a
-rank with no office at all.
+rank with no office at all. The head of a body is usually an office of this kind,
+held by a member of the top rank, who keeps that rank when the term ends.
 
 An office may remain a string description or declare a `description` and a
 `holders` list. Each holder names a `being` Address; optional `start` and `end`

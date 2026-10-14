@@ -55,7 +55,11 @@ const HITS: Record<string, unknown> = {
         fm: {
             data: {
                 governance: {
-                    ranks: [{ level: 5, title: "War Chief", description: "Leads in war." }],
+                    ranks: [
+                        { level: 0, title: "Kinless", description: "Cast out of the tribes." },
+                        { level: 1, title: "Tribesman", description: "Belongs to a tribe." },
+                        { level: 5, title: "Elder", description: "Speaks in the moot." },
+                    ],
                 },
             },
         },
@@ -159,7 +163,10 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     },
                 ],
                 governance: {
-                    ranks: [{ level: 1, title: "Member", description: "An ordinary member." }],
+                    ranks: [
+                        { level: 0, title: "Outcast", description: "Barred from the body." },
+                        { level: 1, title: "Member", description: "An ordinary member." },
+                    ],
                     offices: {
                         Steward: "Keeps the accounts.",
                         Chancellor: { description: "Keeps the seal.", holders: [] },

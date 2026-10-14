@@ -82,7 +82,9 @@ export const RUNG_FIELDS = Object.freeze([
         kind: "integer",
         required: true,
         shape: "a whole number — the rung's position on this body's own ladder",
-        describe: "The rung's position on the ladder; a member's `rank` names it.",
+        describe:
+            "The rung's position on the ladder — `0` the excluded, `1` the ordinary member; " +
+            "a member's `rank` names it.",
     }),
     Object.freeze({
         name: "title",

@@ -1590,7 +1590,10 @@ export const NOTE_VOCABULARY = Object.freeze({
                 // its title, ordered by level — the ladder's parallel to
                 // `governance.offices`' `roster`.
                 ranks: true,
-                describe: "The ladder of ranks the body confers — level, title, description.",
+                describe:
+                    "The ladder of standings the body confers: level 0 for those it excludes " +
+                    "and level 1 for its members, both required, and higher rungs only where " +
+                    "the body has them.",
             },
             {
                 name: "governance.offices",

@@ -367,7 +367,7 @@ describe("an affiliation's minimum standing", () => {
             column: 5,
             severity: "error",
         });
-        expect(finding.message).toContain("needs data.governance.ranks with a level 1");
+        expect(finding.message).toContain("needs data.governance.ranks with a level-0 rung");
     });
 
     it("reports an empty ranks list at ranks", () => {
@@ -376,17 +376,54 @@ describe("an affiliation's minimum standing", () => {
     });
 
     it("reports a ladder without level 1", () => {
-        const [finding] = checkAffiliationRankFloor(
-            note(ladder("            - { level: 2, title: Elder, description: Leads. }")),
+        const findings = checkAffiliationRankFloor(
+            note(
+                ladder(
+                    "            - { level: 0, title: Outcast, description: Driven out. }",
+                    "            - { level: 2, title: Elder, description: Leads. }",
+                ),
+            ),
         );
-        expect(finding).toMatchObject({ line: 6, column: 9, severity: "error" });
-        expect(finding.message).toContain("needs a level 1 standing");
+        expect(findings).toHaveLength(1);
+        expect(findings[0]).toMatchObject({ line: 6, column: 9, severity: "error" });
+        expect(findings[0].message).toContain("needs a level 1 standing");
     });
 
-    it("accepts a single level 1 rung", () => {
+    it("reports a ladder without level 0 at the ranks key", () => {
+        const findings = checkAffiliationRankFloor(
+            note(ladder("            - { level: 1, title: Member, description: Belongs. }")),
+        );
+        expect(findings).toEqual([
+            {
+                file: "assets/content/Affiliations/Vrystwald_Tribes.md",
+                line: 6,
+                column: 9,
+                severity: "error",
+                message:
+                    "data.governance.ranks must have a level-0 rung naming those the body " +
+                    "excludes, beside its level-1 members",
+            },
+        ]);
+    });
+
+    it("reports both floor rungs when a ladder has neither", () => {
+        const messages = checkAffiliationRankFloor(
+            note(ladder("            - { level: 2, title: Elder, description: Leads. }")),
+        ).map((f) => f.message);
+        expect(messages).toHaveLength(2);
+        expect(messages.some((m) => m.includes("level 1 standing"))).toBe(true);
+        expect(messages.some((m) => m.includes("level-0 rung"))).toBe(true);
+    });
+
+    it("accepts a ladder of level 0 and level 1", () => {
         expect(
             checkAffiliationRankFloor(
-                note(ladder("            - { level: 1, title: Member, description: Belongs. }")),
+                note(
+                    ladder(
+                        "            - { level: 0, title: Outcast, description: Driven out. }",
+                        "            - { level: 1, title: Member, description: Belongs. }",
+                    ),
+                ),
             ),
         ).toEqual([]);
     });

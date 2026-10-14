@@ -47,18 +47,47 @@ import { RUNG_FIELDS } from "./standing-terms.mjs";
 
 export { RUNG_FIELDS };
 
-/** Every affiliation has an ordinary standing that a being can name as rank 1. */
+/**
+ * Every affiliation's ladder has its two floor rungs: level 0, those the body
+ * excludes, and level 1, its ordinary members.
+ *
+ * A body that can name its members can name those it shuts out, whether or not
+ * it ever does, so both rungs are required of every ladder. A missing or empty
+ * ladder is one finding naming both; a ladder lacking either rung is one
+ * finding per rung it lacks, at the `ranks` key.
+ *
+ * @param {object} note - The note being checked.
+ * @param {string} note.file - Its path, as a diagnostic spells it.
+ * @param {string} [note.raw] - Its source, for the position.
+ * @param {object} [note.fm] - Its parsed frontmatter.
+ * @returns {Array<{file: string, line?: number, column?: number,
+ *   severity: string, message: string}>} The findings.
+ */
 export function checkAffiliationRankFloor(note) {
     if (note.fm?.type !== "affiliation") return [];
     const governance = note.fm?.data?.governance;
     const ranks = governance?.ranks;
     // A non-list already has a shape finding. Do not repeat it here.
     if (ranks !== undefined && ranks !== null && !Array.isArray(ranks)) return [];
-    if (
+    const has = (level) =>
         Array.isArray(ranks) &&
-        ranks.some((rung) => integer(rung?.level) && Number(rung.level) === 1)
-    )
-        return [];
+        ranks.some((rung) => integer(rung?.level) && Number(rung.level) === level);
+
+    const messages = [];
+    if (!Array.isArray(ranks) || ranks.length === 0) {
+        messages.push(
+            "affiliation needs data.governance.ranks with a level-0 rung naming those the " +
+                "body excludes and a level 1 standing for its members",
+        );
+    } else {
+        if (!has(1)) messages.push("affiliation data.governance.ranks needs a level 1 standing");
+        if (!has(0))
+            messages.push(
+                "data.governance.ranks must have a level-0 rung naming those the body " +
+                    "excludes, beside its level-1 members",
+            );
+    }
+    if (messages.length === 0) return [];
 
     const path = Array.isArray(ranks) ? ["data", "governance", "ranks"] : ["data", "governance"];
     const atRankOrGovernance = positionOfFrontmatterPath(note.raw ?? "", path, { key: true });
@@ -66,17 +95,12 @@ export function checkAffiliationRankFloor(note) {
         atRankOrGovernance.line !== undefined ?
             atRankOrGovernance
         :   positionOfFrontmatterPath(note.raw ?? "", ["data"], { key: true });
-    return [
-        {
-            file: note.file,
-            ...position,
-            severity: "error",
-            message:
-                !Array.isArray(ranks) || ranks.length === 0 ?
-                    "affiliation needs data.governance.ranks with a level 1 standing"
-                :   "affiliation data.governance.ranks needs a level 1 standing",
-        },
-    ];
+    return messages.map((message) => ({
+        file: note.file,
+        ...position,
+        severity: "error",
+        message,
+    }));
 }
 
 /**
