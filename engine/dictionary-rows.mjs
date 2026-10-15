@@ -53,7 +53,7 @@ import { parseAddress, renderAddress } from "./address.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { parseWordClass, WORD_CLASS_BASES } from "./word-classes.mjs";
-import { isLanguageRecord, pieceGlosses } from "./word-rows.mjs";
+import { isLanguageRecord, lineageChain, pieceGlosses } from "./word-rows.mjs";
 
 /** Every column of the `dictionary` relation, in order. */
 export const DICTIONARY_COLUMNS = Object.freeze([
@@ -224,17 +224,14 @@ export function dictionaryAndTermRows(records, all = records) {
         const full = record.name?.full;
         return typeof full === "string" && full ? full : null;
     };
-    const lineage = (language) => {
-        const chain = [];
-        const seen = new Set();
-        for (let current = language; current && languages.has(current) && !seen.has(current);) {
-            seen.add(current);
-            chain.push(current);
-            const family = languages.get(current).data?.family;
-            current = typeof family === "string" && family ? family : undefined;
-        }
-        return chain;
-    };
+    const lineage = (language) =>
+        lineageChain(language, {
+            has: (key) => languages.has(key),
+            parentOf: (key) => {
+                const family = languages.get(key).data?.family;
+                return typeof family === "string" && family ? family : undefined;
+            },
+        });
     const ownWords = new Map();
     for (const [key, record] of languages) {
         const list = [];
@@ -470,7 +467,7 @@ export function dictionaryAndTermRows(records, all = records) {
             };
         const source = isMap(word.source) ? word.source : {};
         const built = Array.isArray(word.built) ? word.built.map(String) : [];
-        const glossOf = pieceGlosses(languages.get(statedIn)?.data);
+        const glossOf = pieceGlosses(...lineage(statedIn).map((key) => languages.get(key).data));
         const out = {
             ...blank,
             kind: typeof source.kind === "string" ? source.kind : null,

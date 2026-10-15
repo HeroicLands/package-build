@@ -31,7 +31,7 @@ const CLI = path.join(PKG_ROOT, "bin", "package-build.mjs");
 let root: string;
 
 beforeAll(() => {
-    root = fs.mkdtempSync(path.join(os.tmpdir(), "docs-check-"));
+    root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "docs-check-")));
     fs.mkdirSync(path.join(root, "assets", "content"), { recursive: true });
     fs.writeFileSync(
         path.join(root, "package.json"),

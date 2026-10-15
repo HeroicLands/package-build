@@ -57,7 +57,7 @@ const MINIMAL = [
  * @returns The absolute path of the configuration file.
  */
 function configFile(text: string, extension = "yaml"): string {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-pos-"));
+    const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cb-pos-")));
     fs.writeFileSync(
         path.join(root, "package.json"),
         JSON.stringify({ name: "sohl", version: "1.2.3" }),

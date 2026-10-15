@@ -21,7 +21,7 @@
  * column is read where the query selects it. The output is Markdown, so every
  * surface sets it as it sets a note:
  *
- * - **the key**, once, at the head: the abbreviations this rendering uses,
+ * - **the key**, once, at the head unless the fence sets `key=false`: the abbreviations this rendering uses,
  *   each with its expansion, then the common mark where an entry carries it;
  * - **a heading per letter**, from `letter`, at the fence's `section-level`;
  * - **one paragraph per entry**: the common mark, the bold headword, the
@@ -92,6 +92,7 @@ function sentence(text) {
  * @property {object} [addressContext] - Address resolution context.
  * @property {(address: string) => string|undefined} [labelOf] - A note's
  *   `name.full`, by its Address.
+ * @property {boolean} [showKey=true] - Whether the key is printed.
  * @property {string} [pageLanguage] - The language of the page the fence is
  *   on, which no entry is tagged with.
  */
@@ -189,6 +190,7 @@ function render(
         sectionLevel = 2,
         addressContext,
         labelOf = () => undefined,
+        showKey = true,
         pageLanguage,
     },
     words,
@@ -284,7 +286,7 @@ function render(
         if (usedModifiers.has(modifier.token))
             key.push(`_${modifier.abbreviation}_ ${modifier.expansion}`);
     if (anyCommon) key.push(`${COMMON_MARK} ${COMMON_KEY}`);
-    if (key.length) paragraphs.unshift(`**Key:** ${key.join("; ")}.`);
+    if (showKey && key.length) paragraphs.unshift(`**Key:** ${key.join("; ")}.`);
     return paragraphs.join("\n\n");
 }
 

@@ -2827,6 +2827,16 @@ language note tagged `gm` contributes no row on a public surface. A row holds
 the words its own note states, and nothing more: a daughter language's
 inherited words are read through `language_lineage`.
 
+**`affixes`** is one row per entry of `data.affixes` on every language note,
+and **`fields`** one per entry of `data.fields`, in the order the note states
+them. Each has `language` and `position` as `words` does, then every key of the
+entry as its own column: `form`, `gloss`, `attaches`, `examples` and `tones` for
+an affix, `name` and `holds` for a field. A key an entry does not state is
+`NULL`, `examples` is a list, and a language note tagged `gm` contributes no
+row on a public surface. An affix's `tones` is the tone pattern it carries,
+written as a word's `tones` is; it is a key of its own and is never read out of
+`attaches`.
+
 **`language_lineage`** is one row per language note and each language it
 inherits words from through [`data.family`](#a-languages-words): `language`,
 `ancestor` and `depth`, with the language itself at depth `0`, its parent at
@@ -3143,10 +3153,11 @@ value containing spaces with double quotes and escape an internal quote as
 `\"`. Boolean values are exactly `true` or `false`; other spellings are
 errors. Duplicate and unknown attributes are errors.
 
-| Attribute                                   | What it does                                        |
-| ------------------------------------------- | --------------------------------------------------- |
-| `allow-empty=true`                          | Permits a query selecting no rows. Default `false`. |
-| `section-level=1` through `section-level=6` | Sets the heading level for `_section`. Default `2`. |
+| Attribute                                   | What it does                                                      |
+| ------------------------------------------- | ----------------------------------------------------------------- |
+| `allow-empty=true`                          | Permits a query selecting no rows. Default `false`.               |
+| `section-level=1` through `section-level=6` | Sets the heading level for `_section`. Default `2`.               |
+| `key=false`                                 | Leaves the key out of a dictionary or a glossary. Default `true`. |
 
 ##### Page lists
 
@@ -5234,11 +5245,12 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `words[].tones`           | `string`                                                                             | A tone pattern, as `LHL`                                                                                                                                                             |
 | `words[].root`            | `string`                                                                             | A consonantal skeleton, as `d-l-k`                                                                                                                                                   |
 | `words[].frame`           | `string`                                                                             | The frame a root is set in                                                                                                                                                           |
-| `affixes`                 | `{ form, gloss, attaches?, examples? }[]`                                            | `language` only: the affixes a word's `built` pieces may name                                                                                                                        |
+| `affixes`                 | `{ form, gloss, attaches?, examples?, tones? }[]`                                    | `language` only: the affixes a word's `built` pieces may name                                                                                                                        |
 | `affixes[].form`          | `string`, required                                                                   | The affix as a `built` piece names it, as `-rith`                                                                                                                                    |
 | `affixes[].gloss`         | `string`, required                                                                   | What it means                                                                                                                                                                        |
 | `affixes[].attaches`      | `string`                                                                             | How it attaches, as `replaces a closing vowel`                                                                                                                                       |
 | `affixes[].examples`      | `string[]`                                                                           | The names it is read from                                                                                                                                                            |
+| `affixes[].tones`         | `string`                                                                             | The tone pattern it carries, as `L`                                                                                                                                                  |
 
 #### A language's words
 
@@ -6743,7 +6755,7 @@ A base is one of these. A base marked `no` never prints in the glossary.
 | `adv`  | adv.         | adverb          | yes             |
 | `pron` | pron.        | pronoun         | yes             |
 | `num`  | num.         | numeral         | yes             |
-| `part` | part.        | particle        | yes             |
+| `part` | ptcl.        | particle        | yes             |
 | `art`  | art.         | article         | yes             |
 | `conj` | conj.        | conjunction     | yes             |
 | `dem`  | dem.         | demonstrative   | yes             |

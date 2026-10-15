@@ -52,7 +52,7 @@ import {
     pronunciationProblem,
 } from "./word-terms.mjs";
 import { WORD_CLASS_MODIFIERS, parseWordClass } from "./word-classes.mjs";
-import { pieceGlosses } from "./word-rows.mjs";
+import { lineageChain, pieceGlosses } from "./word-rows.mjs";
 
 const MODIFIER_TOKENS = new Set(WORD_CLASS_MODIFIERS.map((item) => item.token));
 
@@ -159,7 +159,21 @@ export function checkLanguageWords(note, { index } = {}) {
         return out;
     }
 
-    const glossOf = pieceGlosses(data);
+    // The language's own entries, then each ancestor's through `data.family`.
+    const ownAddress = ownKey(note, index);
+    const dataAt = (key) => {
+        const hit = index?.addressHit?.(key);
+        const target = hit?.fm ?? hit;
+        return target?.subType === LANGUAGE_SUBTYPE && isMap(target.data) ? target.data : undefined;
+    };
+    const ancestors =
+        index?.addressHit && stated("family") ?
+            lineageChain(addressKeyOf(data.family, index, "skill"), {
+                has: (key) => key !== ownAddress && dataAt(key) !== undefined,
+                parentOf: (key) => addressKeyOf(dataAt(key).family, index, "skill"),
+            }).map((key) => dataAt(key))
+        :   [];
+    const glossOf = pieceGlosses(data, ...ancestors);
     const used = new Set();
     const forms = new Map();
     listOf(data.words).forEach((word, i) => {
@@ -246,7 +260,7 @@ export function checkLanguageWords(note, { index } = {}) {
                     [...at("built"), j],
                     "warning",
                     `the piece \`${piece}\` of \`${word.form}\` matches no word or affix of this ` +
-                        "language, so it prints with no gloss",
+                        "language or its ancestors, so it prints with no gloss",
                 ),
             );
         });

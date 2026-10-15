@@ -33,7 +33,13 @@
 
 import { renderAddress } from "./address.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
-import { GLOSSARY_ENTRY_KEYS, LANGUAGE_SUBTYPE, WORD_KEYS } from "./word-terms.mjs";
+import {
+    AFFIX_KEYS,
+    FIELD_KEYS,
+    GLOSSARY_ENTRY_KEYS,
+    LANGUAGE_SUBTYPE,
+    WORD_KEYS,
+} from "./word-terms.mjs";
 
 /** The columns a word row carries before the word's own keys. */
 const WORD_IDENTITY_COLUMNS = Object.freeze(["language", "position"]);
@@ -51,6 +57,12 @@ export const WORD_COLUMNS = Object.freeze([
 /** Every column of the `glossary` relation, in order. */
 export const GLOSSARY_COLUMNS = Object.freeze(["note", "position", ...GLOSSARY_ENTRY_KEYS]);
 
+/** Every column of the `affixes` relation, in order. */
+export const AFFIX_COLUMNS = Object.freeze([...WORD_IDENTITY_COLUMNS, ...AFFIX_KEYS]);
+
+/** Every column of the `fields` relation, in order. */
+export const FIELD_COLUMNS = Object.freeze([...WORD_IDENTITY_COLUMNS, ...FIELD_KEYS]);
+
 /** Every column of the `language_lineage` relation, in order. */
 export const LINEAGE_COLUMNS = Object.freeze(["language", "ancestor", "depth"]);
 
@@ -64,17 +76,20 @@ const isMap = (value) => Boolean(value) && typeof value === "object" && !Array.i
 const bare = (form) => String(form).replace(/^-+|-+$/g, "");
 
 /**
- * A lookup from a built piece to its gloss, over one language's words (stems
- * included) and affixes.
+ * A lookup from a built piece to its gloss, over the words (stems included)
+ * and affixes of one or more languages.
  *
- * A piece matches a word or an affix written exactly as it is, and failing
+ * Languages are given nearest first: a language's own words, then its own
+ * affixes, then the next language's, so a daughter's entry wins over its
+ * parent's. A piece matches an entry written exactly as it is, and failing
  * that one written with the same letters and different joining hyphens, so
- * `wulf-` finds the word `wulf`. A word's own gloss wins over an affix's.
+ * `wulf-` finds the word `wulf`. Within a language a word's own gloss wins over
+ * an affix's.
  *
- * @param {object} data - The language note's `data`.
+ * @param {...object} datas - Each language note's `data`, nearest first.
  * @returns {(piece: string) => string|null} The gloss, or `null` where none resolves.
  */
-export function pieceGlosses(data) {
+export function pieceGlosses(...datas) {
     const exact = new Map();
     const loose = new Map();
     const take = (entries) => {
@@ -85,9 +100,62 @@ export function pieceGlosses(data) {
             if (!loose.has(bare(entry.form))) loose.set(bare(entry.form), entry.gloss);
         }
     };
-    take(data?.words);
-    take(data?.affixes);
+    for (const data of datas) {
+        take(data?.words);
+        take(data?.affixes);
+    }
     return (piece) => exact.get(piece) ?? loose.get(bare(piece)) ?? null;
+}
+
+/**
+ * The chain of languages from one up through `data.family`: the language
+ * itself, then its parent, and so on. The chain stops at a parent that is no
+ * language, and before a language it has already reached, so a cycle the lint
+ * refuses still yields a finite chain. `language_lineage`, the dictionary and
+ * the resolution of built pieces all walk it.
+ *
+ * @param {string|undefined} start - The language's key.
+ * @param {object} reader
+ * @param {(key: string) => boolean} reader.has - Whether a key is a language.
+ * @param {(key: string) => string|undefined} reader.parentOf - A language's
+ *   parent key, where it states one.
+ * @returns {string[]} The keys, nearest first.
+ */
+export function lineageChain(start, { has, parentOf }) {
+    const chain = [];
+    const seen = new Set();
+    for (let current = start; current && has(current) && !seen.has(current);) {
+        seen.add(current);
+        chain.push(current);
+        current = parentOf(current) || undefined;
+    }
+    return chain;
+}
+
+/** A language record's `data.family` where it is a plain Address string. */
+const familyKey = (record) => {
+    const family = record?.data?.family;
+    return typeof family === "string" && family ? family : undefined;
+};
+
+/**
+ * A lookup of language records by Address, and the chain walk over them.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {{languages: Map<string, object>, chain: (key: string) => string[]}}
+ */
+export function languageLineages(records) {
+    const languages = new Map();
+    for (const record of records)
+        if (isLanguageRecord(record)) {
+            const key = noteAddressOf(record);
+            if (key && !languages.has(key)) languages.set(key, record);
+        }
+    const reader = {
+        has: (key) => languages.has(key),
+        parentOf: (key) => familyKey(languages.get(key)),
+    };
+    return { languages, chain: (key) => lineageChain(key, reader) };
 }
 
 /**
@@ -124,9 +192,12 @@ function noteAddressOf(record) {
  *
  * @param {Iterable<Record<string, any>>} records - Index records, every
  *   Address a string, already narrowed to the audience being published to.
+ * @param {Iterable<Record<string, any>>} [all] - Every record of the package,
+ *   for resolving a built piece through an ancestor the audience does not see.
  * @returns {object[]} One row per word, in record then entry order.
  */
-export function wordRows(records) {
+export function wordRows(records, all = records) {
+    const { languages, chain } = languageLineages(all);
     const rows = [];
     for (const record of records) {
         if (!isLanguageRecord(record)) continue;
@@ -134,7 +205,7 @@ export function wordRows(records) {
         if (!Array.isArray(words) || !words.length) continue;
         const language = noteAddressOf(record);
         if (!language) continue;
-        const glossOf = pieceGlosses(record.data);
+        const glossOf = pieceGlosses(...chain(language).map((key) => languages.get(key).data));
         words.forEach((entry, position) => {
             if (!isMap(entry)) return;
             const row = { language, position };
@@ -148,6 +219,57 @@ export function wordRows(records) {
         });
     }
     return rows;
+}
+
+/**
+ * The rows of one list a language note states beside its words: one per entry,
+ * keyed by the note, with every key of the entry a column.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @param {string} list - The `data` key holding the entries.
+ * @param {readonly string[]} keys - The keys an entry carries.
+ * @returns {object[]} One row per entry, in record then entry order.
+ */
+function languageListRows(records, list, keys) {
+    const rows = [];
+    for (const record of records) {
+        if (!isLanguageRecord(record)) continue;
+        const entries = record.data?.[list];
+        if (!Array.isArray(entries) || !entries.length) continue;
+        const language = noteAddressOf(record);
+        if (!language) continue;
+        entries.forEach((entry, position) => {
+            if (!isMap(entry)) return;
+            const row = { language, position };
+            for (const key of keys) row[key] = entry[key] ?? null;
+            rows.push(row);
+        });
+    }
+    return rows;
+}
+
+/**
+ * The `affixes` rows of a set of index records: one per `data.affixes` entry
+ * of a language note, which is the row's `language`.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records, every
+ *   Address a string, already narrowed to the audience being published to.
+ * @returns {object[]} One row per affix, in record then entry order.
+ */
+export function affixRows(records) {
+    return languageListRows(records, "affixes", AFFIX_KEYS);
+}
+
+/**
+ * The `fields` rows of a set of index records: one per `data.fields` entry of
+ * a language note, which is the row's `language`.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records, every
+ *   Address a string, already narrowed to the audience being published to.
+ * @returns {object[]} One row per field, in record then entry order.
+ */
+export function fieldRows(records) {
+    return languageListRows(records, "fields", FIELD_KEYS);
 }
 
 /**
@@ -209,25 +331,13 @@ export function glossaryRows(records, all = records) {
  * @returns {object[]} One row per language and ancestor, in record then depth order.
  */
 export function lineageRows(records, all = records) {
-    const languages = new Map();
-    for (const record of all)
-        if (isLanguageRecord(record)) {
-            const key = noteAddressOf(record);
-            if (key && !languages.has(key)) languages.set(key, record);
-        }
+    const { chain } = languageLineages(all);
     const rows = [];
     for (const record of records) {
         if (!isLanguageRecord(record)) continue;
         const language = noteAddressOf(record);
         if (!language) continue;
-        const seen = new Set();
-        let current = language;
-        for (let depth = 0; current && languages.has(current) && !seen.has(current); depth++) {
-            seen.add(current);
-            rows.push({ language, ancestor: current, depth });
-            const family = languages.get(current).data?.family;
-            current = typeof family === "string" && family ? family : undefined;
-        }
+        chain(language).forEach((ancestor, depth) => rows.push({ language, ancestor, depth }));
     }
     return rows;
 }

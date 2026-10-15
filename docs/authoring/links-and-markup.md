@@ -309,18 +309,20 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 
 ### What a query can read
 
-| Relation           | What it holds                                                                                                                                                                                        |
-| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `notes`            | Every note except a stub. This is the one to use unless a stub is wanted.                                                                                                                            |
-| `entries`          | Every note, stubs included.                                                                                                                                                                          |
-| `events`           | One row per event a `lore`, `place` or `affiliation` note writes in `data.events`, with `whenSort` to order them by date.                                                                            |
-| `words`            | One row per word a language note writes in `data.words`, with that note as its `language`, its `position` and what it is built from.                                                                 |
-| `glossary`         | One row per entry a culture or an affiliation writes in `data.glossary`, with the `note` it belongs to and the `language` it resolves to.                                                            |
-| `language_lineage` | One row per language note and each language it inherits words from through `data.family`, itself included at `depth` 0. Join it to `words` for a language's words with inherited ones.               |
-| `dictionary`       | One row per word per language it is listed under, inherited words included, with its `depth`. See [dictionaries and glossaries](#dictionaries-and-glossaries).                                       |
-| `terms`            | One row per glossary entry, rank or office per note that owns it, with the `cultures` it reaches. See [dictionaries and glossaries](#dictionaries-and-glossaries).                                   |
-| `market`           | The market scale as three columns — `value`, `name`, `trade` — so a table can print `village` beside the number a note wrote.                                                                        |
-| `<package>.notes`  | The same relations — `notes`, `entries`, `events`, `words`, `glossary`, `language_lineage`, `dictionary` and `terms` — for each package this one declares a dependency on, in a schema named for it. |
+| Relation           | What it holds                                                                                                                                                                                                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notes`            | Every note except a stub. This is the one to use unless a stub is wanted.                                                                                                                                                 |
+| `entries`          | Every note, stubs included.                                                                                                                                                                                               |
+| `events`           | One row per event a `lore`, `place` or `affiliation` note writes in `data.events`, with `whenSort` to order them by date.                                                                                                 |
+| `words`            | One row per word a language note writes in `data.words`, with that note as its `language`, its `position` and what it is built from.                                                                                      |
+| `affixes`          | One row per affix a language note writes in `data.affixes`, with that note as its `language`, its `position`, and each key the affix states: `form`, `gloss`, `attaches`, `examples` and `tones`.                         |
+| `fields`           | One row per field a language note writes in `data.fields`, with that note as its `language`, its `position`, and the field's `name` and what it `holds`.                                                                  |
+| `glossary`         | One row per entry a culture or an affiliation writes in `data.glossary`, with the `note` it belongs to and the `language` it resolves to.                                                                                 |
+| `language_lineage` | One row per language note and each language it inherits words from through `data.family`, itself included at `depth` 0. Join it to `words` for a language's words with inherited ones.                                    |
+| `dictionary`       | One row per word per language it is listed under, inherited words included, with its `depth`. See [dictionaries and glossaries](#dictionaries-and-glossaries).                                                            |
+| `terms`            | One row per glossary entry, rank or office per note that owns it, with the `cultures` it reaches. See [dictionaries and glossaries](#dictionaries-and-glossaries).                                                        |
+| `market`           | The market scale as three columns — `value`, `name`, `trade` — so a table can print `village` beside the number a note wrote.                                                                                             |
+| `<package>.notes`  | The same relations — `notes`, `entries`, `events`, `words`, `affixes`, `fields`, `glossary`, `language_lineage`, `dictionary` and `terms` — for each package this one declares a dependency on, in a schema named for it. |
 
 Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.weight`, `data.born`. Every Address is a string — the full canonical Address, as in `list_contains(data.parents, 'thalorna-note-place-xerathia')` — whichever package published it. Every note carries a computed `state` column of `full`, `draft` or `stub`. Notes tagged `gm` are absent from the relations on public surfaces.
 
@@ -417,14 +419,35 @@ ORDER BY e.whenSort, e.address
 
 An event with no `where.locus` keeps its row with an empty **Where** cell.
 
+### A language's affixes and fields
+
+`affixes` and `fields` hold the entries of a language note's `data.affixes` and `data.fields`, so a page can set them as tables. A Suffixes table is a `layout=table` fence over `affixes`; the `tones` key is the tone pattern an affix carries:
+
+````markdown
+```sql
+SELECT form AS "Suffix", attaches AS "Stem", gloss AS "Makes", array_to_string(examples, ', ') AS "Example", tones AS "Tones"
+FROM affixes
+WHERE language = 'thalorna-note-skill-ekpelulng' AND form LIKE '-%'
+ORDER BY position
+```
+````
+
+| Suffix | Stem  | Makes                                        | Example | Tones |
+| ------ | ----- | -------------------------------------------- | ------- | ----- |
+| -ndo   | added | the keeper of it: one who tends and holds it | luwando | L     |
+| -ma    | added | the child of it: one who is fed by it        | yesoma  | H     |
+
+`ORDER BY position` keeps the order the note states them in. The same shape serves `fields`, with `name` and `holds`.
+
 ### Fence attributes
 
-A braced list may follow the language on the opening fence. Three attributes are accepted, and anything else is reported by name.
+A braced list may follow the language on the opening fence. Four attributes are accepted, and anything else is reported by name.
 
 | Attribute       | Value                               | Default | What it does                                                                                                                                                                            |
 | --------------- | ----------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `allow-empty`   | `true` or `false`                   | `false` | Whether a query selecting no rows is allowed. A zero-row result is a finding otherwise, because a table that silently prints nothing is the commonest way a query goes wrong unnoticed. |
 | `section-level` | an integer from 1 through 6         | `2`     | The heading level given to each group a `_section` column creates, and to each letter of a dictionary or a glossary.                                                                    |
+| `key`           | `true` or `false`                   | `true`  | Whether a dictionary or a glossary prints its key. `false` leaves it out, for a page that states the key once above several fences.                                                     |
 | `layout`        | `table`, `dictionary` or `glossary` | `table` | How the result is set: as a table, as a dictionary of words, or as a glossary of terms — see [dictionaries and glossaries](#dictionaries-and-glossaries).                               |
 
 ````markdown
@@ -488,9 +511,17 @@ SELECT * FROM terms WHERE list_contains(cultures, 'thalorna-note-lore-provenzian
 ```
 ````
 
+A page that sets several fences, one per heading, states its key once and sets `key=false` on each fence, so the abbreviations are not repeated under every heading:
+
+````markdown
+```sql {layout=dictionary key=false section-level=4}
+SELECT * FROM dictionary WHERE language = 'thalorna-note-skill-vylarilng' AND depth = 0
+```
+````
+
 Either layout prints, in order:
 
-- **a key**, once, listing only the abbreviations the result uses — a language's tag, and for words a class or a modifier — each with what it stands for, and the common mark where an entry carries it;
+- **a key**, once, unless the fence sets `key=false`, listing only the abbreviations the result uses — a language's tag, and for words a class or a modifier — each with what it stands for, and the common mark where an entry carries it;
 - **a heading per letter**, at `section-level`, accents taken off and apostrophes skipped, so `'ostal` files under O and `Écuyer` under E;
 - **one paragraph per entry**: `•` for a common entry, the headword in bold, its pronunciation between slashes, its language tag in italics, the senses, and after a dash the notes it is cited from, as links.
 

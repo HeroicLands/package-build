@@ -166,6 +166,18 @@ describe("a language note's words", () => {
         ]);
     });
 
+    it("accept a tone on an affix, and refuse one that is not a string", () => {
+        expect(
+            osket(OSKET.replace("examples: [ghaukwugh]}", "examples: [ghaukwugh], tones: L}"))
+                .findings,
+        ).toEqual([]);
+        const text = OSKET.replace("examples: [ghaukwugh]}", "examples: [ghaukwugh], tones: [L]}");
+        const findings = osket(text).findings;
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toMatch(/`data\.affixes\[0\]\.tones` should be a tone pattern/);
+        expect(at(text, findings[0]).startsWith("[L]")).toBe(true);
+    });
+
     it("never reach the compiled Item, which takes only the `sohl` block", () => {
         const config = loadPackConfig();
         const compiler = new Items({

@@ -695,7 +695,7 @@ export function loadPackConfig() {
 
     const explicit = process.env.PACKAGE_BUILD_CONFIG;
     const found = explicit ? undefined : resolveConfigFile();
-    const configPath = explicit ? path.resolve(explicit) : found.path;
+    let configPath = explicit ? path.resolve(explicit) : found.path;
 
     if (!configPath || !fs.existsSync(configPath)) {
         throw new Error(
@@ -712,6 +712,11 @@ export function loadPackConfig() {
                     `PACKAGE_BUILD_CONFIG to name it elsewhere.`,
         );
     }
+
+    // An explicit name is followed through any symlink, so the configuration's
+    // root agrees with `process.cwd()`, which is always a real path, and
+    // diagnostic paths relative to one read relative to the other.
+    if (explicit) configPath = fs.realpathSync(configPath);
 
     // Two different files, one of which is about to be ignored. Said out loud
     // because the alternative is a build that reads the parent

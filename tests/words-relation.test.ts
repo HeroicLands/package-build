@@ -19,7 +19,7 @@ import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { collectContentIndex, serializeContentIndex } from "../engine/content-index.mjs";
-import { GLOSSARY_ENTRY_KEYS, WORD_KEYS } from "../engine/word-terms.mjs";
+import { AFFIX_KEYS, FIELD_KEYS, GLOSSARY_ENTRY_KEYS, WORD_KEYS } from "../engine/word-terms.mjs";
 import { openNotesDatabase, prepareSqlTables, runSqlQuery } from "../engine/sql-tables.mjs";
 
 /** Write a note into `dir`. */
@@ -69,7 +69,7 @@ beforeAll(async () => {
             "fields:",
             "  - {name: The road, holds: The crossings.}",
             "affixes:",
-            "  - {form: -wugh, gloss: cord}",
+            "  - {form: -wugh, gloss: cord, attaches: added, examples: [ghaukwugh, ghaukwugh-two], tones: L}",
             "words:",
             "  - {form: ghauk, class: n, field: The road, gloss: a road held by descent, attested: [lore-road]}",
             "  - {form: göich, class: n, field: The road, gloss: the hearth, source: {kind: borrowed, language: skill-vedyarlng, form: göch}}",
@@ -106,6 +106,8 @@ beforeAll(async () => {
             [
                 "fields:",
                 "  - {name: Hidden, holds: Hidden things.}",
+                "affixes:",
+                "  - {form: -qq, gloss: hidden}",
                 "words:",
                 "  - {form: qöl, class: n, field: Hidden, gloss: a hidden road}",
             ],
@@ -165,6 +167,8 @@ beforeAll(async () => {
         language("elderlng", "Elder", [
             "fields:",
             "  - {name: Old, holds: Old things.}",
+            "affixes:",
+            "  - {form: -ar, gloss: elder}",
             "words:",
             "  - {form: ur, class: n, field: Old, gloss: the first}",
         ]),
@@ -209,6 +213,96 @@ describe("the index record of a language note", () => {
             anchor: null,
             anchorKind: null,
         });
+    });
+});
+
+describe("the `affixes` and `fields` relations", () => {
+    it("hold one row per affix, keyed by the language note, with every key a column", async () => {
+        const result = await runSqlQuery(
+            db,
+            "SELECT * FROM affixes WHERE language = 'demo-note-skill-osketlng'",
+        );
+        expect(result.columns).toEqual(["language", "position", ...AFFIX_KEYS]);
+        expect(result.rows).toHaveLength(1);
+        const [row] = result.rows;
+        expect(Number(row.position)).toBe(0);
+        expect({ ...row, position: 0 }).toEqual({
+            language: "demo-note-skill-osketlng",
+            position: 0,
+            form: "-wugh",
+            gloss: "cord",
+            attaches: "added",
+            examples: ["ghaukwugh", "ghaukwugh-two"],
+            tones: "L",
+        });
+    });
+
+    it("leave a key an entry does not state NULL", async () => {
+        const result = await runSqlQuery(db, "SELECT * FROM elder.affixes");
+        expect(result.rows).toHaveLength(1);
+        const [row] = result.rows;
+        expect({ ...row, position: Number(row.position) }).toEqual({
+            language: "elder-note-skill-elderlng",
+            position: 0,
+            form: "-ar",
+            gloss: "elder",
+            attaches: null,
+            examples: null,
+            tones: null,
+        });
+    });
+
+    it("hold one row per field, with the language and the position", async () => {
+        const result = await runSqlQuery(
+            db,
+            "SELECT * FROM fields WHERE language <> 'demo-note-skill-secretlng' ORDER BY language",
+        );
+        expect(result.columns).toEqual(["language", "position", ...FIELD_KEYS]);
+        expect(result.rows.map((row: any) => ({ ...row, position: Number(row.position) }))).toEqual(
+            [
+                {
+                    language: "demo-note-skill-byzarlng",
+                    position: 0,
+                    name: "Sea",
+                    holds: "The sea.",
+                },
+                {
+                    language: "demo-note-skill-helonclng",
+                    position: 0,
+                    name: "Sea",
+                    holds: "The sea.",
+                },
+                {
+                    language: "demo-note-skill-osketlng",
+                    position: 0,
+                    name: "The road",
+                    holds: "The crossings.",
+                },
+            ],
+        );
+    });
+
+    it("leave a GM note's rows out of a public surface", async () => {
+        const dbPublic = await openNotesDatabase(local, {
+            dir: path.join(dir, "db-public"),
+            audience: "public",
+        });
+        try {
+            const forms = await runSqlQuery(dbPublic, "SELECT form FROM affixes");
+            expect(forms.rows).toEqual([{ form: "-wugh" }]);
+            const names = await runSqlQuery(
+                dbPublic,
+                "SELECT name FROM fields WHERE name = 'Hidden'",
+            );
+            expect(names.rows).toEqual([]);
+        } finally {
+            await dbPublic.close();
+        }
+    });
+
+    it("hold a GM note's rows on a private one", async () => {
+        const result = await runSqlQuery(db, "SELECT form FROM affixes ORDER BY form");
+        expect(result.rows).toEqual([{ form: "-qq" }, { form: "-wugh" }]);
     });
 });
 

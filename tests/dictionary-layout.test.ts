@@ -115,6 +115,31 @@ describe("layout=dictionary and layout=glossary", () => {
         expect(parts.join("\n")).toBe(fs.readFileSync(EXPECTED, "utf8"));
     });
 
+    it("leave out the key where the fence sets key=false, and print it otherwise", async () => {
+        for (const [title, page, layout, query] of SECTIONS) {
+            const [keyed] = await render(fence(query, `layout=${layout}`), page);
+            const [bare] = await render(fence(query, `layout=${layout} key=false`), page);
+            const [explicit] = await render(fence(query, `layout=${layout} key=true`), page);
+            expect(explicit.markdown, title).toBe(keyed.markdown);
+            expect(bare.markdown, title).not.toContain("**Key:**");
+            const [first, ...rest] = keyed.markdown.split("\n\n");
+            expect(bare.markdown, title).toBe(
+                first.startsWith("**Key:**") ? rest.join("\n\n") : keyed.markdown,
+            );
+        }
+        const [withKey] = await render(
+            fence(SECTIONS[1][3], "layout=dictionary"),
+            SECTIONS[1][1] as object,
+        );
+        expect(withKey.markdown).toContain("**Key:**");
+    });
+
+    it("refuse a key that is neither true nor false", () => {
+        const [block] = findSqlBlocks(fence("SELECT 1", "layout=dictionary key=no"));
+        expect(block.problems).toEqual(["key needs the literal value true or false"]);
+        expect(findSqlBlocks(fence("SELECT 1", "layout=dictionary"))[0].showKey).toBe(true);
+    });
+
     it("refuse a result missing a required column, and name it", async () => {
         const [dictionary] = await render(
             fence("SELECT name, senses FROM dictionary", "layout=dictionary"),

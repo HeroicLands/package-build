@@ -226,7 +226,19 @@ export const AFFIX_FIELDS = Object.freeze([
         entries: Object.freeze({ kind: "string", shape: "a string" }),
         describe: "The names the affix is read from.",
     }),
+    Object.freeze({
+        name: "tones",
+        kind: "string",
+        shape: "a tone pattern, such as `L`",
+        describe: "The tone pattern the affix carries, written as a word's `tones` is.",
+    }),
 ]);
+
+/** The keys of {@link WORD_FIELD_FIELDS}, in declared order. */
+export const FIELD_KEYS = Object.freeze(WORD_FIELD_FIELDS.map((field) => field.name));
+
+/** The keys of {@link AFFIX_FIELDS}, in declared order. */
+export const AFFIX_KEYS = Object.freeze(AFFIX_FIELDS.map((field) => field.name));
 
 /**
  * The keys one entry of a culture's or an affiliation's `data.glossary`

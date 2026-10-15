@@ -70,7 +70,7 @@ export const WORD_CLASS_BASES = Object.freeze([
     base("adv", "adv.", "adverb", true),
     base("pron", "pron.", "pronoun", true),
     base("num", "num.", "numeral", true),
-    base("part", "part.", "particle", true),
+    base("part", "ptcl.", "particle", true),
     base("art", "art.", "article", true),
     base("conj", "conj.", "conjunction", true),
     base("dem", "dem.", "demonstrative", true),

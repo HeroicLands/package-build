@@ -32,11 +32,15 @@ import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs
 import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventRows } from "./event-rows.mjs";
 import {
     GLOSSARY_COLUMNS,
+    AFFIX_COLUMNS,
+    FIELD_COLUMNS,
     LINEAGE_COLUMNS,
     ROW_INTEGER_COLUMNS,
     WORD_COLUMNS,
     glossaryRows,
     lineageRows,
+    affixRows,
+    fieldRows,
     wordRows,
 } from "./word-rows.mjs";
 import { DICTIONARY_COLUMNS, TERM_COLUMNS, dictionaryAndTermRows } from "./dictionary-rows.mjs";
@@ -94,6 +98,14 @@ export const SQL_FENCE_ATTRIBUTES = Object.freeze({
             "The heading level given to each group a `_section` column creates, and to each " +
             "letter of a dictionary or a glossary.",
     }),
+    key: Object.freeze({
+        value: "`true` or `false`",
+        default: "`true`",
+        summary:
+            "Whether a dictionary or a glossary prints its key, the line of abbreviations it " +
+            "uses. `false` leaves the key out, for a page that states it once above several " +
+            "fences.",
+    }),
     layout: Object.freeze({
         value: "`table`, `dictionary` or `glossary`",
         default: "`table`",
@@ -123,7 +135,7 @@ const escapeCell = (text) =>
  *
  * @param {string} markdown - The note body, frontmatter already stripped.
  * @returns {Array<{line: number, close: number, indent: string, query: string,
- *   allowEmpty: boolean, sectionLevel: number, layout: string, block: string}>} One entry per
+ *   allowEmpty: boolean, sectionLevel: number, showKey: boolean, layout: string, block: string}>} One entry per
  *   fence, in document order.
  */
 export function findSqlBlocks(markdown) {
@@ -158,6 +170,14 @@ export function findSqlBlocks(markdown) {
                 errors.push(error.message);
             }
         }
+        let showKey = true;
+        if (Object.hasOwn(args, "key")) {
+            try {
+                showKey = booleanAttribute(args.key, "key");
+            } catch (error) {
+                errors.push(error.message);
+            }
+        }
         if (!Number.isInteger(level) || level < 1 || level > 6)
             errors.push("section-level needs an integer from 1 through 6");
         const layout = String(args.layout ?? "table");
@@ -170,6 +190,7 @@ export function findSqlBlocks(markdown) {
             query: lines.slice(i + 1, close).join("\n"),
             allowEmpty,
             sectionLevel: level,
+            showKey,
             layout,
             problems: errors,
             args,
@@ -310,6 +331,8 @@ export async function openNotesDatabase(
     for (const relation of [
         "events",
         "words",
+        "affixes",
+        "fields",
         "glossary",
         "language_lineage",
         "dictionary",
@@ -522,11 +545,14 @@ async function createTableFromFile(connection, name, select) {
 }
 
 /**
- * Create the `words`, `glossary`, `language_lineage`, `dictionary` and `terms`
- * relations: one row per language note's word, one per culture's or
+ * Create the `words`, `affixes`, `fields`, `glossary`, `language_lineage`,
+ * `dictionary` and `terms` relations: one row per language note's word, one per
+ * its affix, one per its field, one per culture's or
  * affiliation's glossary entry as authored, one per language and ancestor, one
  * per word per language it is listed under, and one per term per owning note,
  * with the columns {@link module:engine/word-rows.WORD_COLUMNS},
+ * {@link module:engine/word-rows.AFFIX_COLUMNS},
+ * {@link module:engine/word-rows.FIELD_COLUMNS},
  * {@link module:engine/word-rows.GLOSSARY_COLUMNS},
  * {@link module:engine/word-rows.LINEAGE_COLUMNS},
  * {@link module:engine/dictionary-rows.DICTIONARY_COLUMNS} and
@@ -550,9 +576,23 @@ async function createWordRelations(connection, stem, records, prefix, audience) 
     await createRowRelation(
         connection,
         `${stem}-words.jsonl`,
-        wordRows(visible),
+        wordRows(visible, records),
         `${prefix}words`,
         WORD_COLUMNS,
+    );
+    await createRowRelation(
+        connection,
+        `${stem}-affixes.jsonl`,
+        affixRows(visible),
+        `${prefix}affixes`,
+        AFFIX_COLUMNS,
+    );
+    await createRowRelation(
+        connection,
+        `${stem}-fields.jsonl`,
+        fieldRows(visible),
+        `${prefix}fields`,
+        FIELD_COLUMNS,
     );
     await createRowRelation(
         connection,
@@ -870,6 +910,7 @@ export async function prepareSqlTables(db, sources, { linkable, records, pageLan
                             setAs(result, {
                                 ...options,
                                 labelOf,
+                                showKey: block.showKey,
                                 pageLanguage: languageOf(source, frontmatter),
                             })
                         :   renderSqlTable(result, options),
