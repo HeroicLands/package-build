@@ -69,6 +69,7 @@ import { checkArtSlotSizes } from "../engine/art-fields.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
+import { lintPathCharset } from "../engine/path-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
 import { lintContentIcons } from "../engine/content-icons.mjs";
 import { lintContentImages } from "../engine/content-images.mjs";
@@ -1093,6 +1094,16 @@ function lintCommand() {
                     skipDirectories: config.skipDirectories,
                 });
 
+                // The spelling of every content and picture path, held to
+                // printable ASCII. Walked from the directory entries rather
+                // than the parsed notes, so a picture, which has no note,
+                // is covered by the same rule.
+                const pathCharset = lintPathCharset({
+                    contentBase: root,
+                    assetsBase: config.paths.assets,
+                    skipDirectories: config.skipDirectories,
+                });
+
                 // The names the charset check leaves room for. An icon
                 // the registry does not declare renders as its own literal
                 // text, which is visible but easy to publish, so it is reported
@@ -1175,6 +1186,7 @@ function lintCommand() {
                     ...frontmatter.findings,
                     ...schemaFindings,
                     ...charset.findings,
+                    ...pathCharset.findings,
                     ...icons.findings,
                     ...html.findings,
                     ...images.findings,

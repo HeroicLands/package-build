@@ -216,6 +216,7 @@ export * as contentLint from "./content-lint.mjs";
 
 /** The charset authored content is held to, so a book can choose its face. */
 export * as contentCharset from "./content-charset.mjs";
+export * as pathCharset from "./path-charset.mjs";
 
 /** Naming an interface icon in a note, without drawing one there. */
 export * as contentIcons from "./content-icons.mjs";

@@ -1052,6 +1052,15 @@ The charset authored content is held to, so a book can choose its face. The pack
 | `checkText`          | `function checkText(text, file)`           | {Array<{file: string, line: number, column: number, severity: "warning", message: string}>} What is wrong, in file order.                                                | Check one file's text against the charset and the normalization rule.      |
 | `lintContentCharset` | `function lintContentCharset(contentBase,` | `{{findings: Array<{file: string, line: number, column: number, severity: "warning", message: string}>, files: number}}` The findings, and how many files produced them. | Walk a content tree and check every authored file in it.                   |
 
+### `engine.pathCharset`
+
+The characters a content or picture path may hold: printable 7-bit ASCII, U+0020 to U+007E. A note's identity comes from its `shortcode`, so a path's spelling changes no address; a non-ASCII name changes only how the file travels between filesystems, shells, archives and CDN keys.
+
+| Export                    | Signature                                                       | Returns                                                                                                                                   | Use it when                                                                                       |
+| ------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `offendingPathCharacters` | `function offendingPathCharacters(text)`                        | {string[]} The distinct characters outside U+0020 to U+007E, in order of first appearance.                                                | Whether a path, or one component of it, is clean.                                                 |
+| `lintPathCharset`         | `lintPathCharset({ contentBase, assetsBase, skipDirectories })` | `{{findings: Array<{file: string, severity: "error", message: string}>, files: number}}` The findings, and how many entries were checked. | Walk the content tree and the picture roots and report every entry named outside printable ASCII. |
+
 ### `engine.contentIcons`
 
 Naming an interface icon in a note, without drawing it there. The user guide describes Foundry's interface, and it did so by pasting Unicode lookalikes of the icons the sheets actually draw: `☆` for the improve flag, `✎` for the formula editor, `◆` in the success-value table, `★★★` for mastery. The system renders every one of those with **Font Awesome** — a `fa-regular fa-star`, a `fa-solid fa-pen-to-square` — so the note and the screen it describes were drawing different pictures, and drifting apart with every sheet change.

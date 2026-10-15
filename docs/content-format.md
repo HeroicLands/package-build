@@ -91,6 +91,18 @@ errors, reported at the `ranks` key.
 
 An Item's `{#description}` page is its readable description. The note Address `<package>-note-<type>-<shortcode>#description` resolves to a JournalEntryPage UUID. The build writes the same `@UUID[...]` pointer to SoHL Item `system.docHtml` and HM3 Item `system.description`. An Item note without that anchor uses its first page as the description. Other pages and anchors remain available for links.
 
+## File and folder names
+
+Every character in the path of a content file or a picture is printable 7-bit ASCII, U+0020 to U+007E. The rule covers each file and folder name under the content tree and under the package's `icons/` and `images/` roots. Letters, digits, spaces, hyphens, underscores, dots and apostrophes are all inside it, so `Knight's_Shield.md` is a valid name. An accented letter, any other non-ASCII character, and a control character are outside it.
+
+`package-build lint` reports each offending name as an error located at the path, with no line or column, and names the characters by code point:
+
+```text
+assets/content/Misc_Gear/Scribe/A_Sílhari_Manual.md: error: the path holds U+00ED (í), outside printable ASCII; rename the file using ASCII only
+```
+
+The fix is to rename the file, `A_Sílhari_Manual.md` to `A_Silhari_Manual.md`. A note's identity comes from its `shortcode`, and a picture's from its basename without the extension, so the rename changes no address and breaks no link. The accented spelling belongs in the note's `name`, where it displays as written.
+
 ## A complete minimal note
 
 Place this at `assets/content/Places/Harbor.md`:

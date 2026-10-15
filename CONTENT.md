@@ -9,6 +9,13 @@ Nonempty bodies with fewer than 25 prose words warn unless tagged `draft`.
 A folder note needs only a nonempty body: any content passes, tagged or not.
 Lint and publishing commands enforce the error; a description is not a body.
 
+Every character in the path of a content file or a picture is printable 7-bit
+ASCII, U+0020 to U+007E; an apostrophe is inside the range and an accented
+letter is not. Lint reports a path outside it as an error at the path, and the
+fix is to rename the file: `A_Sílhari_Manual.md` becomes `A_Silhari_Manual.md`,
+and no address changes, because the `shortcode` carries a note's identity. See
+[file and folder names](docs/content-format.md#file-and-folder-names).
+
 An `affiliation` note must declare `data.governance.ranks` with a rung at
 `level: 0` and a rung at `level: 1`. Level 1 is the ordinary member; level 0
 names those the body excludes, in that body's own word for them. Each rung
