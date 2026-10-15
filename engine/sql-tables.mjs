@@ -607,7 +607,7 @@ async function createRowRelation(connection, file, rows, view, columns) {
         return;
     }
     fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
-    await connection.run(`CREATE VIEW ${view} AS ${readJsonAuto(file)}`);
+    await createTableFromFile(connection, view, readJsonAuto(file));
 }
 
 /**
@@ -906,7 +906,7 @@ async function noteLabels(db) {
     try {
         schemas = (
             await db.query(
-                "SELECT DISTINCT schema_name FROM duckdb_views() WHERE view_name = 'entries' " +
+                "SELECT DISTINCT schema_name FROM duckdb_tables() WHERE table_name = 'entries' " +
                     "ORDER BY schema_name",
             )
         ).rows.map((row) => String(row.schema_name));

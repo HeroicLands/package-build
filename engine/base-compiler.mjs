@@ -1261,6 +1261,8 @@ export class BasePackCompiler {
         // to have the body anyway. So the read is one this pass makes anyway;
         // the index decides which files it covers.
         const dates = reckoningContext({ notes: this.corpus.records });
+        /** The note first filed under each document id in this pass. @type {Map<string, string>} */
+        const idOwners = new Map();
         for (const record of this.corpus.records) {
             if (!isNoteRecord(record)) continue;
             const absPath = noteFile(this.contentBase, record);
@@ -1359,6 +1361,25 @@ export class BasePackCompiler {
                 stats.skippedOther++;
                 continue;
             }
+
+            // Two notes filed under one id are one document. Reported here, at
+            // the second, because everything derived from the id downstream (an
+            // actor's embedded items, a pack's file names) then collides with
+            // itself and names neither note.
+            const owner = idOwners.get(fm.id);
+            if (owner !== undefined) {
+                stats.declined++;
+                this.errorCount++;
+                this.noteError(
+                    `${this.noteLabel(fm)}: document id "${fm.id}" is already the id of ` +
+                        `${path.relative(process.cwd(), owner)}. Give one of the two notes a ` +
+                        `different \`id\` under \`data:\`, or remove it to take the id derived ` +
+                        `from its address`,
+                    locateFrontmatterKey(absPath, "id"),
+                );
+                continue;
+            }
+            idOwners.set(fm.id, absPath);
 
             log.debug(`Processing ${this.noteLabel(fm)}: ${resolveName(fm)} (${absPath})`);
             try {
