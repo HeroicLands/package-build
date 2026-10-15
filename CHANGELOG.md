@@ -1,5 +1,30 @@
 # @heroiclands/package-build
 
+## 23.6.0
+
+### Minor Changes
+
+- `package-build lint` refuses a content or picture path holding a character outside printable ASCII, reporting it as an error at the path. Rename the file using ASCII only; addresses come from the shortcode, so no address changes.
+
+### Patch Changes
+
+**Dictionaries and glossaries**
+
+- A language note lists its words in `data.words`, with the class modifiers, fields and affixes they use; the compiled Item is unchanged.
+- A language names its parent in `data.family` and reads the parent's words as its own; lint reports a parent that is no language or a family that loops.
+- A language states the tag a dictionary prints for it in `data.abbreviation`, such as `Prov.`.
+- Cultures and affiliations list their own glossary terms in `data.glossary`. These terms mark words and ranks common, give respellings, let in single-word titles, and add or replace definitions.
+- A glossary term that names no language takes its affiliation's, a parent affiliation's or its culture's; lint reports a term that ends up with none.
+- Lint warns about an affiliation that belongs to no culture, since its ranks and offices reach no glossary.
+- An `sql` fence sets its rows as a dictionary of words with `layout=dictionary`, or as a glossary of terms with `layout=glossary`: bold headwords under letter headings, a key of only the abbreviations used, numbered senses and citations.
+- One query lists a language's words, including inherited ones, or its common words on any page. One query lists a culture's or an affiliation's glossary with its ranks and offices, or the whole setting's dictionary and glossary.
+- `package-build content-index` also writes the dictionary and the glossary beside the index, for reading with `jq` or an editor.
+
+**Checks and compile**
+
+- The content checks and the compile run several times faster on a large tree.
+- Two notes that pin the same `id` are reported at the second note, naming the first, instead of as dozens of items that duplicate themselves.
+
 ## 23.5.1
 
 ### Patch Changes
