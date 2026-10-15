@@ -1,5 +1,21 @@
 # @heroiclands/package-build
 
+## 23.6.1
+
+### Patch Changes
+
+**Dictionaries and glossaries**
+
+- A language's Suffixes and Fields tables can be set from its frontmatter, by querying `affixes` and `fields` in an `sql` fence.
+- An affix can state its own tone pattern in `tones`.
+- `key=false` leaves the key off a dictionary or glossary fence, so a page with one fence per heading states the key once.
+- A daughter language's words built from its parent's words and affixes no longer warn that a piece matches nothing, and their glosses print.
+- Dictionaries abbreviate particle as _ptcl._, since _part._ reads as participle.
+
+**Diagnostics**
+
+- File paths stay relative to the working directory when `PACKAGE_BUILD_CONFIG` names the configuration through a symlinked path, as macOS temporary directories are.
+
 ## 23.6.0
 
 ### Minor Changes
