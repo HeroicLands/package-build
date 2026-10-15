@@ -654,7 +654,9 @@ async function createWordRelations(connection, stem, records, prefix, audience) 
  * @param {readonly string[]} columns - Its columns, for the empty case.
  * @param {Readonly<Record<string, string>>} [types] - Each column's type, for
  *   the empty case; a column it leaves out is text. Without it, a whole-number
- *   column is a number and every other column text.
+ *   column is a number and every other column text. A `DOUBLE` column is cast
+ *   whatever the rows hold, because a fraction written whole reads as an
+ *   integer.
  * @returns {Promise<void>}
  */
 async function createRowRelation(connection, file, rows, view, columns, types) {
@@ -670,7 +672,15 @@ async function createRowRelation(connection, file, rows, view, columns, types) {
         return;
     }
     fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
-    await createTableFromFile(connection, view, readJsonAuto(file));
+    const fractions = Object.entries(types ?? {})
+        .filter(([, type]) => type === "DOUBLE")
+        .map(([column]) => `CAST("${column}" AS DOUBLE) AS "${column}"`);
+    const source = readJsonAuto(file);
+    await createTableFromFile(
+        connection,
+        view,
+        fractions.length ? `SELECT * REPLACE (${fractions.join(", ")}) FROM (${source})` : source,
+    );
 }
 
 /**

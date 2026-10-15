@@ -221,6 +221,9 @@ types:
             - roots
             - cognates
             - callingNames
+            - older
+            - negation
+            - naming
         subTypes:
             - social
             - nature

@@ -44,6 +44,30 @@ export const WORD_SOURCE_KINDS = Object.freeze([
     "island",
 ]);
 
+/**
+ * What an affix makes: a case, a word derived from another, a verb's tense,
+ * aspect, mood or voice, a given name's ending, or a lineage name's ending.
+ */
+export const AFFIX_KINDS = Object.freeze([
+    "case",
+    "derivation",
+    "tense",
+    "aspect",
+    "mood",
+    "voice",
+    "name",
+    "lineage",
+]);
+
+/** The affix kind whose ending says who the name is given to. */
+export const NAME_AFFIX_KIND = "name";
+
+/** How a zero affix is written where a table prints it. */
+export const ZERO_AFFIX = "∅";
+
+/** Who a given name's ending is given to. */
+export const AFFIX_GIVEN = Object.freeze(["man", "woman", "either"]);
+
 /** The source kind that requires `language`. */
 export const BORROWED_SOURCE_KIND = "borrowed";
 
@@ -240,9 +264,36 @@ export const AFFIX_FIELDS = Object.freeze([
     Object.freeze({
         name: "form",
         kind: "string",
-        required: true,
         shape: "the affix as written, such as `-rith`",
-        describe: "The affix as a word's `built` names it.",
+        describe: "The affix as a word's `built` names it; absent on a zero affix.",
+    }),
+    Object.freeze({
+        name: "zero",
+        kind: "boolean",
+        shape: "`true`",
+        describe:
+            "The affix is written as nothing, such as a case with no ending; it states no " +
+            `\`form\`, prints as \`${ZERO_AFFIX}\`, and no \`built\` piece names it.`,
+    }),
+    Object.freeze({
+        name: "kind",
+        kind: "string",
+        allowed: AFFIX_KINDS,
+        shape: `one of ${AFFIX_KINDS.join(", ")}`,
+        describe: "What the affix makes.",
+    }),
+    Object.freeze({
+        name: "given",
+        kind: "string",
+        allowed: AFFIX_GIVEN,
+        shape: `one of ${AFFIX_GIVEN.join(", ")}`,
+        describe: `Who a given name closing on it belongs to; an affix of kind \`${NAME_AFFIX_KIND}\` only.`,
+    }),
+    Object.freeze({
+        name: "where",
+        kind: "string",
+        shape: "a string, such as `before a stop`",
+        describe: "Where this form stands, for an affix written two ways; everywhere where absent.",
     }),
     Object.freeze({
         name: "gloss",
@@ -285,6 +336,13 @@ export const AFFIX_FIELDS = Object.freeze([
         shape: "a list of strings",
         entries: Object.freeze({ kind: "string", shape: "a string" }),
         describe: "The names the affix is read from.",
+    }),
+    Object.freeze({
+        name: "barredAfter",
+        kind: "list",
+        shape: "a list of sounds",
+        entries: Object.freeze({ kind: "string", shape: "a sound as written" }),
+        describe: "The sounds a stem may not close on to take the affix.",
     }),
     Object.freeze({
         name: "tones",

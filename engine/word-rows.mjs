@@ -38,6 +38,7 @@ import { renderAddress } from "./address.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
 import {
     AFFIX_KEYS,
+    ZERO_AFFIX,
     FIELD_KEYS,
     GLOSSARY_ENTRY_KEYS,
     LANGUAGE_SUBTYPE,
@@ -63,7 +64,7 @@ export const WORD_COLUMNS = Object.freeze([
 export const GLOSSARY_COLUMNS = Object.freeze(["note", "position", ...GLOSSARY_ENTRY_KEYS]);
 
 /** Every column of the `affixes` relation, in order. */
-export const AFFIX_COLUMNS = Object.freeze([...WORD_IDENTITY_COLUMNS, ...AFFIX_KEYS]);
+export const AFFIX_COLUMNS = Object.freeze([...WORD_IDENTITY_COLUMNS, ...AFFIX_KEYS, "written"]);
 
 /** Every column of the `fields` relation, in order. */
 export const FIELD_COLUMNS = Object.freeze([...WORD_IDENTITY_COLUMNS, ...FIELD_KEYS]);
@@ -299,14 +300,18 @@ function languageListRows(records, list, keys) {
 
 /**
  * The `affixes` rows of a set of index records: one per `data.affixes` entry
- * of a language note, which is the row's `language`.
+ * of a language note, which is the row's `language`, with `written`, the form
+ * as a table prints it: `∅` for a zero affix, whose `form` is `NULL`.
  *
  * @param {Iterable<Record<string, any>>} records - Index records, every
  *   Address a string, already narrowed to the audience being published to.
  * @returns {object[]} One row per affix, in record then entry order.
  */
 export function affixRows(records) {
-    return languageListRows(records, "affixes", AFFIX_KEYS);
+    return languageListRows(records, "affixes", AFFIX_KEYS).map((row) => ({
+        ...row,
+        written: row.zero === true ? ZERO_AFFIX : row.form,
+    }));
 }
 
 /**

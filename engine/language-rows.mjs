@@ -33,6 +33,13 @@
  *   `elements` and `roots` — one row per entry, the list keys always lists;
  * - `scope` — one row per value, with the `kind` of `data.scope` it is under;
  * - `clusters` — one row per language stating `data.sounds.clusters`;
+ * - `cluster_groups` and `mutations` — one row per entry of
+ *   `data.sounds.clusters.groups` and `data.sounds.mutations`;
+ * - `older` — one row per `data.older` entry;
+ * - `negation` — one row per language stating `data.negation`;
+ * - `name_shapes`, `name_edges`, `name_draws` and `held_from` — one row per
+ *   entry of the lists of `data.naming`, and `near_names` one per worked
+ *   near name, with the language's `min_syllables`;
  * - `cognates` — one row per form of each set, with the set's `gloss`.
  *
  * @module
@@ -40,7 +47,9 @@
 
 import { isLanguageRecord, noteAddressOf } from "./word-rows.mjs";
 import {
+    ANY_NAME,
     CALLING_CLOSING_KEYS,
+    CLUSTER_GROUP_KEYS,
     EDGE_KEYS,
     ELEMENT_KEYS,
     FINAL_KEYS,
@@ -48,6 +57,8 @@ import {
     JOIN_KEYS,
     LETTER_KEYS,
     MARK_KEYS,
+    MUTATION_KEYS,
+    OLDER_KEYS,
     READ_PAST_KEYS,
     REGISTER_KEYS,
     RETIRED_KEYS,
@@ -86,6 +97,38 @@ export const LETTER_COLUMNS = Object.freeze([...IDENTITY, ...LETTER_KEYS]);
 export const EDGE_COLUMNS = Object.freeze([...IDENTITY, ...EDGE_KEYS]);
 /** Every column of the `clusters` relation, in order. */
 export const CLUSTER_COLUMNS = Object.freeze(["language", "max"]);
+/** Every column of the `cluster_groups` relation, in order. */
+export const CLUSTER_GROUP_COLUMNS = Object.freeze([...IDENTITY, ...CLUSTER_GROUP_KEYS]);
+/** Every column of the `mutations` relation, in order. */
+export const MUTATION_COLUMNS = Object.freeze([...IDENTITY, ...MUTATION_KEYS]);
+/** Every column of the `older` relation, in order. */
+export const OLDER_COLUMNS = Object.freeze([...IDENTITY, ...OLDER_KEYS]);
+/** Every column of the `name_shapes` relation, in order. */
+export const NAME_SHAPE_COLUMNS = Object.freeze([
+    ...IDENTITY,
+    "of",
+    "syllables_min",
+    "syllables_max",
+    "per_vowel_min",
+    "per_vowel_max",
+]);
+/** Every column of the `name_edges` relation, in order. */
+export const NAME_EDGE_COLUMNS = Object.freeze([...IDENTITY, "edge", "sounds", "vowel", "of"]);
+/** Every column of the `name_draws` relation, in order. */
+export const NAME_DRAW_COLUMNS = Object.freeze([...IDENTITY, "kind", "elements"]);
+/** Every column of the `held_from` relation, in order. */
+export const HELD_FROM_COLUMNS = Object.freeze([
+    ...IDENTITY,
+    "source",
+    "takes",
+    "clip",
+    "genitive",
+    "elements",
+]);
+/** Every column of the `near_names` relation, in order. */
+export const NEAR_NAME_COLUMNS = Object.freeze([...IDENTITY, "near", "given", "min_syllables"]);
+/** Every column of the `negation` relation, in order: one row per language. */
+export const NEGATION_COLUMNS = Object.freeze(["language", "particle", "mutation"]);
 /** Every column of the `stress` relation, in order. */
 export const STRESS_COLUMNS = Object.freeze(["language", "stress"]);
 /** Every column of the `finals` relation, in order. */
@@ -106,6 +149,7 @@ export const SYLLABLE_COLUMNS = Object.freeze([
     "harmony_front",
     "harmony_neutral",
     "harmony_neutralAs",
+    "harmony_partners",
 ]);
 /** Every column of the `joining` relation, in order. */
 export const JOINING_COLUMNS = Object.freeze([...IDENTITY, ...JOINING_KEYS]);
@@ -132,6 +176,7 @@ export const SOUND_CHANGE_COLUMNS = Object.freeze([
     "name",
     "from_language",
     "to_language",
+    "takes",
     "step_position",
     ...SOUND_CHANGE_STEP_KEYS,
 ]);
@@ -174,6 +219,21 @@ export const LANGUAGE_COLUMN_TYPES = Object.freeze({
     letters: { position: "BIGINT", letters: LIST, tongue: LIST },
     edges: { position: "BIGINT", sounds: LIST },
     clusters: { max: "BIGINT" },
+    cluster_groups: { position: "BIGINT", clusters: LIST },
+    mutations: { position: "BIGINT" },
+    older: { position: "BIGINT" },
+    negation: {},
+    name_shapes: {
+        position: "BIGINT",
+        syllables_min: "BIGINT",
+        syllables_max: "BIGINT",
+        per_vowel_min: "DOUBLE",
+        per_vowel_max: "DOUBLE",
+    },
+    name_edges: { position: "BIGINT", sounds: LIST, vowel: "BOOLEAN" },
+    name_draws: { position: "BIGINT", elements: LIST },
+    held_from: { position: "BIGINT", genitive: LIST, elements: LIST },
+    near_names: { position: "BIGINT", min_syllables: "BIGINT" },
     stress: {},
     finals: { position: "BIGINT" },
     syllables: {
@@ -188,6 +248,7 @@ export const LANGUAGE_COLUMN_TYPES = Object.freeze({
         harmony_back: LIST,
         harmony_front: LIST,
         harmony_neutral: LIST,
+        harmony_partners: "STRUCT(vowel VARCHAR, partner VARCHAR)[]",
     },
     joining: { position: "BIGINT", first: LIST, second: LIST },
     joins: { position: "BIGINT", letters: LIST },
@@ -471,6 +532,159 @@ export function clusterRows(records) {
 }
 
 /**
+ * The `cluster_groups` rows: one per `data.sounds.clusters.groups` entry,
+ * `clusters` a list.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {object[]}
+ */
+export function clusterGroupRows(records) {
+    return listRows(records, (data) => soundsOf(data).clusters?.groups, CLUSTER_GROUP_KEYS, {
+        lists: ["clusters"],
+    });
+}
+
+/**
+ * The `mutations` rows: one per `data.sounds.mutations` entry.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {object[]}
+ */
+export function mutationRows(records) {
+    return listRows(records, (data) => soundsOf(data).mutations, MUTATION_KEYS);
+}
+
+/**
+ * The `older` rows: one per `data.older` entry.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {object[]}
+ */
+export function olderRows(records) {
+    return listRows(records, (data) => data.older, OLDER_KEYS);
+}
+
+/**
+ * The `negation` rows: one per language stating `data.negation`.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {object[]}
+ */
+export function negationRows(records) {
+    const rows = [];
+    for (const [language, record] of languagesOf(records)) {
+        const negation = record.data?.negation;
+        if (isMap(negation))
+            rows.push({
+                language,
+                particle: negation.particle ?? null,
+                mutation: negation.mutation ?? null,
+            });
+    }
+    return rows;
+}
+
+/** A language's `data.naming`, or an empty map. */
+const namingOf = (data) => (isMap(data.naming) ? data.naming : {});
+
+/** A range's bound, or `null`. */
+const bound = (range, key) => (isMap(range) && typeof range[key] === "number" ? range[key] : null);
+
+/**
+ * The `name_shapes` rows: one per `data.naming.shapes` entry, each range as
+ * its two bounds.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {object[]}
+ */
+export function nameShapeRows(records) {
+    const rows = [];
+    for (const [language, record] of languagesOf(records)) {
+        const shapes = namingOf(isMap(record.data) ? record.data : {}).shapes;
+        if (!Array.isArray(shapes)) continue;
+        shapes.forEach((shape, position) => {
+            if (!isMap(shape)) return;
+            rows.push({
+                language,
+                position,
+                of: shape.of ?? null,
+                syllables_min: bound(shape.syllables, "min"),
+                syllables_max: bound(shape.syllables, "max"),
+                per_vowel_min: bound(shape.perVowel, "min"),
+                per_vowel_max: bound(shape.perVowel, "max"),
+            });
+        });
+    }
+    return rows;
+}
+
+/**
+ * The `name_edges` rows: one per `data.naming.edges` entry, `sounds` a list,
+ * `vowel` `false` and `of` `name` where unstated.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {object[]}
+ */
+export function nameEdgeRows(records) {
+    return listRows(records, (data) => namingOf(data).edges, ["edge", "sounds", "vowel", "of"], {
+        lists: ["sounds"],
+    }).map((row) => ({ ...row, vowel: row.vowel === true, of: row.of ?? ANY_NAME }));
+}
+
+/**
+ * The `name_draws` rows: one per `data.naming.draws` entry.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {object[]}
+ */
+export function nameDrawRows(records) {
+    return listRows(records, (data) => namingOf(data).draws, ["kind", "elements"], {
+        lists: ["elements"],
+    });
+}
+
+/**
+ * The `held_from` rows: one per `data.naming.heldFrom` entry.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {object[]}
+ */
+export function heldFromRows(records) {
+    return listRows(
+        records,
+        (data) => namingOf(data).heldFrom,
+        ["source", "takes", "clip", "genitive", "elements"],
+        { lists: ["genitive", "elements"] },
+    );
+}
+
+/**
+ * The `near_names` rows: one per worked example of `data.naming.nearName`,
+ * each with the language's `min_syllables`.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {object[]}
+ */
+export function nearNameRows(records) {
+    const rows = [];
+    for (const [language, record] of languagesOf(records)) {
+        const near = namingOf(isMap(record.data) ? record.data : {}).nearName;
+        if (!isMap(near) || !Array.isArray(near.examples)) continue;
+        near.examples.forEach((example, position) => {
+            if (!isMap(example)) return;
+            rows.push({
+                language,
+                position,
+                near: example.near ?? null,
+                given: example.given ?? null,
+                min_syllables: near.minSyllables ?? null,
+            });
+        });
+    }
+    return rows;
+}
+
+/**
  * The `read_past` rows: one per `data.sounds.readPast` entry.
  *
  * @param {Iterable<Record<string, any>>} records - Index records.
@@ -482,8 +696,8 @@ export function readPastRows(records) {
 
 /**
  * The `sound_changes` rows: one per step of each `data.soundChanges` set, with
- * the set's `position`, `name`, `from_language` and `to_language`, and the
- * step's `step_position` within it.
+ * the set's `position`, `name`, `from_language`, `to_language` and `takes`,
+ * and the step's `step_position` within it.
  *
  * @param {Iterable<Record<string, any>>} records - Index records.
  * @returns {object[]}
@@ -503,6 +717,7 @@ export function soundChangeRows(records) {
                     name: set.name ?? null,
                     from_language: set.from ?? null,
                     to_language: set.to ?? null,
+                    takes: set.takes ?? null,
                     step_position: stepPosition,
                 };
                 for (const key of SOUND_CHANGE_STEP_KEYS) row[key] = step[key] ?? null;
@@ -592,7 +807,8 @@ export function finalRows(records) {
 /**
  * The `syllables` rows: one per language stating `data.sounds.syllables`, a
  * list rule always a list (`any` a list of one), the harmony's sets each a
- * column of its own.
+ * column of its own, its partners a list of `{ vowel, partner }` in the order
+ * stated.
  *
  * @param {Iterable<Record<string, any>>} records - Index records.
  * @returns {object[]}
@@ -618,6 +834,13 @@ export function syllableRows(records) {
             harmony_front: asList(harmony.front),
             harmony_neutral: asList(harmony.neutral),
             harmony_neutralAs: harmony.neutralAs ?? null,
+            harmony_partners:
+                isMap(harmony.partners) && Object.keys(harmony.partners).length ?
+                    Object.entries(harmony.partners).map(([vowel, partner]) => ({
+                        vowel,
+                        partner: partner == null ? null : String(partner),
+                    }))
+                :   null,
         });
     }
     return rows;
@@ -744,6 +967,8 @@ export const LANGUAGE_RELATIONS = Object.freeze([
     ["letters", letterRows, LETTER_COLUMNS],
     ["edges", edgeRows, EDGE_COLUMNS],
     ["clusters", clusterRows, CLUSTER_COLUMNS],
+    ["cluster_groups", clusterGroupRows, CLUSTER_GROUP_COLUMNS],
+    ["mutations", mutationRows, MUTATION_COLUMNS],
     ["stress", stressRows, STRESS_COLUMNS],
     ["finals", finalRows, FINAL_COLUMNS],
     ["syllables", syllableRows, SYLLABLE_COLUMNS],
@@ -758,4 +983,11 @@ export const LANGUAGE_RELATIONS = Object.freeze([
     ["roots", rootRows, ROOT_COLUMNS],
     ["cognates", cognateRows, COGNATE_COLUMNS],
     ["calling_names", callingNameRows, CALLING_NAME_COLUMNS],
+    ["older", olderRows, OLDER_COLUMNS],
+    ["negation", negationRows, NEGATION_COLUMNS],
+    ["name_shapes", nameShapeRows, NAME_SHAPE_COLUMNS],
+    ["name_edges", nameEdgeRows, NAME_EDGE_COLUMNS],
+    ["name_draws", nameDrawRows, NAME_DRAW_COLUMNS],
+    ["held_from", heldFromRows, HELD_FROM_COLUMNS],
+    ["near_names", nearNameRows, NEAR_NAME_COLUMNS],
 ]);

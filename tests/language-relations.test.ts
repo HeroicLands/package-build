@@ -469,6 +469,7 @@ describe("the sound relations", () => {
                 harmony_front: ["e", "ö"],
                 harmony_neutral: ["i"],
                 harmony_neutralAs: "front",
+                harmony_partners: null,
             },
         ]);
     });

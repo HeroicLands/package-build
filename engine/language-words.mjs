@@ -28,6 +28,10 @@
  * - no form stands twice in one language;
  * - a word's `gloss` states at least one sense;
  * - an affix that `replaces` the stem's close does not also `lengthen` it;
+ * - an affix states `given` only where its `kind` is `name`;
+ * - an affix states a `form` or `zero: true`, never both;
+ * - an element's `word` and the particle of `data.negation` are forms of the
+ *   words of the language or an ancestor;
  * - a word's `frame` names a frame of `data.sounds.frames`, its language's or
  *   an ancestor's;
  * - every source language resolves, and names a language skill;
@@ -51,6 +55,7 @@ import { addressKeyOf, ownKey } from "./culture-reach.mjs";
 import {
     BORROWED_SOURCE_KIND,
     LANGUAGE_SUBTYPE,
+    NAME_AFFIX_KIND,
     WORD_DATA_KEYS,
     glossSenses,
     pronunciationProblem,
@@ -286,6 +291,76 @@ export function checkLanguageWords(note, { index } = {}) {
             );
         });
     });
+
+    listOf(data.affixes).forEach((affix, i) => {
+        if (!isMap(affix)) return;
+        const form = typeof affix.form === "string" && affix.form.trim() !== "";
+        const zero = affix.zero === true;
+        if (form && zero)
+            findings.push(
+                finding(
+                    ["data", "affixes", i, "zero"],
+                    "error",
+                    `\`data.affixes[${i}]\` states a \`form\` and \`zero: true\`; a zero affix states no form`,
+                    true,
+                ),
+            );
+        else if (!form && !zero && affix.form == null)
+            findings.push(
+                finding(
+                    ["data", "affixes", i],
+                    "error",
+                    `\`data.affixes[${i}]\` states neither a \`form\` nor \`zero: true\``,
+                ),
+            );
+    });
+
+    listOf(data.affixes).forEach((affix, i) => {
+        if (!isMap(affix) || affix.given == null || affix.kind === NAME_AFFIX_KIND) return;
+        findings.push(
+            finding(
+                ["data", "affixes", i, "given"],
+                "error",
+                "`given` says who a given name belongs to, and " +
+                    (typeof affix.kind === "string" ?
+                        `\`data.affixes[${i}]\` is of kind \`${affix.kind}\``
+                    :   `\`data.affixes[${i}]\` is of no kind`) +
+                    `; it is stated on an affix of kind \`${NAME_AFFIX_KIND}\` only`,
+                true,
+            ),
+        );
+    });
+
+    // The forms an element's `word` and the negative particle may name.
+    const wordForms = new Set();
+    for (const one of [data, ...ancestors])
+        for (const word of listOf(one?.words))
+            if (isMap(word) && typeof word.form === "string") wordForms.add(word.form);
+    listOf(data.elements).forEach((element, i) => {
+        if (!isMap(element) || typeof element.word !== "string" || wordForms.has(element.word))
+            return;
+        findings.push(
+            finding(
+                ["data", "elements", i, "word"],
+                "error",
+                `the word \`${element.word}\` of the element \`${element.form}\` is not a form of ` +
+                    "this language's words or its ancestors'",
+            ),
+        );
+    });
+    if (
+        isMap(data.negation) &&
+        typeof data.negation.particle === "string" &&
+        !wordForms.has(data.negation.particle)
+    )
+        findings.push(
+            finding(
+                ["data", "negation", "particle"],
+                "error",
+                `the negative particle \`${data.negation.particle}\` is not a form of this ` +
+                    "language's words or its ancestors'",
+            ),
+        );
 
     listOf(data.affixes).forEach((affix, i) => {
         if (!isMap(affix) || affix.lengthens !== true || affix.replaces == null) return;

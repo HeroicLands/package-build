@@ -45,7 +45,7 @@ const SUPPORT: Record<string, string> = {
         "---\nshortcode: dunhara\nname: {full: Dunhara}\ntype: folder\ndata:\n  parent: lore\n---\nThe Dunhara.\n",
 };
 
-/** A language note stating every key, each entry well formed. */
+/** A language note stating every key of its register, sounds and history, each entry well formed. */
 const DUNHARI = [
     "---",
     "shortcode: dunharlng",
@@ -228,7 +228,7 @@ describe("a language note's register, sounds and history", () => {
         const text = DUNHARI.replace("subType: language", "subType: lore");
         const findings = [...dunhari(text)].sort((a: any, b: any) => a.line - b.line);
         expect(findings.map((finding: any) => at(text, finding).split(":")[0])).toEqual(
-            LANGUAGE_DATA_KEYS,
+            LANGUAGE_DATA_KEYS.filter((key) => new RegExp(`^  ${key}:`, "m").test(text)),
         );
         for (const finding of findings) expect(finding.severity).toBe("error");
     });

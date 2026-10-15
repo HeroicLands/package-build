@@ -79,6 +79,15 @@ describe("the relations a query can read", () => {
                 "elements",
                 "roots",
                 "cognates",
+                "mutations",
+                "cluster_groups",
+                "older",
+                "negation",
+                "name_shapes",
+                "name_edges",
+                "name_draws",
+                "held_from",
+                "near_names",
             ]),
         );
     });

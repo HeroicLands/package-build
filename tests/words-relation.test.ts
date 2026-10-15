@@ -220,7 +220,7 @@ describe("the `affixes` and `fields` relations", () => {
             db,
             "SELECT * FROM affixes WHERE language = 'demo-note-skill-osketlng'",
         );
-        expect(result.columns).toEqual(["language", "position", ...AFFIX_KEYS]);
+        expect(result.columns).toEqual(["language", "position", ...AFFIX_KEYS, "written"]);
         expect(result.rows).toHaveLength(1);
         const [row] = result.rows;
         expect(Number(row.position)).toBe(0);
@@ -228,13 +228,19 @@ describe("the `affixes` and `fields` relations", () => {
             language: "demo-note-skill-osketlng",
             position: 0,
             form: "-wugh",
+            zero: null,
+            kind: null,
+            given: null,
+            where: null,
             gloss: "cord",
             attaches: "replaces a closing vowel",
             replaces: "vowel",
             lengthens: null,
             front: "-wügh",
             examples: ["ghaukwugh", "ghaukwugh-two"],
+            barredAfter: null,
             tones: "L",
+            written: "-wugh",
         });
     });
 
@@ -246,13 +252,19 @@ describe("the `affixes` and `fields` relations", () => {
             language: "elder-note-skill-elderlng",
             position: 0,
             form: "-ar",
+            zero: null,
+            kind: null,
+            given: null,
+            where: null,
             gloss: "elder",
             attaches: null,
             replaces: null,
             lengthens: null,
             front: null,
             examples: null,
+            barredAfter: null,
             tones: null,
+            written: "-ar",
         });
     });
 

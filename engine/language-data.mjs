@@ -25,6 +25,11 @@
  *   `data.tongues`, `translation` apart: `exonym:vylari` is declared by
  *   `exonym:<tongue>`;
  * - an edge stands once in `data.sounds.edges`;
+ * - a sound stands once in each mutation of `data.sounds.mutations`;
+ * - a cluster stands in one group of `data.sounds.clusters.groups`, and a
+ *   language stating groups states no `innerCluster` edge;
+ * - every vowel `data.sounds.syllables.harmony.partners` keys is a vowel of
+ *   the harmony, and every partner one of its `front` vowels;
  * - every Address in `data.scope` resolves, and every type it names is a note
  *   type;
  * - every language a cognate's `forms` names is a language note;
@@ -32,7 +37,15 @@
  * - a sound-change set's name stands once in the note, a step's label once
  *   in its set, and its `from` and `to` name language notes;
  * - a frame's classes are bases of the master word classes;
- * - a calling-name closing states a `form` or `doubled: true`, not both.
+ * - a calling-name closing states a `form` or `doubled: true`, not both;
+ * - a form stands once in `data.older`;
+ * - the mutation `data.negation` names is one of `data.sounds.mutations`;
+ * - in `data.naming`, a class of name has one shape, which states its
+ *   syllables, its consonants per vowel or both, each range's `min` no
+ *   higher than its `max`; an edge stands once for each class of name; a kind
+ *   of name has one set of draws; and a held-from row takes `elements` only
+ *   where it takes an `element`, and is clipped or given a genitive only
+ *   where it takes a name.
  *
  * @module
  */
@@ -43,6 +56,9 @@ import { addressKeyOf } from "./culture-reach.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { isAddressTuple, renderAddress } from "./address.mjs";
 import {
+    ANY_NAME,
+    HELD_NAMES,
+    HELD_TAKES,
     LANGUAGE_DATA_KEYS,
     RESERVED_TONGUE,
     SCOPE_KINDS,
@@ -287,6 +303,80 @@ export function checkLanguageData(note, { index, types } = {}) {
         else edgeAt.set(row.edge, i);
     });
 
+    if (isMap(sounds.clusters) && Array.isArray(sounds.clusters.groups))
+        listOf(sounds.edges).forEach((row, i) => {
+            if (!isMap(row) || row.edge !== "innerCluster") return;
+            findings.push(
+                finding(
+                    ["data", "sounds", "edges", i, "edge"],
+                    "error",
+                    "`data.sounds.clusters.groups` states the clusters inside a word, so no " +
+                        "`innerCluster` edge does",
+                ),
+            );
+        });
+    const clusterAt = new Map();
+    listOf(sounds.clusters?.groups).forEach((group, i) => {
+        if (!isMap(group)) return;
+        listOf(group.clusters).forEach((cluster, j) => {
+            if (typeof cluster !== "string") return;
+            if (clusterAt.has(cluster))
+                findings.push(
+                    finding(
+                        ["data", "sounds", "clusters", "groups", i, "clusters", j],
+                        "error",
+                        `the cluster \`${cluster}\` stands twice, first in ` +
+                            `\`data.sounds.clusters.groups[${clusterAt.get(cluster)}]\``,
+                    ),
+                );
+            else clusterAt.set(cluster, i);
+        });
+    });
+
+    const mutationAt = new Map();
+    listOf(sounds.mutations).forEach((row, i) => {
+        if (!isMap(row) || typeof row.mutation !== "string" || typeof row.sound !== "string")
+            return;
+        const key = JSON.stringify([row.mutation, row.sound]);
+        if (mutationAt.has(key))
+            findings.push(
+                finding(
+                    ["data", "sounds", "mutations", i, "sound"],
+                    "error",
+                    `the sound \`${row.sound}\` stands twice in the mutation \`${row.mutation}\`, ` +
+                        `first at \`data.sounds.mutations[${mutationAt.get(key)}]\``,
+                ),
+            );
+        else mutationAt.set(key, i);
+    });
+
+    const harmony = isMap(sounds.syllables?.harmony) ? sounds.syllables.harmony : {};
+    if (isMap(harmony.partners)) {
+        const front = new Set(listOf(harmony.front));
+        const vowels = new Set([...listOf(harmony.back), ...front, ...listOf(harmony.neutral)]);
+        for (const [vowel, partner] of Object.entries(harmony.partners)) {
+            const path = ["data", "sounds", "syllables", "harmony", "partners", vowel];
+            if (!vowels.has(vowel))
+                findings.push(
+                    finding(
+                        path,
+                        "error",
+                        `\`${vowel}\` is not a vowel of \`data.sounds.syllables.harmony\``,
+                        true,
+                    ),
+                );
+            else if (typeof partner === "string" && !front.has(partner))
+                findings.push(
+                    finding(
+                        path,
+                        "error",
+                        `the partner \`${partner}\` of \`${vowel}\` is not one of the harmony's ` +
+                            "`front` vowels",
+                    ),
+                );
+        }
+    }
+
     listOf(sounds.frames).forEach((row, i) => {
         if (!isMap(row)) return;
         listOf(row.class).forEach((base, j) => {
@@ -349,6 +439,151 @@ export function checkLanguageData(note, { index, types } = {}) {
                         "`form` and `doubled: true`; it states one",
                 ),
             );
+    });
+
+    // ── Older forms and negation ─────────────────────────────────────────────
+    const olderAt = new Map();
+    listOf(data.older).forEach((row, i) => {
+        if (!isMap(row) || typeof row.form !== "string") return;
+        if (olderAt.has(row.form))
+            findings.push(
+                finding(
+                    ["data", "older", i, "form"],
+                    "error",
+                    `the form \`${row.form}\` stands twice, first at \`data.older[${olderAt.get(row.form)}]\``,
+                ),
+            );
+        else olderAt.set(row.form, i);
+    });
+    const negation = isMap(data.negation) ? data.negation : {};
+    if (typeof negation.mutation === "string") {
+        const named = new Set(
+            listOf(sounds.mutations)
+                .filter((row) => isMap(row) && typeof row.mutation === "string")
+                .map((row) => row.mutation),
+        );
+        if (!named.has(negation.mutation))
+            findings.push(
+                finding(
+                    ["data", "negation", "mutation"],
+                    "error",
+                    `the mutation \`${negation.mutation}\` is not one of \`data.sounds.mutations\``,
+                ),
+            );
+    }
+
+    // ── Naming ───────────────────────────────────────────────────────────────
+    const naming = isMap(data.naming) ? data.naming : {};
+    /**
+     * A finding at the second of two entries sharing a key.
+     *
+     * @param {string} list - The list under `data.naming`.
+     * @param {(row: object) => string|undefined} keyOf - The entry's key.
+     * @param {(row: object, first: number) => [Array<string|number>, string]} report
+     *   - Where the second sits, relative to its entry, and what is said.
+     */
+    const once = (list, keyOf, report) => {
+        const seen = new Map();
+        listOf(naming[list]).forEach((row, i) => {
+            if (!isMap(row)) return;
+            const key = keyOf(row);
+            if (key === undefined) return;
+            if (seen.has(key)) {
+                const [rest, message] = report(row, seen.get(key));
+                findings.push(finding(["data", "naming", list, i, ...rest], "error", message));
+            } else seen.set(key, i);
+        });
+    };
+    once(
+        "shapes",
+        (row) => (typeof row.of === "string" ? row.of : undefined),
+        (row, first) => [
+            ["of"],
+            `the class of name \`${row.of}\` has its shape stated twice, first at ` +
+                `\`data.naming.shapes[${first}]\``,
+        ],
+    );
+    once(
+        "edges",
+        (row) =>
+            typeof row.edge === "string" ?
+                JSON.stringify([row.edge, row.of ?? ANY_NAME])
+            :   undefined,
+        (row, first) => [
+            ["edge"],
+            `the edge \`${row.edge}\` of \`${row.of ?? ANY_NAME}\` stands twice, first at ` +
+                `\`data.naming.edges[${first}]\``,
+        ],
+    );
+    once(
+        "draws",
+        (row) => (typeof row.kind === "string" ? row.kind : undefined),
+        (row, first) => [
+            ["kind"],
+            `the kind \`${row.kind}\` has its draws stated twice, first at ` +
+                `\`data.naming.draws[${first}]\``,
+        ],
+    );
+    listOf(naming.shapes).forEach((row, i) => {
+        if (!isMap(row)) return;
+        const at = (...rest) => ["data", "naming", "shapes", i, ...rest];
+        if (row.syllables == null && row.perVowel == null)
+            findings.push(
+                finding(
+                    at(),
+                    "error",
+                    `\`data.naming.shapes[${i}]\` states neither \`syllables\` nor \`perVowel\``,
+                ),
+            );
+        for (const key of ["syllables", "perVowel"]) {
+            const range = row[key];
+            if (!isMap(range) || typeof range.min !== "number" || typeof range.max !== "number")
+                continue;
+            if (range.min > range.max)
+                findings.push(
+                    finding(
+                        at(key),
+                        "error",
+                        `\`data.naming.shapes[${i}].${key}\` runs from ${range.min} to ${range.max}; ` +
+                            "its `min` is above its `max`",
+                    ),
+                );
+        }
+    });
+    listOf(naming.heldFrom).forEach((row, i) => {
+        if (!isMap(row) || !HELD_TAKES.includes(row.takes)) return;
+        const at = (...rest) => ["data", "naming", "heldFrom", i, ...rest];
+        const label = `\`data.naming.heldFrom[${i}]\``;
+        if (row.takes === "element") {
+            if (!listOf(row.elements).length)
+                findings.push(
+                    finding(
+                        at(),
+                        "error",
+                        `${label} takes an \`element\` and names no \`elements\``,
+                    ),
+                );
+        } else if (row.elements != null)
+            findings.push(
+                finding(
+                    at("elements"),
+                    "error",
+                    `\`elements\` lists what a place takes first, and ${label} takes a ` +
+                        `\`${row.takes}\``,
+                    true,
+                ),
+            );
+        if (!HELD_NAMES.includes(row.takes))
+            for (const key of ["clip", "genitive"])
+                if (row[key] != null)
+                    findings.push(
+                        finding(
+                            at(key),
+                            "error",
+                            `\`${key}\` shapes a name, and ${label} takes a \`${row.takes}\``,
+                            true,
+                        ),
+                    );
     });
 
     // ── Scope ────────────────────────────────────────────────────────────────

@@ -15,13 +15,15 @@
  * The keys a language note states beside its words: the register of the names
  * the setting gives in the language's reach, the tags the register uses, the
  * forms it does not write, the notes the register covers, the letters and sound
- * rules, the sound changes, the name elements, the roots and the cognates.
+ * rules, the sound changes, the name elements, the roots, the cognates, the
+ * forms older than the rules and the negative particle.
  *
  * A leaf module, importing nothing: the note vocabulary reads these
  * declarations as it loads, and `language-data.mjs` checks what the values
  * mean. Every closed list here — the edges, element positions, register
- * kinds, stress rules, joins, marks, onsets, harmony sets and calling-name
- * uses — holds the labels the setting's own tables use, one word for each.
+ * kinds, stress rules, joins, marks, onsets, harmony sets, cluster uses and
+ * calling-name uses — holds the labels the setting's own tables use, one word
+ * for each.
  *
  * @module
  */
@@ -38,6 +40,9 @@ export const LANGUAGE_DATA_KEYS = Object.freeze([
     "roots",
     "cognates",
     "callingNames",
+    "older",
+    "negation",
+    "naming",
 ]);
 
 /**
@@ -89,8 +94,36 @@ export const ANY_SOUND = "any";
  */
 export const ELEMENT_POSITIONS = Object.freeze(["opening", "closing", "either", "link"]);
 
-/** What a register name is, where a language sorts its names by kind. */
+/**
+ * What a register name is, where a language sorts its names by kind, and the
+ * kind of name an element builds.
+ */
 export const REGISTER_KINDS = Object.freeze(["byname", "given", "place"]);
+
+/**
+ * The class of name a naming shape or edge holds for: every name, a given or a
+ * clan name, or a name by how it is built — `bound` a stem and an ending,
+ * `compound` elements alone.
+ */
+export const NAME_CLASSES = Object.freeze(["name", "given", "clan", "bound", "compound"]);
+
+/** The class of name a naming edge holds for where it states none. */
+export const ANY_NAME = "name";
+
+/**
+ * What a place name takes first from what it is held from: a name-stem, a
+ * god's name, a founder's given name, or one of the listed elements.
+ */
+export const HELD_TAKES = Object.freeze(["stem", "godName", "givenName", "element"]);
+
+/** The `takes` values that are a name a place name shapes. */
+export const HELD_NAMES = Object.freeze(["godName", "givenName"]);
+
+/** How a name is clipped where a place name takes it. */
+export const HELD_CLIPS = Object.freeze(["first"]);
+
+/** How often a group of clusters stands inside a word. */
+export const CLUSTER_USES = Object.freeze(["common", "sparing"]);
 
 /** Where a language's stress falls. */
 export const STRESS_RULES = Object.freeze([
@@ -191,6 +224,12 @@ export const REGISTER_FIELDS = Object.freeze([
         shape: "a list of pieces",
         entries: STRINGS,
         describe: "The pieces the name is built from, in order, as a word's `built` writes them.",
+    }),
+    Object.freeze({
+        name: "gloss",
+        kind: "string",
+        shape: "a string",
+        describe: "What the name means, where the pages give its sense.",
     }),
     Object.freeze({
         name: "why",
@@ -320,9 +359,14 @@ export const LETTER_FIELDS = Object.freeze([
     Object.freeze({
         name: "like",
         kind: "string",
-        required: true,
         shape: "a string",
-        describe: "What they sound like.",
+        describe: "What they sound like; absent where the row states only their kind and place.",
+    }),
+    Object.freeze({
+        name: "place",
+        kind: "string",
+        shape: "a string, such as `lips` or `tongue-tip`",
+        describe: "Where in the mouth they are made.",
     }),
     Object.freeze({
         name: "tongue",
@@ -360,6 +404,38 @@ export const EDGE_FIELDS = Object.freeze([
 ]);
 
 /**
+ * The keys of one `data.sounds.clusters.groups` entry: clusters of one kind,
+ * and how often they stand.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const CLUSTER_GROUP_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "what",
+        kind: "string",
+        required: true,
+        shape: "a string, such as `a nasal and a fricative`",
+        describe: "What the clusters of the group are made of.",
+    }),
+    Object.freeze({
+        name: "clusters",
+        kind: "list",
+        required: true,
+        shape: "a list of clusters",
+        entries: STRINGS,
+        describe: "The clusters, as written; a digraph counts as one consonant.",
+    }),
+    Object.freeze({
+        name: "use",
+        kind: "string",
+        required: true,
+        allowed: CLUSTER_USES,
+        shape: `one of ${CLUSTER_USES.join(", ")}`,
+        describe: "How often the group's clusters stand inside a word.",
+    }),
+]);
+
+/**
  * The keys of a language's `data.sounds.clusters`.
  *
  * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
@@ -371,6 +447,19 @@ export const CLUSTER_FIELDS = Object.freeze([
         required: true,
         shape: "a whole number",
         describe: "The most consonants that stand together inside a word.",
+    }),
+    Object.freeze({
+        name: "groups",
+        kind: "list",
+        shape: "list of `{ what, clusters, use }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ what, clusters, use }`",
+            fields: CLUSTER_GROUP_FIELDS,
+        }),
+        describe:
+            "The clusters that may stand inside a word, in groups; a language stating them " +
+            "states no `innerCluster` edge.",
     }),
 ]);
 
@@ -589,6 +678,15 @@ export const HARMONY_FIELDS = Object.freeze([
         shape: `one of ${HARMONY_SETS.join(", ")}`,
         describe: "The set a word of neutral vowels alone counts as.",
     }),
+    Object.freeze({
+        name: "partners",
+        kind: "map",
+        shape: "a map of vowels to front vowels",
+        values: Object.freeze({ kind: "string", shape: "a front vowel" }),
+        describe:
+            "The front vowel each vowel turns to in an affix's front form, keyed by the vowel; " +
+            "every key is a vowel of the harmony and every value one of its `front` vowels.",
+    }),
 ]);
 
 /**
@@ -658,7 +756,7 @@ export const SYLLABLE_FIELDS = Object.freeze([
     Object.freeze({
         name: "harmony",
         kind: "map",
-        shape: "a map — `{ back, front, neutral?, neutralAs? }`",
+        shape: "a map — `{ back, front, neutral?, neutralAs?, partners? }`",
         fields: HARMONY_FIELDS,
         describe: "The vowel harmony a word keeps.",
     }),
@@ -730,6 +828,42 @@ export const FRAME_FIELDS = Object.freeze([
 ]);
 
 /**
+ * The keys of one `data.sounds.mutations` entry: a sound and what it becomes
+ * where a named mutation holds.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const MUTATION_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "mutation",
+        kind: "string",
+        required: true,
+        shape: "a string, such as `wearing`",
+        describe: "The mutation's name; its rows share it, and `data.negation` names it.",
+    }),
+    Object.freeze({
+        name: "sound",
+        kind: "string",
+        required: true,
+        shape: "a sound as written, such as `p`",
+        describe: "The sound as it stands where the mutation does not hold; once per mutation.",
+    }),
+    Object.freeze({
+        name: "becomes",
+        kind: "string",
+        required: true,
+        shape: "a sound as written, such as `v`",
+        describe: "What the sound becomes where the mutation holds.",
+    }),
+    Object.freeze({
+        name: "example",
+        kind: "string",
+        shape: "a string",
+        describe: "A word that shows it.",
+    }),
+]);
+
+/**
  * The keys of a language's `data.sounds`.
  *
  * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
@@ -760,7 +894,7 @@ export const SOUND_FIELDS = Object.freeze([
     Object.freeze({
         name: "clusters",
         kind: "map",
-        shape: "a map — `{ max }`",
+        shape: "a map — `{ max, groups? }`",
         fields: CLUSTER_FIELDS,
         describe: "How many consonants may stand together.",
     }),
@@ -856,6 +990,19 @@ export const SOUND_FIELDS = Object.freeze([
         }),
         describe: "Marks and spellings a word is read through before the sound rules hold it.",
     }),
+    Object.freeze({
+        name: "mutations",
+        kind: "list",
+        shape: "list of `{ mutation, sound, becomes, example? }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ mutation, sound, becomes, example? }`",
+            fields: MUTATION_FIELDS,
+        }),
+        describe:
+            "The sounds a word changes where a named mutation holds, one entry per sound, such " +
+            "as a stop worn to a fricative or a consonant voiced inside a compound.",
+    }),
 ]);
 
 /**
@@ -915,6 +1062,13 @@ export const SOUND_CHANGE_FIELDS = Object.freeze([
         describe: "The language whose words the steps make.",
     }),
     Object.freeze({
+        name: "takes",
+        kind: "string",
+        shape: "a case, such as `accusative`",
+        describe:
+            "The form of the older word the steps start from; its citation form where absent.",
+    }),
+    Object.freeze({
         name: "steps",
         kind: "list",
         required: true,
@@ -956,6 +1110,15 @@ export const ELEMENT_FIELDS = Object.freeze([
         describe: "Where in a name the element stands.",
     }),
     Object.freeze({
+        name: "kind",
+        kind: "string",
+        allowed: REGISTER_KINDS,
+        shape: `one of ${REGISTER_KINDS.join(", ")}`,
+        describe:
+            "The kind of name the element builds, in a language that keeps one set of elements " +
+            "per kind; every kind where absent.",
+    }),
+    Object.freeze({
         name: "sense",
         kind: "string",
         required: true,
@@ -968,6 +1131,20 @@ export const ELEMENT_FIELDS = Object.freeze([
         shape: "a list of names",
         entries: STRINGS,
         describe: "The names the element is read from.",
+    }),
+    Object.freeze({
+        name: "word",
+        kind: "string",
+        shape: "a form of the language's words",
+        describe:
+            "The word the element is the stem of, a form of `data.words` of the language or an " +
+            "ancestor.",
+    }),
+    Object.freeze({
+        name: "genitive",
+        kind: "string",
+        shape: "the element as written, such as `-borgar`",
+        describe: "The element in the genitive, where a name governing another word takes it.",
     }),
 ]);
 
@@ -1088,6 +1265,317 @@ export const CALLING_NAME_FIELDS = Object.freeze([
 ]);
 
 /**
+ * The keys of one `data.older` entry.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const OLDER_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "form",
+        kind: "string",
+        required: true,
+        shape: "a form as the setting writes it",
+        describe: "A word or name whose shape the language's rules do not make.",
+    }),
+    Object.freeze({
+        name: "gloss",
+        kind: "string",
+        shape: "a string",
+        describe: "What it means.",
+    }),
+    Object.freeze({
+        name: "layer",
+        kind: "string",
+        shape: "a string, such as `Primordial`",
+        describe: "The historical layer it belongs to.",
+    }),
+]);
+
+/**
+ * The keys of a language's `data.negation`.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const NEGATION_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "particle",
+        kind: "string",
+        required: true,
+        shape: "a form of the language's words",
+        describe:
+            "The particle that stands before a verb to negate it, a form of `data.words` of the " +
+            "language or an ancestor.",
+    }),
+    Object.freeze({
+        name: "mutation",
+        kind: "string",
+        shape: "a mutation of `data.sounds.mutations`",
+        describe: "The mutation the negated verb takes, named in `data.sounds.mutations`.",
+    }),
+]);
+
+/**
+ * The keys of a range: the least and the most.
+ *
+ * @param {string} kind - `integer` or `number`.
+ * @param {string} what - What the range counts.
+ * @returns {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+const rangeFields = (kind, what) =>
+    Object.freeze([
+        Object.freeze({
+            name: "min",
+            kind,
+            required: true,
+            shape: kind === "integer" ? "a whole number" : "a number",
+            describe: `The fewest ${what}.`,
+        }),
+        Object.freeze({
+            name: "max",
+            kind,
+            required: true,
+            shape: kind === "integer" ? "a whole number" : "a number",
+            describe: `The most ${what}; never below \`min\`.`,
+        }),
+    ]);
+
+/**
+ * The keys of one `data.naming.shapes` entry: how long a class of name runs.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const NAME_SHAPE_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "of",
+        kind: "string",
+        required: true,
+        allowed: NAME_CLASSES,
+        shape: `one of ${NAME_CLASSES.join(", ")}`,
+        describe: "The class of name the shape holds for; once per class.",
+    }),
+    Object.freeze({
+        name: "syllables",
+        kind: "map",
+        shape: "a map — `{ min, max }`",
+        fields: rangeFields("integer", "syllables a name of the class runs to"),
+        describe: "How many syllables a name of the class runs to.",
+    }),
+    Object.freeze({
+        name: "perVowel",
+        kind: "map",
+        shape: "a map — `{ min, max }`",
+        fields: rangeFields("number", "consonants a name of the class carries to each vowel"),
+        describe:
+            "How many consonants a name of the class carries to each vowel; a shape states this, " +
+            "`syllables`, or both.",
+    }),
+]);
+
+/**
+ * The keys of one `data.naming.edges` entry: the sounds a name may open or
+ * close on, where a name keeps edges ordinary words do not.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const NAME_EDGE_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "edge",
+        kind: "string",
+        required: true,
+        allowed: EDGE_KINDS,
+        shape: `one of ${EDGE_KINDS.join(", ")}`,
+        describe: "Which edge of a name the sounds stand at.",
+    }),
+    Object.freeze({
+        name: "sounds",
+        kind: "string-or-list",
+        required: true,
+        allowed: Object.freeze([ANY_SOUND]),
+        shape: `a list of sounds, or \`${ANY_SOUND}\``,
+        entries: STRINGS,
+        describe: `The sounds, as written; \`${ANY_SOUND}\` for every one, and an empty list for none.`,
+    }),
+    Object.freeze({
+        name: "vowel",
+        kind: "boolean",
+        shape: "`true` or `false`",
+        describe: "Whether a vowel may stand at the edge too; `false` where unstated.",
+    }),
+    Object.freeze({
+        name: "of",
+        kind: "string",
+        allowed: NAME_CLASSES,
+        shape: `one of ${NAME_CLASSES.join(", ")}`,
+        describe: `The class of name the edge holds for; \`${ANY_NAME}\`, every name, where absent.`,
+    }),
+]);
+
+/**
+ * The keys of one `data.naming.draws` entry: the element kinds a kind of name
+ * is built from.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const NAME_DRAW_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "kind",
+        kind: "string",
+        required: true,
+        allowed: REGISTER_KINDS,
+        shape: `one of ${REGISTER_KINDS.join(", ")}`,
+        describe: "The kind of name; once per kind.",
+    }),
+    Object.freeze({
+        name: "elements",
+        kind: "list",
+        required: true,
+        shape: "a list of element kinds",
+        entries: Object.freeze({
+            kind: "string",
+            allowed: REGISTER_KINDS,
+            shape: `one of ${REGISTER_KINDS.join(", ")}`,
+        }),
+        describe: "The kinds of element, as `data.elements` states them, the name is built from.",
+    }),
+]);
+
+/**
+ * The keys of one `data.naming.heldFrom` entry: what a place name takes first
+ * from what the place is held from.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const HELD_FROM_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "source",
+        kind: "string",
+        required: true,
+        shape: "a string, such as `a founder`",
+        describe: "What the place is held from.",
+    }),
+    Object.freeze({
+        name: "takes",
+        kind: "string",
+        required: true,
+        allowed: HELD_TAKES,
+        shape: `one of ${HELD_TAKES.join(", ")}`,
+        describe:
+            "What stands first: a name-stem in any grade, a god's name, a founder's given name, " +
+            "or one of `elements`.",
+    }),
+    Object.freeze({
+        name: "clip",
+        kind: "string",
+        allowed: HELD_CLIPS,
+        shape: `one of ${HELD_CLIPS.join(", ")}`,
+        describe: "How the name is clipped: `first`, to its first element; whole where absent.",
+    }),
+    Object.freeze({
+        name: "genitive",
+        kind: "list",
+        shape: "a list of endings",
+        entries: STRINGS,
+        describe: "The genitive endings, one of which stands at the seam after the name.",
+    }),
+    Object.freeze({
+        name: "elements",
+        kind: "list",
+        shape: "a list of elements",
+        entries: STRINGS,
+        describe: "The elements that may stand first, for a row that takes an `element`.",
+    }),
+]);
+
+/**
+ * The keys of one `data.naming.nearName.examples` entry.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const NEAR_NAME_EXAMPLE_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "near",
+        kind: "string",
+        required: true,
+        shape: "a near name, such as `Anlâ`",
+        describe: "The near name.",
+    }),
+    Object.freeze({
+        name: "given",
+        kind: "string",
+        required: true,
+        shape: "a given name",
+        describe: "The given name it is the near name of.",
+    }),
+]);
+
+/**
+ * The keys of a language's `data.naming.nearName`.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const NEAR_NAME_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "minSyllables",
+        kind: "integer",
+        required: true,
+        shape: "a whole number",
+        describe: "The fewest syllables a given name has that carries a near name.",
+    }),
+    Object.freeze({
+        name: "examples",
+        kind: "list",
+        shape: "list of `{ near, given }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ near, given }`",
+            fields: NEAR_NAME_EXAMPLE_FIELDS,
+        }),
+        describe: "Worked near names, each beside its given name.",
+    }),
+]);
+
+/** A list of maps, as an inner key's declaration. */
+const innerList = (name, fields, describe) => {
+    const keys = fields.map((field) => (field.required ? field.name : `${field.name}?`)).join(", ");
+    return Object.freeze({
+        name,
+        kind: "list",
+        shape: `list of \`{ ${keys} }\``,
+        entries: Object.freeze({ kind: "map", shape: `a map — \`{ ${keys} }\``, fields }),
+        describe,
+    });
+};
+
+/**
+ * The keys of a language's `data.naming`: the parameters its names keep
+ * beyond the rules its words keep.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const NAMING_FIELDS = Object.freeze([
+    innerList("shapes", NAME_SHAPE_FIELDS, "How long each class of name runs."),
+    innerList(
+        "edges",
+        NAME_EDGE_FIELDS,
+        "The sounds a name may open and close on, where names keep edges ordinary words do not; " +
+            "an edge stands once for each class of name.",
+    ),
+    innerList("draws", NAME_DRAW_FIELDS, "The element kinds each kind of name is built from."),
+    innerList(
+        "heldFrom",
+        HELD_FROM_FIELDS,
+        "What a place name takes first, by what the place is held from.",
+    ),
+    Object.freeze({
+        name: "nearName",
+        kind: "map",
+        shape: "a map — `{ minSyllables, examples? }`",
+        fields: NEAR_NAME_FIELDS,
+        describe: "The near name a long given name carries.",
+    }),
+]);
+
+/**
  * A list of maps, as a `data` field's declaration.
  *
  * @param {string} name - The key.
@@ -1138,7 +1626,7 @@ export const LANGUAGE_DATA_FIELDS = Object.freeze([
         kind: "map",
         shape:
             "a map — `{ letters?, edges?, clusters?, stress?, finals?, syllables?, joining?, " +
-            "joins?, marks?, skeleton?, frames?, readPast? }`",
+            "joins?, marks?, skeleton?, frames?, readPast?, mutations? }`",
         fields: SOUND_FIELDS,
         describe:
             "The letters the language writes and the rules its words keep. A language skill " +
@@ -1162,6 +1650,27 @@ export const LANGUAGE_DATA_FIELDS = Object.freeze([
         shape: "a map — `{ closings, minSyllables }`",
         fields: CALLING_NAME_FIELDS,
         describe: "The short name a long given name is called by. A language skill note only.",
+    }),
+    listOfMaps(
+        "older",
+        OLDER_FIELDS,
+        "The words and names older than the language's rules, which no sound or name rule holds.",
+    ),
+    Object.freeze({
+        name: "negation",
+        kind: "map",
+        shape: "a map — `{ particle, mutation? }`",
+        fields: NEGATION_FIELDS,
+        describe: "How a verb is negated. A language skill note only.",
+    }),
+    Object.freeze({
+        name: "naming",
+        kind: "map",
+        shape: "a map — `{ shapes?, edges?, draws?, heldFrom?, nearName? }`",
+        fields: NAMING_FIELDS,
+        describe:
+            "The shapes, edges and sources the language's names keep beyond its words' rules. A " +
+            "language skill note only.",
     }),
 ]);
 
@@ -1199,5 +1708,11 @@ export const CALLING_CLOSING_KEYS = Object.freeze(
 export const ELEMENT_KEYS = Object.freeze(ELEMENT_FIELDS.map((field) => field.name));
 /** The keys of {@link ROOT_FIELDS}, in declared order. */
 export const ROOT_KEYS = Object.freeze(ROOT_FIELDS.map((field) => field.name));
+/** The keys of {@link MUTATION_FIELDS}, in declared order. */
+export const MUTATION_KEYS = Object.freeze(MUTATION_FIELDS.map((field) => field.name));
+/** The keys of {@link CLUSTER_GROUP_FIELDS}, in declared order. */
+export const CLUSTER_GROUP_KEYS = Object.freeze(CLUSTER_GROUP_FIELDS.map((field) => field.name));
+/** The keys of {@link OLDER_FIELDS}, in declared order. */
+export const OLDER_KEYS = Object.freeze(OLDER_FIELDS.map((field) => field.name));
 /** The keys of {@link SCOPE_FIELDS}, in declared order. */
 export const SCOPE_KINDS = Object.freeze(SCOPE_FIELDS.map((field) => field.name));
