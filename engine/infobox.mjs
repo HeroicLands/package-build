@@ -317,6 +317,14 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     "map.scene": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
     "map.fixup": Object.freeze({ withheld: "canvas machinery, not a summary row" }),
     "map.thumbnail": Object.freeze({ withheld: "an image, which the box never carries" }),
+    // A language's words and a glossary's terms are what dictionary sections
+    // are drawn from, not facts a summary row can carry.
+    "skill.classModifiers": Object.freeze({ withheld: "word machinery, not a summary row" }),
+    "skill.fields": Object.freeze({ withheld: "word machinery, not a summary row" }),
+    "skill.words": Object.freeze({ withheld: "word machinery, not a summary row" }),
+    "skill.affixes": Object.freeze({ withheld: "word machinery, not a summary row" }),
+    "lore.glossary": Object.freeze({ withheld: "glossary machinery, not a summary row" }),
+    "affiliation.glossary": Object.freeze({ withheld: "glossary machinery, not a summary row" }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),

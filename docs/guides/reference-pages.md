@@ -163,6 +163,95 @@ frontmatter remains queryable. An Item or Actor note can have both a readable
 Consumers can use the index's own addresses and file paths rather than
 reconstructing them from filenames.
 
+## Set words as a dictionary and terms as a glossary
+
+A language's words and a people's terms are each one `sql` fence, and nothing
+is copied into the note: the words come from the language notes' `data.words`,
+the terms from the `data.glossary` entries of cultures and affiliations and
+from the affiliations' ranks and offices, and a section changes when they do.
+`layout=dictionary` sets rows of the `dictionary` relation and
+`layout=glossary` rows of the `terms` relation. The query decides what
+appears, so any note may carry either.
+
+A language note lists its words, with the words it inherits from its parent
+language:
+
+````markdown
+# Dictionary {#dictionary}
+
+```sql {layout=dictionary section-level=2}
+SELECT * FROM dictionary WHERE language = 'thalorna-note-skill-provnzlng'
+```
+````
+
+A culture note lists the words of its tongue a player is expected to know, and
+its glossary: its own terms and the ranks, offices and terms of every
+affiliation that reaches it.
+
+````markdown
+# Words Everyone Knows {#common-words}
+
+```sql {layout=dictionary section-level=2}
+SELECT * FROM dictionary WHERE language = 'thalorna-note-skill-provnzlng' AND common
+```
+
+# Glossary {#glossary}
+
+```sql {layout=glossary section-level=2}
+SELECT * FROM terms WHERE list_contains(cultures, 'thalorna-note-lore-provenzianclt')
+```
+````
+
+The glossary renders as a key, a heading per letter and one paragraph per
+term, each sense tagged with the body or culture it comes from and each term
+in another tongue tagged with it:
+
+```markdown
+**Key:** _Lit._ Liturgic Language; • a common word, which a player is expected to know by heart.
+
+## K
+
+**Knight-Captain** **1** (_Kingdom of Provenzia_) A knight who leads a company. **2** (_Kingdom of Provenzia_) Commands the guard in the field. — [[thalorna-note-affiliation-kingdom|Kingdom of Provenzia]]
+
+## O
+
+**Ordained Priest** _Lit._ (_Church of the Rite_) Ordained to serve a parish. — [[thalorna-note-affiliation-church|Church of the Rite]]
+```
+
+The culture shapes both through its own `data.glossary`.
+`{name: solmère, common: true, pronunciation: sol-MEH-reh}` marks a word of its
+tongue common, so the first fence lists it, and gives it a respelling;
+`{name: Subject, common: true}` marks a rank and lets in a title of one word,
+which no glossary holds unless an entry names it; and
+`{name: blood-field, definition: …}` is a term of the culture's own.
+
+An affiliation lists its own terms with `WHERE owner = '<its Address>'`. The
+setting's two pages list everything, each word once and each term under every
+owner that holds it:
+
+````markdown
+```sql {layout=dictionary}
+SELECT * EXCLUDE (common) FROM dictionary WHERE depth = 0
+```
+````
+
+````markdown
+```sql {layout=glossary}
+SELECT * EXCLUDE (common) FROM terms
+```
+````
+
+`package-build content-index` also writes both relations beside the index, for
+reading with `jq`:
+
+```bash
+jq -r 'select(.cultures | index("thalorna-note-lore-provenzianclt")) | .name' \
+  build/content-index/thalorna-terms.jsonl
+```
+
+The [format reference](../reference/format-details.md#dictionaries-and-glossaries)
+gives every column and every rule.
+
 ## Resolve another package
 
 In a Foundry package, declare a content-bearing dependency under

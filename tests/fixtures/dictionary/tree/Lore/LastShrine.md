@@ -1,0 +1,8 @@
+---
+shortcode: lastshrine
+name: { full: The Song of the Last Shrine }
+type: lore
+subType: history
+---
+
+A song.

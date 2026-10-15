@@ -17,9 +17,10 @@
  * `data.culture`, is a field every lore note but a culture note may state,
  * declared in `culture-choice.mjs`.
  *
- * `data.language` is shared with the `culture` subType: a work names the
- * tongue it is composed in, and a culture names the tongue its people speak,
- * whose name lists `package-build npc new` draws from.
+ * `data.language` is shared beyond literature: a work names the tongue it is
+ * composed in, a culture the tongue its people speak, whose name lists
+ * `package-build npc new` draws from, and an affiliation the trade, temple or
+ * order tongue it keeps.
  *
  * `DataFieldSpec` declares the keys a type accepts, not the subType that may
  * write them, so {@link checkLiteratureNote} scopes these keys to the subTypes
@@ -74,8 +75,8 @@ export function checkLanguageChoice(note, { index } = {}) {
 }
 
 /**
- * `data.language`: the tongue a work is composed in, or the tongue a culture's
- * people speak. Optional on both.
+ * `data.language`: the tongue a work is composed in, the tongue a culture's
+ * people speak, or the tongue an affiliation keeps. Optional on all three.
  *
  * @type {object}
  */
@@ -87,9 +88,10 @@ export const LANGUAGE_FIELD = Object.freeze({
     accepts: Object.freeze(["skill"]),
     check: checkLanguageChoice,
     describe:
-        "The tongue the work is composed in, or on a culture note the tongue its people " +
-        "speak, as a language skill note. `package-build npc new` draws a culture's names " +
-        "from its language's `data.names`. A `literature` or `culture` note only.",
+        "The tongue the note is in, as a language skill note: the tongue a work is composed " +
+        "in, a culture's people speak, or an affiliation keeps as its trade, temple or order " +
+        "tongue. `package-build npc new` draws a culture's names from its language's " +
+        "`data.names`. A `literature` or `culture` lore note, or an affiliation, only.",
 });
 
 /**

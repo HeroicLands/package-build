@@ -1605,16 +1605,22 @@ function contentIndexCommand() {
         handler: (argv) => {
             try {
                 const config = loadPackConfig();
-                const { file, notes, bytes, full, draft, stub } = emitContentIndex({
-                    config,
-                    ...(argv.root ? { contentBase: argv.root } : {}),
-                    ...(argv.out ? { outDir: argv.out } : {}),
-                });
+                const { file, notes, bytes, full, draft, stub, dictionary, terms } =
+                    emitContentIndex({
+                        config,
+                        ...(argv.root ? { contentBase: argv.root } : {}),
+                        ...(argv.out ? { outDir: argv.out } : {}),
+                    });
                 log.info(
                     `${config.contentPackage} → ${path.relative(process.cwd(), file)} ` +
                         `(${notes} notes — ${full} full, ${draft} draft, ` +
                         `${stub} stub — ${Math.round(bytes / 1024)} KiB)`,
                 );
+                for (const [relation, written] of Object.entries({ dictionary, terms }))
+                    log.info(
+                        `${config.contentPackage} → ${path.relative(process.cwd(), written.file)} ` +
+                            `(${written.rows} ${relation} rows)`,
+                    );
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

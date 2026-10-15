@@ -112,6 +112,7 @@ import { checkForeignAssetBindings } from "./asset-bindings.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
 import { isAddressTuple, ownDocumentSystem, readCanonicalKey, renderAddress } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
+import { dictionaryAndTermRows, serializeRows } from "./dictionary-rows.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
@@ -1396,11 +1397,13 @@ export function indexRecordsFor({
  *   `paths.contentIndex`.
  * @param {object} [options.config] - A resolved configuration; loaded when omitted.
  * @returns {{file: string, notes: number, assets: number, records: number,
- *   bytes: number, full: number, draft: number, stub: number}} Where it was
- *   written, how many notes and how many assets it holds, how many records that
- *   is in all, its size, and the ladder those notes sit on — so the ratio of
- *   written to unwritten is visible on every build rather than discovered in a
- *   year.
+ *   bytes: number, full: number, draft: number, stub: number,
+ *   dictionary: {file: string, rows: number}, terms: {file: string, rows: number}}}
+ *   Where it was written, how many notes and how many assets it holds, how many
+ *   records that is in all, its size, and the ladder those notes sit on — so
+ *   the ratio of written to unwritten is visible on every build rather than
+ *   discovered in a year — and where the `dictionary` and `terms` datafiles
+ *   were written beside it, with their row counts.
  * @throws {Error} When the content tree is absent, or when it yields no note at
  *   all — an empty index is indistinguishable from a mis-pointed tree, and a
  *   reader would take it as the authoritative statement that this package has
@@ -1443,6 +1446,16 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, text);
 
+    // The `dictionary` and `terms` relations as datafiles beside the index, for
+    // `jq`, an editor or another package. Nothing in the build reads them back.
+    const derived = dictionaryAndTermRows(records.map((record) => encodeAddresses(record)));
+    const datafiles = {};
+    for (const relation of ["dictionary", "terms"]) {
+        const rowsFile = path.join(dir, `${contentPackage}-${relation}.jsonl`);
+        fs.writeFileSync(rowsFile, serializeRows(derived[relation]));
+        datafiles[relation] = { file: rowsFile, rows: derived[relation].length };
+    }
+
     // Counted separately because they are genuinely different numbers: an item
     // note yields a second record for its documentation journal and a file
     // yields an asset record, so reporting records as notes would overstate how
@@ -1463,5 +1476,6 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
         full: noteRecords.length - stub - draft,
         draft,
         stub,
+        ...datafiles,
     };
 }

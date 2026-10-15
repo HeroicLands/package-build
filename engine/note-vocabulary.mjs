@@ -119,6 +119,20 @@ import {
 } from "./appearance-profile.mjs";
 import { checkExtraFeatures } from "./appearance-features.mjs";
 import { LANGUAGE_FIELD, LITERATURE_FIELDS, checkLiteratureNote } from "./literature-notes.mjs";
+import {
+    AFFIX_FIELDS,
+    GLOSSARY_ENTRY_FIELDS,
+    WORD_FIELDS,
+    WORD_FIELD_FIELDS,
+} from "./word-terms.mjs";
+import { WORD_CLASS_MODIFIERS } from "./word-classes.mjs";
+import {
+    checkLanguageAbbreviation,
+    checkLanguageFamily,
+    checkLanguageWords,
+} from "./language-words.mjs";
+import { checkGlossary } from "./glossary-entries.mjs";
+import { checkAffiliationReach } from "./culture-reach.mjs";
 import { checkLanguageNames, requiredGivenGenders } from "./language-names.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
@@ -538,6 +552,126 @@ const APPEARANCE_PROFILE_FIELD = Object.freeze({
             }),
         }),
     ]),
+});
+
+/**
+ * A language's words and what they are read against: the class modifiers it
+ * uses, the fields its words are grouped under, and the affixes a word's
+ * pieces may name. A language skill note only; {@link checkLanguageWords}
+ * checks what the values mean.
+ *
+ * @type {ReadonlyArray<DataFieldSpec>}
+ */
+const WORD_DATA_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "classModifiers",
+        kind: "list",
+        shape: "list of word class modifiers",
+        entries: Object.freeze({
+            kind: "string",
+            allowed: Object.freeze(WORD_CLASS_MODIFIERS.map((item) => item.token)),
+            shape: "a word class modifier",
+        }),
+        describe:
+            "The class modifiers the language uses, from the master word classes. A word's " +
+            "class may carry only these. Empty when unstated. A language skill note only.",
+    }),
+    Object.freeze({
+        name: "fields",
+        kind: "list",
+        shape: "list of `{ name, holds }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ name, holds }`",
+            fields: WORD_FIELD_FIELDS,
+        }),
+        describe: "The fields the language's words are grouped under. A language skill note only.",
+    }),
+    Object.freeze({
+        name: "words",
+        kind: "list",
+        shape: "list of `{ form, class, field, gloss, … }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ form, class, field, gloss, … }`",
+            fields: WORD_FIELDS,
+        }),
+        describe:
+            "The language's words, one map each, in the order they print. A language skill " +
+            "note only. See [a language's words](format-details.md#a-languages-words).",
+    }),
+    Object.freeze({
+        name: "affixes",
+        kind: "list",
+        shape: "list of `{ form, gloss, attaches?, examples? }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ form, gloss, attaches?, examples? }`",
+            fields: AFFIX_FIELDS,
+        }),
+        describe:
+            "The affixes a word's `built` pieces may name, each with its gloss. A language " +
+            "skill note only.",
+    }),
+]);
+
+/**
+ * A language's `data.family`: the parent language whose words it reads as its
+ * own. {@link checkLanguageFamily} checks it.
+ *
+ * @type {DataFieldSpec}
+ */
+const FAMILY_FIELD = Object.freeze({
+    name: "family",
+    kind: "address",
+    shape: "an Address",
+    ref: "skill",
+    accepts: Object.freeze(["skill"]),
+    check: checkLanguageFamily,
+    describe:
+        "The parent language, as a language skill note: this language reads the parent's " +
+        "words, and its parents' in turn, as its own. A language skill note only. See " +
+        "[a language's words](format-details.md#a-languages-words).",
+});
+
+/**
+ * A language's `data.abbreviation`: the tag a dictionary prints beside an
+ * entry's class. {@link checkLanguageAbbreviation} checks it.
+ *
+ * @type {DataFieldSpec}
+ */
+const ABBREVIATION_FIELD = Object.freeze({
+    name: "abbreviation",
+    kind: "string",
+    shape: "a string, such as `Prov.`",
+    check: checkLanguageAbbreviation,
+    describe:
+        "The tag a dictionary prints for the language, beside an entry's class and in an " +
+        "etymology, as `Prov.`; the language's full name where unstated. A language skill " +
+        "note only. See [a language's words](format-details.md#a-languages-words).",
+});
+
+/**
+ * A culture's or an affiliation's `data.glossary`: the terms that belong to
+ * its people or members rather than to a language's grammar.
+ * {@link checkGlossary} checks what an entry means.
+ *
+ * @type {DataFieldSpec}
+ */
+const GLOSSARY_FIELD = Object.freeze({
+    name: "glossary",
+    kind: "list",
+    shape: "list of `{ name, name_sort?, common?, definition?, pronunciation?, language? }`",
+    entries: Object.freeze({
+        kind: "map",
+        shape: "a map — `{ name, name_sort?, common?, definition?, pronunciation?, language? }`",
+        fields: GLOSSARY_ENTRY_FIELDS,
+    }),
+    describe:
+        "Its own glossary terms: euphemisms, idioms, terms of art and titles that are not " +
+        "ranks. An entry with a `definition` creates a term or replaces its senses; one " +
+        "without marks a term the note already has. Every entry resolves to a language. " +
+        "Empty when unstated. See [glossary terms](format-details.md#glossary-terms).",
 });
 
 /**
@@ -1527,7 +1661,14 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     affiliation: Object.freeze({
         stubbable: true,
-        check: checkAffiliationRankFloor,
+        // A body's rank floor, whether it reaches a culture at all — a body
+        // reaching none puts its ranks, offices and language in no culture's
+        // glossary — and its own glossary.
+        check: (note, context) => [
+            ...checkAffiliationRankFloor(note, context),
+            ...checkAffiliationReach(note, context),
+            ...checkGlossary(note, context),
+        ],
         subTypes: Object.freeze([
             "guild",
             "order",
@@ -1645,6 +1786,14 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...CULTURE_FIELD,
                 describe: "The people this affiliation belongs to, as a culture lore note.",
             },
+            {
+                ...LANGUAGE_FIELD,
+                describe:
+                    "The trade, temple or order tongue the affiliation keeps, as a language " +
+                    "skill note. It reaches the affiliation's culture, and its words enter that " +
+                    "culture's glossary. A glossary entry that states no `language` is in it.",
+            },
+            GLOSSARY_FIELD,
             {
                 name: "relations",
                 kind: "map",
@@ -1839,6 +1988,9 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     skill: Object.freeze({
         stubbable: true,
+        // A language note's words, held to the master word classes and to what
+        // the note declares; no other skill states them.
+        check: checkLanguageWords,
         subTypes: Object.freeze([
             "social",
             "nature",
@@ -1862,6 +2014,9 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe: "The skill this one specialises.",
             },
             NAMES_FIELD,
+            FAMILY_FIELD,
+            ABBREVIATION_FIELD,
+            ...WORD_DATA_FIELDS,
         ]),
     }),
 
@@ -2045,6 +2200,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             ...checkCalendarNote(note, context),
             ...checkLiteratureNote(note),
             ...checkCultureSubType(note, context),
+            ...checkGlossary(note, context),
         ],
         data: Object.freeze([
             ...CALENDAR_FIELDS,
@@ -2068,6 +2224,10 @@ export const NOTE_VOCABULARY = Object.freeze({
             LANGUAGE_FIELD,
             EVENTS_FIELD,
             APPEARANCE_PROFILE_FIELD,
+            {
+                ...GLOSSARY_FIELD,
+                describe: `\`culture\` only: ${GLOSSARY_FIELD.describe}`,
+            },
         ]),
     }),
 

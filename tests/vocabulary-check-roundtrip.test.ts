@@ -148,7 +148,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     affiliation: {
-        covers: ["events", "governance.ranks", "governance.offices", "culture"],
+        covers: ["events", "governance.ranks", "governance.offices", "culture", "language"],
         fm: () => ({
             type: "affiliation",
             shortcode: "someaffiliation",
@@ -173,6 +173,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     },
                 },
                 culture: "cultureone",
+                language: "languageone",
             },
         }),
     },
@@ -231,6 +232,15 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
                     clan: ["Zekar"],
                 },
             },
+        }),
+    },
+    "skill:daughter": {
+        covers: ["family", "abbreviation"],
+        fm: () => ({
+            type: "skill",
+            subType: "language",
+            shortcode: "daughterlng",
+            data: { family: "languageone", abbreviation: "Dau." },
         }),
     },
     doc: {

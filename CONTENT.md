@@ -52,3 +52,20 @@ note of `subType: language`. That language may state `data.names`: a
 them — `given` names listed by gender, and every other list the patterns name. `package-build npc new` draws a culture's names
 from them, and checks a name it is given against them. See
 [name lists](docs/reference/format-details.md#name-lists).
+
+A language note states its words in `data.words`, beside `data.names`, with
+the `data.classModifiers`, `data.fields` and `data.affixes` they are read
+against; each word's class comes from the master word classes, and none of it
+reaches the compiled Item. A daughter language names its parent language in
+`data.family` and reads the parent's words as its own. A culture or an affiliation states its own glossary
+terms in `data.glossary`. Every entry resolves to a language: its own
+`language`, else the affiliation's `data.language`, its parents' or its
+culture's, else the culture's `data.language`. An entry that resolves to none
+is a located build error. The `dictionary` relation lists every word under
+each language that has it, inherited words included, and the `terms` relation
+every glossary entry, rank and office with the cultures it reaches; an `sql`
+fence sets either with `layout=dictionary` or `layout=glossary`, and
+`package-build content-index` writes both beside the index. See
+[a language's words](docs/reference/format-details.md#a-languages-words),
+[glossary terms](docs/reference/format-details.md#glossary-terms) and
+[dictionaries and glossaries](docs/reference/format-details.md#dictionaries-and-glossaries).

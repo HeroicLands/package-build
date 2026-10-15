@@ -309,13 +309,18 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 
 ### What a query can read
 
-| Relation          | What it holds                                                                                                                        |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `notes`           | Every note except a stub. This is the one to use unless a stub is wanted.                                                            |
-| `entries`         | Every note, stubs included.                                                                                                          |
-| `events`          | One row per event a `lore`, `place` or `affiliation` note writes in `data.events`, with `whenSort` to order them by date.            |
-| `market`          | The market scale as three columns — `value`, `name`, `trade` — so a table can print `village` beside the number a note wrote.        |
-| `<package>.notes` | The same relations — `notes`, `entries` and `events` — for each package this one declares a dependency on, in a schema named for it. |
+| Relation           | What it holds                                                                                                                                                                                        |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `notes`            | Every note except a stub. This is the one to use unless a stub is wanted.                                                                                                                            |
+| `entries`          | Every note, stubs included.                                                                                                                                                                          |
+| `events`           | One row per event a `lore`, `place` or `affiliation` note writes in `data.events`, with `whenSort` to order them by date.                                                                            |
+| `words`            | One row per word a language note writes in `data.words`, with that note as its `language`, its `position` and what it is built from.                                                                 |
+| `glossary`         | One row per entry a culture or an affiliation writes in `data.glossary`, with the `note` it belongs to and the `language` it resolves to.                                                            |
+| `language_lineage` | One row per language note and each language it inherits words from through `data.family`, itself included at `depth` 0. Join it to `words` for a language's words with inherited ones.               |
+| `dictionary`       | One row per word per language it is listed under, inherited words included, with its `depth`. See [dictionaries and glossaries](#dictionaries-and-glossaries).                                       |
+| `terms`            | One row per glossary entry, rank or office per note that owns it, with the `cultures` it reaches. See [dictionaries and glossaries](#dictionaries-and-glossaries).                                   |
+| `market`           | The market scale as three columns — `value`, `name`, `trade` — so a table can print `village` beside the number a note wrote.                                                                        |
+| `<package>.notes`  | The same relations — `notes`, `entries`, `events`, `words`, `glossary`, `language_lineage`, `dictionary` and `terms` — for each package this one declares a dependency on, in a schema named for it. |
 
 Nested frontmatter is addressed exactly as a note writes it: `name.full`, `sohl.weight`, `data.born`. Every Address is a string — the full canonical Address, as in `list_contains(data.parents, 'thalorna-note-place-xerathia')` — whichever package published it. Every note carries a computed `state` column of `full`, `draft` or `stub`. Notes tagged `gm` are absent from the relations on public surfaces.
 
@@ -414,12 +419,13 @@ An event with no `where.locus` keeps its row with an empty **Where** cell.
 
 ### Fence attributes
 
-A braced list may follow the language on the opening fence. Two attributes are accepted, and anything else is reported by name.
+A braced list may follow the language on the opening fence. Three attributes are accepted, and anything else is reported by name.
 
-| Attribute       | Value                       | Default | What it does                                                                                                                                                                            |
-| --------------- | --------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `allow-empty`   | `true` or `false`           | `false` | Whether a query selecting no rows is allowed. A zero-row result is a finding otherwise, because a table that silently prints nothing is the commonest way a query goes wrong unnoticed. |
-| `section-level` | an integer from 1 through 6 | `2`     | The heading level given to each group a `_section` column creates.                                                                                                                      |
+| Attribute       | Value                               | Default | What it does                                                                                                                                                                            |
+| --------------- | ----------------------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow-empty`   | `true` or `false`                   | `false` | Whether a query selecting no rows is allowed. A zero-row result is a finding otherwise, because a table that silently prints nothing is the commonest way a query goes wrong unnoticed. |
+| `section-level` | an integer from 1 through 6         | `2`     | The heading level given to each group a `_section` column creates, and to each letter of a dictionary or a glossary.                                                                    |
+| `layout`        | `table`, `dictionary` or `glossary` | `table` | How the result is set: as a table, as a dictionary of words, or as a glossary of terms — see [dictionaries and glossaries](#dictionaries-and-glossaries).                               |
 
 ````markdown
 ```sql {allow-empty=true section-level=3}
@@ -444,6 +450,65 @@ FROM notes WHERE type IN ('lore', 'place') ORDER BY type, name.full
 ```
 
 See [SQL details](../reference/format-details.md#content-tables) for query options.
+
+### Dictionaries and glossaries
+
+Two layouts set a result as paragraphs under letter headings rather than as a table. **`layout=dictionary` sets words**, read from the `dictionary` relation: each with its class, its etymology, its senses and the notes it is cited from. **`layout=glossary` sets terms**, read from the `terms` relation: a culture's or an affiliation's own glossary entries and an affiliation's ranks and offices, each sense tagged with the body or culture it comes from. Each needs the `name`, `senses` and `usage` columns, and a query that leaves one out is reported, naming the column.
+
+**The query decides what appears**, and any note may carry either fence. These are the common ones:
+
+| What                                      | Layout       | Query                                                                             |
+| ----------------------------------------- | ------------ | --------------------------------------------------------------------------------- |
+| A language's dictionary                   | `dictionary` | `SELECT * FROM dictionary WHERE language = '<the language's Address>'`            |
+| A language's common words, on any page    | `dictionary` | `SELECT * FROM dictionary WHERE language = '<the language's Address>' AND common` |
+| A culture's glossary                      | `glossary`   | `SELECT * FROM terms WHERE list_contains(cultures, '<the culture's Address>')`    |
+| An affiliation's glossary                 | `glossary`   | `SELECT * FROM terms WHERE owner = '<the affiliation's Address>'`                 |
+| The setting's _Dictionary of the Tongues_ | `dictionary` | `SELECT * EXCLUDE (common) FROM dictionary WHERE depth = 0`                       |
+| The setting's _Glossary_                  | `glossary`   | `SELECT * EXCLUDE (common) FROM terms`                                            |
+
+A language's dictionary lists the words it inherits through `data.family` beside its own; `depth = 0` lists each word once, under the language that states it. A culture's glossary holds the culture's own terms and the ranks, offices and glossary terms of every affiliation that reaches it. The two setting pages leave out `common`, so they mark no entry: which words are common is a culture's judgement.
+
+The most common Vylari words, on the Vylarian culture's page:
+
+````markdown
+## Words Everyone Knows {#common-words}
+
+```sql {layout=dictionary section-level=3}
+SELECT * FROM dictionary WHERE language = 'thalorna-note-skill-vylarilng' AND common
+```
+````
+
+A culture's glossary:
+
+````markdown
+## Glossary {#glossary}
+
+```sql {layout=glossary section-level=3}
+SELECT * FROM terms WHERE list_contains(cultures, 'thalorna-note-lore-provenzianclt')
+```
+````
+
+Either layout prints, in order:
+
+- **a key**, once, listing only the abbreviations the result uses — a language's tag, and for words a class or a modifier — each with what it stands for, and the common mark where an entry carries it;
+- **a heading per letter**, at `section-level`, accents taken off and apostrophes skipped, so `'ostal` files under O and `Écuyer` under E;
+- **one paragraph per entry**: `•` for a common entry, the headword in bold, its pronunciation between slashes, its language tag in italics, the senses, and after a dash the notes it is cited from, as links.
+
+A word also carries its class beside the tag and its etymology in brackets:
+
+```markdown
+• **solmère** /sol-MEH-reh/ _n. m._ [fr. Élav. _sólmerë_] Longing; the ache for a time that is gone. — [[thalorna-note-lore-lastshrine|The Song of the Last Shrine]]
+```
+
+A term carries no class, and each of its senses names its source. A glossary sets the rows sharing a headword and a language as one entry, numbering their senses in the order the rows arrive and printing a sense several bodies give once, with all of them:
+
+```markdown
+**Sworn Knight** **1** (_Duchy of Aubrac_) Holds land of the duke. **2** (_Kingdom of Provenzia_) Holds land of the crown. **3** (_Provenzia_) A knight bound by oath to a lord. — [[thalorna-note-affiliation-duchy|Duchy of Aubrac]], [[thalorna-note-affiliation-kingdom|Kingdom of Provenzia]], [[thalorna-note-lore-provenzianclt|Provenzia]]
+```
+
+The entries are ordered by the layout, not by the query: by letter, then by `name_sort`. **The language tag prints where the entry's language is not the page's own**: a language note's own language, a culture's `data.language`, or the language an affiliation's glossary resolves to. It is the language note's `data.abbreviation`, or its full name where it states none. The etymology never repeats the entry's own language: a borrowed word prints `[fr. Élav. _sólmerë_]`, a built word its pieces each with its gloss, `[_am-_ "love" + _-ère_ "one who"]`, an inherited word its older form, `[*_hur_]` or `[Hel. *_thalass_]`, and a root word its root and pattern. A citation of a note with no published page prints as its name.
+
+A culture's or an affiliation's `data.glossary` shapes both: an entry without a definition marks a word or a rank common, gives it a sort key or a respelling, and lets in a rank whose title is a single word; an entry with a definition replaces the senses of the owner's own rank or office, or is a term of the owner's own. The [format reference](../reference/format-details.md#dictionaries-and-glossaries) gives every column and rule.
 
 ## Page lists
 

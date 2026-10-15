@@ -69,6 +69,31 @@ export const STRUCTURED_ADDRESSES = Object.freeze([
         type: "place",
         accepts: ["place"],
     },
+    // A language's word Addresses and a glossary entry's language, read
+    // leniently: a value that is no Address stays as written, for the words or
+    // glossary check to refuse at its own key.
+    {
+        noteType: "skill",
+        path: ["data", "words", "*", "attested"],
+        shape: "list",
+        lenient: true,
+    },
+    {
+        noteType: "skill",
+        path: ["data", "words", "*", "source", "language"],
+        shape: "value",
+        type: "skill",
+        accepts: ["skill"],
+        lenient: true,
+    },
+    ...["lore", "affiliation"].map((noteType) => ({
+        noteType,
+        path: ["data", "glossary", "*", "language"],
+        shape: "value",
+        type: "skill",
+        accepts: ["skill"],
+        lenient: true,
+    })),
 ]);
 
 /**

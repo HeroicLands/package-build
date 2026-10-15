@@ -429,6 +429,11 @@ describe("an affiliation's minimum standing", () => {
     });
 
     it("is wired to affiliation notes", () => {
-        expect(NOTE_VOCABULARY.affiliation.check).toBe(checkAffiliationRankFloor);
+        const floorless = note(
+            ladder("            - { level: 2, title: Elder, description: Leads. }"),
+        );
+        expect(NOTE_VOCABULARY.affiliation.check(floorless, {})).toEqual(
+            checkAffiliationRankFloor(floorless),
+        );
     });
 });

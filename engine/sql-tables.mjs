@@ -30,6 +30,18 @@ import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
 import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventRows } from "./event-rows.mjs";
+import {
+    GLOSSARY_COLUMNS,
+    LINEAGE_COLUMNS,
+    ROW_INTEGER_COLUMNS,
+    WORD_COLUMNS,
+    glossaryRows,
+    lineageRows,
+    wordRows,
+} from "./word-rows.mjs";
+import { DICTIONARY_COLUMNS, TERM_COLUMNS, dictionaryAndTermRows } from "./dictionary-rows.mjs";
+import { renderDictionary, renderGlossary } from "./dictionary-layout.mjs";
+import { glossaryLanguage } from "./glossary-language.mjs";
 import { eventViewSections } from "./event-views.mjs";
 import { appendGeneratedSections, joinSections } from "./generated-sections.mjs";
 import fs from "node:fs";
@@ -78,9 +90,23 @@ export const SQL_FENCE_ATTRIBUTES = Object.freeze({
     "section-level": Object.freeze({
         value: "an integer from 1 through 6",
         default: "`2`",
-        summary: "The heading level given to each group a `_section` column creates.",
+        summary:
+            "The heading level given to each group a `_section` column creates, and to each " +
+            "letter of a dictionary or a glossary.",
+    }),
+    layout: Object.freeze({
+        value: "`table`, `dictionary` or `glossary`",
+        default: "`table`",
+        summary:
+            "How the result is set: as a table; as a dictionary of words, read from the " +
+            "`dictionary` relation; or as a glossary of terms, read from the `terms` relation. " +
+            "A dictionary and a glossary are one paragraph per entry under letter headings, and " +
+            "each needs the `name`, `senses` and `usage` columns.",
     }),
 });
+
+/** The values `layout` takes. */
+const SQL_LAYOUTS = Object.freeze(["table", "dictionary", "glossary"]);
 
 /** A table cell may not carry a raw `|` or a line break. */
 const escapeCell = (text) =>
@@ -97,7 +123,7 @@ const escapeCell = (text) =>
  *
  * @param {string} markdown - The note body, frontmatter already stripped.
  * @returns {Array<{line: number, close: number, indent: string, query: string,
- *   allowEmpty: boolean, sectionLevel: number, block: string}>} One entry per
+ *   allowEmpty: boolean, sectionLevel: number, layout: string, block: string}>} One entry per
  *   fence, in document order.
  */
 export function findSqlBlocks(markdown) {
@@ -134,6 +160,9 @@ export function findSqlBlocks(markdown) {
         }
         if (!Number.isInteger(level) || level < 1 || level > 6)
             errors.push("section-level needs an integer from 1 through 6");
+        const layout = String(args.layout ?? "table");
+        if (!SQL_LAYOUTS.includes(layout))
+            errors.push(`layout is \`table\`, \`dictionary\` or \`glossary\`, not \`${layout}\``);
         blocks.push({
             line: i,
             close,
@@ -141,6 +170,7 @@ export function findSqlBlocks(markdown) {
             query: lines.slice(i + 1, close).join("\n"),
             allowEmpty,
             sectionLevel: level,
+            layout,
             problems: errors,
             args,
             block: lines.slice(i, close + 1).join("\n"),
@@ -214,13 +244,9 @@ export async function openNotesDatabase(
     const connection = await instance.connect();
     await connection.run("SET threads=1");
     await createRelations(connection, jsonl, "", audience);
-    await createEventRelation(
-        connection,
-        path.join(base, "events.jsonl"),
-        records.map((record) => encodeAddresses(record)),
-        "",
-        audience,
-    );
+    const encoded = records.map((record) => encodeAddresses(record));
+    await createEventRelation(connection, path.join(base, "events.jsonl"), encoded, "", audience);
+    await createWordRelations(connection, path.join(base, "notes"), encoded, "", audience);
 
     // One schema per declared dependency, so `FROM sohl.notes` reads the notes
     // that package published. Quoted, because a package id may carry a hyphen
@@ -250,6 +276,13 @@ export async function openNotesDatabase(
             `${schema}.`,
             audience,
         );
+        await createWordRelations(
+            connection,
+            flat.replace(/\.jsonl$/, ""),
+            depRecords,
+            `${schema}.`,
+            audience,
+        );
     }
 
     // The market scale as a relation, so a table prints `village` beside the
@@ -274,7 +307,17 @@ export async function openNotesDatabase(
     // {@link prepareSqlTables}.
     await connection.run(`CREATE SCHEMA IF NOT EXISTS ${WITH_STUBS_SCHEMA}`);
     await connection.run(`CREATE VIEW ${WITH_STUBS_SCHEMA}.notes AS SELECT * FROM entries`);
-    await connection.run(`CREATE VIEW ${WITH_STUBS_SCHEMA}.events AS SELECT * FROM main.events`);
+    for (const relation of [
+        "events",
+        "words",
+        "glossary",
+        "language_lineage",
+        "dictionary",
+        "terms",
+    ])
+        await connection.run(
+            `CREATE VIEW ${WITH_STUBS_SCHEMA}.${relation} AS SELECT * FROM main.${relation}`,
+        );
 
     // Whether this index holds a stub at all, asked once. A corpus with none
     // pays nothing for the comparison above, which is every package that has
@@ -458,6 +501,95 @@ async function createEventRelation(connection, file, records, prefix, audience) 
     }
     fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
     await connection.run(`CREATE VIEW ${prefix}events AS ${readJsonAuto(file)}`);
+}
+
+/**
+ * Create the `words`, `glossary`, `language_lineage`, `dictionary` and `terms`
+ * relations: one row per language note's word, one per culture's or
+ * affiliation's glossary entry as authored, one per language and ancestor, one
+ * per word per language it is listed under, and one per term per owning note,
+ * with the columns {@link module:engine/word-rows.WORD_COLUMNS},
+ * {@link module:engine/word-rows.GLOSSARY_COLUMNS},
+ * {@link module:engine/word-rows.LINEAGE_COLUMNS},
+ * {@link module:engine/dictionary-rows.DICTIONARY_COLUMNS} and
+ * {@link module:engine/dictionary-rows.TERM_COLUMNS} name.
+ *
+ * Derived from the same records `entries` reads, stubs included, and a GM
+ * note's rows are left out on a public surface exactly as the note is, while a
+ * glossary entry's language still resolves through it. A corpus with no word
+ * or no glossary entry still has the relation, empty.
+ *
+ * @param {object} connection - An open DuckDB connection.
+ * @param {string} stem - Where to write the rows, before `-words.jsonl`,
+ *   `-glossary.jsonl`, `-lineage.jsonl`, `-dictionary.jsonl` and `-terms.jsonl`.
+ * @param {object[]} records - Index records, every Address a string.
+ * @param {string} prefix - A schema to qualify the view names with.
+ * @param {"all"|"public"} audience - Whether to leave out GM notes.
+ * @returns {Promise<void>}
+ */
+async function createWordRelations(connection, stem, records, prefix, audience) {
+    const visible = audience === "public" ? records.filter((record) => !isGmNote(record)) : records;
+    await createRowRelation(
+        connection,
+        `${stem}-words.jsonl`,
+        wordRows(visible),
+        `${prefix}words`,
+        WORD_COLUMNS,
+    );
+    await createRowRelation(
+        connection,
+        `${stem}-glossary.jsonl`,
+        glossaryRows(visible, records),
+        `${prefix}glossary`,
+        GLOSSARY_COLUMNS,
+    );
+    await createRowRelation(
+        connection,
+        `${stem}-lineage.jsonl`,
+        lineageRows(visible, records),
+        `${prefix}language_lineage`,
+        LINEAGE_COLUMNS,
+    );
+    const { dictionary, terms } = dictionaryAndTermRows(visible, records);
+    await createRowRelation(
+        connection,
+        `${stem}-dictionary.jsonl`,
+        dictionary,
+        `${prefix}dictionary`,
+        DICTIONARY_COLUMNS,
+    );
+    await createRowRelation(
+        connection,
+        `${stem}-terms.jsonl`,
+        terms,
+        `${prefix}terms`,
+        TERM_COLUMNS,
+    );
+}
+
+/**
+ * Create one derived relation from its rows, or an empty one of its columns
+ * when there are none, so a fence over it reports no rows rather than a
+ * missing table.
+ *
+ * @param {object} connection - An open DuckDB connection.
+ * @param {string} file - Where to write the rows.
+ * @param {object[]} rows - The rows, each carrying every column.
+ * @param {string} view - The qualified view name.
+ * @param {readonly string[]} columns - Its columns, for the empty case.
+ * @returns {Promise<void>}
+ */
+async function createRowRelation(connection, file, rows, view, columns) {
+    if (!rows.length) {
+        const typed = columns.map((column) => {
+            const type = ROW_INTEGER_COLUMNS.includes(column) ? "BIGINT" : "VARCHAR";
+            return `NULL::${type} AS "${column}"`;
+        });
+        await connection.run(`CREATE VIEW ${view} AS SELECT ${typed.join(", ")} WHERE false`);
+        return;
+    }
+    fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
+    await connection.run(`CREATE VIEW ${view} AS ${readJsonAuto(file)}`);
 }
 
 /**
@@ -661,6 +793,9 @@ export function renderSqlTable(
  * @param {object} [opts]
  * @param {(ref: string) => boolean} [opts.linkable] - Passed to
  *   {@link renderSqlTable}.
+ * @param {(source: string, frontmatter?: object) => string|undefined} [opts.pageLanguage] -
+ *   The language of the note a body belongs to, which a dictionary or a
+ *   glossary does not tag; absent, it is read from the body's frontmatter.
  * @param {object[]} [opts.records] - Content-index records, narrowed to the
  *   audience this surface publishes to. Given them, the result also carries
  *   `pageLists`, so one prepared object answers every corpus-reading directive
@@ -674,7 +809,7 @@ export function renderSqlTable(
  * @returns {Promise<Map<string, object[]>>} Note to results, in document order,
  *   each carrying either a rendered `markdown` and its `rows`, or a `reason`.
  */
-export async function prepareSqlTables(db, sources, { linkable, records } = {}) {
+export async function prepareSqlTables(db, sources, { linkable, records, pageLanguage } = {}) {
     const prepared = new Map();
     if (records) prepared.pageLists = preparePageLists(records, sources);
     // The corpus does not change while a preparation runs, so a query written
@@ -688,7 +823,11 @@ export async function prepareSqlTables(db, sources, { linkable, records } = {}) 
             return structuredClone(answers.get(sql));
         },
     };
-    for (const { source, markdown } of sources) {
+    let labels;
+    const labelOf = (address) => labels.get(address);
+    const languageOf =
+        pageLanguage ?? ((_source, frontmatter) => frontmatterLanguage(frontmatter, db));
+    for (const { source, markdown, frontmatter } of sources) {
         const blocks = findSqlBlocks(markdown);
         if (!blocks.length) continue;
         const forNote = [];
@@ -697,12 +836,25 @@ export async function prepareSqlTables(db, sources, { linkable, records } = {}) 
             try {
                 if (block.problems.length) throw new Error(block.problems.join("; "));
                 const result = await runSqlQuery(reader, block.query);
+                const options = {
+                    linkable,
+                    addressContext: db.addressContext,
+                    sectionLevel: block.sectionLevel,
+                };
+                const setAs =
+                    block.layout === "dictionary" ? renderDictionary
+                    : block.layout === "glossary" ? renderGlossary
+                    : undefined;
+                if (setAs) labels ??= await noteLabels(db);
                 forNote.push({
-                    markdown: renderSqlTable(result, {
-                        linkable,
-                        addressContext: db.addressContext,
-                        sectionLevel: block.sectionLevel,
-                    }),
+                    markdown:
+                        setAs ?
+                            setAs(result, {
+                                ...options,
+                                labelOf,
+                                pageLanguage: languageOf(source, frontmatter),
+                            })
+                        :   renderSqlTable(result, options),
                     rows: result.rows.length,
                     // How many rows this table would gain from the wider
                     // relation, so a fence that has not adopted stubs says so
@@ -720,6 +872,81 @@ export async function prepareSqlTables(db, sources, { linkable, records } = {}) 
         }
     }
     return prepared;
+}
+
+/**
+ * Every note's `name.full`, by its Address in the `note` system, across this
+ * package's relations and each dependency's: what a dictionary prints for a
+ * citation, a body and a language.
+ *
+ * @param {object} db - From {@link openNotesDatabase}.
+ * @returns {Promise<Map<string, string>>} Address to name.
+ */
+async function noteLabels(db) {
+    const labels = new Map();
+    let schemas = [];
+    try {
+        schemas = (
+            await db.query(
+                "SELECT DISTINCT schema_name FROM duckdb_views() WHERE view_name = 'entries' " +
+                    "ORDER BY schema_name",
+            )
+        ).rows.map((row) => String(row.schema_name));
+    } catch {
+        return labels;
+    }
+    for (const schema of schemas) {
+        try {
+            const { rows } = await db.query(
+                `SELECT package, type, shortcode, name.full AS label ` +
+                    `FROM "${schema.replace(/"/g, '""')}".entries WHERE name.full IS NOT NULL`,
+            );
+            for (const row of rows) {
+                if (!row.package || !row.type || !row.shortcode) continue;
+                const key = renderAddress({
+                    package: String(row.package),
+                    system: "note",
+                    type: String(row.type),
+                    shortcode: String(row.shortcode),
+                });
+                if (!labels.has(key)) labels.set(key, String(row.label));
+            }
+        } catch {
+            // A relation whose records carry no name has no label to give.
+        }
+    }
+    return labels;
+}
+
+/**
+ * The language a note's frontmatter says it is in: a language note's own
+ * Address, else its `data.language`.
+ *
+ * @param {object|undefined} frontmatter - The note's authored frontmatter.
+ * @param {object} db - From {@link openNotesDatabase}, for its Address context.
+ * @returns {string|undefined} The language's Address.
+ */
+function frontmatterLanguage(frontmatter, db) {
+    if (!frontmatter || typeof frontmatter !== "object") return undefined;
+    const context = db.addressContext ?? {};
+    const read = (value, type) => {
+        if (typeof value !== "string" || !value) return undefined;
+        const tuple = parseAddress(value, { ...context, system: "note", type }, { declared: true });
+        return tuple.reason ? undefined : renderAddress({ ...tuple, system: "note" });
+    };
+    if (
+        String(frontmatter.type ?? "").toLowerCase() === "skill" &&
+        frontmatter.subType === "language" &&
+        context.package &&
+        typeof frontmatter.shortcode === "string"
+    )
+        return renderAddress({
+            package: context.package,
+            system: "note",
+            type: "skill",
+            shortcode: frontmatter.shortcode,
+        });
+    return read(frontmatter.data?.language, "skill");
 }
 
 /** Evaluate scalar SQL calls before synchronous Markdown renderers run. */
@@ -858,6 +1085,50 @@ export function attachGeneratedSections(prepared, generated) {
         if (!results) prepared.set(absPath, (results = []));
         results.generated = text;
     }
+}
+
+/**
+ * The language each note of a tree is in, by its file: a language note itself,
+ * a culture its `data.language`, its own or one it inherits, and an
+ * affiliation the language its glossary resolves to — see
+ * {@link module:engine/glossary-language}.
+ *
+ * @param {object[]} records - Content-index records.
+ * @param {string} contentBase - Root of the content tree.
+ * @returns {(source: string) => string|undefined} The language of a note's file.
+ */
+function pageLanguages(records, contentBase) {
+    const notes = records
+        .filter((record) => isNoteRecord(record))
+        .map((record) => encodeAddresses(record));
+    const byKey = new Map();
+    const keyOf = (record) =>
+        record.package && record.type && record.shortcode ?
+            renderAddress({
+                package: String(record.package),
+                system: "note",
+                type: String(record.type),
+                shortcode: String(record.shortcode),
+            })
+        :   undefined;
+    for (const record of notes) {
+        const key = keyOf(record);
+        if (key && !byKey.has(key)) byKey.set(key, record);
+    }
+    const byFile = new Map(
+        records
+            .filter((record) => isNoteRecord(record))
+            .map((record, i) => [noteFile(contentBase, record), notes[i]]),
+    );
+    return (source) => {
+        const record = byFile.get(source);
+        if (!record) return undefined;
+        return glossaryLanguage(undefined, record, {
+            keyOf: (value) => (typeof value === "string" && value ? value : undefined),
+            lookup: (key) => byKey.get(key),
+            self: keyOf(record),
+        });
+    };
 }
 
 /**
@@ -1031,6 +1302,7 @@ export async function prepareTreeSqlTables(
         const prepared = await prepareSqlTables(db, sources, {
             linkable: (ref) => addresses.has(renderAddress(ref)),
             records: indexRecords,
+            pageLanguage: pageLanguages(indexRecords, contentBase),
         });
         prepared.inline = await prepareInlineSqlExpressions(db, sources);
         attachGeneratedSections(prepared, generated);
