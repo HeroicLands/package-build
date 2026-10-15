@@ -457,9 +457,10 @@ async function createRelations(connection, file, prefix = "", audience = "all") 
             "NOT (COALESCE(list_contains(TRY_CAST(tags AS VARCHAR[]), 'gm'), false) " +
             "OR COALESCE(TRY_CAST(tags AS VARCHAR) = 'gm', false))"
         :   "true";
-    await connection.run(
-        `CREATE VIEW ${prefix}entries AS SELECT *, ` +
-            `CASE WHEN ${stub} THEN 'stub' WHEN ${draft} THEN 'draft' ` +
+    await createTableFromFile(
+        connection,
+        `${prefix}entries`,
+        `SELECT *, CASE WHEN ${stub} THEN 'stub' WHEN ${draft} THEN 'draft' ` +
             `ELSE 'full' END AS state FROM (${read}) WHERE ${visible}`,
     );
     await connection.run(
@@ -500,7 +501,24 @@ async function createEventRelation(connection, file, records, prefix, audience) 
         return;
     }
     fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
-    await connection.run(`CREATE VIEW ${prefix}events AS ${readJsonAuto(file)}`);
+    await createTableFromFile(connection, `${prefix}events`, readJsonAuto(file));
+}
+
+/**
+ * Create a relation as a table, so the JSONL behind it is parsed once when the
+ * database opens rather than on every query. A view over `read_json_auto`
+ * re-reads and re-parses the whole file for each query that touches it.
+ *
+ * Every relation built from a file goes through here; relations derived from
+ * other relations stay views over them.
+ *
+ * @param {object} connection - An open DuckDB connection.
+ * @param {string} name - The relation name, schema-qualified if needed.
+ * @param {string} select - The `SELECT` that reads the file.
+ * @returns {Promise<void>}
+ */
+async function createTableFromFile(connection, name, select) {
+    await connection.run(`CREATE TABLE ${name} AS ${select}`);
 }
 
 /**
