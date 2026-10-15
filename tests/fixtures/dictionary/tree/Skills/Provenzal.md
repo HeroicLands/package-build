@@ -18,11 +18,10 @@ data:
         field: Love,
         gloss: "longing; the ache for a time that is gone",
         source: { kind: borrowed, language: skill-elvndrlng, form: sólmerë },
-        attested: [lore-lastshrine, lore-secretsong],
       }
     - { form: am, class: stem, field: Love, gloss: love }
     - { form: amère, class: n f, field: Love, gloss: a beloved, built: [am-, -ère] }
-    - { form: duc, class: n m, field: Rank, gloss: a duke }
+    - { form: duc, class: n m, field: Rank, gloss: [a duke, the holder of a duchy] }
 ---
 
-The tongue of Provenzia.
+The tongue of Provenzia, whose _solmère_ is its own word.

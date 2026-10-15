@@ -20,7 +20,7 @@
 
 ### D
 
-**duc** _n. m._ A duke.
+**duc** _n. m._ **1** A duke. **2** The holder of a duchy. — [[demo-note-affiliation-kingdom|Kingdom of Provenzia]]
 
 ### S
 
@@ -44,7 +44,7 @@
 
 ### D
 
-**duc** _Prov. n. m._ A duke.
+**duc** _Prov. n. m._ **1** A duke. **2** The holder of a duchy. — [[demo-note-affiliation-kingdom|Kingdom of Provenzia]]
 
 ### K
 

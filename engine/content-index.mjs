@@ -113,6 +113,7 @@ import { addressSlug, canonicalKey } from "./content-address.mjs";
 import { isAddressTuple, ownDocumentSystem, readCanonicalKey, renderAddress } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { dictionaryAndTermRows, serializeRows } from "./dictionary-rows.mjs";
+import { attachCitations } from "./word-citations.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
@@ -1112,6 +1113,8 @@ export function collectContentIndex(
         contentPackage,
     );
 
+    // Each recorded note with its body, for the words its prose cites.
+    const bodies = [];
     for (const { frontmatter, body, bodyLine, absPath } of parsedNotes) {
         // Before the index derives anything onto the frontmatter, so a later
         // pass reads the note as authored.
@@ -1120,20 +1123,20 @@ export function collectContentIndex(
         applyComputedBeingAge(fm, present, dates);
         const relPath = path.relative(contentBase, absPath);
         try {
-            records.push(
-                ...indexRecordsForNote({
-                    frontmatter: fm,
-                    relPath,
-                    absPath,
-                    contentPackage,
-                    body,
-                    bodyLine,
-                    manifest,
-                    addressContext: decodeContext,
-                    dateContext: dates,
-                    resolveRole,
-                }),
-            );
+            const made = indexRecordsForNote({
+                frontmatter: fm,
+                relPath,
+                absPath,
+                contentPackage,
+                body,
+                bodyLine,
+                manifest,
+                addressContext: decodeContext,
+                dateContext: dates,
+                resolveRole,
+            });
+            records.push(...made);
+            bodies.push({ record: made[0], body });
         } catch (err) {
             if (fm.shortcode && !isAddressSegment(fm.shortcode) && err.keyPath) {
                 err.identity = { type: fm.type, shortcode: fm.shortcode };
@@ -1175,6 +1178,10 @@ export function collectContentIndex(
             continue;
         }
     }
+
+    // The words each note's prose cites, read once every language's words
+    // are recorded; the index keeps the citing Addresses and no text.
+    attachCitations(records, bodies);
 
     // Every note record exists and every Address in it is a tuple, so a parent
     // is found by its canonical address. Before the sort, which reads nothing

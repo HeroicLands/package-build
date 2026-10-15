@@ -211,6 +211,16 @@ types:
             - fields
             - words
             - affixes
+            - tongues
+            - register
+            - retired
+            - scope
+            - sounds
+            - soundChanges
+            - elements
+            - roots
+            - cognates
+            - callingNames
         subTypes:
             - social
             - nature

@@ -52,7 +52,34 @@ afterAll(async () => {
 describe("the relations a query can read", () => {
     it("include the ones this guard exists to watch", () => {
         expect(relations).toEqual(
-            expect.arrayContaining(["notes", "entries", "words", "affixes", "fields"]),
+            expect.arrayContaining([
+                "notes",
+                "entries",
+                "words",
+                "affixes",
+                "fields",
+                "register",
+                "retired",
+                "tongues",
+                "scope",
+                "letters",
+                "edges",
+                "clusters",
+                "stress",
+                "finals",
+                "syllables",
+                "joining",
+                "joins",
+                "marks",
+                "skeleton",
+                "frames",
+                "calling_names",
+                "read_past",
+                "sound_changes",
+                "elements",
+                "roots",
+                "cognates",
+            ]),
         );
     });
 

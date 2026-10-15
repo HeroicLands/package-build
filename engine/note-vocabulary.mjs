@@ -132,6 +132,8 @@ import {
     checkLanguageWords,
 } from "./language-words.mjs";
 import { checkGlossary } from "./glossary-entries.mjs";
+import { LANGUAGE_DATA_FIELDS } from "./language-terms.mjs";
+import { checkLanguageData } from "./language-data.mjs";
 import { checkAffiliationReach } from "./culture-reach.mjs";
 import { checkLanguageNames, requiredGivenGenders } from "./language-names.mjs";
 import { SOCIAL_TIES, SOCIAL_TIE_TARGET_TYPES } from "./social-tie-terms.mjs";
@@ -1989,8 +1991,12 @@ export const NOTE_VOCABULARY = Object.freeze({
     skill: Object.freeze({
         stubbable: true,
         // A language note's words, held to the master word classes and to what
-        // the note declares; no other skill states them.
-        check: checkLanguageWords,
+        // the note declares, and its register, sounds and cognates held to
+        // what they name; no other skill states them.
+        check: (note, context) => [
+            ...checkLanguageWords(note, context),
+            ...checkLanguageData(note, { ...context, types: Object.keys(NOTE_VOCABULARY) }),
+        ],
         subTypes: Object.freeze([
             "social",
             "nature",
@@ -2017,6 +2023,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             FAMILY_FIELD,
             ABBREVIATION_FIELD,
             ...WORD_DATA_FIELDS,
+            ...LANGUAGE_DATA_FIELDS,
         ]),
     }),
 

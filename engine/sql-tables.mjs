@@ -44,6 +44,7 @@ import {
     wordRows,
 } from "./word-rows.mjs";
 import { DICTIONARY_COLUMNS, TERM_COLUMNS, dictionaryAndTermRows } from "./dictionary-rows.mjs";
+import { LANGUAGE_COLUMN_TYPES, LANGUAGE_RELATIONS } from "./language-rows.mjs";
 import { renderDictionary, renderGlossary } from "./dictionary-layout.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
 import { eventViewSections } from "./event-views.mjs";
@@ -99,12 +100,13 @@ export const SQL_FENCE_ATTRIBUTES = Object.freeze({
             "letter of a dictionary or a glossary.",
     }),
     key: Object.freeze({
-        value: "`true` or `false`",
+        value: "`true`, `false` or `only`",
         default: "`true`",
         summary:
             "Whether a dictionary or a glossary prints its key, the line of abbreviations it " +
             "uses. `false` leaves the key out, for a page that states it once above several " +
-            "fences.",
+            "fences; `only` prints the key for the fence's rows and nothing else, which is how " +
+            "that page states it. Refused on a fence set as a table.",
     }),
     layout: Object.freeze({
         value: "`table`, `dictionary` or `glossary`",
@@ -135,7 +137,7 @@ const escapeCell = (text) =>
  *
  * @param {string} markdown - The note body, frontmatter already stripped.
  * @returns {Array<{line: number, close: number, indent: string, query: string,
- *   allowEmpty: boolean, sectionLevel: number, showKey: boolean, layout: string, block: string}>} One entry per
+ *   allowEmpty: boolean, sectionLevel: number, showKey: boolean|"only", layout: string, block: string}>} One entry per
  *   fence, in document order.
  */
 export function findSqlBlocks(markdown) {
@@ -170,19 +172,22 @@ export function findSqlBlocks(markdown) {
                 errors.push(error.message);
             }
         }
+        /** @type {boolean|"only"} */
         let showKey = true;
         if (Object.hasOwn(args, "key")) {
-            try {
-                showKey = booleanAttribute(args.key, "key");
-            } catch (error) {
-                errors.push(error.message);
-            }
+            if (args.key === "only") showKey = "only";
+            else if (args.key === "true" || args.key === "false") showKey = args.key === "true";
+            else errors.push("key needs the literal value true, false or only");
         }
         if (!Number.isInteger(level) || level < 1 || level > 6)
             errors.push("section-level needs an integer from 1 through 6");
         const layout = String(args.layout ?? "table");
         if (!SQL_LAYOUTS.includes(layout))
             errors.push(`layout is \`table\`, \`dictionary\` or \`glossary\`, not \`${layout}\``);
+        else if (Object.hasOwn(args, "key") && layout === "table")
+            errors.push(
+                "key sets a dictionary's or a glossary's key, and this fence's layout is `table`",
+            );
         blocks.push({
             line: i,
             close,
@@ -337,6 +342,7 @@ export async function openNotesDatabase(
         "language_lineage",
         "dictionary",
         "terms",
+        ...LANGUAGE_RELATIONS.map(([name]) => name),
     ])
         await connection.run(
             `CREATE VIEW ${WITH_STUBS_SCHEMA}.${relation} AS SELECT * FROM main.${relation}`,
@@ -556,7 +562,9 @@ async function createTableFromFile(connection, name, select) {
  * {@link module:engine/word-rows.GLOSSARY_COLUMNS},
  * {@link module:engine/word-rows.LINEAGE_COLUMNS},
  * {@link module:engine/dictionary-rows.DICTIONARY_COLUMNS} and
- * {@link module:engine/dictionary-rows.TERM_COLUMNS} name.
+ * {@link module:engine/dictionary-rows.TERM_COLUMNS} name; then each relation
+ * of a language's register, sounds, history and names, as
+ * {@link module:engine/language-rows} derives them.
  *
  * Derived from the same records `entries` reads, stubs included, and a GM
  * note's rows are left out on a public surface exactly as the note is, while a
@@ -623,6 +631,15 @@ async function createWordRelations(connection, stem, records, prefix, audience) 
         `${prefix}terms`,
         TERM_COLUMNS,
     );
+    for (const [name, rowsOf, columns] of LANGUAGE_RELATIONS)
+        await createRowRelation(
+            connection,
+            `${stem}-${name}.jsonl`,
+            rowsOf(visible, records),
+            `${prefix}${name}`,
+            columns,
+            LANGUAGE_COLUMN_TYPES[name],
+        );
 }
 
 /**
@@ -635,12 +652,18 @@ async function createWordRelations(connection, stem, records, prefix, audience) 
  * @param {object[]} rows - The rows, each carrying every column.
  * @param {string} view - The qualified view name.
  * @param {readonly string[]} columns - Its columns, for the empty case.
+ * @param {Readonly<Record<string, string>>} [types] - Each column's type, for
+ *   the empty case; a column it leaves out is text. Without it, a whole-number
+ *   column is a number and every other column text.
  * @returns {Promise<void>}
  */
-async function createRowRelation(connection, file, rows, view, columns) {
+async function createRowRelation(connection, file, rows, view, columns, types) {
     if (!rows.length) {
         const typed = columns.map((column) => {
-            const type = ROW_INTEGER_COLUMNS.includes(column) ? "BIGINT" : "VARCHAR";
+            const type =
+                types ? (types[column] ?? "VARCHAR")
+                : ROW_INTEGER_COLUMNS.includes(column) ? "BIGINT"
+                : "VARCHAR";
             return `NULL::${type} AS "${column}"`;
         });
         await connection.run(`CREATE VIEW ${view} AS SELECT ${typed.join(", ")} WHERE false`);

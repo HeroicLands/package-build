@@ -89,6 +89,15 @@ export const WORD_FIELDS = Object.freeze([
         describe: "The word as cited, with no backticks.",
     }),
     Object.freeze({
+        name: "variants",
+        kind: "list",
+        shape: "a list of forms",
+        entries: Object.freeze({ kind: "string", shape: "a form, bare" }),
+        describe:
+            "The word's other forms, such as a long form beside a short one; a marked use of " +
+            "one cites the word.",
+    }),
+    Object.freeze({
         name: "name_sort",
         kind: "string",
         shape: "a string",
@@ -112,10 +121,12 @@ export const WORD_FIELDS = Object.freeze([
     }),
     Object.freeze({
         name: "gloss",
-        kind: "string",
+        kind: "string-or-list",
         required: true,
-        shape: "a string",
-        describe: "The meaning, in brief.",
+        shape: "a string, or a list of senses",
+        entries: Object.freeze({ kind: "string", shape: "a sense" }),
+        describe:
+            "The meaning, in brief; a list states one sense per entry, which a dictionary numbers.",
     }),
     Object.freeze({
         name: "source",
@@ -134,11 +145,11 @@ export const WORD_FIELDS = Object.freeze([
             "write them; absent for a root word.",
     }),
     Object.freeze({
-        name: "attested",
-        kind: "list",
-        shape: "a list of Addresses",
-        entries: Object.freeze({ kind: "address", shape: "an Address" }),
-        describe: "The notes the word is cited from.",
+        name: "note",
+        kind: "string",
+        shape: "a string",
+        describe:
+            "What a source says of the word beyond its pieces, such as a cognate it is read with.",
     }),
     Object.freeze({
         name: "pronunciation",
@@ -163,13 +174,40 @@ export const WORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "frame",
         kind: "string",
-        shape: "a string",
-        describe: "The frame a root is set in.",
+        shape: "a frame of the language's `sounds.frames`",
+        describe: "The frame a root is set in, named in the language's `sounds.frames`.",
     }),
 ]);
 
 /** The keys of {@link WORD_FIELDS}, in declared order. */
 export const WORD_KEYS = Object.freeze(WORD_FIELDS.map((field) => field.name));
+
+/**
+ * A word's senses: one for a string gloss, one per entry for a list, each
+ * trimmed, blanks dropped.
+ *
+ * @param {unknown} gloss - The word's `gloss`.
+ * @returns {string[]} The senses, in order.
+ */
+export function glossSenses(gloss) {
+    const list = Array.isArray(gloss) ? gloss : [gloss];
+    return list
+        .filter((sense) => typeof sense === "string")
+        .map((sense) => sense.trim())
+        .filter(Boolean);
+}
+
+/**
+ * A word's gloss as one line of text: its senses joined by `; `, or `null`
+ * where it states none.
+ *
+ * @param {unknown} gloss - The word's `gloss`.
+ * @returns {string|null}
+ */
+export function glossText(gloss) {
+    const senses = glossSenses(gloss);
+    return senses.length ? senses.join("; ") : null;
+}
 
 /**
  * The keys one entry of a language note's `data.fields` carries.
@@ -217,7 +255,29 @@ export const AFFIX_FIELDS = Object.freeze([
         name: "attaches",
         kind: "string",
         shape: "a string",
-        describe: "How it attaches, such as `replaces a closing vowel`.",
+        describe: "How it attaches, in words, such as `replaces a closing vowel`.",
+    }),
+    Object.freeze({
+        name: "replaces",
+        kind: "string",
+        shape: "`vowel`, or the letters, such as `a`",
+        describe:
+            "What it takes the place of at the close of the stem: `vowel` for any closing " +
+            "vowel, or the letters it replaces; added to the whole stem where absent.",
+    }),
+    Object.freeze({
+        name: "lengthens",
+        kind: "boolean",
+        shape: "`true` or `false`",
+        describe:
+            "Whether the stem's last vowel lengthens before the affix; `false` where unstated. An " +
+            "affix that `replaces` the stem's close does not also lengthen it.",
+    }),
+    Object.freeze({
+        name: "front",
+        kind: "string",
+        shape: "the affix as written, such as `-ür`",
+        describe: "Its form after front vowels, where the language keeps vowel harmony.",
     }),
     Object.freeze({
         name: "examples",

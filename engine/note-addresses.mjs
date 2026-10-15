@@ -69,15 +69,49 @@ export const STRUCTURED_ADDRESSES = Object.freeze([
         type: "place",
         accepts: ["place"],
     },
-    // A language's word Addresses and a glossary entry's language, read
-    // leniently: a value that is no Address stays as written, for the words or
+    // A language's Addresses and a glossary entry's language, read leniently:
+    // a value that is no Address stays as written, for the language or
     // glossary check to refuse at its own key.
     {
         noteType: "skill",
-        path: ["data", "words", "*", "attested"],
-        shape: "list",
+        path: ["data", "tongues", "*", "language"],
+        shape: "value",
+        type: "skill",
+        accepts: ["skill"],
         lenient: true,
     },
+    ...["from", "to"].map((key) => ({
+        noteType: "skill",
+        path: ["data", "soundChanges", "*", key],
+        shape: "value",
+        type: "skill",
+        accepts: ["skill"],
+        lenient: true,
+    })),
+    {
+        noteType: "skill",
+        path: ["data", "cognates", "*", "forms"],
+        shape: "keys",
+        type: "skill",
+        accepts: ["skill"],
+        lenient: true,
+    },
+    ...[
+        ["folders", "folder", ["folder"], "none"],
+        ["cultures", "lore", ["lore"]],
+        ["lore", "lore", ["lore"]],
+        ["parents", "place", undefined],
+        ["addresses", undefined, undefined],
+        ["skip", undefined, undefined],
+    ].map(([kind, type, accepts, system]) => ({
+        noteType: "skill",
+        path: ["data", "scope", kind],
+        shape: "list",
+        ...(type ? { type } : {}),
+        ...(accepts ? { accepts } : {}),
+        ...(system ? { system } : {}),
+        lenient: true,
+    })),
     {
         noteType: "skill",
         path: ["data", "words", "*", "source", "language"],

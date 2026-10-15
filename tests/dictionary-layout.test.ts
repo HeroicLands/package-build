@@ -134,10 +134,38 @@ describe("layout=dictionary and layout=glossary", () => {
         expect(withKey.markdown).toContain("**Key:**");
     });
 
-    it("refuse a key that is neither true nor false", () => {
+    it("print only the key where the fence sets key=only", async () => {
+        for (const [title, page, layout, query] of SECTIONS) {
+            const [keyed] = await render(fence(query, `layout=${layout}`), page);
+            const [only] = await render(fence(query, `layout=${layout} key=only`), page);
+            const [first] = keyed.markdown.split("\n\n");
+            expect(only.reason, title).toBeUndefined();
+            expect(only.markdown, title).toBe(first.startsWith("**Key:**") ? first : "");
+        }
+        const [head] = await render(
+            fence(SECTIONS[1][3], "layout=dictionary key=only"),
+            SECTIONS[1][1] as object,
+        );
+        expect(head.markdown).toMatch(/^\*\*Key:\*\* .*\.$/);
+        expect(head.markdown).not.toContain("\n");
+    });
+
+    it("refuse a key that is not true, false or only", () => {
         const [block] = findSqlBlocks(fence("SELECT 1", "layout=dictionary key=no"));
-        expect(block.problems).toEqual(["key needs the literal value true or false"]);
+        expect(block.problems).toEqual(["key needs the literal value true, false or only"]);
         expect(findSqlBlocks(fence("SELECT 1", "layout=dictionary"))[0].showKey).toBe(true);
+        expect(findSqlBlocks(fence("SELECT 1", "layout=glossary key=only"))[0].showKey).toBe(
+            "only",
+        );
+    });
+
+    it("refuse any key on a fence set as a table", () => {
+        for (const value of ["true", "false", "only"]) {
+            const [block] = findSqlBlocks(fence("SELECT 1", `key=${value}`));
+            expect(block.problems, value).toEqual([
+                "key sets a dictionary's or a glossary's key, and this fence's layout is `table`",
+            ]);
+        }
     });
 
     it("refuse a result missing a required column, and name it", async () => {

@@ -332,6 +332,24 @@ describe("preparing directives ahead of expansion", () => {
         expect(prepared.get("N.md")?.[0]?.reason).toMatch(/nope/i);
     });
 
+    it("refuses a key on a fence set as a table, at the fence line", async () => {
+        for (const value of ["true", "false", "only"]) {
+            const text = `Intro.\n\n\`\`\`sql {key=${value}}\nSELECT name.full AS "Name" FROM notes\n\`\`\`\n`;
+            const prepared = await prepareSqlTables(db, [{ source: "N.md", markdown: text }]);
+            const { errors } = expandContentTables(text, {
+                source: "N.md",
+                sqlTables: prepared.get("N.md"),
+            });
+            expect(errors, value).toHaveLength(1);
+            expect(errors[0]).toMatchObject({
+                source: "N.md",
+                line: 2,
+                column: 1,
+                reason: "key sets a dictionary's or a glossary's key, and this fence's layout is `table`",
+            });
+        }
+    });
+
     it("splices the rendered table in at the directive's position", async () => {
         const prepared = await prepareSqlTables(db, [{ source: "N.md", markdown: body }]);
         const { markdown, errors } = expandContentTables(body, {

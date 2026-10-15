@@ -66,10 +66,13 @@ const OSKET = [
     "  affixes:",
     "    - {form: -wugh, gloss: cord, attaches: added, examples: [ghaukwugh]}",
     "  words:",
-    "    - {form: ghauk, class: n f, field: The road, gloss: a road held by descent, attested: [lore-road], pronunciation: GHAUK}",
+    "    - {form: ghauk, class: n f, field: The road, gloss: a road held by descent, pronunciation: GHAUK}",
     "    - {form: göich, name_sort: goich, class: n m, field: The hearth, gloss: the hearth, source: {kind: borrowed, language: skill-vedyarlng, form: göch}, tones: LH, root: g-ch, frame: plain}",
     "    - {form: ghaukwugh, class: n f, field: The road, gloss: the guide-cord, built: [ghauk, -wugh]}",
     "    - {form: pöich, class: n m, field: The hearth, gloss: the yak}",
+    "  sounds:",
+    "    frames:",
+    "      - {frame: plain, shape: K1aK2, class: [n], makes: the thing itself}",
     "---",
     "",
     "The tongue of the high steppe.",
@@ -152,13 +155,14 @@ describe("a language note's words", () => {
     it("declares every word key the reference names", () => {
         expect(WORD_KEYS).toEqual([
             "form",
+            "variants",
             "name_sort",
             "class",
             "field",
             "gloss",
             "source",
             "built",
-            "attested",
+            "note",
             "pronunciation",
             "tones",
             "root",
@@ -212,13 +216,13 @@ describe("the ordinary frontmatter check", () => {
     it("refuses a data key no type declares, on a language note", () => {
         const text = OSKET.replace(
             "  fields:\n",
-            "  tongues:\n    - {tag: byzarian, language: skill-byzarlng}\n  fields:\n",
+            "  lexicon:\n    - {tag: byzarian, language: skill-byzarlng}\n  fields:\n",
         );
         const { findings } = osket(text);
         expect(findings).toHaveLength(1);
         expect(findings[0].severity).toBe("error");
-        expect(findings[0].message).toMatch(/tongues/);
-        expect(at(text, findings[0]).startsWith("tongues")).toBe(true);
+        expect(findings[0].message).toMatch(/lexicon/);
+        expect(at(text, findings[0]).startsWith("lexicon")).toBe(true);
     });
 
     it("refuses a word key the word does not declare", () => {
@@ -359,11 +363,77 @@ describe("a language note's words, checked", () => {
         expect(lint({ "Skills/Osket.md": OSKET, "Skills/Helonic.md": text }).findings).toEqual([]);
     });
 
-    it("refuses an attested Address that names nothing", () => {
+    it("refuses an authored attested key, which the index derives from prose", () => {
         one(
-            OSKET.replace("attested: [lore-road]", "attested: [lore-nowhere]"),
-            /does not resolve/,
-            "lore-nowhere",
+            OSKET.replace("pronunciation: GHAUK}", "pronunciation: GHAUK, attested: [lore-road]}"),
+            /"attested" is not a key of `data\.words\[0\]`/,
+            "attested",
+        );
+    });
+
+    it("accepts a gloss of several senses, variants and a note", () => {
+        const text = OSKET.replace(
+            "gloss: the yak}",
+            "gloss: [the yak, a herd of them], variants: [pöichu], note: a cognate of the Vedyari}",
+        );
+        expect(osket(text).findings).toEqual([]);
+    });
+
+    it("refuses a gloss list with no sense, at the gloss", () => {
+        one(OSKET.replace("gloss: the yak}", "gloss: []}"), /at least one sense/, "[]");
+    });
+
+    it("refuses a sense that is not a string, at the sense", () => {
+        one(
+            OSKET.replace("gloss: the yak}", "gloss: [the yak, {a: b}]}"),
+            /`data\.words\[3\]\.gloss\[1\]` should be a sense/,
+            "{a: b}",
+        );
+    });
+
+    it("refuses a frame its language's `sounds.frames` does not name, at the frame", () => {
+        one(
+            OSKET.replace("frame: plain}", "frame: crooked}"),
+            /the frame `crooked` of `göich` is not one of this language's `data\.sounds\.frames`/,
+            "crooked",
+        );
+    });
+
+    it("refuses a frame on a word of a language stating no frames, at the frame", () => {
+        const text = OSKET.replace(
+            "  sounds:\n    frames:\n      - {frame: plain, shape: K1aK2, class: [n], makes: the thing itself}\n",
+            "",
+        );
+        one(text, /the frame `plain` of `göich` is not one of this language's/, "plain");
+    });
+
+    it("accepts an affix that lengthens the stem's last vowel", () => {
+        const text = OSKET.replace(
+            "examples: [ghaukwugh]}",
+            "examples: [ghaukwugh], lengthens: true}",
+        );
+        expect(osket(text).findings).toEqual([]);
+    });
+
+    it("refuses a lengthens that is not true or false, at the value", () => {
+        one(
+            OSKET.replace(
+                "examples: [ghaukwugh]}",
+                "examples: [ghaukwugh], lengthens: yes please}",
+            ),
+            /`data\.affixes\[0\]\.lengthens` should be `true` or `false`/,
+            "yes please",
+        );
+    });
+
+    it("refuses an affix that both lengthens and replaces the stem's close, at lengthens", () => {
+        one(
+            OSKET.replace(
+                "examples: [ghaukwugh]}",
+                "examples: [ghaukwugh], replaces: vowel, lengthens: true}",
+            ),
+            /an affix that replaces the stem's close does not also lengthen its last vowel/,
+            "lengthens",
         );
     });
 
@@ -389,6 +459,7 @@ describe("a language note's words, checked", () => {
             "fields",
             "affixes",
             "words",
+            "sounds",
         ]);
         for (const finding of findings) expect(finding.severity).toBe("error");
     });

@@ -5,4 +5,4 @@ type: lore
 subType: history
 ---
 
-A song.
+A song of _Solmere_, sung at the last shrine.

@@ -281,11 +281,16 @@ describe("no source declares or reads a table of retired keys", () => {
         expect(hits).toEqual([]);
     });
 
-    it("exports no constant named for a retired thing, bar the host list", () => {
+    // The host list, and a language's `data.retired`: the forms a setting
+    // does not write, whose declaration, keys and relation columns are named
+    // for the key.
+    const LIVE = new Set(["RETIRED_HOSTS", "RETIRED_FIELDS", "RETIRED_KEYS", "RETIRED_COLUMNS"]);
+
+    it("exports no constant named for a retired thing, bar the host list and the retired key", () => {
         const hits: string[] = [];
         for (const [file, text] of sources) {
             for (const match of text.matchAll(/^export const (RETIRED_\w+|RENAMED_\w+)/gm)) {
-                if (match[1] !== "RETIRED_HOSTS") hits.push(`${file}:${match[1]}`);
+                if (!LIVE.has(match[1])) hits.push(`${file}:${match[1]}`);
             }
         }
         expect(hits).toEqual([]);

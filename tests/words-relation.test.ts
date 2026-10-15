@@ -69,9 +69,9 @@ beforeAll(async () => {
             "fields:",
             "  - {name: The road, holds: The crossings.}",
             "affixes:",
-            "  - {form: -wugh, gloss: cord, attaches: added, examples: [ghaukwugh, ghaukwugh-two], tones: L}",
+            "  - {form: -wugh, gloss: cord, attaches: replaces a closing vowel, replaces: vowel, front: -wügh, examples: [ghaukwugh, ghaukwugh-two], tones: L}",
             "words:",
-            "  - {form: ghauk, class: n, field: The road, gloss: a road held by descent, attested: [lore-road]}",
+            "  - {form: ghauk, class: n, field: The road, gloss: a road held by descent}",
             "  - {form: göich, class: n, field: The road, gloss: the hearth, source: {kind: borrowed, language: skill-vedyarlng, form: göch}}",
             "  - {form: ghaukwugh, class: n, field: The road, gloss: the guide-cord, built: [ghauk, -wugh, -zz]}",
         ]),
@@ -117,7 +117,7 @@ beforeAll(async () => {
     write(
         own,
         "Lore/Road.md",
-        "---\nshortcode: road\nname: {full: The Road}\ntype: lore\nsubType: history\n---\nA road.\n",
+        "---\nshortcode: road\nname: {full: The Road}\ntype: lore\nsubType: history\n---\nA road, the _ghauk_ of the clans.\n",
     );
     write(
         own,
@@ -205,9 +205,7 @@ describe("the index record of a language note", () => {
             .split("\n")
             .find((text) => text.includes('"osketlng"'))!;
         const record = JSON.parse(line);
-        expect(record.data.words[0].attested).toEqual([
-            { address: "demo-note-lore-road", anchor: null, anchorKind: null },
-        ]);
+        expect(record.citations).toEqual([{ form: "ghauk", notes: ["demo-note-lore-road"] }]);
         expect(record.data.words[1].source.language).toEqual({
             address: "demo-note-skill-vedyarlng",
             anchor: null,
@@ -231,7 +229,10 @@ describe("the `affixes` and `fields` relations", () => {
             position: 0,
             form: "-wugh",
             gloss: "cord",
-            attaches: "added",
+            attaches: "replaces a closing vowel",
+            replaces: "vowel",
+            lengthens: null,
+            front: "-wügh",
             examples: ["ghaukwugh", "ghaukwugh-two"],
             tones: "L",
         });
@@ -247,6 +248,9 @@ describe("the `affixes` and `fields` relations", () => {
             form: "-ar",
             gloss: "elder",
             attaches: null,
+            replaces: null,
+            lengthens: null,
+            front: null,
             examples: null,
             tones: null,
         });
@@ -327,6 +331,8 @@ describe("the `words` relation", () => {
                 ...WORD_KEYS,
                 "built_text",
                 "built_parts",
+                "senses",
+                "attested",
             ]),
         );
         const row = result.rows[0];
@@ -364,7 +370,7 @@ describe("the `words` relation", () => {
         ]);
     });
 
-    it("filters on an attested Address as an author writes it", async () => {
+    it("filters on a citing note's Address as an author writes it", async () => {
         const result = await runSqlQuery(
             db,
             "SELECT form FROM words WHERE list_contains(attested, 'demo-note-lore-road')",
@@ -468,7 +474,7 @@ describe("a language with many words", () => {
         const rows = Array.from(
             { length: 1200 },
             (_, i) =>
-                `  - {form: w${i}, class: ${i % 3 ? "n" : "v"}, field: All, gloss: word ${i}${i % 7 ? "" : ", attested: [lore-road]"}${i % 5 ? "" : ", source: {kind: coined}"}}`,
+                `  - {form: w${i}, class: ${i % 3 ? "n" : "v"}, field: All, gloss: word ${i}${i % 5 ? "" : ", source: {kind: coined}"}}`,
         );
         write(
             big,

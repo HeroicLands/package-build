@@ -16,6 +16,13 @@ const WORDING = /retired|renamed|no longer|formerly|legacy|\bused to\b|previousl
  * identifier or a rule that holds now. `file` is a path relative to the
  * repository root; `line` matches the offending line.
  */
+/**
+ * A language's `data.retired` by name: the key, its entries, its declaration,
+ * its keys and columns, its rows and its relation, and nothing said around them.
+ */
+const RETIRED_KEY =
+    /`retired`|`data\.retired|data\.retired\b|`retired\[\]|\bRETIRED_(?:FIELDS|KEYS|COLUMNS)\b|\bretiredRows\b|\"retired\"|^\s*- retired$|^\s*retired:( \{|$)|\bFROM retired\b/;
+
 const ALLOWLIST: { file: string; line: RegExp; reason: string }[] = [
     {
         file: "engine/address-diff.mjs",
@@ -43,6 +50,41 @@ const ALLOWLIST: { file: string; line: RegExp; reason: string }[] = [
         file: "docs/guides/release-and-deploy.md",
         line: /\*\*renamed\*\*/,
         reason: "documents the `addresses diff` `renamed` kind",
+    },
+    {
+        file: "engine/language-terms.mjs",
+        line: RETIRED_KEY,
+        reason: "names a language's `data.retired` key, its declaration or its relation",
+    },
+    {
+        file: "engine/language-rows.mjs",
+        line: RETIRED_KEY,
+        reason: "names a language's `data.retired` key, its declaration or its relation",
+    },
+    {
+        file: "engine/content-format.yaml",
+        line: RETIRED_KEY,
+        reason: "names a language's `data.retired` key, its declaration or its relation",
+    },
+    {
+        file: "docs/authoring/links-and-markup.md",
+        line: RETIRED_KEY,
+        reason: "names a language's `data.retired` key, its declaration or its relation",
+    },
+    {
+        file: "docs/content-format.md",
+        line: RETIRED_KEY,
+        reason: "names a language's `data.retired` key, its declaration or its relation",
+    },
+    {
+        file: "docs/reference/format-details.md",
+        line: RETIRED_KEY,
+        reason: "names a language's `data.retired` key, its declaration or its relation",
+    },
+    {
+        file: "docs/reference/note-types.md",
+        line: RETIRED_KEY,
+        reason: "names a language's `data.retired` key, its declaration or its relation",
     },
 ];
 

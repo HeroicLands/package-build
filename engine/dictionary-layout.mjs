@@ -22,7 +22,8 @@
  * surface sets it as it sets a note:
  *
  * - **the key**, once, at the head unless the fence sets `key=false`: the abbreviations this rendering uses,
- *   each with its expansion, then the common mark where an entry carries it;
+ *   each with its expansion, then the common mark where an entry carries it.
+ *   A fence setting `key=only` prints the key alone;
  * - **a heading per letter**, from `letter`, at the fence's `section-level`;
  * - **one paragraph per entry**: the common mark, the bold headword, the
  *   pronunciation between slashes, the language tag (and for a word its
@@ -92,7 +93,8 @@ function sentence(text) {
  * @property {object} [addressContext] - Address resolution context.
  * @property {(address: string) => string|undefined} [labelOf] - A note's
  *   `name.full`, by its Address.
- * @property {boolean} [showKey=true] - Whether the key is printed.
+ * @property {boolean|"only"} [showKey=true] - Whether the key is printed;
+ *   `"only"` prints the key and nothing else.
  * @property {string} [pageLanguage] - The language of the page the fence is
  *   on, which no entry is tagged with.
  */
@@ -286,7 +288,9 @@ function render(
         if (usedModifiers.has(modifier.token))
             key.push(`_${modifier.abbreviation}_ ${modifier.expansion}`);
     if (anyCommon) key.push(`${COMMON_MARK} ${COMMON_KEY}`);
-    if (showKey && key.length) paragraphs.unshift(`**Key:** ${key.join("; ")}.`);
+    const line = key.length ? `**Key:** ${key.join("; ")}.` : "";
+    if (showKey === "only") return line;
+    if (showKey && line) paragraphs.unshift(line);
     return paragraphs.join("\n\n");
 }
 

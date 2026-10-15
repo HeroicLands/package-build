@@ -62,6 +62,7 @@ export const DERIVED_KEYS = Object.freeze([
     "documents",
     "asset",
     "resolvedDates",
+    "citations",
 ]);
 
 /**

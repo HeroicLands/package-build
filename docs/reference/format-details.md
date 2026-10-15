@@ -2814,28 +2814,75 @@ public surface.
 [language note](#a-languages-words), stubs included — in the order the note
 states them:
 
-| Column                      | What it holds                                                                                                                         |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `language`                  | The Address of the language note the word is written on, as another note names it: `thalorna-note-skill-provnzlng`.                   |
-| `position`                  | Its place in the note's `data.words`, from `0`. `ORDER BY position` is the note's own order.                                          |
-| `form`, `class`, `gloss`, … | Every key of a word, each its own column under its own name. `name_sort` reads as the form where the word states none.                |
-| `built_text`                | The `built` pieces joined with `+`, as `wulf- + -rith`; `NULL` for a root word.                                                       |
-| `built_parts`               | The pieces as a list of `{ form, gloss }`, each glossed from a word or affix of the same language, with a `NULL` gloss where none is. |
+| Column                      | What it holds                                                                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `language`                  | The Address of the language note the word is written on, as another note names it: `thalorna-note-skill-provnzlng`.                         |
+| `position`                  | Its place in the note's `data.words`, from `0`. `ORDER BY position` is the note's own order.                                                |
+| `form`, `class`, `gloss`, … | Every key of a word, each its own column under its own name. `name_sort` reads as the form where the word states none.                      |
+| `built_text`                | The `built` pieces joined with `+`, as `wulf- + -rith`; `NULL` for a root word.                                                             |
+| `built_parts`               | The pieces as a list of `{ form, gloss }`, each glossed from a word or affix of the same language, with a `NULL` gloss where none is.       |
+| `senses`                    | The word's senses as a list, one per entry of a `gloss` list, or the one `gloss` states; `gloss` itself reads as the senses joined by `; `. |
+| `attested`                  | The Addresses of the notes whose prose cites the word, derived as [a language's words](#a-languages-words) says; `NULL` where none does.    |
 
 A key no word writes is still a column, `NULL` in every row, and a word of a
-language note tagged `gm` contributes no row on a public surface. A row holds
+language note tagged `gm` contributes no row on a public surface, nor does a
+`gm` note among a word's `attested`. A row holds
 the words its own note states, and nothing more: a daughter language's
 inherited words are read through `language_lineage`.
 
 **`affixes`** is one row per entry of `data.affixes` on every language note,
 and **`fields`** one per entry of `data.fields`, in the order the note states
 them. Each has `language` and `position` as `words` does, then every key of the
-entry as its own column: `form`, `gloss`, `attaches`, `examples` and `tones` for
-an affix, `name` and `holds` for a field. A key an entry does not state is
+entry as its own column: `form`, `gloss`, `attaches`, `replaces`, `lengthens`, `front`, `examples`
+and `tones` for an affix, `name` and `holds` for a field. A key an entry does not state is
 `NULL`, `examples` is a list, and a language note tagged `gm` contributes no
 row on a public surface. An affix's `tones` is the tone pattern it carries,
 written as a word's `tones` is; it is a key of its own and is never read out of
 `attaches`.
+
+**A language's register, sounds, history and names are each a relation**, one
+row per entry of the key it is read from, in the order the note states them,
+each with `language` (the language note's Address) and, for a list, `position`,
+then every key of the entry as its own column. A key an entry does not state is
+`NULL`, and a language note tagged `gm` contributes no row on a public surface.
+See [a language's register, sounds and history](#a-languages-register-sounds-and-history)
+for the keys.
+
+| Relation        | Read from               | Columns beyond `language` and `position`                                                                                                                                                                                                                                                                              |
+| --------------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `register`      | `data.register`         | `name`, `tongue`, `kind`, `why`, `built` (a list), `built_text` (the pieces joined with `+`), and `notes`: every note of the package carrying the name, derived from the index, `NULL` where none does                                                                                                                |
+| `tongues`       | `data.tongues`          | `tag`, `meaning`, and `tongue_language`, the tongue's `language`                                                                                                                                                                                                                                                      |
+| `retired`       | `data.retired`          | `form`, `instead` (always a list, `NULL` where nothing is written instead), `why`                                                                                                                                                                                                                                     |
+| `scope`         | `data.scope`            | No `position`: `kind`, the key the value is under (`folders`, `cultures`, `lore`, `parents`, `addresses`, `paths`, `types` or `skip`), and `value`, an Address in its canonical form or a path or a type                                                                                                              |
+| `letters`       | `data.sounds.letters`   | `letters` (a list), `kind`, `like`, `tongue` (a list, `NULL` for every tongue)                                                                                                                                                                                                                                        |
+| `edges`         | `data.sounds.edges`     | `edge`, `sounds` (a list: `[any]` for every sound, empty for none)                                                                                                                                                                                                                                                    |
+| `clusters`      | `data.sounds.clusters`  | No `position`: `max`, one row per language stating it                                                                                                                                                                                                                                                                 |
+| `stress`        | `data.sounds.stress`    | No `position`: `stress`, one row per language stating it                                                                                                                                                                                                                                                              |
+| `finals`        | `data.sounds.finals`    | `final`, `like`                                                                                                                                                                                                                                                                                                       |
+| `syllables`     | `data.sounds.syllables` | No `position`, one row per language stating it: `onsets`, `codas`, `finals`, `doubled`, `vowelPairs`, `neverInitial` and `signature` (lists, `any` a list of one), `initialVowel` and `finalVowel` (`true` or `false`), and the harmony as `harmony_back`, `harmony_front`, `harmony_neutral` and `harmony_neutralAs` |
+| `joining`       | `data.sounds.joining`   | `first` and `second` (lists), `written`, `example`                                                                                                                                                                                                                                                                    |
+| `joins`         | `data.sounds.joins`     | `meeting`, `rule`, `letters` (a list), `where`                                                                                                                                                                                                                                                                        |
+| `marks`         | `data.sounds.marks`     | `mark`, `letters` (a list), `kind`, `limit`                                                                                                                                                                                                                                                                           |
+| `skeleton`      | `data.sounds.skeleton`  | `second` (a list, `[any]` for every other), `between`                                                                                                                                                                                                                                                                 |
+| `frames`        | `data.sounds.frames`    | `frame`, `shape`, `class` (a list), `makes`, `examples` (a list of `{ root, form }`)                                                                                                                                                                                                                                  |
+| `read_past`     | `data.sounds.readPast`  | `written`, `readAs`, `what`                                                                                                                                                                                                                                                                                           |
+| `sound_changes` | `data.soundChanges`     | One row per step: `position` (the set's), `name`, `from_language`, `to_language`, `step_position` (the step's in its set), `step`, `change`, `where`                                                                                                                                                                  |
+| `elements`      | `data.elements`         | `form`, `variants` (a list), `element_position` (the element's `position`), `sense`, `examples` (a list)                                                                                                                                                                                                              |
+| `roots`         | `data.roots`            | `root`, `sense`, `field`                                                                                                                                                                                                                                                                                              |
+| `cognates`      | `data.cognates`         | One row per form of a set: `position` (the set's), `gloss`, `proto`, `form_language` (the form's language note), `form`                                                                                                                                                                                               |
+| `calling_names` | `data.callingNames`     | One row per closing: `form`, `doubled` (`true` or `false`), `usual`, and the language's `min_syllables`                                                                                                                                                                                                               |
+
+A register name is carried by a note in the language's `data.scope` — any
+note of the package, for a language stating no scope — that has it as its full name, an alias,
+or any other part of its `name`, by an affiliation that has it as a rank or an
+office title, and by an anchor that has it as its name, which the row cites as
+`note#anchor`; a folder note carries no name. `where`, `like`, `limit` and
+`between` are SQL keywords, so a query names those columns in double quotes,
+`"where"`, `"like"`, `"limit"` and `"between"`. A frame's form for one root is
+`list_filter(examples, e -> e.root = 'd-l-k')[1].form`. A cognate table is the forms of each set pivoted on
+`form_language`:
+`max(form) FILTER (WHERE form_language = 'thalorna-note-skill-helonclng') AS "Helonic"`,
+grouped by `position` and `gloss`.
 
 **`language_lineage`** is one row per language note and each language it
 inherits words from through [`data.family`](#a-languages-words): `language`,
@@ -3153,11 +3200,12 @@ value containing spaces with double quotes and escape an internal quote as
 `\"`. Boolean values are exactly `true` or `false`; other spellings are
 errors. Duplicate and unknown attributes are errors.
 
-| Attribute                                   | What it does                                                      |
-| ------------------------------------------- | ----------------------------------------------------------------- |
-| `allow-empty=true`                          | Permits a query selecting no rows. Default `false`.               |
-| `section-level=1` through `section-level=6` | Sets the heading level for `_section`. Default `2`.               |
-| `key=false`                                 | Leaves the key out of a dictionary or a glossary. Default `true`. |
+| Attribute                                   | What it does                                                                                                |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `allow-empty=true`                          | Permits a query selecting no rows. Default `false`.                                                         |
+| `section-level=1` through `section-level=6` | Sets the heading level for `_section`. Default `2`.                                                         |
+| `key=false`                                 | Leaves the key out of a dictionary or a glossary. Default `true`. Refused on a table, as `key=true` is.     |
+| `key=only`                                  | Prints a dictionary's or a glossary's key for its rows, and no letter heading or entry. Refused on a table. |
 
 ##### Page lists
 
@@ -5213,44 +5261,159 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 - combat
 - combattechnique
 
-| `data` property           | Values                                                                               | Description                                                                                                                                                                          |
-| ------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `templatePriority`        | `number`                                                                             | Template priority, _null_ = not a template                                                                                                                                           |
-| `masteryLevel`            | `number`                                                                             | HM3 mastery level                                                                                                                                                                    |
-| `parentSkill`             | `Address`                                                                            | Parent skill this skill specializes                                                                                                                                                  |
-| `names`                   | `{ pattern, given, <name>... }`                                                      | `language` only: how its speakers are named, for `package-build npc new` — see [name lists](#name-lists)                                                                             |
-| `names.pattern`           | `string`, `string[]` or map of `gender` words to either, required                    | Placeholders such as `{given}`, `{given.male}` and `{clan}`, each naming a list, with literal text around them; a list states several forms, a map each gender's forms               |
-| `names.given`             | map of `gender` words to lists of names, required                                    | Given names by gender; `female` and `male` are required                                                                                                                              |
-| `names.given.<name>`      | `string[]`                                                                           | The given names of one gender                                                                                                                                                        |
-| `names.<name>`            | `string[]`                                                                           | A list the placeholder of the same name draws from                                                                                                                                   |
-| `family`                  | `Address`                                                                            | `language` only: the parent language, naming a skill note with `subType: language`; this language reads the parent's words as its own — see [a language's words](#a-languages-words) |
-| `abbreviation`            | `string`                                                                             | `language` only: the tag a dictionary prints for it, as `Prov.`; its full name where unstated — see [dictionaries and glossaries](#dictionaries-and-glossaries)                      |
-| `classModifiers`          | `string[]`                                                                           | `language` only: the word class modifiers the language uses, each from the [master word classes](#word-classes); empty when unstated                                                 |
-| `fields`                  | `{ name, holds }[]`                                                                  | `language` only: the fields its words are grouped under                                                                                                                              |
-| `fields[].name`           | `string`, required                                                                   | The field's name, which a word's `field` names                                                                                                                                       |
-| `fields[].holds`          | `string`, required                                                                   | What the field holds                                                                                                                                                                 |
-| `words`                   | `{ form, class, field, gloss, … }[]`                                                 | `language` only: its words, one map each, in the order they print — see [a language's words](#a-languages-words)                                                                     |
-| `words[].form`            | `string`, required                                                                   | The word as cited, bare: no backticks                                                                                                                                                |
-| `words[].name_sort`       | `string`                                                                             | Its sort key; the form when unstated                                                                                                                                                 |
-| `words[].class`           | `string`, required                                                                   | A class from the master word classes, base first: `n I f`                                                                                                                            |
-| `words[].field`           | `string`, required                                                                   | One of the note's `fields` names                                                                                                                                                     |
-| `words[].gloss`           | `string`, required                                                                   | The meaning, in brief                                                                                                                                                                |
-| `words[].source`          | `{ kind, language?, form? }`                                                         | Where the word comes from                                                                                                                                                            |
-| `words[].source.kind`     | `inherited`, `borrowed`, `kept`, `worn`, `coined`, `substrate` or `island`, required | How the word came into the language                                                                                                                                                  |
-| `words[].source.language` | `Address`                                                                            | The language a `borrowed` word came from, naming a skill note with `subType: language`; required for `borrowed`                                                                      |
-| `words[].source.form`     | `string`                                                                             | The form the word had in its source, bare                                                                                                                                            |
-| `words[].built`           | `string[]`                                                                           | The pieces the word is built from, in order, as the note's words and affixes write them; absent for a root word                                                                      |
-| `words[].attested`        | `Address[]`                                                                          | The notes the word is cited from                                                                                                                                                     |
-| `words[].pronunciation`   | `string`                                                                             | A respelling, as `sol-MEH-reh`: letters, apostrophes and hyphens, at most one syllable in capitals                                                                                   |
-| `words[].tones`           | `string`                                                                             | A tone pattern, as `LHL`                                                                                                                                                             |
-| `words[].root`            | `string`                                                                             | A consonantal skeleton, as `d-l-k`                                                                                                                                                   |
-| `words[].frame`           | `string`                                                                             | The frame a root is set in                                                                                                                                                           |
-| `affixes`                 | `{ form, gloss, attaches?, examples?, tones? }[]`                                    | `language` only: the affixes a word's `built` pieces may name                                                                                                                        |
-| `affixes[].form`          | `string`, required                                                                   | The affix as a `built` piece names it, as `-rith`                                                                                                                                    |
-| `affixes[].gloss`         | `string`, required                                                                   | What it means                                                                                                                                                                        |
-| `affixes[].attaches`      | `string`                                                                             | How it attaches, as `replaces a closing vowel`                                                                                                                                       |
-| `affixes[].examples`      | `string[]`                                                                           | The names it is read from                                                                                                                                                            |
-| `affixes[].tones`         | `string`                                                                             | The tone pattern it carries, as `L`                                                                                                                                                  |
+| `data` property                      | Values                                                                                                                         | Description                                                                                                                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `templatePriority`                   | `number`                                                                                                                       | Template priority, _null_ = not a template                                                                                                                                           |
+| `masteryLevel`                       | `number`                                                                                                                       | HM3 mastery level                                                                                                                                                                    |
+| `parentSkill`                        | `Address`                                                                                                                      | Parent skill this skill specializes                                                                                                                                                  |
+| `names`                              | `{ pattern, given, <name>... }`                                                                                                | `language` only: how its speakers are named, for `package-build npc new` — see [name lists](#name-lists)                                                                             |
+| `names.pattern`                      | `string`, `string[]` or map of `gender` words to either, required                                                              | Placeholders such as `{given}`, `{given.male}` and `{clan}`, each naming a list, with literal text around them; a list states several forms, a map each gender's forms               |
+| `names.given`                        | map of `gender` words to lists of names, required                                                                              | Given names by gender; `female` and `male` are required                                                                                                                              |
+| `names.given.<name>`                 | `string[]`                                                                                                                     | The given names of one gender                                                                                                                                                        |
+| `names.<name>`                       | `string[]`                                                                                                                     | A list the placeholder of the same name draws from                                                                                                                                   |
+| `family`                             | `Address`                                                                                                                      | `language` only: the parent language, naming a skill note with `subType: language`; this language reads the parent's words as its own — see [a language's words](#a-languages-words) |
+| `abbreviation`                       | `string`                                                                                                                       | `language` only: the tag a dictionary prints for it, as `Prov.`; its full name where unstated — see [dictionaries and glossaries](#dictionaries-and-glossaries)                      |
+| `classModifiers`                     | `string[]`                                                                                                                     | `language` only: the word class modifiers the language uses, each from the [master word classes](#word-classes); empty when unstated                                                 |
+| `fields`                             | `{ name, holds }[]`                                                                                                            | `language` only: the fields its words are grouped under                                                                                                                              |
+| `fields[].name`                      | `string`, required                                                                                                             | The field's name, which a word's `field` names                                                                                                                                       |
+| `fields[].holds`                     | `string`, required                                                                                                             | What the field holds                                                                                                                                                                 |
+| `words`                              | `{ form, class, field, gloss, … }[]`                                                                                           | `language` only: its words, one map each, in the order they print — see [a language's words](#a-languages-words)                                                                     |
+| `words[].form`                       | `string`, required                                                                                                             | The word as cited, bare: no backticks                                                                                                                                                |
+| `words[].variants`                   | `string[]`                                                                                                                     | Its other forms, as a short form beside a long one; a marked use of one cites the word                                                                                               |
+| `words[].name_sort`                  | `string`                                                                                                                       | Its sort key; the form when unstated                                                                                                                                                 |
+| `words[].class`                      | `string`, required                                                                                                             | A class from the master word classes, base first: `n I f`                                                                                                                            |
+| `words[].field`                      | `string`, required                                                                                                             | One of the note's `fields` names                                                                                                                                                     |
+| `words[].gloss`                      | `string` or `string[]`, required                                                                                               | The meaning, in brief; a list states one sense per entry, which a dictionary numbers                                                                                                 |
+| `words[].source`                     | `{ kind, language?, form? }`                                                                                                   | Where the word comes from                                                                                                                                                            |
+| `words[].source.kind`                | `inherited`, `borrowed`, `kept`, `worn`, `coined`, `substrate` or `island`, required                                           | How the word came into the language                                                                                                                                                  |
+| `words[].source.language`            | `Address`                                                                                                                      | The language a `borrowed` word came from, naming a skill note with `subType: language`; required for `borrowed`                                                                      |
+| `words[].source.form`                | `string`                                                                                                                       | The form the word had in its source, bare                                                                                                                                            |
+| `words[].built`                      | `string[]`                                                                                                                     | The pieces the word is built from, in order, as the note's words and affixes write them; absent for a root word                                                                      |
+| `words[].note`                       | `string`                                                                                                                       | What a source says of the word beyond its pieces, as a cognate it is read with                                                                                                       |
+| `words[].pronunciation`              | `string`                                                                                                                       | A respelling, as `sol-MEH-reh`: letters, apostrophes and hyphens, at most one syllable in capitals                                                                                   |
+| `words[].tones`                      | `string`                                                                                                                       | A tone pattern, as `LHL`                                                                                                                                                             |
+| `words[].root`                       | `string`                                                                                                                       | A consonantal skeleton, as `d-l-k`                                                                                                                                                   |
+| `words[].frame`                      | `string`                                                                                                                       | The frame a root is set in, named in `sounds.frames` of the language or an ancestor                                                                                                  |
+| `affixes`                            | `{ form, gloss, attaches?, examples?, tones? }[]`                                                                              | `language` only: the affixes a word's `built` pieces may name                                                                                                                        |
+| `affixes[].form`                     | `string`, required                                                                                                             | The affix as a `built` piece names it, as `-rith`                                                                                                                                    |
+| `affixes[].gloss`                    | `string`, required                                                                                                             | What it means                                                                                                                                                                        |
+| `affixes[].attaches`                 | `string`                                                                                                                       | How it attaches, as `replaces a closing vowel`                                                                                                                                       |
+| `affixes[].examples`                 | `string[]`                                                                                                                     | The names it is read from                                                                                                                                                            |
+| `affixes[].tones`                    | `string`                                                                                                                       | The tone pattern it carries, as `L`                                                                                                                                                  |
+| `affixes[].replaces`                 | `string`                                                                                                                       | What it takes the place of at the close of the stem: `vowel` for any closing vowel, or the letters, as `a`; added to the whole stem where absent                                     |
+| `affixes[].lengthens`                | `boolean`                                                                                                                      | Whether the stem's last vowel lengthens before it; `false` where unstated, and never beside `replaces`                                                                               |
+| `affixes[].front`                    | `string`                                                                                                                       | Its form after front vowels, where the language keeps vowel harmony, as `-ür`                                                                                                        |
+| `tongues`                            | `{ tag, meaning, language? }[]`                                                                                                | `language` only: the tags a register row's `tongue` names — see [a language's register, sounds and history](#a-languages-register-sounds-and-history)                                |
+| `tongues[].tag`                      | `string`, required                                                                                                             | Lowercase letters and digits, as `dunhari`, or a tag closing on `:<tongue>`, as `exonym:<tongue>`, which declares `exonym:vylari` and every tag like it                              |
+| `tongues[].meaning`                  | `string`, required                                                                                                             | What a name of this tongue is                                                                                                                                                        |
+| `tongues[].language`                 | `Address`                                                                                                                      | The language note the tag names, where it is one                                                                                                                                     |
+| `register`                           | `{ name, tongue?, kind?, built?, why? }[]`                                                                                     | `language` only: every name the setting gives in the language's reach; the notes carrying each are derived                                                                           |
+| `register[].name`                    | `string`, required                                                                                                             | The name, as the setting writes it                                                                                                                                                   |
+| `register[].tongue`                  | `string`                                                                                                                       | A tag `tongues` declares, or `translation`; a row states a `tongue`, a `kind`, or both                                                                                               |
+| `register[].kind`                    | `byname`, `given` or `place`                                                                                                   | What kind of name it is, in a language that sorts its names by kind                                                                                                                  |
+| `register[].built`                   | `string[]`                                                                                                                     | The pieces the name is built from, as a word's `built` writes them                                                                                                                   |
+| `register[].why`                     | `string`                                                                                                                       | Why the name stands outside the pattern the language's names are built by                                                                                                            |
+| `retired`                            | `{ form, instead?, why }[]`                                                                                                    | `language` only: the forms the setting does not write                                                                                                                                |
+| `retired[].form`                     | `string`, required                                                                                                             | The form the setting does not write                                                                                                                                                  |
+| `retired[].instead`                  | `string` or `string[]`                                                                                                         | What is written in its place; absent where nothing is                                                                                                                                |
+| `retired[].why`                      | `string`, required                                                                                                             | Why the setting does not write it                                                                                                                                                    |
+| `scope`                              | `{ folders?, cultures?, lore?, parents?, addresses?, paths?, types?, skip? }`                                                  | `language` only: the notes the register covers                                                                                                                                       |
+| `scope.folders`                      | `Address[]`                                                                                                                    | Every note whose `packFolder` is one of these folders                                                                                                                                |
+| `scope.cultures`                     | `Address[]`                                                                                                                    | Every note whose `culture` is one of these cultures                                                                                                                                  |
+| `scope.lore`                         | `Address[]`                                                                                                                    | Every note whose `lore` names one of these notes                                                                                                                                     |
+| `scope.parents`                      | `Address[]`                                                                                                                    | Every note whose `parents` names one of these notes                                                                                                                                  |
+| `scope.addresses`                    | `Address[]`                                                                                                                    | These notes themselves                                                                                                                                                               |
+| `scope.paths`                        | `string[]`                                                                                                                     | Every note whose file sits below one of these content paths, as `Regions/Aelwyth/`                                                                                                   |
+| `scope.types`                        | `string[]`                                                                                                                     | The note types covered; a note of another type is out of scope whatever else catches it                                                                                              |
+| `scope.skip`                         | `Address[]`                                                                                                                    | Notes out of scope whatever else catches them                                                                                                                                        |
+| `sounds`                             | `{ letters?, edges?, clusters?, stress?, finals?, syllables?, joining?, joins?, marks?, skeleton?, frames?, readPast? }`       | `language` only: the letters it writes and the rules its words keep                                                                                                                  |
+| `sounds.letters`                     | `{ letters, kind, like, tongue? }[]`                                                                                           | The letters and the sounds they stand for                                                                                                                                            |
+| `sounds.letters[].letters`           | `string[]`, required                                                                                                           | The letters or digraphs the row describes                                                                                                                                            |
+| `sounds.letters[].kind`              | `string`, required                                                                                                             | What kind of sound they write, as `consonant` or `long vowel`                                                                                                                        |
+| `sounds.letters[].like`              | `string`, required                                                                                                             | What they sound like                                                                                                                                                                 |
+| `sounds.letters[].tongue`            | `string` or `string[]`                                                                                                         | The tongues that write them, as tags `tongues` declares; every one where absent                                                                                                      |
+| `sounds.edges`                       | `{ edge, sounds }[]`                                                                                                           | The sounds that may stand at each edge of a word, one entry per edge                                                                                                                 |
+| `sounds.edges[].edge`                | `openConsonant`, `openCluster`, `closeConsonant`, `closeCluster`, `innerCluster`, `vowelPair`, `glide` or `syllabic`, required | Which edge the sounds stand at                                                                                                                                                       |
+| `sounds.edges[].sounds`              | `string[]` or `any`, required                                                                                                  | The sounds; `any` for every one, an empty list for none                                                                                                                              |
+| `sounds.clusters`                    | `{ max }`                                                                                                                      | How many consonants may stand together                                                                                                                                               |
+| `sounds.clusters.max`                | `integer`, required                                                                                                            | The most consonants that stand together inside a word                                                                                                                                |
+| `sounds.stress`                      | `first syllable`, `penultimate or final`, `by weight` or `as marked`                                                           | Where a word's stress falls                                                                                                                                                          |
+| `sounds.finals`                      | `{ final, like }[]`                                                                                                            | The syllable finals, for a language whose syllables are parsed by them                                                                                                               |
+| `sounds.finals[].final`              | `string`, required                                                                                                             | The final, as `ang`                                                                                                                                                                  |
+| `sounds.finals[].like`               | `string`, required                                                                                                             | What it sounds like                                                                                                                                                                  |
+| `sounds.syllables`                   | map of syllable rules                                                                                                          | What a syllable and a word may open and close on                                                                                                                                     |
+| `sounds.syllables.onsets`            | `single`                                                                                                                       | What a syllable opens on: a single consonant                                                                                                                                         |
+| `sounds.syllables.codas`             | `string[]` or `any`                                                                                                            | The consonants that may close a syllable                                                                                                                                             |
+| `sounds.syllables.finals`            | `string[]` or `any`                                                                                                            | The consonants that may close a word                                                                                                                                                 |
+| `sounds.syllables.doubled`           | `string[]`                                                                                                                     | The doubled consonants a word may hold; none where empty                                                                                                                             |
+| `sounds.syllables.vowelPairs`        | `string[]`                                                                                                                     | The vowels that may stand together; none where empty                                                                                                                                 |
+| `sounds.syllables.initialVowel`      | `boolean`                                                                                                                      | Whether a word may open on a vowel                                                                                                                                                   |
+| `sounds.syllables.finalVowel`        | `boolean`                                                                                                                      | Whether a word may close on a vowel; `true` where unstated                                                                                                                           |
+| `sounds.syllables.neverInitial`      | `string[]`                                                                                                                     | The letters that never open a word                                                                                                                                                   |
+| `sounds.syllables.signature`         | `string[]`                                                                                                                     | The letters that mark a word as the language's own                                                                                                                                   |
+| `sounds.syllables.harmony`           | `{ back, front, neutral?, neutralAs? }`                                                                                        | The vowel harmony a word keeps                                                                                                                                                       |
+| `sounds.syllables.harmony.back`      | `string[]`, required                                                                                                           | The back vowels                                                                                                                                                                      |
+| `sounds.syllables.harmony.front`     | `string[]`, required                                                                                                           | The front vowels                                                                                                                                                                     |
+| `sounds.syllables.harmony.neutral`   | `string[]`                                                                                                                     | The vowels of neither set                                                                                                                                                            |
+| `sounds.syllables.harmony.neutralAs` | `back` or `front`                                                                                                              | The set a word of neutral vowels alone counts as                                                                                                                                     |
+| `sounds.joining`                     | `{ first, second, written, example? }[]`                                                                                       | How two parts are written where the first closes and the second opens on the given sounds                                                                                            |
+| `sounds.joining[].first`             | `string[]`, required                                                                                                           | The sounds the first part closes on                                                                                                                                                  |
+| `sounds.joining[].second`            | `string[]`, required                                                                                                           | The sounds the second part opens on                                                                                                                                                  |
+| `sounds.joining[].written`           | `string`, required                                                                                                             | What is written where they meet, as `â`; a join closing on `+`, as `y+`, keeps both and sets it between                                                                              |
+| `sounds.joining[].example`           | `string`                                                                                                                       | A word joined so                                                                                                                                                                     |
+| `sounds.joins`                       | `{ meeting, rule, letters?, where? }[]`                                                                                        | What happens where two parts of a word meet, one entry per meeting                                                                                                                   |
+| `sounds.joins[].meeting`             | `C+C`, `V+C` or `V+V`, required                                                                                                | Which sounds meet: a consonant or a vowel closing the first part, then opening the second                                                                                            |
+| `sounds.joins[].rule`                | `merge`, `insert`, `drop` or `double`, required                                                                                | What happens: one is written, `letters` are set between, the first is lost, or the consonant is doubled                                                                              |
+| `sounds.joins[].letters`             | `string[]`                                                                                                                     | The letters `insert` sets between or `double` doubles                                                                                                                                |
+| `sounds.joins[].where`               | `string`                                                                                                                       | Where it holds, as `between stems`; everywhere where absent                                                                                                                          |
+| `sounds.marks`                       | `{ mark, letters, kind, limit }[]`                                                                                             | The marks the language writes on its letters                                                                                                                                         |
+| `sounds.marks[].mark`                | `string`, required                                                                                                             | The mark's name, as `acute`                                                                                                                                                          |
+| `sounds.marks[].letters`             | `string[]`, required                                                                                                           | The letters that carry it                                                                                                                                                            |
+| `sounds.marks[].kind`                | `stress` or `length`, required                                                                                                 | What it says of its letter                                                                                                                                                           |
+| `sounds.marks[].limit`               | `one` or `any`, required                                                                                                       | How many a word may carry                                                                                                                                                            |
+| `sounds.skeleton`                    | `{ second, between? }[]`                                                                                                       | The vowel set between a root's second and third consonants                                                                                                                           |
+| `sounds.skeleton[].second`           | `string[]` or `any`, required                                                                                                  | The second consonants the row holds for; `any` for every other                                                                                                                       |
+| `sounds.skeleton[].between`          | `string`                                                                                                                       | The vowel set between; nothing where absent or empty                                                                                                                                 |
+| `sounds.frames`                      | `{ frame, shape, class, makes, examples? }[]`                                                                                  | The patterns a root is set in                                                                                                                                                        |
+| `sounds.frames[].frame`              | `string`, required                                                                                                             | The frame's name, which a word's `frame` names                                                                                                                                       |
+| `sounds.frames[].shape`              | `string`, required                                                                                                             | The pattern, the root's consonants numbered, as `K1aK2K3`                                                                                                                            |
+| `sounds.frames[].class`              | `string[]`, required                                                                                                           | The classes of word it makes, each a base of the [master word classes](#word-classes)                                                                                                |
+| `sounds.frames[].makes`              | `string`, required                                                                                                             | What it makes of a root                                                                                                                                                              |
+| `sounds.frames[].examples`           | map of roots to forms                                                                                                          | The form a root takes in the frame, keyed by the root                                                                                                                                |
+| `sounds.frames[].examples.<name>`    | `string`                                                                                                                       | One root's form, bare                                                                                                                                                                |
+| `sounds.readPast`                    | `{ written, readAs?, what }[]`                                                                                                 | Marks and spellings a word is read through before the sound rules hold it                                                                                                            |
+| `sounds.readPast[].written`          | `string`, required                                                                                                             | The mark or spelling the pages write                                                                                                                                                 |
+| `sounds.readPast[].readAs`           | `string`                                                                                                                       | What the word is read with in its place; absent where it is read as nothing                                                                                                          |
+| `sounds.readPast[].what`             | `string`, required                                                                                                             | What the mark or spelling is                                                                                                                                                         |
+| `soundChanges`                       | `{ name, from?, to?, steps }[]`                                                                                                | `language` only: named sets of ordered changes, each making one tongue's words from another's                                                                                        |
+| `soundChanges[].name`                | `string`, required                                                                                                             | The set's name, which no other set of the note shares                                                                                                                                |
+| `soundChanges[].from`                | `Address`                                                                                                                      | The language note whose words the steps start from                                                                                                                                   |
+| `soundChanges[].to`                  | `Address`                                                                                                                      | The language note whose words the steps make                                                                                                                                         |
+| `soundChanges[].steps`               | `{ step, change, where? }[]`, required                                                                                         | The steps, in the order they apply                                                                                                                                                   |
+| `soundChanges[].steps[].step`        | `string`, required                                                                                                             | The step's label, as `A1` or `"1"`; no label stands twice in a set                                                                                                                   |
+| `soundChanges[].steps[].change`      | `string`, required                                                                                                             | The change in arrow notation, as `` `ph` > `f`; `kh` > `h` ``, or the operation it names in words                                                                                    |
+| `soundChanges[].steps[].where`       | `string`                                                                                                                       | Where it holds, as `word end`; everywhere where absent                                                                                                                               |
+| `elements`                           | `{ form, variants?, position?, sense, examples? }[]`                                                                           | `language` only: the elements its names are built from                                                                                                                               |
+| `elements[].form`                    | `string`, required                                                                                                             | The element, as `arn-`                                                                                                                                                               |
+| `elements[].variants`                | `string[]`                                                                                                                     | The element's other forms, as `aldr-` beside `ald-`                                                                                                                                  |
+| `elements[].position`                | `opening`, `closing`, `either` or `link`                                                                                       | Where in a name it stands                                                                                                                                                            |
+| `elements[].sense`                   | `string`, required                                                                                                             | What it means                                                                                                                                                                        |
+| `elements[].examples`                | `string[]`                                                                                                                     | The names it is read from                                                                                                                                                            |
+| `roots`                              | `{ root, sense, field? }[]`                                                                                                    | `language` only: the consonantal roots its words are set from                                                                                                                        |
+| `roots[].root`                       | `string`, required                                                                                                             | The root, as `d-l-k`                                                                                                                                                                 |
+| `roots[].sense`                      | `string`, required                                                                                                             | What it means                                                                                                                                                                        |
+| `roots[].field`                      | `string`                                                                                                                       | The field it belongs to, as `stone`                                                                                                                                                  |
+| `cognates`                           | `{ forms, proto?, gloss }[]`                                                                                                   | `language` only: sets of forms one older word takes in several languages, stated on the eldest                                                                                       |
+| `cognates[].forms`                   | map of language Addresses to forms, required                                                                                   | The form the set takes in each language, keyed by the language note                                                                                                                  |
+| `cognates[].forms.<name>`            | `string`                                                                                                                       | One language's form, bare                                                                                                                                                            |
+| `cognates[].gloss`                   | `string`, required                                                                                                             | What the forms mean                                                                                                                                                                  |
+| `cognates[].proto`                   | `string`                                                                                                                       | The reconstructed form the set descends from, in no attested language; printed with an asterisk                                                                                      |
+| `callingNames`                       | `{ closings, minSyllables }`                                                                                                   | `language` only: the short name a long given name is called by                                                                                                                       |
+| `callingNames.closings`              | `{ form?, doubled?, usual }[]`, required                                                                                       | What a calling name closes on                                                                                                                                                        |
+| `callingNames.closings[].form`       | `string`                                                                                                                       | The ending, as `-u`; a row states `form` or `doubled`, never both                                                                                                                    |
+| `callingNames.closings[].doubled`    | `boolean`                                                                                                                      | The calling name doubles the first syllable instead of taking an ending                                                                                                              |
+| `callingNames.closings[].usual`      | `man`, `woman` or `either`, required                                                                                           | Whose name it usually makes                                                                                                                                                          |
+| `callingNames.minSyllables`          | `integer`, required                                                                                                            | The fewest syllables a given name has that the pages give a calling name                                                                                                             |
 
 #### A language's words
 
@@ -5278,14 +5441,15 @@ data:
         field: Love and its conduct,
         gloss: "longing; the ache for a person, a place or a time that is gone",
         source: { kind: borrowed, language: skill-elvndrlng, form: sólmerë },
-        attested: [lore-lastshrine],
       }
     - {
         form: amère,
+        variants: [amèra],
         class: n f,
         field: Love and its conduct,
-        gloss: "a beloved",
+        gloss: ["a beloved", "a sweetheart, in the songs"],
         built: [am-, -ère],
+        note: "read with the Élavendri amarë in the older songs",
       }
 ---
 ```
@@ -5307,6 +5471,27 @@ italics and its own asterisk.
 **`built` names the pieces a word is made of**, each as a word or an affix of
 the same language writes it, stems included. A piece written with different
 joining hyphens still matches (`am-` finds the word `am`).
+
+**A gloss is one sense or a list of them.** A list states one sense per entry,
+and a dictionary numbers them: `zethu` glossed `[writing, a scribe]` prints
+**1** Writing. **2** A scribe. A list states at least one sense. `variants`
+names a word's other forms, as a short form beside its long one, and `note`
+says what a source says of the word beyond its pieces.
+
+**A word's citations are derived from the prose of the package's notes.** A
+note cites a word when its body marks the word in italics, `_amère_` or
+`*amère*`: an italic span holding text alone, no link and no code, whose text
+is the word's form or one of its `variants`, compared with diacritics taken off
+and case folded, so `_Amere_` cites `amère` too. A note also cites a word its
+frontmatter names whole, under the same folding: a full name or an alias that
+spells the word, or an affiliation's rank or office title that does. An italic
+span or a name that spells no word cites nothing, and neither does a word
+found only inside a longer name. A language note never cites its own words,
+and its body cites none of the words it describes. The index records each
+word's citing notes by Address, and the `attested` column of the `words`
+relation and the `usage` of a dictionary entry read them, so a note is listed
+beside a word by marking the word where it uses it, or by bearing it as a name
+or a title, and by nothing else.
 
 **A daughter language names its parent in `data.family`**, and reads the
 parent's words as its own, and the parent's parent's in turn. The words a
@@ -5333,22 +5518,24 @@ that does is a cycle, and an error on every note in it.
 
 Each finding is located at the key at fault:
 
-| Finding                                                               | Severity |
-| --------------------------------------------------------------------- | -------- |
-| A word key or `data.family` on a skill of another subType, at the key | error    |
-| A `data.family` naming no language note, at the value                 | error    |
-| A `data.family` chain that returns to its start, at the value         | error    |
-| An unknown, missing or wrongly shaped key in an entry                 | error    |
-| A class whose base or modifier is not in the master set               | error    |
-| A modifier `data.classModifiers` does not declare                     | error    |
-| A declared modifier no word uses, at the modifier                     | warning  |
-| A `field` not among `data.fields`                                     | error    |
-| A `borrowed` source with no `language`                                | error    |
-| A form standing twice in one language, at the second                  | error    |
-| An `attested` or language Address that does not resolve               | error    |
-| A language Address naming something other than a language skill       | error    |
-| A pronunciation that is not a respelling                              | error    |
-| A `built` piece no word or affix of the language glosses              | warning  |
+| Finding                                                                | Severity |
+| ---------------------------------------------------------------------- | -------- |
+| A word key or `data.family` on a skill of another subType, at the key  | error    |
+| A `data.family` naming no language note, at the value                  | error    |
+| A `data.family` chain that returns to its start, at the value          | error    |
+| An unknown, missing or wrongly shaped key in an entry                  | error    |
+| A class whose base or modifier is not in the master set                | error    |
+| A modifier `data.classModifiers` does not declare                      | error    |
+| A declared modifier no word uses, at the modifier                      | warning  |
+| A `field` not among `data.fields`                                      | error    |
+| A `borrowed` source with no `language`                                 | error    |
+| A form standing twice in one language, at the second                   | error    |
+| A `gloss` list with no sense                                           | error    |
+| A language Address that does not resolve                               | error    |
+| A language Address naming something other than a language skill        | error    |
+| A pronunciation that is not a respelling                               | error    |
+| A `frame` that no `sounds.frames` of the language or an ancestor names | error    |
+| A `built` piece no word or affix of the language glosses               | warning  |
 
 The `words` relation holds one row per word — see
 [Content tables](#content-tables) — and a table of them is an `sql` fence over
@@ -5374,6 +5561,263 @@ WHERE language = 'thalorna-note-skill-provnzlng' AND field = 'Love and its condu
 ORDER BY position
 ```
 ````
+
+#### A language's register, sounds and history
+
+A language note states in frontmatter every fact a check reads about its
+names, its sounds and its history, beside its words, and each is a relation an
+`sql` fence sets back on the page. All of it is optional, and all of it is
+stated only on a language note:
+
+```yaml
+---
+shortcode: dunharlng
+name: { full: Dunhari Language }
+type: skill
+subType: language
+data:
+  tongues:
+    - { tag: dunhari, meaning: a Dunhari name, language: skill-dunharlng }
+    - { tag: sovidur, meaning: "a Sovidur name, carried by a wanderer" }
+    - { tag: "exonym:<tongue>", meaning: "a name another people gives, in the tongue named" }
+  register:
+    - { name: Belgogâr, tongue: dunhari, built: [belg-, -ogâr] }
+    - { name: Bondsman, tongue: translation }
+    - { name: Dunhara, tongue: "exonym:vylari" }
+    - { name: Aldous, kind: given, why: "a short name no element builds" }
+  retired:
+    - { form: Qadi, instead: Vazhmadêr, why: "an Earth word, the judge of a city" }
+    - { form: Khalid, instead: [Kheldûn, Bezdûn], why: "an Earth given name" }
+  scope:
+    folders: [dunhara, amradad]
+    cultures: [dunhariclt]
+    parents: [dunharargn]
+    addresses: [lore-dunhariclt, affiliation-kngdmmrdd]
+  sounds:
+    letters:
+      - { letters: [kh, gh], kind: consonant, like: "a rasp at the back of the throat" }
+      - { letters: [â, ê, î, ô, û], kind: long vowel, like: "father, fête, machine, note, boot" }
+    edges:
+      - { edge: closeConsonant, sounds: [n, r, d, z, sh, kh] }
+      - { edge: closeCluster, sounds: [nd, rd] }
+      - { edge: vowelPair, sounds: [ai, au, ei] }
+    clusters: { max: 2 }
+    stress: penultimate or final
+    syllables:
+      onsets: single
+      codas: [b, d, k, sh]
+      finals: any
+      vowelPairs: [aa, ee]
+      initialVowel: true
+      harmony: { back: [a, o, u], front: [e, ö, ü], neutral: [i], neutralAs: front }
+    joining:
+      - { first: [a, â], second: [a, â], written: â, example: "méga + andáhr = mégândáhr" }
+    joins:
+      - { meeting: V+V, rule: insert, letters: [y] }
+    marks:
+      - { mark: acute, letters: [á, é, í], kind: stress, limit: one }
+    skeleton:
+      - { second: [l, r, m, n, s] }
+      - { second: any, between: a }
+    frames:
+      - {
+          frame: bare,
+          shape: K1aK2K3,
+          class: [n],
+          makes: the thing itself,
+          examples: { d-l-k: dalk },
+        }
+    readPast:
+      - { written: á, readAs: a, what: "the acute, a stress mark" }
+  soundChanges:
+    - name: From Helonic to Byzarian
+      from: skill-helonclng
+      to: skill-byzarnlng
+      steps:
+        - { step: "1", change: "`th` > `t`", where: anywhere }
+        - { step: "2", change: "`dh` > `d`", where: anywhere }
+  elements:
+    - { form: ald-, variants: [aldr-, aldar-], position: opening, sense: an age }
+    - { form: arn-, position: opening, sense: an eagle, examples: [Arnthúl, Arnhelm] }
+  roots:
+    - { root: d-l-k, sense: "stone; to cut stone", field: stone }
+  cognates:
+    - { forms: { skill-dunharlng: zevr, skill-sowideslng: zever }, proto: zevrâ, gloss: wind }
+  callingNames:
+    minSyllables: 4
+    closings:
+      - { form: -u, usual: man }
+      - { doubled: true, usual: either }
+---
+```
+
+**`tongues` declares the tags a register row may name**, each with what a
+name of it is, and `language` where the tag is a language of its own. A tag is
+lowercase letters and digits, or closes on `:<tongue>` to declare a family:
+`exonym:<tongue>` declares `exonym:vylari`, `exonym:khazari` and every tag like
+them. `translation`, a name given in the language of the pages, is accepted
+everywhere without being declared.
+
+**`register` lists every name the setting gives in the language's reach**,
+with its tongue, its kind (`byname`, `given` or `place`) in a language that
+sorts its names so, or both, and, for a name built from the language's words
+and affixes, its pieces as a word's `built` writes them; `why` says why a name
+stands outside the pattern. Which notes carry a name is not
+written: the `register` relation derives it from the index — every note in
+`scope` having it as its full name, an alias or a part of its name, every
+affiliation in `scope` having it as a rank or office title, and every anchor of
+a note in `scope` having it as its name. A folder note carries no name, and a
+language that states no `scope` reads every note of the package.
+
+**`retired` lists the forms the setting does not write**, each with what is
+written in its place, one form or several, and why. A form nothing replaces
+states no `instead`.
+
+**`scope` names the notes the register covers.** A note is in scope when one
+of `folders`, `cultures`, `lore`, `parents`, `addresses` or `paths` catches it,
+unless `types` is stated and leaves its type out, or `skip` names it.
+
+**`sounds` states the letters and the rules a word keeps.** `letters` gives
+each letter or group of letters, the kind of sound it writes, what it sounds
+like and, in a language whose tongues write differently, the tongues that
+write it. `edges` gives the sounds that may stand at each edge of a word, one
+entry per edge, the edge from a closed list:
+
+| `edge`           | The sounds that…                                     |
+| ---------------- | ---------------------------------------------------- |
+| `openConsonant`  | may open a word alone, where not every consonant may |
+| `openCluster`    | may open a word together                             |
+| `closeConsonant` | may close a word                                     |
+| `closeCluster`   | may close a word together                            |
+| `innerCluster`   | may stand together inside a word                     |
+| `vowelPair`      | are vowels that may stand together                   |
+| `glide`          | are glides that may follow a consonant               |
+| `syllabic`       | are consonants that may carry a syllable             |
+
+`sounds: any` stands for every sound, and `sounds: []` for none.
+`clusters.max` is the most consonants that stand together inside a word.
+`readPast` lists the marks and spellings a word is read through before the
+rules hold it, each with what it is read as, or nothing.
+
+The rest of `sounds` states what a language's own rules read, each from a
+closed list where its values are words:
+
+- `stress`: `first syllable`, `penultimate or final`, `by weight` or
+  `as marked`.
+- `finals`: the syllable finals, each with what it sounds like, for a language
+  whose syllables are parsed by them.
+- `syllables`: what a syllable opens on (`single`, a single consonant), the
+  `codas` that close a syllable and the `finals` that close a word (a list, or
+  `any`), the `doubled` consonants and `vowelPairs` a word may hold (none where
+  empty), whether a word may open or close on a vowel, the letters that never
+  open one, the `signature` letters, and the vowel `harmony`: its `back`,
+  `front` and `neutral` vowels and the set a word of neutral vowels alone
+  counts as.
+- `joining`: how two parts are written where the first closes and the second
+  opens on the given sounds — the one sound that stands for both, or a join
+  closing on `+` set between them.
+- `joins`: what happens where a consonant or a vowel meets another (`C+C`,
+  `V+C`, `V+V`): `merge`, `insert` the `letters` between, `drop` the first, or
+  `double` the consonant, everywhere or `where` stated.
+- `marks`: the marks written on letters, each saying `stress` or `length`, and
+  whether a word carries `one` at most or `any`.
+- `skeleton`: the vowel set between a root's second and third consonants, by
+  the second consonant; nothing where none is stated.
+- `frames`: the patterns a root is set in, each with its shape, the word
+  classes it makes, what it makes, and the form each root takes in it.
+
+**`soundChanges` lists named sets of ordered changes**, each making one
+tongue's words from another's: the set's `name`, unique in the note, the
+language notes it leads `from` and `to` where they are notes, and its `steps`
+in the order they apply — each a `step` label, unique in its set, the `change`
+in arrow notation (`` `sources` > `targets` `` rules separated by `;`, or an
+operation named in words) and `where` it holds. A step is a string, so a
+numbered step is written `"1"`. Two sets may number their steps alike, as a
+parent's changes to each daughter do.
+
+**`elements` lists what the language's names are built from**: each element's
+form and its other forms, where in a name it stands (`opening`, `closing`,
+`either` or `link`), its sense and the names it is read from. An element that is also a word stays a
+word.
+
+**`roots` lists consonantal roots**, each with its sense and the field it
+belongs to. **`cognates`** lists, on the eldest language of a set, the form one
+older word takes in each language, keyed by the language note, what they mean
+and, where it is reconstructed, the `proto` form they descend from, which a
+fence prints with an asterisk. A form whose language is no language note is a
+finding.
+
+**`callingNames` states the short name a long given name is called by**: its
+`closings`, each an ending (`form`) or the first syllable doubled
+(`doubled: true`), with whose name it usually makes (`man`, `woman` or
+`either`), and `minSyllables`, the fewest syllables a given name has that the
+pages give a calling name.
+
+**An affix states `replaces`** where it takes the place of the stem's close —
+`vowel` for any closing vowel, or the letters, as `a` — and is added to the
+whole stem where it states none. An affix states `lengthens: true` where the
+stem's last vowel lengthens before it, and never beside `replaces`. A language
+that keeps vowel harmony gives an affix's form after front vowels in `front`.
+
+Each finding is located at the key at fault:
+
+| Finding                                                                                                                                                                                                              | Severity |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Any of these keys on a skill of another subType, at the key                                                                                                                                                          | error    |
+| An unknown, missing or wrongly shaped key in an entry                                                                                                                                                                | error    |
+| A value outside its closed list — an `edge`, an element `position`, a register `kind`, `stress`, a join's `meeting` or `rule`, a mark's `kind` or `limit`, `onsets`, `neutralAs`, a closing's `usual` — at the value | error    |
+| A `sounds` word other than `any`, at the value                                                                                                                                                                       | error    |
+| A tongue tag that is not lowercase letters and digits, at the tag                                                                                                                                                    | error    |
+| A tongue tag stated twice, at the second                                                                                                                                                                             | error    |
+| A register or letter tongue `tongues` does not declare, at the tag                                                                                                                                                   | error    |
+| An edge stated twice, at the second                                                                                                                                                                                  | error    |
+| A `scope` Address that does not resolve, or a type that is no note type                                                                                                                                              | error    |
+| A tongue `language` or a cognate form's language that is no language note                                                                                                                                            | error    |
+| A register row with neither a `tongue` nor a `kind`, at the row                                                                                                                                                      | error    |
+| A sound-change set's name stated twice, at the second                                                                                                                                                                | error    |
+| A step label stated twice in one set, at the second                                                                                                                                                                  | error    |
+| A set's `from` or `to` that is no language note, at the value                                                                                                                                                        | error    |
+| A frame class that is no word class base, at the class                                                                                                                                                               | error    |
+| An affix stating both `replaces` and `lengthens: true`, at `lengthens`                                                                                                                                               | error    |
+| A calling-name closing with both or neither of `form` and `doubled`                                                                                                                                                  | error    |
+
+A fence sets each table back from its relation:
+
+````markdown
+```sql
+SELECT '`' || tag || '`' AS "Tongue", meaning AS "Meaning"
+FROM tongues WHERE language = 'thalorna-note-skill-dunharlng' ORDER BY position
+```
+
+```sql
+SELECT '**' || name || '**' AS "Name",
+       coalesce(array_to_string(list_transform(notes, n -> '[[' || n || '|' || name || ']]'), ', '), '—') AS "Notes",
+       tongue AS "Tongue", coalesce(built_text, '—') AS "Built from"
+FROM register WHERE language = 'thalorna-note-skill-dunharlng' ORDER BY position
+```
+
+```sql
+SELECT form AS "Form", coalesce(array_to_string(instead, ', '), '—') AS "Written instead",
+       why AS "Why"
+FROM retired WHERE language = 'thalorna-note-skill-dunharlng' ORDER BY position
+```
+
+```sql
+SELECT array_to_string(letters, ', ') AS "Letter", kind AS "Kind", "like" AS "Sounds like"
+FROM letters WHERE language = 'thalorna-note-skill-dunharlng' ORDER BY position
+```
+
+```sql
+SELECT edge AS "Edge", array_to_string(sounds, ', ') AS "Sounds"
+FROM edges WHERE language = 'thalorna-note-skill-dunharlng' ORDER BY position
+```
+````
+
+`clusters`, `stress`, `finals`, `syllables`, `joining`, `joins`, `marks`,
+`skeleton`, `frames`, `read_past`, `scope`, `sound_changes`, `elements`,
+`roots`, `calling_names` and
+`cognates` read the same way; [content tables](#content-tables) gives every
+relation's columns.
 
 if a `sohl` property is present, a SoHL item of type "skill" is created.
 
@@ -5707,8 +6151,8 @@ and `pref` are no entry.
 | `pronunciation` | A glossary entry's that names it, else the word's; `NULL` where neither states one.                                                                                                                                  |
 | `class`         | The word's class, as written.                                                                                                                                                                                        |
 | `etymology`     | `{ kind, language, language_tag, form, parts, root, frame }` from the word's `source`, `built`, `root` and `frame`; an inherited word's is `inherited` from the language that states it. `NULL` where there is none. |
-| `senses`        | A list of `{ text, bodies }`: the word's gloss, with no bodies.                                                                                                                                                      |
-| `usage`         | The word's `attested` Addresses.                                                                                                                                                                                     |
+| `senses`        | A list of `{ text, bodies }`: one per sense of the word's gloss, with no bodies. A dictionary numbers a word's senses where it has more than one.                                                                    |
+| `usage`         | The Addresses of the notes whose prose cites the word, as the language that states it records them.                                                                                                                  |
 | `common`        | Whether a glossary entry that names the word marks it a word a player is expected to know by heart.                                                                                                                  |
 | `depth`         | How far up the language's lineage the word is stated: `0` for its own.                                                                                                                                               |
 

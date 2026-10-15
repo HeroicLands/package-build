@@ -53,7 +53,8 @@ import { parseAddress, renderAddress } from "./address.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { parseWordClass, WORD_CLASS_BASES } from "./word-classes.mjs";
-import { isLanguageRecord, lineageChain, pieceGlosses } from "./word-rows.mjs";
+import { citationLookup, isLanguageRecord, lineageChain, pieceGlosses } from "./word-rows.mjs";
+import { glossSenses } from "./word-terms.mjs";
 
 /** Every column of the `dictionary` relation, in order. */
 export const DICTIONARY_COLUMNS = Object.freeze([
@@ -481,9 +482,10 @@ export function dictionaryAndTermRows(records, all = records) {
         return ETYMOLOGY_KEYS.some((key) => out[key] !== null) ? out : null;
     };
 
+    const citedBy = citationLookup(byKey.values());
     const dictionary = [];
     for (const { language, name, found, marks } of wordRows.values()) {
-        const { word, depth } = found;
+        const { word, depth, statedIn } = found;
         const nameSort =
             marked(marks, "name_sort") ??
             (typeof word.name_sort === "string" && word.name_sort ? word.name_sort : name);
@@ -498,17 +500,8 @@ export function dictionaryAndTermRows(records, all = records) {
                 (typeof word.pronunciation === "string" ? word.pronunciation : null),
             class: typeof word.class === "string" ? word.class : null,
             etymology: etymologyOf(found),
-            senses:
-                typeof word.gloss === "string" && word.gloss.trim() ?
-                    [{ text: word.gloss, bodies: [] }]
-                :   [],
-            usage: [
-                ...new Set(
-                    (Array.isArray(word.attested) ? word.attested : []).filter(
-                        (value) => typeof value === "string" && citable(value),
-                    ),
-                ),
-            ].sort(compare),
+            senses: glossSenses(word.gloss).map((text) => ({ text, bodies: [] })),
+            usage: [...new Set(citedBy(statedIn, word.form).filter(citable))].sort(compare),
             common: marks.some((one) => one.entry.common === true),
             depth,
         });

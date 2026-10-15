@@ -24,9 +24,12 @@
  * binds.
  *
  * A word row holds the words its own note states, and nothing is copied for a
- * daughter language. `language_lineage` is one row per language and each of
- * its ancestors through `data.family`, itself included at depth `0`, so a
- * language's words with its inherited ones are a join of the two.
+ * daughter language. Its `gloss` is the word's senses joined by `; `, its
+ * `senses` each sense in order, and its `attested` the notes whose prose cites
+ * it ({@link module:engine/word-citations}), or `NULL` where none does.
+ * `language_lineage` is one row per language and each of its ancestors through
+ * `data.family`, itself included at depth `0`, so a language's words with its
+ * inherited ones are a join of the two.
  *
  * @module
  */
@@ -39,13 +42,15 @@ import {
     GLOSSARY_ENTRY_KEYS,
     LANGUAGE_SUBTYPE,
     WORD_KEYS,
+    glossSenses,
+    glossText,
 } from "./word-terms.mjs";
 
 /** The columns a word row carries before the word's own keys. */
 const WORD_IDENTITY_COLUMNS = Object.freeze(["language", "position"]);
 
 /** The columns a word row derives after the word's own keys. */
-const WORD_DERIVED_COLUMNS = Object.freeze(["built_text", "built_parts"]);
+const WORD_DERIVED_COLUMNS = Object.freeze(["built_text", "built_parts", "senses", "attested"]);
 
 /** Every column of the `words` relation, in order. */
 export const WORD_COLUMNS = Object.freeze([
@@ -94,10 +99,11 @@ export function pieceGlosses(...datas) {
     const loose = new Map();
     const take = (entries) => {
         for (const entry of Array.isArray(entries) ? entries : []) {
-            if (!isMap(entry) || typeof entry.form !== "string" || typeof entry.gloss !== "string")
-                continue;
-            if (!exact.has(entry.form)) exact.set(entry.form, entry.gloss);
-            if (!loose.has(bare(entry.form))) loose.set(bare(entry.form), entry.gloss);
+            if (!isMap(entry) || typeof entry.form !== "string") continue;
+            const gloss = glossText(entry.gloss);
+            if (gloss === null) continue;
+            if (!exact.has(entry.form)) exact.set(entry.form, gloss);
+            if (!loose.has(bare(entry.form))) loose.set(bare(entry.form), gloss);
         }
     };
     for (const data of datas) {
@@ -175,7 +181,7 @@ export function isLanguageRecord(record) {
  * @param {Record<string, any>} record - An index record.
  * @returns {string|null} The Address, or `null` for a record naming no note.
  */
-function noteAddressOf(record) {
+export function noteAddressOf(record) {
     if (!record?.package || !record.type || !record.shortcode) return null;
     return renderAddress({
         package: String(record.package),
@@ -183,6 +189,31 @@ function noteAddressOf(record) {
         type: String(record.type),
         shortcode: String(record.shortcode),
     });
+}
+
+/**
+ * A lookup of the notes citing a word, from records that carry `citations`.
+ *
+ * @param {Iterable<Record<string, any>>} records - Index records.
+ * @returns {(language: string, form: string) => string[]} The citing notes;
+ *   empty where none cites the word.
+ */
+export function citationLookup(records) {
+    const byLanguage = new Map();
+    for (const record of records) {
+        if (!isLanguageRecord(record) || !Array.isArray(record.citations)) continue;
+        const language = noteAddressOf(record);
+        if (!language) continue;
+        const words = new Map();
+        for (const entry of record.citations)
+            if (isMap(entry) && typeof entry.form === "string" && Array.isArray(entry.notes))
+                words.set(
+                    entry.form,
+                    entry.notes.filter((note) => typeof note === "string"),
+                );
+        byLanguage.set(language, words);
+    }
+    return (language, form) => byLanguage.get(language)?.get(form) ?? [];
 }
 
 /**
@@ -198,6 +229,17 @@ function noteAddressOf(record) {
  */
 export function wordRows(records, all = records) {
     const { languages, chain } = languageLineages(all);
+    const citedBy = citationLookup(all);
+    const visible = new Set();
+    for (const record of records) {
+        const key = noteAddressOf(record);
+        if (key) visible.add(key);
+    }
+    const known = new Set();
+    for (const record of all) {
+        const key = noteAddressOf(record);
+        if (key) known.add(key);
+    }
     const rows = [];
     for (const record of records) {
         if (!isLanguageRecord(record)) continue;
@@ -215,6 +257,13 @@ export function wordRows(records, all = records) {
             row.built_text = built.length ? built.join(" + ") : null;
             row.built_parts =
                 built.length ? built.map((form) => ({ form, gloss: glossOf(form) })) : null;
+            row.gloss = glossText(entry.gloss);
+            row.senses = glossSenses(entry.gloss);
+            // A citing note the audience does not see is left out, as the note is.
+            const attested = citedBy(language, entry.form).filter(
+                (note) => visible.has(note) || !known.has(note),
+            );
+            row.attested = attested.length ? attested : null;
             rows.push(row);
         });
     }

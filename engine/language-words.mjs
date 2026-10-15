@@ -26,8 +26,11 @@
  * - a word's `field` is one of `data.fields`;
  * - a `borrowed` source names its `language`;
  * - no form stands twice in one language;
- * - every `attested` Address and source language resolves, and a source
- *   language names a language skill;
+ * - a word's `gloss` states at least one sense;
+ * - an affix that `replaces` the stem's close does not also `lengthen` it;
+ * - a word's `frame` names a frame of `data.sounds.frames`, its language's or
+ *   an ancestor's;
+ * - every source language resolves, and names a language skill;
  * - a pronunciation is a respelling;
  * - a `built` piece no word or affix of the language glosses is a warning.
  *
@@ -49,6 +52,7 @@ import {
     BORROWED_SOURCE_KIND,
     LANGUAGE_SUBTYPE,
     WORD_DATA_KEYS,
+    glossSenses,
     pronunciationProblem,
 } from "./word-terms.mjs";
 import { WORD_CLASS_MODIFIERS, parseWordClass } from "./word-classes.mjs";
@@ -174,6 +178,13 @@ export function checkLanguageWords(note, { index } = {}) {
             }).map((key) => dataAt(key))
         :   [];
     const glossOf = pieceGlosses(data, ...ancestors);
+    // The frames a word may be set in: its language's, then each ancestor's.
+    const frames = new Set();
+    for (const one of [data, ...ancestors]) {
+        const sounds = isMap(one?.sounds) ? one.sounds : {};
+        for (const frame of listOf(sounds.frames))
+            if (isMap(frame) && typeof frame.frame === "string") frames.add(frame.frame);
+    }
     const used = new Set();
     const forms = new Map();
     listOf(data.words).forEach((word, i) => {
@@ -236,10 +247,20 @@ export function checkLanguageWords(note, { index } = {}) {
             findings.push(...languageFindings(word.source.language, [...at("source"), "language"]));
         }
 
-        listOf(word.attested).forEach((value, j) => {
-            for (const result of addressFindings(value, [...at("attested"), j], undefined))
-                if (!result.target) findings.push(result);
-        });
+        if (typeof word.frame === "string" && !frames.has(word.frame))
+            findings.push(
+                finding(
+                    at("frame"),
+                    "error",
+                    `the frame \`${word.frame}\` of \`${word.form}\` is not one of this language's ` +
+                        "`data.sounds.frames`",
+                ),
+            );
+
+        if (Array.isArray(word.gloss) && !glossSenses(word.gloss).length)
+            findings.push(
+                finding(at("gloss"), "error", "a `gloss` list states at least one sense"),
+            );
 
         if (typeof word.pronunciation === "string") {
             const problem = pronunciationProblem(word.pronunciation);
@@ -264,6 +285,19 @@ export function checkLanguageWords(note, { index } = {}) {
                 ),
             );
         });
+    });
+
+    listOf(data.affixes).forEach((affix, i) => {
+        if (!isMap(affix) || affix.lengthens !== true || affix.replaces == null) return;
+        findings.push(
+            finding(
+                ["data", "affixes", i, "lengthens"],
+                "error",
+                `\`${affix.form}\`: an affix that replaces the stem's close does not also lengthen ` +
+                    "its last vowel; state one",
+                true,
+            ),
+        );
     });
 
     for (const [token, i] of declared)
