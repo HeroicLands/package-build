@@ -25,6 +25,8 @@ import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
+import { s3Store, publicStore } from "../engine/cdn-publish.mjs";
+
 import { subprocessTimeout } from "./subprocess-timeout.js";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -225,7 +227,7 @@ function run(repo: string, args: string[], env: Record<string, string>) {
     });
 }
 
-const PUBLISH = ["cdn", "publish", "--set", "ai-art.json", "--name", "Test — illustrated"];
+const PUBLISH = ["cdn", "publish", "--set", "alt-art.json", "--name", "Test — illustrated"];
 
 let s3: FakeS3;
 let credentials: Record<string, string>;
@@ -264,7 +266,7 @@ describe("cdn publish", () => {
         expect(dry.stderr).toBe("");
         expect(dry.status).toBe(0);
         for (const key of ALL_KEYS) expect(dry.stdout).toContain(`would upload ${key}`);
-        expect(dry.stdout).toContain(`would upload ${PKG}/ai-art.json`);
+        expect(dry.stdout).toContain(`would upload ${PKG}/alt-art.json`);
         expect(putsAfterDryRun).toBe(0);
     });
 
@@ -272,7 +274,7 @@ describe("cdn publish", () => {
         expect(first.stderr).toBe("");
         expect(first.status).toBe(0);
         expect(s3.unsigned).toBe(0);
-        const pictures = [...s3.objects.keys()].filter((key) => key !== `${PKG}/ai-art.json`);
+        const pictures = [...s3.objects.keys()].filter((key) => key !== `${PKG}/alt-art.json`);
         expect(pictures.sort()).toEqual(ALL_KEYS);
     });
 
@@ -285,7 +287,7 @@ describe("cdn publish", () => {
     });
 
     it("lists exactly the left-out pictures, with absolute sources and deployed targets", () => {
-        const set = JSON.parse(String(s3.objects.get(`${PKG}/ai-art.json`)?.body));
+        const set = JSON.parse(String(s3.objects.get(`${PKG}/alt-art.json`)?.body));
         expect(set.name).toBe("Test — illustrated");
         expect(set.package).toBe(PKG);
         expect(set.assets).toEqual([
@@ -319,7 +321,7 @@ describe("cdn publish", () => {
         expect(second.status).toBe(0);
         expect(second.stdout).not.toMatch(/\buploaded tpkg\//);
         expect(second.stdout).toContain("Uploaded 0, skipped 6, failed 0");
-        expect(second.stdout).toContain(`skipped ${PKG}/ai-art.json, unchanged`);
+        expect(second.stdout).toContain(`skipped ${PKG}/alt-art.json, unchanged`);
         expect(s3.puts.filter((key) => key.startsWith(`${PKG}/`))).toHaveLength(
             ALL_KEYS.length + 1,
         );
@@ -450,7 +452,7 @@ describe(
             try {
                 const out = await run(repo, PUBLISH, { ...credentials, CDN_ENDPOINT: store.url });
                 expect(out.status).toBe(0);
-                const set = JSON.parse(String(store.objects.get(`${PKG}/ai-art.json`)?.body));
+                const set = JSON.parse(String(store.objects.get(`${PKG}/alt-art.json`)?.body));
                 expect(set.assets.map((entry: any) => entry.target)).toEqual([
                     "icons/bolt.svg",
                     "images/hero.png",
@@ -463,3 +465,37 @@ describe(
     },
     subprocessTimeout(1),
 );
+
+describe("store size()", () => {
+    const stores = (fetchImpl: typeof fetch) => ({
+        s3: s3Store({
+            endpoint: "http://cdn.test",
+            bucket: BUCKET,
+            accessKeyId: KEY_ID,
+            secretAccessKey: SECRET,
+            fetch: fetchImpl,
+        }),
+        public: publicStore("http://cdn.test", fetchImpl),
+    });
+
+    for (const kind of ["s3", "public"] as const) {
+        it(`${kind}: asks for the identity encoding, so the length is the object's`, async () => {
+            let seen: Headers | undefined;
+            const fetchImpl = (async (input: any, init: any) => {
+                seen = new Headers(input instanceof Request ? input.headers : init?.headers);
+                return new Response(null, { status: 200, headers: { "content-length": "3509" } });
+            }) as typeof fetch;
+            expect(await stores(fetchImpl)[kind].size("a/b.svg")).toBe(3509);
+            expect(seen?.get("accept-encoding")).toBe("identity");
+        });
+
+        it(`${kind}: a 200 without a content-length is an unknown size`, async () => {
+            const fetchImpl = (async () =>
+                new Response(null, {
+                    status: 200,
+                    headers: { "content-encoding": "gzip" },
+                })) as typeof fetch;
+            expect(await stores(fetchImpl)[kind].size("a/b.svg")).toBeUndefined();
+        });
+    }
+});

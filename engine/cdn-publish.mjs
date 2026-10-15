@@ -179,7 +179,8 @@ export function cdnCredentials(env) {
  *
  * @typedef {object} CdnStore
  * @property {(key: string) => Promise<number|undefined>} size - An object's
- *   size in bytes, `undefined` when there is none.
+ *   size in bytes, `undefined` when there is none or the store does not state
+ *   it.
  * @property {(key: string) => Promise<Buffer|undefined>} read - An object's
  *   bytes, `undefined` when there is none.
  * @property {((key: string, body: Buffer, contentType: string) => Promise<void>)|undefined} write -
@@ -187,6 +188,26 @@ export function cdnCredentials(env) {
  * @property {string} describe - What the store is, for the log. Never a
  *   secret.
  */
+
+/**
+ * Request headers that keep the CDN from compressing a HEAD answer: a
+ * gzip-encoded answer carries no content-length.
+ */
+const IDENTITY = { "accept-encoding": "identity" };
+
+/**
+ * The object size a HEAD answer states.
+ *
+ * @param {Response} response - A successful HEAD response.
+ * @returns {number|undefined} The content-length, `undefined` when the answer
+ *   states none.
+ */
+function contentLength(response) {
+    const header = response.headers.get("content-length");
+    if (header === null || header.trim() === "") return undefined;
+    const length = Number(header);
+    return Number.isFinite(length) && length >= 0 ? length : undefined;
+}
 
 /**
  * Throw for a response the store refused.
@@ -224,10 +245,10 @@ export function s3Store({ endpoint, bucket, accessKeyId, secretAccessKey, fetch:
     return {
         describe: `bucket ${bucket} at ${new URL(endpoint).host}`,
         async size(key) {
-            const response = await send(key, { method: "HEAD" });
+            const response = await send(key, { method: "HEAD", headers: IDENTITY });
             if (response.status === 404) return undefined;
             if (!response.ok) refused(`HEAD ${key}`, response);
-            return Number(response.headers.get("content-length"));
+            return contentLength(response);
         },
         async read(key) {
             const response = await send(key, { method: "GET" });
@@ -256,14 +277,18 @@ export function s3Store({ endpoint, bucket, accessKeyId, secretAccessKey, fetch:
  */
 export function publicStore(host, fetchImpl) {
     const base = host.replace(/\/+$/, "");
-    const get = (key, method) => (fetchImpl ?? fetch)(`${base}/${key}`, { method });
+    const get = (key, method) =>
+        (fetchImpl ?? fetch)(`${base}/${key}`, {
+            method,
+            headers: method === "HEAD" ? IDENTITY : undefined,
+        });
     return {
         describe: `${base}, read-only`,
         async size(key) {
             const response = await get(key, "HEAD");
             if (response.status === 404 || response.status === 403) return undefined;
             if (!response.ok) refused(`HEAD ${key}`, response);
-            return Number(response.headers.get("content-length"));
+            return contentLength(response);
         },
         async read(key) {
             const response = await get(key, "GET");

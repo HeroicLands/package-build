@@ -1569,7 +1569,7 @@ function cdnPublishCommand() {
                 .option("set", {
                     type: "string",
                     demandOption: true,
-                    describe: "The set file's name under the package's CDN root, e.g. ai-art.json",
+                    describe: "The set file's name under the package's CDN root, e.g. alt-art.json",
                 })
                 .option("name", {
                     type: "string",

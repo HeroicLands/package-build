@@ -1304,7 +1304,7 @@ A workflow calls the command the same way, passing the four values as named
 secrets in the step's environment:
 
 ```yaml
-- run: npx package-build cdn publish --set ai-art.json --name "Thalorna — illustrated"
+- run: npx package-build cdn publish --set alt-art.json --name "Thalorna — illustrated"
   env:
     CDN_ENDPOINT: ${{ secrets.CDN_ENDPOINT }}
     CDN_BUCKET: ${{ secrets.CDN_BUCKET }}
@@ -1330,12 +1330,12 @@ it. Otherwise 0.
 **EXAMPLES**
 
 ```
-$ package-build cdn publish --set ai-art.json --name "Thalorna — illustrated" --dry-run
+$ package-build cdn publish --set alt-art.json --name "Thalorna — illustrated" --dry-run
 Dry run: comparing 582 pictures against https://cdn.heroiclands.org, read-only.
   would upload thalorna/icons/anvilbdg.svg (969 bytes)
   …
-  would upload thalorna/ai-art.json (582 assets)
-Would upload 582, skipped 0, failed 0; https://cdn.heroiclands.org/thalorna/ai-art.json lists 582 left-out pictures (would change).
+  would upload thalorna/alt-art.json (582 assets)
+Would upload 582, skipped 0, failed 0; https://cdn.heroiclands.org/thalorna/alt-art.json lists 582 left-out pictures (would change).
 
 $ package-build cdn publish --set default.json --name Shipped
 package-build: `--set default.json` is refused: `default.json` is the shipped set's name, the fallback every other set is read against. Name the set for its art

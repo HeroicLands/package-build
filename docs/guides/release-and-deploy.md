@@ -139,13 +139,13 @@ reaches a world from there as a named asset set. `package-build cdn publish`
 is the one command that writes there:
 
 ```bash
-package-build cdn publish --set ai-art.json --name "Thalorna — illustrated" --dry-run
-package-build cdn publish --set ai-art.json --name "Thalorna — illustrated"
+package-build cdn publish --set alt-art.json --name "Thalorna — illustrated" --dry-run
+package-build cdn publish --set alt-art.json --name "Thalorna — illustrated"
 ```
 
 It uploads every icon and image flat, transformed as the stage transforms
 them, skips what the CDN already holds at the same size, and writes
-`<site.assets>/<contentPackage>/ai-art.json` listing the left-out pictures.
+`<site.assets>/<contentPackage>/alt-art.json` listing the left-out pictures.
 Run it after the pictures or their provenance change; it is not part of a
 build or a release.
 
