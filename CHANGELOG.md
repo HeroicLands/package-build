@@ -1,5 +1,13 @@
 # @heroiclands/package-build
 
+## 23.5.1
+
+### Patch Changes
+
+`cdn publish` skips SVGs the CDN already holds, so a re-run uploads only what changed.
+
+`package-build labels check` is gone, because issue labels are defined once for the whole organisation; remove any `lint:labels` script and `.github/labels.yml`. A project created by `package-build init` no longer gets a label registry.
+
 ## 23.5.0
 
 ### Minor Changes
