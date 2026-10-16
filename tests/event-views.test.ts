@@ -23,7 +23,7 @@ import { collectContentIndex } from "../engine/content-index.mjs";
 import { expandContentTables } from "../engine/content-tables.mjs";
 import { EVENT_VIEWS, selfForms } from "../engine/event-views.mjs";
 import { parseMarkdownFile } from "../engine/helpers.mjs";
-import { openNotesDatabase, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
+import { findSqlBlocks, openNotesDatabase, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 
 const PACKAGE = "demo";
 
@@ -120,6 +120,7 @@ const NOTES: Record<string, { fm: object; body?: string }> = {
 
 let dir: string;
 let prepared: any;
+const stubComparisons: string[] = [];
 
 /** A note's authored body, as the builds read it. */
 const bodyOf = (file: string) => parseMarkdownFile(path.join(dir, file)).body;
@@ -151,15 +152,37 @@ beforeAll(async () => {
         );
     }
     const records = collectContentIndex(dir, { contentPackage: PACKAGE, skipDirectories: [] });
-    prepared = await prepareTreeSqlTables(dir, {
-        records,
-        config: { contentPackage: PACKAGE } as any,
-    });
+    const db = await openNotesDatabase(records);
+    try {
+        prepared = await prepareTreeSqlTables(dir, {
+            records,
+            config: { contentPackage: PACKAGE } as any,
+            database: {
+                ...db,
+                stubsExcluded: async (sql: string) => {
+                    stubComparisons.push(sql);
+                    return 0;
+                },
+            },
+        });
+    } finally {
+        await db.close();
+    }
 }, 60_000);
 
 afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 describe("the views", () => {
+    it("answers every generated view without a stub-inclusion comparison", () => {
+        const sections = [...prepared.values()]
+            .map((tables: any) => tables.generated ?? "")
+            .join("\n");
+        for (const view of EVENT_VIEWS) expect(sections).toContain(`{#${view.slug}}`);
+        for (const block of findSqlBlocks(sections)) {
+            expect(block.query).not.toMatch(/\b(?:FROM|JOIN)\s+"?notes"?\b/i);
+        }
+        expect(stubComparisons).toEqual([]);
+    });
     it("are four sections, each with its own anchor, in a fixed order", () => {
         expect(EVENT_VIEWS.map((view: any) => view.slug)).toEqual([
             "chronology",

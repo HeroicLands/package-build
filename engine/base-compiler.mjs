@@ -1254,19 +1254,18 @@ export class BasePackCompiler {
             }
         }
 
-        // The corpus, from the index this compile derived once — not a walk of
-        // this pass's own. Each note is then read for its **prose**: the
-        // index carries what is *about* a note and deliberately not its text,
-        // nor the `bodyLine`/`bodyColumn` a diagnostic needs, and this pass has
-        // to have the body anyway. So the read is one this pass makes anyway;
-        // the index decides which files it covers.
+        // Parsed source and body coordinates belong to the shared corpus.
+        // A directly supplied corpus can fill missing entries on first use.
+        this.corpus.parsed ??= new Map();
         const dates = reckoningContext({ notes: this.corpus.records });
         /** The note first filed under each document id in this pass. @type {Map<string, string>} */
         const idOwners = new Map();
         for (const record of this.corpus.records) {
             if (!isNoteRecord(record)) continue;
             const absPath = noteFile(this.contentBase, record);
-            const { body, bodyLine, bodyColumn } = parseMarkdownFile(absPath);
+            const parsed = this.corpus.parsed.get(absPath) ?? parseMarkdownFile(absPath);
+            this.corpus.parsed.set(absPath, parsed);
+            const { body, bodyLine, bodyColumn, raw } = parsed;
             const fm = cloneAddressState(authoredFrontmatter(record));
             // Which note this pass is on, so anything it calls can report a
             // position without every method having to be handed one.
@@ -1284,7 +1283,7 @@ export class BasePackCompiler {
             // comes from the diagnostic locator, so the message must not
             // repeat it.
             try {
-                assertNoDeclaredPackage(fm, { absPath });
+                assertNoDeclaredPackage(fm, { absPath, raw });
             } catch (err) {
                 stats.declined++;
                 this.errorCount++;
@@ -1375,7 +1374,7 @@ export class BasePackCompiler {
                         `${path.relative(process.cwd(), owner)}. Give one of the two notes a ` +
                         `different \`id\` under \`data:\`, or remove it to take the id derived ` +
                         `from its address`,
-                    locateFrontmatterKey(absPath, "id"),
+                    locateFrontmatterKey(absPath, "id", undefined, { raw }),
                 );
                 continue;
             }
@@ -1398,15 +1397,9 @@ export class BasePackCompiler {
                 );
                 const position =
                     err.position ??
-                    (err.keyPath ?
-                        positionOfFrontmatterPath(fs.readFileSync(absPath, "utf8"), err.keyPath)
-                    : repeatedAnchor ?
-                        positionOfLiteral(
-                            fs.readFileSync(absPath, "utf8"),
-                            `{#${repeatedAnchor[1]}}`,
-                            2,
-                        )
-                    :   undefined);
+                    (err.keyPath ? positionOfFrontmatterPath(raw, err.keyPath)
+                    : repeatedAnchor ? positionOfLiteral(raw, `{#${repeatedAnchor[1]}}`, 2)
+                    : undefined);
                 // `position` is set by whatever failed if it knew where — an
                 // unresolved address, a bad table directive — so the report
                 // points at the line rather than at the note.

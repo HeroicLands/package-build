@@ -60,7 +60,7 @@ import { prepareTreeSqlTables } from "./sql-tables.mjs";
  *   created when none is passed, and returned on the corpus either way — a note
  *   the index refuses is a note the compile must still *report*, exactly as the
  *   compile loop reported it when the loop was the first to see it.
- * @returns {Promise<{records: object[], linkIndex: object, sqlTables: Map<string, object[]>|undefined, problems: object[]}>} The corpus,
+ * @returns {Promise<{records: object[], parsed: Map<string, object>, linkIndex: object, sqlTables: Map<string, object[]>|undefined, problems: object[]}>} The corpus,
  *   its indexes, and the notes it could not record.
  */
 export async function buildCompileCorpus({
@@ -86,6 +86,7 @@ export async function buildCompileCorpus({
     const sqlOptions = { ...corpusOptions, skipDirectories, parsed };
     return {
         records,
+        parsed,
         problems: collected,
         linkIndex: buildContentLinkIndex(contentBase, router, corpusOptions),
         sqlTables: await prepareTreeSqlTables(contentBase, sqlOptions),

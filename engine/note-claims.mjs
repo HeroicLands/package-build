@@ -666,11 +666,12 @@ function packsServing(config, docType, system) {
  * @param {string} absPath - The note's path, for the finding's position.
  * @param {string} type - The note's type.
  * @param {object} config - The resolved build configuration.
+ * @param {string} [raw] - Source text already read by the caller.
  * @returns {Array<{file: string, line?: number, column?: number,
  *   severity: "error", message: string, type: string}>} One finding per
  *   discarded block.
  */
-function discardedSystemBlockFindings(fm, absPath, type, config) {
+function discardedSystemBlockFindings(fm, absPath, type, config, raw) {
     const findings = [];
     for (const system of SHIPPED_SYSTEMS) {
         if (!carriesSystemBlock(fm, system)) continue;
@@ -683,7 +684,7 @@ function discardedSystemBlockFindings(fm, absPath, type, config) {
         if (!packs || serving) continue;
         findings.push({
             file: absPath,
-            ...locateFrontmatterKey(absPath, system, undefined, { topLevel: true }),
+            ...locateFrontmatterKey(absPath, system, undefined, { topLevel: true, raw }),
             severity: /** @type {"error"} */ ("error"),
             type,
             message:
@@ -715,10 +716,16 @@ function discardedSystemBlockFindings(fm, absPath, type, config) {
  * @param {object} [opts] - Options.
  * @param {readonly object[]} [opts.records] - The corpus, derived once by the
  *   compile and handed in — required, for the reason above.
+ * @param {Map<string, {body: string, raw: string}>} [opts.parsed] - Already parsed
+ *   notes, keyed by file, for body checks and finding positions.
  * @returns {Array<{file: string, line?: number, column?: number,
  *   severity: "error", message: string, type: string}>} One finding per note.
  */
-export function unclaimedNoteFindings(config = loadPackConfig(), sources, { records } = {}) {
+export function unclaimedNoteFindings(
+    config = loadPackConfig(),
+    sources,
+    { records, parsed } = {},
+) {
     const resolved = resolveSources(sources);
     const vocabulary = noteTypeVocabulary(resolved);
     const findings = [];
@@ -752,17 +759,19 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
         // Asked first, and asked whatever the type's claim turns out to be: a
         // note whose documents all have packs may still carry a block none of
         // them reads, and that is invisible to every question below.
-        findings.push(...discardedSystemBlockFindings(fm, absPath, type, config));
+        findings.push(
+            ...discardedSystemBlockFindings(fm, absPath, type, config, parsed?.get(absPath)?.raw),
+        );
 
         // Every document this note produces, against the classes this
         // configuration has a pack for. Three outcomes, and the middle one is
         // the half-claimed one — invisible while the question is only "is anything
         // claiming this note", because the answer there is yes.
         const produces = documentClassesFor(type, resolved, {
-            // Lazy: only a doc-carrying type whose JournalEntry has nowhere to
-            // go asks, so a tree with a JournalEntry pack — which is most of
-            // them — reads no bodies at all.
-            hasProse: () => noteHasProse(absPath),
+            hasProse: () => {
+                const source = parsed?.get(absPath);
+                return source ? Boolean(source.body) : noteHasProse(absPath);
+            },
         });
         const missing = produces.filter((docType) => !configured.has(docType));
         const compiled = produces.filter((docType) => configured.has(docType));
@@ -791,7 +800,7 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
         if (compiled.length) {
             findings.push({
                 file: absPath,
-                ...locateFrontmatterKey(absPath, "type", type),
+                ...locateFrontmatterKey(absPath, "type", type, { raw: parsed?.get(absPath)?.raw }),
                 severity: /** @type {"error"} */ ("error"),
                 type,
                 message: partialMessage(type, missing, compiled),
@@ -801,7 +810,7 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
 
         findings.push({
             file: absPath,
-            ...locateFrontmatterKey(absPath, "type", type),
+            ...locateFrontmatterKey(absPath, "type", type, { raw: parsed?.get(absPath)?.raw }),
             severity: /** @type {"error"} */ ("error"),
             type,
             message:

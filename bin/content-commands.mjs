@@ -918,6 +918,7 @@ function lintCommand() {
                 // reader needs a line to open, not a stack.
                 const corpusProblems = [];
                 const parsed = new Map();
+                const indexStarted = performance.now();
                 const records = indexRecordsFor({
                     contentBase: root,
                     config,
@@ -925,11 +926,22 @@ function lintCommand() {
                     problems: corpusProblems,
                     parsed,
                 });
+                const indexMs = performance.now() - indexStarted;
                 for (const problem of corpusProblems) emitDiagnostic(problem);
                 // An error whatever the command's own strictness: the note is
                 // absent from every answer below, so reporting it and exiting 0
                 // would call the tree clean while silently omitting a note.
                 if (corpusProblems.length) process.exitCode = 1;
+
+                const sqlStarted = performance.now();
+                const sqlTables = await prepareTreeSqlTables(root, {
+                    config,
+                    records,
+                    parsed,
+                    skipDirectories: config.skipDirectories,
+                });
+                const sqlMs = performance.now() - sqlStarted;
+                const validationStarted = performance.now();
 
                 // The package is passed for the homepage rule, which
                 // names the address a tree with no front page fails to serve.
@@ -946,12 +958,7 @@ function lintCommand() {
                     config,
                     records,
                     skipDirectories: config.skipDirectories,
-                    sqlTables: await prepareTreeSqlTables(root, {
-                        config,
-                        records,
-                        parsed,
-                        skipDirectories: config.skipDirectories,
-                    }),
+                    sqlTables,
                 });
                 // Which system blocks this tree carries, derived from what it
                 // declares it ships for. Read before the lint so the
@@ -1200,6 +1207,7 @@ function lintCommand() {
                 // Only an **error** fails the run. `reportFindings` draws that
                 // line, so the rule is the shared one rather than a second
                 // copy here. Each finding names its own file.
+                const validationMs = performance.now() - validationStarted;
                 const errors = reportFindings(findings, {});
                 if (errors) {
                     log.error(`${findings.length} finding(s) across ${addresses.notes} note(s).`);
@@ -1216,6 +1224,10 @@ function lintCommand() {
                             `${addresses.notes} note(s)).`,
                     );
                 }
+                log.info(
+                    `Stage timings: index ${indexMs.toFixed(1)} ms; ` +
+                        `SQL ${sqlMs.toFixed(1)} ms; validation ${validationMs.toFixed(1)} ms.`,
+                );
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

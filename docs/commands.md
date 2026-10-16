@@ -1995,8 +1995,8 @@ package-build lint [root] [--no-references]
 **DESCRIPTION**
 
 Checks a content tree's addresses and frontmatter without compiling anything
-— no LevelDB is opened and no Foundry manifest is needed, so it runs in
-under a second and can gate a commit. Beyond address well-formedness, it
+— no LevelDB is opened and no Foundry manifest is needed. Beyond address
+well-formedness, it
 checks frontmatter against the declared vocabulary and each system's `sohl:`
 / `hm3:` block, the package's charset (so a book can pick a font that covers
 it), that an icon a note writes is one the registry declares, and that
@@ -2011,6 +2011,16 @@ references in system fields resolve against this package and its declared
 dependencies; exact Item UUID validation remains part of compilation. Reads
 the content tree named by `root`, defaulting to
 `paths.content`; writes nothing.
+
+Content lint computes source positions when it emits findings and shares each
+note's YAML position document across consecutive lookups.
+
+The final summary reports wall time in milliseconds for `index` (collecting
+content records), `SQL` (opening relations and preparing tables, inline queries
+and generated sections), and `validation` (building the link index and running
+the checks). These are elapsed durations from a monotonic clock, including any
+waits within each stage. They are prose summary output, separate from positioned
+findings, and appear whether completed validation passes or reports errors.
 
 **OPTIONS**
 

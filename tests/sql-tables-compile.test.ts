@@ -105,8 +105,34 @@ packs:
 }
 
 /** Compile a fixture repository, and report the error count and what it said. */
-function compile(root: string): { errors: number; output: string } {
+function compile(root: string): {
+    errors: number;
+    output: string;
+    work: Record<string, { reads: number; parses: number }>;
+} {
     const script = `
+        const fs = (await import("node:fs")).default;
+        const path = (await import("node:path")).default;
+        const yaml = (await import(${JSON.stringify(pathToFileURL(path.join(PKG_ROOT, "node_modules/yaml/dist/index.js")).href)})).default;
+        const work = {};
+        const sourceFiles = new Map();
+        const read = fs.readFileSync;
+        fs.readFileSync = function(file, ...args) {
+            const result = read.call(this, file, ...args);
+            if (String(file).startsWith(path.join(process.cwd(), "assets", "content") + path.sep) && String(file).endsWith(".md")) {
+                const key = path.relative(process.cwd(), String(file));
+                (work[key] ??= { reads: 0, parses: 0 }).reads++;
+                const frontmatter = String(result).split("---\\n")[1];
+                if (frontmatter) sourceFiles.set(frontmatter, key);
+            }
+            return result;
+        };
+        const parse = yaml.parse;
+        yaml.parse = function(text, ...args) {
+            const key = sourceFiles.get(text.endsWith("\\n") ? text : text + "\\n");
+            if (key) work[key].parses++;
+            return parse.call(this, text, ...args);
+        };
         const log = (await import(${JSON.stringify(pathToFileURL(path.join(PKG_ROOT, "node_modules/loglevel/lib/loglevel.js")).href)})).default;
         log.setLevel("error");
         const { generatePacksJson } = await import(${JSON.stringify(
@@ -114,6 +140,7 @@ function compile(root: string): { errors: number; output: string } {
         )});
         process.exitCode = 0;
         console.log("ERRORS=" + (await generatePacksJson()));
+        console.log("WORK=" + JSON.stringify(work));
     `;
     const run = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
         cwd: root,
@@ -122,7 +149,11 @@ function compile(root: string): { errors: number; output: string } {
     });
     const output = `${run.stdout ?? ""}${run.stderr ?? ""}`;
     const matched = output.match(/ERRORS=(\d+)/);
-    return { errors: matched ? Number(matched[1]) : Number.NaN, output };
+    return {
+        errors: matched ? Number(matched[1]) : Number.NaN,
+        output,
+        work: JSON.parse(output.match(/WORK=(.+)/)?.[1] ?? "{}"),
+    };
 }
 
 /** Every compiled document in a pack's JSON directory, by name. */
@@ -139,7 +170,7 @@ function packDocs(root: string, pack: string): Record<string, any> {
 
 const roots: string[] = [];
 let root: string;
-let result: { errors: number; output: string };
+let result: ReturnType<typeof compile>;
 let page: string;
 
 beforeAll(() => {
@@ -148,6 +179,10 @@ beforeAll(() => {
         "Misc_Gear/Cauldron.md": gear("Cauldron", "cauldron", "cooking", 8, 10),
         "Misc_Gear/Pence.md": gear("Pence", "pence", "cash", 1, 1),
         "Guides/Gear.md": GUIDE,
+        "Misc_Gear/Folder.md":
+            "---\nshortcode: gearfolder\nname: { full: Gear folder }\ntype: folder\n---\n\nFolder prose.\n",
+        "Lore/Culture.md":
+            "---\nshortcode: probeculture\nname: { full: Probe culture }\ntype: lore\nsubType: culture\n---\n\nCulture prose.\n",
     });
     roots.push(root);
     result = compile(root);
@@ -160,6 +195,18 @@ afterAll(() => {
 });
 
 describe("a `sql` content table, compiled", () => {
+    it("reads and parses each source once across index, SQL and every compiler", () => {
+        const files = fs
+            .readdirSync(path.join(root, "assets", "content"), { recursive: true })
+            .map(String)
+            .filter((file) => file.endsWith(".md"));
+        expect(Object.keys(result.work)).toHaveLength(files.length);
+        for (const file of files)
+            expect(result.work[path.join("assets", "content", file)], file).toEqual({
+                reads: 1,
+                parses: 1,
+            });
+    });
     it("compiles without error", () => {
         expect(result.output.replace(/ERRORS=\d+/, "")).not.toMatch(/error/i);
         expect(result.errors).toBe(0);

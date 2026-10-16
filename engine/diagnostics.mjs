@@ -249,15 +249,20 @@ export function positionInFrontmatter(raw, key, value = undefined, { topLevel = 
  *   {@link positionInFrontmatter}.
  * @param {boolean} [options.topLevel=false] - Require the key at column 1, so
  *   an identically named nested key cannot answer for it.
+ * @param {string} [options.raw] - Source text already read by the caller.
  * @returns {{line?: number, column?: number}|undefined} Spreadable position
  *   fields, dropped rather than guessed when the file cannot be read or the key
  *   cannot be found — as `formatDiagnostic` requires.
  */
-export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel = false } = {}) {
-    if (!absPath) return undefined;
-    let raw;
+export function locateFrontmatterKey(
+    absPath,
+    key,
+    value = undefined,
+    { topLevel = false, raw } = {},
+) {
+    if (!absPath && raw === undefined) return undefined;
     try {
-        raw = fs.readFileSync(absPath, "utf8");
+        raw ??= fs.readFileSync(absPath, "utf8");
     } catch {
         return undefined;
     }
@@ -306,6 +311,9 @@ export function positionOfLiteral(text, needle, occurrence = 1) {
     };
 }
 
+/** The most recently located text; retaining one document bounds memory. */
+let locatedYaml;
+
 /**
  * Where a **key or value in a YAML document** sits, addressed by its path.
  *
@@ -315,11 +323,10 @@ export function positionOfLiteral(text, needle, occurrence = 1) {
  * first occurrence is routinely not the one the finding is about — which is the
  * one thing the located form exists to prevent.
  *
- * A path resolves the exact node instead. The document is re-parsed here rather
- * than threaded from the loader because the loader returns plain data: `yaml`
- * discards ranges once a document is materialised, and carrying a parallel
- * position tree through configuration resolution would be a second
- * representation of the same file to keep in step.
+ * A path resolves the exact node. The most recently located text retains its
+ * document and line counter, so several findings in one note share a parse.
+ * A different text replaces that entry, including an edited copy of the same
+ * file. The loader returns plain data without source ranges.
  *
  * Every failure — unparseable text, an `.mjs` configuration, a path that
  * resolves to nothing — yields `{}`, so a caller spreads the result and the
@@ -348,9 +355,15 @@ export function positionOfYamlPath(text, keyPath, { key = false } = {}) {
     if (!Array.isArray(keyPath) || keyPath.length === 0) return {};
 
     let node;
-    const counter = new LineCounter();
+    let counter;
     try {
-        const doc = YAML.parseDocument(text, { lineCounter: counter });
+        if (locatedYaml?.text !== text) {
+            const lineCounter = new LineCounter();
+            const doc = YAML.parseDocument(text, { lineCounter });
+            locatedYaml = { text, doc, counter: lineCounter };
+        }
+        const { doc } = locatedYaml;
+        counter = locatedYaml.counter;
         // `keepScalar` returns the Scalar node rather than its value, which is
         // the only form carrying a range.
         node = doc.getIn(keyPath, true);

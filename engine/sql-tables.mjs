@@ -879,8 +879,9 @@ export function renderSqlTable(
  * its own table and not the whole build's report.
  *
  * @param {object} db - From {@link openNotesDatabase}.
- * @param {Array<{source: string, markdown: string}>} sources - The bodies to
- *   scan.
+ * @param {Array<{source: string, markdown: string, frontmatter?: object, authoredSqlBlocks?: number}>} sources -
+ *   The bodies to scan. `joinGeneratedSections` records the number of authored
+ *   fences; following generated event fences need no stub comparison.
  * @param {object} [opts]
  * @param {(ref: string) => boolean} [opts.linkable] - Passed to
  *   {@link renderSqlTable}.
@@ -904,26 +905,33 @@ export async function prepareSqlTables(db, sources, { linkable, records, pageLan
     const prepared = new Map();
     if (records) prepared.pageLists = preparePageLists(records, sources);
     // The corpus does not change while a preparation runs, so a query written
-    // twice has one answer. Each use gets its own copy, because a caller
-    // rewrites the rows it is handed.
+    // twice has one answer in each stub context. The normal result and the
+    // inclusive comparison occupy separate fields of the same cache entry.
+    // Each result use gets a copy because a caller rewrites the rows.
     const answers = new Map();
     const reader = {
         ...db,
         async query(sql) {
-            if (!answers.has(sql)) answers.set(sql, await db.query(sql));
-            return structuredClone(answers.get(sql));
+            if (!answers.has(sql)) answers.set(sql, { result: await db.query(sql) });
+            return structuredClone(answers.get(sql).result);
+        },
+        async stubsExcluded(sql, rows) {
+            const answer = answers.get(sql);
+            if (!Object.hasOwn(answer, "excluded"))
+                answer.excluded = await db.stubsExcluded?.(sql, rows);
+            return answer.excluded;
         },
     };
     let labels;
     const labelOf = (address) => labels.get(address);
     const languageOf =
         pageLanguage ?? ((_source, frontmatter) => frontmatterLanguage(frontmatter, db));
-    for (const { source, markdown, frontmatter } of sources) {
+    for (const { source, markdown, frontmatter, authoredSqlBlocks = Infinity } of sources) {
         const blocks = findSqlBlocks(markdown);
         if (!blocks.length) continue;
         const forNote = [];
         prepared.set(source, forNote);
-        for (const block of blocks) {
+        for (const [ordinal, block] of blocks.entries()) {
             try {
                 if (block.problems.length) throw new Error(block.problems.join("; "));
                 const result = await runSqlQuery(reader, block.query);
@@ -952,7 +960,12 @@ export async function prepareSqlTables(db, sources, { linkable, records, pageLan
                     // relation, so a fence that has not adopted stubs says so
                     // rather than quietly listing fewer settlements than the
                     // region has.
-                    stubsExcluded: await db.stubsExcluded?.(block.query, result.rows.length),
+                    // Generated event views read entries and events, whose
+                    // meaning is identical in both stub contexts.
+                    stubsExcluded:
+                        ordinal >= authoredSqlBlocks ? 0 : (
+                            await reader.stubsExcluded(block.query, result.rows.length)
+                        ),
                     allowEmpty: block.allowEmpty,
                 });
             } catch (err) {
@@ -1138,7 +1151,7 @@ export async function generatedSectionsFor(
  *
  * @param {{sections: Map<string, string>, views: Set<string>}} generated -
  *   From {@link generatedSectionsFor}.
- * @param {Array<{source: string, markdown: string, frontmatter?: object}>} sources -
+ * @param {Array<{source: string, markdown: string, frontmatter?: object, authoredSqlBlocks?: number}>} sources -
  *   The bodies to answer, extended in place.
  * @param {Map<string, {body: string, frontmatter: object|null}>} [parsed] -
  *   Notes already parsed, keyed by file; a note absent from it is read.
@@ -1148,6 +1161,7 @@ export function joinGeneratedSections(generated, sources, parsed) {
     for (const [absPath, text] of generated.sections) {
         const source = sources.find((one) => one.source === absPath);
         if (source) {
+            source.authoredSqlBlocks ??= findSqlBlocks(source.markdown).length;
             source.markdown = appendGeneratedSections(source.markdown, text);
             continue;
         }
@@ -1157,6 +1171,7 @@ export function joinGeneratedSections(generated, sources, parsed) {
             source: absPath,
             markdown: appendGeneratedSections(body, text),
             frontmatter,
+            authoredSqlBlocks: findSqlBlocks(body).length,
         });
     }
 }

@@ -410,23 +410,25 @@ function foundryBlock(entry, system) {
  * @param {string} [absPath] - The file, read only on the failing path to locate
  *   the offending key.
  * @param {string} [contentPackage] - The package this tree compiles as.
+ * @param {string} [raw] - Source text already read by the caller.
  * @returns {void}
  * @throws {Error} When the note authors a derived key. `file` and `position`
  *   ride on the error.
  */
-function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
+function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw) {
     for (const key of DERIVED_KEYS) {
         if (!Object.hasOwn(frontmatter ?? {}, key)) continue;
         if (key === "package") {
             // Throws with its own wording, and its own position.
-            assertNoDeclaredPackage(frontmatter, { absPath, configured: contentPackage });
+            assertNoDeclaredPackage(frontmatter, { absPath, configured: contentPackage, raw });
         }
         const err = new Error(
             `\`${key}:\` is derived by the content index and cannot be ` +
                 `authored — rename the frontmatter field`,
         );
         err.file = relPath;
-        const position = absPath ? locateFrontmatterKey(absPath, key) : undefined;
+        const position =
+            absPath ? locateFrontmatterKey(absPath, key, undefined, { raw }) : undefined;
         if (position) err.position = position;
         throw err;
     }
@@ -445,6 +447,7 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
  * @param {string} options.relPath - Its path below the content root, POSIX-separated.
  * @param {string} [options.absPath] - The file, read only on the failing path to
  *   locate the offending key.
+ * @param {string} [options.raw] - Source text already read by the caller.
  * @param {string} options.contentPackage - The package the tree compiles as.
  * @param {string} [options.body] - The note's markdown body, for its anchors
  *   and for the one question that decides whether the note publishes a page. A
@@ -473,6 +476,7 @@ export function buildIndexRecord({
     frontmatter,
     relPath,
     absPath,
+    raw,
     contentPackage,
     body,
     bodyLine,
@@ -481,7 +485,7 @@ export function buildIndexRecord({
     dateContext,
     resolveRole,
 }) {
-    assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage);
+    assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw);
 
     const posix = relPath.split(path.sep).join("/");
     const folder = posix.includes("/") ? posix.slice(0, posix.lastIndexOf("/")) : "";
@@ -490,9 +494,7 @@ export function buildIndexRecord({
     } catch (error) {
         error.file = absPath ?? relPath;
         if (absPath && error.keyPath) {
-            const yamlText = fs
-                .readFileSync(absPath, "utf8")
-                .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+            const yamlText = (raw ?? rawNote(absPath)).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
             const locate = (/** @type {any} */ found) => {
                 const position = positionOfYamlPath(yamlText, found.keyPath, {
                     key: found.addressKey,
@@ -540,7 +542,7 @@ export function buildIndexRecord({
                     stub ? null : (
                         [
                             ...collectAnchors(body, bodyLine, resolveRole),
-                            ...eventAnchors(frontmatter, rawNote(absPath)),
+                            ...eventAnchors(frontmatter, raw ?? rawNote(absPath)),
                         ]
                             .sort((a, b) => (a.line ?? 0) - (b.line ?? 0))
                             .map((a) => ({
@@ -659,6 +661,7 @@ export function indexRecordsForNote({
     bodyLine,
     relPath,
     absPath,
+    raw,
     contentPackage,
     manifest,
     addressContext,
@@ -672,6 +675,7 @@ export function indexRecordsForNote({
         bodyLine,
         relPath,
         absPath,
+        raw,
         contentPackage,
         manifest,
         addressContext,
@@ -783,10 +787,14 @@ function cultureTuple(value) {
  *   immediate parent whose package is not this one.
  * @param {object[]} [options.problems] - Receives each conflict as a finding.
  *   Omitted, every conflict is collected and one Error lists them all.
+ * @param {Map<string, {raw: string}>} [options.parsed] - Notes already read, keyed by file.
  * @returns {Array<Record<string, any>>} The same records.
  * @throws {Error} When `problems` is omitted and any note's sources disagree.
  */
-export function resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems }) {
+export function resolveCultures(
+    records,
+    { contentPackage, contentBase, foreignRecord, problems, parsed },
+) {
     // Each note under every key a link may name it by: its record's canonical
     // address, and its page address in the `note` system, which is what a
     // `data.parents`, `data.seat` or `data.government` link names.
@@ -879,7 +887,7 @@ export function resolveCultures(records, { contentPackage, contentBase, foreignR
      */
     const conflict = (record, keyPath, subject, distinct) => {
         const file = contentBase ? noteFile(contentBase, record) : record.file?.path;
-        const raw = contentBase && fs.existsSync(file) ? fs.readFileSync(file, "utf8") : undefined;
+        const raw = parsed?.get(file)?.raw ?? (contentBase ? rawNote(file) : undefined);
         let position = positionOfFrontmatterPath(raw, keyPath, { key: true });
         if (position.line === undefined && keyPath.length > 1)
             position = positionOfFrontmatterPath(raw, ["data"], { key: true });
@@ -1026,9 +1034,9 @@ export function resolveCultures(records, { contentPackage, contentBase, foreignR
  * @param {(key: string) => ({culture?: unknown}|undefined)} [options.foreignRecord] -
  *   Another package's entry for a canonical address, read for a parent that
  *   package publishes; see {@link resolveCultures}.
- * @param {Map<string, {body: string, frontmatter: object|null}>} [options.parsed] -
- *   Filled with each note's body and its frontmatter as authored, keyed by the
- *   note's file, so a later pass reads the notes this walk already parsed.
+ * @param {Map<string, {body: string, frontmatter: object|null, raw: string, bodyLine?: number, bodyColumn?: number}>} [options.parsed] -
+ *   Filled with each note's source text, body coordinates and frontmatter as
+ *   authored, keyed by file, for reuse throughout the command.
  * @returns {Array<Record<string, any>>} The records, in a total order that does
  *   not depend on directory-read order.
  */
@@ -1042,7 +1050,7 @@ export function collectContentIndex(
         problems,
         addressContext,
         foreignRecord,
-        parsed,
+        parsed = new Map(),
     },
 ) {
     const records = [];
@@ -1115,10 +1123,16 @@ export function collectContentIndex(
 
     // Each recorded note with its body, for the words its prose cites.
     const bodies = [];
-    for (const { frontmatter, body, bodyLine, absPath } of parsedNotes) {
+    for (const { frontmatter, body, bodyLine, bodyColumn, raw, absPath } of parsedNotes) {
         // Before the index derives anything onto the frontmatter, so a later
         // pass reads the note as authored.
-        parsed?.set(absPath, { body, frontmatter: structuredClone(frontmatter) });
+        parsed.set(absPath, {
+            body,
+            bodyLine,
+            bodyColumn,
+            raw,
+            frontmatter: structuredClone(frontmatter),
+        });
         const fm = frontmatter ?? {};
         applyComputedBeingAge(fm, present, dates);
         const relPath = path.relative(contentBase, absPath);
@@ -1127,6 +1141,7 @@ export function collectContentIndex(
                 frontmatter: fm,
                 relPath,
                 absPath,
+                raw,
                 contentPackage,
                 body,
                 bodyLine,
@@ -1142,9 +1157,7 @@ export function collectContentIndex(
                 err.identity = { type: fm.type, shortcode: fm.shortcode };
                 err.keyPath = ["shortcode"];
                 err.message = `shortcode "${fm.shortcode}" is not strictly alphanumeric — lowercase letters and digits only`;
-                const yamlText = fs
-                    .readFileSync(absPath, "utf8")
-                    .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+                const yamlText = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
                 err.position = positionOfYamlPath(yamlText, err.keyPath);
                 if (err.position.line) err.position.line++;
             }
@@ -1186,13 +1199,13 @@ export function collectContentIndex(
     // Every note record exists and every Address in it is a tuple, so a parent
     // is found by its canonical address. Before the sort, which reads nothing
     // the pass writes.
-    resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems });
+    resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems, parsed });
     const cultureNotes = records
         .filter((record) => isNoteRecord(record) && record.type === "lore")
         .map((record) => ({
             fm: record,
             file: noteFile(contentBase, record),
-            raw: fs.readFileSync(noteFile(contentBase, record), "utf8"),
+            raw: parsed.get(noteFile(contentBase, record)).raw,
         }));
     const cultureByKey = new Map(
         cultureNotes.map((note) => [
@@ -1352,7 +1365,7 @@ function dependencyAddresses(config) {
  *   aborting the derivation. Omitted, the note throws — which is the contract
  *   the emitter needs, since an index missing a note asserts that it does not
  *   exist.
- * @param {Map<string, {body: string, frontmatter: object|null}>} [opts.parsed] -
+ * @param {Map<string, {body: string, frontmatter: object|null, raw: string, bodyLine?: number, bodyColumn?: number}>} [opts.parsed] -
  *   Filled with each note's body and authored frontmatter, keyed by the note's
  *   file. Handed to {@link module:engine/sql-tables.prepareTreeSqlTables}, it
  *   spares that pass reading and parsing every note again.

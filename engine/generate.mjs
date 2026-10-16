@@ -38,7 +38,7 @@
  * The HeroicLands vault is not a build input for SoHL content.
  */
 
-import { noteAddressContext } from "./note-addresses.mjs";
+import { noteAddressContext, decodeNoteAddresses } from "./note-addresses.mjs";
 import { GENERATED_DRAWING_DIR } from "./generated-sections.mjs";
 import fs from "fs";
 import path from "path";
@@ -54,7 +54,7 @@ import { Hm3Actors } from "../hm3/actors.mjs";
 import { Macros } from "./macros.mjs";
 import { Scenes } from "./scenes.mjs";
 import { Bundles } from "./bundles.mjs";
-import { statsForPack, parseMarkdownFile, folderFilename } from "./helpers.mjs";
+import { statsForPack, folderFilename } from "./helpers.mjs";
 import {
     buildFolderNoteIndex,
     collectFolderNotes,
@@ -800,7 +800,10 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     // every type a system deliberately does not map, which is exactly the
     // silence the rule requires. Independent of `only`, since it is a fact about the
     // configured pack list rather than about which passes this run executes.
-    const unclaimed = unclaimedNoteFindings(config, undefined, { records: corpus.records });
+    const unclaimed = unclaimedNoteFindings(config, undefined, {
+        records: corpus.records,
+        parsed: corpus.parsed,
+    });
     for (const finding of unclaimed) emitDiagnostic(finding);
 
     fs.mkdirSync(config.paths.packJson, { recursive: true });
@@ -831,22 +834,8 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     try {
         folderNotes = buildFolderNoteIndex(
             collectFolderNotes(
-                // The corpus this compile derived picks the notes; the
-                // file supplies their frontmatter, and this is one of the few
-                // places where that distinction is load-bearing rather than
-                // incidental.
-                //
-                // `collectFolderNotes` treats `fm.id` as an **authored pin**,
-                // which wins over the id it derives under the folder namespace.
-                // A record's `id` is not that: the index fills it in for every
-                // addressable note, so handing records straight over
-                // would make every folder look pinned. The *value*
-                // would be right either way — the index derives a folder's id
-                // under the folder namespace, so the two agree — but `derivedId`
-                // would not, and it is what tells an author whether a duplicate
-                // id was two pins or two addresses. The index cannot tell a pin
-                // from a derivation, so the note is read — and only folder notes
-                // are, 79 of `sohl`'s 1,685 rather than all of them.
+                // Folder pins are authored ids; index-derived ids must not
+                // turn an unpinned folder into a pinned one.
                 corpus.records
                     .filter(
                         (record) =>
@@ -856,9 +845,10 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
                     .map((record) => {
                         const absPath = noteFile(contentBase, record);
                         return {
-                            frontmatter: parseMarkdownFile(absPath, {
-                                addressContext: noteAddressContext(config),
-                            }).frontmatter,
+                            frontmatter: decodeNoteAddresses(
+                                structuredClone(corpus.parsed.get(absPath).frontmatter),
+                                noteAddressContext(config),
+                            ),
                             absPath,
                         };
                     }),

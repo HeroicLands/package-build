@@ -62,12 +62,13 @@ export function searchableFrontmatter(fm, configured) {
  * @param {string} [options.absPath] - The note's file on disk, read only on the
  *   failing path to locate the offending line and column. The position rides on
  *   the thrown error as `position`, for a caller that emits a diagnostic.
+ * @param {string} [options.raw] - Source text already read by the caller.
  * @param {string} [options.configured] - The package this build compiles.
  *   Defaults to the configured `contentPackage`.
  * @returns {void}
  * @throws {Error} When the note declares the field.
  */
-export function assertNoDeclaredPackage(fm, { file, absPath, configured } = {}) {
+export function assertNoDeclaredPackage(fm, { file, absPath, configured, raw } = {}) {
     if (!fm || typeof fm !== "object" || !Object.hasOwn(fm, "package")) return;
 
     const target = configured ?? contentPackage();
@@ -84,10 +85,7 @@ export function assertNoDeclaredPackage(fm, { file, absPath, configured } = {}) 
             `\`contentPackage\` ("${target}", in package-build.config.yaml), ` +
             `and every note in the tree belongs to it.`,
     );
-    // Where the field is, so the caller's diagnostic opens on the line that has
-    // to be deleted. Read here rather than carried through every walk: this is
-    // the failing path, and the build stops on it.
-    const position = locateFrontmatterKey(absPath, "package");
+    const position = locateFrontmatterKey(absPath, "package", undefined, { raw });
     if (position) err.position = position;
     throw err;
 }

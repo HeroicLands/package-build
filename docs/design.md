@@ -30,3 +30,34 @@ Passes declare their inputs and outputs so compile order follows dependencies wh
 ## Verification
 
 The command and API references have tests that derive their surfaces from source. The note-format contract lives in structured data and code declarations so editorial changes to Markdown do not change validation. Generated field references are checked against those declarations. Tests check emitted documents as well as input acceptance: a build that exits successfully but drops a value is still wrong. A consumer regression run compares `build/packs-json` across toolchain versions against a real content tree.
+
+The SQL scaling guard runs `prepareTreeSqlTables` over two sizes of a synthetic
+linked note tree, with rewritten shortcodes and references. It profiles each
+executed query through the supplied database, including local and dependency
+relations, inline expressions and generated event sections. DuckDB's JSON
+`EXPLAIN ANALYZE` reports the actual cardinality of file-reader operators before
+downstream filters; these source rows must stay at zero after database creation.
+A direct JSON scan is the positive control for that measurement. In-memory
+scans may grow with the corpus, and elapsed time is not an assertion. Schema
+inspection through `DESCRIBE` has no execution profile and is excluded.
+
+Run the guard with `npm test -- tests/sql-scaling.test.ts`. A controlled local
+change from `CREATE TABLE` to `CREATE VIEW` in `createTableFromFile` must make
+it fail as source rows read per query increase with the larger tree; restore
+the implementation after the probe. The companion relation tests check that
+queries survive source-file removal and enumerate file-reading views.
+
+A compile retains parsed frontmatter, body, raw source and body coordinates in
+its corpus. SQL preparation, document passes, folder pins, event anchors,
+culture inheritance and prose-presence checks consume that shared result.
+The compile guard counts actual Markdown reads and YAML parses for every file
+in its fixture, including documentation and folder notes, and requires one of
+each. Diagnostic positions consume retained source text when supplied.
+
+Standing checks locate only findings they emit. YAML path lookups retain the
+most recently located text's document and line counter; another text replaces
+that single cache entry, so an edited note cannot inherit stale coordinates.
+SQL preparation caches authored answers and stub-inclusive comparisons in
+separate fields per query. Generated event fences read `entries` and `events`
+and skip the comparison; their authored/generated boundary is recorded when
+the sections are appended, independently of query text.

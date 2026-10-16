@@ -378,17 +378,19 @@ function resolveBody(note, index, body) {
 
 /** Findings about the body an entry names. */
 function bodyFindings(note, body, path, isKey, found) {
-    const at = position(note, path, isKey);
+    const at = () => position(note, path, isKey);
     const written = isAddressTuple(body) ? renderAddress(body) : String(body);
     const label = `\`data.affiliations\`${isKey ? " key" : ""} ${JSON.stringify(written)}`;
     if (found.reason)
-        return [{ ...at, message: `${label} is not a complete Address (${found.reason})` }];
+        return [{ ...at(), message: `${label} is not a complete Address (${found.reason})` }];
     if (found.type)
-        return [{ ...at, message: `\`data.affiliations\` accepts affiliation, not ${found.type}` }];
+        return [
+            { ...at(), message: `\`data.affiliations\` accepts affiliation, not ${found.type}` },
+        ];
     if (found.missing)
         return [
             {
-                ...at,
+                ...at(),
                 message:
                     `\`data.affiliations\` names ${found.address}, which does not resolve ` +
                     "in this package or its declared dependencies",
@@ -438,12 +440,12 @@ function absentRankFindings(note, body, path) {
 function rankFindings(note, standing, body, path, resolved) {
     // Absent, or not a whole number: the inner-key check's finding.
     if (!fitsKind(standing.rank ?? null, "integer")) return [];
-    const at = position(note, [...path, "rank"]);
+    const at = () => position(note, [...path, "rank"]);
     const level = typeof standing.rank === "number" ? standing.rank : Number(standing.rank);
     if (typeof standing.rank !== "number" || !Number.isInteger(level))
         return [
             {
-                ...at,
+                ...at(),
                 message:
                     `\`data.affiliations\` entry for ${body}: \`rank\` must be the level on that body's own ` +
                     `ladder, as a whole number, but reads ${JSON.stringify(standing.rank)}`,
@@ -455,7 +457,7 @@ function rankFindings(note, standing, body, path, resolved) {
     if (!ladder.size)
         return [
             {
-                ...at,
+                ...at(),
                 message:
                     `\`data.affiliations\` entry for ${body} states a rung, and that body ` +
                     "declares no `data.governance.ranks` ladder to hold one",
@@ -464,7 +466,7 @@ function rankFindings(note, standing, body, path, resolved) {
     const levels = [...ladder.keys()].sort((a, b) => a - b);
     return [
         {
-            ...at,
+            ...at(),
             message:
                 `\`data.affiliations\` entry for ${body}: rank ${level} is not a level ` +
                 `${resolved.address} confers; its ladder runs ${levels.join(", ")}`,
@@ -477,11 +479,11 @@ function officeFindings(note, standing, body, path, resolved) {
     // Absent is a membership with no post; a value that is not text is the
     // inner-key check's finding.
     if (typeof standing.office !== "string") return [];
-    const at = position(note, [...path, "office"]);
+    const at = () => position(note, [...path, "office"]);
     if (!standing.office.trim())
         return [
             {
-                ...at,
+                ...at(),
                 message:
                     `\`data.affiliations\` entry for ${body}: \`office\` must name a post from its ` +
                     `\`governance.offices\`, but reads ${JSON.stringify(standing.office)}`,
@@ -493,7 +495,7 @@ function officeFindings(note, standing, body, path, resolved) {
     if (!roster.size)
         return [
             {
-                ...at,
+                ...at(),
                 message:
                     `\`data.affiliations\` entry for ${body} names an office, and that body ` +
                     `${resolved.address} declares no \`data.governance.offices\` to hold one`,
@@ -501,7 +503,7 @@ function officeFindings(note, standing, body, path, resolved) {
         ];
     return [
         {
-            ...at,
+            ...at(),
             message:
                 `\`data.affiliations\` entry for ${body}: office ${JSON.stringify(standing.office)} is not ` +
                 `an office ${resolved.address} names; it holds ${[...roster.keys()].join(", ")}`,

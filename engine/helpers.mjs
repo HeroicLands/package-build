@@ -233,17 +233,18 @@ export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, res
 /**
  * Parses a markdown file with YAML frontmatter.
  *
- * Returns `{ frontmatter, body, description, bodyLine, bodyColumn }` where
+ * Returns `{ frontmatter, body, description, bodyLine, bodyColumn, raw }` where
  * `body` is the trimmed raw markdown after the frontmatter block, and
- * `description` is `body` rendered to HTML. `bodyLine` / `bodyColumn` are the
+ * `description` is `body` rendered to HTML. The full source is retained as
+ * `raw` for diagnostic locations. `bodyLine` / `bodyColumn` are the
  * 1-based **file** position of the body's first character, which is what turns
  * an offset within `body` into a position a diagnostic can name — see
  * {@link positionInBody}. If the file has no frontmatter block, returns
- * `{ frontmatter: null, body: "", description: "" }` with a warn log, and no
+ * `{ frontmatter: null, body: "", description: "", raw }` and no
  * position: there is no body to have one.
  * @param {string} filePath - Markdown file to read.
  * @param {{addressContext?: object}} [opts] - Address defaults for decoded fields.
- * @returns {{frontmatter: object|null, body: string, description: string,
+ * @returns {{frontmatter: object|null, body: string, description: string, raw: string,
  *   bodyLine?: number, bodyColumn?: number, parseError?: {message: string,
  *   line?: number, column?: number}}} Parsed note and body position.
  */
@@ -251,7 +252,7 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
     const content = fs.readFileSync(filePath, "utf8");
     const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
     if (!fmMatch) {
-        return { frontmatter: null, body: "", description: "" };
+        return { frontmatter: null, body: "", description: "", raw: content };
     }
     let frontmatter;
     try {
@@ -264,6 +265,7 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
             frontmatter: null,
             body: "",
             description: "",
+            raw: content,
             parseError: {
                 message: `YAML parse error: ${message}`,
                 ...(Number.isInteger(location?.line) ? { line: location.line + 1 } : {}),
@@ -295,7 +297,7 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
     const before = content.slice(0, bodyStart);
     const bodyLine = before.split("\n").length;
     const bodyColumn = bodyStart - before.lastIndexOf("\n");
-    return { frontmatter, body, description, bodyLine, bodyColumn };
+    return { frontmatter, body, description, bodyLine, bodyColumn, raw: content };
 }
 
 /**

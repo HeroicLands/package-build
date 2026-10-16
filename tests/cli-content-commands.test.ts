@@ -190,6 +190,9 @@ describe("a content command reaches the content", () => {
             const out = run("lint");
 
             expect(out).not.toMatch(/Skeleton/);
+            expect(out).toMatch(
+                /Stage timings: index \d+\.\d ms; SQL \d+\.\d ms; validation \d+\.\d ms\./,
+            );
         },
         SUBPROCESS_TEST_TIMEOUT,
     );
