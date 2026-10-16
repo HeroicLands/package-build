@@ -1,5 +1,31 @@
 # @heroiclands/package-build
 
+## 23.10.0
+
+### Minor Changes
+
+**Notes**
+
+- Notes with CRLF frontmatter retain their identity, body and links in compiled content and published indexes.
+- Correct malformed YAML in CRLF frontmatter before building; YAML errors in these notes prevent publication.
+
+**Language notes**
+
+- Language notes write a name element's joining form as `joining`; `genitive` is refused.
+- Compiled-skill references in culture, literature and affiliation language fields are refused instead of silently dropping glossary entries; write `skill-provnzlng` or `<pkg>-note-skill-provnzlng`.
+
+### Patch Changes
+
+**Names**
+
+- Mark names without notes as `[Name]{.name}` and link indexed names; lint checks introductions and repeats, and marked names appear bold on sites and in books.
+- Mark unwritten names with `[Name]{.name data-type="place"}`; query indexed uses and review grouped lint advice about unwritten names and conflicting types.
+
+**Commands and release notes**
+
+- Selected content checks and compendium builds can run together in one command.
+- Release notes retain every summary when paragraphs and bullets are combined.
+
 ## 23.9.0
 
 ### Minor Changes
