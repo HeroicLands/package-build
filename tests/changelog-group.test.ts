@@ -39,6 +39,7 @@ const WRAPPED_PARAGRAPH_22_4_3 = fs.readFileSync(
     path.join(FIXTURES, "wrapped-paragraph-22.4.3.md"),
     "utf8",
 );
+const MIXED_SUMMARIES = fs.readFileSync(path.join(FIXTURES, "mixed-summaries.md"), "utf8");
 
 const LABELS = ["Compendiums", "Characters", "Website"];
 
@@ -138,5 +139,115 @@ describe("changelog group — merges, orders and labels", () => {
         const { text, findings } = groupChangelogText(WRAPPED_PARAGRAPH_22_4_3, {});
         expect(text).toBe(WRAPPED_PARAGRAPH_22_4_3);
         expect(findings).toEqual([]);
+    });
+});
+
+describe("changelog group preserves mixed summaries", () => {
+    const release = (body: string) => `# demo\n\n## 1.2.0\n\n${body}\n`;
+
+    it("retains prose before, between and after bullets on repeated grouping", () => {
+        const body = [
+            "### Minor Changes",
+            "",
+            "An opening summary.",
+            "",
+            "- Automatic dictionaries.",
+            "",
+            "Builds refuse missing dependency prose anchors.",
+            "",
+            "- Common vocabulary belongs to glossaries.",
+            "",
+            "A closing summary.",
+        ].join("\n");
+        const input = release(body);
+        const once = groupChangelogText(input);
+        expect(once).toEqual({ text: input, findings: [] });
+        expect(groupChangelogText(once.text)).toEqual(once);
+    });
+
+    it("preserves every summary line in its own bump tier", () => {
+        const once = groupChangelogText(MIXED_SUMMARIES);
+        const section = (text: string, bump: string) => {
+            const heading = `### ${bump} Changes\n\n`;
+            return text.split(heading)[1].split(/\n### |\n## /)[0];
+        };
+        for (const bump of ["Minor", "Patch"])
+            for (const line of section(MIXED_SUMMARIES, bump).split("\n"))
+                if (line.trim()) expect(section(once.text, bump)).toContain(line);
+        expect(once.findings).toEqual([]);
+        expect(groupChangelogText(once.text)).toEqual(once);
+    });
+
+    it("retains inline label prose when merging labelled paragraphs and bullets", () => {
+        const input = release(
+            [
+                "### Patch Changes",
+                "",
+                "**Website** Readers receive a complete page,",
+                "including its `route` introduction.",
+                "",
+                "- A lead entry.",
+                "",
+                "**Compendiums**",
+                "",
+                "- A journal entry.",
+                "",
+                "**Website** Search remembers its filter,",
+                "including the `lastFilter` choice.",
+                "",
+                "- Navigation keeps its labels.",
+            ].join("\n"),
+        );
+        const once = groupChangelogText(input, { labels: ["Compendiums", "Website"] });
+        const website = once.text.split("**Website**")[1];
+        expect(once.text.indexOf("**Compendiums**")).toBeLessThan(once.text.indexOf("**Website**"));
+        expect(once.text.match(/\*\*Website\*\*/g)).toHaveLength(1);
+        expect(website).toBe(
+            " Readers receive a complete page,\nincluding its `route` introduction.\n" +
+                "Search remembers its filter,\nincluding the `lastFilter` choice.\n\n" +
+                "- A lead entry.\n- Navigation keeps its labels.\n",
+        );
+        expect(groupChangelogText(once.text, { labels: ["Compendiums", "Website"] })).toEqual(once);
+    });
+
+    it("keeps an unmerged inline introduction and its items byte-identical", () => {
+        const input = release(
+            "### Patch Changes\n\n**Website** A complete introduction\ncontinues here.\n\n- A page.\n\n- Another page.",
+        );
+        expect(groupChangelogText(input, { labels: ["Website"] })).toEqual({
+            text: input,
+            findings: [],
+        });
+    });
+
+    it("keeps wrapped and nested item content while deduplicating complete items", () => {
+        const bullet =
+            "- A journal keeps its story.\n  A wrapped continuation.\n\n  - A nested detail.\n\n  A second item paragraph.";
+        const paragraph = "A wrapped release summary\ncontinues on this line.";
+        const input = release(
+            `### Patch Changes\n\n${paragraph}\n\n${bullet}\n\n${paragraph}\n\n${bullet}\n\n- A different item.`,
+        );
+        const once = groupChangelogText(input);
+        expect(once.text.split(paragraph)).toHaveLength(2);
+        expect(once.text.split(bullet)).toHaveLength(2);
+        expect(once.text).toContain("- A different item.");
+        expect(groupChangelogText(once.text)).toEqual(once);
+    });
+
+    it("preserves code before bullets without treating literal headings or labels as structure", () => {
+        const code =
+            "```markdown\n## 8.0.0\n### Minor Changes\n**Literal label**\n- A literal bullet.\n```";
+        const older = "## 1.1.0\r\n\r\n### Patch Changes\r\n\r\nAn older summary.  \r\n";
+        const input =
+            release(`### Patch Changes\n\n${code}\n\nA real summary.\n\n- A real bullet.\n`) +
+            "\n" +
+            older;
+        const once = groupChangelogText(input, { labels: [] });
+        expect(once.text).toContain(code);
+        expect(once.text).toContain("A real summary.");
+        expect(once.text).toContain("- A real bullet.");
+        expect(once.text.endsWith(older)).toBe(true);
+        expect(once.findings).toEqual([]);
+        expect(groupChangelogText(once.text, { labels: [] })).toEqual(once);
     });
 });

@@ -339,8 +339,11 @@ infoboxes:
 ### Frontmatter has three regions
 
 A HeroicLands note has opening YAML frontmatter with nonempty `shortcode` and
-`type` values. Other Markdown files are ordinary Markdown. A note's frontmatter
-has three regions:
+`type` values. The opening and closing `---` delimiters accept LF or CRLF line
+endings. Parsing keeps the original source text and diagnostic positions;
+malformed YAML is an error with either line ending. The charset check recommends
+LF and reports carriage returns as warnings. Other Markdown files are ordinary
+Markdown. A note's frontmatter has three regions:
 
 | Region               | Describes                                               | Unknown keys |
 | -------------------- | ------------------------------------------------------- | ------------ |

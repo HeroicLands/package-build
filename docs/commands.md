@@ -1004,9 +1004,11 @@ scattered entries instead of one.
 
 `group` rewrites the first `## <version>` section of `CHANGELOG.md` in
 place. Within each `### <Bump> Changes` body, every block sharing one bold
-label is merged into a single block for that label — its bullets kept in
-the order they were originally written, an exact-duplicate bullet kept
-once — and the merged blocks are reordered: the unlabelled lead paragraph a
+label is merged into a single block for that label. Prose and bullets are
+retained, with exact duplicate items kept once. Opening paragraphs from
+merged labels combine in source order before their items. Wrapped
+paragraphs, nested item content and literal code stay intact. The merged
+blocks are reordered: the unlabelled lead paragraph a
 changeset writes with no category first, then every label
 [`changelog.labels`](configuration.md#changelog) declares, in the order
 given, then any label absent from that list last, in the order it first

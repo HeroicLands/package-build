@@ -962,6 +962,7 @@ function lintCommand() {
                 const index = buildLinkIndex(root, {
                     config,
                     records,
+                    parsed,
                     skipDirectories: config.skipDirectories,
                     sqlTables,
                 });
@@ -1442,6 +1443,7 @@ function linksCommand() {
                 const index = buildLinkIndex(contentBase, {
                     config,
                     records,
+                    parsed,
                     ...scope,
                     sqlTables: await prepareLinkSqlTables(contentBase, {
                         config,

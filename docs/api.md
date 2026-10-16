@@ -1242,13 +1242,20 @@ One authored pathname, and the four addresses it resolves to. A note names a fil
 
 Resolving every link in a content tree, and reporting the ones that land nowhere. Three link defects survive both content builds silently, so neither the pack compilers nor a site build catches them:
 
-| Export               | Signature                                                                                | Returns                                                                                                                                                                                                                        | Use it when                                                   |
-| -------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `anchorsOf`          | `function anchorsOf(body)`                                                               | {Set<string>} The declared anchor slugs.                                                                                                                                                                                       | Every `{#anchor}` a note declares on a heading.               |
-| `buildLinkIndex`     | `buildLinkIndex(contentBase, { config, skipDirectories, sqlTables, records, problems })` | {object} The notes, the index, and the resolvers built over it.                                                                                                                                                                | Read a content tree into the index a link resolves against.   |
-| `auditHomepageLinks` | `function auditHomepageLinks(index)`                                                     | {Array<{note: object, field: string, url: string, text: string, occurrence: number, message: string}>} One finding per defect, `text` and `occurrence` locating it in the note's raw source.                                   | Every defect in the addresses a package homepage carries.     |
-| `auditLinks`         | `function auditLinks(index)`                                                             | `{{deadAnchors: object[], deadAddresses: object[], unlabelledLinks: object[], frontmatterLinks: object[], homepageLinks: object[], usedManifest: Set<string>}}` The findings, and which addresses a foreign manifest answered. | Every link in a tree that lands nowhere.                      |
-| `walkReachability`   | `function walkReachability(index,`                                                       | `{{root: object, reached: Set<object>, orphans: object[]}}` The root, everything reached from it, and the corpus members that were not.                                                                                        | Walk a corpus from its root and report what nothing links to. |
+| Export               | Signature                                                                                        | Returns                                                                                                                                                                                                                        | Use it when                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `anchorsOf`          | `function anchorsOf(body)`                                                                       | {Set<string>} The declared anchor slugs.                                                                                                                                                                                       | Every `{#anchor}` a note declares on a heading.               |
+| `buildLinkIndex`     | `buildLinkIndex(contentBase, { config, skipDirectories, sqlTables, records, parsed, problems })` | {object} The notes, the index, and the resolvers built over it.                                                                                                                                                                | Read a content tree into the index a link resolves against.   |
+| `auditHomepageLinks` | `function auditHomepageLinks(index)`                                                             | {Array<{note: object, field: string, url: string, text: string, occurrence: number, message: string}>} One finding per defect, `text` and `occurrence` locating it in the note's raw source.                                   | Every defect in the addresses a package homepage carries.     |
+| `auditLinks`         | `function auditLinks(index)`                                                                     | `{{deadAnchors: object[], deadAddresses: object[], unlabelledLinks: object[], frontmatterLinks: object[], homepageLinks: object[], usedManifest: Set<string>}}` The findings, and which addresses a foreign manifest answered. | Every link in a tree that lands nowhere.                      |
+| `walkReachability`   | `function walkReachability(index,`                                                               | `{{root: object, reached: Set<object>, orphans: object[]}}` The root, everything reached from it, and the corpus members that were not.                                                                                        | Walk a corpus from its root and report what nothing links to. |
+
+`buildLinkIndex` optionally accepts the `parsed` map captured by `indexRecordsFor`
+alongside the supplied `records` in the same invocation. It reads each entry's
+`raw` string by absolute note path and derives the untrimmed body as usual;
+without a raw string it reads that file. The caller owns this map, and the
+link index leaves it unchanged. This source capture is separate from published
+metadata and has no persistent or cross-invocation cache.
 
 ### `engine.webWikilinks`
 
@@ -1300,6 +1307,19 @@ Shared helpers for the pack compilers in `packages/package-build/`. The HeroicLa
 `records` is the required, supplied content corpus. The optional prepared
 `sqlTables` map supplies generated anchors and their Foundry page mappings,
 so glossary word links resolve to their dictionary entries.
+
+`parseMarkdownFile` accepts LF and CRLF frontmatter delimiters and retains the
+exact source as `raw`. Its trimmed `body` keeps the authored line endings, with
+`bodyLine` and `bodyColumn` locating its first character in that original source.
+
+### `./engine/diagnostics`
+
+The `@heroiclands/package-build/engine/diagnostics` wildcard module provides
+source locations and frontmatter source slicing.
+
+| Export             | Signature               | Returns                                | Use it when                                                                                                              |
+| ------------------ | ----------------------- | -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `splitFrontmatter` | `splitFrontmatter(raw)` | `{yaml: string, body: string} \| null` | Split opening LF or CRLF frontmatter into exact YAML and untrimmed body slices, without parsing or rewriting the source. |
 
 ### `engine.itemRegistry`
 
@@ -2103,6 +2123,15 @@ The Changesets changelog generator, loaded with `require` — a CommonJS module 
 | -------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | `getReleaseLine`           | `getReleaseLine(changeset, type, changelogOpts)`                           | `string` — the summary, verbatim, separated from its neighbours by a blank line | writing one changeset's release line with no commit-hash prefix and no bullet                      |
 | `getDependencyReleaseLine` | `getDependencyReleaseLine(changesets, dependenciesUpdated, changelogOpts)` | `string` — always `""`                                                          | satisfying the `ChangelogFunctions` interface; these packages narrate no internal dependency bumps |
+
+`engine/changelog-group.mjs` exports `groupChangelogText(text, { labels })`,
+returning `{ text, findings }`. It groups the newest release's summaries
+within each bump tier, retaining prose, bullets, wrapped continuations,
+nested item content and literal code. Merged labels' opening paragraphs
+combine in source order before their items. Exact duplicate items print
+once; labels follow the configured order, with unlabelled lead items first.
+Earlier release sections stay byte-identical, and grouping the result
+again leaves its text unchanged.
 
 ## `./package.json`
 

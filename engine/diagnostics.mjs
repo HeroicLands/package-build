@@ -47,6 +47,17 @@ import path from "node:path";
 import YAML, { LineCounter } from "yaml";
 
 /**
+ * Split opening YAML frontmatter from its untrimmed body without parsing it.
+ * LF and CRLF delimiters retain the exact source strings and their offsets.
+ * @param {string} raw - Complete Markdown source.
+ * @returns {{yaml: string, body: string}|null} Source slices, or no fence.
+ */
+export function splitFrontmatter(raw) {
+    const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n)?([\s\S]*)$/);
+    return match ? { yaml: match[1], body: match[2] } : null;
+}
+
+/**
  * The `file:line:column` locator, with whatever is known.
  *
  * The path is relativized against the working directory — during a build that
@@ -201,9 +212,9 @@ export function positionInBody(body, offset, { bodyLine = 1, bodyColumn = 1, lin
  */
 export function positionInFrontmatter(raw, key, value = undefined, { topLevel = false } = {}) {
     if (typeof raw !== "string" || !key) return {};
-    const fence = raw.match(/^---\n([\s\S]*?)\n---/);
+    const fence = splitFrontmatter(raw);
     if (!fence) return {};
-    const block = fence[1];
+    const block = fence.yaml;
     const lines = block.split("\n");
 
     // A value locates the exact entry; the key alone locates its declaration.
@@ -437,10 +448,10 @@ export function yamlKeyPath(field) {
 export function frontmatterValueAt(raw, keyPath) {
     if (typeof raw !== "string" || !Array.isArray(keyPath) || keyPath.length === 0)
         return undefined;
-    const fence = raw.match(/^---\n([\s\S]*?)\n---/);
+    const fence = splitFrontmatter(raw);
     if (!fence) return undefined;
     try {
-        const node = YAML.parseDocument(fence[1]).getIn(keyPath, true);
+        const node = YAML.parseDocument(fence.yaml).getIn(keyPath, true);
         const value = node?.value;
         return ["string", "number", "boolean"].includes(typeof value) ? value : undefined;
     } catch {
@@ -473,9 +484,9 @@ export function frontmatterValueAt(raw, keyPath) {
  */
 export function positionOfFrontmatterPath(raw, keyPath, { key = false } = {}) {
     if (typeof raw !== "string") return {};
-    const fence = raw.match(/^---\n([\s\S]*?)\n---/);
+    const fence = splitFrontmatter(raw);
     if (!fence) return {};
-    const position = positionOfYamlPath(fence[1], keyPath, { key });
+    const position = positionOfYamlPath(fence.yaml, keyPath, { key });
     // +1: the fence's line 1 is the file's line 2, the opening `---` being the
     // first. `positionOfYamlPath` already counts from 1 within the block.
     return position.line === undefined ? {} : { ...position, line: position.line + 1 };

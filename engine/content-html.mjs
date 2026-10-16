@@ -54,7 +54,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
-import { positionInBody } from "./diagnostics.mjs";
+import { positionInBody, splitFrontmatter } from "./diagnostics.mjs";
 
 /**
  * A raw HTML tag, opening, closing or self-closing.
@@ -188,10 +188,10 @@ export function lintContentHtml(contentBase, { skipDirectories = [] } = {}) {
  *   arguments {@link checkHtml} takes.
  */
 function bodyOf(content, file) {
-    const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    const match = splitFrontmatter(content);
     if (!match) return [content, file, { bodyLine: 1, bodyColumn: 1 }];
 
-    const raw = match[2];
+    const raw = match.body;
     const body = raw.trim();
     const bodyStart = content.length - raw.length + (raw.length - raw.trimStart().length);
     const before = content.slice(0, bodyStart);

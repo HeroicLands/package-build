@@ -29,6 +29,7 @@
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { splitFrontmatter } from "./diagnostics.mjs";
 
 /** File extensions that carry YAML, either wholly or in a frontmatter fence. */
 export const YAML_GLOBS = Object.freeze(["*.md", "*.yaml", "*.yml"]);
@@ -41,9 +42,6 @@ export const YAML_GLOBS = Object.freeze(["*.md", "*.yaml", "*.yml"]);
  * worktree, against paths the author cannot edit from here.
  */
 const ALWAYS_SKIP = Object.freeze([".git/", ".claude/"]);
-
-/** A markdown file's leading frontmatter fence. Mirrors `parseMarkdownFile`. */
-const FENCE = /^---\n([\s\S]*?)\n---/;
 
 /**
  * Present a markdown file to ESLint as the YAML it begins with.
@@ -68,8 +66,8 @@ export const frontmatterProcessor = {
     // container file. Nothing is gained by claiming support for it.
     supportsAutofix: false,
     preprocess(text) {
-        const fence = FENCE.exec(text);
-        return fence ? [{ text: fence[1], filename: "0.yaml" }] : [];
+        const fence = splitFrontmatter(text);
+        return fence ? [{ text: fence.yaml, filename: "0.yaml" }] : [];
     },
     postprocess(messages) {
         return (messages[0] ?? []).map((message) => ({

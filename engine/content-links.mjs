@@ -59,6 +59,7 @@ import { cultureRecordProblems, cultureInheritedFields } from "./culture-parents
 import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
+import { splitFrontmatter } from "./diagnostics.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { collectAnchors } from "./anchors.mjs";
 // The corpus, and everything derived from it, read from the one place that
@@ -129,13 +130,11 @@ export function anchorsOf(body) {
  * not hypothetical: this module carried its own anchor reader until the anchor
  * anchor half, and the two disagreed about which anchors existed.
  *
- * **The file is opened for its bytes and nothing else.** The index deliberately
- * carries no note *body*, and a link lives in the body — so each note is read
- * once, here, for the prose. Everything *about* the note — its frontmatter, its
- * addresses, its anchors — is already in the record, and none of it is derived
- * a second time. That is one read per note rather than the two this module did
- * before, since the walk read the file and it then read it again for the raw
- * text.
+ * **Raw sources can come from the caller's capture.** The published index
+ * carries no note body, while a link lives in the prose. A caller that already
+ * captured the sources supplies `parsed`, so this pass uses those exact raw
+ * strings. Without a captured string, it opens the file for its bytes.
+ * Frontmatter, addresses and anchors still come from the records.
  *
  * The index holds each compiled document under its complete Address. Readable
  * content uses `note`, and system documents use their declared system.
@@ -153,6 +152,10 @@ export function anchorsOf(body) {
  * @param {object[]} [opts.records] - Index records the caller already derived,
  *   so a command that also needs them — every one of them does, to answer its
  *   `sql` tables — enumerates the corpus once rather than twice.
+ * @param {Map<string, {raw: string}>} [opts.parsed] - Sources captured alongside
+ *   `records` in this invocation, keyed by absolute note path. A raw string is
+ *   used verbatim; a missing string falls back to reading the file. The caller
+ *   owns the map, which this function only reads.
  * @param {object[]} [opts.problems] - Collects the notes the index cannot
  *   record, as diagnostics, instead of letting one of them abort the check
  *   before it has reported anything else.
@@ -160,7 +163,7 @@ export function anchorsOf(body) {
  */
 export function buildLinkIndex(
     contentBase,
-    { config, skipDirectories, sqlTables, records, problems } = {},
+    { config, skipDirectories, sqlTables, records, parsed, problems } = {},
 ) {
     const notes = [];
     const frontmatterLinks = [];
@@ -221,8 +224,10 @@ export function buildLinkIndex(
         const absPath = noteFile(contentBase, record);
         // The raw text is kept beside the parsed body: a consumer's own checks
         // may need what frontmatter carried, which the body has dropped.
-        const raw = fs.readFileSync(absPath, "utf8");
-        const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
+        const capturedRaw = parsed?.get(absPath)?.raw;
+        const raw =
+            typeof capturedRaw === "string" ? capturedRaw : fs.readFileSync(absPath, "utf8");
+        const body = splitFrontmatter(raw)?.body ?? raw;
         const type = record.type.toLowerCase();
         const note = { file: absPath, rel, fm, body, raw, type };
         const hierarchyProblems = cultureRecordProblems(record);

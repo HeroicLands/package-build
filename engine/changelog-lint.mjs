@@ -277,7 +277,8 @@ export function topLevelBlocks(text, codeLines, scaffoldLines = new Set()) {
         const raw = lines[i];
 
         if (codeLines.has(lineNo)) {
-            if (current) current.parts.push(raw);
+            current ??= { startLine: lineNo, label: null, parts: [] };
+            current.parts.push(raw);
             afterBlank = raw.trim() === "";
             continue;
         }
@@ -800,7 +801,10 @@ export function lintReleaseText(text, { labels = null } = {}) {
  *   of the file.
  */
 export function releaseSectionRange(text) {
-    const matches = [...text.matchAll(/^## /gm)];
+    const codeLines = codeLineSet(text);
+    const matches = [...text.matchAll(/^## /gm)].filter(
+        (heading) => !codeLines.has(lineColOf(text, heading.index).line),
+    );
     if (matches.length === 0) return null;
     const start = matches[0].index;
     const end = matches.length > 1 ? matches[1].index : text.length;

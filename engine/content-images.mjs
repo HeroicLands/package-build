@@ -83,7 +83,7 @@ import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
-import { positionInBody } from "./diagnostics.mjs";
+import { positionInBody, splitFrontmatter } from "./diagnostics.mjs";
 import { FOOTNOTE_REFERENCE } from "./content-footnotes.mjs";
 import { foundryAddressProblem, pathnameProblem, servesFoundry } from "./pathnames.mjs";
 import { ASSET_ROLES } from "./asset-index.mjs";
@@ -431,16 +431,20 @@ export function standsAlone(text, start, end) {
     const lineEnd = src.indexOf("\n", end);
     const afterMatch = src.slice(end, lineEnd === -1 ? src.length : lineEnd);
     const reference = TRAILING_FOOTNOTE_REFERENCE.exec(afterMatch);
-    if (!/^[ \t]*$/.test(reference ? afterMatch.slice(reference[0].length) : afterMatch))
+    if (!/^[ \t]*\r?$/.test(reference ? afterMatch.slice(reference[0].length) : afterMatch))
         return false;
 
     const before = src.slice(0, lineStart);
-    const previous = before.replace(/\n$/, "").split("\n").pop() ?? "";
-    if (before.trim() && !/\n[ \t]*\n[ \t]*$/.test(before) && !DELIMITER.test(previous))
+    const previous =
+        before
+            .replace(/\r?\n$/, "")
+            .split(/\r?\n/)
+            .pop() ?? "";
+    if (before.trim() && !/\n[ \t]*\r?\n[ \t]*$/.test(before) && !DELIMITER.test(previous))
         return false;
     const after = lineEnd === -1 ? "" : src.slice(lineEnd);
-    const next = after.replace(/^\n/, "").split("\n")[0] ?? "";
-    if (after.trim() && !/^\n[ \t]*\n/.test(after) && !DELIMITER.test(next)) return false;
+    const next = after.replace(/^\n/, "").split(/\r?\n/)[0] ?? "";
+    if (after.trim() && !/^\n[ \t]*\r?\n/.test(after) && !DELIMITER.test(next)) return false;
     return true;
 }
 
@@ -586,10 +590,10 @@ export function checkImages(
  *   arguments {@link checkImages} takes.
  */
 function bodyOf(content, file) {
-    const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    const match = splitFrontmatter(content);
     if (!match) return [content, file, { bodyLine: 1, bodyColumn: 1 }];
 
-    const raw = match[2];
+    const raw = match.body;
     const body = raw.trim();
     const bodyStart = content.length - raw.length + (raw.length - raw.trimStart().length);
     const before = content.slice(0, bodyStart);

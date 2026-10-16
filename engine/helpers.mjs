@@ -78,7 +78,7 @@ import { dictionaryEntryPlugin } from "./dictionary-layout.mjs";
 import { renderBlocks } from "./content-blocks.mjs";
 import { headingAttributesPlugin } from "./heading-attributes.mjs";
 import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
-import { positionInBody } from "./diagnostics.mjs";
+import { positionInBody, splitFrontmatter } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
 // registry can import them without reaching back through this one.
 // Re-exported here so every existing importer keeps its single import path.
@@ -233,7 +233,7 @@ export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, res
 }
 
 /**
- * Parses a markdown file with YAML frontmatter.
+ * Parses a markdown file with LF or CRLF YAML frontmatter delimiters.
  *
  * Returns `{ frontmatter, body, description, bodyLine, bodyColumn, raw }` where
  * `body` is the trimmed raw markdown after the frontmatter block, and
@@ -252,13 +252,13 @@ export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, res
  */
 export function parseMarkdownFile(filePath, { addressContext } = {}) {
     const content = fs.readFileSync(filePath, "utf8");
-    const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    const fmMatch = splitFrontmatter(content);
     if (!fmMatch) {
         return { frontmatter: null, body: "", description: "", raw: content };
     }
     let frontmatter;
     try {
-        frontmatter = yaml.parse(fmMatch[1]) || {};
+        frontmatter = yaml.parse(fmMatch.yaml) || {};
     } catch (err) {
         const firstLine = String(err.message).split("\n", 1)[0];
         const message = firstLine.replace(/ at line \d+, column \d+.*$/, "");
@@ -279,7 +279,7 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
         try {
             decodeNoteAddresses(frontmatter, addressContext);
         } catch (error) {
-            const position = positionOfYamlPath(fmMatch[1], error.keyPath ?? [], {
+            const position = positionOfYamlPath(fmMatch.yaml, error.keyPath ?? [], {
                 key: error.addressKey,
             });
             if (position.line) position.line++;
@@ -288,7 +288,7 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
             throw error;
         }
     }
-    const raw = fmMatch[2];
+    const raw = fmMatch.body;
     const body = raw.trim();
     const description = body ? renderFoundryMarkdown(body) : "";
     // Where the trimmed body starts in the *file*, so an offset within it can

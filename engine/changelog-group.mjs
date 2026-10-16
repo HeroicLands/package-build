@@ -46,33 +46,37 @@ import {
 const CHANGES_HEADING_RE = /^### (?:Major|Minor|Patch) Changes$/gm;
 
 /**
- * A labelled block's own `**Label**` line, split from everything after it.
+ * A label, its complete opening paragraph and its remaining items.
  *
  * @param {string} blockText - One block, as {@link topLevelBlocks} collects
  *   it — its first line is the label line for a labelled block.
- * @returns {{labelLine: string, rest: string, hadBlankLine: boolean}} `rest`
- *   has its leading blank line dropped; a block with nothing but the label
- *   line yields `""`. `hadBlankLine` says whether the label line was
- *   followed by a blank line in `blockText` — false for a bold sentence a
- *   hard-wrapped paragraph continues directly beneath, with no blank line
- *   of its own.
+ * @returns {{labelLine: string, introduction: string, rest: string}} The
+ *   introduction retains hard wrapping and stops before a bullet or code.
  */
-function splitLabelLine(blockText) {
-    const nl = blockText.indexOf("\n");
-    if (nl === -1) return { labelLine: blockText, rest: "", hadBlankLine: false };
-    const after = blockText.slice(nl + 1);
+function splitLabelBlock(blockText) {
+    const lines = blockText.replace(/\s+$/, "").split("\n");
+    const labelLine = /^\*\*[^*]+\*\*/.exec(lines[0])[0];
+    const inline = lines[0].slice(labelLine.length).trimStart();
+    const introduction = inline ? [inline] : [];
+    const codeLines = codeLineSet(blockText);
+    let cursor = 1;
+    while (
+        cursor < lines.length &&
+        lines[cursor].trim() !== "" &&
+        !/^-\s/.test(lines[cursor]) &&
+        !codeLines.has(cursor + 1)
+    )
+        introduction.push(lines[cursor++]);
     return {
-        labelLine: blockText.slice(0, nl),
-        rest: after.replace(/^\n+/, ""),
-        hadBlankLine: after.startsWith("\n"),
+        labelLine,
+        introduction: introduction.join("\n"),
+        rest: lines.slice(cursor).join("\n").replace(/^\n+/, ""),
     };
 }
 
 /**
- * A block's top-level items: its bullets, or — when it carries none — the
- * whole thing as one paragraph item. This is what merging concatenates and
- * deduplicates, so a bulleted `**Compendiums**` block and a prose one merge
- * on the same footing.
+ * A block's top-level bullets and the prose or code between them, in source
+ * order. A bullet retains its indented continuation and nested items.
  *
  * @param {string} text - A block's content, label line already stripped (or
  *   a lead block's whole text).
@@ -83,7 +87,26 @@ function itemsOf(text) {
     if (!trimmed) return [];
     const bullets = topLevelBullets(trimmed, codeLineSet(trimmed));
     if (bullets.length === 0) return [trimmed];
-    return bullets.map((bullet) => bullet.text.replace(/\s+$/, ""));
+    const starts = [];
+    let offset = 0;
+    for (const line of trimmed.split("\n")) {
+        starts.push(offset);
+        offset += line.length + 1;
+    }
+    const items = [];
+    const append = (part) => {
+        const item = part.replace(/^(?:[ \t]*\n)+/, "").replace(/\s+$/, "");
+        if (item) items.push(item);
+    };
+    let cursor = 0;
+    for (const bullet of bullets) {
+        const start = starts[bullet.startLine - 1];
+        append(trimmed.slice(cursor, start));
+        append(bullet.text);
+        cursor = start + bullet.text.length;
+    }
+    append(trimmed.slice(cursor));
+    return items;
 }
 
 /**
@@ -124,13 +147,9 @@ function joinItems(items) {
  * One label's blocks (or every unlabelled one), folded into the single
  * block `group` writes for it.
  *
- * A single, unmerged block — the common case, one changeset writing one
- * label once — keeps its own label-to-body separator rather than forcing a
- * blank line: a bold sentence a hard-wrapped paragraph continues directly
- * beneath must round-trip unchanged, not gain a blank line it never had.
- * Merging two or more blocks, or a label whose lone block carries several
- * items (bullets), still separates the label from its body with a blank
- * line — the convention every existing multi-item block already uses.
+ * A single block with no duplicate items retains its own spacing. Merged
+ * opening paragraphs form one hard-wrapped introduction before the items,
+ * so paragraph boundaries cannot turn labelled text into unlabelled lead.
  *
  * @param {Array<{label: string|null, text: string}>} blocks - Every block
  *   sharing one label, in file order. All carry the same `label`.
@@ -140,13 +159,15 @@ function mergeGroup(blocks) {
     if (blocks[0].label === null) {
         return joinItems(dedupeItems(blocks.flatMap((block) => itemsOf(block.text))));
     }
-    const { labelLine, hadBlankLine } = splitLabelLine(blocks[0].text);
-    const items = dedupeItems(blocks.flatMap((block) => itemsOf(splitLabelLine(block.text).rest)));
-    if (items.length === 0) return labelLine;
-    if (blocks.length === 1 && items.length === 1) {
-        return `${labelLine}${hadBlankLine ? "\n\n" : "\n"}${items[0]}`;
-    }
-    return `${labelLine}\n\n${joinItems(items)}`;
+    const parts = blocks.map((block) => splitLabelBlock(block.text));
+    const introductions = dedupeItems(parts.map((part) => part.introduction).filter(Boolean));
+    const originalItems = parts.flatMap((part) => itemsOf(part.rest));
+    const items = dedupeItems(originalItems);
+    if (blocks.length === 1 && items.length === originalItems.length)
+        return blocks[0].text.replace(/\s+$/, "");
+    const heading =
+        parts[0].labelLine + (introductions.length ? ` ${introductions.join("\n")}` : "");
+    return heading + (items.length ? `\n\n${joinItems(items)}` : "");
 }
 
 /**
@@ -245,7 +266,10 @@ export function groupChangelogText(text, { labels = null } = {}) {
     if (!range) return { text, findings: [] };
 
     const section = text.slice(range.start, range.end);
-    const headings = [...section.matchAll(CHANGES_HEADING_RE)];
+    const codeLines = codeLineSet(section);
+    const headings = [...section.matchAll(CHANGES_HEADING_RE)].filter(
+        (heading) => !codeLines.has(lineColOf(section, heading.index).line),
+    );
     if (headings.length === 0) return { text, findings: [] };
 
     let rebuilt = section.slice(0, headings[0].index);
