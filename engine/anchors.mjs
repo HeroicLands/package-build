@@ -65,10 +65,11 @@ export const ANCHOR_KINDS = Object.freeze(["prose", "event"]);
  *   picture's address to the role its asset declares, so a figure anchor's
  *   `name` reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
+ * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Exact-text scanner projections.
  * @returns {Array<{slug: string, name: string, level: number, line: number,
  *   kind: string}>} In document order.
  */
-export function collectAnchors(body, bodyLine = 1, resolveRole) {
+export function collectAnchors(body, bodyLine = 1, resolveRole, syntax) {
     const anchors = [];
     for (const heading of scanHeadingAttributes(body, bodyLine).headings) {
         if (!heading.id) continue;
@@ -92,7 +93,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
     }
     const blockAnchors = (source, firstLine) => {
         const sourceLines = source.split("\n");
-        for (const block of scanBlocks(source).blocks) {
+        for (const block of (syntax ? syntax(source).blocks : scanBlocks(source)).blocks) {
             if (block.id)
                 anchors.push({
                     slug: slugify(block.id),
@@ -108,7 +109,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
         }
     };
     blockAnchors(String(body ?? ""), bodyLine);
-    for (const alert of scanAlerts(body).blocks) {
+    for (const alert of (syntax ? syntax(body).alerts : scanAlerts(body)).blocks) {
         if (alert.id)
             anchors.push({
                 slug: slugify(alert.id),
@@ -128,7 +129,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
                 kind: "prose",
             });
     }
-    for (const span of scanSpans(body).spans) {
+    for (const span of (syntax ? syntax(body).spans : scanSpans(body)).spans) {
         if (span.id)
             anchors.push({
                 slug: slugify(span.id),
@@ -144,11 +145,12 @@ export function collectAnchors(body, bodyLine = 1, resolveRole) {
 /** Collisions involving a div, verse or inline-span anchor.
  * Heading and caption collisions are diagnosed by their existing scanners.
  * @param {string} body - Authored Markdown.
+ * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Exact-text scanner projections.
  * @returns {Array<{line: number, column: number, message: string}>} Located collisions.
  */
-export function markupAnchorFindings(body) {
+export function markupAnchorFindings(body, syntax) {
     const groups = new Map();
-    for (const anchor of collectAnchors(body)) {
+    for (const anchor of collectAnchors(body, 1, undefined, syntax)) {
         const slug = slugify(anchor.slug);
         if (!groups.has(slug)) groups.set(slug, []);
         groups.get(slug).push(anchor);

@@ -162,8 +162,8 @@ export function lexicalSectionsFor(records, all = records) {
 }
 
 /** Authored section headings outside literal content and named containers. */
-function headings(markdown) {
-    const containers = scanBlocks(markdown).blocks;
+function headings(markdown, syntax) {
+    const containers = (syntax ? syntax(markdown).blocks : scanBlocks(markdown)).blocks;
     return scanHeadingAttributes(markdown)
         .headings.filter(
             (heading) =>
@@ -181,7 +181,7 @@ function headings(markdown) {
  *
  * @param {string} markdown - The body with authored directives expanded.
  * @param {LexicalSection[]} [sections=[]] - From {@link lexicalSectionsFor}.
- * @param {{authored?: string, lineMap?: object[], generatedFrom?: number}} [context] -
+ * @param {{authored?: string, lineMap?: object[], generatedFrom?: number, syntax?: import("./content-session.mjs").ContentSyntax}} [context] -
  *   The original authored body, source mappings and the start of appended
  *   nonlexical generated sections. Without `authored`, `markdown` is the source.
  * @returns {{markdown: string, lineMap: object[], generatedFrom?: number}}
@@ -189,7 +189,7 @@ function headings(markdown) {
 export function insertLexicalSections(
     markdown,
     sections = [],
-    { authored = markdown, lineMap, generatedFrom } = {},
+    { authored = markdown, lineMap, generatedFrom, syntax } = {},
 ) {
     const lines = String(markdown ?? "").split("\n");
     const locations = lineMap ? [...lineMap] : lines.map((_, line) => ({ line, generated: false }));
@@ -200,7 +200,7 @@ export function insertLexicalSections(
             ...(generatedFrom === undefined ? {} : { generatedFrom }),
         };
     const edits = [];
-    const realHeadings = headings(String(authored ?? ""))
+    const realHeadings = headings(String(authored ?? ""), syntax)
         .map((heading) => ({
             ...heading,
             sourceLine: heading.line,

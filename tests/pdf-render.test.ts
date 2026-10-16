@@ -34,6 +34,84 @@ describe("escapeTypst", () => {
     });
 });
 
+describe("span classes in emitted books", () => {
+    it("carries every ordered class into Typst and retains the span's scoped anchor", () => {
+        expect(markdownToTypst("Before [Joe Blow]{.name} after.")).toBe(
+            'Before #book-span(classes: ("name",))[Joe Blow] after.',
+        );
+        expect(
+            markdownToTypst("[Joe Blow]{#joe .quiet .name .extra}", { anchorPrefix: "note" }),
+        ).toBe('#book-span(classes: ("quiet", "name", "extra"))[Joe Blow] <note--joe>');
+        expect(markdownToTypst("[Joe Blow]{.Name .surname}")).toBe(
+            '#book-span(classes: ("Name", "surname"))[Joe Blow]',
+        );
+    });
+
+    it("keeps the name class identifiable inside an ordinary bold phrase", () => {
+        expect(markdownToTypst("**This is a phrase with [Joe Blow]{.name} in it**")).toBe(
+            '#strong[This is a phrase with #book-span(classes: ("name",))[Joe Blow] in it]',
+        );
+    });
+
+    it("retains inline emphasis, links, escaping and nested span anchors", () => {
+        expect(
+            markdownToTypst("[Joe # *Blow* and [a harbor](https://example.org)]{#joe .name}", {
+                anchorPrefix: "note",
+            }),
+        ).toBe(
+            '#book-span(classes: ("name",))[Joe \\# #emph[Blow] and #link("https://example.org")[a harbor]] <note--joe>',
+        );
+        expect(
+            markdownToTypst("[Joe [Blow]{#blow .name}]{#joe .quiet}", { anchorPrefix: "note" }),
+        ).toBe(
+            '#book-span(classes: ("quiet",))[Joe #book-span(classes: ("name",))[Blow] <note--blow>] <note--joe>',
+        );
+    });
+
+    it("keeps classless spans and literal code unchanged", () => {
+        expect(markdownToTypst("[Joe Blow]{#joe}", { anchorPrefix: "note" })).toBe(
+            "#box[Joe Blow] <note--joe>",
+        );
+        const ticks = String.fromCharCode(96);
+        const literal = markdownToTypst(ticks + "[Joe Blow]{.name}" + ticks);
+        expect(literal).toBe('#raw("[Joe Blow]{.name}", block: false)');
+        expect(literal).not.toContain("#book-span");
+    });
+
+    it("emits the class-based absolute bold rule with the real rendered book body", () => {
+        const anchor = "lore-person";
+        const body = markdownToTypst(
+            "**This is a phrase with [Joe Blow]{#joe .name .quiet} in it**",
+            { anchorPrefix: anchor },
+        );
+        const book = renderBook({
+            title: "Marked Names",
+            plan: {
+                entries: [
+                    {
+                        kind: "note",
+                        depth: 1,
+                        anchor,
+                        record: { name: { full: "A Person" } },
+                    },
+                ],
+                links: new Map(),
+            },
+            bodies: new Map([[anchor, body]]),
+        });
+        expect(book.match(/#let book-span\(/g)).toHaveLength(1);
+        expect(book).toContain("#let book-span(body, classes: ())");
+        expect(book).toContain(
+            'if classes.contains("name") { text(weight: "bold", body) } else { body }',
+        );
+        expect(book).toContain("box(styled)");
+        expect(book).toContain(
+            '#strong[This is a phrase with #book-span(classes: ("name", "quiet"))[Joe Blow] <lore-person--joe> in it]',
+        );
+        expect(body).not.toContain("#strong[Joe Blow]");
+    });
+});
+
 describe("markdownToTypst", () => {
     it("uses each declared icon size on the web and in print", () => {
         const registry = {

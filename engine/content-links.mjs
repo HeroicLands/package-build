@@ -159,11 +159,20 @@ export function anchorsOf(body) {
  * @param {object[]} [opts.problems] - Collects the notes the index cannot
  *   record, as diagnostics, instead of letting one of them abort the check
  *   before it has reported anything else.
+ * @param {ReturnType<import("./metadata-index.mjs").loadForeignIndexes>} [opts.foreign] - Captured dependency address and reference views.
  * @returns {object} The notes, the index, and the resolvers built over it.
  */
 export function buildLinkIndex(
     contentBase,
-    { config, skipDirectories, sqlTables, records, parsed, problems } = {},
+    {
+        config,
+        skipDirectories,
+        sqlTables,
+        records,
+        parsed,
+        problems,
+        foreign: capturedForeign,
+    } = {},
 ) {
     const notes = [];
     const frontmatterLinks = [];
@@ -300,9 +309,10 @@ export function buildLinkIndex(
     // is never checked at all.
     const localPackages = new Set([pkg]);
     const foreign =
-        config ?
+        capturedForeign ??
+        (config ?
             loadForeignIndexes(config, localPackages)
-        :   { index: new Map(), packages: new Set(), stale: [] };
+        :   { index: new Map(), packages: new Set(), stale: [] });
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
 
     // A stub counts. It publishes no page, so nothing may *link* to one, but its

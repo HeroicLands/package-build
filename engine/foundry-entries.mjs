@@ -110,15 +110,16 @@ export const LEAD_ANCHOR = "$lead";
  * @param {string} entryId - The entry's id, which page ids hash against.
  * @param {string} body - The note's markdown body.
  * @param {string} name - The note's name, used as the lead page's title.
+ * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Session scanner projections.
  * @returns {Record<string, string>} The anchors.
  */
-export function anchorsOf(entryUuid, entryId, body, name) {
+export function anchorsOf(entryUuid, entryId, body, name, syntax) {
     const anchors = {};
-    splitPages(body, name).forEach((page, index) => {
+    splitPages(body, name, undefined, syntax).forEach((page, index) => {
         const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
         const words = new Set(
-            scanSpans(page.markdown)
-                .spans.filter((span) =>
+            (syntax ? syntax(page.markdown).spans : scanSpans(page.markdown)).spans
+                .filter((span) =>
                     span.attrs.some(
                         ([key, value]) =>
                             key === "class" && value.split(/\s+/).includes(DICTIONARY_ENTRY_CLASS),
@@ -128,7 +129,7 @@ export function anchorsOf(entryUuid, entryId, body, name) {
         );
         if (index === 0) anchors[LEAD_ANCHOR] = uuid;
         if (page.anchorSlug) anchors[page.anchorSlug] = uuid;
-        for (const anchor of collectAnchors(page.markdown))
+        for (const anchor of collectAnchors(page.markdown, 1, undefined, syntax))
             anchors[anchor.slug] = words.has(anchor.slug) ? `${uuid}#${anchor.slug}` : uuid;
     });
     return anchors;
@@ -155,8 +156,7 @@ export function anchorsOf(entryUuid, entryId, body, name) {
  * documentation journal's is {@link itemDocEntryId} of that. Stating it here is
  * what lets the content index publish an identity it did not re-derive.
  *
- * @param {object} ctx - Resolved identities: `{ contentPackage,
- *   foundryPackageId, packRouter }`.
+ * @param {{contentPackage: string, foundryPackageId: string, packRouter: object, web?: boolean, skipDirectories?: readonly string[], syntax?: import("./content-session.mjs").ContentSyntax}} ctx - Resolved identities and optional session scanner projections.
  * @returns {Array<object>} One or two entries, in {@link buildManifest}'s shape.
  */
 export function entriesForNote(fm, name, address, body, ctx) {
@@ -288,7 +288,10 @@ export function entriesForNote(fm, name, address, body, ctx) {
                 // UUID's last segment.
                 id: docEntryId,
                 uuid: docUuid,
-                anchors: docUuid ? anchorsOf(docUuid, docEntryId, body ?? "", name) : undefined,
+                anchors:
+                    docUuid ?
+                        anchorsOf(docUuid, docEntryId, body ?? "", name, ctx.syntax)
+                    :   undefined,
             },
         ];
     }
@@ -307,7 +310,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
             systemUuids: systemUuidsFor(fm.type, fm.id),
             anchors:
                 own && packForType(fm.type)?.docType === "JournalEntry" ?
-                    anchorsOf(own, fm.id, body ?? "", name)
+                    anchorsOf(own, fm.id, body ?? "", name, ctx.syntax)
                 :   undefined,
         },
     ];

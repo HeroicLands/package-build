@@ -138,6 +138,15 @@ describe("docs/api.md documents the real export surface", () => {
         expect(DOCUMENTED.has("prepareLinkSqlTables")).toBe(true);
     });
 
+    it.each(["content-sources", "first-use", "name-markup", "name-rows", "names"])(
+        "documents every export of the %s wildcard module",
+        async (name) => {
+            const module = await import(`@heroiclands/package-build/engine/${name}`);
+            expect(API_DOC.includes(`engine/${name}.mjs`), name).toBe(true);
+            expect(Object.keys(module).filter((entry) => !DOCUMENTED.has(entry))).toEqual([]);
+        },
+    );
+
     it("documents block markup validation through the engine wildcard", async () => {
         const module = await import("@heroiclands/package-build/engine/markup-validation");
         expect(API_DOC.includes("engine/markup-validation.mjs")).toBe(true);

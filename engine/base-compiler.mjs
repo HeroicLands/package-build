@@ -686,11 +686,13 @@ export class BasePackCompiler {
         // it made — `errors` or `findings`, never just the first — so nothing
         // here re-scans; it only stops taking `[0]`.
         const findings = [];
+        const syntax = this.corpus?.syntax;
+        const scanned = syntax?.(body);
         for (const secretError of [
-            ...scanBlocks(body).errors,
-            ...scanAlerts(body).errors,
-            ...scanSpans(body).errors,
-            ...markupAnchorFindings(body),
+            ...(scanned?.blocks ?? scanBlocks(body)).errors,
+            ...(scanned?.alerts ?? scanAlerts(body)).errors,
+            ...(scanned?.spans ?? scanSpans(body)).errors,
+            ...markupAnchorFindings(body, syntax),
         ]) {
             findings.push({
                 message: secretError.message,

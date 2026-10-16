@@ -78,13 +78,36 @@ function pathMessage(characters) {
  * @param {string} opts.assetsBase - The package's asset directory, whose
  *   picture roots are walked.
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
+ * @param {ReturnType<import("./content-sources.mjs").captureContentSources>} [opts.inventory] - Captured physical paths in root walk order.
  * @returns {{findings: Array<{file: string, severity: "error", message: string}>,
  *   files: number}} The findings, and how many paths were checked.
  */
-export function lintPathCharset({ contentBase, assetsBase, skipDirectories = [] }) {
+export function lintPathCharset({ contentBase, assetsBase, skipDirectories = [], inventory }) {
     const skip = new Set(skipDirectories);
     const findings = [];
     let files = 0;
+    if (inventory) {
+        const roots = new Set(
+            [
+                contentBase,
+                ...DEPLOYED_ASSET_TYPES.map((entry) => path.join(assetsBase, entry.root)),
+            ].map((root) => path.resolve(root)),
+        );
+        for (const entry of inventory.paths) {
+            if (!roots.has(entry.root)) continue;
+            const parts = path.relative(entry.root, entry.file).split(path.sep);
+            if (parts.some((name) => name.startsWith(".") || skip.has(name))) continue;
+            files++;
+            const bad = offendingPathCharacters(entry.name);
+            if (bad.length)
+                findings.push({
+                    file: path.relative(process.cwd(), entry.file),
+                    severity: "error",
+                    message: pathMessage(bad),
+                });
+        }
+        return { findings, files };
+    }
 
     /** @param {string} dir - Directory to descend into. */
     const walk = (dir) => {

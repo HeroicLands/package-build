@@ -122,7 +122,7 @@ export const HELD_FROM_COLUMNS = Object.freeze([
     "source",
     "takes",
     "clip",
-    "genitive",
+    "joining",
     "elements",
 ]);
 /** Every column of the `near_names` relation, in order. */
@@ -232,7 +232,7 @@ export const LANGUAGE_COLUMN_TYPES = Object.freeze({
     },
     name_edges: { position: "BIGINT", sounds: LIST, vowel: "BOOLEAN" },
     name_draws: { position: "BIGINT", elements: LIST },
-    held_from: { position: "BIGINT", genitive: LIST, elements: LIST },
+    held_from: { position: "BIGINT", joining: LIST, elements: LIST },
     near_names: { position: "BIGINT", min_syllables: "BIGINT" },
     stress: {},
     finals: { position: "BIGINT" },
@@ -653,8 +653,8 @@ export function heldFromRows(records) {
     return listRows(
         records,
         (data) => namingOf(data).heldFrom,
-        ["source", "takes", "clip", "genitive", "elements"],
-        { lists: ["genitive", "elements"] },
+        ["source", "takes", "clip", "joining", "elements"],
+        { lists: ["joining", "elements"] },
     );
 }
 

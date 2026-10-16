@@ -17,6 +17,7 @@ import {
     isAddressTuple,
     parseAddress,
     renderAddress,
+    canonicalKey,
     acceptsType,
     hasAnchor,
     readCanonicalKey,
@@ -26,6 +27,7 @@ import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { ART_SLOTS } from "./art-slots.mjs";
 import { SHIPPED_SYSTEMS } from "./subtype-registry.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
 import { EVENT_ADDRESS_POSITIONS } from "./note-events.mjs";
 
 import { AddressEntries, AddressLink, readPublishedAddresses } from "./address-values.mjs";
@@ -127,6 +129,8 @@ export const STRUCTURED_ADDRESSES = Object.freeze([
         shape: "value",
         type: "skill",
         accepts: ["skill"],
+        system: NOTE_SYSTEM,
+        noteOnly: true,
         lenient: true,
     })),
 ]);
@@ -154,6 +158,9 @@ export function addressPositions(fm, context = {}) {
                 ...(field.anchors ? { anchors: field.anchors } : {}),
                 ...(ASSET_TYPE_NAMES.has(field.ref) || field.ref === "folder" ?
                     { system: "none" }
+                :   {}),
+                ...(field.name === "language" && field.ref === "skill" ?
+                    { system: NOTE_SYSTEM, noteOnly: true }
                 :   {}),
             });
     }
@@ -289,8 +296,8 @@ function shortcodeCaseError(problem, path, position, context) {
  * Decode declared properties at the note boundary. Raw mappings cannot impersonate tuples.
  *
  * A declared Address is read as written. A shortcode spelled with a capital is
- * refused, and every such value in the note is collected before the decode
- * throws, so each reference is reported at its own position: the thrown error
+ * refused, as is a document Address in a language-note field. Every such value
+ * is collected before the decode throws, so each is reported at its own position: the thrown error
  * describes the first, and its `findings` carry all of them.
  *
  * @param {object} fm - Parsed YAML or an index record.
@@ -299,7 +306,7 @@ function shortcodeCaseError(problem, path, position, context) {
  *   refused shortcode when it is declared.
  * @returns {object} The same note carrying typed Address properties.
  * @throws {Error} When a declared Address is refused; `keyPath` locates it, and
- *   `findings`, where present, lists every refused shortcode.
+ *   `findings`, where present, lists every refused value.
  */
 export function decodeNoteAddresses(fm, context) {
     if (!fm || typeof fm !== "object") return fm;
@@ -325,7 +332,7 @@ export function decodeNoteAddresses(fm, context) {
  *
  * @param {object} fm - The note.
  * @param {object} context - The decode context.
- * @param {Error[]} refused - Collects each refused shortcode.
+ * @param {Error[]} refused - Collects each refused declared value.
  * @returns {void}
  */
 function decodePositions(fm, context, refused) {
@@ -386,6 +393,20 @@ function decodePositions(fm, context, refused) {
                     path,
                     `must name a ${position.accepts.join(" or ")} Address, but names ${tuple.type}`,
                 );
+            if (position.noteOnly && tuple.system !== NOTE_SYSTEM) {
+                const error = Object.assign(
+                    new Error(
+                        `\`${path.join(".")}\` names a language note; write ` +
+                            `\`${canonicalKey(tuple.package, NOTE_SYSTEM, tuple.type, tuple.shortcode)}\` ` +
+                            `instead of the \`${tuple.system}\` document Address`,
+                    ),
+                    { keyPath: path, addressKey: position.shape === "keys" },
+                );
+                // A lenient position may retain malformed input for its own
+                // check, but cannot absorb a refused language-note identity.
+                refused.push(error);
+                return value;
+            }
             return anchored ?
                     new AddressLink(
                         tuple,

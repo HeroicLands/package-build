@@ -86,6 +86,10 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+.name {
+  font-weight: 700;
+}
+
 a {
   color: var(--accent);
   text-decoration: none;

@@ -85,6 +85,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { capturedSources } from "./content-sources.mjs";
 
 /**
  * Tier 1 — the letters, and the two whitespace characters a file is made of.
@@ -407,16 +408,27 @@ export function checkText(text, file) {
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore
  *   in addition to the dot-directories always skipped.
  * @param {readonly string[]} [opts.extensions] - File extensions to read.
+ * @param {Map<string, {raw: string}>} [opts.sources] - Exact captured source strings; omitted, walks and reads the tree.
  * @returns {{findings: Array<{file: string, line: number, column: number,
  *   severity: "warning", message: string}>, files: number}} The findings, and how
  *   many files produced them.
  */
-export function lintContentCharset(contentBase, { skipDirectories = [], extensions } = {}) {
+export function lintContentCharset(
+    contentBase,
+    { skipDirectories = [], extensions, sources } = {},
+) {
     const exts = new Set(extensions ?? [".md", ".markdown", ".yaml", ".yml", ".json"]);
     const skip = new Set(skipDirectories);
     /** @type {Array<{file: string, line: number, column: number, severity: "warning", message: string}>} */
     const findings = [];
     let files = 0;
+    if (sources) {
+        for (const [full, text] of capturedSources(contentBase, sources, skipDirectories, exts)) {
+            files++;
+            findings.push(...checkText(text, path.relative(process.cwd(), full)));
+        }
+        return { findings, files };
+    }
 
     /** @param {string} dir - Directory to descend into. */
     const walk = (dir) => {

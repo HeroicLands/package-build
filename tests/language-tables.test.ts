@@ -103,7 +103,7 @@ const VELITH = [
     '        - {step: "1", change: "`p` > `f`"}',
     "  elements:",
     "    - {form: nel, sense: snow, word: nel}",
-    "    - {form: -borg, position: closing, sense: a stronghold, kind: place, genitive: -borgar}",
+    "    - {form: -borg, position: closing, sense: a stronghold, kind: place, joining: -borgar}",
     "  older:",
     "    - {form: Haulonna, gloss: the hearth of the unfallen leaf, layer: Primordial}",
     "    - {form: Nordheim}",
@@ -124,7 +124,7 @@ const VELITH = [
     "    heldFrom:",
     "      - {source: the ground alone, takes: stem}",
     "      - {source: a god, takes: godName, clip: first}",
-    '      - {source: a founder, takes: givenName, genitive: ["-s", "-a"]}',
+    '      - {source: a founder, takes: givenName, joining: ["-s", "-a"]}',
     '      - {source: the ting and its law, takes: element, elements: ["ting-", "lög-"]}',
     "    nearName:",
     "      minSyllables: 4",
@@ -365,7 +365,7 @@ describe("elements", () => {
 
     it("refuse a kind outside the closed list, at the value", () => {
         one(
-            edit("kind: place, genitive", "kind: clan, genitive"),
+            edit("kind: place, joining", "kind: clan, joining"),
             /`data\.elements\[1\]\.kind` should be `byname` or `given` or `place`/,
             "clan",
         );
@@ -552,7 +552,7 @@ describe("naming", () => {
         );
     });
 
-    it("refuses a clip or a genitive on a held-from row that takes no name, at the key", () => {
+    it("refuses a clip or a joining ending on a held-from row that takes no name, at the key", () => {
         one(
             edit(
                 "{source: the ground alone, takes: stem}",
@@ -711,12 +711,12 @@ describe("the relations", () => {
         ]);
     });
 
-    it("hold an element's kind, word and genitive", async () => {
+    it("hold an element's kind, word and joining form", async () => {
         expect(
-            await rows("SELECT form, kind, word, genitive FROM elements ORDER BY position"),
+            await rows("SELECT form, kind, word, joining FROM elements ORDER BY position"),
         ).toEqual([
-            { form: "nel", kind: null, word: "nel", genitive: null },
-            { form: "-borg", kind: "place", word: null, genitive: "-borgar" },
+            { form: "nel", kind: null, word: "nel", joining: null },
+            { form: "-borg", kind: "place", word: null, joining: "-borgar" },
         ]);
     });
 
@@ -862,29 +862,29 @@ describe("the naming relations", () => {
     it("hold one row per held-from source", async () => {
         expect(
             await rows(
-                "SELECT source, takes, clip, genitive, elements FROM held_from ORDER BY position",
+                "SELECT source, takes, clip, joining, elements FROM held_from ORDER BY position",
             ),
         ).toEqual([
             {
                 source: "the ground alone",
                 takes: "stem",
                 clip: null,
-                genitive: null,
+                joining: null,
                 elements: null,
             },
-            { source: "a god", takes: "godName", clip: "first", genitive: null, elements: null },
+            { source: "a god", takes: "godName", clip: "first", joining: null, elements: null },
             {
                 source: "a founder",
                 takes: "givenName",
                 clip: null,
-                genitive: ["-s", "-a"],
+                joining: ["-s", "-a"],
                 elements: null,
             },
             {
                 source: "the ting and its law",
                 takes: "element",
                 clip: null,
-                genitive: null,
+                joining: null,
                 elements: ["ting-", "lög-"],
             },
         ]);

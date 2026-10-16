@@ -124,13 +124,14 @@ function checkNote({ fm, body, file, raw }) {
  * @param {object} opts
  * @param {readonly object[]} opts.records - Index records the caller derived.
  * @param {string} [opts.contentPackage] - Named in the counts line.
+ * @param {Map<string, import("./content-session.mjs").ContentNoteSource>} [opts.parsed] - Captured sources, with the file reader as fallback.
  * @returns {{findings: object[], counts: {full: number, draft: number,
  *   stub: number}, byType: Array<{type: string, full: number, draft: number,
  *   stub: number}>, oldestDrafts: Array<{file: string, modified: Date}>,
  *   summary: string[]}} The findings, the ladder's counts, and the lines a
  *   reader is shown as prose rather than as findings.
  */
-export function lintNoteStates(contentBase, { records, contentPackage } = {}) {
+export function lintNoteStates(contentBase, { records, contentPackage, parsed } = {}) {
     const findings = [];
     const counts = { full: 0, draft: 0, stub: 0 };
     /** @type {Map<string, {full: number, draft: number, stub: number}>} */
@@ -149,8 +150,8 @@ export function lintNoteStates(contentBase, { records, contentPackage } = {}) {
         const absPath = noteFile(contentBase, record);
         const file = path.relative(process.cwd(), absPath);
         const fm = authoredFrontmatter(record);
-        const { body } = parseMarkdownFile(absPath);
-        const raw = fs.readFileSync(absPath, "utf8");
+        const source = parsed?.get(absPath) ?? parseMarkdownFile(absPath);
+        const { body, raw } = source;
 
         // The ladder, read exactly as the `entries` view reads it: the absent
         // address is the state, not a second body test beside it. A note with

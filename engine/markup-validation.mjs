@@ -19,14 +19,19 @@ import { scanAlerts } from "./content-alerts.mjs";
  * Frontmatter is masked so literal YAML values cannot become body markup.
  * @param {string} source - Complete Markdown source, optionally with frontmatter.
  * @param {string} file - Diagnostic filename.
+ * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Exact-text scanner projections.
  * @returns {Array<{file: string, line: number, column: number, severity: string, message: string}>} Syntax errors.
  */
-export function markupFindings(source, file) {
+export function markupFindings(source, file, syntax) {
     const body = String(source ?? "").replace(
         /^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/,
         (frontmatter) => frontmatter.replace(/[^\r\n]/g, " "),
     );
-    return [...scanBlocks(body).errors, ...scanAlerts(body).errors].map((error) => ({
+    const scanned = syntax?.(body);
+    return [
+        ...(scanned?.blocks ?? scanBlocks(body)).errors,
+        ...(scanned?.alerts ?? scanAlerts(body)).errors,
+    ].map((error) => ({
         file,
         ...error,
         severity: "error",

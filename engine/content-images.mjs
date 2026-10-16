@@ -80,6 +80,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { capturedSources } from "./content-sources.mjs";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
@@ -623,15 +624,29 @@ function bodyOf(content, file) {
  *   in addition to the dot-directories always skipped.
  * @param {object} [opts.config] - The resolved build configuration, passed to
  *   {@link checkImages} so an address is held to the Foundry surface too.
+ * @param {Map<string, {raw: string}>} [opts.sources] - Exact captured source strings; omitted, walks and reads the tree.
  * @returns {{findings: Array<{file: string, line: number, column: number|undefined,
  *   severity: "error", message: string}>, files: number}} The findings, and how
  *   many files were read.
  */
-export function lintContentImages(contentBase, { skipDirectories = [], config } = {}) {
+export function lintContentImages(contentBase, { skipDirectories = [], config, sources } = {}) {
     const skip = new Set(skipDirectories);
     /** @type {Array<{file: string, line: number, column: number|undefined, severity: "error", message: string}>} */
     const findings = [];
     let files = 0;
+    if (sources) {
+        for (const [full, content] of capturedSources(
+            contentBase,
+            sources,
+            skipDirectories,
+            new Set([".md", ".markdown"]),
+        )) {
+            files++;
+            const [body, rel, at] = bodyOf(content, path.relative(process.cwd(), full));
+            findings.push(...checkImages(body, rel, { ...at, config }));
+        }
+        return { findings, files };
+    }
 
     /** @param {string} dir - Directory to descend into. */
     const walk = (dir) => {

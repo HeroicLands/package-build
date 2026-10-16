@@ -44,7 +44,7 @@
  *   syllables, its consonants per vowel or both, each range's `min` no
  *   higher than its `max`; an edge stands once for each class of name; a kind
  *   of name has one set of draws; and a held-from row takes `elements` only
- *   where it takes an `element`, and is clipped or given a genitive only
+ *   where it takes an `element`, and is clipped or given a joining ending only
  *   where it takes a name.
  *
  * @module
@@ -627,7 +627,7 @@ export function checkLanguageData(note, { index, types } = {}) {
                 ),
             );
         if (!HELD_NAMES.includes(row.takes))
-            for (const key of ["clip", "genitive"])
+            for (const key of ["clip", "joining"])
                 if (row[key] != null)
                     findings.push(
                         finding(

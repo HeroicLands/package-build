@@ -52,6 +52,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { capturedSources } from "./content-sources.mjs";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { positionInBody, splitFrontmatter } from "./diagnostics.mjs";
@@ -133,15 +134,28 @@ export function checkHtml(body, file, { bodyLine = 1, bodyColumn = 1 } = {}) {
  * @param {object} [opts]
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore
  *   in addition to the dot-directories always skipped.
+ * @param {Map<string, {raw: string}>} [opts.sources] - Exact captured source strings; omitted, walks and reads the tree.
  * @returns {{findings: Array<{file: string, line: number, column: number,
  *   severity: "warning", message: string}>, files: number}} The findings, and
  *   how many files were read.
  */
-export function lintContentHtml(contentBase, { skipDirectories = [] } = {}) {
+export function lintContentHtml(contentBase, { skipDirectories = [], sources } = {}) {
     const skip = new Set(skipDirectories);
     /** @type {Array<{file: string, line: number, column: number, severity: "warning", message: string}>} */
     const findings = [];
     let files = 0;
+    if (sources) {
+        for (const [full, content] of capturedSources(
+            contentBase,
+            sources,
+            skipDirectories,
+            new Set([".md", ".markdown"]),
+        )) {
+            files++;
+            findings.push(...checkHtml(...bodyOf(content, path.relative(process.cwd(), full))));
+        }
+        return { findings, files };
+    }
 
     /** @param {string} dir - Directory to descend into. */
     const walk = (dir) => {

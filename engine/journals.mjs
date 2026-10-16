@@ -103,9 +103,9 @@ const WITHHELD_OWNERSHIP = 0;
  * @param {string} markdown - A note's body, as {@link splitPages} receives it.
  * @returns {Set<number>} 0-based line indices inside a named block.
  */
-function namedBlockLines(markdown) {
+function namedBlockLines(markdown, syntax) {
     const lines = new Set();
-    for (const { start, end } of scanBlocks(markdown).blocks) {
+    for (const { start, end } of (syntax ? syntax(markdown).blocks : scanBlocks(markdown)).blocks) {
         for (let i = start; i <= end; i++) lines.add(i);
     }
     return lines;
@@ -142,17 +142,18 @@ function namedBlockLines(markdown) {
  *   picture's address to the role its asset declares, so a figure page's
  *   name reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
+ * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Session scanner projections.
  * @returns {Array<{name: string, anchorSlug: string|null, level: number,
  *   classes: string[], figure: object|null, continues?: string,
  *   markdown: string}>} Pages in document order.
  */
-export function splitPages(body, leadName = "Introduction", resolveRole) {
+export function splitPages(body, leadName = "Introduction", resolveRole, syntax) {
     const { markdown, definitions } = separateFootnotes(body);
     const lines = markdown.split("\n");
     const figureStarts = new Map(
         scanFigures(markdown, { resolveRole }).figures.map((figure) => [figure.line - 1, figure]),
     );
-    const blockLines = namedBlockLines(markdown);
+    const blockLines = namedBlockLines(markdown, syntax);
     const openings = pageOpenings(markdown, blockLines);
     const pages = [];
     const beforeFirstH1 = [];
@@ -636,6 +637,7 @@ export function buildPages(rawPages, entryId, noteName, figures, resolveRole) {
  *   a picture's address to the role its asset declares, so a figure page's
  *   name reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
+ * @param {import("./content-session.mjs").ContentSyntax} [params.syntax] - Session scanner projections.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({
@@ -648,8 +650,9 @@ export function buildJournalEntry({
     infoboxes = [],
     notice = "",
     resolveRole,
+    syntax,
 }) {
-    const rawPages = splitPages(markdown, leadName, resolveRole);
+    const rawPages = splitPages(markdown, leadName, resolveRole, syntax);
     const pages = buildPages(
         rawPages,
         id,
@@ -827,6 +830,7 @@ export class Journals extends BasePackCompiler {
         const roles = pathnameRoles(this.linkIndex);
 
         return buildJournalEntry({
+            syntax: this.corpus?.syntax,
             id,
             name,
             markdown: [

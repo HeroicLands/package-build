@@ -16,6 +16,8 @@ npm install -D @heroiclands/package-build
 
 The generated project includes a homepage, website and book targets, npm scripts, and a local `.gitignore`. [Getting started](docs/getting-started.md) routes you to a [system](docs/guides/system-project.md), [module](docs/guides/module-project.md), or [content authoring](docs/authoring/first-note.md) path. The [content-language-server](https://github.com/HeroicLands/content-language-server) provides editor navigation and completion.
 
+Run selected content operations together with `package-build content run index lint links compile`. The [shared content command](docs/commands.md#package-build-content-run-targets) captures one source tree for the selected checks and outputs; standalone commands remain available.
+
 ## Working on this repository
 
 Run `npm ci` in each fresh clone or worktree. Its `prepare` step installs the

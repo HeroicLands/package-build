@@ -467,10 +467,10 @@ What a draft note says about itself, in one sentence, on every surface it reache
 
 Nonempty `data.words` on a `skill`/`language` note, or `data.glossary` on a culture or affiliation, supplies content without an authored body. Absent or empty arrays supply no such exemption. Every other typed note must have a nonempty body: empty and whitespace-only bodies are errors regardless of description or `draft` tag, including `folder` and `homepage`. Nonempty placeholder-only bodies still produce errors, including on lexical notes. Nonempty bodies with fewer than 25 prose words produce warnings unless tagged `draft`. A `folder` note is held only to the nonempty rule: any body, placeholder or short, passes with or without `draft`. Untyped vault scaffolding is excluded. The lint, content-index, package compile, site and PDF commands enforce body errors before publishing.
 
-| Export             | Signature                                                  | Returns                                             | Use it when                                                                                   |
-| ------------------ | ---------------------------------------------------------- | --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| `SHORT_BODY_WORDS` | `const SHORT_BODY_WORDS`                                   | `number`                                            | reading the word count below which an unmarked body is asked whether it is a draft            |
-| `lintNoteStates`   | `lintNoteStates(contentBase, { records, contentPackage })` | `{findings, counts, byType, oldestDrafts, summary}` | checking a tree's states and counting the ladder, from the corpus the command already derived |
+| Export             | Signature                                                          | Returns                                             | Use it when                                                                                   |
+| ------------------ | ------------------------------------------------------------------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| `SHORT_BODY_WORDS` | `const SHORT_BODY_WORDS`                                           | `number`                                            | reading the word count below which an unmarked body is asked whether it is a draft            |
+| `lintNoteStates`   | `lintNoteStates(contentBase, { records, contentPackage, parsed })` | `{findings, counts, byType, oldestDrafts, summary}` | checking a tree's states and counting the ladder, from the corpus the command already derived |
 
 ### `engine.placeRelations`
 
@@ -871,7 +871,7 @@ Emitting this package's cross-package link manifest. `engine/content-address.mjs
 | Export                  | Signature                                               | Returns                                                                                                                      | Use it when                                                         |
 | ----------------------- | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | `LEAD_ANCHOR`           | `const LEAD_ANCHOR`                                     | —                                                                                                                            | The reserved anchor name for a journal's **first** page.            |
-| `anchorsOf`             | `function anchorsOf(entryUuid, entryId, body, name)`    | {Record<string, string>} The anchors.                                                                                        | Every anchor of a note's journal, as `anchorName → Foundry target`. |
+| `anchorsOf`             | `anchorsOf(entryUuid, entryId, body, name, syntax?)`    | {Record<string, string>} The anchors.                                                                                        | Every anchor of a note's journal, as `anchorName → Foundry target`. |
 | `entriesForNote`        | `function entriesForNote(fm, name, address, body, ctx)` | {Array<object>} One or two entries, in {@link buildManifest}'s shape.                                                        | The manifest entries a single note produces.                        |
 | `collectFoundryEntries` | `function collectFoundryEntries(contentBase, ctx)`      | `{{entries: Array<object>, notes: number, skipped: Array<{file: string, reason: string}>}}`                                  | Every note this package publishes, as manifest entries.             |
 | `foundryIdentities`     | `function foundryIdentities(config`                     | `{{contentPackage: string, foundryPackageId: string, packRouter: object, web: boolean, skipDirectories: readonly string[]}}` | The identities an emission runs against, from configuration.        |
@@ -881,24 +881,224 @@ A generated dictionary headword maps to its containing page's UUID followed
 by its word fragment. Other authored spans keep their containing-page
 mapping.
 
+### `engine.contentSession`
+
+One invocation's content capture and lazy prepared views. Import the namespace
+from `@heroiclands/package-build/engine`, or import the functions directly from
+`@heroiclands/package-build/engine/content-session`.
+
+| Export                 | Signature                                | Returns                    | Use it when                                    |
+| ---------------------- | ---------------------------------------- | -------------------------- | ---------------------------------------------- |
+| `CONTENT_TARGETS`      | `readonly [index, lint, links, compile]` | the closed execution order | Selecting operations in a shared invocation.   |
+| `createContentSession` | `createContentSession(options?)`         | `Promise<ContentSession>`  | Sharing source work across content operations. |
+
+Options are the resolved `config`, `contentBase`, `assetsBase`,
+`skipDirectories` and compile `router`. Paths and scope default from that
+configuration. The session binds its exact configuration object, canonical
+roots, directory scope and router. `assertContext(options?)` refuses reuse
+with a different bound value. A new invocation, an input edit, a changed
+dependency cache or a changed configuration needs a fresh session; no state
+is persisted or shared across sessions.
+
+The session exposes `config`, `contentBase`, `assetsBase`, `skipDirectories`,
+`router`, physical `inventory`, raw `sources`, derived `records`, authored
+`parsed` notes, preparation `problems` and captured dependency `foreign`
+views. Treat these inputs as read-only. Parsed notes retain exact `raw`
+strings, trimmed `body`, authored `frontmatter` and file coordinates; malformed
+or untyped physical files remain available to raw checks. Derivation and
+publication use their own record projections, including per-system clones.
+
+| Method                    | Result and scope                                                                                                    |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `syntax(text)`            | Memoized block, alert and span scanner results for that exact string; a different projection has its own positions. |
+| `sqlTables(audience?)`    | Prepared SQL and generated sections for `all` (default) or `public`, once per audience in this context.             |
+| `linkTables()`            | Source-audience results selected for prose-link checking.                                                           |
+| `audit(kind?)`            | The diagnostic link index for `links` (default) or `lint`; this stays separate from routed native resolution.       |
+| `publication()`           | The complete `PreparedContentIndex`, including source-audience and native bodies.                                   |
+| `compileCorpus()`         | Records, parsed notes, native SQL, scanner projections and the routed compiler link index.                          |
+| `prepare(targets)`        | Prepare selected closed targets in `CONTENT_TARGETS` order before a caller starts a writer; returns the session.    |
+| `assertContext(options?)` | Check configuration, roots, scope and router against the captured context.                                          |
+| `dispose()`               | Invalidate derived views and methods at the end of the invocation.                                                  |
+
+SQL query answers remain local to each audience preparation; their databases
+close inside preparation. The session reuses results without sharing a public
+answer with the complete native corpus. Scanner results are also read-only.
+`prepare` refuses writers when shared source preparation or the existing note
+state preflight fails. Ordinary lint findings add no gate to compilation.
+
+```js
+import { contentSession, contentIndex, compendiums } from "@heroiclands/package-build/engine";
+
+const session = await contentSession.createContentSession({ config });
+try {
+  await session.prepare(["index", "compile"]);
+  contentIndex.emitContentIndex({ config, publication: await session.publication() });
+  await compendiums.compilePacks({ config, session });
+} finally {
+  session.dispose();
+}
+```
+
+### `engine/content-sources.mjs`
+
+Reachable through `@heroiclands/package-build/engine/content-sources`; the
+session uses these physical input adapters without adding a namespace export.
+
+| Export                  | Signature                                                            | Returns                          | Use it when                                                  |
+| ----------------------- | -------------------------------------------------------------------- | -------------------------------- | ------------------------------------------------------------ |
+| `captureContentSources` | `captureContentSources(contentBase, assetsBase, skipDirectories)`    | `{sources, indexSources, paths}` | Capturing exact text and physical path walks before parsing. |
+| `capturedSources`       | `capturedSources(contentBase, sources, skipDirectories, extensions)` | generator of `[file, raw]`       | Selecting a raw checker's physical scope from captured text. |
+
+`sources` maps absolute text-file paths to `{raw}`. `indexSources` retains the
+index walk's selected Markdown order. `paths` retains `{root, file, name,
+directory}` for each physical walk, including its root identity so overlapping
+content and asset scopes preserve their own filtering and order.
+
+### `engine/first-use.mjs`
+
+Import from `@heroiclands/package-build/engine/first-use`.
+
+| Export                  | Signature                                                               | Returns                  | Use it when                                                                    |
+| ----------------------- | ----------------------------------------------------------------------- | ------------------------ | ------------------------------------------------------------------------------ |
+| `createFirstUseChecker` | `createFirstUseChecker({ records, index, catalog?, parsed?, syntax? })` | `checker({ file, raw })` | Checking authored prose against the current corpus's name-marking conventions. |
+
+Construct one checker with the session's read-only `records` and
+`await session.audit("lint")`. Call it for each existing link-index note.
+It performs no I/O and returns `{file, line, column, severity: "warning",
+rules, message}` diagnostics. `rules` is a list of applicable rule names, merged
+into one warning for each occurrence; the message names the full name or
+explicit label that needs attention. Only `.name` spans and authored link
+labels enter name tracking; plain text is not searched. Indexed full names and
+declared aliases share an identity, while other labels use their whole text.
+A whole bold indexed name receives an advisory without entering name tracking.
+Local and captured dependency names and aliases share the same corpus
+context. The command's lint target constructs
+the checker once, uses exact authored `raw` strings and keeps these findings
+advisory. See the [authoring conventions](authoring/links-and-markup.md#marking-names-in-prose).
+
+Supply the invocation's `catalog` to share its full-name and alias lookup with
+the package names report. Optional `parsed` maps absolute files to captured
+`{raw, body, bodyLine?, bodyColumn?}`; `syntax` is the session's scanner
+projection. When the captured raw text matches, the checker rebases the body's
+existing name inventory into its authored raw source coordinates. Standalone
+calls use their supplied raw text.
+
+### `engine/name-markup.mjs`
+
+Import from `@heroiclands/package-build/engine/name-markup`.
+
+| Export            | Signature                                                 | Returns                                        | Use it when                                                                                        |
+| ----------------- | --------------------------------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `inlineText`      | `inlineText(tokens)`                                      | `string`                                       | Reading visible name text from actual parsed inline children and their resolved reference context. |
+| `rebaseNameSpans` | `rebaseNameSpans(spans, { raw, bodyLine?, bodyColumn? })` | Copied name spans at original file coordinates | Rebasing a captured body inventory and attribute ranges without parsing it again.                  |
+
+`scanSpans(source)` returns `{spans, names, errors}`. `names` contains the same
+span objects with the exact `name` class, including spans inside links. Each
+span retains `text`, `attrs`, offsets, 1-based line/UTF-16 column and `visible`
+text from actual parsed children. `contentEnd` is the exclusive raw inner-label
+endpoint. `attributePositions` maps each named attribute to `key` and `value`
+ranges with `{start, end, line, column}`. Offsets are 0-based with exclusive
+ends. Rebasing copies these values and leaves the captured inventory unchanged.
+
+The leaf module exports the declaration types `ContentSpan`, `SpanSourceSite`,
+`SpanAttributePosition`, `SpanFinding` and `SpanScan`. The generic rebasing
+helper retains additional fields of the captured span subtype.
+
+`engine/extension-attributes.mjs` exposes the shared attribute grammar:
+
+| Export                     | Signature                                                           | Returns                                       | Use it when                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `parseExtensionAttributes` | `parseExtensionAttributes(source, { idPattern?, positions? } = {})` | `{id, classes, values, problems, positions?}` | Parsing identifiers, ordered classes and named values; `positions: true` retains attribute key/value offsets. |
+
+Attribute-parser positions are ranges within its supplied attribute source;
+the span scanner maps them to Markdown coordinates. The optional range map
+does not change the parsed values.
+
+### `engine/name-rows.mjs`
+
+Import from `@heroiclands/package-build/engine/name-rows`.
+
+| Export         | Signature            | Returns                     | Use it when                                                            |
+| -------------- | -------------------- | --------------------------- | ---------------------------------------------------------------------- |
+| `NAME_COLUMNS` | `const NAME_COLUMNS` | Frozen ordered column names | Reading `owner`, `name`, `type`, `subType`, `line`, `column`.          |
+| `namesRows`    | `namesRows(records)` | `NameRow[]`                 | Projecting own-note occurrences into SQL rows without I/O or mutation. |
+
+Rows preserve record and occurrence order. `owner` is the canonical NOTE page
+derived from the record's canonical Address, including for native Item
+sources; an unaddressable record keeps `null`. Assets and documentation mirrors
+contribute no rows. Each row carries the occurrence's visible `name`, nullable
+`type`/`subType`, and numeric 1-based `line`/UTF-16 `column`. SQL ingestion fixes
+text columns as `VARCHAR` and positions as `BIGINT`, including empty,
+entirely-null and late-supplied classifications.
+
+### `engine/names.mjs`
+
+Import from `@heroiclands/package-build/engine/names`.
+
+| Export                  | Signature                                                      | Returns                           | Use it when                                                                                  |
+| ----------------------- | -------------------------------------------------------------- | --------------------------------- | -------------------------------------------------------------------------------------------- |
+| `normalizeName`         | `normalizeName(text)`                                          | `string`                          | Normalizing NFC, apostrophes and whitespace while preserving case.                           |
+| `nameForms`             | `nameForms(text)`                                              | `string[]`                        | Enumerating supported whole-label possessives and regular plurals.                           |
+| `createNameCatalog`     | `createNameCatalog({ records, index })`                        | `NameCatalog`                     | Sharing indexed full-name, alias and resolved Address matching across checks.                |
+| `collectUnwrittenNames` | `collectUnwrittenNames({ records, catalog })`                  | `{groups, firstUse}`              | Grouping every unresolved captured occurrence by supplied classification.                    |
+| `analyzeNameSpans`      | `analyzeNameSpans(spans, { file?, vocabulary?, types? } = {})` | `{names, findings}`               | Validating supplied `data-type` against actual note declarations at attribute-key positions. |
+| `createNamesReport`     | `createNamesReport({ package, records, catalog })`             | `NamesReport`                     | Preparing deterministic current-package unwritten and conflicting groups without I/O.        |
+| `namesReportFinding`    | `namesReportFinding(report, { contentBase? } = {})`            | A located warning, or `undefined` | Formatting one human package advisory with every reported use.                               |
+
+`NameCatalog` provides `recognize(label, preferred?)` and `resolve(target)`;
+indexed full names and declared aliases share canonical identity, and ambiguous
+labels retain every candidate. Dependency names come from the captured link
+index; folder-note identities are excluded. These pure helpers read the
+invocation's existing corpus.
+
+`analyzeNameSpans` accepts actual parsed spans at file coordinates, with
+`visible`, `attrs`, `line`, `column` and optional `attributePositions`. It
+returns valid five-field `MarkedName` entries and supplied-value error findings.
+`vocabulary` defaults to `NOTE_VOCABULARY`; `types` supplies additional bare
+types from configured declarations. Callers propagate findings through their
+existing preparation error channel.
+
+`NamesReport` has `{package, unwritten, conflicts}`. Each unwritten group has
+`{type, subType, names: [{name, uses}]}`. Each conflict has
+`{name, kinds: [{type, subType, uses}]}`. A use has
+`{owner, file, line, column}`, with its file relative to the content root and
+the same NOTE/null owner convention as `namesRows`. Untyped uses are excluded
+from conflicts; matching bare-type/subtype refinements are compatible.
+`namesReportFinding` rebases file paths with `contentBase`, anchors the advisory
+at the earliest reported actual use, and returns no warning for an empty report.
+
 ### `engine.contentIndex`
 
 Collecting and publishing this package's content index. Records describe note frontmatter, assets, prose and event anchors, and the document targets those notes produce. Dynamic publication prepares the same generated Markdown and scalar expressions as the rendering surfaces, using each source note's audience.
 
-| Export                  | Signature                                                                                                                      | Returns                                                                                                                                                                                                                  | Use it when                                                                                                                                                                                                                                                                         |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `noteAddress`           | `function noteAddress(frontmatter, contentPackage)`                                                                            | {{slug: string, canonical: string}\|null} `slug` is what goes inside `[[…]]` within this package; `canonical` is the fully qualified key the manifest files the note under, carrying the package and the system as well. | The address a wikilink writes to reach a note, or `null` when it has none.                                                                                                                                                                                                          |
-| `sortKeysDeep`          | `function sortKeysDeep(value)`                                                                                                 | {unknown} The value with every plain object's keys in sorted order.                                                                                                                                                      | Recursively sort an object's keys, so serialization is order-independent.                                                                                                                                                                                                           |
-| `asciiName`             | `function asciiName(name)`                                                                                                     | {string\|null} The ASCII form, or `null` when there is no name, or nothing printable survives.                                                                                                                           | A note's display name reduced to printable 7-bit ASCII.                                                                                                                                                                                                                             |
-| `asciiAliases`          | `function asciiAliases(aliases)`                                                                                               | {Array<string>} Possibly empty, never null: a note with no aliases has an empty set of them, which is a fact rather than a missing value, and a consumer iterating it should not have to check first.                    | A note's `name.aliases` reduced to printable 7-bit ASCII, in order.                                                                                                                                                                                                                 |
-| `serializeContentIndex` | `function serializeContentIndex(records)`                                                                                      | {string} One compact JSON object per line, newline-terminated.                                                                                                                                                           | Serialize records as JSON Lines.                                                                                                                                                                                                                                                    |
-| `indexRecordsFor`       | `indexRecordsFor({ contentBase, config, skipDirectories, problems, parsed })`                                                  | {object[]} One record per note, plus one per documentation entry.                                                                                                                                                        | The index records for a content tree, without writing anything.                                                                                                                                                                                                                     |
-| `indexRecordsForNote`   | `indexRecordsForNote({ frontmatter, body, bodyLine, relPath, absPath, raw, contentPackage, manifest, addressContext })`        | `object[]`                                                                                                                                                                                                               | Derive the note's own record and its documentation record from parsed text.                                                                                                                                                                                                         |
-| `prepareContentIndex`   | `async prepareContentIndex({ contentBase, config } = {})`                                                                      | `Promise<PreparedContentIndex>` — the captured source context and complete expanded bodies, described below                                                                                                              | Prepare dynamic publication without writing files.                                                                                                                                                                                                                                  |
-| `emitContentIndex`      | `emitContentIndex({ contentBase, outDir, config, publication } = {})`                                                          | `{{file: string, notes: number, assets: number, records: number, bytes: number, full: number, draft: number, stub: number, dictionary: {file: string, rows: number}, terms: {file: string, rows: number}}}`              | Synchronously publish metadata and the dictionary and terms datafiles; dynamic content requires a complete `publication`.                                                                                                                                                           |
-| `buildIndexRecord`      | `buildIndexRecord({ frontmatter, relPath, absPath, raw, contentPackage, body, bodyLine, manifest })`                           | `Record<string, any>` — the record, with derived fields sorted deep                                                                                                                                                      | building one note's content-index record; refuses a note that authors a key the index derives itself (`package` among them) before building anything                                                                                                                                |
-| `collectContentIndex`   | `collectContentIndex(contentBase, { contentPackage, skipDirectories, assetsBase, manifest, problems, foreignRecord, parsed })` | `Array<Record<string, any>>`                                                                                                                                                                                             | reading a whole content tree into index records, in a total order independent of directory-read order; an item note yields two records (its own and its documentation journal's), and each asset root yields one per file; each note carries its resolved culture as `data.culture` |
-| `resolveCultures`       | `resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems })`                                           | `Array<Record<string, any>>` — the same records                                                                                                                                                                          | writing each note's resolved culture into its record as `data.culture`: its own value, else its parents', else for a polity its seat's and governed places', pooled; parents that disagree give a finding into `problems`, or one thrown Error listing every conflict               |
+Own-note records carry derived `names` entries in source order as
+`{name, type, subType, line, column}`. Missing classifications are explicit
+`null`; no occurrences gives `[]`. Positions refer to original authored span
+openings, before generated content. Metadata JSONL transports these entries
+to dependency SQL without an additional artifact. This field is reserved for
+derived data, and is not an authored frontmatter key.
+
+`buildIndexRecord` and `indexRecordsForNote` accept `bodyColumn` alongside
+`bodyLine` to locate the authored body's first UTF-16 character. Their optional
+`nameTypes` iterable, also accepted by `collectContentIndex` and
+`indexRecordsFor`, supplies additional bare kinds from configured type
+declarations. `indexRecordsFor` defaults that iterable to the resolved
+configuration's `itemTypes`.
+
+| Export                  | Signature                                                                                                                                                   | Returns                                                                                                                                                                                                                  | Use it when                                                                                                                                                                                                                                                                         |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `noteAddress`           | `function noteAddress(frontmatter, contentPackage)`                                                                                                         | {{slug: string, canonical: string}\|null} `slug` is what goes inside `[[…]]` within this package; `canonical` is the fully qualified key the manifest files the note under, carrying the package and the system as well. | The address a wikilink writes to reach a note, or `null` when it has none.                                                                                                                                                                                                          |
+| `sortKeysDeep`          | `function sortKeysDeep(value)`                                                                                                                              | {unknown} The value with every plain object's keys in sorted order.                                                                                                                                                      | Recursively sort an object's keys, so serialization is order-independent.                                                                                                                                                                                                           |
+| `asciiName`             | `function asciiName(name)`                                                                                                                                  | {string\|null} The ASCII form, or `null` when there is no name, or nothing printable survives.                                                                                                                           | A note's display name reduced to printable 7-bit ASCII.                                                                                                                                                                                                                             |
+| `asciiAliases`          | `function asciiAliases(aliases)`                                                                                                                            | {Array<string>} Possibly empty, never null: a note with no aliases has an empty set of them, which is a fact rather than a missing value, and a consumer iterating it should not have to check first.                    | A note's `name.aliases` reduced to printable 7-bit ASCII, in order.                                                                                                                                                                                                                 |
+| `serializeContentIndex` | `function serializeContentIndex(records)`                                                                                                                   | {string} One compact JSON object per line, newline-terminated.                                                                                                                                                           | Serialize records as JSON Lines.                                                                                                                                                                                                                                                    |
+| `indexRecordsFor`       | `indexRecordsFor({ contentBase, config, skipDirectories, problems, parsed, sources, syntax, foreignIndex, nameTypes? })`                                    | {object[]} One record per note, plus one per documentation entry.                                                                                                                                                        | The index records for a content tree, without writing anything.                                                                                                                                                                                                                     |
+| `indexRecordsForNote`   | `indexRecordsForNote({ frontmatter, body, bodyLine, bodyColumn?, nameTypes?, relPath, absPath, raw, contentPackage, manifest, addressContext })`            | `object[]`                                                                                                                                                                                                               | Derive the note's own record and its documentation record from parsed text.                                                                                                                                                                                                         |
+| `prepareContentIndex`   | `async prepareContentIndex({ contentBase, config, session } = {})`                                                                                          | `Promise<PreparedContentIndex>` — the captured source context and complete expanded bodies, described below                                                                                                              | Prepare dynamic publication without writing files.                                                                                                                                                                                                                                  |
+| `emitContentIndex`      | `emitContentIndex({ contentBase, outDir, config, publication } = {})`                                                                                       | `{{file: string, notes: number, assets: number, records: number, bytes: number, full: number, draft: number, stub: number, dictionary: {file: string, rows: number}, terms: {file: string, rows: number}}}`              | Synchronously publish metadata and the dictionary and terms datafiles; dynamic content requires a complete `publication`.                                                                                                                                                           |
+| `buildIndexRecord`      | `buildIndexRecord({ frontmatter, relPath, absPath, raw, contentPackage, body, bodyLine, bodyColumn?, nameTypes?, manifest })`                               | `Record<string, any>` — the record, with derived fields sorted deep                                                                                                                                                      | building one note's content-index record; refuses a note that authors a key the index derives itself (`package` among them) before building anything                                                                                                                                |
+| `collectContentIndex`   | `collectContentIndex(contentBase, { contentPackage, skipDirectories, assetsBase, manifest, problems, foreignRecord, parsed, sources, syntax, nameTypes? })` | `Array<Record<string, any>>`                                                                                                                                                                                             | reading a whole content tree into index records, in a total order independent of directory-read order; an item note yields two records (its own and its documentation journal's), and each asset root yields one per file; each note carries its resolved culture as `data.culture` |
+| `resolveCultures`       | `resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems })`                                                                        | `Array<Record<string, any>>` — the same records                                                                                                                                                                          | writing each note's resolved culture into its record as `data.culture`: its own value, else its parents', else for a polity its seat's and governed places', pooled; parents that disagree give a finding into `problems`, or one thrown Error listing every conflict               |
 
 `prepareContentIndex` resolves `contentBase` from the configured `paths.content`
 when omitted. Its `PreparedContentIndex` contains:
@@ -911,6 +1111,7 @@ when omitted. Its `PreparedContentIndex` contains:
 | `parsed`         | A `Map` keyed by absolute note file, holding authored `frontmatter`, `body`, `raw`, `bodyLine` and `bodyColumn`.                                   |
 | `expandedBodies` | A `Map` keyed by absolute note file, holding `markdown`, its body-relative `lineMap` of `{line, generated}` entries, and optional `generatedFrom`. |
 | `foundryBodies`  | A `Map` with the same body shape, prepared against the complete native compendium corpus.                                                          |
+| `syntax`         | Optional session-local scanner projection function; read-only and valid for that session's lifetime.                                               |
 
 Preparation expands SQL tables, page lists, automatic sections and scalar
 expressions. Prose declarations in `expandedBodies` use each source's audience:
@@ -950,18 +1151,25 @@ scalar expressions, events or other generated sections require
 `indexRecordsFor` and `collectContentIndex` collect authored records and pure
 lexical sections; use preparation and emission to publish dynamic body targets.
 
+On lore and affiliation notes, `data.language` and `data.glossary[].language`
+require a language NOTE Address. Decoding refuses other recognized system
+segments at the authored value, naming the complete
+`<pkg>-note-skill-<shortcode>` to write. A short local form such as
+`skill-provnzlng` is also accepted. See the [glossary language
+rules](reference/format-details.md#dictionaries-and-glossaries).
+
 `engine.contentIndex` also re-exports eight names from neighbouring leaf modules, at this same import path:
 
-| Export                | Signature                        | Returns                                                        | Use it when                                                                                                                                                                                                  |
-| --------------------- | -------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `collectAnchors`      | `collectAnchors(body, bodyLine)` | `Array<{slug: string, line: number, kind: string}>`            | reading a note body's anchors, each with its kind, shared with the link checker and every build that emits a link                                                                                            |
-| `DERIVED_KEYS`        | `const DERIVED_KEYS`             | —                                                              | reading which keys the content index adds to a record, and which a note therefore may not author itself                                                                                                      |
-| `noteFile`            | `noteFile(contentBase, record)`  | `string` — the note's absolute path                            | composing an index record's `file.path` (recorded relative, for a byte-stable artifact) back into an openable absolute path                                                                                  |
-| `authoredFrontmatter` | `authoredFrontmatter(record)`    | `Record<string, any>` — the frontmatter without `DERIVED_KEYS` | reading a note's frontmatter back from its index record, its resolved `data.culture` included, so a pass can lint or compile from the index without reasoning about derived keys as if the author wrote them |
-| `isNoteRecord`        | `isNoteRecord(record)`           | `boolean`                                                      | telling a note's own record apart from its documentation journal's and from an asset's, when enumerating the corpus                                                                                          |
-| `isStub`              | `isStub(record)`                 | `boolean`                                                      | telling a stub apart from a note that publishes a page; asked of the absent address, which is the whole signal                                                                                               |
-| `isAssetRecord`       | `isAssetRecord(record)`          | `boolean`                                                      | telling a record that addresses a file apart from one that addresses a note; the `asset` block is what marks it                                                                                              |
-| `recordPath`          | `recordPath(record)`             | `string` — the path the record names inside its package        | ordering or reporting across both record shapes: a note names the `.md` it was parsed from, an asset the file it is                                                                                          |
+| Export                | Signature                                               | Returns                                                        | Use it when                                                                                                                                                                                                  |
+| --------------------- | ------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `collectAnchors`      | `collectAnchors(body, bodyLine, resolveRole?, syntax?)` | `Array<{slug: string, line: number, kind: string}>`            | reading a note body's anchors, each with its kind, shared with the link checker and every build that emits a link                                                                                            |
+| `DERIVED_KEYS`        | `const DERIVED_KEYS`                                    | —                                                              | reading which keys the content index adds to a record, and which a note therefore may not author itself                                                                                                      |
+| `noteFile`            | `noteFile(contentBase, record)`                         | `string` — the note's absolute path                            | composing an index record's `file.path` (recorded relative, for a byte-stable artifact) back into an openable absolute path                                                                                  |
+| `authoredFrontmatter` | `authoredFrontmatter(record)`                           | `Record<string, any>` — the frontmatter without `DERIVED_KEYS` | reading a note's frontmatter back from its index record, its resolved `data.culture` included, so a pass can lint or compile from the index without reasoning about derived keys as if the author wrote them |
+| `isNoteRecord`        | `isNoteRecord(record)`                                  | `boolean`                                                      | telling a note's own record apart from its documentation journal's and from an asset's, when enumerating the corpus                                                                                          |
+| `isStub`              | `isStub(record)`                                        | `boolean`                                                      | telling a stub apart from a note that publishes a page; asked of the absent address, which is the whole signal                                                                                               |
+| `isAssetRecord`       | `isAssetRecord(record)`                                 | `boolean`                                                      | telling a record that addresses a file apart from one that addresses a note; the `asset` block is what marks it                                                                                              |
+| `recordPath`          | `recordPath(record)`                                    | `string` — the path the record names inside its package        | ordering or reporting across both record shapes: a note names the `.md` it was parsed from, an asset the file it is                                                                                          |
 
 ### `engine.assetTypes`
 
@@ -1284,7 +1492,7 @@ Shared helpers for the pack compilers in `packages/package-build/`. The HeroicLa
 | ------------------------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `md`                      | `const md`                                                                                                  | —                                                                                                                                                                                                                                         | The markdown renderer every surface shares.                                                                                                                                                          |
 | `renderFoundryMarkdown`   | `function renderFoundryMarkdown(body)`                                                                      | `string` — HTML with secret sections for GM passages.                                                                                                                                                                                     | Rendering a note body for a Foundry document.                                                                                                                                                        |
-| `parseMarkdownFile`       | `function parseMarkdownFile(filePath)`                                                                      | —                                                                                                                                                                                                                                         | Parses a markdown file with YAML frontmatter; returns frontmatter, body, rendered description, raw source, and body coordinates.                                                                     |
+| `parseMarkdownFile`       | `parseMarkdownFile(filePath, { addressContext, raw, renderDescription } = {})`                              | —                                                                                                                                                                                                                                         | Parses a markdown file with YAML frontmatter; returns frontmatter, body, rendered description, raw source, and body coordinates.                                                                     |
 | `assertStatedScope`       | `function assertStatedScope(skipDirectories, who)`                                                          | {void}                                                                                                                                                                                                                                    | Refuse a corpus read whose scope its caller did not state.                                                                                                                                           |
 | `assertSuppliedCorpus`    | `function assertSuppliedCorpus(records, who)`                                                               | {void}                                                                                                                                                                                                                                    | Refuse a corpus read whose records its caller did not supply.                                                                                                                                        |
 | `statedTemplatePriority`  | `function statedTemplatePriority(fm, label,`                                                                | {number\|null} The priority, or `null` when the note is not a template or states nothing.                                                                                                                                                 | The template priority a note states, for a system that treats an unstated one as "not a template" rather than as an authoring error.                                                                 |
@@ -1301,13 +1509,28 @@ Shared helpers for the pack compilers in `packages/package-build/`. The HeroicLa
 | `convertNoteWikilinks`    | `convertNoteWikilinks(body, { type, id, pack, docPack, index, name, file, bodyLine, bodyColumn, lineMap })` | `{{markdown: string, unresolved: Array<object>}}`                                                                                                                                                                                         | Converts the wikilinks in one note's markdown, reporting any that have no target in the content tree.                                                                                                |
 | `expandNoteTables`        | `function expandNoteTables(body,`                                                                           | `{{markdown: string, lineMap: Array<{line: number, generated: boolean}>}}` The body with every table expanded, and where each emitted line came from — which is what lets a diagnostic about the expanded body name an authored position. | Expand prepared SQL tables in one note's markdown, before wikilinks are resolved — so a generated cell may itself be a wikilink.                                                                     |
 | `folderFilename`          | `function folderFilename(name, id)`                                                                         | —                                                                                                                                                                                                                                         | Builds a compendium-source filename for a folder JSON document: `folder_Name_id.json` with non-alphanumeric runs replaced by underscores.                                                            |
-| `walkMarkdownTree`        | `walkMarkdownTree(rootDir, { skipDirectories })`                                                            | generator yielding `{frontmatter, body, description, raw, bodyLine?, bodyColumn?, file, absPath}`                                                                                                                                         | walking a content tree and reading every markdown file's frontmatter and body; `skipDirectories` is required rather than defaulted, so two callers cannot silently disagree about the corpus's scope |
+| `walkMarkdownTree`        | `walkMarkdownTree(rootDir, { skipDirectories, sources, renderDescription })`                                | generator yielding `{frontmatter, body, description, raw, bodyLine?, bodyColumn?, file, absPath}`                                                                                                                                         | walking a content tree and reading every markdown file's frontmatter and body; `skipDirectories` is required rather than defaulted, so two callers cannot silently disagree about the corpus's scope |
 
-`buildContentLinkIndex` accepts `{ config?, records, sqlTables? }`.
+`buildContentLinkIndex` accepts `{ config?, records, sqlTables?, foreign? }`.
 `records` is the required, supplied content corpus. The optional prepared
 `sqlTables` map supplies generated anchors and their Foundry page mappings,
 so glossary word links resolve to their dictionary entries.
 
+`parseMarkdownFile` reads its supplied exact `raw` string when present. Its
+`renderDescription` option defaults to true; false leaves `description` empty
+while retaining authored body and positions. `walkMarkdownTree` accepts a
+selected `sources` map in walk order and the same rendering option, also true
+by default. Index collection explicitly omits unused rendered descriptions.
+`indexRecordsFor` accepts that selected map, a `syntax` projection function
+and a captured `foreignIndex`. These adapters do not retain state globally.
+
+The physical wrappers `lintContentCharset`, `lintContentHtml`,
+`lintContentIcons`, `lintContentImages` and `lintContentTaskLists` accept an
+optional `sources` map of absolute paths to `{raw}`. Their existing extension,
+hidden-path and skip filters still apply; without the map they walk and read
+the tree. `lintPathCharset` accepts optional physical `inventory`, retaining
+walk roots and order. `lintNoteStates` accepts the authored `parsed` map, with
+its existing file reader for missing entries.
 `parseMarkdownFile` accepts LF and CRLF frontmatter delimiters and retains the
 exact source as `raw`. Its trimmed `body` keeps the authored line endings, with
 `bodyLine` and `bodyColumn` locating its first character in that original source.
@@ -1475,15 +1698,15 @@ The content tree, built into a book. The I/O half of the PDF surface: it reads t
 
 Journals pack compiler — produces JSON pack files for the "journals" Foundry compendium from markdown notes in the `assets/content/` tree. The content root (`contentBase`) is walked recursively; any `.md` file whose frontmatter declares either `type: doc` or a **doc-carrying type** ({@link sohl.utils.packs.docEntryTypes} — every item type, plus `macro`) is compiled into one JournalEntry document. Each note's body is split on top-level H1 headings; the optional content before the first H1 becomes a lead page, and each subsequent H1 starts a new page named after its heading text. All page bodies are rendered to HTML.
 
-| Export                | Signature                                                                   | Returns                                                                                                                                                                          | Use it when                                                                                                                      |
-| --------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `splitPages`          | `function splitPages(body, leadName`                                        | —                                                                                                                                                                                | Splits a markdown body into pages by top-level H1 headings.                                                                      |
-| `assertUniquePages`   | `function assertUniquePages(rawPages, noteName)`                            | —                                                                                                                                                                                | Two pages in one note that would derive the same id, which the LevelDB packer reports only as an opaque duplicate-key collision. |
-| `assertUniqueAnchors` | `function assertUniqueAnchors(rawPages, noteName)`                          | —                                                                                                                                                                                | The anchor half of {@link assertUniquePages}, under its former name.                                                             |
-| `journalPageId`       | `function journalPageId(entryId, page)`                                     | {string} A 16-character Foundry id.                                                                                                                                              | The id of one page within its entry.                                                                                             |
-| `buildPages`          | `function buildPages(rawPages, entryId, noteName)`                          | {Array<{\_id: string, name: string, type: string, title: {show: boolean, level: number}, text: {format: number, content: string}, \_key: string}>} The page documents, in order. | Compile split pages into JournalEntryPage documents.                                                                             |
-| `buildJournalEntry`   | `buildJournalEntry({ id, name, markdown, leadName, folder, flags, stats })` | {object} The JournalEntry document, keyed for the pack.                                                                                                                          | Assemble one JournalEntry document from a note's converted markdown.                                                             |
-| `Journals`            | `class Journals extends BasePackCompiler`                                   | —                                                                                                                                                                                | not called directly — imported and driven by `engine/generate.mjs` as the "journals" pack compiler                               |
+| Export                | Signature                                                                    | Returns                                                                                                                                                                          | Use it when                                                                                                                      |
+| --------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `splitPages`          | `splitPages(body, leadName, resolveRole, syntax?)`                           | —                                                                                                                                                                                | Splits a markdown body into pages by top-level H1 headings.                                                                      |
+| `assertUniquePages`   | `function assertUniquePages(rawPages, noteName)`                             | —                                                                                                                                                                                | Two pages in one note that would derive the same id, which the LevelDB packer reports only as an opaque duplicate-key collision. |
+| `assertUniqueAnchors` | `function assertUniqueAnchors(rawPages, noteName)`                           | —                                                                                                                                                                                | The anchor half of {@link assertUniquePages}, under its former name.                                                             |
+| `journalPageId`       | `function journalPageId(entryId, page)`                                      | {string} A 16-character Foundry id.                                                                                                                                              | The id of one page within its entry.                                                                                             |
+| `buildPages`          | `function buildPages(rawPages, entryId, noteName)`                           | {Array<{\_id: string, name: string, type: string, title: {show: boolean, level: number}, text: {format: number, content: string}, \_key: string}>} The page documents, in order. | Compile split pages into JournalEntryPage documents.                                                                             |
+| `buildJournalEntry`   | `buildJournalEntry({ id, name, markdown, leadName, folder, stats, syntax })` | {object} The JournalEntry document, keyed for the pack.                                                                                                                          | Assemble one JournalEntry document from a note's converted markdown.                                                             |
+| `Journals`            | `class Journals extends BasePackCompiler`                                    | —                                                                                                                                                                                | not called directly — imported and driven by `engine/generate.mjs` as the "journals" pack compiler                               |
 
 ### `engine.macros`
 
@@ -1556,28 +1779,28 @@ Adventure pack compiler — `type: bundle` notes → Foundry `Adventure` documen
 
 Pack JSON generation — in-repo Markdown → per-entry JSON (build-only). Reads the authoritative content tree at the configured content root and compiles each pack's entries to per-entry JSON under its build directory (`build/packs-json/<pack>/` in this repository). The JSON is a disposable build intermediate consumed by `build:compiledb` (which turns it into the shipped LevelDB packs) — it is never committed.
 
-| Export                        | Signature                                               | Returns                                                                                                                                                              | Use it when                                                                                                         |
-| ----------------------------- | ------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `systemCompilers`             | `function systemCompilers(passes)`                      | {Readonly<Record<string, Readonly<Record<string, Function>>>>} System id → document class → pass.                                                                    | The system-specific compilers, derived from the passes themselves.                                                  |
-| `compilerFor`                 | `function compilerFor(docType, system`                  | {Function\|undefined} The compiler class, or `undefined` for a document type nothing here compiles — which {@link generatePack} reports rather than defaulting past. | The compiler class a pack of one document type and one system gets.                                                 |
-| `emittedArtFor`               | `function emittedArtFor(type)`                          | {{document: string\|null, art: readonly string[]}\|null} What the type compiles into and the art it carries there, or `null` where no claim can be made.             | The art fields a note of one content type reaches its document through, and the document it reaches.                |
-| `packJsonDir`                 | `const packJsonDir`                                     | {string} The pack's JSON directory.                                                                                                                                  | Root of the build-only JSON tree for one pack.                                                                      |
-| `itemPackJsonDirs`            | `function itemPackJsonDirs(config`                      | {string[]} Each Item pack's JSON directory.                                                                                                                          | The generated JSON of **every** configured Item pack — what the actors pass reads its predefined items from.        |
-| `bundleSourceJsonDirs`        | `function bundleSourceJsonDirs(config`                  | {Record<string, string[]>} Each readable pack's JSON directory, by the Foundry document type it holds.                                                               | The compiled JSON a bundle may hold copies of, by document type.                                                    |
-| `orderPassesByDependency`     | `function orderPassesByDependency(packs)`               | {object[]} A new list, in compile order.                                                                                                                             | The passes to run, ordered so that each one follows the output it reads.                                            |
-| `unsatisfiedPassDependencies` | `function unsatisfiedPassDependencies(running, config)` | {string[]} One message per unsatisfiable dependency.                                                                                                                 | The dependencies this run cannot satisfy by ordering, because the pass that would produce them is not in it.        |
-| `emptyPassErrors`             | `function emptyPassErrors(passes)`                      | {string[]} One message per pass that must not have been empty.                                                                                                       | The passes that compiled nothing when they were expected to compile something — a build failure, not a quiet no-op. |
-| `generatePacksJson`           | `async generatePacksJson({ only, config })`             | {Promise<number>} Total error count across the generated packs.                                                                                                      | Generate the build-only JSON for every pack (or one, when `only` is given).                                         |
+| Export                        | Signature                                                         | Returns                                                                                                                                                              | Use it when                                                                                                         |
+| ----------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `systemCompilers`             | `function systemCompilers(passes)`                                | {Readonly<Record<string, Readonly<Record<string, Function>>>>} System id → document class → pass.                                                                    | The system-specific compilers, derived from the passes themselves.                                                  |
+| `compilerFor`                 | `function compilerFor(docType, system`                            | {Function\|undefined} The compiler class, or `undefined` for a document type nothing here compiles — which {@link generatePack} reports rather than defaulting past. | The compiler class a pack of one document type and one system gets.                                                 |
+| `emittedArtFor`               | `function emittedArtFor(type)`                                    | {{document: string\|null, art: readonly string[]}\|null} What the type compiles into and the art it carries there, or `null` where no claim can be made.             | The art fields a note of one content type reaches its document through, and the document it reaches.                |
+| `packJsonDir`                 | `const packJsonDir`                                               | {string} The pack's JSON directory.                                                                                                                                  | Root of the build-only JSON tree for one pack.                                                                      |
+| `itemPackJsonDirs`            | `function itemPackJsonDirs(config`                                | {string[]} Each Item pack's JSON directory.                                                                                                                          | The generated JSON of **every** configured Item pack — what the actors pass reads its predefined items from.        |
+| `bundleSourceJsonDirs`        | `function bundleSourceJsonDirs(config`                            | {Record<string, string[]>} Each readable pack's JSON directory, by the Foundry document type it holds.                                                               | The compiled JSON a bundle may hold copies of, by document type.                                                    |
+| `orderPassesByDependency`     | `function orderPassesByDependency(packs)`                         | {object[]} A new list, in compile order.                                                                                                                             | The passes to run, ordered so that each one follows the output it reads.                                            |
+| `unsatisfiedPassDependencies` | `function unsatisfiedPassDependencies(running, config)`           | {string[]} One message per unsatisfiable dependency.                                                                                                                 | The dependencies this run cannot satisfy by ordering, because the pass that would produce them is not in it.        |
+| `emptyPassErrors`             | `function emptyPassErrors(passes)`                                | {string[]} One message per pass that must not have been empty.                                                                                                       | The passes that compiled nothing when they were expected to compile something — a build failure, not a quiet no-op. |
+| `generatePacksJson`           | `generatePacksJson({ only, config, session, reportPreparation })` | {Promise<number>} Total error count across the generated packs.                                                                                                      | Generate the build-only JSON for every pack (or one, when `only` is given).                                         |
 
 ### `engine.compendiums`
 
 Compendium pack library — compile / unpack / clean LevelDB packs. Wraps `@foundryvtt/foundryvtt-cli` over the packs a consuming repository declares: - {@link compilePacks}: generates each pack's per-entry JSON from the `assets/content/` Markdown into `build/packs-json/<name>/` (via generate.mjs), then builds LevelDB from it; no committed JSON, no vault. - {@link unpackPacks}: extracts a compiled pack back to per-entry JSON, rebuilding folder paths. - {@link cleanPacks}: normalizes/strips extracted JSON.
 
-| Export         | Signature                                                             | Returns | Use it when                                                                                                                          |
-| -------------- | --------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `compilePacks` | `async compilePacks({ config, sourcePacks, stageDest, packName })`    | —       | Generates each pack's per-entry JSON from `assets/content/` into `build/packs-json/<name>/`, then builds the LevelDB output from it. |
-| `cleanPacks`   | `async cleanPacks({ config, packDest, packName, entryName })`         | —       | Cleans and formats source JSON files, removing unnecessary permissions and flags and adding the proper spacing.                      |
-| `unpackPacks`  | `async unpackPacks({ packs, config, stageDest, packDest, packName })` | —       | Extracts compiled LevelDB packs back to per-entry JSON, rebuilding the folder hierarchy as directories.                              |
+| Export         | Signature                                                                                | Returns | Use it when                                                                                                                          |
+| -------------- | ---------------------------------------------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `compilePacks` | `compilePacks({ config, sourcePacks, stageDest, packName, session, reportPreparation })` | —       | Generates each pack's per-entry JSON from `assets/content/` into `build/packs-json/<name>/`, then builds the LevelDB output from it. |
+| `cleanPacks`   | `async cleanPacks({ config, packDest, packName, entryName })`                            | —       | Cleans and formats source JSON files, removing unnecessary permissions and flags and adding the proper spacing.                      |
+| `unpackPacks`  | `async unpackPacks({ packs, config, stageDest, packDest, packName })`                    | —       | Extracts compiled LevelDB packs back to per-entry JSON, rebuilding the folder hierarchy as directories.                              |
 
 ### `engine.regionEvents`
 
@@ -2146,7 +2369,7 @@ The engine wildcard subpath also exposes the body parsers below. Their figure ex
 | `engine/content-figures.mjs` | `FIGURE_NAMES`, `FIGURE_CLASSES`, `scanFigures`, `numberFigures`, `renderFigureBlocks`       | Scan leading captions and their next supported blocks; `numbered` distinguishes `:` and `:@`. `type` may override inference; `example` is supported. `FIGURE_CLASSES` retains built-in styled classes, not a closed author vocabulary. |
 | `engine/content-blocks.mjs`  | `BLOCK_NAMES`, `BLOCK_CONTAINERS`, `scanBlocks`, `renderBlocks`, `renderWithheldSections`    | Read div and secret fences; generic div records have `name: "div"` and no generated title. Scanning includes poetry errors.                                                                                                            |
 | `engine/content-poetry.mjs`  | `verseLines`, `poetryStanzas`, `inlineVerse`, `poetryMarkdown`, `scanPoetry`, `renderPoetry` | Read `poetry` code fences, validate authored metadata and tabs, and preserve relative indent levels and stanzas.                                                                                                                       |
-| `engine/content-spans.mjs`   | `spanMarkdownPlugin`, `scanSpans`, `renderSpans`                                             | Parse bracket spans after recognized links. The scanner returns spans and located errors; the renderer preserves inline Markdown in attributed HTML spans.                                                                             |
+| `engine/content-spans.mjs`   | `spanMarkdownPlugin`, `scanSpans`, `renderSpans`                                             | Parse bracket spans after recognized links. The scanner returns spans, the exact `.name` inventory and located errors, retaining visible text and attribute positions; rendering preserves inline Markdown and permitted attributes.   |
 
 `scanFigures` retains `line` (1-based caption line), `bodyStart`/`bodyEnd` (0-based, exclusive-end target range), and `close` (last consumed target line), plus caption attributes, kind, label and number. Unnumbered captions have an empty label and consume no number. `collectAnchors` discovers heading, caption, div, poem and span identifiers; `markupAnchorFindings(body)` reports collisions involving non-page identifiers; Foundry maps non-page anchors to the actual containing page UUID. An unnumbered `ref` requires `form="title"` or `form="full"`.
 
@@ -2156,7 +2379,7 @@ The engine wildcard subpath also exposes the body parsers below. Their figure ex
 | ---------------- | ----------------------------------------------------------------------------------- |
 | `markupFindings` | Validate complete Markdown source and return diagnostics for the supplied filename. |
 
-`markupFindings(source, file)` masks YAML frontmatter without moving source positions and returns block and alert scanner errors as `{file, line, column, severity, message}` diagnostics. Content lint, Markdown checks and formatting preflight share this validation; malformed files are not rewritten by formatting or Markdown fixes.
+`markupFindings(source, file, syntax?)` masks YAML frontmatter without moving source positions and returns block and alert scanner errors as `{file, line, column, severity, message}` diagnostics. Content lint, Markdown checks and formatting preflight share this validation; malformed files are not rewritten by formatting or Markdown fixes.
 
 `engine/content-alerts.mjs` exposes `ALERT_TYPES`, `scanAlerts(source)` and `renderAlerts(source, target)` and `alertMarkdownPlugin(md)`. The scanner returns `{blocks, errors}`; alert records carry `type`, `id`, `classes`, `attributes`, `title`, `body` and inclusive zero-based `start`/`end` source lines. The renderer produces attributed `aside.alert` wrappers while leaving alert body Markdown in the document's scope. Alert validation and anchor discovery run in site, Foundry and book pipelines.
 
@@ -2168,6 +2391,22 @@ is the authored value before index derivation. `buildCompileCorpus` returns
 that map as `parsed` for its document passes. `unclaimedNoteFindings` accepts it
 alongside `records`. `locateFrontmatterKey` and `assertNoDeclaredPackage` accept
 `raw` in their options to locate findings without opening the note again.
+
+`buildCompileCorpus`, `generatePacksJson` and `compilePacks` accept an optional
+`session` bound to their resolved configuration, roots, scope and router.
+`prepareContentIndex` also accepts it. Without a session, the existing entry
+points derive their own inputs. Generation and pack compilation accept
+`reportPreparation` (default true); a coordinating caller may set it false
+only after reporting the shared source findings itself.
+
+`buildLinkIndex` and `buildContentLinkIndex` accept an optional `foreign` view
+from the same session; their diagnostic and routed resolver contracts remain
+distinct. `collectAnchors`, `markupAnchorFindings`, `markupFindings`, journal
+`splitPages`, Foundry `anchorsOf` and `buildJournalEntry` accept the optional
+`syntax` function described above. `buildSiteIndex` and `prepareTreeSqlTables`
+accept it in options, and `insertLexicalSections` accepts it in context.
+Prepared per-note SQL results carry it to `expandContentTables`. No scan result
+is reused for a different source projection.
 
 `prepareSqlTables` accepts sources with an optional `authoredSqlBlocks` count,
 set by `joinGeneratedSections`. Subsequent fences are generated event queries
@@ -2185,7 +2424,7 @@ unknown addresses. Only public records contribute rendered sources and links.
 
 `engine/sql-tables.mjs` exports `prepareLinkSqlTables(contentBase, options)`.
 Its options are `config`, `skipDirectories`, complete `records`, the shared
-`parsed` map and `foreignIndex`. It returns prepared tables with `pageLists`
+`parsed` map, `foreignIndex` and optional `prepareAudience(audience)` callback. The callback supplies the bound session's existing `public` or `all` preparation. It returns prepared tables with `pageLists`
 and `inline` maps, or `undefined` when no source needs a directive or automatic
 lexical section. Public
 sources use public rows; GM sources use all rows. Query results remain local

@@ -195,11 +195,13 @@ describe("package-build npc new", () => {
             expect(again.stderr).toContain("already exists");
             expect(fs.readFileSync(out, "utf8")).toBe(written);
 
-            // The note it wrote passes the package's own lint.
+            // An ordinary prose name is not a marked-name occurrence.
             const lint = run("lint");
-            expect(`${lint.stdout}${lint.stderr}`).not.toMatch(
-                /^assets\/content\/Characters\/Ahmetega_Zekar\.md:/m,
-            );
+            const diagnostics = `${lint.stdout}${lint.stderr}`
+                .split(/\r?\n/)
+                .filter((line) => line.startsWith("assets/content/Characters/Ahmetega_Zekar.md:"));
+            expect(written.split("\n")[30].startsWith(SPEC.name.full)).toBe(true);
+            expect(diagnostics).toEqual([]);
             expect(lint.status).toBe(0);
             fs.rmSync(out);
         },

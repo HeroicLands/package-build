@@ -1142,10 +1142,10 @@ export const ELEMENT_FIELDS = Object.freeze([
             "ancestor.",
     }),
     Object.freeze({
-        name: "genitive",
+        name: "joining",
         kind: "string",
         shape: "the element as written, such as `-borgar`",
-        describe: "The element in the genitive, where a name governing another word takes it.",
+        describe: "The element's joining form, as written when it qualifies another word.",
     }),
 ]);
 
@@ -1472,11 +1472,11 @@ export const HELD_FROM_FIELDS = Object.freeze([
         describe: "How the name is clipped: `first`, to its first element; whole where absent.",
     }),
     Object.freeze({
-        name: "genitive",
+        name: "joining",
         kind: "list",
         shape: "a list of endings",
         entries: STRINGS,
-        describe: "The genitive endings, one of which stands at the seam after the name.",
+        describe: "The joining endings, one of which stands at the seam after the name.",
     }),
     Object.freeze({
         name: "elements",

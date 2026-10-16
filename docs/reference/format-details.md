@@ -1808,6 +1808,86 @@ name at every citation with no link edited. `[[x|]]` is labelled; `[[x]]` is not
 It is the label that is required, not a target: the anchor-only form above
 carries its pipe like every other link.
 
+#### Marking names in prose
+
+`package-build lint` reports name-marking warnings in authored body prose.
+The warnings leave a valid package passing. Headings, frontmatter, tables,
+infoboxes, code, comments and embeds are outside this check.
+
+A name is explicit: a `[Name]{.name}` bracket span or an authored link label.
+Use `.name` for names without indexed notes and links for names with notes.
+Plain prose is not searched for names. Wikilinks, ordinary Markdown links and
+reference links all supply names; a resolved empty wikilink label uses the
+note's full name. Images, code, footnote markers and bare autolinks without
+authored labels supply none.
+
+1. A `.name` span whose whole text matches an indexed `name.full` or
+   `name.aliases` should be a link. Use `[[place-arden|Arden Vale]]` or
+   `[[place-arden|]]` to introduce that note.
+2. Mark or link each name at most once per note. An indexed full name and its
+   declared aliases share one identity, including across different heading
+   anchors. Other labels use their whole text as their identity: different
+   labels linking to one page are separate names, and a label is not
+   automatically an alias of its destination.
+3. Introduce the full name before a short form or declared alias.
+   Possessives and regular plurals count as uses; other indexed forms can be
+   declared aliases.
+
+Bold is emphasis. A whole bold span exactly matching an indexed full name or
+alias receives one advisory to mark or link the name. It supplies no name
+occurrence or introduction, and bold containing a marked or linked name
+receives no such advisory. Unknown bold phrases supply no names.
+
+Inline Markdown remains active inside name spans, and name spans remain
+valid inside emphasis:
+
+```markdown
+**This is a phrase with [Joe Blow]{.name} in it**
+```
+
+The name is `Joe Blow`; the surrounding phrase is emphasis. Sites and books display
+`.name` text in bold.
+
+Each affected occurrence produces one warning at its authored
+`file:line:column`, naming the full name or explicit label. A warning
+can describe several marking problems at that occurrence.
+
+An optional `data-type` on a `.name` span states what the named thing is:
+
+```markdown
+[Ravenmoor]{.name data-type="place/settlement"}
+[Aldric Venn]{.name data-type="being"}
+```
+
+Use a declared [note type](note-types.md), optionally followed by `/` and one
+of that type's subtypes. An enumerated declaration requires a listed subtype;
+an open declaration accepts a well-formed subtype, and an absent subtype
+declaration admits none. An unknown or malformed supplied value is an error
+at the `data-type` attribute's file, line and UTF-16 column. The same attribute
+on a span without the exact `name` class is an ordinary attribute. An untyped
+`.name` is valid; its type is not inferred from a matching note.
+
+The index captures actual `.name` spans throughout the authored body, including
+headings, tables, verse and spans within links. The prose-only marking checks
+above keep their narrower scope. Frontmatter, literal code, escaped syntax,
+unmarked link labels, bold, plain prose and generated content add no names.
+The rendered visible text preserves its spelling and inline content.
+
+Each own-note metadata record carries `names` in authored order. Every entry
+has exactly `name`, `type`, `subType`, `line` and `column`; absent
+classifications are explicit `null`, and no occurrences gives an empty array.
+This is derived metadata, not frontmatter. Documentation mirrors and assets
+do not duplicate a note's occurrences. The [`names` relation](#content-tables)
+flattens these entries with their containing NOTE Address.
+
+Lint groups names without an indexed full-name or alias match by supplied
+classification and lists all their source uses. It also groups conflicting
+annotations of the same visible name. Untyped uses do not conflict. A bare
+type and its subtype agree; different supplied types or different supplied
+subtypes conflict. One package advisory contains both groups and is located
+at the earliest reported use. Advisory findings preserve a successful lint
+exit status. Supplied-value errors prevent publication and compilation.
+
 ### Assets are types
 
 `icon`, `image` and `audio` are types in the type vocabulary, and an address
@@ -2914,7 +2994,7 @@ for the keys.
 | `frames`         | `data.sounds.frames`            | `frame`, `shape`, `class` (a list), `makes`, `examples` (a list of `{ root, form }`)                                                                                                                                                                                                                                                                                       |
 | `read_past`      | `data.sounds.readPast`          | `written`, `readAs`, `what`                                                                                                                                                                                                                                                                                                                                                |
 | `sound_changes`  | `data.soundChanges`             | One row per step: `position` (the set's), `name`, `from_language`, `to_language`, `takes`, `step_position` (the step's in its set), `step`, `change`, `where`                                                                                                                                                                                                              |
-| `elements`       | `data.elements`                 | `form`, `variants` (a list), `element_position` (the element's `position`), `kind`, `sense`, `examples` (a list), `word`, `genitive`                                                                                                                                                                                                                                       |
+| `elements`       | `data.elements`                 | `form`, `variants` (a list), `element_position` (the element's `position`), `kind`, `sense`, `examples` (a list), `word`, `joining`                                                                                                                                                                                                                                        |
 | `roots`          | `data.roots`                    | `root`, `sense`, `field`                                                                                                                                                                                                                                                                                                                                                   |
 | `cognates`       | `data.cognates`                 | One row per form of a set: `position` (the set's), `gloss`, `proto`, `form_language` (the form's language note), `form`                                                                                                                                                                                                                                                    |
 | `calling_names`  | `data.callingNames`             | One row per closing: `form`, `doubled` (`true` or `false`), `usual`, and the language's `min_syllables`                                                                                                                                                                                                                                                                    |
@@ -2925,7 +3005,7 @@ for the keys.
 | `name_shapes`    | `data.naming.shapes`            | `of`, `syllables_min`, `syllables_max`, `per_vowel_min`, `per_vowel_max`                                                                                                                                                                                                                                                                                                   |
 | `name_edges`     | `data.naming.edges`             | `edge`, `sounds` (a list), `vowel` (`false` where unstated), `of` (`name` where unstated)                                                                                                                                                                                                                                                                                  |
 | `name_draws`     | `data.naming.draws`             | `kind`, `elements` (a list)                                                                                                                                                                                                                                                                                                                                                |
-| `held_from`      | `data.naming.heldFrom`          | `source`, `takes`, `clip`, `genitive` and `elements` (lists)                                                                                                                                                                                                                                                                                                               |
+| `held_from`      | `data.naming.heldFrom`          | `source`, `takes`, `clip`, `joining` and `elements` (lists)                                                                                                                                                                                                                                                                                                                |
 | `near_names`     | `data.naming.nearName.examples` | `near`, `given`, and the language's `min_syllables`                                                                                                                                                                                                                                                                                                                        |
 
 A register name is carried by a note in the language's `data.scope` — any
@@ -2939,6 +3019,30 @@ office title, and by an anchor that has it as its name, which the row cites as
 `form_language`:
 `max(form) FILTER (WHERE form_language = 'thalorna-note-skill-helonclng') AS "Helonic"`,
 grouped by `position` and `gloss`.
+
+**`names`** is one row per actual `.name` span in an authored note body. Each
+row has these columns, including on an empty relation:
+
+| Column    | SQL type  | Meaning                                                                                      |
+| --------- | --------- | -------------------------------------------------------------------------------------------- |
+| `owner`   | `VARCHAR` | Containing authored page's canonical NOTE Address, or `NULL` when the record has no Address. |
+| `name`    | `VARCHAR` | Rendered visible text, preserving its spelling.                                              |
+| `type`    | `VARCHAR` | Supplied note type, or `NULL`.                                                               |
+| `subType` | `VARCHAR` | Supplied subtype, or `NULL`.                                                                 |
+| `line`    | `BIGINT`  | Original 1-based source line at the span's opening `[`.                                      |
+| `column`  | `BIGINT`  | Original 1-based UTF-16 source column at that `[`.                                           |
+
+```sql
+SELECT owner, name, type, subType, line, "column"
+FROM names
+WHERE type = 'place'
+ORDER BY owner, line, "column"
+```
+
+A native Item's source uses its NOTE page as `owner`. Declared dependency
+metadata supplies `names` in that package's SQL schema. Public queries exclude
+GM-only owners; all/native contexts retain them. Only authored occurrences
+contribute rows, so generated queries and sections add no further names.
 
 **`language_lineage`** is one row per language note and each language it
 inherits words from through [`data.family`](#a-languages-words): `language`,
@@ -3376,6 +3480,9 @@ An attribute-bearing opener allows a nested div to be distinguished from the bar
 ```markdown
 The watch wears [a _blue_ sash]{#watch-sash .uniform lang=en}.
 ```
+
+The exact `.name` class marks a name, with optional `data-type="type/subType"`;
+see [marking names in prose](#marking-names-in-prose) for the vocabulary and index.
 
 Inline Markdown remains active inside the span. Bracket spans have lower priority than URL links, image links, reference links, footnotes and wikilinks. A bracketed form immediately preceded by `!`, followed by `(` or another `[`, or beginning with `[[` is not a span, even when the link is unresolved. Ordinary links retain their existing syntax. Escape a bracket when it should be literal, or put examples inside a code span or fence. A span identifier addresses that point in the note; it does not start a journal page.
 
@@ -5495,7 +5602,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `soundChanges[].steps[].step`              | `string`, required                                                                                                             | The step's label, as `A1` or `"1"`; no label stands twice in a set                                                                                                                   |
 | `soundChanges[].steps[].change`            | `string`, required                                                                                                             | The change in arrow notation, as `` `ph` > `f`; `kh` > `h` ``, or the operation it names in words                                                                                    |
 | `soundChanges[].steps[].where`             | `string`                                                                                                                       | Where it holds, as `word end`; everywhere where absent                                                                                                                               |
-| `elements`                                 | `{ form, variants?, position?, kind?, sense, examples?, word?, genitive? }[]`                                                  | `language` only: the elements its names are built from                                                                                                                               |
+| `elements`                                 | `{ form, variants?, position?, kind?, sense, examples?, word?, joining? }[]`                                                   | `language` only: the elements its names are built from                                                                                                                               |
 | `elements[].form`                          | `string`, required                                                                                                             | The element, as `arn-`                                                                                                                                                               |
 | `elements[].variants`                      | `string[]`                                                                                                                     | The element's other forms, as `aldr-` beside `ald-`                                                                                                                                  |
 | `elements[].position`                      | `opening`, `closing`, `either` or `link`                                                                                       | Where in a name it stands                                                                                                                                                            |
@@ -5503,7 +5610,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `elements[].sense`                         | `string`, required                                                                                                             | What it means                                                                                                                                                                        |
 | `elements[].examples`                      | `string[]`                                                                                                                     | The names it is read from                                                                                                                                                            |
 | `elements[].word`                          | `string`                                                                                                                       | The word it is the stem of, a form of `words` of the language or an ancestor                                                                                                         |
-| `elements[].genitive`                      | `string`                                                                                                                       | The element in the genitive, as `-borgar`, where a name governing another word takes it                                                                                              |
+| `elements[].joining`                       | `string`                                                                                                                       | The element's joining form, as `-borgar`, when it qualifies another word                                                                                                             |
 | `roots`                                    | `{ root, sense, field? }[]`                                                                                                    | `language` only: the consonantal roots its words are set from                                                                                                                        |
 | `roots[].root`                             | `string`, required                                                                                                             | The root, as `d-l-k`                                                                                                                                                                 |
 | `roots[].sense`                            | `string`, required                                                                                                             | What it means                                                                                                                                                                        |
@@ -5543,11 +5650,11 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `naming.draws`                             | `{ kind, elements }[]`                                                                                                         | The element kinds each kind of name is built from                                                                                                                                    |
 | `naming.draws[].kind`                      | `byname`, `given` or `place`, required                                                                                         | The kind of name; once per kind                                                                                                                                                      |
 | `naming.draws[].elements`                  | list of `byname`, `given` or `place`, required                                                                                 | The element kinds, as `elements[].kind` states them                                                                                                                                  |
-| `naming.heldFrom`                          | `{ source, takes, clip?, genitive?, elements? }[]`                                                                             | What a place name takes first, by what the place is held from                                                                                                                        |
+| `naming.heldFrom`                          | `{ source, takes, clip?, joining?, elements? }[]`                                                                              | What a place name takes first, by what the place is held from                                                                                                                        |
 | `naming.heldFrom[].source`                 | `string`, required                                                                                                             | What the place is held from, as `a founder`                                                                                                                                          |
 | `naming.heldFrom[].takes`                  | `stem`, `godName`, `givenName` or `element`, required                                                                          | What stands first: a name-stem in any grade, a god's name, a founder's given name, or one of `elements`                                                                              |
 | `naming.heldFrom[].clip`                   | `first`                                                                                                                        | How the name is clipped: to its first element; whole where absent. A name row only                                                                                                   |
-| `naming.heldFrom[].genitive`               | `string[]`                                                                                                                     | The genitive endings, one of which stands at the seam after the name. A name row only                                                                                                |
+| `naming.heldFrom[].joining`                | `string[]`                                                                                                                     | The joining endings, one of which stands at the seam after the name. A name row only                                                                                                 |
 | `naming.heldFrom[].elements`               | `string[]`                                                                                                                     | The elements that may stand first; required on, and only on, a row that takes an `element`                                                                                           |
 | `naming.nearName`                          | `{ minSyllables, examples? }`                                                                                                  | The near name a long given name carries                                                                                                                                              |
 | `naming.nearName.minSyllables`             | `integer`, required                                                                                                            | The fewest syllables a given name has that carries a near name                                                                                                                       |
@@ -5859,7 +5966,7 @@ data:
       - { kind: byname, elements: [byname, place] }
     heldFrom:
       - { source: a god, takes: godName, clip: first }
-      - { source: a founder, takes: givenName, genitive: ["-s", "-a"] }
+      - { source: a founder, takes: givenName, joining: ["-s", "-a"] }
       - { source: the ting and its law, takes: element, elements: ["ting-", "lög-"] }
     nearName:
       minSyllables: 4
@@ -5975,9 +6082,8 @@ form and its other forms, where in a name it stands (`opening`, `closing`,
 `either` or `link`), its sense and the names it is read from. In a language
 that keeps one set of elements for each kind of name, `kind` says which
 (`byname`, `given` or `place`). `word` names the word of `words` the element is
-the stem of, the language's or an ancestor's, and `genitive` gives the element
-in the genitive where a name governing another word takes it. An element that
-is also a word stays a word.
+the stem of, the language's or an ancestor's, and `joining` gives its form
+when it qualifies another word. An element that is also a word stays a word.
 
 **`roots` lists consonantal roots**, each with its sense and the field it
 belongs to. **`cognates`** lists, on the eldest language of a set, the form one
@@ -6010,7 +6116,7 @@ there too and `of` where the edge holds for one class of name only; an edge
 stands once for each class. `draws` gives the element kinds each kind of name
 is built from. `heldFrom` gives what a place name takes first by what the
 place is held from: a name-stem, a god's name, a founder's given name — that
-name `clip`ped to its `first` element, or followed by one of its `genitive`
+name `clip`ped to its `first` element, or followed by one of its `joining`
 endings — or one of the `elements` listed. `nearName` states the fewest
 syllables a given name has that carries a near name, with worked examples.
 
@@ -6059,7 +6165,7 @@ Each finding is located at the key at fault:
 | A naming edge stated twice for one class of name, at the second                                                                                                                                                                                                                                                                                                          | error    |
 | A kind of name whose draws are stated twice, at the second                                                                                                                                                                                                                                                                                                               | error    |
 | A held-from row that takes an `element` and names no `elements`, at the row                                                                                                                                                                                                                                                                                              | error    |
-| `elements` on a held-from row that takes no element, or `clip` or `genitive` on one that takes no name, at the key                                                                                                                                                                                                                                                       | error    |
+| `elements` on a held-from row that takes no element, or `clip` or `joining` on one that takes no name, at the key                                                                                                                                                                                                                                                        | error    |
 | A `scope` Address that does not resolve, or a type that is no note type                                                                                                                                                                                                                                                                                                  | error    |
 | A tongue `language` or a cognate form's language that is no language note                                                                                                                                                                                                                                                                                                | error    |
 | A register row with neither a `tongue` nor a `kind`, at the row                                                                                                                                                                                                                                                                                                          | error    |
@@ -6393,6 +6499,12 @@ word.
    affiliation's, nearest first and parents in the order `data.parents` lists
    them, then its culture's `data.language`;
 3. on a culture, its own `data.language`.
+
+On lore and affiliation notes, `data.language` and
+`data.glossary[].language` name language notes. Use `skill-provnzlng` for a
+language in this package, or `<pkg>-note-skill-provnzlng` for its complete
+NOTE Address. Any other system segment, including `sohl`, is an error at the
+authored value. A SOHL skill Address names a compiled Item.
 
 An affiliation's culture is the one it states or inherits, as
 [Culture in the index](#culture-in-the-index) describes, and a culture's

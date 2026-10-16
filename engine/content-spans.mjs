@@ -17,6 +17,7 @@ import { slugify } from "./content-slug.mjs";
 import { scanPoetry } from "./content-poetry.mjs";
 import footnotePlugin from "markdown-it-footnote";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
+import { inlineText } from "./name-markup.mjs";
 
 /** Add bracket spans after recognized Markdown links and footnotes.
  * @param {import("markdown-it")} md - Markdown parser to extend.
@@ -57,7 +58,9 @@ export function spanMarkdownPlugin(md) {
             if (close === state.posMax)
                 parsed.problems.push("span attributes need closing {…} braces");
             else {
-                parsed = parseExtensionAttributes(state.src.slice(finish + 1, close));
+                parsed = parseExtensionAttributes(state.src.slice(finish + 1, close), {
+                    positions: true,
+                });
                 finish = close + 1;
             }
         }
@@ -73,6 +76,17 @@ export function spanMarkdownPlugin(md) {
             end: finish,
             text: state.src.slice(start + 1, end),
             problems,
+            attributePositions: Object.fromEntries(
+                Object.entries(parsed.positions ?? {}).map(([key, positions]) => [
+                    key,
+                    Object.fromEntries(
+                        Object.entries(positions).map(([part, range]) => [
+                            part,
+                            { start: range.start + end + 2, end: range.end + end + 2 },
+                        ]),
+                    ),
+                ]),
+            ),
         };
         if (parsed.id) token.attrSet("id", slugify(parsed.id));
         if (parsed.classes.length) token.attrSet("class", parsed.classes.join(" "));
@@ -84,6 +98,11 @@ export function spanMarkdownPlugin(md) {
             if (child.meta?.span) {
                 child.meta.start += start + 1;
                 child.meta.end += start + 1;
+                for (const positions of Object.values(child.meta.attributePositions ?? {}))
+                    for (const range of Object.values(positions)) {
+                        range.start += start + 1;
+                        range.end += start + 1;
+                    }
             }
         state.tokens.push(...nested);
         state.push("span_close", "span", -1);
@@ -98,6 +117,7 @@ const parser = new MarkdownIt({ html: true })
     .use(spanMarkdownPlugin);
 /** Read span anchors and located attribute diagnostics outside literal code.
  * @param {string} source - Authored Markdown.
+ * @returns {import("./name-markup.mjs").SpanScan} Actual spans, explicit names and located diagnostics.
  */
 export function scanSpans(source) {
     const text = String(source ?? ""),
@@ -112,14 +132,28 @@ export function scanSpans(source) {
         starts.push(offset);
         offset += line.length + 1;
     }
+    const located = (start, end) => {
+        let lo = 0,
+            hi = starts.length;
+        while (lo + 1 < hi) {
+            const mid = (lo + hi) >>> 1;
+            if (starts[mid] <= start) lo = mid;
+            else hi = mid;
+        }
+        return { start, end, line: lo + 1, column: start - starts[lo] + 1 };
+    };
     const collect = (children, position) => {
-        for (const child of children ?? []) {
+        for (const [index, child] of (children ?? []).entries()) {
             if (!child.meta?.span) continue;
             const start = position(child.meta.start),
                 end = position(child.meta.end);
-            const prefix = text.slice(0, start),
-                line = prefix.split("\n").length,
-                column = start - prefix.lastIndexOf("\n");
+            const { line, column } = located(start, end);
+            let depth = 1,
+                close = index + 1;
+            for (; close < children.length; close++) {
+                if (children[close].type === "span_open") depth++;
+                if (children[close].type === "span_close" && --depth === 0) break;
+            }
             spans.push({
                 id: child.attrGet("id") ?? "",
                 line,
@@ -127,13 +161,50 @@ export function scanSpans(source) {
                 start,
                 end,
                 text: child.meta.text,
+                contentEnd: position(child.meta.start + 1 + child.meta.text.length),
+                visible: inlineText(children.slice(index + 1, close)),
                 attrs: child.attrs ?? [],
+                attributePositions: Object.fromEntries(
+                    Object.entries(child.meta.attributePositions ?? {}).map(([key, positions]) => [
+                        key,
+                        Object.fromEntries(
+                            Object.entries(positions).map(([part, range]) => [
+                                part,
+                                located(position(range.start), position(range.end)),
+                            ]),
+                        ),
+                    ]),
+                ),
             });
             for (const message of child.meta.problems) errors.push({ line, column, message });
         }
     };
+    let row;
     for (const token of tokens) {
-        if (token.type !== "inline" || !token.map) continue;
+        if (token.type === "tr_open" && token.map) {
+            const line = lines[token.map[0]],
+                offsets = [];
+            let content = "";
+            // The existing table rule removes a backslash immediately before
+            // a pipe. Retain that projection's original character positions;
+            // actual row/cell tokens still own all table parsing and trimming.
+            for (let i = 0; i < line.length; i++) {
+                if (line[i] === "\\" && line[i + 1] === "|") continue;
+                offsets.push(i);
+                content += line[i];
+            }
+            offsets.push(line.length);
+            row = { content, offsets, line: token.map[0], cursor: 0 };
+        } else if (token.type === "tr_close") row = undefined;
+        if (token.type !== "inline") continue;
+        if (!token.map) {
+            if (!row) continue;
+            const column = row.content.indexOf(token.content, row.cursor);
+            if (column < 0) continue;
+            row.cursor = column + token.content.length;
+            collect(token.children, (pos) => starts[row.line] + row.offsets[column + pos]);
+            continue;
+        }
         const contentLines = token.content.split("\n"),
             positions = [];
         let local = 0;
@@ -159,7 +230,15 @@ export function scanSpans(source) {
     }
     spans.sort((a, b) => a.start - b.start);
     errors.sort((a, b) => a.line - b.line || a.column - b.column);
-    return { spans, errors };
+    return {
+        spans,
+        names: spans.filter((span) =>
+            span.attrs.some(
+                ([key, value]) => key === "class" && value.split(/\s+/).includes("name"),
+            ),
+        ),
+        errors,
+    };
 }
 
 /** Emit span tags while leaving their inline content as Markdown for Hugo.
@@ -182,7 +261,7 @@ export function renderSpans(source) {
         const attrs = span.attrs.map(([key, value]) => ` ${key}="${escape(value)}"`).join("");
         markdown =
             markdown.slice(0, span.start) +
-            `<span${attrs}>${renderSpans(span.text).markdown}</span>` +
+            `<span${attrs}>${renderSpans(markdown.slice(span.start + 1, span.contentEnd)).markdown}</span>` +
             markdown.slice(span.end);
     }
     return { markdown, errors };

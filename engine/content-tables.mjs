@@ -154,6 +154,7 @@ export function expandContentTables(markdown, { source = "", sqlTables, pageList
             authored,
             lineMap,
             generatedFrom,
+            syntax: sqlTables?.syntax,
         }),
         errors,
         warnings,

@@ -245,13 +245,20 @@ export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, res
  * `{ frontmatter: null, body: "", description: "", raw }` and no
  * position: there is no body to have one.
  * @param {string} filePath - Markdown file to read.
- * @param {{addressContext?: object}} [opts] - Address defaults for decoded fields.
+ * @param {object} [opts]
+ * @param {object} [opts.addressContext] - Address defaults for decoded fields.
+ * @param {string} [opts.raw] - Exact captured source; omitted, reads the file.
+ * @param {boolean} [opts.renderDescription=true] - Render the body's HTML description.
+ *   False leaves `description` empty for readers that only use authored text.
  * @returns {{frontmatter: object|null, body: string, description: string, raw: string,
  *   bodyLine?: number, bodyColumn?: number, parseError?: {message: string,
  *   line?: number, column?: number}}} Parsed note and body position.
  */
-export function parseMarkdownFile(filePath, { addressContext } = {}) {
-    const content = fs.readFileSync(filePath, "utf8");
+export function parseMarkdownFile(
+    filePath,
+    { addressContext, raw: capturedRaw, renderDescription = true } = {},
+) {
+    const content = capturedRaw ?? fs.readFileSync(filePath, "utf8");
     const fmMatch = splitFrontmatter(content);
     if (!fmMatch) {
         return { frontmatter: null, body: "", description: "", raw: content };
@@ -290,7 +297,7 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
     }
     const raw = fmMatch.body;
     const body = raw.trim();
-    const description = body ? renderFoundryMarkdown(body) : "";
+    const description = body && renderDescription ? renderFoundryMarkdown(body) : "";
     // Where the trimmed body starts in the *file*, so an offset within it can
     // be reported as a file position. The frontmatter's lines and the
     // blank lines `trim()` removes both sit in between, and the trim can take
@@ -376,13 +383,19 @@ export function assertSuppliedCorpus(records, who) {
  *   Required: the scope is the caller's to state, so two passes cannot
  *   disagree about which files are the corpus.
  * @param {object} [opts.addressContext] - Address resolution context.
+ * @param {Map<string, {raw: string}>} [opts.sources] - Selected sources in walk order.
+ *   Supplied, the walk parses these strings instead of reading the filesystem.
+ * @param {boolean} [opts.renderDescription=true] - Render each body's description.
  * @yields {{frontmatter: object|null, body: string, description: string,
  *   file: string, absPath: string, bodyLine?: number, bodyColumn?: number}}
  *   One entry per `.md` file found.
  * @throws {Error} When `skipDirectories` is not stated — see
  *   {@link assertStatedScope}.
  */
-export function* walkMarkdownTree(rootDir, { skipDirectories, addressContext } = {}) {
+export function* walkMarkdownTree(
+    rootDir,
+    { skipDirectories, addressContext, sources, renderDescription = true } = {},
+) {
     // Stated by the caller, never resolved here. A default here
     // — `loadPackConfig().skipDirectories` — read whichever configuration
     // resolved from the working directory rather than the one the caller was
@@ -395,6 +408,20 @@ export function* walkMarkdownTree(rootDir, { skipDirectories, addressContext } =
     // the ambient config rather than the passed one, which a fixture can pass
     // on indefinitely.
     assertStatedScope(skipDirectories, "walkMarkdownTree");
+    if (sources) {
+        for (const [absPath, source] of sources) {
+            yield {
+                ...parseMarkdownFile(absPath, {
+                    addressContext,
+                    raw: source.raw,
+                    renderDescription,
+                }),
+                file: path.basename(absPath),
+                absPath,
+            };
+        }
+        return;
+    }
     if (!fs.existsSync(rootDir)) return;
     const stack = [rootDir];
     while (stack.length > 0) {
@@ -413,7 +440,7 @@ export function* walkMarkdownTree(rootDir, { skipDirectories, addressContext } =
                 stack.push(absPath);
             } else if (entry.isFile() && entry.name.endsWith(".md")) {
                 yield {
-                    ...parseMarkdownFile(absPath, { addressContext }),
+                    ...parseMarkdownFile(absPath, { addressContext, renderDescription }),
                     file: entry.name,
                     absPath,
                 };
@@ -785,12 +812,14 @@ import { collectAnchors } from "./anchors.mjs";
  *   compile and handed in. Required: see {@link assertSuppliedCorpus}.
  * @param {Map<string, object[]>} [opts.sqlTables] - Prepared directives,
  *   including the anchors and Foundry page maps of their expanded bodies.
+ * @param {ReturnType<import("./metadata-index.mjs").loadForeignIndexes>} [opts.foreign] -
+ *   Captured dependency address and reference views for this context.
  * @returns {{byShortcode: Map, types: Set}} From `buildWikilinkIndex`.
  */
 export function buildContentLinkIndex(
     contentBase,
     router = packRouter(),
-    { config, records, sqlTables } = {},
+    { config, records, sqlTables, foreign: capturedForeign } = {},
 ) {
     const docs = [];
     /** The files this package ships, by canonical address. */
@@ -892,7 +921,7 @@ export function buildContentLinkIndex(
         index: foreign,
         references: foreignReferences,
         stale,
-    } = loadForeignIndexes(resolved, [resolved.contentPackage], PACKAGE_BASE);
+    } = capturedForeign ?? loadForeignIndexes(resolved, [resolved.contentPackage], PACKAGE_BASE);
     if (stale.length) {
         for (const st of stale) {
             log.error(`Unusable content index for "${st.package}": ${st.reason}`);

@@ -32,6 +32,7 @@ import { expandContentTables } from "./content-tables.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
 import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventRows } from "./event-rows.mjs";
+import { NAME_COLUMNS, namesRows } from "./name-rows.mjs";
 import {
     GLOSSARY_COLUMNS,
     AFFIX_COLUMNS,
@@ -272,6 +273,7 @@ export async function openNotesDatabase(
     await connection.run("SET threads=1");
     await createRelations(connection, jsonl, encoded, "", audience);
     await createEventRelation(connection, path.join(base, "events.jsonl"), encoded, "", audience);
+    await createNameRelation(connection, path.join(base, "names.jsonl"), encoded, "", audience);
     await createWordRelations(connection, path.join(base, "notes"), encoded, "", audience);
 
     // One schema per declared dependency, so `FROM sohl.notes` reads the notes
@@ -297,6 +299,13 @@ export async function openNotesDatabase(
         await createEventRelation(
             connection,
             flat.replace(/\.jsonl$/, "-events.jsonl"),
+            depRecords,
+            `${schema}.`,
+            audience,
+        );
+        await createNameRelation(
+            connection,
+            flat.replace(/\.jsonl$/, "-names.jsonl"),
             depRecords,
             `${schema}.`,
             audience,
@@ -334,6 +343,7 @@ export async function openNotesDatabase(
     await connection.run(`CREATE VIEW ${WITH_STUBS_SCHEMA}.notes AS SELECT * FROM entries`);
     for (const relation of [
         "events",
+        "names",
         "words",
         "affixes",
         "fields",
@@ -540,6 +550,41 @@ async function createEventRelation(connection, file, records, prefix, audience) 
     }
     fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
     await createTableFromFile(connection, `${prefix}events`, readJsonAuto(file));
+}
+
+/**
+ * Create authored name rows from own-note records, with audience filtering and
+ * fixed scalar types even when every optional classification is null.
+ * @param {object} connection - An open DuckDB connection.
+ * @param {string} file - Where to write the rows.
+ * @param {object[]} records - Index records, every Address a string.
+ * @param {string} prefix - A schema to qualify the relation name with.
+ * @param {"all"|"public"} audience - Whether to leave out GM notes.
+ * @returns {Promise<void>}
+ */
+async function createNameRelation(connection, file, records, prefix, audience) {
+    const rows = namesRows(
+        audience === "public" ? records.filter((record) => !isGmNote(record)) : records,
+    );
+    const columnTypes = NAME_COLUMNS.map((column) => [
+        column,
+        column === "line" || column === "column" ? "BIGINT" : "VARCHAR",
+    ]);
+    if (!rows.length) {
+        const columns = columnTypes.map(([column, type]) => `NULL::${type} AS "${column}"`);
+        await connection.run(
+            `CREATE VIEW ${prefix}names AS SELECT ${columns.join(", ")} WHERE false`,
+        );
+        return;
+    }
+    fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
+    const schema = columnTypes.map(([column, type]) => `'${column}': '${type}'`).join(", ");
+    await createTableFromFile(
+        connection,
+        `${prefix}names`,
+        `SELECT * FROM read_json('${file.replace(/'/g, "''")}', columns={${schema}}, ` +
+            "format='newline_delimited', maximum_object_size=20000000)",
+    );
 }
 
 /**
@@ -1303,21 +1348,22 @@ export function attachGeneratedSections(prepared, generated) {
  * @param {object} [config] - The resolved build configuration.
  * @returns {Promise<void>}
  */
-async function attachPreparedAnchors(prepared, records, contentBase, parsed, config) {
+async function attachPreparedAnchors(prepared, records, contentBase, parsed, config, syntax) {
     const { entriesForNote, foundryIdentities } = await import("./foundry-entries.mjs");
-    const identities = config ? foundryIdentities(config) : undefined;
+    const identities = config ? { ...foundryIdentities(config), syntax } : undefined;
     for (const record of records) {
         if (!isNoteRecord(record)) continue;
         const file = noteFile(contentBase, record);
         const results = prepared.get(file);
         if (!results) continue;
+        if (syntax) results.syntax = syntax;
         const { body } = parsed.get(file) ?? parseMarkdownFile(file);
         const expanded = expandContentTables(body, {
             source: file,
             sqlTables: results,
             pageLists: prepared.pageLists?.get(file),
         }).markdown;
-        results.anchors = collectAnchors(expanded);
+        results.anchors = collectAnchors(expanded, 1, undefined, syntax);
         if (!identities || !record.address?.slug) continue;
         const frontmatter = authoredFrontmatter(record);
         const entries = entriesForNote(
@@ -1429,13 +1475,23 @@ export async function cachedDependencies(config) {
  * @param {Map<string, object>} [opts.foreignIndex] - The fetched indexes the
  *   generated sections take in, where the caller holds them already; absent,
  *   they are read from the cache.
+ * @param {import("./content-session.mjs").ContentSyntax} [opts.syntax] - Exact-text scanner projections.
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path,
  *   carrying `inline` and `pageLists` beside them, or nothing when the tree
  *   holds no such directive and no note is given a generated section.
  */
 export async function prepareTreeSqlTables(
     contentBase,
-    { config, skipDirectories, records, parsed, database, audience = "all", foreignIndex } = {},
+    {
+        config,
+        skipDirectories,
+        records,
+        parsed,
+        database,
+        audience = "all",
+        foreignIndex,
+        syntax,
+    } = {},
 ) {
     // Imported here rather than at module scope: the index reaches the pack
     // compilers through `manifest-emit` → `journals`, so a static import from a
@@ -1514,7 +1570,7 @@ export async function prepareTreeSqlTables(
         pageOnly.inline = new Map();
         pageOnly.pageLists = preparePageLists(indexRecords, sources);
         attachGeneratedSections(pageOnly, derivedOnly);
-        await attachPreparedAnchors(pageOnly, indexRecords, contentBase, notes, config);
+        await attachPreparedAnchors(pageOnly, indexRecords, contentBase, notes, config, syntax);
         return pageOnly;
     }
     // A cell links only where the address it would emit resolves, so a table
@@ -1559,7 +1615,7 @@ export async function prepareTreeSqlTables(
         });
         prepared.inline = await prepareInlineSqlExpressions(db, sources);
         attachGeneratedSections(prepared, generated);
-        await attachPreparedAnchors(prepared, indexRecords, contentBase, notes, config);
+        await attachPreparedAnchors(prepared, indexRecords, contentBase, notes, config, syntax);
         return prepared;
     } finally {
         if (!database) await db.close();
@@ -1578,11 +1634,13 @@ export async function prepareTreeSqlTables(
  * @param {object[]} [opts.records] - Complete index records already derived.
  * @param {Map<string, {body: string, frontmatter: object|null}>} [opts.parsed] - Parsed notes.
  * @param {Map<string, object>} [opts.foreignIndex] - Published dependency indexes.
+ * @param {(audience: "all"|"public") => Promise<Map<string, object[]>|undefined>} [opts.prepareAudience] -
+ *   Context-bound preparation shared with other operations in the same session.
  * @returns {Promise<Map<string, object[]>|undefined>} Prepared tables by source.
  */
 export async function prepareLinkSqlTables(
     contentBase,
-    { config, skipDirectories, records, parsed, foreignIndex } = {},
+    { config, skipDirectories, records, parsed, foreignIndex, prepareAudience } = {},
 ) {
     const { indexRecordsFor } = await import("./content-index.mjs");
     const notes = parsed ?? new Map();
@@ -1619,14 +1677,17 @@ export async function prepareLinkSqlTables(
     selected.pageLists = new Map();
     selected.inline = new Map();
     for (const audience of new Set(sources.values())) {
-        const prepared = await prepareTreeSqlTables(contentBase, {
-            config,
-            skipDirectories,
-            records: allRecords,
-            parsed: notes,
-            foreignIndex,
-            audience,
-        });
+        const prepared =
+            prepareAudience ?
+                await prepareAudience(audience)
+            :   await prepareTreeSqlTables(contentBase, {
+                    config,
+                    skipDirectories,
+                    records: allRecords,
+                    parsed: notes,
+                    foreignIndex,
+                    audience,
+                });
         for (const [file, sourceAudience] of sources) {
             if (sourceAudience !== audience) continue;
             if (prepared?.has(file)) selected.set(file, prepared.get(file));

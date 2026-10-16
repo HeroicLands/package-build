@@ -102,6 +102,9 @@ import {
     cloneAddressState,
 } from "./note-addresses.mjs";
 import { AddressLink } from "./address-values.mjs";
+import { scanSpans } from "./content-spans.mjs";
+import { rebaseNameSpans } from "./name-markup.mjs";
+import { analyzeNameSpans } from "./names.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -469,6 +472,8 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw)
  *   and for the one question that decides whether the note publishes a page. A
  *   caller that states no body is stating an empty one, and the note is a stub.
  * @param {number} [options.bodyLine] - The 1-based file line the body starts on.
+ * @param {number} [options.bodyColumn] - The 1-based UTF-16 column of its first character.
+ * @param {Iterable<string>} [options.nameTypes] - Additional bare name kinds from configured type declarations.
  * @param {object} [options.manifest] - The package manifest, which the Foundry
  *   entries are derived against.
  * @param {object} [options.addressContext] - Address resolution context.
@@ -477,6 +482,7 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw)
  *   a picture's address to the role its asset declares, so a figure anchor's
  *   `name` reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
+ * @param {import("./content-session.mjs").ContentSyntax} [options.syntax] - Session scanner projections.
  * @returns {Record<string, any>} The record, keys sorted at every depth. A
  *   **stub** — a note with an empty body, on a type an empty body suppresses —
  *   carries `address` and `anchors` as `null`: it publishes no page, so it
@@ -496,12 +502,36 @@ export function buildIndexRecord({
     contentPackage,
     body,
     bodyLine,
+    bodyColumn,
+    nameTypes,
     manifest,
     addressContext,
     dateContext,
     resolveRole,
+    syntax,
 }) {
     assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw);
+
+    const source = body ?? "";
+    const spans = syntax ? syntax(source).spans.names : scanSpans(source).names;
+    const marked = analyzeNameSpans(
+        rebaseNameSpans(spans, { raw: raw ?? source, bodyLine, bodyColumn }),
+        { file: absPath ?? relPath, types: nameTypes },
+    );
+    if (marked.findings.length) {
+        const findings = marked.findings.map(({ line, column, ...finding }) => ({
+            ...finding,
+            position: {
+                ...(line === undefined ? {} : { line }),
+                ...(column === undefined ? {} : { column }),
+            },
+        }));
+        throw Object.assign(new Error(findings[0].message), {
+            file: findings[0].file,
+            position: findings[0].position,
+            findings,
+        });
+    }
 
     const posix = relPath.split(path.sep).join("/");
     const folder = posix.includes("/") ? posix.slice(0, posix.lastIndexOf("/")) : "";
@@ -545,6 +575,7 @@ export function buildIndexRecord({
                 ...frontmatter,
                 ...(Object.keys(resolvedDates).length ? { resolvedDates } : {}),
                 package: contentPackage,
+                names: marked.names,
                 address: stub ? null : address,
                 nameAscii: asciiName(frontmatter?.name?.full),
                 aliasesAscii: asciiAliases(frontmatter?.name?.aliases),
@@ -557,7 +588,7 @@ export function buildIndexRecord({
                 anchors:
                     stub ? null : (
                         [
-                            ...collectAnchors(body, bodyLine, resolveRole),
+                            ...collectAnchors(body, bodyLine, resolveRole, syntax),
                             ...eventAnchors(frontmatter, raw ?? rawNote(absPath)),
                         ]
                             .sort((a, b) => (a.line ?? 0) - (b.line ?? 0))
@@ -680,11 +711,16 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
     );
 }
 
-/** Derive every index record belonging to one parsed note. */
+/**
+ * Derive every index record belonging to one parsed note.
+ * @param {Parameters<typeof buildIndexRecord>[0]} options - Authored note and its context.
+ */
 export function indexRecordsForNote({
     frontmatter,
     body,
     bodyLine,
+    bodyColumn,
+    nameTypes,
     relPath,
     absPath,
     raw,
@@ -693,12 +729,15 @@ export function indexRecordsForNote({
     addressContext,
     dateContext,
     resolveRole,
+    syntax,
 }) {
     resolveNoteId(frontmatter, { pkg: contentPackage });
     const record = buildIndexRecord({
         frontmatter,
         body,
         bodyLine,
+        bodyColumn,
+        nameTypes,
         relPath,
         absPath,
         raw,
@@ -707,6 +746,7 @@ export function indexRecordsForNote({
         addressContext,
         dateContext,
         resolveRole,
+        syntax,
     });
     const records = [decodeIndexAddresses(record, addressContext ?? { package: contentPackage })];
     const address = noteAddress(frontmatter, contentPackage);
@@ -1063,6 +1103,9 @@ export function resolveCultures(
  * @param {Map<string, {body: string, frontmatter: object|null, raw: string, bodyLine?: number, bodyColumn?: number}>} [options.parsed] -
  *   Filled with each note's source text, body coordinates and frontmatter as
  *   authored, keyed by file, for reuse throughout the command.
+ * @param {Map<string, {raw: string}>} [options.sources] - Selected captured source strings.
+ * @param {import("./content-session.mjs").ContentSyntax} [options.syntax] - Session scanner projections.
+ * @param {Iterable<string>} [options.nameTypes] - Additional bare name kinds from configured type declarations.
  * @returns {Array<Record<string, any>>} The records, in a total order that does
  *   not depend on directory-read order.
  */
@@ -1077,12 +1120,15 @@ export function collectContentIndex(
         addressContext,
         foreignRecord,
         parsed = new Map(),
+        sources,
+        syntax,
+        nameTypes,
     },
 ) {
     const records = [];
     // Passed through rather than defaulted away: an absent scope is the
     // caller's omission, and `walkMarkdownTree` says so.
-    const walkOpts = { skipDirectories };
+    const walkOpts = { skipDirectories, sources, ...(sources ? { renderDescription: false } : {}) };
 
     // A package may ship assets and no notes at all, in which case there is no
     // tree to walk and the index is its asset records. The caller decides
@@ -1171,10 +1217,13 @@ export function collectContentIndex(
                 contentPackage,
                 body,
                 bodyLine,
+                bodyColumn,
+                nameTypes,
                 manifest,
                 addressContext: decodeContext,
                 dateContext: dates,
                 resolveRole,
+                syntax,
             });
             records.push(...made);
             bodies.push({ record: made[0], body });
@@ -1260,11 +1309,12 @@ export function collectContentIndex(
         const key = canonicalKey(contentPackage, "note", record.type, record.shortcode);
         const sections = (isGmNote(record) ? allSections : publicSections).get(key);
         if (!sections) continue;
-        const expanded = insertLexicalSections(body, sections).markdown;
+        const expanded = insertLexicalSections(body, sections, { syntax }).markdown;
         projectPublicationBody(records, record, expanded, {
             contentPackage,
             manifest,
             resolveRole,
+            syntax,
         });
     }
 
@@ -1415,6 +1465,10 @@ function dependencyAddresses(config) {
  *   Filled with each note's body and authored frontmatter, keyed by the note's
  *   file. Handed to {@link module:engine/sql-tables.prepareTreeSqlTables}, it
  *   spares that pass reading and parsing every note again.
+ * @param {Map<string, {raw: string}>} [opts.sources] - Selected source strings, in index walk order.
+ * @param {import("./content-session.mjs").ContentSyntax} [opts.syntax] - Session scanner projections.
+ * @param {Iterable<string>} [opts.nameTypes] - Bare name kinds, defaulting to configured item types.
+ * @param {Map<string, object>} [opts.foreignIndex] - Captured dependency address view.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
 export function indexRecordsFor({
@@ -1424,6 +1478,10 @@ export function indexRecordsFor({
     skipDirectories,
     problems,
     parsed,
+    sources,
+    syntax,
+    nameTypes,
+    foreignIndex,
 } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = contentBase ?? resolved.paths.content;
@@ -1434,7 +1492,7 @@ export function indexRecordsFor({
     // a package whose parents are all its own reads no dependency index.
     let foreign;
     const foreignRecord = (key) => {
-        foreign ??= loadForeignIndexes(resolved, [resolved.contentPackage]).index;
+        foreign ??= foreignIndex ?? loadForeignIndexes(resolved, [resolved.contentPackage]).index;
         return foreign.get(key);
     };
     return collectContentIndex(tree, {
@@ -1446,10 +1504,13 @@ export function indexRecordsFor({
         skipDirectories: skipDirectories ?? resolved.skipDirectories,
         assetsBase: assetsBase ?? resolved.paths.assets,
         // Only the identities a UUID is a function of — see emitContentIndex.
-        manifest: foundryIdentities(resolved),
+        manifest: { ...foundryIdentities(resolved), syntax },
         problems,
         foreignRecord,
         parsed,
+        sources,
+        syntax,
+        nameTypes: nameTypes ?? resolved.itemTypes,
     });
 }
 
@@ -1516,17 +1577,20 @@ function publicationExpressions(expanded, context) {
  * corpus, with target maps limited to that source's declared prose slugs.
  * No output files are written, and the returned inputs are read-only to the emitter.
  *
- * @param {{contentBase?: string, config?: object}} [options]
+ * @param {{contentBase?: string, config?: object, session?: import("./content-session.mjs").ContentSession}} [options]
  * @returns {Promise<PreparedContentIndex>}
  */
-export async function prepareContentIndex({ contentBase, config } = {}) {
+export async function prepareContentIndex({ contentBase, config, session } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = path.resolve(contentBase ?? resolved.paths.content);
-    const parsed = new Map();
-    const records = indexRecordsFor({ contentBase: tree, config: resolved, parsed });
+    session?.assertContext({ config: resolved, contentBase: tree });
+    const parsed = session?.parsed ?? new Map();
+    const records =
+        session?.records ?? indexRecordsFor({ contentBase: tree, config: resolved, parsed });
+    if (session?.problems.length) publicationProblems(session.problems);
     const expandedBodies = new Map();
     const foundryBodies = new Map();
-    const foreign = loadForeignIndexes(resolved, [resolved.contentPackage]);
+    const foreign = session?.foreign ?? loadForeignIndexes(resolved, [resolved.contentPackage]);
     publicationProblems(
         foreign.stale.map((entry) => ({
             file: tree,
@@ -1545,13 +1609,16 @@ export async function prepareContentIndex({ contentBase, config } = {}) {
     ])) {
         const visible = records.filter((record) => audience === "all" || !isGmNote(record));
         const sources = audience === "all" ? notes : notes.filter((record) => !isGmNote(record));
-        const prepared = await prepareTreeSqlTables(tree, {
-            config: resolved,
-            records,
-            parsed,
-            audience,
-            foreignIndex: foreign.index,
-        });
+        const prepared =
+            session ?
+                await session.sqlTables(audience)
+            :   await prepareTreeSqlTables(tree, {
+                    config: resolved,
+                    records,
+                    parsed,
+                    audience,
+                    foreignIndex: foreign.index,
+                });
         const bodies = new Map();
         const figuresByFile = new Map();
         const figuresByAddress = new Map();
@@ -1615,6 +1682,7 @@ export async function prepareContentIndex({ contentBase, config } = {}) {
             package: resolved.contentPackage,
             records: visible,
             foreignIndex: foreign.index,
+            syntax: session?.syntax,
         });
         const dates = index.dateContext;
         const events = eventNoteIndex(visible, {
@@ -1651,7 +1719,15 @@ export async function prepareContentIndex({ contentBase, config } = {}) {
                 expandedBodies.set(file, expanded);
         }
     }
-    return { config: resolved, contentBase: tree, records, parsed, expandedBodies, foundryBodies };
+    return {
+        config: resolved,
+        contentBase: tree,
+        records,
+        parsed,
+        expandedBodies,
+        foundryBodies,
+        syntax: session?.syntax,
+    };
 }
 
 /**
@@ -1663,6 +1739,7 @@ export async function prepareContentIndex({ contentBase, config } = {}) {
  * @property {Map<string, {frontmatter: object|null, body: string, raw: string, bodyLine?: number, bodyColumn?: number}>} parsed - Authored sources by absolute file.
  * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} expandedBodies - Complete rendered bodies in each note's audience.
  * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} foundryBodies - Complete native bodies with explicit SQL using the ALL corpus.
+ * @property {import("./content-session.mjs").ContentSyntax} [syntax] - Session-local exact-text scanner projections.
  */
 
 /** Update owned copies from an actual output body, retaining authored locations and events. */
@@ -1670,7 +1747,7 @@ function projectPublicationBody(
     records,
     record,
     body,
-    { contentPackage, manifest, resolveRole, foundryBody = body },
+    { contentPackage, manifest, resolveRole, foundryBody = body, syntax },
 ) {
     const fm = authoredFrontmatter(record);
     const address = noteAddress(fm, contentPackage);
@@ -1685,7 +1762,7 @@ function projectPublicationBody(
     record.anchors =
         stub ? null : (
             [
-                ...collectAnchors(body, 1, resolveRole).map((anchor) => {
+                ...collectAnchors(body, 1, resolveRole, syntax).map((anchor) => {
                     const { line: _, ...generated } = anchor;
                     return {
                         ...(original.get(anchor.slug) ?? generated),
@@ -1839,12 +1916,14 @@ export function emitContentIndex({ contentBase, outDir, config, publication } = 
         );
         const body =
             publication?.expandedBodies.get(file)?.markdown ??
-            insertLexicalSections(parsed.get(file).body, lexical).markdown;
+            insertLexicalSections(parsed.get(file).body, lexical, { syntax: publication?.syntax })
+                .markdown;
         projectPublicationBody(records, record, body, {
             contentPackage,
-            manifest: foundryIdentities(resolved),
+            manifest: { ...foundryIdentities(resolved), syntax: publication?.syntax },
             resolveRole: (address) => embedRole(art, address),
             foundryBody: publication?.foundryBodies.get(file).markdown,
+            syntax: publication?.syntax,
         });
     }
     const assetBindings = checkForeignAssetBindings(resolved);

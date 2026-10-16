@@ -174,6 +174,7 @@ function mergeForeign(index, foreignIndex) {
  *   ordinary dead address.
  * @param {object[]} [options.records] - Content-index records.
  * @param {Map<string, object>} [options.foreignReferences] - Foreign reference targets.
+ * @param {import("./content-session.mjs").ContentSyntax} [options.syntax] - Exact-text scanner projections.
  * @returns {SiteIndex} The index, and what could not be addressed unambiguously.
  */
 export function buildSiteIndex(
@@ -184,6 +185,7 @@ export function buildSiteIndex(
         package: builderPackage,
         records = [],
         foreignReferences = new Map(),
+        syntax,
     } = {},
 ) {
     const index = new Map();
@@ -241,7 +243,9 @@ export function buildSiteIndex(
             // written against it can be checked rather than joined onto the
             // URL unverified. A Set even when empty: a page that declares no
             // anchor still has a definite answer for one an author names.
-            anchors: new Set(collectAnchors(e.body ?? "").map((anchor) => anchor.slug)),
+            anchors: new Set(
+                collectAnchors(e.body ?? "", 1, undefined, syntax).map((anchor) => anchor.slug),
+            ),
             // The note's event ids, which a wikilink may not name.
             eventAnchors: new Set(eventAnchors(e.fm).map((anchor) => anchor.slug)),
         };

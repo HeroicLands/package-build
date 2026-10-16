@@ -187,6 +187,9 @@ export * as foundryEntries from "./foundry-entries.mjs";
 /** Publishing the note tree as a queryable JSON Lines index. */
 export * as contentIndex from "./content-index.mjs";
 
+/** One invocation's captured content and context-specific prepared views. */
+export * as contentSession from "./content-session.mjs";
+
 /** The asset types — `icon`, `image`, `audio` — and the roots they are walked from. */
 export * as assetTypes from "./asset-types.mjs";
 

@@ -70,6 +70,8 @@ import { loadPackConfig } from "./pack-config.mjs";
  * @param {string} [opts.stageDest]      Directory the LevelDB packs are built
  *     into, one subdirectory per pack. Defaults to the configured stage.
  * @param {string} [opts.packName]       Restrict the run to a single pack.
+ * @param {import("./content-session.mjs").ContentSession} [opts.session] - Captured context shared with other operations.
+ * @param {boolean} [opts.reportPreparation=true] - Emit shared preparation findings unless the caller already reported them.
  * @throws {Error} If pack JSON generation reported any error. Packs compiled
  *     from incomplete or empty JSON ship blank or short compendiums, and the
  *     omission is invisible until a player looks for content that is not there
@@ -86,7 +88,14 @@ export async function compilePacks({
     sourcePacks = config.packDirectories,
     stageDest = config.paths.stage,
     packName,
+    session,
+    reportPreparation = true,
 } = {}) {
+    session?.assertContext({
+        config,
+        contentBase: config.paths.content,
+        skipDirectories: config.skipDirectories,
+    });
     const packNames = sourcePacks.filter((name) => !packName || name === packName);
 
     // A prebuilt pack's JSON is checked in rather than generated, so it is
@@ -105,7 +114,12 @@ export async function compilePacks({
     // content tree, and a package that ships only prebuilt packs has none at
     // all — so running it would fail the build over a tree nothing reads.
     if (needsGeneration) {
-        const errors = await generatePacksJson({ only: packName, config });
+        const errors = await generatePacksJson({
+            only: packName,
+            config,
+            session,
+            reportPreparation,
+        });
         if (errors > 0) {
             throw new Error(
                 `Pack JSON generation reported ${errors} error(s); refusing to ` +

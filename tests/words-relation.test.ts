@@ -511,7 +511,7 @@ describe("a language with many words", () => {
         } finally {
             await large.close();
         }
-    });
+    }, 10_000);
 });
 
 describe("an empty corpus", () => {

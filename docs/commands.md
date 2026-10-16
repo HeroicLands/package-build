@@ -1503,6 +1503,73 @@ package-build: This repository declares no end-to-end suite to `run`. Name one u
 
 ## Content operations
 
+### `package-build content run <targets..>`
+
+**NAME**
+
+Run selected content checks and outputs from one captured source tree.
+
+**SYNOPSIS**
+
+```text
+package-build content run <targets..> [--no-references] [--pack <name>] [--out <dir>]
+```
+
+**DESCRIPTION**
+
+Choose one or more of `index`, `lint`, `links` and `compile`. The command runs
+each selected target once, in that order, regardless of the argument order.
+They perform the same operations as `content-index`, `lint`, `links` and
+`package compile`. The standalone commands remain available.
+
+The selected operations share captured files, parsed frontmatter, content
+records and exact-source markup scans. Public and complete SQL preparations
+remain separate, as do prose-link checking and native document resolution.
+Each invocation starts a fresh in-memory session; independent commands do
+their own work. Finish dependency fetching, source generation and asset
+preparation before running this command, and start a new invocation after
+changing any input.
+
+All selected preparations finish before the first output is written. If
+source or writer preparation fails, `index` and `compile` leave existing
+index, intermediate JSON and staged packs untouched. Read-only targets still
+report the findings they can produce. An ordinary lint error does not block
+an otherwise successful index or compile target. The command writes no
+persistent source cache.
+
+Selecting `compile` applies the package command's existing package-kind rule
+before any writer. A documentation package can select `index` alone; selecting
+`index compile` reports the compile refusal and leaves its index untouched.
+
+**OPTIONS**
+
+| Option            | Type    | Default                  | Description                                 |
+| ----------------- | ------- | ------------------------ | ------------------------------------------- |
+| `--references`    | boolean | true                     | Check frontmatter references during `lint`. |
+| `--pack` `<name>` | string  | all configured packs     | Restrict `compile` to this pack.            |
+| `--out` `<dir>`   | string  | configured content index | Set the `index` output directory.           |
+
+**EXIT STATUS**
+
+0 when every selected target succeeds, including advisory warnings. 1 when
+arguments or preparation fail, or any selected target reports an error.
+
+**EXAMPLES**
+
+```bash
+package-build content run lint links
+package-build content run index compile
+package-build content run index lint links compile
+```
+
+**SEE ALSO**
+
+`package-build content-index`, `package-build lint`, `package-build links`,
+`package-build package compile`, [Configuration](configuration.md),
+[Programmatic sessions](api.md#enginecontentsession).
+
+---
+
 ### `package-build package <action> [pack] [entry]`
 
 **NAME**
@@ -2014,6 +2081,21 @@ dependencies; exact Item UUID validation remains part of compilation. Reads
 the content tree named by `root`, defaulting to
 `paths.content`; writes nothing.
 
+Name marking is advisory: lint checks explicit `.name` spans and authored link
+labels against the [name-marking
+conventions](authoring/links-and-markup.md#marking-names-in-prose). Plain prose
+is not searched for names. It builds one matcher from the current local and
+dependency names, then
+reports each affected occurrence at its exact source location. These warnings
+also appear when `lint` is selected in `content run`; they do not fail the run.
+
+Lint also emits one grouped package advisory for marked names without an
+indexed full-name or alias match, and for conflicting supplied classifications.
+It lists every source use and is located at the earliest reported span.
+Untyped uses and compatible type/subtype refinements do not conflict.
+An invalid supplied `.name` `data-type` is a located preparation error and
+prevents selected writers. See the same name-marking guide for typed examples.
+
 Content lint computes source positions when it emits findings and shares each
 note's YAML position document across consecutive lookups.
 
@@ -2353,6 +2435,11 @@ content tree named by `root`, defaulting to `paths.content`; writes
 `<contentPackage>-metadata.jsonl`, `<contentPackage>-dictionary.jsonl` and
 `<contentPackage>-terms.jsonl` into `--out`, defaulting to the configured
 `paths.contentIndex`.
+
+Metadata includes each own note's authored `.name` occurrences under `names`,
+with visible text, nullable type/subtype and original source line/column.
+Local and dependency SQL schemas expose them through `names`; they travel in
+the metadata artifact.
 
 The command prepares SQL tables, page lists, automatic sections and scalar
 expressions before publishing their prose targets. Each source uses its own

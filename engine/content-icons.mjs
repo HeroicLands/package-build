@@ -27,6 +27,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { capturedSources } from "./content-sources.mjs";
 import { parseExtensionAttributes } from "./extension-attributes.mjs";
 
 /**
@@ -524,13 +525,26 @@ export function checkIconRegistry(registry, where = "icons") {
  * @param {object} [opts]
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
  * @param {IconRegistry} [opts.registry] - The package's registry.
+ * @param {Map<string, {raw: string}>} [opts.sources] - Exact captured source strings; omitted, walks and reads the tree.
  * @returns {{findings: Array<{file: string, line: number, column: number,
  *   severity: "warning", message: string}>, files: number}} What it found.
  */
-export function lintContentIcons(contentBase, { skipDirectories = [], registry } = {}) {
+export function lintContentIcons(contentBase, { skipDirectories = [], registry, sources } = {}) {
     const skip = new Set(skipDirectories);
     const findings = [];
     let files = 0;
+    if (sources) {
+        for (const [full, text] of capturedSources(
+            contentBase,
+            sources,
+            skipDirectories,
+            new Set([".md", ".markdown"]),
+        )) {
+            files++;
+            findings.push(...lintIcons(text, path.relative(process.cwd(), full), registry));
+        }
+        return { findings, files };
+    }
 
     /** @param {string} dir - Directory to descend into. */
     const walk = (dir) => {

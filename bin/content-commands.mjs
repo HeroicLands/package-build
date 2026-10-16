@@ -118,6 +118,9 @@ import {
 } from "../engine/site-build.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
 import { prepareLinkSqlTables, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
+import { createContentSession, CONTENT_TARGETS } from "../engine/content-session.mjs";
+import { createFirstUseChecker } from "../engine/first-use.mjs";
+import { createNameCatalog, createNamesReport, namesReportFinding } from "../engine/names.mjs";
 // The one place a link finding is worded, shared with both builds.
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import {
@@ -183,6 +186,11 @@ prefix.apply(log, {
     },
 });
 
+const CONTENT_SESSION = Symbol("content session");
+const CONTENT_CONFIG = Symbol("content configuration");
+const PREPARATION_REPORTED = Symbol("preparation reported");
+const REPORTED_FAILURES = Symbol("reported preparation failures");
+
 /**
  * Report a command's failure.
  *
@@ -201,6 +209,29 @@ function reportFailure(err) {
         emitDiagnostic({ file: err.file, ...(err.position ?? {}), severity: "error", message });
     else if (/** @type {{located?: boolean}} */ (err)?.located) console.error(message);
     else log.error(message);
+}
+
+/** Report one shared preparation failure once in a combined invocation. */
+function reportContentFailure(err, argv) {
+    const reported = argv[REPORTED_FAILURES];
+    if (reported?.has(err)) return;
+    reported?.add(err);
+    reportFailure(err);
+}
+
+/** Apply the package command's existing eligibility rule before a selected writer.
+ * @param {object} config - Resolved configuration.
+ * @param {string} action - The requested package action.
+ */
+function assertCompendiumOperation(config, action) {
+    if (!compilesFoundryDocuments(config)) {
+        throw new Error(
+            `\`packageKind: ${config.packageKind}\` compiles no ` +
+                `compendium, so there is nothing to ${action}. Build ` +
+                `its site with \`package-build site\` and its book ` +
+                `with \`package-build pdf\`.`,
+        );
+    }
 }
 
 /**
@@ -235,7 +266,12 @@ export function registerContentCommands(cli) {
     return cli
         .command(
             withIndexPreflight(
-                withBodyPreflight(packageCommand(), (_config, argv) => argv.action === "compile"),
+                withBodyPreflight(
+                    packageCommand(),
+                    (_config, argv) => argv.action === "compile",
+                    undefined,
+                    true,
+                ),
                 (_config, argv) => argv.action === "compile",
             ),
         )
@@ -245,6 +281,7 @@ export function registerContentCommands(cli) {
         .command(proseCommand())
         .command(contentFormatCommand())
         .command(withIndexPreflight(linksCommand()))
+        .command(withIndexPreflight(contentCommand()))
         .command(formatCommand())
         .command(markdownCommand())
         .command(
@@ -252,6 +289,7 @@ export function registerContentCommands(cli) {
                 contentIndexCommand(),
                 () => true,
                 (config, argv) => argv.root || config.paths.content,
+                true,
             ),
         )
         .command(withIndexPreflight(withBodyPreflight(siteCommand()), publishesContentPages))
@@ -404,19 +442,33 @@ function withBodyPreflight(
     command,
     shouldCheck = () => true,
     contentRoot = (config) => config.paths.content,
+    shareCapture = false,
 ) {
     const handler = command.handler;
     return {
         ...command,
         handler: async (argv) => {
+            let owned;
             try {
-                const config = loadPackConfig();
+                const config = argv[CONTENT_CONFIG] ?? loadPackConfig();
+                let next = argv;
                 if (shouldCheck(config, argv)) {
                     const contentBase = contentRoot(config, argv);
                     if (!fs.existsSync(contentBase)) return handler(argv);
-                    const records = indexRecordsFor({ config, contentBase });
+                    const session =
+                        shareCapture ?
+                            (argv[CONTENT_SESSION] ??
+                            (owned = await createContentSession({ config, contentBase })))
+                        :   undefined;
+                    const records = session?.records ?? indexRecordsFor({ config, contentBase });
+                    if (session?.problems.length) {
+                        emitDiagnostic(session.problems[0]);
+                        process.exitCode = 1;
+                        return;
+                    }
                     const { findings } = lintNoteStates(contentBase, {
                         records,
+                        parsed: session?.parsed,
                         contentPackage: config.contentPackage,
                     });
                     const errors = findings.filter((finding) => finding.severity === "error");
@@ -425,13 +477,16 @@ function withBodyPreflight(
                         process.exitCode = 1;
                         return;
                     }
+                    if (session) next = { ...argv, [CONTENT_SESSION]: session };
                 }
+                return await handler(next);
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
                 return;
+            } finally {
+                owned?.dispose();
             }
-            return handler(argv);
         },
     };
 }
@@ -457,7 +512,7 @@ function withIndexPreflight(command, shouldCheck = () => true) {
                 process.exitCode = 1;
                 return;
             }
-            return handler(argv);
+            return handler({ ...argv, [CONTENT_CONFIG]: config });
         },
     };
 }
@@ -906,8 +961,10 @@ function lintCommand() {
             });
         },
         handler: async (argv) => {
+            let session;
             try {
-                const config = loadPackConfig();
+                const config =
+                    argv[CONTENT_SESSION]?.config ?? argv[CONTENT_CONFIG] ?? loadPackConfig();
                 const root = argv.root ?? config.paths.content;
 
                 // The corpus, enumerated once for this command and handed to
@@ -921,30 +978,22 @@ function lintCommand() {
                 // finding rather than thrown: one malformed note must
                 // not take every other finding in the tree with it, and the
                 // reader needs a line to open, not a stack.
-                const corpusProblems = [];
-                const parsed = new Map();
                 const indexStarted = performance.now();
-                const records = indexRecordsFor({
-                    contentBase: root,
-                    config,
-                    skipDirectories: config.skipDirectories,
-                    problems: corpusProblems,
-                    parsed,
-                });
+                session =
+                    argv[CONTENT_SESSION] ??
+                    (await createContentSession({ config, contentBase: root }));
+                session.assertContext({ config, contentBase: root });
+                const { problems: corpusProblems, parsed, records } = session;
                 const indexMs = performance.now() - indexStarted;
-                for (const problem of corpusProblems) emitDiagnostic(problem);
+                if (!argv[PREPARATION_REPORTED])
+                    for (const problem of corpusProblems) emitDiagnostic(problem);
                 // An error whatever the command's own strictness: the note is
                 // absent from every answer below, so reporting it and exiting 0
                 // would call the tree clean while silently omitting a note.
                 if (corpusProblems.length) process.exitCode = 1;
 
                 const sqlStarted = performance.now();
-                const sqlTables = await prepareTreeSqlTables(root, {
-                    config,
-                    records,
-                    parsed,
-                    skipDirectories: config.skipDirectories,
-                });
+                const sqlTables = await session.sqlTables("all");
                 const sqlMs = performance.now() - sqlStarted;
                 const validationStarted = performance.now();
 
@@ -959,13 +1008,19 @@ function lintCommand() {
                 // One index, built once, for the reference check. It is the
                 // same resolver the wikilink audit uses, so a frontmatter
                 // reference and a body link answer the same way.
-                const index = buildLinkIndex(root, {
-                    config,
+                const index = await session.audit("lint");
+                const catalog = createNameCatalog({ records, index });
+                const firstUseChecker = createFirstUseChecker({
                     records,
-                    parsed,
-                    skipDirectories: config.skipDirectories,
-                    sqlTables,
+                    index,
+                    parsed: session.parsed,
+                    syntax: session.syntax,
+                    catalog,
                 });
+                const names = namesReportFinding(
+                    createNamesReport({ package: config.contentPackage, records, catalog }),
+                    { contentBase: root },
+                );
                 // Which system blocks this tree carries, derived from what it
                 // declares it ships for. Read before the lint so the
                 // systems it will *not* check can be said out loud below.
@@ -1105,6 +1160,7 @@ function lintCommand() {
                 // the subject is every character authored, including the ones
                 // that stopped a note parsing at all.
                 const charset = lintContentCharset(root, {
+                    sources: session.sources,
                     skipDirectories: config.skipDirectories,
                 });
 
@@ -1113,6 +1169,7 @@ function lintCommand() {
                 // than the parsed notes, so a picture, which has no note,
                 // is covered by the same rule.
                 const pathCharset = lintPathCharset({
+                    inventory: session.inventory,
                     contentBase: root,
                     assetsBase: config.paths.assets,
                     skipDirectories: config.skipDirectories,
@@ -1127,6 +1184,7 @@ function lintCommand() {
                 // package's own entries merged over it, which is where a
                 // Game-Icons glyph becomes a name a note may write.
                 const icons = lintContentIcons(root, {
+                    sources: session.sources,
                     skipDirectories: config.skipDirectories,
                     registry: config.icons,
                 });
@@ -1136,6 +1194,7 @@ function lintCommand() {
                 // still unrenderable in a book — the character rule one level
                 // up.
                 const html = lintContentHtml(root, {
+                    sources: session.sources,
                     skipDirectories: config.skipDirectories,
                 });
 
@@ -1144,6 +1203,7 @@ function lintCommand() {
                 // ordinary width looks exactly like a directive that worked —
                 // so these are errors and they fail the run.
                 const images = lintContentImages(root, {
+                    sources: session.sources,
                     skipDirectories: config.skipDirectories,
                     // Which packages this build can reach is configuration, and
                     // an address naming one it cannot reaches a journal as a
@@ -1155,6 +1215,7 @@ function lintCommand() {
                 // miscompiled, since every surface sets the marker as the
                 // item's own text and all three agree, so this is advisory.
                 const taskLists = lintContentTaskLists(root, {
+                    sources: session.sources,
                     skipDirectories: config.skipDirectories,
                 });
 
@@ -1164,6 +1225,7 @@ function lintCommand() {
                 // wrong, and 464 warnings a reader cannot clear is how a report
                 // teaches its reader to stop looking at it.
                 const states = lintNoteStates(root, {
+                    parsed,
                     records,
                     contentPackage: config.contentPackage,
                 });
@@ -1196,7 +1258,11 @@ function lintCommand() {
                 });
 
                 const findings = [
-                    ...index.notes.flatMap((note) => markupFindings(note.raw, note.file)),
+                    ...index.notes.flatMap((note) =>
+                        markupFindings(note.raw, note.file, session.syntax),
+                    ),
+                    ...index.notes.flatMap(firstUseChecker),
+                    ...(names ? [names] : []),
                     ...addresses.findings,
                     ...frontmatter.findings,
                     ...schemaFindings,
@@ -1235,8 +1301,10 @@ function lintCommand() {
                         `SQL ${sqlMs.toFixed(1)} ms; validation ${validationMs.toFixed(1)} ms.`,
                 );
             } catch (err) {
-                reportFailure(err);
+                reportContentFailure(err, argv);
                 process.exitCode = 1;
+            } finally {
+                if (!argv[CONTENT_SESSION]) session?.dispose();
             }
         },
     };
@@ -1408,6 +1476,73 @@ function markdownCommand() {
  * @returns {object} The yargs command module.
  */
 // eslint-disable-next-line
+function contentCommand() {
+    return {
+        command: "content <action> <targets..>",
+        describe: "Run selected content operations with one in-memory source capture",
+        builder: (yargs) =>
+            yargs
+                .positional("action", { type: "string", choices: ["run"] })
+                .positional("targets", { type: "string", array: true, choices: CONTENT_TARGETS })
+                .option("references", {
+                    type: "boolean",
+                    default: true,
+                    describe: "Check frontmatter references during lint",
+                })
+                .option("pack", {
+                    type: "string",
+                    describe: "Select one pack for the compile target",
+                })
+                .option("out", {
+                    type: "string",
+                    describe: "Output directory for the index target",
+                }),
+        handler: async (argv) => {
+            let session;
+            const failures = new Set();
+            const problems = new Set();
+            const shared = { ...argv, [PREPARATION_REPORTED]: true, [REPORTED_FAILURES]: failures };
+            try {
+                const config = argv[CONTENT_CONFIG] ?? loadPackConfig();
+                session = await createContentSession({ config });
+                shared[CONTENT_SESSION] = session;
+                const targets = CONTENT_TARGETS.filter((target) => argv.targets.includes(target));
+                let preparationFailed = false;
+                try {
+                    if (targets.includes("compile")) assertCompendiumOperation(config, "compile");
+                    await session.prepare(targets);
+                } catch (error) {
+                    preparationFailed = true;
+                    process.exitCode = 1;
+                    if (error.findings) {
+                        for (const finding of error.findings) {
+                            emitDiagnostic(finding);
+                            problems.add(finding);
+                        }
+                        failures.add(error);
+                    } else reportContentFailure(error, shared);
+                }
+                for (const problem of session.problems) {
+                    if (!problems.has(problem)) emitDiagnostic(problem);
+                    process.exitCode = 1;
+                }
+                for (const target of targets) {
+                    if (preparationFailed && (target === "index" || target === "compile")) continue;
+                    if (target === "index") await contentIndexCommand().handler(shared);
+                    else if (target === "lint") await lintCommand().handler(shared);
+                    else if (target === "links") await linksCommand().handler(shared);
+                    else await packageCommand().handler({ ...shared, action: "compile" });
+                }
+            } catch (error) {
+                reportContentFailure(error, shared);
+                process.exitCode = 1;
+            } finally {
+                session?.dispose();
+            }
+        },
+    };
+}
+
 function linksCommand() {
     return {
         command: "links [root]",
@@ -1419,39 +1554,23 @@ function linksCommand() {
             });
         },
         handler: async (argv) => {
+            let session;
             try {
-                const config = loadPackConfig();
+                const config =
+                    argv[CONTENT_SESSION]?.config ?? argv[CONTENT_CONFIG] ?? loadPackConfig();
                 const contentBase = argv.root ?? config.paths.content;
 
                 const scope = { skipDirectories: config.skipDirectories };
                 // Enumerated once and shared, as in `lint`, and a note
                 // it cannot record is reported rather than thrown.
-                const corpusProblems = [];
-                const parsed = new Map();
-                const records = indexRecordsFor({
-                    contentBase,
-                    config,
-                    ...scope,
-                    problems: corpusProblems,
-                    parsed,
-                });
-                for (const problem of corpusProblems) emitDiagnostic(problem);
-                // An error whatever the command's own strictness: the note is
-                // absent from every answer below, so reporting it and exiting 0
-                // would call the tree clean while silently omitting a note.
+                session =
+                    argv[CONTENT_SESSION] ?? (await createContentSession({ config, contentBase }));
+                session.assertContext({ config, contentBase });
+                const { problems: corpusProblems } = session;
+                if (!argv[PREPARATION_REPORTED])
+                    for (const problem of corpusProblems) emitDiagnostic(problem);
                 if (corpusProblems.length) process.exitCode = 1;
-                const index = buildLinkIndex(contentBase, {
-                    config,
-                    records,
-                    parsed,
-                    ...scope,
-                    sqlTables: await prepareLinkSqlTables(contentBase, {
-                        config,
-                        records,
-                        parsed,
-                        ...scope,
-                    }),
-                });
+                const index = await session.audit("links");
 
                 // An unusable manifest would otherwise surface as a pile of
                 // dead addresses pointing at the notes that cite it, rather
@@ -1578,8 +1697,10 @@ function linksCommand() {
                     );
                 }
             } catch (err) {
-                reportFailure(err);
+                reportContentFailure(err, argv);
                 process.exitCode = 1;
+            } finally {
+                if (!argv[CONTENT_SESSION]) session?.dispose();
             }
         },
     };
@@ -1624,10 +1745,15 @@ function contentIndexCommand() {
             });
         },
         handler: async (argv) => {
+            let session;
             try {
-                const config = loadPackConfig();
+                const config =
+                    argv[CONTENT_SESSION]?.config ?? argv[CONTENT_CONFIG] ?? loadPackConfig();
                 const contentBase = argv.root ?? config.paths.content;
-                const publication = await prepareContentIndex({ config, contentBase });
+                session =
+                    argv[CONTENT_SESSION] ?? (await createContentSession({ config, contentBase }));
+                session.assertContext({ config, contentBase });
+                const publication = await session.publication();
                 const { file, notes, bytes, full, draft, stub, dictionary, terms } =
                     emitContentIndex({
                         config,
@@ -1646,8 +1772,10 @@ function contentIndexCommand() {
                             `(${written.rows} ${relation} rows)`,
                     );
             } catch (err) {
-                reportFailure(err);
+                reportContentFailure(err, argv);
                 process.exitCode = 1;
+            } finally {
+                if (!argv[CONTENT_SESSION]) session?.dispose();
             }
         },
     };
@@ -2540,19 +2668,13 @@ function packageCommand() {
             // an unhandled-rejection stack trace. Report the message and set a
             // failing exit code, so a build guard reads as a build failure.
             try {
-                const config = loadPackConfig();
+                const config =
+                    argv[CONTENT_SESSION]?.config ?? argv[CONTENT_CONFIG] ?? loadPackConfig();
                 // The compile passes do not run for a package that declares no
                 // packs by rule. Refused rather than exiting 0 having compiled
                 // nothing: a build that succeeds and produces no documents is
                 // the quiet failure this toolchain reports everywhere else.
-                if (!compilesFoundryDocuments(config)) {
-                    throw new Error(
-                        `\`packageKind: ${config.packageKind}\` compiles no ` +
-                            `compendium, so there is nothing to ${action}. Build ` +
-                            `its site with \`package-build site\` and its book ` +
-                            `with \`package-build pdf\`.`,
-                    );
-                }
+                assertCompendiumOperation(config, action);
                 // The one directory the pipeline creates rather than expects:
                 // `unpack` writes the extracted JSON there and `compile` reads
                 // it back. Created here rather than at module scope so that
@@ -2565,7 +2687,12 @@ function packageCommand() {
                     // from the resolved configuration, so nothing is restated
                     // here.
                     case "compile":
-                        return await compilePacks({ packName: pack });
+                        return await compilePacks({
+                            packName: pack,
+                            config,
+                            session: argv[CONTENT_SESSION],
+                            reportPreparation: !argv[PREPARATION_REPORTED],
+                        });
                     case "clean":
                         return await cleanPacks({
                             packName: pack,
@@ -2579,7 +2706,7 @@ function packageCommand() {
                         });
                 }
             } catch (err) {
-                reportFailure(err);
+                reportContentFailure(err, argv);
                 process.exitCode = 1;
             }
         },

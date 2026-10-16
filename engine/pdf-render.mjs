@@ -1210,7 +1210,15 @@ function renderInline(token, ctx) {
                 out.push(inlineRaw(child.content));
                 break;
             case "span_open": {
-                out.push("#box[");
+                const classes = (child.attrGet?.("class") ?? "").split(/\s+/).filter(Boolean);
+                const values = classes
+                    .map((value) => '"' + escapeTypstString(value) + '"')
+                    .join(", ");
+                out.push(
+                    classes.length ?
+                        "#book-span(classes: (" + values + (classes.length === 1 ? "," : "") + "))["
+                    :   "#box[",
+                );
                 break;
             }
             case "span_close": {
@@ -1618,6 +1626,12 @@ export function bookTypstPreamble() {
         "#let book-page-height = 11in",
         "#let book-text-width = book-page-width - 2 * book-margin",
         "#let book-text-height = book-page-height - 2 * book-margin",
+        // Span classes reach the book intact; name styling sets an absolute
+        // weight so it remains bold inside an ordinary strong phrase.
+        "#let book-span(body, classes: ()) = {\n" +
+            '  let styled = if classes.contains("name") { text(weight: "bold", body) } else { body }\n' +
+            "  box(styled)\n" +
+            "}",
         // Use the file's natural measure for auto. Every requested width is
         // bounded by the available measure and by the height of a page.
         "#let book-image(path, requested: auto, caption: none) = layout(size => {\n" +

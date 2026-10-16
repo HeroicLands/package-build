@@ -735,17 +735,25 @@ async function stageGeneratedDrawings(records, config) {
  *   package's tree — and how the guard-order test below induces id drift, now
  *   that the manifest is located by configuration rather than by the working
  *   directory.
+ * @param {import("./content-session.mjs").ContentSession} [opts.session] - Same configuration, root and scope as this generation.
+ * @param {boolean} [opts.reportPreparation=true] - Emit shared preparation findings; false when already reported by the caller.
  * @returns {Promise<number>} Total error count across the generated packs.
  * @throws {Error} If the configured Foundry package id has drifted from the
  *   shipped manifest's `id` (see `package-manifest.mjs`).
  */
-export async function generatePacksJson({ only, config = loadPackConfig() } = {}) {
+export async function generatePacksJson({
+    only,
+    config = loadPackConfig(),
+    session,
+    reportPreparation = true,
+} = {}) {
     // Before anything is generated: every UUID written below is addressed to
     // the configured `foundryPackage`, so a value that has drifted from the shipped
     // manifest's `id` produces a whole pack of links that resolve nowhere.
     // Throws rather than counting an error — there is nothing worth compiling.
     //
     const contentBase = config.paths.content;
+    session?.assertContext({ config, contentBase, skipDirectories: config.skipDirectories });
     if (!fs.existsSync(contentBase)) {
         log.error(`Content tree not found at ${contentBase}.`);
         return 1;
@@ -770,7 +778,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     // a note of that type that goes nowhere. Resolved here because the corpus
     // below is derived against it, and the corpus is what every reader from
     // this point on reads.
-    const router = routerFor(config);
+    const router = session?.router ?? routerFor(config);
 
     // The corpus every pass runs over, and the three whole-tree indexes built
     // over it, derived **once** for the whole compile. Each is a pure
@@ -782,15 +790,16 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     // Derived here, before the first reader: the unclaimed-type check below is
     // one, and a check that walked the tree itself would be answering about a
     // different corpus from the one the passes then compile.
-    const corpusProblems = [];
+    const corpusProblems = session?.problems ?? [];
     const corpus = await buildCompileCorpus({
         contentBase,
         skipDirectories: config.skipDirectories,
         router,
         config,
         problems: corpusProblems,
+        session,
     });
-    for (const problem of corpusProblems) emitDiagnostic(problem);
+    if (reportPreparation) for (const problem of corpusProblems) emitDiagnostic(problem);
     for (const finding of await stageGeneratedDrawings(corpus.records, config))
         emitDiagnostic(finding);
 

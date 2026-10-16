@@ -27,11 +27,20 @@ const NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
  * @param {RegExp} [options.idPattern=NAME] - What an `#id` may be named. A
  *   construct whose id is published as an HTML `id` admits a digit first and
  *   passes a looser pattern; the default is the pattern every other name takes.
- * @returns {{id: string, classes: string[], values: Record<string, string>, problems: string[]}}
+ * @param {boolean} [options.positions=false] - Retain the first supplied
+ *   attribute's key/value ranges as UTF-16 offsets within this input.
+ * @returns {{id: string, classes: string[], values: Record<string, string>, problems: string[],
+ *   positions?: Record<string, {key: {start: number, end: number}, value: {start: number, end: number}}>}}
  */
-export function parseExtensionAttributes(source, { idPattern = NAME } = {}) {
+export function parseExtensionAttributes(source, { idPattern = NAME, positions = false } = {}) {
     const text = String(source ?? "");
-    const result = { id: "", classes: [], values: {}, problems: [] };
+    const result = {
+        id: "",
+        classes: [],
+        values: {},
+        problems: [],
+        ...(positions ? { positions: {} } : {}),
+    };
     let at = 0;
     while (at < text.length) {
         while (/\s/.test(text[at] ?? "")) at++;
@@ -59,13 +68,18 @@ export function parseExtensionAttributes(source, { idPattern = NAME } = {}) {
             result.problems.push(`${text.slice(start, at)} is not a key=value attribute`);
             continue;
         }
+        const keyEnd = at + key.length;
         at += key.length + 1;
-        let value = "";
+        let value = "",
+            valueStart = at,
+            valueEnd;
         if (text[at] === '"') {
             at++;
+            valueStart = at;
             let closed = false;
             while (at < text.length) {
                 if (text[at] === '"') {
+                    valueEnd = at;
                     at++;
                     closed = true;
                     break;
@@ -73,6 +87,7 @@ export function parseExtensionAttributes(source, { idPattern = NAME } = {}) {
                 if (text[at] === "\\" && ["\\", '"'].includes(text[at + 1])) at++;
                 value += text[at++];
             }
+            valueEnd ??= at;
             if (!closed) result.problems.push(`${key} has an unclosed quoted value`);
             if (at < text.length && !/\s/.test(text[at])) {
                 while (at < text.length && !/\s/.test(text[at])) at++;
@@ -80,11 +95,19 @@ export function parseExtensionAttributes(source, { idPattern = NAME } = {}) {
             }
         } else {
             while (at < text.length && !/\s/.test(text[at])) value += text[at++];
+            valueEnd = at;
             if (/[{},"\[\]]/.test(value)) result.problems.push(`${key} needs a quoted value`);
         }
         if (!value) result.problems.push(`${key} needs a value`);
         if (Object.hasOwn(result.values, key)) result.problems.push(`${key} is written twice`);
-        else result.values[key] = value;
+        else {
+            result.values[key] = value;
+            if (positions)
+                result.positions[key] = {
+                    key: { start, end: keyEnd },
+                    value: { start: valueStart, end: valueEnd },
+                };
+        }
     }
     return result;
 }
