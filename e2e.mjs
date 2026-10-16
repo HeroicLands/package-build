@@ -43,6 +43,8 @@ import crypto from "node:crypto";
 import { readdirSync, statSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import os from "node:os";
+import { Browser, BrowserPlatform, computeExecutablePath, install } from "@puppeteer/browsers";
 import process from "node:process";
 import { spawnSync } from "node:child_process";
 
@@ -796,6 +798,91 @@ export function suiteExecutables(command) {
     return [program];
 }
 
+/** The Chrome for Testing build shared by local and CI Cypress runs. */
+export const CHROME_BUILD_ID = "155.0.8059.84";
+
+/**
+ * The browser cache survives reseeding and container teardown.
+ * @param {NodeJS.ProcessEnv} [env] - Environment overrides.
+ * @returns {string} The browser cache directory.
+ */
+export function browserCacheDir(env = process.env) {
+    if (env.HL_BROWSER_CACHE) return path.resolve(env.HL_BROWSER_CACHE);
+    if (env.FOUNDRYVTT_CACHE) return path.resolve(env.FOUNDRYVTT_CACHE, "..", "browser-cache");
+    if (env.HL_E2E_ROOT) return path.resolve(env.HL_E2E_ROOT, "browser-cache");
+    const cache =
+        env.XDG_CACHE_HOME ||
+        (process.platform === "darwin" ?
+            path.join(os.homedir(), "Library", "Caches")
+        :   path.join(os.homedir(), ".cache"));
+    return path.join(cache, "heroiclands", "chrome-for-testing");
+}
+
+/**
+ * Supply pinned Chrome only to a recognizable Cypress command without a browser.
+ * Explicit browser arguments remain verbatim, including Electron and paths.
+ * @param {object} opts
+ * @param {readonly string[]} opts.command - The configured suite command.
+ * @param {string[]} [opts.args] - Extra suite arguments.
+ * @param {NodeJS.ProcessEnv} [opts.env] - Cache overrides.
+ * @param {string} [opts.platform] - Host operating system.
+ * @param {string} [opts.arch] - Host architecture.
+ * @param {(message: string) => void} [opts.log] - Progress reporting.
+ * @returns {Promise<string[]>} Arguments to append to the suite command.
+ */
+export async function prepareSuiteBrowser({
+    command,
+    args = [],
+    env = process.env,
+    platform = process.platform,
+    arch = process.arch,
+    log = () => {},
+}) {
+    const tool = suiteExecutables(command).at(-1);
+    if (!tool || executableName(tool) !== "cypress") return args;
+    const all = [...command, ...args];
+    const explicit = all.findLastIndex(
+        (arg) => arg === "--browser" || arg.startsWith("--browser="),
+    );
+    if (explicit !== -1) {
+        const selected =
+            all[explicit] === "--browser" ?
+                all[explicit + 1]
+            :   all[explicit].slice("--browser=".length);
+        log(
+            `▸ Cypress browser: ${selected ?? "(missing --browser value)"} (explicit; version reported by Cypress)`,
+        );
+        return args;
+    }
+    const browserPlatform =
+        platform === "darwin" && arch === "arm64" ? BrowserPlatform.MAC_ARM
+        : platform === "linux" && arch === "x64" ? BrowserPlatform.LINUX
+        : null;
+    if (!browserPlatform)
+        throw new Error(
+            `Chrome for Testing has no configured build for ${platform}/${arch}. Pass --browser <name-or-path> to select an installed browser.`,
+        );
+    const options = {
+        browser: Browser.CHROME,
+        buildId: CHROME_BUILD_ID,
+        platform: browserPlatform,
+        cacheDir: browserCacheDir(env),
+    };
+    let executablePath = computeExecutablePath(options);
+    if (!isExecutableFile(executablePath)) {
+        try {
+            executablePath = (await install(options)).executablePath;
+        } catch (cause) {
+            throw new Error(
+                `Cannot install Chrome for Testing ${CHROME_BUILD_ID} for ${platform}/${arch} in ${options.cacheDir}. Check network access or pass --browser <name-or-path>.`,
+                { cause },
+            );
+        }
+    }
+    log(`▸ Cypress browser: Chrome for Testing ${CHROME_BUILD_ID} (${executablePath})`);
+    return [...args, "--browser", executablePath];
+}
+
 /**
  * @param {string} candidate - An absolute path.
  * @returns {boolean} Whether it is there and is a file.
@@ -1128,7 +1215,7 @@ export async function e2eRun({
         });
         return runSuite({
             command,
-            args: suiteArgs,
+            args: await prepareSuiteBrowser({ command, args: suiteArgs, env, log }),
             cwd: config.rootDir,
             // Only a headless run makes a claim worth checking. `open` hands
             // the runner to a person, who decides what to execute and when to
@@ -1211,7 +1298,7 @@ export async function e2eFast({ config, argv = [], env = process.env, log = () =
     }
     return runSuite({
         command,
-        args: suiteArgs,
+        args: await prepareSuiteBrowser({ command, args: suiteArgs, env, log }),
         cwd: config.rootDir,
         results: config.e2eResults,
         env,

@@ -1,0 +1,19 @@
+{
+    "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+    "customManagers": [
+        {
+            "customType": "regex",
+            "managerFilePatterns": ["/^e2e\\.mjs$/"],
+            "matchStrings": ["export const CHROME_BUILD_ID = \\\"(?<currentValue>[0-9.]+)\\\";"],
+            "depNameTemplate": "chrome-for-testing",
+            "datasourceTemplate": "custom.chrome-for-testing",
+            "versioningTemplate": "loose"
+        }
+    ],
+    "customDatasources": {
+        "chrome-for-testing": {
+            "defaultRegistryUrlTemplate": "https://googlechromelabs.github.io/chrome-for-testing/known-good-versions.json",
+            "transformTemplates": ["{\"releases\": versions.{\"version\": version}}"]
+        }
+    }
+}

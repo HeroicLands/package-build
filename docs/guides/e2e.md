@@ -128,6 +128,33 @@ for interactive testing. Arguments after `--` are passed to the suite, for
 example `package-build e2e run -- --browser chrome`. A port answering is not
 enough: the harness waits until Foundry's join page shows the world is active.
 
+## Choose a browser
+
+For a Cypress suite, `e2e fast`, `e2e run` and `e2e open` use pinned
+Chrome for Testing **155.0.8059.84** on macOS arm64 and Linux x64. The first run
+downloads it; later runs reuse the cached executable. Each run prints the
+resolved browser and version, and Cypress reports the browser in its header.
+Other suite commands run as declared.
+
+An explicit `--browser` in the configured suite or its extra arguments wins,
+including `--browser=electron`. For example:
+
+```bash
+package-build e2e fast -- --browser electron
+package-build e2e run -- --browser /path/to/chrome
+package-build e2e open -- --browser=chrome
+```
+
+A platform without a configured build requires an explicit installed browser.
+The automatic download needs network access on first use. The cache location is,
+in order: `HL_BROWSER_CACHE`, `browser-cache` beside `FOUNDRYVTT_CACHE`,
+`HL_E2E_ROOT/browser-cache`, or `heroiclands/chrome-for-testing` under the user's
+cache directory (`XDG_CACHE_HOME`, macOS `~/Library/Caches`, otherwise
+`~/.cache`). CI keeps it inside the job's persistent `HL_E2E_ROOT`; point
+`FOUNDRYVTT_CACHE` there too, or set `HL_BROWSER_CACHE` explicitly. Reseeding
+and container teardown leave the browser cache intact. Renovate tracks the
+exact Chrome pin in `e2e.mjs` through the repository's custom datasource.
+
 ## Iterate without reseeding
 
 `fast` rebuilds declared targets, redeploys the full stage, cycles the world,

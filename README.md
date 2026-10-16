@@ -54,4 +54,9 @@ Every icon and image is covered by a provenance record stating `attribution`, `l
 
 Leading captions, generic fenced divs, inline spans, and poetry code fences are described in [links and markup](docs/authoring/links-and-markup.md).
 
+Cypress end-to-end suites use pinned Chrome for Testing 155.0.8059.84 by default
+on macOS arm64 and Linux x64, downloaded once into a reusable cache. Select an
+installed browser with `package-build e2e fast -- --browser electron` (also
+available for `run` and `open`). See [browser selection and cache settings](docs/guides/e2e.md#choose-a-browser).
+
 The package is GPL-3.0-or-later for code and CC-BY-SA-4.0 for original content. See [LICENSE.md](LICENSE.md).

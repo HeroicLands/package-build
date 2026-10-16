@@ -156,7 +156,7 @@ describe("starting and stopping the server", () => {
         );
     });
 
-    it("reuses a running server and network, creating nothing", () => {
+    it("reuses a running server and network and ensures the bucket", () => {
         const { plan, dataRoot } = setup();
         const calls: string[][] = [];
         ensureS3({
@@ -166,10 +166,41 @@ describe("starting and stopping the server", () => {
             capture: (args) =>
                 args[0] === "network" ? plan.network
                 : args.includes("-a") || args[0] === "ps" ? plan.server
-                : "",
+                : "master: x filers: [a]",
             sleep: () => {},
         });
-        expect(calls).toEqual([]);
+        expect(calls).toHaveLength(1);
+        expect(calls[0].join(" ")).toContain(`s3.bucket.create -name ${S3_BUCKET}`);
+    });
+
+    it("waits for a stopped reused server to answer before ensuring the bucket", () => {
+        const { plan, dataRoot } = setup();
+        const events: string[] = [];
+        let listed = 0;
+        ensureS3({
+            plan,
+            dataRoot,
+            run: (args) => {
+                events.push(args[0] === "start" ? "start" : "bucket");
+                return 0;
+            },
+            capture: (args) => {
+                if (args[0] === "network") return plan.network;
+                if (args[0] === "ps") return args.includes("-a") ? plan.server : "";
+                events.push("list");
+                return ++listed < 3 ? "error" : "master: x filers: [a]";
+            },
+            sleep: (ms) => events.push(`sleep ${ms}`),
+        });
+        expect(events).toEqual([
+            "start",
+            "list",
+            "sleep 1000",
+            "list",
+            "sleep 1000",
+            "list",
+            "bucket",
+        ]);
     });
 
     it("fails naming the file when an input is missing", () => {

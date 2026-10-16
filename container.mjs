@@ -492,8 +492,8 @@ export function s3ShellArgs(plan, command) {
 }
 
 /**
- * Start the S3 server on its network and create the bucket, unless it is
- * already running, and copy the `awsConfig` into the data root.
+ * Start or reuse the S3 server on its network, wait for readiness, ensure the
+ * bucket exists, and copy the `awsConfig` into the data root.
  *
  * @param {object} opts
  * @param {S3Plan} opts.plan - The S3 plan.
@@ -548,11 +548,11 @@ export function ensureS3({
             "{{.Names}}",
         ]);
         if (!running.split("\n").includes(plan.server)) run(["start", plan.server]);
-        return;
+    } else {
+        log(`Starting S3 server '${plan.server}' (${S3_IMAGE}) as ${S3_ALIAS}:${S3_PORT}`);
+        const status = run(s3RunArgs(plan));
+        if (status !== 0) throw new Error(`Starting the S3 server failed with status ${status}.`);
     }
-    log(`Starting S3 server '${plan.server}' (${S3_IMAGE}) as ${S3_ALIAS}:${S3_PORT}`);
-    const status = run(s3RunArgs(plan));
-    if (status !== 0) throw new Error(`Starting the S3 server failed with status ${status}.`);
     // `weed shell` exits 0 whether or not the filer is up; it names the filers
     // it found once there is one.
     for (let attempt = 0; ; attempt++) {

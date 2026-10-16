@@ -132,6 +132,7 @@
     "dependencies": {
         "@duckdb/node-api": "^1.5.5-r.4",
         "@foundryvtt/foundryvtt-cli": "^3.0.4",
+        "@puppeteer/browsers": "^3.2.5",
         "@viz-js/viz": "^3.30.0",
         "acorn": "^8.18.0",
         "archiver": "^8.0.0",
