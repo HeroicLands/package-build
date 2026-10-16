@@ -254,6 +254,22 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
     },
 };
 
+for (const type of Object.keys(NOTE_VOCABULARY)) {
+    FIXTURES[`${type}:seeAlso`] = {
+        covers: ["seeAlso"],
+        fm: () => ({
+            type,
+            shortcode: "subject",
+            data: {
+                seeAlso: [
+                    { address: "being-ally", gloss: "The patron" },
+                    { address: "lore-cultureone" },
+                ],
+            },
+        }),
+    };
+}
+
 /** The fixture that covers one field of a type. */
 function fixtureFor(type: string, name: string) {
     return Object.entries(FIXTURES).find(

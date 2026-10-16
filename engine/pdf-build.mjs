@@ -120,6 +120,7 @@ import {
 import { artPathname, assetAddressIndex, pathnameRoles } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
 import { expandContentTables } from "./content-tables.mjs";
+import { seeAlsoEntries, seeAlsoMarkdown, seeAlsoWebLink } from "./see-also.mjs";
 import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { eventNoteIndex } from "./event-fields.mjs";
 import { numberFigures, scanFigures } from "./content-figures.mjs";
@@ -1645,7 +1646,13 @@ async function buildBook(book, shared) {
         // Whether the entry is settled comes before anything it says: the
         // notice leads the leaf, before the authored body.
         const notice = isDraftNote(page.fm) ? draftNoticeTypst() : "";
-        const parts = [notice, prose, panel].filter((part) => part);
+        const references = seeAlsoMarkdown(
+            seeAlsoEntries(page.fm, (ref) => resolveInfoboxRef(gates.index, ref)),
+            seeAlsoWebLink,
+        );
+        const parts = [notice, prose, panel, references ? typst(references, {}) : ""].filter(
+            (part) => part,
+        );
         return parts.join("\n\n");
     };
 

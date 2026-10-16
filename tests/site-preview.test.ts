@@ -158,3 +158,42 @@ it("uses live frontmatter and SQL only for the active note, and keeps failed ren
         await preview.close();
     }
 });
+
+it("keeps see-also output equal to the site writer while live references change", async () => {
+    const conf = config();
+    const target = path.join(root, "assets/content/reading.md");
+    const previous = fs.readFileSync(file, "utf8");
+    fs.writeFileSync(
+        target,
+        "---\nshortcode: reading\nname: { full: Reading }\ntype: doc\nsubType: concept\n---\n\nReading text.\n",
+    );
+    const saved = source.replace(
+        "subType: concept",
+        "subType: concept\ndata:\n  seeAlso: [{ address: doc-reading, gloss: Start here }]",
+    );
+    fs.writeFileSync(file, saved);
+    buildSite({ config: conf });
+    const published = matter(
+        fs.readFileSync(path.join(root, "build/hugo/content/kb/doc-intro.md"), "utf8"),
+    );
+    const preview = await prepareSitePreview({ config: conf });
+    try {
+        const rendered = await preview.render(file, saved);
+        expect(rendered.ok).toBe(true);
+        expect(rendered.frontmatter.related).toEqual(published.data.related);
+        expect(rendered.frontmatter.related.seeAlso).toMatchObject([
+            { title: "Reading", gloss: "Start here" },
+        ]);
+        const changed = await preview.render(file, saved.replace("Start here", "More background"));
+        expect(changed.frontmatter.related.seeAlso[0].gloss).toBe("More background");
+        const empty = await preview.render(
+            file,
+            saved.replace("[{ address: doc-reading, gloss: Start here }]", "[]"),
+        );
+        expect(empty.frontmatter.related?.seeAlso).toBeUndefined();
+    } finally {
+        await preview.close();
+        fs.writeFileSync(file, previous);
+        fs.rmSync(target);
+    }
+});

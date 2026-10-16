@@ -48,7 +48,7 @@ export const ALERT_TYPES = Object.freeze({
         ),
     },
 });
-const parser = new MarkdownIt();
+const parser = new MarkdownIt({ html: true });
 const titleParser = new MarkdownIt({ html: false });
 const marker = /^ {0,3}>[ \t]?\[!([^\]\n]+)\](.*)$/;
 /** Read alerts outside code examples, retaining inclusive source line ranges.
@@ -85,7 +85,9 @@ export function scanAlerts(source) {
         if (match[1] !== match[1].toUpperCase() || !Object.hasOwn(ALERT_TYPES, type)) {
             errors.push({
                 ...at,
-                message: `unknown alert type ${match[1]}; use NOTE, TIP, IMPORTANT or WARNING`,
+                message: `unknown alert type ${match[1]}; use ${Object.keys(ALERT_TYPES)
+                    .map((name) => name.toUpperCase())
+                    .join(", ")}`,
             });
             continue;
         }

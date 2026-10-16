@@ -1541,7 +1541,7 @@ export function lintNote(
         for (const field of fields) {
             if (note.inheritedCultureFields?.has(field.name)) continue;
             if (typeof field.check !== "function") continue;
-            findings.push(...field.check(note, { index }));
+            findings.push(...field.check(note, { index, addressContext: referenceContext }));
         }
         // A check the type declares of the whole note, with the same index.
         if (typeof entry.check === "function") findings.push(...entry.check(note, { index }));

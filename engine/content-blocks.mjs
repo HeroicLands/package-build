@@ -62,6 +62,7 @@ import { WITHHELD_CLASS, parseHeadingLine, withheldSections } from "./heading-at
  * and a stray `<section>` would close the block early.
  */
 const titleParser = new MarkdownIt({ html: false });
+const structureParser = new MarkdownIt({ html: true });
 
 /** The blocks an author may open, with the heading each takes by default. */
 export const BLOCK_NAMES = Object.freeze({
@@ -99,28 +100,24 @@ function escapeAttribute(value) {
  * @returns {{blocks: Array<{name: string, title: string, id: string, classes: string[], attributes: Record<string, string>, start: number, end: number, body: string}>, errors: Array<{line: number, column: number, message: string}>}}
  */
 export function scanBlocks(source) {
-    const lines = String(source ?? "").split("\n"),
+    const lines = String(source ?? "").split(/\r?\n/),
         blocks = [],
         errors = [];
     const stack = [];
-    let fence = null;
+    // A bare fence can belong to a quote through lazy continuation.
+    // Parser ranges decide whether it can delimit a container.
+    const literalLines = new Set();
+    for (const token of structureParser.parse(String(source ?? ""), {})) {
+        if (
+            !token.map ||
+            !["blockquote_open", "fence", "code_block", "html_block"].includes(token.type)
+        )
+            continue;
+        for (let line = token.map[0]; line < token.map[1]; line++) literalLines.add(line);
+    }
     for (let i = 0; i < lines.length; i++) {
+        if (literalLines.has(i)) continue;
         const line = lines[i];
-        const code = /^ *(`{3,}|~{3,})(.*)$/.exec(line);
-        if (fence) {
-            if (
-                code &&
-                code[1][0] === fence[0] &&
-                code[1].length >= fence.length &&
-                !code[2].trim()
-            )
-                fence = null;
-            continue;
-        }
-        if (code) {
-            fence = code[1];
-            continue;
-        }
         const close = /^ *:::\s*$/.test(line);
         const named = /^ *:::([A-Za-z][A-Za-z0-9-]*)(?:\s+(.*))?$/.exec(line);
         const div = /^ *:::\s+(\{.*)$/.exec(line);
@@ -135,7 +132,7 @@ export function scanBlocks(source) {
             if (!block.body)
                 errors.push({
                     line: block.start + 1,
-                    column: 1,
+                    column: lines[block.start].indexOf(":::") + 1,
                     message: `${block.name} block is empty`,
                 });
             if (!stack.length) blocks.push(block);
@@ -144,7 +141,7 @@ export function scanBlocks(source) {
         if (!close && !named && !div) continue;
         const name = named?.[1] ?? "div",
             raw = named?.[2] ?? div?.[1] ?? "";
-        const at = { line: i + 1, column: 1 };
+        const at = { line: i + 1, column: line.indexOf(":::") + 1 };
         if (name !== "div" && !Object.hasOwn(BLOCK_NAMES, name)) {
             errors.push({ ...at, message: `there is no ${name} block; the blocks are ${names()}` });
             stack.push({ start: i, rejected: true });
@@ -189,27 +186,12 @@ export function scanBlocks(source) {
         if (!block.rejected)
             errors.push({
                 line: block.start + 1,
-                column: 1,
+                column: lines[block.start].indexOf(":::") + 1,
                 message: `${block.name} block needs a closing ::: line`,
             });
     for (const block of blocks) {
-        let literal = null;
         for (let i = block.start + 1; i < block.end; i++) {
-            const marker = /^ *(`{3,}|~{3,})(.*)$/.exec(lines[i]);
-            if (literal) {
-                if (
-                    marker &&
-                    marker[1][0] === literal[0] &&
-                    marker[1].length >= literal.length &&
-                    !marker[2].trim()
-                )
-                    literal = null;
-                continue;
-            }
-            if (marker) {
-                literal = marker[1];
-                continue;
-            }
+            if (literalLines.has(i)) continue;
             if (parseHeadingLine(lines[i])?.startsPage)
                 errors.push({
                     line: i + 1,

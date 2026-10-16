@@ -71,8 +71,11 @@ export function poetryMarkdown(body) {
         .join("\n\n");
 }
 
+import MarkdownIt from "markdown-it";
 import { slugify } from "./content-slug.mjs";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
+
+const structureParser = new MarkdownIt({ html: true });
 
 /** Read poetry code fences; start/end are inclusive zero-based source lines.
  * @param {string} source - Authored Markdown.
@@ -81,8 +84,14 @@ export function scanPoetry(source) {
     const lines = String(source ?? "").split("\n"),
         blocks = [],
         errors = [];
+    const literalLines = new Set();
+    for (const token of structureParser.parse(String(source ?? ""), {})) {
+        if (!token.map || !["blockquote_open", "html_block"].includes(token.type)) continue;
+        for (let line = token.map[0]; line < token.map[1]; line++) literalLines.add(line);
+    }
     let opening = null;
     for (let i = 0; i < lines.length; i++) {
+        if (literalLines.has(i)) continue;
         const match = /^ *(`{3,}|~{3,})(.*)$/.exec(lines[i]);
         if (opening) {
             if (

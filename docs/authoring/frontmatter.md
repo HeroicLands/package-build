@@ -31,7 +31,7 @@ The formatter keeps a collection on one line when the full line is under 100 cha
 
 ## Shared facts and game mechanics
 
-The [note-type reference](../reference/note-types.md) lists every field accepted under `data`, including the shared `id`, `pack`, `packFolder`, `harnworld`, and `banner` fields. A type such as `being` also has its own fields, including `homes` and `affiliations`. `culture` is shared by `being`, `place`, `affiliation`, `lore` and `doc`: it names a `lore` note of `subType: culture`, is required on a `doc` of `subType: settingguide`, and is inherited down `data.parents` by places and affiliations. See [culture in the index](../reference/format-details.md#culture-in-the-index). A field absent from a type's vocabulary is a lint error; an unrelated field is not silently repurposed.
+The [note-type reference](../reference/note-types.md) lists every field accepted under `data`, including the shared `id`, `pack`, `packFolder`, `harnworld`, `banner`, and `seeAlso` fields. A type such as `being` also has its own fields, including `homes` and `affiliations`. `culture` is shared by `being`, `place`, `affiliation`, `lore` and `doc`: it names a `lore` note of `subType: culture`, is required on a `doc` of `subType: settingguide`, and is inherited down `data.parents` by places and affiliations. See [culture in the index](../reference/format-details.md#culture-in-the-index). A field absent from a type's vocabulary is a lint error; an unrelated field is not silently repurposed.
 
 A being's `data.archetypes` names the roles it can fill in an adventure. Choose every specific role that fits, such as `entertainer` for a performer or `guildsperson` for someone whose professional training or connections matter. Use `[commoner]` when no specific archetype fits. `commoner` cannot share the list with another value. The [archetype reference](../reference/format-details.md#actors) defines the available roles.
 
@@ -40,6 +40,35 @@ A being's look is stated in a closed vocabulary. `data.gender` and `data.frame` 
 A `sohl:`, `hm3:` or `dnd5e:` block holds values for that Foundry system. Its `system:` child contains values sent to the system's DataModel. The system block can override shared routing and art where the declared field permits it. `data.pack` and `data.packFolder` are shared routes; a system-specific route belongs in that system block. The [detailed mapping reference](../reference/format-details.md#mappings-every-type-shares) and [system-block explanation](../reference/format-details.md#frontmatter-has-three-regions) cover precedence and emitted fields.
 
 One body describes the subject for both systems. A being's `{#appearance}` and `{#dossier}` sections feed SoHL Actor `system.appearance` and `system.dossier`, and HM3 Actor `system.description` and `system.biography`. An Item's `{#description}` page becomes a shared JournalEntryPage. Its resolved `@UUID[...]` pointer is stored in SoHL Item `system.docHtml` and HM3 Item `system.description`. An Item with no `{#description}` anchor uses its first page. Other H1 pages remain linkable.
+
+## Suggested reading
+
+Use `data.seeAlso` for deliberate cross-references. Each list entry has a required
+`address` naming another note and an optional `gloss`: a short phrase explaining
+why to follow it. The list keeps the order you write.
+
+```yaml
+data:
+  seeAlso:
+    - address: lore-harborhistory
+      gloss: The founding of the port
+    - address: place-breakwater
+    - address: thalorna-note-lore-searoutes
+      gloss: Routes beyond the bay
+```
+
+Here the harbor history comes first, the breakwater needs no explanation, and
+the sea routes belong to the declared `thalorna` dependency. Write bare Addresses,
+without wikilink brackets or anchors; include the note type, since this field
+has no default type. Local references default to this package and the `note`
+system. A reference must resolve in this package or a declared dependency.
+An unresolved address, duplicate destination, or reference to the note itself
+is an error at that entry's address.
+
+The website places these links and glosses in a **See also** group ahead of
+inferred connections in **Related**. A destination also found among backlinks
+or mentions appears only in See also. Foundry journals and books append a
+**See also** section. An omitted or empty list adds no section or group.
 
 ## Place governments
 

@@ -49,7 +49,7 @@ function makeRepo(mode: "homepage" | "content", withPdf = true, withTree = true)
         if (mode === "content") {
             note(
                 "dagger.md",
-                "type: weapongear\nshortcode: dagger\nname:\n  full: Dagger",
+                "type: weapongear\nshortcode: dagger\nname:\n  full: Dagger\ndata:\n  seeAlso:\n    - { address: weapongear-sword, gloss: A longer blade }\n    - { address: weapongear-shield }\n    - { address: thalorna-note-lore-routes, gloss: Beyond the bay }",
                 [
                     "## Description {#description}",
                     "",
@@ -101,7 +101,22 @@ function makeRepo(mode: "homepage" | "content", withPdf = true, withTree = true)
         ].join("\n") + "\n",
     );
 
+    fs.mkdirSync(path.join(dir, "build/cache/metadata/thalorna@1.0.0"), { recursive: true });
+    fs.writeFileSync(path.join(dir, "build/cache/metadata/thalorna@1.0.0/.complete"), "");
+    fs.writeFileSync(
+        path.join(dir, "build/cache/metadata/thalorna@1.0.0/thalorna-metadata.jsonl"),
+        JSON.stringify({
+            package: "thalorna",
+            type: "lore",
+            shortcode: "routes",
+            name: { full: "Sea Routes" },
+            address: { slug: "lore-routes", canonical: "thalorna-note-lore-routes" },
+        }) + "\n",
+    );
     const config = [
+        "relationships:",
+        "    requires:",
+        "        - { id: thalorna, manifest: 'https://example.org/thalorna.json' }",
         "contentPackage: sohl",
         "packageKind: modules",
         "compatibility:",
@@ -459,6 +474,17 @@ describe("the emitted document", () => {
         const typ = fs.readdirSync(dist).find((f) => f.endsWith(".typ"))!;
         source = fs.readFileSync(path.join(dist, typ), "utf8");
     }, SUBPROCESS_TEST_TIMEOUT);
+
+    it("appends ordered see-also links and glosses only to the note that states them", () => {
+        expect(source.match(/\[See also\]/g)).toHaveLength(1);
+        const section = source.slice(source.indexOf("[See also]"));
+        expect(section).toContain("A longer blade");
+        expect(section).toContain("Beyond the bay");
+        expect(section).toContain("/thalorna/lore-routes/");
+        expect(section.indexOf("weapongear-sword")).toBeLessThan(
+            section.indexOf("weapongear-shield"),
+        );
+    });
 
     it("gives every section and entry its own heading, which is the bookmarks panel", () => {
         // Typst builds the PDF bookmark outline from every heading regardless of

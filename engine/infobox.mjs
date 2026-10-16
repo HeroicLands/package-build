@@ -277,6 +277,9 @@ export const GEAR_UNITS = Object.freeze({
  *   unit?: string, group?: string, phrase?: (value: any) => string}>>}
  */
 export const NOTE_FIELD_PRESENTATION = Object.freeze({
+    seeAlso: Object.freeze({
+        withheld: "navigation machinery, rendered in its own reading section",
+    }),
     ...DURATION_LABELS,
     ...GEAR_UNITS,
 

@@ -146,6 +146,9 @@ beforeAll(async () => {
                 "description: A wide region of moor and water.",
                 "data:",
                 "    parents: []",
+                "    seeAlso:",
+                "        - { address: affiliation-house, gloss: The ruling house }",
+                "        - { address: place-ham }",
                 // A stated border is what gives a place a From here section.
                 "    borders:",
                 "        - { to: ham, bearing: S }",
@@ -183,16 +186,19 @@ beforeAll(async () => {
 
     write(
         "Lore/lore-hamlay.md",
-        note([
-            "type: lore",
-            "subType: literature",
-            "shortcode: hamlay",
-            "name:",
-            "    full: The Lay of Little Ham",
-            "data:",
-            "    form: lay",
-            "    subjects: [place-ham]",
-        ]),
+        note(
+            [
+                "type: lore",
+                "subType: literature",
+                "shortcode: hamlay",
+                "name:",
+                "    full: The Lay of Little Ham",
+                "data:",
+                "    form: lay",
+                "    subjects: [place-ham]",
+            ],
+            "See [[place-rgn|the region]].",
+        ),
     );
 
     const config = defineConfig({
@@ -280,6 +286,19 @@ describe("the contract between a site build and the theme it ships with", () => 
 });
 
 describe("the theme renders a page the build emitted", () => {
+    it.skipIf(!HAS_HUGO)(
+        "renders see-also ahead of inferred connections, once per destination",
+        () => {
+            const page = html.get("place-rgn/index.html")!;
+            const related = page.slice(page.indexOf('<section class="related"'));
+            expect(related).toContain("See also");
+            expect(related).toContain("The ruling house");
+            expect(related.match(/href="[^\"]*affiliation-house\/"/g)).toHaveLength(1);
+            expect(related.indexOf("See also")).toBeLessThan(related.indexOf("The ruling house"));
+            expect(related.indexOf("See also")).toBeLessThan(related.indexOf(">Lore</h3>"));
+        },
+    );
+
     /** Hugo's rendered output for the fixture, built once. */
     let html: Map<string, string>;
 

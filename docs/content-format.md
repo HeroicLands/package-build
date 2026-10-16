@@ -91,6 +91,29 @@ errors, reported at the `ranks` key.
 
 An Item's `{#description}` page is its readable description. The note Address `<package>-note-<type>-<shortcode>#description` resolves to a JournalEntryPage UUID. The build writes the same `@UUID[...]` pointer to SoHL Item `system.docHtml` and HM3 Item `system.description`. An Item note without that anchor uses its first page as the description. Other pages and anchors remain available for links.
 
+## Suggesting another note
+
+State deliberate cross-references in `data.seeAlso`, in reading order:
+
+```yaml
+data:
+  seeAlso:
+    - address: lore-harborhistory
+      gloss: The founding of the port
+    - address: place-breakwater
+    - address: thalorna-note-lore-searoutes
+      gloss: Routes beyond the bay
+```
+
+Each `address` names a whole note; `gloss` optionally explains why to read it.
+The first entry points to the port's history, the second to its breakwater,
+and the third to a note in the declared `thalorna` dependency. An address must
+resolve, and neither a duplicate destination nor the note itself is allowed.
+The site shows the list ahead of other Related links, without repeating their
+destinations. Journals and books append See also; an omitted or empty list adds
+nothing. See [suggested reading](authoring/frontmatter.md#suggested-reading)
+for the Address rules.
+
 ## File and folder names
 
 Every character in the path of a content file or a picture is printable 7-bit ASCII, U+0020 to U+007E. The rule covers each file and folder name under the content tree and under the package's `icons/` and `images/` roots. Letters, digits, spaces, hyphens, underscores, dots and apostrophes are all inside it, so `Knight's_Shield.md` is a valid name. An accented letter, any other non-ASCII character, and a control character are outside it.

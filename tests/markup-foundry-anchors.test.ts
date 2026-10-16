@@ -1,5 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 import { describe, expect, it } from "vitest";
+import { scanBlocks } from "../engine/content-blocks.mjs";
 import { collectAnchors } from "../engine/anchors.mjs";
 import { anchorsOf } from "../engine/foundry-entries.mjs";
 import { splitPages, journalPageId } from "../engine/journals.mjs";
@@ -20,6 +21,7 @@ const body = [
     ">",
     "> > [!TIP] {#inner-tip title=Advice}",
     "> > Take care.",
+    "",
     ":::",
     "",
     "```poetry {#verse}",
@@ -36,6 +38,7 @@ const body = [
 ].join("\n");
 describe("Foundry containing-page anchors", () => {
     it("maps div, span, and poetry identifiers to their containing emitted page", () => {
+        expect(scanBlocks(body).errors).toEqual([]);
         const uuid = compendiumUuid("demo", "doc", id);
         const pages = splitPages(body);
         const anchors = anchorsOf(uuid, id, body, "Example");

@@ -50,6 +50,7 @@
  */
 
 import log from "loglevel";
+import { seeAlsoEntries, seeAlsoMarkdown } from "./see-also.mjs";
 
 import path from "node:path";
 
@@ -825,7 +826,16 @@ export class Journals extends BasePackCompiler {
         return buildJournalEntry({
             id,
             name,
-            markdown,
+            markdown: [
+                markdown,
+                seeAlsoMarkdown(
+                    seeAlsoEntries(fm, (ref) => resolveReference(this.linkIndex, ref)),
+                    linkToUuid,
+                    1,
+                ),
+            ]
+                .filter(Boolean)
+                .join("\n\n"),
             resolveRole: (pathname) => roles.get(pathname),
             infoboxes: boxes.map((box) => ({
                 id: box.id,

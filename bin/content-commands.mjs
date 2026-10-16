@@ -101,6 +101,7 @@ import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { markupFindings } from "../engine/markup-validation.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import { lintProse, scoreProseTree } from "../engine/readability-lint.mjs";
 import { loadPackageBuildConfig } from "../config.mjs";
@@ -1182,6 +1183,7 @@ function lintCommand() {
                 });
 
                 const findings = [
+                    ...index.notes.flatMap((note) => markupFindings(note.raw, note.file)),
                     ...addresses.findings,
                     ...frontmatter.findings,
                     ...schemaFindings,

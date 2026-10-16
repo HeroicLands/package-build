@@ -34,6 +34,7 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 | Field             | Shape                                           | Meaning                                                                                                                       |
 | ----------------- | ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `data.seeAlso`    | list of `{ address, gloss? }`                   | Deliberate cross-references in reading order, with optional glosses; shown on the site, in journals and in books.             |
 | `data.id`         | string                                          | A fixed document identity when the derived identity is unsuitable.                                                            |
 | `data.pack`       | string                                          | The shared compendium route, with a system block overriding it.                                                               |
 | `data.packFolder` | an Address, or a map of Addresses keyed by pack | The shared compendium folder Address, with a system block overriding it.                                                      |
@@ -42,10 +43,12 @@ These fields are accepted by every note type. A field's value can still be irrel
 
 **Inner keys** — a key a field's value does not declare is an error at its own line and column.
 
-| Key                     | Shape           | Required | Meaning                                       |
-| ----------------------- | --------------- | -------- | --------------------------------------------- |
-| `data.harnworld.realm`  | a string        | no       | The HârnWorld realm the subject belongs to.   |
-| `data.harnworld.ritual` | list of strings | no       | The HârnWorld religions the subject observes. |
+| Key                      | Shape           | Required | Meaning                                            |
+| ------------------------ | --------------- | -------- | -------------------------------------------------- |
+| `data.seeAlso[].address` | a note Address  | yes      | The note to read next.                             |
+| `data.seeAlso[].gloss`   | a string        | no       | A short phrase saying why to follow the reference. |
+| `data.harnworld.realm`   | a string        | no       | The HârnWorld realm the subject belongs to.        |
+| `data.harnworld.ritual`  | list of strings | no       | The HârnWorld religions the subject observes.      |
 
 ## Type-specific fields
 

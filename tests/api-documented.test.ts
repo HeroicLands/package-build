@@ -127,6 +127,17 @@ describe("docs/api.md documents the real export surface", () => {
         expect(API_DOC).toContain("@heroiclands/package-build/hm3/item-fields");
     });
 
+    it("documents every export of the see-also wildcard module", async () => {
+        const mod = await import("@heroiclands/package-build/engine/see-also");
+        expect(Object.keys(mod).filter((name) => !DOCUMENTED.has(name))).toEqual([]);
+    });
+
+    it("documents block markup validation through the engine wildcard", async () => {
+        const module = await import("@heroiclands/package-build/engine/markup-validation");
+        expect(API_DOC.includes("engine/markup-validation.mjs")).toBe(true);
+        expect(Object.keys(module).filter((name) => !DOCUMENTED.has(name))).toEqual([]);
+    });
+
     it("mentions ./package.json, which carries no JavaScript exports", () => {
         expect(API_DOC).toContain("`./package.json`");
     });

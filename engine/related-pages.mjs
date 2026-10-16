@@ -27,11 +27,12 @@
  * `<type>-<shortcode>` form: the site index keys one page under both, and both
  * answer with one URL.
  *
- * **Only a page of this site is an endpoint.** A link into another package
+ * **Only a page of this site is an inferred endpoint.** A link into another package
  * resolves to a URL the build renders but no page it writes, so it appears
  * on neither side: a backlink can only be counted on a page this build emits,
  * and listing a foreign mention beside local ones would make the two lists
- * disagree about what a connection is.
+ * disagree about what a connection is. Deliberate see-also references also
+ * name pages in declared dependencies.
  *
  * @module
  */
@@ -46,6 +47,7 @@ import { homepageAddresses } from "./homepage.mjs";
  * @property {string} url   `<base><slug>/` — the page's address as every href
  *                          this build renders composes it, never the
  *                          site-root-relative form the page states for itself.
+ * @property {string} [gloss] Why the author recommends this page.
  * @property {string} type  The note's `type`, which the theme groups by.
  */
 
@@ -53,6 +55,7 @@ import { homepageAddresses } from "./homepage.mjs";
  * The `related` block one page publishes.
  *
  * @typedef {object} Related
+ * @property {RelatedEntry[]} [seeAlso] Deliberate references in authored order.
  * @property {RelatedEntry[]} backlinks Pages that link to this one.
  * @property {RelatedEntry[]} mentions  Pages this one links to.
  */
@@ -89,10 +92,11 @@ function byTypeThenTitle(a, b) {
  *   the source page's URL and the target page's.
  * @param {ReadonlyMap<string, RelatedEntry>} entries - Every page of this
  *   site, keyed by URL.
+ * @param {ReadonlyMap<string, RelatedEntry[]>} [deliberate] Authored references, including foreign destinations.
  * @returns {Map<string, Related>} URL → the page's `related` block, both lists
  *   sorted, for every page with at least one entry in either.
  */
-export function relatedPages(edges, entries) {
+export function relatedPages(edges, entries, deliberate = new Map()) {
     /** @type {Map<string, {backlinks: Set<string>, mentions: Set<string>}>} */
     const graph = new Map();
     const node = (url) => {
@@ -119,6 +123,21 @@ export function relatedPages(edges, entries) {
     const out = new Map();
     for (const [url, { backlinks, mentions }] of graph) {
         out.set(url, { backlinks: list(backlinks), mentions: list(mentions) });
+    }
+    for (const [url, refs] of deliberate) {
+        const seen = new Set([url]);
+        const seeAlso = refs.filter((ref) => {
+            if (seen.has(ref.url)) return false;
+            seen.add(ref.url);
+            return true;
+        });
+        if (!seeAlso.length) continue;
+        const block = out.get(url) ?? { backlinks: [], mentions: [] };
+        out.set(url, {
+            seeAlso,
+            backlinks: block.backlinks.filter((ref) => !seen.has(ref.url)),
+            mentions: block.mentions.filter((ref) => !seen.has(ref.url)),
+        });
     }
     return out;
 }

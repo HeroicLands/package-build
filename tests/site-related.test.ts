@@ -51,7 +51,18 @@ beforeAll(() => {
         path.join(root, "package.json"),
         JSON.stringify({ name: "sandbox", version: "1.0.0" }),
     );
-    fs.mkdirSync(path.join(root, "build/cache/metadata"), { recursive: true });
+    fs.mkdirSync(path.join(root, "build/cache/metadata/thalorna@1.0.0"), { recursive: true });
+    fs.writeFileSync(path.join(root, "build/cache/metadata/thalorna@1.0.0/.complete"), "");
+    fs.writeFileSync(
+        path.join(root, "build/cache/metadata/thalorna@1.0.0/thalorna-metadata.jsonl"),
+        JSON.stringify({
+            package: "thalorna",
+            type: "lore",
+            shortcode: "routes",
+            name: { full: "Sea Routes" },
+            address: { slug: "lore-routes", canonical: "thalorna-note-lore-routes" },
+        }) + "\n",
+    );
 
     // The homepage links the way a homepage does — markdown, package-relative
     // — twice to one page, and once to somewhere outside the site.
@@ -82,11 +93,23 @@ name:
         "A clearing. Nothing here links out.\n",
     );
     note(
+        "Lore/Guide.md",
+        "type: lore\nshortcode: guide\nname: { full: Guide }\ndata:\n  seeAlso:\n    - { address: being-cedar, gloss: Read this first }\n    - { address: being-birch }\n    - { address: thalorna-note-lore-routes, gloss: Beyond the bay }",
+        "See [[being-cedar|Cedar]].",
+    );
+    note(
+        "Lore/Reading.md",
+        "type: lore\nshortcode: reading\nname: { full: Reading }\ndata:\n  seeAlso: [{ address: being-birch }]",
+        "Further reading.",
+    );
+    note(
         "Lore/Silence.md",
         `type: lore
 shortcode: silence
 name:
-    full: Silence`,
+    full: Silence
+data:
+    seeAlso: []`,
         "Nothing links here, and this links nowhere.\n",
     );
 });
@@ -105,6 +128,9 @@ function config() {
             { name: "items", type: "Item" },
             { name: "journals", type: "JournalEntry" },
         ],
+        relationships: {
+            requires: [{ id: "thalorna", manifest: "https://example.org/thalorna.json" }],
+        },
         publish: { address: { prefix: "kb/" } },
     });
 }
@@ -139,7 +165,7 @@ describe("every page carries what links to it and what it links to", () => {
             mentions: [cedar],
         });
         expect(published("kb/being-cedar.md").related).toEqual({
-            backlinks: [birch],
+            backlinks: [birch, { title: "Guide", url: "/demo/lore-guide/", type: "lore" }],
             mentions: [ash, home],
         });
     });
@@ -147,6 +173,30 @@ describe("every page carries what links to it and what it links to", () => {
     it("keeps both lists on a page connected one way only", () => {
         expect(published("kb/place-glade.md").related).toEqual({
             backlinks: [ash],
+            mentions: [],
+        });
+    });
+
+    it("publishes authored see-also order and removes overlapping mentions", () => {
+        expect(published("kb/lore-guide.md").related).toMatchObject({
+            seeAlso: [
+                { ...cedar, gloss: "Read this first" },
+                birch,
+                {
+                    title: "Sea Routes",
+                    url: "/thalorna/lore-routes/",
+                    type: "lore",
+                    gloss: "Beyond the bay",
+                },
+            ],
+            mentions: [],
+        });
+    });
+
+    it("publishes a see-also group even when no inferred connections exist", () => {
+        expect(published("kb/lore-reading.md").related).toEqual({
+            seeAlso: [birch],
+            backlinks: [],
             mentions: [],
         });
     });
@@ -191,6 +241,18 @@ describe("relatedPages", () => {
         );
         expect(related.get(glade.url)?.mentions).toEqual([ash, birch, cedar, home]);
         expect(related.get(home.url)?.backlinks).toEqual([glade]);
+    });
+
+    it("gives deliberate destinations priority over backlinks and mentions", () => {
+        const block = relatedPages(
+            [
+                [ash.url, birch.url],
+                [birch.url, ash.url],
+            ],
+            entries,
+            new Map([[ash.url, [birch, { ...birch, title: "Another spelling" }, ash]]]),
+        ).get(ash.url);
+        expect(block).toEqual({ seeAlso: [birch], backlinks: [], mentions: [] });
     });
 
     it("collapses a self-link and a repeated link", () => {

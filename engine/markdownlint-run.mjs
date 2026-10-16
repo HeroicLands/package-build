@@ -41,6 +41,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { markupFindings } from "./markup-validation.mjs";
 
 import ignore from "ignore";
 import {
@@ -447,8 +448,9 @@ function gitignoreHooks(root) {
  *   `config`, `ignores`, `gitignore` and `globs`.
  * @param {boolean} [params.fix=false] - Repair what markdownlint can, then
  *   report what remains.
- * @returns {Promise<{results: object[]}>} markdownlint results, each with its
+ * @returns {Promise<{results: object[], markup: object[]}>} markdownlint results, each with its
  *   `fileName` relative to `directory`, ordered by file, line and rule.
+ *   `markup` carries block syntax diagnostics with absolute filenames.
  * @throws {MarkdownConfigError} A configuration file the contract refuses.
  */
 export async function runMarkdownlint(params) {
@@ -530,12 +532,20 @@ export async function runMarkdownlint(params) {
     };
 
     const resultsByFile = new Map();
+    const markup = [];
     for (const [dir, files] of groups) {
         const options = await lintOptions(dir, files);
+        const malformed = new Set();
+        for (const file of files) {
+            const findings = markupFindings(fs.readFileSync(file, "utf8"), file);
+            if (findings.length) malformed.add(file);
+            markup.push(...findings);
+        }
         let results = await lint(options);
         if (fix) {
             const toFix = [];
             for (const file of files) {
+                if (malformed.has(file)) continue;
                 const fixable = (results[file] ?? []).filter((error) => error.fixInfo);
                 if (!fixable.length) continue;
                 const original = fs.readFileSync(file, "utf8");
@@ -563,5 +573,5 @@ export async function runMarkdownlint(params) {
             a.ruleNames[0].localeCompare(b.ruleNames[0]) ||
             order.get(a) - order.get(b),
     );
-    return { results: flat };
+    return { results: flat, markup };
 }

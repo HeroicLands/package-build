@@ -178,6 +178,20 @@ The harbor master is working for the smugglers.
 :::
 ```
 
+Leave a blank line between a blockquote or alert and the closing `:::`. Without it, Markdown treats the fence as part of the quote and leaves the enclosing block unclosed:
+
+```markdown
+:::secret {title="For the GM"}
+Hidden information.
+
+> [!TIP]
+> Advice for the GM.
+
+:::
+```
+
+`lint`, `markdown` and `format` refuse malformed block and alert syntax, including unclosed divs and unknown alert types. `format` leaves a malformed file unchanged so you can correct the reported opening line before formatting it.
+
 A secret block can contain alerts and general divs. It cannot contain another secret block. A heading that starts its own journal page cannot split a secret block or general div; use a lower heading without an anchor within the section.
 
 Foundry renders a secret section; the website renders an expandable spoiler, and the book renders a labeled box. An untitled secret takes its normal default title, and a Foundry secret without an id receives an id derived from its body. The presentation does not make published HTML private: deliberately inspecting generated source can reveal its content. Use YAML comments for information that must never be published.

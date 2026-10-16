@@ -22,7 +22,8 @@ import { foundryIdentities } from "./foundry-entries.mjs";
 import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { cachedMetadataIndexes, noContentIndexPackages } from "./metadata-index.mjs";
-import { buildSiteIndex } from "./site-index.mjs";
+import { seeAlsoPages } from "./see-also.mjs";
+import { buildSiteIndex, resolveInfoboxRef } from "./site-index.mjs";
 import {
     attachGeneratedSections,
     findSqlBlocks,
@@ -320,7 +321,8 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                     url: page.url,
                     type: String(fm.type),
                 });
-                const related = relatedPages(edges, entries).get(page.url);
+                const deliberate = seeAlsoPages([page], (ref) => resolveInfoboxRef(index, ref));
+                const related = relatedPages(edges, entries, deliberate).get(page.url);
                 if (related) result.data.related = related;
                 return {
                     ok: true,

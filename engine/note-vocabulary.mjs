@@ -72,6 +72,7 @@
  * @module
  */
 
+import { checkSeeAlso } from "./see-also.mjs";
 // The one charset, read rather than restated. A second spelling of the pattern
 // is how a disagreement between the three arises.
 import { ART_SLOTS } from "./art-slots.mjs";
@@ -203,7 +204,7 @@ import { checkSettlementTables } from "./settlement-tables.mjs";
  * @property {"pack"} [keys] - For a `scalar-or-map` field, what its keys name.
  *   `"pack"` means each is a pack this package declares, so a key naming none
  *   is a finding of its own: it addresses a hierarchy nothing will ever read.
- * @property {(note: object, opts: {index?: object}) => object[]} [check] - A
+ * @property {(note: object, opts: {index?: object, addressContext?: object}) => object[]} [check] - A
  *   check of the value beyond its shape, run by the frontmatter lint with the
  *   link index once the container has been checked. The lint stays
  *   vocabulary-agnostic this way: the rule lives beside the field that needs
@@ -1001,6 +1002,33 @@ export const NOTE_TOP_LEVEL_KEY_SET = Object.freeze(new Set(NOTE_TOP_LEVEL_KEYS)
  * @type {readonly DataFieldSpec[]}
  */
 export const SHARED_DATA_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "seeAlso",
+        kind: "list",
+        shape: "list of `{ address, gloss? }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "`{ address, gloss? }`",
+            fields: Object.freeze([
+                Object.freeze({
+                    name: "address",
+                    kind: "address",
+                    shape: "a note Address",
+                    required: true,
+                    describe: "The note to read next.",
+                }),
+                Object.freeze({
+                    name: "gloss",
+                    kind: "string",
+                    shape: "a string",
+                    describe: "A short phrase saying why to follow the reference.",
+                }),
+            ]),
+        }),
+        check: checkSeeAlso,
+        describe:
+            "Deliberate cross-references in reading order, with optional glosses; shown on the site, in journals and in books.",
+    }),
     Object.freeze({
         name: "id",
         ...TEXT,

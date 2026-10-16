@@ -109,6 +109,7 @@ import {
 } from "./homepage.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { HUGO_CONTENT } from "./site-config.mjs";
+import { seeAlsoPages } from "./see-also.mjs";
 import { homepageLinkTargets, relatedPages } from "./related-pages.mjs";
 import { drawSiteMaps, inlineDrawingFigure } from "./site-maps.mjs";
 import { generatedDrawing, markGenerated, splitGenerated } from "./generated-sections.mjs";
@@ -1095,7 +1096,10 @@ export function renderPages(pages, options) {
         for (const hit of result.resolved) if (hit.url) edges.push([page.url, hit.url]);
     }
 
-    const related = relatedPages(edges, entries);
+    const deliberate = seeAlsoPages([...pages, ...homepages], (ref) =>
+        resolveInfoboxRef(index, ref),
+    );
+    const related = relatedPages(edges, entries, deliberate);
 
     let withMap = 0;
     const outputs = capture === true ? new Map() : null;

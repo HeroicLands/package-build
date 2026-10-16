@@ -764,6 +764,38 @@ declares the key. Any other art key authored where no pass emits it, such as a
 the note still compiles correctly and a site template may read there what no
 document carries. `null` is never reported.
 
+#### Deliberate cross-references
+
+Every note type accepts `data.seeAlso`: an ordered list of maps with a required
+`address` and an optional string `gloss`. The Address names a whole note,
+defaults to the current package and the `note` system, and has no default type.
+It may name a note in a declared dependency. A gloss is a short plain-text
+phrase explaining the connection.
+
+```yaml
+data:
+  seeAlso:
+    - address: lore-harborhistory
+      gloss: The founding of the port
+    - address: place-breakwater
+    - address: thalorna-note-lore-searoutes
+      gloss: Routes beyond the bay
+```
+
+The vocabulary declares the closed entry shape. The note boundary decodes each
+nested Address, and the frontmatter check locates unresolved, duplicate and
+self references at `data.seeAlso.<index>.address`. Duplicate detection compares
+resolved destinations, so alternative spellings of one target do not make two
+entries. Anchors are not accepted.
+
+On the website, `related.seeAlso` carries `{ title, url, type, gloss? }` entries
+in authored order. The theme renders that group ahead of the inferred
+backlinks and mentions, with duplicates removed by resolved URL. Deliberate
+references can point outside the local site to declared dependency pages.
+The field has no infobox row. Foundry journals append a See also page with
+compendium links; books append a See also section with the book renderer's
+normal internal or external links. An absent or empty list emits nothing.
+
 #### The art slots
 
 A note declares the art its document needs, and every other image in it is
@@ -821,15 +853,18 @@ are, so a key legal everywhere is stated once here rather than repeated in
 twenty-five tables where the one that was mistyped would be the one nobody
 noticed:
 
-| shared `data` property | Values                | Description                                                  |
-| ---------------------- | --------------------- | ------------------------------------------------------------ |
-| `id`                   | `string`              | A pinned document identity.                                  |
-| `pack`                 | `string`              | The shared compendium route.                                 |
-| `packFolder`           | `Address` or pack map | The shared compendium folder Address.                        |
-| `harnworld`            | `{ realm?, ritual? }` | HârnWorld source details.                                    |
-| `harnworld.realm`      | `string`              | The HârnWorld realm the subject belongs to.                  |
-| `harnworld.ritual`     | `string[]`            | The HârnWorld religions the subject observes.                |
-| `banner`               | `Address`             | The page's hero image — an `image` address, cut to 1792×768. |
+| shared `data` property | Values                        | Description                                                                                |
+| ---------------------- | ----------------------------- | ------------------------------------------------------------------------------------------ |
+| `seeAlso`              | list of `{ address, gloss? }` | Deliberate cross-references in reading order, shown on the site, in journals and in books. |
+| `seeAlso[].address`    | a note `Address`              | Required; the whole note to read next.                                                     |
+| `seeAlso[].gloss`      | `string`                      | An optional short phrase saying why to follow the reference.                               |
+| `id`                   | `string`                      | A pinned document identity.                                                                |
+| `pack`                 | `string`                      | The shared compendium route.                                                               |
+| `packFolder`           | `Address` or pack map         | The shared compendium folder Address.                                                      |
+| `harnworld`            | `{ realm?, ritual? }`         | HârnWorld source details.                                                                  |
+| `harnworld.realm`      | `string`                      | The HârnWorld realm the subject belongs to.                                                |
+| `harnworld.ritual`     | `string[]`                    | The HârnWorld religions the subject observes.                                              |
+| `banner`               | `Address`                     | The page's hero image — an `image` address, cut to 1792×768.                               |
 
 `data.harnworld` takes two keys and nothing else: `realm`, a string naming the
 HârnWorld realm the subject belongs to, and `ritual`, a list of strings naming

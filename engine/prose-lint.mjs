@@ -43,6 +43,7 @@ import {
     sharedPrettierDivergence,
     sharedPrettierOptionsFor,
 } from "./prose-config.mjs";
+import { markupFindings } from "./markup-validation.mjs";
 import { MarkdownConfigError, runMarkdownlint } from "./markdownlint-run.mjs";
 import { walkFiles } from "./walk-files.mjs";
 
@@ -152,6 +153,13 @@ export async function checkFormatting(root, opts = {}) {
             filepath: file,
         };
         const source = fs.readFileSync(file, "utf8");
+        if (["markdown", "mdx"].includes(info.inferredParser)) {
+            const syntaxErrors = markupFindings(source, file);
+            if (syntaxErrors.length) {
+                findings.push(...syntaxErrors);
+                continue;
+            }
+        }
 
         // A file Prettier cannot parse is a finding, not a crash. Its own CLI
         // reports the syntax error and carries on to the next file, and a
@@ -399,9 +407,9 @@ export async function lintMarkdown(root, opts = {}) {
     const { paths, fix = false } = opts;
     const directory = path.resolve(root);
 
-    let results;
+    let results, markup;
     try {
-        ({ results } = await runMarkdownlint({
+        ({ results, markup } = await runMarkdownlint({
             directory,
             globs: paths,
             fix,
@@ -430,8 +438,6 @@ export async function lintMarkdown(root, opts = {}) {
         };
     }
 
-    return {
-        findings: results.map((result) => toDiagnostic(directory, result)),
-        exitCode: results.length ? 1 : 0,
-    };
+    const findings = [...results.map((result) => toDiagnostic(directory, result)), ...markup];
+    return { findings, exitCode: findings.length ? 1 : 0 };
 }

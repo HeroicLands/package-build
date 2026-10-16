@@ -348,6 +348,20 @@ An addressed content note accepts exactly these top-level keys, in this order: `
 | `dataFields`              | `dataFields(type, vocabulary)`               | `readonly DataFieldSpec[] \| undefined`         | looking up the `data:` keys a note type may carry                                                                             |
 | `subTypes`                | `subTypes(type, vocabulary)`                 | `readonly string[] \| null \| undefined`        | looking up the closed `subType` values a note type declares                                                                   |
 
+### `./engine/see-also`
+
+Import `@heroiclands/package-build/engine/see-also` for the deliberate
+cross-references declared by `data.seeAlso`. Entries preserve authored order;
+the caller supplies the medium's reference resolver and link renderer.
+
+| Export            | Signature                                       | Returns                       | Use it when                                                         |
+| ----------------- | ----------------------------------------------- | ----------------------------- | ------------------------------------------------------------------- |
+| `checkSeeAlso`    | `checkSeeAlso(note, { index, addressContext })` | `object[]`                    | locating malformed, unresolved, duplicate or self references        |
+| `seeAlsoEntries`  | `seeAlsoEntries(fm, resolve)`                   | `object[]`                    | resolving names and destinations with optional glosses              |
+| `seeAlsoMarkdown` | `seeAlsoMarkdown(entries, link, level = 2)`     | `string`                      | emitting an ordered See also section, empty when no entries resolve |
+| `seeAlsoWebLink`  | `seeAlsoWebLink(entry)`                         | `string`                      | writing a resolved book reference as a Markdown link                |
+| `seeAlsoPages`    | `seeAlsoPages(pages, resolve)`                  | `Map<string, RelatedEntry[]>` | deriving ordered site connections for both builds and live previews |
+
 ### `engine.infobox`
 
 The declared infobox: what a note's summary panel holds, decided once and rendered by each medium. The note box's fields are the type's own `data:` vocabulary, in its declared order, so a key added to a type appears everywhere with no second edit; the overlay declares only the label and the handful of keys that carry no row.
@@ -2029,6 +2043,14 @@ The engine wildcard subpath also exposes the body parsers below. Their figure ex
 | `engine/content-spans.mjs`   | `spanMarkdownPlugin`, `scanSpans`, `renderSpans`                                             | Parse bracket spans after recognized links. The scanner returns spans and located errors; the renderer preserves inline Markdown in attributed HTML spans.                                                                             |
 
 `scanFigures` retains `line` (1-based caption line), `bodyStart`/`bodyEnd` (0-based, exclusive-end target range), and `close` (last consumed target line), plus caption attributes, kind, label and number. Unnumbered captions have an empty label and consume no number. `collectAnchors` discovers heading, caption, div, poem and span identifiers; `markupAnchorFindings(body)` reports collisions involving non-page identifiers; Foundry maps non-page anchors to the actual containing page UUID. An unnumbered `ref` requires `form="title"` or `form="full"`.
+
+`engine/markup-validation.mjs` provides shared syntax validation:
+
+| Export           | Purpose                                                                             |
+| ---------------- | ----------------------------------------------------------------------------------- |
+| `markupFindings` | Validate complete Markdown source and return diagnostics for the supplied filename. |
+
+`markupFindings(source, file)` masks YAML frontmatter without moving source positions and returns block and alert scanner errors as `{file, line, column, severity, message}` diagnostics. Content lint, Markdown checks and formatting preflight share this validation; malformed files are not rewritten by formatting or Markdown fixes.
 
 `engine/content-alerts.mjs` exposes `ALERT_TYPES`, `scanAlerts(source)` and `renderAlerts(source, target)` and `alertMarkdownPlugin(md)`. The scanner returns `{blocks, errors}`; alert records carry `type`, `id`, `classes`, `attributes`, `title`, `body` and inclusive zero-based `start`/`end` source lines. The renderer produces attributed `aside.alert` wrappers while leaving alert body Markdown in the document's scope. Alert validation and anchor discovery run in site, Foundry and book pipelines.
 
