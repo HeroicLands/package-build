@@ -442,10 +442,10 @@ describe("a language note's words, checked", () => {
         one(OSKET.replace("pronunciation: GHAUK", "pronunciation: ghauk!"), /respelling/, "ghauk!");
     });
 
-    it("warns of a built piece no word or affix glosses", () => {
+    it("warns of a built piece no word, affix or element glosses", () => {
         one(
             OSKET.replace("built: [ghauk, -wugh]", "built: [ghauk, -zz]"),
-            /`-zz`.*no word or affix/,
+            /`-zz`.*no word, affix or element/,
             "-zz",
             "warning",
         );

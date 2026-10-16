@@ -875,6 +875,8 @@ See [SQL details](../reference/format-details.md#content-tables) for query optio
 
 Two layouts set a result as paragraphs under letter headings rather than as a table. **`layout=dictionary` sets words**, read from the `dictionary` relation: each with its class, its etymology, its senses, numbered where a word's `gloss` lists several, and the notes it is cited from — every note whose prose marks the word in italics. **`layout=glossary` sets terms**, read from the `terms` relation: a culture's or an affiliation's own glossary entries and an affiliation's ranks and offices, each sense tagged with the body or culture it comes from. Each needs the `name`, `senses` and `usage` columns, and a query that leaves one out is reported, naming the column.
 
+Public dictionaries omit citations to GM-only notes. `links` checks generated tables in the source note’s audience: public notes use public rows, and GM notes retain GM citations. An authored link from a public note to a GM-only note is still reported.
+
 **The query decides what appears**, and any note may carry either fence. These are the common ones:
 
 | What                                      | Layout       | Query                                                                             |
@@ -946,6 +948,13 @@ A term carries no class, and each of its senses names its source. A glossary set
 ```
 
 The entries are ordered by the layout, not by the query: by letter, then by `name_sort`. **The language tag prints where the entry's language is not the page's own**: a language note's own language, a culture's `data.language`, or the language an affiliation's glossary resolves to. It is the language note's `data.abbreviation`, or its full name where it states none. The etymology never repeats the entry's own language: a borrowed word prints `[fr. Élav. _sólmerë_]`, a built word its pieces each with its gloss, `[_am-_ "love" + _-ère_ "one who"]`, an inherited word its older form, `[*_hur_]` or `[Hel. *_thalass_]`, and a root word its root and pattern. A citation of a note with no published page prints as its name.
+
+A built piece can name a language element by its `form` or one of its `variants`;
+its `sense` prints beside the piece. An affix can also be named by its `front`
+form. Words and affixes take precedence over
+elements in the same language, and the language is searched before its
+ancestors. Exact spellings are checked before ignoring joining hyphens; case
+and accents are preserved.
 
 A culture's or an affiliation's `data.glossary` shapes both: an entry without a definition marks a word or a rank common, gives it a sort key or a respelling, and lets in a rank whose title is a single word; an entry with a definition replaces the senses of the owner's own rank or office, or is a term of the owner's own. The [format reference](../reference/format-details.md#dictionaries-and-glossaries) gives every column and rule.
 

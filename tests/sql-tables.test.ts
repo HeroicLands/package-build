@@ -122,37 +122,117 @@ describe("querying the index", () => {
     it("excludes GM notes from public local and dependency SQL relations", async () => {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sql-gm-"));
         const dependency = path.join(dir, "dependency.jsonl");
-        fs.writeFileSync(
-            dependency,
-            [
-                { type: "lore", shortcode: "open", tags: [], address: { slug: "lore-open" } },
-                {
-                    type: "lore",
-                    shortcode: "secret",
-                    tags: ["gm"],
-                    address: { slug: "lore-secret" },
-                },
-            ]
-                .map((record) => JSON.stringify(record))
-                .join("\n"),
-        );
         const local = [
             { type: "lore", shortcode: "open", tags: [], address: { slug: "lore-open" } },
-            { type: "lore", shortcode: "secret", tags: ["gm"], address: { slug: "lore-secret" } },
+            { type: "lore", shortcode: "near", tags: ["gma"], address: { slug: "lore-near" } },
+            ...[["gm"], ["GM"], ["#gm"], [" gm "], "gm", " #GM "].map((tags, i) => ({
+                type: "lore",
+                shortcode: `secret${i}`,
+                tags,
+                address: { slug: `lore-secret${i}` },
+            })),
         ];
+        fs.writeFileSync(dependency, local.map((record) => JSON.stringify(record)).join("\n"));
         const publicDb = await openNotesDatabase(local, {
             dependencies: [{ id: "other", file: dependency }],
             audience: "public",
         });
         try {
-            expect((await runSqlQuery(publicDb, "SELECT count(*) AS n FROM notes")).rows[0].n).toBe(
-                1n,
-            );
-            expect(
-                (await runSqlQuery(publicDb, "SELECT count(*) AS n FROM other.notes")).rows[0].n,
-            ).toBe(1n);
+            for (const relation of ["notes", "entries", "other.notes", "other.entries"])
+                expect(
+                    (
+                        await runSqlQuery(
+                            publicDb,
+                            `SELECT shortcode FROM ${relation} ORDER BY shortcode`,
+                        )
+                    ).rows,
+                ).toEqual([{ shortcode: "near" }, { shortcode: "open" }]);
         } finally {
             await publicDb.close();
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("retains hidden-only fields in public local and dependency schemas", async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sql-gm-schema-"));
+        const dependency = path.join(dir, "dependency.jsonl");
+        const records = [
+            {
+                package: "demo",
+                type: "lore",
+                subType: "culture",
+                shortcode: "open",
+                name: { full: "Open" },
+                address: "demo-note-lore-open",
+                data: { glossary: [{ name: "a title", definition: "A public title." }] },
+            },
+            {
+                package: "demo",
+                type: "lore",
+                subType: "history",
+                shortcode: "secret",
+                name: { full: "Secret" },
+                address: "demo-note-lore-secret",
+                tags: [" #GM "],
+                data: { events: [{ id: "hidden", when: 1, summary: "A hidden event." }] },
+            },
+        ];
+        fs.writeFileSync(dependency, records.map((record) => JSON.stringify(record)).join("\n"));
+        const db = await openNotesDatabase(records, {
+            dependencies: [{ id: "other", file: dependency }],
+            audience: "public",
+        });
+        try {
+            for (const relation of ["entries", "notes", "other.entries", "other.notes"]) {
+                expect(
+                    (await runSqlQuery(db, `SELECT shortcode, data.events FROM ${relation}`)).rows,
+                ).toEqual([{ shortcode: "open", events: null }]);
+                expect(
+                    (
+                        await runSqlQuery(
+                            db,
+                            `SELECT shortcode FROM ${relation} WHERE data.events IS NOT NULL`,
+                        )
+                    ).rows,
+                ).toEqual([]);
+                expect(
+                    (await runSqlQuery(db, `SELECT * FROM ${relation}`)).columns.toSorted(),
+                ).toEqual([
+                    "address",
+                    "data",
+                    "name",
+                    "package",
+                    "shortcode",
+                    "state",
+                    "subType",
+                    "tags",
+                    "type",
+                ]);
+            }
+        } finally {
+            await db.close();
+            fs.rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    it("retains queryable columns when every local and dependency note is GM-only", async () => {
+        const dir = fs.mkdtempSync(path.join(os.tmpdir(), "sql-gm-only-"));
+        const dependency = path.join(dir, "dependency.jsonl");
+        const records = [
+            { type: "lore", shortcode: "secret", tags: ["GM"], name: { full: "Secret" } },
+        ];
+        fs.writeFileSync(dependency, records.map((record) => JSON.stringify(record)).join("\n"));
+        const db = await openNotesDatabase(records, {
+            dependencies: [{ id: "other", file: dependency }],
+            audience: "public",
+        });
+        try {
+            for (const relation of ["entries", "notes", "other.entries", "other.notes"])
+                expect(
+                    (await runSqlQuery(db, `SELECT shortcode, name.full FROM ${relation}`)).rows,
+                ).toEqual([]);
+        } finally {
+            await db.close();
             fs.rmSync(dir, { recursive: true, force: true });
         }
     });

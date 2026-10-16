@@ -448,7 +448,7 @@ describe("a zero affix", () => {
         );
         const findings = lint({ "Skills/Velith.md": text });
         expect(findings.map((finding: any) => finding.message)).toEqual([
-            expect.stringMatching(/the piece `` of `nelen` matches no word or affix/),
+            expect.stringMatching(/the piece `` of `nelen` matches no word, affix or element/),
         ]);
     });
 

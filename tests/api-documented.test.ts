@@ -132,6 +132,12 @@ describe("docs/api.md documents the real export surface", () => {
         expect(Object.keys(mod).filter((name) => !DOCUMENTED.has(name))).toEqual([]);
     });
 
+    it("documents audience preparation through the SQL wildcard", async () => {
+        const sql = await import("@heroiclands/package-build/engine/sql-tables");
+        expect(Object.keys(sql)).toContain("prepareLinkSqlTables");
+        expect(DOCUMENTED.has("prepareLinkSqlTables")).toBe(true);
+    });
+
     it("documents block markup validation through the engine wildcard", async () => {
         const module = await import("@heroiclands/package-build/engine/markup-validation");
         expect(API_DOC.includes("engine/markup-validation.mjs")).toBe(true);

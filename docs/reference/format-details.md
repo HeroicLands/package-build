@@ -5569,9 +5569,13 @@ word came from in `language`, a language Address; `inherited`, `kept` and
 and `island` give neither. A form is written bare: a renderer supplies its own
 italics and its own asterisk.
 
-**`built` names the pieces a word is made of**, each as a word or an affix of
-the same language writes it, stems included. A piece written with different
-joining hyphens still matches (`am-` finds the word `am`).
+**`built` names the pieces a word is made of**. Each piece resolves against
+words, then affixes, then elements of its language, followed by each ancestor
+in `data.family` order. An element matches its `form` or an entry in `variants`
+and supplies its `sense` as the gloss. A piece written with different joining
+hyphens still matches (`am-` finds the word `am`); an exact spelling is checked
+first. An affix also matches its declared front-vowel form, `front`. Case and
+accents remain significant.
 
 **A gloss is one sense or a list of them.** A list states one sense per entry,
 and a dictionary numbers them: `zethu` glossed `[writing, a scribe]` prints
@@ -5636,7 +5640,7 @@ Each finding is located at the key at fault:
 | A language Address naming something other than a language skill        | error    |
 | A pronunciation that is not a respelling                               | error    |
 | A `frame` that no `sounds.frames` of the language or an ancestor names | error    |
-| A `built` piece no word or affix of the language glosses               | warning  |
+| A `built` piece no word, affix or element in its lineage glosses       | warning  |
 
 The `words` relation holds one row per word — see
 [Content tables](#content-tables) — and a table of them is an `sql` fence over

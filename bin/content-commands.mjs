@@ -112,7 +112,7 @@ import {
     formatUnaddressableFinding as formatUnaddressable,
 } from "../engine/site-build.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
-import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
+import { prepareLinkSqlTables, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 // The one place a link finding is worded, shared with both builds.
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import {
@@ -1438,7 +1438,7 @@ function linksCommand() {
                     config,
                     records,
                     ...scope,
-                    sqlTables: await prepareTreeSqlTables(contentBase, {
+                    sqlTables: await prepareLinkSqlTables(contentBase, {
                         config,
                         records,
                         parsed,

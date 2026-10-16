@@ -82,15 +82,17 @@ const isMap = (value) => Boolean(value) && typeof value === "object" && !Array.i
 const bare = (form) => String(form).replace(/^-+|-+$/g, "");
 
 /**
- * A lookup from a built piece to its gloss, over the words (stems included)
- * and affixes of one or more languages.
+ * A lookup from a built piece to its gloss, over the words (stems included),
+ * affixes and elements of one or more languages.
  *
- * Languages are given nearest first: a language's own words, then its own
- * affixes, then the next language's, so a daughter's entry wins over its
- * parent's. A piece matches an entry written exactly as it is, and failing
- * that one written with the same letters and different joining hyphens, so
+ * For each spelling, languages are given nearest first: a language's own
+ * words, then its affixes and elements, then the next language's. A piece
+ * matches an exact spelling across the lineage first, and failing that one
+ * written with the same letters and different joining hyphens, so
  * `wulf-` finds the word `wulf`. Within a language a word's own gloss wins over
- * an affix's.
+ * an affix's, and both precede an element's sense. Elements also match their
+ * declared variants; affixes also match their front-vowel forms. Spelling,
+ * including case and accents, is preserved.
  *
  * @param {...object} datas - Each language note's `data`, nearest first.
  * @returns {(piece: string) => string|null} The gloss, or `null` where none resolves.
@@ -98,18 +100,24 @@ const bare = (form) => String(form).replace(/^-+|-+$/g, "");
 export function pieceGlosses(...datas) {
     const exact = new Map();
     const loose = new Map();
-    const take = (entries) => {
+    const take = (entries, key = "gloss", alternateKey = "") => {
         for (const entry of Array.isArray(entries) ? entries : []) {
             if (!isMap(entry) || typeof entry.form !== "string") continue;
-            const gloss = glossText(entry.gloss);
+            const gloss = glossText(entry[key]);
             if (gloss === null) continue;
-            if (!exact.has(entry.form)) exact.set(entry.form, gloss);
-            if (!loose.has(bare(entry.form))) loose.set(bare(entry.form), gloss);
+            const alternate = entry[alternateKey];
+            const forms = [entry.form, ...(Array.isArray(alternate) ? alternate : [alternate])];
+            for (const form of forms) {
+                if (typeof form !== "string") continue;
+                if (!exact.has(form)) exact.set(form, gloss);
+                if (!loose.has(bare(form))) loose.set(bare(form), gloss);
+            }
         }
     };
     for (const data of datas) {
         take(data?.words);
-        take(data?.affixes);
+        take(data?.affixes, "gloss", "front");
+        take(data?.elements, "sense", "variants");
     }
     return (piece) => exact.get(piece) ?? loose.get(bare(piece)) ?? null;
 }

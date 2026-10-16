@@ -261,16 +261,12 @@ export async function openNotesDatabase(
     const base = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
     fs.mkdirSync(base, { recursive: true });
     const jsonl = path.join(base, "notes.jsonl");
-    fs.writeFileSync(
-        jsonl,
-        records.map((record) => JSON.stringify(sortKeysDeep(encodeAddresses(record)))).join("\n"),
-    );
+    const encoded = records.map((record) => encodeAddresses(record));
 
     const instance = await DuckDBInstance.create(":memory:");
     const connection = await instance.connect();
     await connection.run("SET threads=1");
-    await createRelations(connection, jsonl, "", audience);
-    const encoded = records.map((record) => encodeAddresses(record));
+    await createRelations(connection, jsonl, encoded, "", audience);
     await createEventRelation(connection, path.join(base, "events.jsonl"), encoded, "", audience);
     await createWordRelations(connection, path.join(base, "notes"), encoded, "", audience);
 
@@ -293,8 +289,7 @@ export async function openNotesDatabase(
             .split("\n")
             .filter((line) => line.trim())
             .map((line) => flattenPublishedAddresses(JSON.parse(line)));
-        fs.writeFileSync(flat, depRecords.map((record) => JSON.stringify(record)).join("\n"));
-        await createRelations(connection, flat, `${schema}.`, audience);
+        await createRelations(connection, flat, depRecords, `${schema}.`, audience);
         await createEventRelation(
             connection,
             flat.replace(/\.jsonl$/, "-events.jsonl"),
@@ -462,12 +457,27 @@ const WITH_STUBS_SCHEMA = "__with_stubs";
  * of the ladder falls back to a constant where its column is absent.
  *
  * @param {object} connection - An open DuckDB connection.
- * @param {string} file - The JSONL to read.
+ * @param {string} file - Where to write the audience's JSONL.
+ * @param {object[]} records - Complete index records, every Address a string.
  * @param {string} [prefix] - A schema to qualify the view names with.
+ * @param {"all"|"public"} [audience] - Whether to leave out GM notes.
  * @returns {Promise<void>}
  */
-async function createRelations(connection, file, prefix = "", audience = "all") {
-    const read = readJsonAuto(file);
+async function createRelations(connection, file, records, prefix = "", audience = "all") {
+    // Every record contributes its schema; only visible records contribute rows.
+    fs.writeFileSync(
+        file,
+        records
+            .map((record) =>
+                JSON.stringify({
+                    record: sortKeysDeep(record),
+                    visible: audience !== "public" || !isGmNote(record),
+                }),
+            )
+            .join("\n"),
+    );
+    const source = readJsonAuto(file);
+    const read = records.length ? `SELECT record.* FROM (${source}) WHERE visible` : source;
     const described = await connection.runAndReadAll(`DESCRIBE ${read}`);
     const columns = new Set(described.getRowObjects().map((row) => String(row.column_name)));
     // A row with no address is a stub. With no address column anywhere, every
@@ -481,16 +491,11 @@ async function createRelations(connection, file, prefix = "", audience = "all") 
             "COALESCE(list_contains(TRY_CAST(tags AS VARCHAR[]), 'draft'), false) " +
             "OR COALESCE(TRY_CAST(tags AS VARCHAR) = 'draft', false)"
         :   "false";
-    const visible =
-        audience === "public" && columns.has("tags") ?
-            "NOT (COALESCE(list_contains(TRY_CAST(tags AS VARCHAR[]), 'gm'), false) " +
-            "OR COALESCE(TRY_CAST(tags AS VARCHAR) = 'gm', false))"
-        :   "true";
     await createTableFromFile(
         connection,
         `${prefix}entries`,
         `SELECT *, CASE WHEN ${stub} THEN 'stub' WHEN ${draft} THEN 'draft' ` +
-            `ELSE 'full' END AS state FROM (${read}) WHERE ${visible}`,
+            `ELSE 'full' END AS state FROM (${read})`,
     );
     await connection.run(
         `CREATE VIEW ${prefix}notes AS SELECT * FROM ${prefix}entries WHERE state <> 'stub'`,
@@ -1305,9 +1310,9 @@ export async function prepareTreeSqlTables(
     // uninitialised for whichever module the runtime happened to load first.
     const { indexRecordsFor } = await import("./content-index.mjs");
     const notes = parsed ?? new Map();
-    const indexRecords = (
-        records ?? indexRecordsFor({ contentBase, config, skipDirectories, parsed: notes })
-    ).filter((record) => audience !== "public" || !isGmNote(record));
+    const allRecords =
+        records ?? indexRecordsFor({ contentBase, config, skipDirectories, parsed: notes });
+    const indexRecords = allRecords.filter((record) => audience !== "public" || !isGmNote(record));
 
     // Which notes carry a directive, discovered over the same corpus every
     // other pass reads rather than over a walk of this one's own. The
@@ -1397,7 +1402,7 @@ export async function prepareTreeSqlTables(
     // been fetched already fails earlier with a message naming the fetch.
     const db =
         database ??
-        (await openNotesDatabase(indexRecords, {
+        (await openNotesDatabase(allRecords, {
             dependencies: await cachedDependencies(config),
             audience,
         }));
@@ -1417,4 +1422,67 @@ export async function prepareTreeSqlTables(
     } finally {
         if (!database) await db.close();
     }
+}
+
+/**
+ * Prepare authored link-check tables in each source note's audience. Public
+ * sources share one public database; GM sources share one complete database.
+ * Complete records remain available for authored-link checks.
+ *
+ * @param {string} contentBase - Root of the content tree.
+ * @param {object} [opts]
+ * @param {object} [opts.config] - Resolved configuration.
+ * @param {readonly string[]} [opts.skipDirectories] - The walk's scope.
+ * @param {object[]} [opts.records] - Complete index records already derived.
+ * @param {Map<string, {body: string, frontmatter: object|null}>} [opts.parsed] - Parsed notes.
+ * @param {Map<string, object>} [opts.foreignIndex] - Published dependency indexes.
+ * @returns {Promise<Map<string, object[]>|undefined>} Prepared tables by source.
+ */
+export async function prepareLinkSqlTables(
+    contentBase,
+    { config, skipDirectories, records, parsed, foreignIndex } = {},
+) {
+    const { indexRecordsFor } = await import("./content-index.mjs");
+    const notes = parsed ?? new Map();
+    const allRecords =
+        records ?? indexRecordsFor({ contentBase, config, skipDirectories, parsed: notes });
+    const sources = new Map();
+    for (const record of allRecords) {
+        if (!isNoteRecord(record)) continue;
+        const file = noteFile(contentBase, record);
+        let note = notes.get(file);
+        if (!note) {
+            note = parseMarkdownFile(file);
+            notes.set(file, note);
+        }
+        const body = note.body ?? "";
+        if (
+            findSqlBlocks(body).length ||
+            findPageListBlocks(body).length ||
+            sqlQueriesInMarkdown(body, note.frontmatter).length
+        )
+            sources.set(file, isGmNote(record) ? "all" : "public");
+    }
+    if (!sources.size) return undefined;
+    const selected = new Map();
+    selected.pageLists = new Map();
+    selected.inline = new Map();
+    for (const audience of new Set(sources.values())) {
+        const prepared = await prepareTreeSqlTables(contentBase, {
+            config,
+            skipDirectories,
+            records: allRecords,
+            parsed: notes,
+            foreignIndex,
+            audience,
+        });
+        for (const [file, sourceAudience] of sources) {
+            if (sourceAudience !== audience) continue;
+            if (prepared?.has(file)) selected.set(file, prepared.get(file));
+            if (prepared?.pageLists?.has(file))
+                selected.pageLists.set(file, prepared.pageLists.get(file));
+            if (prepared?.inline?.has(file)) selected.inline.set(file, prepared.inline.get(file));
+        }
+    }
+    return selected;
 }

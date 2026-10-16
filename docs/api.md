@@ -2074,3 +2074,35 @@ set by `joinGeneratedSections`. Subsequent fences are generated event queries
 whose stub-inclusive results are identical; only authored fences receive a
 stub-inclusion comparison. Query answers and comparisons are cached for one
 preparation and kept separate.
+
+`prepareTreeSqlTables` retains the complete record membership when opening a
+public database, so derived citations can distinguish hidden notes from
+unknown addresses. Only public records contribute rendered sources and links.
+
+| Export                 | Contract                                                                                                         |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `prepareLinkSqlTables` | Prepare authored SQL and page-list blocks for link checking, using one preparation per required source audience. |
+
+`engine/sql-tables.mjs` exports `prepareLinkSqlTables(contentBase, options)`.
+Its options are `config`, `skipDirectories`, complete `records`, the shared
+`parsed` map and `foreignIndex`. It returns prepared tables with `pageLists`
+and `inline` maps, or `undefined` when no source asks for a table. Public
+sources use public rows; GM sources use all rows. Query results remain local
+to each audience preparation, and the caller’s records remain complete for
+checking authored references. Unresolved derived citations retain the
+renderer’s plain-label behavior.
+
+## Built-piece resolution
+
+The wildcard engine subpath exposes `pieceGlosses` from
+`@heroiclands/package-build/engine/word-rows`.
+
+| Export         | Signature                | Returns                             | Use it when                                                                  |
+| -------------- | ------------------------ | ----------------------------------- | ---------------------------------------------------------------------------- |
+| `pieceGlosses` | `pieceGlosses(...datas)` | A lookup returning a string or null | Resolving a word's built pieces for lint, word rows or dictionary etymology. |
+
+Pass language `data` objects nearest first, in `lineageChain` order. Each
+language contributes words, affixes and elements, in that order. Words and
+affixes supply `gloss`, including an affix matched by its `front` form. Elements
+supply `sense` and match their `form` and `variants`. Exact matches precede matches without joining hyphens; case and
+accents are preserved. A missing gloss returns `null`.

@@ -36,7 +36,7 @@
  *   an ancestor's;
  * - every source language resolves, and names a language skill;
  * - a pronunciation is a respelling;
- * - a `built` piece no word or affix of the language glosses is a warning.
+ * - a `built` piece no word, affix or element of the language glosses is a warning.
  *
  * {@link checkLanguageFamily} owns `data.family`, the parent language a
  * daughter reads words from: it is stated only on a language, names a
@@ -285,7 +285,7 @@ export function checkLanguageWords(note, { index } = {}) {
                 finding(
                     [...at("built"), j],
                     "warning",
-                    `the piece \`${piece}\` of \`${word.form}\` matches no word or affix of this ` +
+                    `the piece \`${piece}\` of \`${word.form}\` matches no word, affix or element of this ` +
                         "language or its ancestors, so it prints with no gloss",
                 ),
             );

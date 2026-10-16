@@ -259,10 +259,11 @@ export function dictionaryAndTermRows(records, all = records) {
         byForm.set(key, exact);
         byLowerForm.set(key, lower);
     }
-    /** The word of a form as a language lists it, nearest in its lineage first. */
+    /** A form's nearest visible definition, traversing the complete lineage. */
     const wordIn = (language, name) => {
         const chain = lineage(language);
         for (let depth = 0; depth < chain.length; depth++) {
+            if (!visible.has(chain[depth])) continue;
             const word = byForm.get(chain[depth]).get(name);
             if (word) return { word, statedIn: chain[depth], depth };
         }
