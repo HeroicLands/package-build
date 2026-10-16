@@ -47,6 +47,7 @@ import {
 } from "./word-rows.mjs";
 import { DICTIONARY_COLUMNS, TERM_COLUMNS, dictionaryAndTermRows } from "./dictionary-rows.mjs";
 import { LANGUAGE_COLUMN_TYPES, LANGUAGE_RELATIONS } from "./language-rows.mjs";
+import { VERB_PERSON_FIELDS } from "./language-terms.mjs";
 import { renderDictionary, renderGlossary } from "./dictionary-layout.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
 import { lexicalSectionsFor } from "./lexical-sections.mjs";
@@ -625,13 +626,39 @@ async function createWordRelations(connection, stem, records, prefix, audience) 
         LINEAGE_COLUMNS,
     );
     const { dictionary, terms } = dictionaryAndTermRows(visible, records);
-    await createRowRelation(
-        connection,
-        `${stem}-dictionary.jsonl`,
-        dictionary,
-        `${prefix}dictionary`,
-        DICTIONARY_COLUMNS,
-    );
+    const dictionaryTypes = {
+        etymology:
+            "STRUCT(kind VARCHAR, language VARCHAR, language_tag VARCHAR, form VARCHAR, " +
+            "parts STRUCT(form VARCHAR, gloss VARCHAR)[], root VARCHAR, frame VARCHAR)",
+        senses: "STRUCT(text VARCHAR, bodies VARCHAR[])[]",
+        usage: "VARCHAR[]",
+        depth: "BIGINT",
+        verbs: `STRUCT(invariant BOOLEAN, persons STRUCT(${VERB_PERSON_FIELDS.map((person) => `"${person.name}" VARCHAR`).join(", ")}))`,
+    };
+    const dictionaryFile = `${stem}-dictionary.jsonl`;
+    if (dictionary.length) {
+        // Only the dictionary's declared schema: optional patterns must not
+        // change its nested/list types when a corpus has no stated grammar.
+        fs.writeFileSync(dictionaryFile, dictionary.map((row) => JSON.stringify(row)).join("\n"));
+        const columns = DICTIONARY_COLUMNS.map(
+            (column) =>
+                `CAST("${column}" AS ${dictionaryTypes[column] ?? "VARCHAR"}) AS "${column}"`,
+        );
+        await createTableFromFile(
+            connection,
+            `${prefix}dictionary`,
+            `SELECT ${columns.join(", ")} FROM (${readJsonAuto(dictionaryFile)})`,
+        );
+    } else {
+        await createRowRelation(
+            connection,
+            dictionaryFile,
+            dictionary,
+            `${prefix}dictionary`,
+            DICTIONARY_COLUMNS,
+            dictionaryTypes,
+        );
+    }
     const termTypes = {
         senses: "STRUCT(text VARCHAR, bodies VARCHAR[])[]",
         usage: "VARCHAR[]",

@@ -3253,12 +3253,12 @@ value containing spaces with double quotes and escape an internal quote as
 `\"`. Boolean values are exactly `true` or `false`; other spellings are
 errors. Duplicate and unknown attributes are errors.
 
-| Attribute                                   | What it does                                                                                                |
-| ------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
-| `allow-empty=true`                          | Permits a query selecting no rows. Default `false`.                                                         |
-| `section-level=1` through `section-level=6` | Sets the heading level for `_section`. Default `2`.                                                         |
-| `key=false`                                 | Leaves the key out of a dictionary or a glossary. Default `true`. Refused on a table, as `key=true` is.     |
-| `key=only`                                  | Prints a dictionary's or a glossary's key for its rows, and no letter heading or entry. Refused on a table. |
+| Attribute                                   | What it does                                                                                                               |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `allow-empty=true`                          | Permits a query selecting no rows. Default `false`.                                                                        |
+| `section-level=1` through `section-level=6` | Sets the heading level for `_section`. Default `2`.                                                                        |
+| `key=false`                                 | Omits the key and any dictionary verb head table, retaining entries. Default `true`. Refused on a table, as `key=true` is. |
+| `key=only`                                  | Prints a dictionary's or a glossary's key for its rows, and no letter heading or entry. Refused on a table.                |
 
 ##### Page lists
 
@@ -5339,6 +5339,19 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `names.<name>`                             | `string[]`                                                                                                                     | A list the placeholder of the same name draws from                                                                                                                                   |
 | `family`                                   | `Address`                                                                                                                      | `language` only: the parent language, naming a skill note with `subType: language`; this language reads the parent's words as its own — see [a language's words](#a-languages-words) |
 | `abbreviation`                             | `string`                                                                                                                       | `language` only: the tag a dictionary prints for it, as `Prov.`; its full name where unstated — see [dictionaries and glossaries](#dictionaries-and-glossaries)                      |
+| `grammar`                                  | `{ plural?, verbs? }`                                                                                                          | Optional dictionary noun plurals and one verb pattern; supplied shapes only are checked                                                                                              |
+| `grammar.plural`                           | `{ ending, becomes }[]`                                                                                                        | Literal suffix replacements in authored order; the first match wins                                                                                                                  |
+| `grammar.plural[].ending`                  | `string`, required, may be empty                                                                                               | Bare suffix to replace; empty matches every noun                                                                                                                                     |
+| `grammar.plural[].becomes`                 | `string`, required, may be empty                                                                                               | Bare replacement; empty deletes the matching suffix                                                                                                                                  |
+| `grammar.verbs`                            | `{ invariant: true }` or `{ persons: { I, you, heShe, we, youAll, they } }`                                                    | One regular present pattern, printed once at the dictionary head                                                                                                                     |
+| `grammar.verbs.invariant`                  | `true`                                                                                                                         | Verbs do not change; excludes `persons`                                                                                                                                              |
+| `grammar.verbs.persons`                    | a map of all six ending strings                                                                                                | Each ending is added to the citation form; excludes `invariant`                                                                                                                      |
+| `grammar.verbs.persons.I`                  | `string`, required, may be empty                                                                                               | Ending for I                                                                                                                                                                         |
+| `grammar.verbs.persons.you`                | `string`, required, may be empty                                                                                               | Ending for you                                                                                                                                                                       |
+| `grammar.verbs.persons.heShe`              | `string`, required, may be empty                                                                                               | Ending for he/she                                                                                                                                                                    |
+| `grammar.verbs.persons.we`                 | `string`, required, may be empty                                                                                               | Ending for we                                                                                                                                                                        |
+| `grammar.verbs.persons.youAll`             | `string`, required, may be empty                                                                                               | Ending for you all                                                                                                                                                                   |
+| `grammar.verbs.persons.they`               | `string`, required, may be empty                                                                                               | Ending for they                                                                                                                                                                      |
 | `classModifiers`                           | `string[]`                                                                                                                     | `language` only: the word class modifiers the language uses, each from the [master word classes](#word-classes); empty when unstated                                                 |
 | `fields`                                   | `{ name, holds }[]`                                                                                                            | `language` only: the fields its words are grouped under                                                                                                                              |
 | `fields[].name`                            | `string`, required                                                                                                             | The field's name, which a word's `field` names                                                                                                                                       |
@@ -5348,6 +5361,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `words[].variants`                         | `string[]`                                                                                                                     | Its other forms, as a short form beside a long one; a marked use of one cites the word                                                                                               |
 | `words[].name_sort`                        | `string`                                                                                                                       | Its sort key; the form when unstated                                                                                                                                                 |
 | `words[].class`                            | `string`, required                                                                                                             | A class from the master word classes, base first: `n I f`                                                                                                                            |
+| `words[].plural`                           | `string`                                                                                                                       | Optional explicit noun plural; the dictionary uses it before the language rule                                                                                                       |
 | `words[].field`                            | `string`, required                                                                                                             | One of the note's `fields` names                                                                                                                                                     |
 | `words[].gloss`                            | `string` or `string[]`, required                                                                                               | The meaning, in brief; a list states one sense per entry, which a dictionary numbers                                                                                                 |
 | `words[].source`                           | `{ kind, language?, form? }`                                                                                                   | Where the word comes from                                                                                                                                                            |
@@ -5585,6 +5599,54 @@ so a language's words, however many, add nothing to it.
 [master word classes](#word-classes), separated by spaces: `n I f` is a noun of
 class I, feminine. A language declares the modifiers it uses in
 `data.classModifiers`, and a word may carry only those.
+
+##### Optional noun and verb forms
+
+A noun may carry gender through its existing class: `n m`, `n f` or `n n`,
+printed as _n. m._, _n. f._ or _n. nt._. It may state `plural` where its
+plural differs from the language's default. Neither is required.
+
+```yaml
+data:
+  classModifiers: [m]
+  fields:
+    - { name: People, holds: People and their everyday words }
+  grammar:
+    plural:
+      - { ending: os, becomes: oi }
+    verbs:
+      persons: { I: o, you: es, heShe: "", we: om, youAll: et, they: on }
+  words:
+    - { form: marendos, class: n m, field: People, gloss: an example noun }
+```
+
+The dictionary entry begins **marendos** _n. m., pl. marendoi_. An entry's
+nonempty explicit `plural` wins; otherwise the first matching
+`grammar.plural` replacement supplies its noun plural. Endings are bare,
+literal strings: `os` replaces the closing letters, with no regular
+expression or hyphen notation. An empty `ending` appends `becomes`; an empty
+`becomes` removes the ending. A noun matching no rule prints no plural.
+The raw `words` relation retains only the authored `plural`; the
+`dictionary` relation carries the displayed one.
+
+`grammar.verbs` is either `{ invariant: true }`, where no verb changes, or
+the `persons` map shown above. A supplied `persons` map has all six string
+endings, each added to the citation form; `""` leaves that form unchanged.
+The dictionary prints the pattern once in a small table before its letter
+headings. A custom dictionary's default or `key=true` prints that table even
+when no abbreviation key is needed. `key=false` fragments omit both the key
+and table; `key=only` prints the abbreviation key alone. Separate results
+with their heads enabled each print their own tables.
+A language uses only its own stated grammar, including for words
+listed from an ancestor; an inherited word retains its explicit plural.
+Grammar is not inherited through `family`.
+
+All grammar is optional. Only a supplied key's shape is checked: no language
+must supply a pattern, no noun must supply gender or plural, and no word is
+checked against a rule or required to provide an exception. There are no
+additional cases, tenses, moods or irregular verb forms. With none of these
+optional fields, dictionary output is unchanged. Grammar alone does not
+create a Dictionary section.
 
 **A word's source** is closed to seven kinds. `borrowed` names the language the
 word came from in `language`, a language Address; `inherited`, `kept` and
@@ -6401,7 +6463,8 @@ language lists its own words at `depth` 0 and the words it inherits through
 that language's full dictionary. Where a daughter and a parent state the same
 form, the daughter's own word is the one listed. Words of class `name`, `stem`
 and `pref` are no entry. Nonempty `data.words` containing only these classes
-still supplies the Dictionary heading, with no entries or key. A word's sort
+still supplies the Dictionary heading, with no entries or key; a stated verb
+pattern still supplies its head table. A word's sort
 key and pronunciation come from its declaration; a glossary's choices belong
 to its own entries.
 
@@ -6414,10 +6477,12 @@ to its own entries.
 | `letter`        | The heading letter: the first letter of `name_sort`, accents taken off and apostrophes skipped, in capitals.                                                                                                         |
 | `pronunciation` | The word's respelling; `NULL` where unstated.                                                                                                                                                                        |
 | `class`         | The word's class, as written.                                                                                                                                                                                        |
+| `plural`        | The noun's explicit plural, else its listed language's first matching replacement; `NULL` where unavailable or not a noun.                                                                                           |
 | `field`         | The word's field, printed as a tag beside the entry; `NULL` where unstated.                                                                                                                                          |
 | `etymology`     | `{ kind, language, language_tag, form, parts, root, frame }` from the word's `source`, `built`, `root` and `frame`; an inherited word's is `inherited` from the language that states it. `NULL` where there is none. |
 | `senses`        | A list of `{ text, bodies }`: one per sense of the word's gloss, with no bodies. A dictionary numbers a word's senses where it has more than one.                                                                    |
 | `usage`         | The Addresses of the notes whose prose cites the word, as the language that states it records them.                                                                                                                  |
+| `verbs`         | The listed language's stated `{ invariant: true }` or six-person pattern, repeated as metadata for one head table; `NULL` where unstated.                                                                            |
 | `depth`         | How far up the language's lineage the word is stated: `0` for its own.                                                                                                                                               |
 
 A daughter language with no own words has no automatic Dictionary section.

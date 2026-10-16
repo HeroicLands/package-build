@@ -43,6 +43,7 @@ export const LANGUAGE_DATA_KEYS = Object.freeze([
     "older",
     "negation",
     "naming",
+    "grammar",
 ]);
 
 /**
@@ -1595,6 +1596,81 @@ function listOfMaps(name, fields, describe) {
 }
 
 /**
+ * The six present persons of the one optional regular verb pattern, in
+ * presentation order. Empty endings leave the citation form unchanged.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const VERB_PERSON_FIELDS = Object.freeze(
+    [
+        ["I", "I"],
+        ["you", "you"],
+        ["heShe", "he/she"],
+        ["we", "we"],
+        ["youAll", "you all"],
+        ["they", "they"],
+    ].map(([name, label]) =>
+        Object.freeze({
+            name,
+            label,
+            kind: "string",
+            required: true,
+            allowEmpty: true,
+            shape: "an ending string, empty for unchanged",
+            describe: `The ending added to the citation form for ${label}.`,
+        }),
+    ),
+);
+
+/** The two alternatives of a supplied optional verb pattern. */
+const VERB_PATTERN_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "invariant",
+        kind: "boolean",
+        shape: "true, as the alternative to persons",
+        describe: "True where verbs keep the citation form for every person; excludes `persons`.",
+    }),
+    Object.freeze({
+        name: "persons",
+        kind: "map",
+        shape: "a map — `{ I, you, heShe, we, youAll, they }` of ending strings",
+        fields: VERB_PERSON_FIELDS,
+        describe: "All six present endings, each added to the citation form; excludes `invariant`.",
+    }),
+]);
+
+/** The optional, display-only noun and verb patterns of one language. */
+const GRAMMAR_FIELDS = Object.freeze([
+    innerList(
+        "plural",
+        Object.freeze(
+            ["ending", "becomes"].map((name) =>
+                Object.freeze({
+                    name,
+                    kind: "string",
+                    required: true,
+                    allowEmpty: true,
+                    shape: "a literal ending string, which may be empty",
+                    describe:
+                        name === "ending" ?
+                            "The bare suffix replaced by this rule; empty matches every noun."
+                        :   "The bare replacement; empty removes the matching suffix.",
+                }),
+            ),
+        ),
+        "Default noun plurals, replacing the first matching literal ending in authored order. " +
+            "A word's explicit plural wins; no word is checked against this rule.",
+    ),
+    Object.freeze({
+        name: "verbs",
+        kind: "map",
+        shape: "a map — `{ invariant: true }` or `{ persons: { I, you, heShe, we, youAll, they } }`",
+        fields: VERB_PATTERN_FIELDS,
+        describe: "One optional regular present pattern, printed once at the dictionary head.",
+    }),
+]);
+
+/**
  * The `data` fields this module declares, in the order the vocabulary lists
  * them. {@link module:engine/language-data.checkLanguageData} checks what the
  * values mean.
@@ -1602,6 +1678,16 @@ function listOfMaps(name, fields, describe) {
  * @type {readonly object[]}
  */
 export const LANGUAGE_DATA_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "grammar",
+        kind: "map",
+        shape: "a map — `{ plural?, verbs? }`",
+        fields: GRAMMAR_FIELDS,
+        describe:
+            "Optional noun plurals and one verb pattern for dictionary presentation. Only the " +
+            "shape of supplied keys is checked; no word must follow or state a rule. A language " +
+            "skill note only.",
+    }),
     listOfMaps(
         "tongues",
         TONGUE_FIELDS,

@@ -158,6 +158,7 @@ describe("a language note's words", () => {
             "variants",
             "name_sort",
             "class",
+            "plural",
             "field",
             "gloss",
             "source",

@@ -65,10 +65,12 @@ export const DICTIONARY_COLUMNS = Object.freeze([
     "letter",
     "pronunciation",
     "class",
+    "plural",
     "field",
     "etymology",
     "senses",
     "usage",
+    "verbs",
     "depth",
 ]);
 
@@ -127,6 +129,20 @@ const isSingleWord = (title) => !/[\s\-‐‑]/u.test(title);
 
 /** Whether a glossary entry states a definition. */
 const defines = (entry) => typeof entry.definition === "string" && entry.definition.trim() !== "";
+
+/** A noun's stated plural, or the first literal ending replacement that fits. */
+function pluralOf(word, grammar) {
+    if (parseWordClass(word.class).base !== "n") return null;
+    if (typeof word.plural === "string" && word.plural) return word.plural;
+    for (const rule of Array.isArray(grammar?.plural) ? grammar.plural : []) {
+        if (typeof rule?.ending !== "string" || typeof rule.becomes !== "string") continue;
+        if (word.form.endsWith(rule.ending))
+            return (
+                (rule.ending ? word.form.slice(0, -rule.ending.length) : word.form) + rule.becomes
+            );
+    }
+    return null;
+}
 
 /**
  * The stable prose anchor of a word in one language's dictionary. The exact
@@ -492,6 +508,7 @@ export function dictionaryAndTermRows(records, all = records) {
         [...new Set(citedBy(statedIn, word.form).filter(citable))].sort(compare);
     for (const { language, name, found } of wordRows.values()) {
         const { word, depth } = found;
+        const grammar = languages.get(language)?.data?.grammar;
         const nameSort =
             typeof word.name_sort === "string" && word.name_sort ? word.name_sort : name;
         dictionary.push({
@@ -502,10 +519,12 @@ export function dictionaryAndTermRows(records, all = records) {
             letter: dictionaryLetter(nameSort),
             pronunciation: typeof word.pronunciation === "string" ? word.pronunciation : null,
             class: typeof word.class === "string" ? word.class : null,
+            plural: pluralOf(word, grammar),
             field: typeof word.field === "string" ? word.field : null,
             etymology: etymologyOf(found),
             senses: glossSenses(word.gloss).map((text) => ({ text, bodies: [] })),
             usage: wordUsage(found),
+            verbs: isMap(grammar?.verbs) ? grammar.verbs : null,
             depth,
         });
     }

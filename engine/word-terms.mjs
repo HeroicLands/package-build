@@ -137,6 +137,14 @@ export const WORD_FIELDS = Object.freeze([
             "declares in `classModifiers`.",
     }),
     Object.freeze({
+        name: "plural",
+        kind: "string",
+        shape: "a string",
+        describe:
+            "The noun's explicit plural, where it differs from the language's optional plural " +
+            "rule. A dictionary uses this form before the rule; no rule agreement is checked.",
+    }),
+    Object.freeze({
         name: "field",
         kind: "string",
         required: true,

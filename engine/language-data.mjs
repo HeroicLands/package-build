@@ -160,6 +160,59 @@ export function checkLanguageData(note, { index, types } = {}) {
 
     const findings = [];
 
+    // Only the shape of a supplied declaration: no word is compared with it.
+    const grammar = isMap(data.grammar) ? data.grammar : {};
+    listOf(grammar.plural).forEach((row, i) => {
+        if (row == null || (Array.isArray(row) && row.length === 0))
+            findings.push(
+                finding(
+                    ["data", "grammar", "plural", i],
+                    "error",
+                    `\`data.grammar.plural[${i}]\` must be a map with ending and becomes strings`,
+                ),
+            );
+    });
+    const verbs = grammar.verbs;
+    if (Array.isArray(verbs) && verbs.length === 0)
+        findings.push(
+            finding(
+                ["data", "grammar", "verbs"],
+                "error",
+                "`data.grammar.verbs` must state `invariant: true` or the six `persons` strings",
+            ),
+        );
+    if (isMap(verbs)) {
+        const invariant = Object.hasOwn(verbs, "invariant");
+        const persons = Object.hasOwn(verbs, "persons");
+        if (invariant === persons)
+            findings.push(
+                finding(
+                    ["data", "grammar", "verbs"],
+                    "error",
+                    "`data.grammar.verbs` must state exactly one of `invariant: true` or `persons`",
+                ),
+            );
+        else if (invariant && (verbs.invariant == null || verbs.invariant === false))
+            findings.push(
+                finding(
+                    ["data", "grammar", "verbs", "invariant"],
+                    "error",
+                    "`data.grammar.verbs.invariant` must be true",
+                ),
+            );
+        else if (
+            persons &&
+            (verbs.persons == null || (Array.isArray(verbs.persons) && verbs.persons.length === 0))
+        )
+            findings.push(
+                finding(
+                    ["data", "grammar", "verbs", "persons"],
+                    "error",
+                    "`data.grammar.verbs.persons` must be a map of all six ending strings",
+                ),
+            );
+    }
+
     /**
      * The note an Address names, or a finding where it names none.
      *

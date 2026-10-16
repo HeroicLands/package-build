@@ -70,6 +70,8 @@ import { nearest } from "./near-miss.mjs";
  *   every surface shows it exactly as written, never recased.
  * @property {string} shape - The shape in words, for a finding and the reference.
  * @property {boolean} [required] - The key must be stated, with a value.
+ * @property {boolean} [allowEmpty] - A required string may be empty where
+ *   empty text is a stated value.
  * @property {boolean} [nullable] - An explicit `null` states the key, for a
  *   required key whose null has a meaning of its own.
  * @property {string} [label] - The infobox row label, where humanising the key
@@ -234,7 +236,7 @@ export function pathLabel(path) {
 function stated(value, spec) {
     if (value === undefined) return false;
     if (value === null) return Boolean(spec.nullable);
-    if (typeof value === "string") return value.trim() !== "";
+    if (typeof value === "string") return Boolean(spec.allowEmpty) || value.trim() !== "";
     return true;
 }
 

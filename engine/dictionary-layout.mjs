@@ -48,6 +48,7 @@
 
 import { parseAddress, readCanonicalKey, renderAddress, splitAnchor } from "./address.mjs";
 import { dictionaryEntryAnchor, dictionaryLetter } from "./dictionary-rows.mjs";
+import { VERB_PERSON_FIELDS } from "./language-terms.mjs";
 import {
     WORD_CLASS_BASES,
     WORD_CLASS_MODIFIERS,
@@ -140,14 +141,16 @@ function sentence(text) {
  * @property {object} [addressContext] - Address resolution context.
  * @property {(address: string) => string|undefined} [labelOf] - A note's
  *   `name.full`, by its Address.
- * @property {boolean|"only"} [showKey=true] - Whether the key is printed;
- *   `"only"` prints the key and nothing else.
+ * @property {boolean|"only"} [showKey=true] - Whether the key and dictionary
+ *   head tables are printed; `"only"` prints the key and nothing else.
  * @property {string} [pageLanguage] - The language of the page the fence is
  *   on, which no entry is tagged with.
  * @property {string} [pageOwner] - The containing page's canonical note Address;
  *   a sense attributed only to its own row's owner omits that label on this page.
  * @property {boolean} [entryAnchors=true] - Whether dictionary headwords carry
  *   their canonical targets; custom SQL views leave those to the automatic list.
+ * @property {object} [verbs] - The owning language's stated pattern, including
+ *   when its automatic dictionary has no eligible word entries.
  */
 
 /**
@@ -165,7 +168,54 @@ export function renderDictionary(result, opts = {}) {
         result.rows.map((row) => ({ ...row, rows: [row] })),
         opts,
         true,
+        verbTables(result.rows, opts),
     );
+}
+
+/** A table cell cannot carry a literal pipe or a line break. */
+const verbCell = (text) =>
+    String(text)
+        .replace(/\|/g, "\\|")
+        .replace(/[\r\n]+/g, " ");
+
+/** One head table per represented language, with no forms invented for a word. */
+function verbTables(rows, opts) {
+    const patterns = new Map();
+    for (const row of rows)
+        if (row.verbs && typeof row.verbs === "object")
+            patterns.set(row.language ?? opts.pageLanguage ?? "", {
+                verbs: row.verbs,
+                label: row.language_tag,
+            });
+    if (opts.verbs && !patterns.has(opts.pageLanguage ?? ""))
+        patterns.set(opts.pageLanguage ?? "", { verbs: opts.verbs });
+    const tables = [];
+    for (const [language, { verbs, label }] of [...patterns].sort(([a], [b]) => compare(a, b))) {
+        let endings;
+        if (verbs.invariant === true) endings = [["All persons", "unchanged"]];
+        else if (
+            VERB_PERSON_FIELDS.every((person) => typeof verbs.persons?.[person.name] === "string")
+        )
+            endings = VERB_PERSON_FIELDS.map((person) => [
+                person.label,
+                verbs.persons[person.name] ? `-${verbs.persons[person.name]}` : "unchanged",
+            ]);
+        else continue;
+        const title =
+            patterns.size > 1 ?
+                `**Verbs (${String(opts.labelOf?.(language) ?? label ?? language).replace(/[\r\n]+/g, " ")})**`
+            :   "**Verbs**";
+        tables.push(
+            [
+                title,
+                "",
+                "| Person | Ending added to citation form |",
+                "| --- | --- |",
+                ...endings.map((ending) => `| ${ending.map(verbCell).join(" | ")} |`),
+            ].join("\n"),
+        );
+    }
+    return tables.join("\n\n");
 }
 
 /**
@@ -243,6 +293,7 @@ function requireColumns(result, layout) {
  * @param {LayoutOptions} opts
  * @param {boolean} words - Whether the entries are dictionary words, with
  *   their own anchors and etymology.
+ * @param {string} [head] - Optional dictionary head tables.
  * @returns {string}
  */
 function render(
@@ -257,12 +308,14 @@ function render(
         entryAnchors = true,
     },
     words,
+    head = "",
 ) {
     const label = (address) => labelOf(address) ?? address;
     const usedTags = new Map();
     const usedBases = new Set();
     const usedModifiers = new Set();
     let anyCommon = false;
+    let anyPlural = false;
 
     const cite = (address) => {
         const text = label(address);
@@ -321,7 +374,12 @@ function render(
             if (!parsed.reason) {
                 usedBases.add(parsed.base);
                 for (const token of parsed.modifiers) usedModifiers.add(token);
-                italic.push(abbreviateWordClass(parsed));
+                let classification = abbreviateWordClass(parsed);
+                if (words && parsed.base === "n" && typeof row.plural === "string" && row.plural) {
+                    classification += `, pl. ${row.plural}`;
+                    anyPlural = true;
+                }
+                italic.push(classification);
             } else italic.push(String(row.class));
         }
         if (italic.length) parts.push(`_${italic.join(" ")}_`);
@@ -359,9 +417,11 @@ function render(
     for (const modifier of WORD_CLASS_MODIFIERS)
         if (usedModifiers.has(modifier.token))
             key.push(`_${modifier.abbreviation}_ ${modifier.expansion}`);
+    if (anyPlural) key.push("_pl._ plural");
     if (anyCommon) key.push(`${COMMON_MARK} ${COMMON_KEY}`);
     const line = key.length ? `**Key:** ${key.join("; ")}.` : "";
     if (showKey === "only") return line;
+    if (showKey && head) paragraphs.unshift(head);
     if (showKey && line) paragraphs.unshift(line);
     return paragraphs.join("\n\n");
 }

@@ -840,12 +840,12 @@ See [a language's register, sounds and history](../reference/format-details.md#a
 
 A braced list may follow the language on the opening fence. Four attributes are accepted, and anything else is reported by name.
 
-| Attribute       | Value                               | Default | What it does                                                                                                                                                                                                                           |
-| --------------- | ----------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `allow-empty`   | `true` or `false`                   | `false` | Whether a query selecting no rows is allowed. A zero-row result is a finding otherwise, because a table that silently prints nothing is the commonest way a query goes wrong unnoticed.                                                |
-| `section-level` | an integer from 1 through 6         | `2`     | The heading level given to each group a `_section` column creates, and to each letter of a dictionary or a glossary.                                                                                                                   |
-| `key`           | `true`, `false` or `only`           | `true`  | Whether a dictionary or a glossary prints its key. `false` leaves it out; `only` prints the key for the fence's rows and no letter or entry, so a page with one `key=false` fence per heading states its key once. Refused on a table. |
-| `layout`        | `table`, `dictionary` or `glossary` | `table` | How the result is set: as a table, as a dictionary of words, or as a glossary of terms — see [dictionaries and glossaries](#dictionaries-and-glossaries).                                                                              |
+| Attribute       | Value                               | Default | What it does                                                                                                                                                                                          |
+| --------------- | ----------------------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `allow-empty`   | `true` or `false`                   | `false` | Whether a query selecting no rows is allowed. A zero-row result is a finding otherwise, because a table that silently prints nothing is the commonest way a query goes wrong unnoticed.               |
+| `section-level` | an integer from 1 through 6         | `2`     | The heading level given to each group a `_section` column creates, and to each letter of a dictionary or a glossary.                                                                                  |
+| `key`           | `true`, `false` or `only`           | `true`  | Whether a dictionary or a glossary prints its key. `false` omits the key and any dictionary verb table; `only` prints the key for the fence's rows and no table, letter or entry. Refused on a table. |
+| `layout`        | `table`, `dictionary` or `glossary` | `table` | How the result is set: as a table, as a dictionary of words, or as a glossary of terms — see [dictionaries and glossaries](#dictionaries-and-glossaries).                                             |
 
 ````markdown
 ```sql {allow-empty=true section-level=3}
@@ -907,6 +907,17 @@ selects `solmère` as a common word, gives `amère` a context meaning and glosse
 whole default Glossary section. There are no setting-wide dictionary or
 glossary pages.
 
+A dictionary noun prints its gender from its existing class and its plural
+where one is available: **marendos** _n. m., pl. marendoi_. An explicit
+word plural wins; otherwise the language's optional `grammar.plural` rule
+replaces the first matching literal ending. The language's optional
+`grammar.verbs` pattern prints once as a small head table, after the key and
+before the letters. Empty verb endings print as "unchanged". Grammar is
+never inherited through `family`, and absent grammar leaves the dictionary
+unchanged. The [worked noun and verb example](../reference/format-details.md#optional-noun-and-verb-forms)
+shows both declarations. Only supplied shapes are checked; words are never
+checked against the rule, and no language must state grammar.
+
 An entry naming a word of its resolved language without a `definition`
 carries the word's dictionary senses and class, with a link to the word's
 entry on its language page. An entry with a `definition` carries that meaning
@@ -928,6 +939,15 @@ An `sql` fence with `layout=dictionary` or `layout=glossary` sets a custom view
 of the same relations. A dictionary view reads `dictionary`; a glossary view
 reads `terms`. Each needs the `name`, `senses` and `usage` columns; a query
 that leaves one out is reported, naming the column.
+
+The optional `plural` and `verbs` columns supply noun plurals and the head
+table in a custom dictionary view; `SELECT *` includes both. A projection
+that omits these columns omits that presentation, as omitting `class` omits
+word classes. With the default or `key=true`, each selected language's pattern
+appears once per dictionary result, even when no abbreviation key is needed.
+`key=false` omits both the key and the verb table from a fragment;
+`key=only` prints only the abbreviation key. Separate head-enabled fences
+each print their own tables.
 
 For a custom list of one culture's common entries:
 

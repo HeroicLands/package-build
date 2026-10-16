@@ -148,6 +148,7 @@ export function lexicalSectionsFor(records, all = records) {
                     addressContext: { ...addressContext, package: record.package },
                     pageLanguage,
                     pageOwner: key,
+                    ...(language ? { verbs: record.data?.grammar?.verbs } : {}),
                     labelOf: (address) => byKey.get(address)?.name?.full,
                     linkable: (ref) => {
                         const target = byKey.get(renderAddress({ ...ref, system: "note" }));

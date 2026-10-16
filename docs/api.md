@@ -2219,6 +2219,22 @@ only their owner's explicitly declared `data.glossary` entries. A custom
 view can also select reached rank and office rows, keeping common marks only
 on its owner's own rows.
 
+Dictionary rows carry `plural`, the noun's nonempty explicit plural or its
+listed language's first matching literal suffix replacement, and `verbs`,
+that language's stated `{invariant: true}` or six-person pattern, otherwise
+null. These optional facts use no ancestor grammar and perform no word-rule
+validation. The raw `words` relation's `plural` remains the authored value.
+Dictionary SQL types are projected only for that relation, retaining its
+etymology struct, sense list, usage list and integer depth even when all
+optional grammar values are null.
+
+`@heroiclands/package-build/engine/language-terms` exposes the person
+descriptors used by the schema, SQL pattern type and head table:
+
+| Export               | Signature                  | Returns                        | Use it when                                                                                  |
+| -------------------- | -------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------- |
+| `VERB_PERSON_FIELDS` | `const VERB_PERSON_FIELDS` | Readonly inner-key descriptors | Reading the six present person names, labels and ending-string shapes in presentation order. |
+
 `serializeRows` returns the empty string for no rows; otherwise each object
 occupies one line and the file ends with a newline.
 
@@ -2239,8 +2255,8 @@ Markdown for the dictionary or glossary on its owner's note:
 `result` is `{ columns: string[], rows: object[] }`. Both layouts require
 `name`, `senses` and `usage`; a missing column throws an error naming it.
 `LayoutOptions` accepts `linkable(ref)`, `sectionLevel`, `addressContext`,
-`labelOf(address)`, `showKey` (`true`, `false` or `"only"`), `pageLanguage`, `pageOwner`
-and `entryAnchors` (default `true`). These control link availability, letter-heading level,
+`labelOf(address)`, `showKey` (`true`, `false` or `"only"`), `pageLanguage`, `pageOwner`,
+`verbs` and `entryAnchors` (default `true`). These control link availability, letter-heading level,
 Address resolution, labels, the abbreviation key and the language whose tag
 is omitted. `entryAnchors` controls canonical dictionary headword targets;
 custom SQL dictionary views set it to `false`, leaving those targets to the
@@ -2254,6 +2270,17 @@ tag. Glossary rows sharing a headword and language combine into one entry;
 identical senses print once with all their source bodies. Dictionary-derived
 senses carry no body label. Dictionary entries print their `field` in italic
 parentheses and their etymology in brackets.
+
+Nouns print their optional `plural` beside the class. Each represented
+language's optional `verbs` column supplies one table after the key and
+before the first letter, with empty endings shown as "unchanged". For an
+automatic dictionary, `options.verbs` supplies the owning language's pattern
+even when its own words contain only excluded classes. The existing
+nonempty-own-words gate still applies. `showKey: false` suppresses the key
+and verb table while retaining entries; `showKey: "only"` prints the
+abbreviation key alone. With the default or `showKey: true`, a stated pattern
+still prints when the result needs no abbreviation key. Each head-enabled
+result prints its represented languages' tables independently.
 
 `pageOwner` is the containing page's canonical note Address. A glossary omits
 a sense's body label only when every contributing row belongs to that page
