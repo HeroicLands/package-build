@@ -1,5 +1,19 @@
 # @heroiclands/package-build
 
+## 23.8.0
+
+### Minor Changes
+
+Lint, Markdown checks and formatting now refuse malformed divs, alerts and poetry. Leave a blank line after a quote or alert before closing `:::`; formatting preserves malformed files for correction.
+
+### Patch Changes
+
+- Authors can suggest related notes with optional explanations, shown in reading order on websites, in Foundry journals, and in books.
+- End-to-end Cypress tests use the same pinned Chrome for Testing locally and in CI, with a reusable download cache and explicit browser overrides.
+- Container tests wait for S3 to answer and explain how to recover safely when switching checkouts leaves an incompatible storage server.
+- Content lint reports index, SQL and validation times in its final summary, making slow stages visible in build logs.
+- Content lint and pack compilation spend less time repeating SQL queries and parsing notes, especially in large content packages.
+
 ## 23.7.1
 
 ### Patch Changes
