@@ -2182,6 +2182,9 @@ wikilink at all. Also reports a vendored foreign-package content index that
 has drifted out of reach, naming `package-build deps fetch` as the fix. Resolves
 address-valued SoHL system fields declared by the installed schema against this
 package and its declared dependencies.
+An anchored reference to a dependency's readable note must name a prose anchor
+in its fetched content index. A missing section is an error even when the page
+address resolves. Event ids are not prose sections and cannot be wikilink targets.
 Reads the content tree named by `root`, defaulting to `paths.content`, and
 the cached content indexes of any declared dependency; writes nothing.
 
@@ -2342,16 +2345,22 @@ package-build content-index [root] [--out <dir>]
 
 **DESCRIPTION**
 
-Emits this package's note index as JSON Lines — one record per note,
-carrying its full frontmatter plus its place in the tree. Every build
-already walks the tree and parses every note's frontmatter and then throws
-the result away; this publishes that walk so anything outside a build can
-query the content without paying for a second walk. Its own command rather
-than only a build step, because the point is that anyone can regenerate it
-at will — the artifact costs a frontmatter parse, not a build, which is
-also what lets it stay uncommitted. Reads the content tree named by `root`,
-defaulting to `paths.content`; writes `<contentPackage>-metadata.jsonl`
-into `--out`, defaulting to the configured `paths.contentIndex`.
+Emits this package's note index as JSON Lines, carrying full frontmatter,
+tree positions, prose and event anchors, and document targets. Reads the
+content tree named by `root`, defaulting to `paths.content`; writes
+`<contentPackage>-metadata.jsonl`, `<contentPackage>-dictionary.jsonl` and
+`<contentPackage>-terms.jsonl` into `--out`, defaulting to the configured
+`paths.contentIndex`.
+
+The command prepares SQL tables, page lists, automatic sections and scalar
+expressions before publishing their prose targets. Each source uses its own
+audience for prose declarations: public notes use public providers and usage,
+and GM notes use the complete corpus. Native target maps use the compendium's
+complete SQL corpus and expose only declared prose slugs present there, with
+their actual native page targets. Readable item documentation targets its
+documentation journal. An empty published prose-anchor list declares no prose targets,
+including for pages without a Foundry document. Preparation errors leave all
+three output files untouched.
 
 **OPTIONS**
 

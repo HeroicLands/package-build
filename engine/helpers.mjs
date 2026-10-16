@@ -74,6 +74,7 @@ import { isDraftNote } from "./note-vocabulary.mjs";
 import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { spanMarkdownPlugin } from "./content-spans.mjs";
+import { dictionaryEntryPlugin } from "./dictionary-layout.mjs";
 import { renderBlocks } from "./content-blocks.mjs";
 import { headingAttributesPlugin } from "./heading-attributes.mjs";
 import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
@@ -108,6 +109,7 @@ export const md = markdownit({ html: true })
     .use(footnotePlugin)
     .use(deflistPlugin)
     .use(spanMarkdownPlugin)
+    .use(dictionaryEntryPlugin)
     // A heading's attribute block, written onto the heading element rather than
     // typeset into it — the reading the website's renderer does for itself.
     .use(headingAttributesPlugin)
@@ -781,12 +783,14 @@ import { collectAnchors } from "./anchors.mjs";
  *   omitted.
  * @param {readonly object[]} [opts.records] - The corpus, derived once per
  *   compile and handed in. Required: see {@link assertSuppliedCorpus}.
+ * @param {Map<string, object[]>} [opts.sqlTables] - Prepared directives,
+ *   including the anchors and Foundry page maps of their expanded bodies.
  * @returns {{byShortcode: Map, types: Set}} From `buildWikilinkIndex`.
  */
 export function buildContentLinkIndex(
     contentBase,
     router = packRouter(),
-    { config, records } = {},
+    { config, records, sqlTables } = {},
 ) {
     const docs = [];
     /** The files this package ships, by canonical address. */
@@ -812,6 +816,7 @@ export function buildContentLinkIndex(
         // authored fields, and neither may be handed the keys the index derived.
         const fm = authoredFrontmatter(record);
         const absPath = noteFile(contentBase, record);
+        const prepared = sqlTables?.get(absPath);
         // The id a note's document is filed under: its authored pin, or the
         // one derived from its canonical address. Derived by the index
         // against the configuration this build resolved — never here through
@@ -861,11 +866,12 @@ export function buildContentLinkIndex(
             // discarded here — the walk yields the body and nothing read it.
             // Read from the record rather than from a second reading of the
             // note's headings — the one-anchor-reader rule.
-            anchors: new Set(
-                (record.anchors ?? [])
+            anchors: new Set([
+                ...(record.anchors ?? [])
                     .filter((anchor) => anchor.kind === "prose")
                     .map((anchor) => anchor.slug),
-            ),
+                ...(prepared?.anchors ?? []).map((anchor) => anchor.slug),
+            ]),
             // The note's event ids, which a wikilink may not name: a link to
             // one is refused with its own message rather than as unknown.
             eventAnchors: new Set(
@@ -873,8 +879,8 @@ export function buildContentLinkIndex(
                     .filter((anchor) => anchor.kind === "event")
                     .map((anchor) => anchor.slug),
             ),
-            anchorUuids: record.foundry?.note?.anchors,
-            docAnchorUuids: documentation?.foundry?.note?.anchors,
+            anchorUuids: prepared?.anchorUuids ?? record.foundry?.note?.anchors,
+            docAnchorUuids: prepared?.docAnchorUuids ?? documentation?.foundry?.note?.anchors,
         });
     }
     // Packages this build links *into* but does not publish. Each publishes

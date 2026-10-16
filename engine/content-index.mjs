@@ -99,6 +99,7 @@ import {
     noteAddressContext,
     encodeAddresses,
     publishAddresses,
+    cloneAddressState,
 } from "./note-addresses.mjs";
 import { AddressLink } from "./address-values.mjs";
 import fs from "node:fs";
@@ -113,9 +114,24 @@ import { addressSlug, canonicalKey } from "./content-address.mjs";
 import { isAddressTuple, ownDocumentSystem, readCanonicalKey, renderAddress } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { dictionaryAndTermRows, serializeRows } from "./dictionary-rows.mjs";
+import { insertLexicalSections, lexicalSectionsFor } from "./lexical-sections.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
 import { attachCitations } from "./word-citations.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
 import { embedRole } from "./content-embeds.mjs";
+import { expandContentTables } from "./content-tables.mjs";
+import {
+    codeRegions,
+    FENCE_LINE,
+    matchAllOutsideCode,
+    parseHeaderArgs,
+    replaceOutsideCode,
+} from "./code-fences.mjs";
+import { PAGE_LIST_LANGUAGE } from "./page-lists.mjs";
+import { EXPRESSION, renderMarkdownExpressions } from "./markdown-expressions.mjs";
+import { scanFigures } from "./content-figures.mjs";
+import { eventNoteIndex } from "./event-fields.mjs";
+import { derivedSections } from "./derived-sections.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
 // builds that emit a link. Re-exported because this is where callers
 // have always addressed it.
@@ -133,7 +149,7 @@ import { NO_SYSTEM } from "./document-subtypes.mjs";
  */
 
 export { collectAnchors };
-import { entriesForNote, foundryIdentities } from "./foundry-entries.mjs";
+import { entriesForNote, foundryIdentities, LEAD_ANCHOR } from "./foundry-entries.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 // The one statement of what an empty body means, shared with the lint and the
 // SQL view that derives the ladder from the absence this writes.
@@ -643,11 +659,21 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
             // entry's derivation.
             id: made ? entry.id : null,
             nameAscii: asciiName(frontmatter?.name?.full),
-            address: made ? { slug: address.slug, canonical: entry.key } : null,
+            address: made ? { slug: address.slug, canonical: readCanonicalKey(entry.key) } : null,
             // The record this is the documentation *for*. `documentation` is
             // the forward link on that record, so either end reaches the other.
-            documents: address.canonical,
-            anchors: made ? anchors : null,
+            documents: readCanonicalKey(address.canonical),
+            anchors:
+                made ?
+                    anchors.map((anchor) => ({
+                        ...anchor,
+                        link: new AddressLink(
+                            readCanonicalKey(entry.key),
+                            anchor.slug,
+                            anchor.kind,
+                        ),
+                    }))
+                :   null,
             foundry: foundryBlock(entry, NOTE_SYSTEM),
             file,
         })
@@ -1222,6 +1248,26 @@ export function collectContentIndex(
     for (const [note, inherited] of inheritance.values)
         if (Object.keys(inherited).length) note.fm.data = { ...note.fm.data, ...inherited };
 
+    // Automatic lexical sections require only the recorded frontmatter. Their
+    // published anchors and journal targets therefore use the same pure body
+    // projection as the surfaces, without making the index emitter async.
+    // Public notes resolve providers in their audience, including lineage
+    // through hidden languages, just as their build does.
+    const visible = records.filter((record) => !isGmNote(record));
+    const publicSections = lexicalSectionsFor(visible, records);
+    const allSections = lexicalSectionsFor(records);
+    for (const { record, body } of bodies) {
+        const key = canonicalKey(contentPackage, "note", record.type, record.shortcode);
+        const sections = (isGmNote(record) ? allSections : publicSections).get(key);
+        if (!sections) continue;
+        const expanded = insertLexicalSections(body, sections).markdown;
+        projectPublicationBody(records, record, expanded, {
+            contentPackage,
+            manifest,
+            resolveRole,
+        });
+    }
+
     // Sorted at every depth like a note's record, and for the same reason: the
     // declaration order of the `asset` fields is a fact about the emitter, not
     // about the content, and the artifact is meant to be byte-identical across
@@ -1407,6 +1453,283 @@ export function indexRecordsFor({
     });
 }
 
+/** Active body directives whose output cannot be inferred synchronously. */
+function dynamicPublicationBody(body) {
+    const source = String(body ?? "");
+    return (
+        [...matchAllOutsideCode(source, EXPRESSION)].length > 0 ||
+        codeRegions(source, { spans: false, poetryAsProse: false }).some(({ start, end }) => {
+            const opener = FENCE_LINE.exec(source.slice(start, end).split("\n", 1)[0]);
+            const language = opener && parseHeaderArgs(opener[3]).language;
+            return language === "sql" || language === PAGE_LIST_LANGUAGE;
+        })
+    );
+}
+
+/** Publication errors are located and always precede output creation. */
+function publicationProblems(problems) {
+    if (!problems.length) return;
+    throw Object.assign(new Error(problems.map(formatDiagnostic).join("\n")), { located: true });
+}
+
+/** Render the shared expression language and carry inserted scalar lines back to their source. */
+function publicationExpressions(expanded, context) {
+    const source = expanded.markdown;
+    const additions = [];
+    const findings = [];
+    const markdown = replaceOutsideCode(source, EXPRESSION, (expression, _inside, offset) => {
+        const line = source.slice(0, offset).split("\n").length - 1;
+        const location = expanded.lineMap[line] ?? { line, generated: false };
+        const result = renderMarkdownExpressions(expression, {
+            ...context,
+            bodyLine: (context.bodyLine ?? 1) + location.line,
+        });
+        const column = offset - source.lastIndexOf("\n", offset - 1) - 1;
+        findings.push(
+            ...result.findings.map((finding) => ({ ...finding, column: finding.column + column })),
+        );
+        const count = result.markdown.split("\n").length - 1;
+        if (count) additions.push({ line, count, location });
+        return result.markdown;
+    });
+    publicationProblems(findings);
+    const lineMap = expanded.lineMap.map((location) => ({ ...location }));
+    let generatedFrom = expanded.generatedFrom;
+    for (const addition of additions.sort((a, b) => b.line - a.line)) {
+        lineMap.splice(
+            addition.line + 1,
+            0,
+            ...Array.from({ length: addition.count }, () => ({
+                ...addition.location,
+                generated: true,
+            })),
+        );
+        if (generatedFrom !== undefined && addition.line < expanded.generatedFrom)
+            generatedFrom += addition.count;
+    }
+    return { markdown, lineMap, ...(generatedFrom === undefined ? {} : { generatedFrom }) };
+}
+
+/**
+ * Prepare the complete bodies a content-index publication describes.
+ * Prose declarations use each source's audience. Native SQL uses the complete
+ * corpus, with target maps limited to that source's declared prose slugs.
+ * No output files are written, and the returned inputs are read-only to the emitter.
+ *
+ * @param {{contentBase?: string, config?: object}} [options]
+ * @returns {Promise<PreparedContentIndex>}
+ */
+export async function prepareContentIndex({ contentBase, config } = {}) {
+    const resolved = config ?? loadPackConfig();
+    const tree = path.resolve(contentBase ?? resolved.paths.content);
+    const parsed = new Map();
+    const records = indexRecordsFor({ contentBase: tree, config: resolved, parsed });
+    const expandedBodies = new Map();
+    const foundryBodies = new Map();
+    const foreign = loadForeignIndexes(resolved, [resolved.contentPackage]);
+    publicationProblems(
+        foreign.stale.map((entry) => ({
+            file: tree,
+            severity: "error",
+            message: `unusable ${entry.package} content index: ${entry.reason}`,
+        })),
+    );
+    // Dynamic import keeps SQL preparation out of the synchronous reader's import cycle.
+    const { prepareTreeSqlTables } = await import("./sql-tables.mjs");
+    const { buildSiteIndex, figureIndexKeys, resolveCrossNoteFigures } =
+        await import("./site-index.mjs");
+    const notes = records.filter(isNoteRecord);
+    for (const audience of new Set([
+        ...notes.map((record) => (isGmNote(record) ? "all" : "public")),
+        "all",
+    ])) {
+        const visible = records.filter((record) => audience === "all" || !isGmNote(record));
+        const sources = audience === "all" ? notes : notes.filter((record) => !isGmNote(record));
+        const prepared = await prepareTreeSqlTables(tree, {
+            config: resolved,
+            records,
+            parsed,
+            audience,
+            foreignIndex: foreign.index,
+        });
+        const bodies = new Map();
+        const figuresByFile = new Map();
+        const figuresByAddress = new Map();
+        const art = assetAddressIndex(visible, { config: resolved, foreign });
+        const resolveRole = (address) => embedRole(art, address);
+        const pages = visible.filter(isNoteRecord).flatMap((record) => {
+            const file = noteFile(tree, record);
+            const authored = parsed.get(file);
+            const expanded = expandContentTables(authored.body, {
+                source: file,
+                sqlTables: prepared?.get(file),
+                pageLists: prepared?.pageLists?.get(file),
+            });
+            publicationProblems(
+                expanded.errors.map((problem) => ({
+                    file,
+                    line: (authored.bodyLine ?? 1) + problem.line,
+                    column: problem.column,
+                    severity: "error",
+                    message: problem.reason,
+                })),
+            );
+            bodies.set(file, expanded);
+            const byId = new Map(
+                scanFigures(expanded.markdown, { resolveRole })
+                    .figures.filter((figure) => figure.id)
+                    .map((figure) => [
+                        figure.id,
+                        {
+                            label: figure.label,
+                            caption: figure.caption,
+                            hasCaption: figure.hasCaption,
+                        },
+                    ]),
+            );
+            figuresByFile.set(file, byId);
+            const address = noteAddress(record, resolved.contentPackage);
+            if (!address) return [];
+            for (const key of figureIndexKeys(
+                resolved.contentPackage,
+                record.type,
+                record.shortcode,
+            ))
+                figuresByAddress.set(key, byId);
+            const slug = address.slug;
+            return [
+                {
+                    kind: "content",
+                    file,
+                    fm: authoredFrontmatter(record),
+                    body: authored.body,
+                    pkg: resolved.contentPackage,
+                    slug,
+                    url: `${resolved.site?.base || `/${resolved.contentPackage}/`}${slug}/`,
+                    name: record.name?.full,
+                    relPath: record.file.path,
+                },
+            ];
+        });
+        const index = buildSiteIndex(pages, {
+            package: resolved.contentPackage,
+            records: visible,
+            foreignIndex: foreign.index,
+        });
+        const dates = index.dateContext;
+        const events = eventNoteIndex(visible, {
+            contentPackage: resolved.contentPackage,
+            foreignIndex: foreign.index,
+            dates,
+        });
+        for (const record of sources) {
+            const file = noteFile(tree, record);
+            const authored = parsed.get(file);
+            const figures = figuresByFile.get(file);
+            const expanded = publicationExpressions(bodies.get(file), {
+                fm: authoredFrontmatter(record),
+                dates,
+                events,
+                file,
+                bodyLine: authored.bodyLine,
+                sqlResults: prepared?.inline?.get(file),
+                figures: {
+                    get: (id) => figures?.get(id),
+                    note: (target) =>
+                        resolveCrossNoteFigures(target, {
+                            contentTypes: index.contentTypes,
+                            packages: index.packages,
+                            noIndexPackages: index.noIndexPackages,
+                            contentPackage: index.contentPackage,
+                            siteIndexMap: index.index,
+                            figuresByAddress,
+                        }),
+                },
+            });
+            if (audience === "all") foundryBodies.set(file, expanded);
+            if ((isGmNote(record) ? "all" : "public") === audience)
+                expandedBodies.set(file, expanded);
+        }
+    }
+    return { config: resolved, contentBase: tree, records, parsed, expandedBodies, foundryBodies };
+}
+
+/**
+ * A captured source context, consumed without mutation by the synchronous emitter.
+ * @typedef {object} PreparedContentIndex
+ * @property {object} config - The exact resolved configuration for preparation.
+ * @property {string} contentBase - The absolute captured source root.
+ * @property {object[]} records - Complete index records, including hidden providers.
+ * @property {Map<string, {frontmatter: object|null, body: string, raw: string, bodyLine?: number, bodyColumn?: number}>} parsed - Authored sources by absolute file.
+ * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} expandedBodies - Complete rendered bodies in each note's audience.
+ * @property {Map<string, {markdown: string, lineMap: Array<{line: number, generated: boolean}>, generatedFrom?: number}>} foundryBodies - Complete native bodies with explicit SQL using the ALL corpus.
+ */
+
+/** Update owned copies from an actual output body, retaining authored locations and events. */
+function projectPublicationBody(
+    records,
+    record,
+    body,
+    { contentPackage, manifest, resolveRole, foundryBody = body },
+) {
+    const fm = authoredFrontmatter(record);
+    const address = noteAddress(fm, contentPackage);
+    if (!address) return;
+    const original = new Map(
+        (record.anchors ?? [])
+            .filter((anchor) => anchor.kind === "prose")
+            .map((anchor) => [anchor.slug, anchor]),
+    );
+    const stub = isStubNote(fm, body);
+    record.address = stub ? null : { ...address, canonical: readCanonicalKey(address.canonical) };
+    record.anchors =
+        stub ? null : (
+            [
+                ...collectAnchors(body, 1, resolveRole).map((anchor) => {
+                    const { line: _, ...generated } = anchor;
+                    return {
+                        ...(original.get(anchor.slug) ?? generated),
+                        link: new AddressLink(
+                            readCanonicalKey(address.canonical),
+                            anchor.slug,
+                            anchor.kind,
+                        ),
+                    };
+                }),
+                ...(record.anchors ?? []).filter((anchor) => anchor.kind === "event"),
+            ]
+        );
+    const entries = foundryEntries({ frontmatter: fm, address, body: foundryBody, manifest });
+    const declared = new Set(
+        (record.anchors ?? [])
+            .filter((anchor) => anchor.kind === "prose")
+            .map((anchor) => anchor.slug),
+    );
+    // Native SQL keeps its complete corpus; only a declared prose target is public.
+    for (const entry of [entries?.own, entries?.doc])
+        if (entry?.anchors)
+            entry.anchors = Object.fromEntries(
+                Object.entries(entry.anchors).filter(
+                    ([slug]) => slug === LEAD_ANCHOR || declared.has(slug),
+                ),
+            );
+    record.foundry = foundryBlock(entries?.own, ownDocumentSystem(fm.type));
+    record.documentation = entries?.doc?.key ? readCanonicalKey(entries.doc.key) : null;
+    if (entries?.doc?.key) {
+        const doc = buildDocRecord({
+            frontmatter: fm,
+            address,
+            entry: entries.doc,
+            file: record.file,
+            contentPackage,
+            anchors: record.anchors ?? [],
+        });
+        const existing = records.find((one) => one.documents && one.file.path === record.file.path);
+        if (existing) Object.assign(existing, doc);
+        else records.push(doc);
+    }
+}
+
 /**
  * Emit this package's content index.
  *
@@ -1416,6 +1739,7 @@ export function indexRecordsFor({
  * @param {string} [options.outDir] - Where to write; defaults to the configured
  *   `paths.contentIndex`.
  * @param {object} [options.config] - A resolved configuration; loaded when omitted.
+ * @param {PreparedContentIndex} [options.publication] - Complete preparation for this tree and configuration.
  * @returns {{file: string, notes: number, assets: number, records: number,
  *   bytes: number, full: number, draft: number, stub: number,
  *   dictionary: {file: string, rows: number}, terms: {file: string, rows: number}}}
@@ -1429,9 +1753,9 @@ export function indexRecordsFor({
  *   reader would take it as the authoritative statement that this package has
  *   no content.
  */
-export function emitContentIndex({ contentBase, outDir, config } = {}) {
-    const resolved = config ?? loadPackConfig();
-    const tree = contentBase ?? resolved.paths.content;
+export function emitContentIndex({ contentBase, outDir, config, publication } = {}) {
+    const resolved = config ?? publication?.config ?? loadPackConfig();
+    const tree = path.resolve(contentBase ?? publication?.contentBase ?? resolved.paths.content);
     const dir = outDir ?? resolved.paths.contentIndex;
     const contentPackage = resolved.contentPackage;
 
@@ -1448,7 +1772,81 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     // publishes pages is no part of an address, and depending on it would make
     // the index refuse to build for a configuration that is perfectly able to
     // state one.
-    const records = indexRecordsFor({ contentBase: tree, config: resolved });
+    const parsed = publication?.parsed ?? new Map();
+    if (
+        publication &&
+        (publication.config !== resolved ||
+            publication.contentBase !== tree ||
+            !Array.isArray(publication.records) ||
+            !(publication.parsed instanceof Map) ||
+            !(publication.expandedBodies instanceof Map) ||
+            !(publication.foundryBodies instanceof Map))
+    )
+        throw new Error(
+            "Use await prepareContentIndex({ config, contentBase }) for this publication's source tree and configuration",
+        );
+    const records = cloneAddressState(
+        publication?.records ?? indexRecordsFor({ contentBase: tree, config: resolved, parsed }),
+    );
+    const notes = records.filter(isNoteRecord);
+    const needsPreparation =
+        !publication &&
+        (notes.some(
+            (record) =>
+                dynamicPublicationBody(parsed.get(noteFile(tree, record))?.body) ||
+                record.data?.events?.length,
+        ) ||
+            derivedSections(notes, {
+                fileOf: (record) => noteFile(tree, record),
+                config: resolved,
+                foreignIndex: loadForeignIndexes(resolved, [contentPackage]).index,
+            }).size > 0);
+    if (needsPreparation)
+        throw new Error(
+            "Dynamic content-index publication requires await prepareContentIndex({ config, contentBase }); pass its result as emitContentIndex({ config, contentBase, publication })",
+        );
+    if (
+        publication &&
+        notes.some((record) => {
+            const file = noteFile(tree, record);
+            const body = publication.expandedBodies.get(file);
+            const native = publication.foundryBodies.get(file);
+            return (
+                !parsed.has(file) ||
+                typeof body?.markdown !== "string" ||
+                !Array.isArray(body.lineMap) ||
+                typeof native?.markdown !== "string" ||
+                !Array.isArray(native.lineMap)
+            );
+        })
+    )
+        throw new Error(
+            "Incomplete content-index bodies: run await prepareContentIndex({ config, contentBase }) before publication",
+        );
+    const art = assetAddressIndex(records, { config: resolved });
+    const publicLexical =
+        publication ? undefined : (
+            lexicalSectionsFor(
+                records.filter((record) => !isGmNote(record)),
+                records,
+            )
+        );
+    const allLexical = publication ? undefined : lexicalSectionsFor(records);
+    for (const record of notes) {
+        const file = noteFile(tree, record);
+        const lexical = (isGmNote(record) ? allLexical : publicLexical)?.get(
+            canonicalKey(contentPackage, "note", record.type, record.shortcode),
+        );
+        const body =
+            publication?.expandedBodies.get(file)?.markdown ??
+            insertLexicalSections(parsed.get(file).body, lexical).markdown;
+        projectPublicationBody(records, record, body, {
+            contentPackage,
+            manifest: foundryIdentities(resolved),
+            resolveRole: (address) => embedRole(art, address),
+            foundryBody: publication?.foundryBodies.get(file).markdown,
+        });
+    }
     const assetBindings = checkForeignAssetBindings(resolved);
     if (assetBindings.length)
         throw Object.assign(new Error(assetBindings.map(formatDiagnostic).join("\n")), {
@@ -1463,16 +1861,19 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
 
     const text = serializeContentIndex(records);
     const file = path.join(dir, metadataFileName(contentPackage));
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(file, text);
 
     // The `dictionary` and `terms` relations as datafiles beside the index, for
     // `jq`, an editor or another package. Nothing in the build reads them back.
     const derived = dictionaryAndTermRows(records.map((record) => encodeAddresses(record)));
+    const serialized = Object.fromEntries(
+        ["dictionary", "terms"].map((relation) => [relation, serializeRows(derived[relation])]),
+    );
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, text);
     const datafiles = {};
     for (const relation of ["dictionary", "terms"]) {
         const rowsFile = path.join(dir, `${contentPackage}-${relation}.jsonl`);
-        fs.writeFileSync(rowsFile, serializeRows(derived[relation]));
+        fs.writeFileSync(rowsFile, serialized[relation]);
         datafiles[relation] = { file: rowsFile, rows: derived[relation].length };
     }
 

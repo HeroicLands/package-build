@@ -14,6 +14,7 @@
 import { FENCE_LINE } from "./code-fences.mjs";
 import { PAGE_LIST_LANGUAGE } from "./page-lists.mjs";
 import { appendGeneratedSections } from "./generated-sections.mjs";
+import { insertLexicalSections } from "./lexical-sections.mjs";
 
 /**
  * Replace prepared SQL fences and page lists with Markdown while retaining
@@ -29,7 +30,8 @@ import { appendGeneratedSections } from "./generated-sections.mjs";
  *   Prepared results.
  * A note's generated sections — see {@link module:engine/generated-sections} —
  * are appended to the body first, from the `generated` text the preparation
- * set on its results, and expanded with it.
+ * set on its results, and expanded with it. Automatic lexical lists, carried
+ * on `lexical`, then fill their authored sections or append a new section.
  *
  * @returns {{markdown: string, errors: object[], warnings: object[], lineMap: object[],
  *   generatedFrom?: number}} `generatedFrom` is the 0-based line of the
@@ -148,10 +150,12 @@ export function expandContentTables(markdown, { source = "", sqlTables, pageList
         i = close;
     }
     return {
-        markdown: out.join("\n"),
+        ...insertLexicalSections(out.join("\n"), sqlTables?.lexical, {
+            authored,
+            lineMap,
+            generatedFrom,
+        }),
         errors,
         warnings,
-        lineMap,
-        ...(generatedFrom === undefined ? {} : { generatedFrom }),
     };
 }

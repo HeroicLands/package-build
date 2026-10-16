@@ -11,6 +11,8 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { SUBPROCESS_TEST_TIMEOUT } from "./subprocess-timeout.js";
+import { LEXICAL_SECTIONS } from "../engine/lexical-sections.mjs";
+import YAML from "yaml";
 
 const CLI = path.resolve(__dirname, "../bin/package-build.mjs");
 
@@ -129,6 +131,114 @@ describe("empty bodies fail author commands", () => {
                 const result = run(root, ["content-index", other]);
                 expect(result.status).not.toBe(0);
                 expect(result.output).toContain("this note has no body");
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+});
+
+describe("frontmatter lexical content passes author body preflight", () => {
+    const kinds = LEXICAL_SECTIONS.flatMap((section) =>
+        section.types.map((kind) => ({ ...kind, dataKey: section.dataKey, slug: section.slug })),
+    );
+    const word = { form: "zethu", class: "n", field: "Court", gloss: "a scribe" };
+    function lexicalFixture(
+        kind: (typeof kinds)[number],
+        entries: "full" | "empty" | "absent",
+        body = "",
+    ) {
+        const root = fixture();
+        const content = path.join(root, "assets/content");
+        fs.unlinkSync(path.join(content, "Empty.md"));
+        fs.writeFileSync(
+            path.join(content, "Tongue.md"),
+            `---\n${YAML.stringify({
+                type: "skill",
+                subType: "language",
+                shortcode: "tongue",
+                name: { full: "Tongue" },
+                data: { fields: [{ name: "Court", holds: "Court words." }], words: [word] },
+            })}---\n\nA written provider.\n`,
+        );
+        const data = {
+            ...(kind.dataKey === "words" ? {} : { language: "skill-tongue" }),
+            ...(kind.dataKey === "words" ?
+                { fields: [{ name: "Court", holds: "Court words." }] }
+            :   {}),
+            ...(entries === "absent" ?
+                {}
+            :   {
+                    [kind.dataKey]:
+                        entries === "empty" ? []
+                        : kind.dataKey === "words" ? [word]
+                        : [{ name: "zethu", common: true }],
+                }),
+        };
+        fs.writeFileSync(
+            path.join(content, "Candidate.md"),
+            `---\n${YAML.stringify({
+                type: kind.type,
+                ...(kind.subType ? { subType: kind.subType } : {}),
+                shortcode: "candidate",
+                name: { full: "Candidate" },
+                data,
+            })}---\n\n${body}`,
+        );
+        return root;
+    }
+
+    it.each(kinds)(
+        "publishes a data-only $type/$subType note with $dataKey",
+        (kind) => {
+            const root = lexicalFixture(kind, "full", " \n\t\n");
+            try {
+                const result = run(root, ["content-index"]);
+                expect(result.status, result.output).toBe(0);
+                expect(result.output).not.toContain("this note has no body");
+                const file = path.join(root, "build/content-index/demo-metadata.jsonl");
+                const rows = fs
+                    .readFileSync(file, "utf8")
+                    .trim()
+                    .split("\n")
+                    .map((line) => JSON.parse(line));
+                const owner = rows.find(
+                    (record) => record.shortcode === "candidate" && !record.documents,
+                );
+                expect(owner?.anchors?.some((anchor: any) => anchor.slug === kind.slug)).toBe(true);
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it.each(kinds.flatMap((kind) => ["empty", "absent"].map((entries) => ({ ...kind, entries }))))(
+        "still refuses a data-only $type/$subType note with $entries $dataKey",
+        (kind) => {
+            const root = lexicalFixture(kind, kind.entries as "empty" | "absent");
+            try {
+                const result = run(root, ["content-index"]);
+                expect(result.status, result.output).toBe(1);
+                expect(result.output).toMatch(
+                    /Candidate\.md:\d+:\d+: error: this note has no body/,
+                );
+            } finally {
+                fs.rmSync(root, { recursive: true, force: true });
+            }
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "still refuses authored placeholder prose beside lexical data",
+        () => {
+            const root = lexicalFixture(kinds[0], "full", "TBD");
+            try {
+                const result = run(root, ["content-index"]);
+                expect(result.status, result.output).toBe(1);
+                expect(result.output).toContain('body says only "TBD"');
             } finally {
                 fs.rmSync(root, { recursive: true, force: true });
             }

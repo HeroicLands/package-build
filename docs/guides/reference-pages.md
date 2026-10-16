@@ -62,10 +62,10 @@ takes.
 
 `data.pack: none` is appropriate when the page belongs on the site and in the
 index but does not need a Foundry compendium entry. A documentation package
-has no packs at all. A page with an empty body is a stub: it remains in the
-index for data references, but publishes no page address or anchors. Write a
-description for a stub and leave off the `draft` tag; use `draft` for a page
-with prose still in progress. The [stub rules](../reference/format-details.md#a-stub-is-a-note-with-an-empty-body)
+has no packs at all. A page with neither an authored body nor automatic
+Dictionary or Glossary content is a stub: it remains in the index for data
+references, but publishes no page address or anchors. Supply content before
+publishing; use `draft` for prose still in progress. The [stub rules](../reference/format-details.md#a-stub-is-a-note-with-an-empty-body)
 and [pack routing](packs.md) cover these cases.
 
 ## Link to the intended target
@@ -165,92 +165,115 @@ reconstructing them from filenames.
 
 ## Set words as a dictionary and terms as a glossary
 
-A language's words and a people's terms are each one `sql` fence, and nothing
-is copied into the note: the words come from the language notes' `data.words`,
-the terms from the `data.glossary` entries of cultures and affiliations and
-from the affiliations' ranks and offices, and a section changes when they do.
-`layout=dictionary` sets rows of the `dictionary` relation and
-`layout=glossary` rows of the `terms` relation. The query decides what
-appears, so any note may carry either.
+A language note's `data.words` supplies its Dictionary section automatically
+on the site, in the Foundry journal and in the book. The dictionary is the
+language's full word list, including inherited words, in one alphabetical
+sequence with letter headings, field tags and one key. A language with absent
+or empty `data.words` receives no Dictionary section.
 
-A language note lists its words, with the words it inherits from its parent
-language:
+The frontmatter states the words:
 
-````markdown
-# Dictionary {#dictionary}
-
-```sql {layout=dictionary section-level=2}
-SELECT * FROM dictionary WHERE language = 'thalorna-note-skill-provnzlng'
+```yaml
+shortcode: provnzlng
+name: { full: Provenzal Language }
+type: skill
+subType: language
+data:
+  classModifiers: [f, m]
+  fields:
+    - { name: Love and its conduct, holds: "Longing, courtship and the courts of love." }
+  words:
+    - {
+        form: solmère,
+        class: n m,
+        pronunciation: sol-MEH-reh,
+        field: Love and its conduct,
+        gloss: "longing; the ache for a person, a place or a time that is gone",
+      }
+    - {
+        form: amère,
+        class: n f,
+        field: Love and its conduct,
+        gloss: ["a beloved", "a sweetheart, in the songs"],
+      }
 ```
-````
 
-A culture note lists the words of its tongue a player is expected to know, and
-its glossary: its own terms and the ranks, offices and terms of every
-affiliation that reaches it.
+A culture or affiliation's `data.glossary` supplies its Glossary section. It
+contains only that owner's declared entries, so each culture and affiliation
+using a language chooses its own common words and context meanings. Ranks
+and offices stand in the affiliation's own sections; an explicit glossary
+entry can name one, but a glossary does not draw in the whole ladder or list
+of offices. A note with absent or empty `data.glossary` receives no Glossary
+section.
+
+The [worked culture glossary](../reference/format-details.md#glossary-terms)
+uses all three reasons for an entry:
+
+```yaml
+data:
+  language: skill-provnzlng
+  glossary:
+    - { name: solmère, common: true }
+    - { name: amère, definition: "a sweetheart, in the songs" }
+    - {
+        name: blood-field,
+        definition: "ground where a battle tore the boundary with the spirit world, and it did not close",
+      }
+```
+
+`solmère` is part of this culture's core vocabulary: the words a player needs
+to adventure there. With no `definition`, it carries the senses and class of
+the dictionary word and links to that word's entry. `amère` supplies a context
+meaning, which takes the place of its dictionary senses while retaining the
+word link and class. `blood-field` supplies a gloss for a term outside the
+dictionary. Common marks belong to the glossary's owner; dictionaries mark
+nothing common. There are no setting-wide dictionary or glossary pages.
+
+The generated sections follow the note's authored text. A heading with
+`{#dictionary}` or `{#lexicon}` receives the Dictionary list, and a heading
+with `{#glossary}` receives the Glossary list, after the authored text in
+that section. This preserves an introduction or loanword discussion under
+an anchored heading:
+
+```markdown
+# Lexicon {#lexicon}
+
+The tongue of Provenzia, whose _solmère_ is its own word.
+```
+
+The list is generated once under that heading. Without such a heading, the
+build supplies **Dictionary** or **Glossary** at the end of the note.
+
+### Custom views
+
+An `sql` fence with `layout=dictionary` or `layout=glossary` can add a custom
+view of the same `dictionary` and `terms` relations. This one selects only a
+culture's common entries:
 
 ````markdown
 # Words Everyone Knows {#common-words}
 
-```sql {layout=dictionary section-level=2}
-SELECT * FROM dictionary WHERE language = 'thalorna-note-skill-provnzlng' AND common
-```
-
-# Glossary {#glossary}
-
 ```sql {layout=glossary section-level=2}
-SELECT * FROM terms WHERE list_contains(cultures, 'thalorna-note-lore-provenzianclt')
+SELECT * FROM terms WHERE owner = 'thalorna-note-lore-provenzianclt' AND common
 ```
 ````
 
-The glossary renders as a key, a heading per letter and one paragraph per
-term, each sense tagged with the body or culture it comes from and each term
-in another tongue tagged with it:
+The `terms` relation also holds ranks and offices for custom queries. The
+default Glossary section selects only rows arising from its owner's explicit
+`data.glossary` entries, including an entry naming a rank or office. The
+[layout guide](../authoring/links-and-markup.md#dictionaries-and-glossaries)
+describes query options and rendering.
 
-```markdown
-**Key:** _Lit._ Liturgic Language; • a common word, which a player is expected to know by heart.
-
-## K
-
-**Knight-Captain** **1** (_Kingdom of Provenzia_) A knight who leads a company. **2** (_Kingdom of Provenzia_) Commands the guard in the field. — [[thalorna-note-affiliation-kingdom|Kingdom of Provenzia]]
-
-## O
-
-**Ordained Priest** _Lit._ (_Church of the Rite_) Ordained to serve a parish. — [[thalorna-note-affiliation-church|Church of the Rite]]
-```
-
-The culture shapes both through its own `data.glossary`.
-`{name: solmère, common: true, pronunciation: sol-MEH-reh}` marks a word of its
-tongue common, so the first fence lists it, and gives it a respelling;
-`{name: Subject, common: true}` marks a rank and lets in a title of one word,
-which no glossary holds unless an entry names it; and
-`{name: blood-field, definition: …}` is a term of the culture's own.
-
-An affiliation lists its own terms with `WHERE owner = '<its Address>'`. The
-setting's two pages list everything, each word once and each term under every
-owner that holds it:
-
-````markdown
-```sql {layout=dictionary}
-SELECT * EXCLUDE (common) FROM dictionary WHERE depth = 0
-```
-````
-
-````markdown
-```sql {layout=glossary}
-SELECT * EXCLUDE (common) FROM terms
-```
-````
-
-`package-build content-index` also writes both relations beside the index, for
-reading with `jq`:
+`package-build content-index` writes both relations beside the index. To
+read a culture's own entries with `jq`:
 
 ```bash
-jq -r 'select(.cultures | index("thalorna-note-lore-provenzianclt")) | .name' \
+jq -r 'select(.owner == "thalorna-note-lore-provenzianclt") | .name' \
   build/content-index/thalorna-terms.jsonl
 ```
 
 The [format reference](../reference/format-details.md#dictionaries-and-glossaries)
-gives every column and every rule.
+gives every column and rule.
 
 ## Resolve another package
 

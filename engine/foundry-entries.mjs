@@ -78,6 +78,8 @@ import { isHomepage } from "./homepage.mjs";
 import { declaresNoPack } from "./pack-router.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { collectAnchors } from "./anchors.mjs";
+import { scanSpans } from "./content-spans.mjs";
+import { DICTIONARY_ENTRY_CLASS } from "./dictionary-layout.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -94,7 +96,9 @@ import { publishesContentPages } from "../content-config.mjs";
 export const LEAD_ANCHOR = "$lead";
 
 /**
- * Every page of a note's journal, as `anchorName → whole UUID`.
+ * Every anchor of a note's journal, as `anchorName → Foundry target`.
+ * A dictionary word's native heading carries its fragment after the
+ * containing page's UUID.
  *
  * Whole, not a fragment appended to the entry's UUID: nothing owns a page
  * address, so a complete link restates no fact, and it keeps the page-id hash
@@ -112,9 +116,20 @@ export function anchorsOf(entryUuid, entryId, body, name) {
     const anchors = {};
     splitPages(body, name).forEach((page, index) => {
         const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
+        const words = new Set(
+            scanSpans(page.markdown)
+                .spans.filter((span) =>
+                    span.attrs.some(
+                        ([key, value]) =>
+                            key === "class" && value.split(/\s+/).includes(DICTIONARY_ENTRY_CLASS),
+                    ),
+                )
+                .map((span) => span.id),
+        );
         if (index === 0) anchors[LEAD_ANCHOR] = uuid;
         if (page.anchorSlug) anchors[page.anchorSlug] = uuid;
-        for (const anchor of collectAnchors(page.markdown)) anchors[anchor.slug] = uuid;
+        for (const anchor of collectAnchors(page.markdown))
+            anchors[anchor.slug] = words.has(anchor.slug) ? `${uuid}#${anchor.slug}` : uuid;
     });
     return anchors;
 }
@@ -290,7 +305,10 @@ export function entriesForNote(fm, name, address, body, ctx) {
             id: fm.id,
             uuid: own,
             systemUuids: systemUuidsFor(fm.type, fm.id),
-            anchors: own && fm.type === "doc" ? anchorsOf(own, fm.id, body ?? "", name) : undefined,
+            anchors:
+                own && packForType(fm.type)?.docType === "JournalEntry" ?
+                    anchorsOf(own, fm.id, body ?? "", name)
+                :   undefined,
         },
     ];
 }

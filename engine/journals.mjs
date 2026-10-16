@@ -73,6 +73,7 @@ import { reckoningContext } from "./reckoning-markers.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
 import { journalHasContent } from "./note-state.mjs";
+import { hasLexicalEntries } from "./lexical-sections.mjs";
 import { draftNoticeFor } from "./draft-notice.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { separateFootnotes } from "./content-footnotes.mjs";
@@ -760,13 +761,15 @@ export class Journals extends BasePackCompiler {
      * An entry holding only its infobox is empty by this test. The panel is a
      * rendering of `data:` that the content index already carries, so a
      * compendium entry of nothing else tells a reader what the index told them.
+     * A frontmatter dictionary or glossary supplies pages of its own, so it
+     * qualifies before the shared body expansion inserts it.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} body - The note body, frontmatter stripped.
      * @returns {boolean} True to skip the note.
      */
     skipNote(fm, body) {
-        return !journalHasContent(body);
+        return !journalHasContent(body) && !hasLexicalEntries(fm);
     }
 
     /**

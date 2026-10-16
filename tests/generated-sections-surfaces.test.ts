@@ -34,12 +34,74 @@ import { defineConfig } from "../index.mjs";
 import { resolveDanglingLabels } from "../engine/pdf-render.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
 import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
+import { dictionaryEntryAnchor } from "../engine/dictionary-rows.mjs";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const HAS_TYPST = spawnSync("typst", ["--version"], { encoding: "utf8" }).status === 0;
 const HAS_PDFTOTEXT = spawnSync("pdftotext", ["-v"], { encoding: "utf8" }).status === 0;
 
 const NOTES: Record<string, string> = {
+    "Skills/Grand.md": `---
+type: skill
+subType: language
+shortcode: grand
+name: { full: Grand }
+data:
+    fields: [{ name: Court, holds: Court vocabulary. }]
+    words: [{ form: ancestor, class: n, field: Court, gloss: a public elder }]
+---
+
+A public ancestral tongue.
+`,
+    "Skills/Hidden.md": `---
+type: skill
+subType: language
+shortcode: hidden
+tags: [gm]
+name: { full: Hidden }
+data:
+    family: skill-grand
+    fields: [{ name: Court, holds: Court vocabulary. }]
+    words:
+        - { form: ancestor, class: n, field: Court, gloss: SECRET replacement }
+        - { form: privateonly, class: n, field: Court, gloss: SECRET word }
+---
+
+A hidden intermediate tongue uses an _ancestor_ and a _zethu_.
+`,
+    "Skills/Tongue.md": `---
+type: skill
+subType: language
+shortcode: tongue
+name: { full: Tongue }
+data:
+    family: skill-hidden
+    fields: [{ name: Court, holds: Court vocabulary. }]
+    words: [{ form: zethu, class: n, field: Court, gloss: a scribe }]
+---
+
+A tongue.
+
+# Lexicon {#lexicon}
+
+The authored loanword introduction.
+
+# Reading {#reading}
+
+The later section stays after the words.
+`,
+    "Lore/Folk.md": `---
+type: lore
+subType: culture
+shortcode: folk
+name: { full: Folk }
+data:
+    language: skill-tongue
+    glossary: [{ name: zethu, common: true }]
+---
+
+A people whose _zethu_ keeps the court's records.
+`,
     "Places/Vale.md": `---
 type: place
 subType: region
@@ -182,6 +244,9 @@ function repo(): string {
             "  - sectionName: Powers",
             "    contents:",
             "      - filter: \"type = 'affiliation'\"",
+            "  - sectionName: Tongues",
+            "    contents:",
+            "      - filter: \"type = 'skill' OR (type = 'lore' AND subType = 'culture')\"",
         ].join("\n") + "\n",
     );
     fs.writeFileSync(
@@ -201,8 +266,9 @@ function repo(): string {
             "packs:",
             "    - { name: items, label: Items, type: Item, system: sohl, mayBeEmpty: true }",
             "    - { name: journals, label: Journals, type: JournalEntry, default: true }",
+            "    - { name: gm-journals, label: Private Journals, type: JournalEntry, private: true }",
             "pdf:",
-            "    unprinted: \"type IN ('homepage', 'lore') OR shortcode = 'mere'\"",
+            "    unprinted: \"type = 'homepage' OR (type = 'lore' AND subType <> 'culture') OR shortcode = 'mere'\"",
             "    books:",
             "        - id: core",
             "          title: The Test Volume",
@@ -239,8 +305,11 @@ function generatePacks(root: string) {
 }
 
 /** Every compiled journal's pages, by journal name. */
-function journals(root: string): Record<string, Array<{ name: string; text: string }>> {
-    const dir = path.join(root, "build", "packs-json", "journals");
+function journals(
+    root: string,
+    pack = "journals",
+): Record<string, Array<{ name: string; text: string }>> {
+    const dir = path.join(root, "build", "packs-json", pack);
     const out: Record<string, Array<{ name: string; text: string }>> = {};
     if (!fs.existsSync(dir)) return out;
     for (const file of fs.readdirSync(dir)) {
@@ -273,7 +342,12 @@ function bookEntry(source: string, name: string): string {
 
 let root: string;
 let site: Record<string, string>;
-let foundry: { status: number | null; output: string; journals: ReturnType<typeof journals> };
+let foundry: {
+    status: number | null;
+    output: string;
+    journals: ReturnType<typeof journals>;
+    privateJournals: ReturnType<typeof journals>;
+};
 let book: { status: number | null; output: string; source: string; pdf: string };
 
 beforeAll(async () => {
@@ -306,7 +380,11 @@ beforeAll(async () => {
     );
 
     const packs = generatePacks(root);
-    foundry = { ...packs, journals: journals(root) };
+    foundry = {
+        ...packs,
+        journals: journals(root),
+        privateJournals: journals(root, "gm-journals"),
+    };
 
     const pdf = run(root, [
         path.join(PKG_ROOT, "bin", "package-build.mjs"),
@@ -327,6 +405,33 @@ beforeAll(async () => {
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
 describe("on the website", () => {
+    it("uses the same public lexical providers in the published site, journal and book artifacts", () => {
+        const language = matter(site["skill-tongue.md"]).content;
+        const journal = foundry.journals.Tongue.find((page) => page.name === "Lexicon")!.text;
+        const printed = bookEntry(book.source, "Tongue");
+        for (const body of [language, journal, printed]) {
+            expect(body).toContain("A public elder.");
+            expect(body).not.toContain("SECRET");
+            expect(body).not.toContain("privateonly");
+        }
+        expect(language).toContain("[Folk](/demo/lore-folk/)");
+        expect(journal).toMatch(/@UUID\[[^\]]+\]\{Folk\}/);
+        expect(printed).toMatch(/#link\(<[^>]*lore-folk[^>]*>\)\[Folk\]/);
+        const gm = foundry.privateJournals.Hidden.map((page) => page.text).join("\n");
+        expect(gm).toContain("SECRET replacement.");
+        expect(gm).toContain("privateonly");
+    });
+    it("sets automatic lexical entries under the authored heading and links the owned glossary to its word", () => {
+        const language = matter(site["skill-tongue.md"]).content;
+        const glossary = matter(site["lore-folk.md"]).content;
+        const anchor = dictionaryEntryAnchor("demo-note-skill-tongue", "zethu");
+        expect(language.match(/\{#lexicon\}/g)).toHaveLength(1);
+        expect(language.indexOf("loanword introduction")).toBeLessThan(language.indexOf("zethu"));
+        expect(language.indexOf("zethu")).toBeLessThan(language.indexOf("# Reading"));
+        expect(language).toContain("Court");
+        expect(language).toContain(`id="${anchor}"`);
+        expect(glossary).toContain(`/demo/skill-tongue/#${anchor}`);
+    });
     it("sets each section after the author's text", () => {
         expect(webSection(site["place-vale.md"], "within")).toContain("[Ford](/demo/place-ford/)");
         expect(webSection(site["place-ford.md"], "governedby")).toContain("The Crown");
@@ -344,6 +449,17 @@ describe("on the website", () => {
 });
 
 describe("in Foundry", () => {
+    it("puts the automatic word on a native heading and retains its exact glossary target", () => {
+        const language = foundry.journals.Tongue.find((page) => page.name === "Lexicon")!.text;
+        const glossary = foundry.journals.Folk.find((page) => page.name === "Glossary")!.text;
+        const anchor = dictionaryEntryAnchor("demo-note-skill-tongue", "zethu");
+        expect(language).toMatch(new RegExp(`<h6\\b[^>]*id="${anchor}"`));
+        expect(language).toContain("Court");
+        expect(language.indexOf("loanword introduction")).toBeLessThan(language.indexOf("zethu"));
+        expect(glossary).toMatch(
+            new RegExp(`@UUID\\[[^\\]]+JournalEntryPage\\.[^#\\]]+#${anchor}\\]\\{zethu\\}`),
+        );
+    });
     it("generates every pack without an error", () => {
         expect(foundry.output).toMatch(/ERRORS=0/);
     });
@@ -378,6 +494,17 @@ describe("in Foundry", () => {
 });
 
 describe("in the book", () => {
+    it("prints automatic dictionary and glossary entries from the same body", () => {
+        const language = bookEntry(book.source, "Tongue");
+        const glossary = bookEntry(book.source, "Folk");
+        expect(language).toContain("Lexicon");
+        expect(language).toContain("zethu");
+        expect(language).toContain("Court");
+        expect(language.indexOf("loanword introduction")).toBeLessThan(language.indexOf("zethu"));
+        expect(language.indexOf("zethu")).toBeLessThan(language.indexOf("Reading"));
+        expect(glossary).toContain("Glossary");
+        expect(glossary).toContain("zethu");
+    });
     it("builds", () => {
         expect(book.status, book.output).toBe(0);
     });

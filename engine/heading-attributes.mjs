@@ -28,12 +28,26 @@
  * **A leaf, deliberately.** `anchors.mjs` is shared by the compilers, the index
  * and the link checker and cannot import any of them; the figure pass is
  * imported by `anchors.mjs` and so cannot import it back. A module that imports
- * only the attribute grammar can be asked by all of them.
+ * the attribute grammar and Markdown literal ranges can be asked by all of them.
  *
  * @module
  */
 
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
+import MarkdownIt from "markdown-it";
+
+/** Literal block ranges use the renderer's Markdown grammar. */
+const structureParser = new MarkdownIt({ html: true });
+
+/** Body lines occupied by code or raw HTML, including comment examples. */
+function literalHeadingLines(source) {
+    const lines = new Set();
+    for (const token of structureParser.parse(String(source ?? ""), {})) {
+        if (!token.map || !["fence", "code_block", "html_block"].includes(token.type)) continue;
+        for (let line = token.map[0]; line < token.map[1]; line++) lines.add(line);
+    }
+    return lines;
+}
 
 /**
  * A heading line: its hashes and the text after them.
@@ -134,8 +148,8 @@ export function opensPage({ level, id }) {
 /**
  * Every heading in a body, with what its attribute block declares.
  *
- * Fenced code is skipped: `#` opens a comment in most of what gets fenced, and
- * an example heading in a document is not a heading of it.
+ * Code and raw HTML blocks are skipped: an example heading in a document is
+ * not a heading of it, including an example in an HTML comment.
  *
  * @param {string} source - A note's markdown body.
  * @param {number} [bodyLine=1] - The 1-based file line the body starts on, so a
@@ -148,18 +162,9 @@ export function scanHeadingAttributes(source, bodyLine = 1) {
     const lines = String(source ?? "").split("\n");
     const headings = [];
     const errors = [];
-    let codeFence = null;
+    const literal = literalHeadingLines(source);
     for (let i = 0; i < lines.length; i++) {
-        const fence = /^ {0,3}(`{3,}|~{3,})/.exec(lines[i]);
-        if (codeFence) {
-            if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length)
-                codeFence = null;
-            continue;
-        }
-        if (fence) {
-            codeFence = fence[1];
-            continue;
-        }
+        if (literal.has(i)) continue;
         const heading = HEADING_LINE.exec(lines[i]);
         if (!heading) continue;
         const parsed = splitHeadingAttributes(heading[2]);
@@ -267,21 +272,9 @@ export function parseHeadingLine(line) {
 export function pageOpenings(source, blockLines = new Set()) {
     const lines = String(source ?? "").split("\n");
     const openings = new Map();
-    let codeFence = null;
+    const literal = literalHeadingLines(source);
     for (const [index, line] of lines.entries()) {
-        // A fence's closer must carry the same character as its opener and
-        // be at least as long, same as {@link scanHeadingAttributes} tracks
-        // it below — a longer fence is what lets a fenced example carry a
-        // shorter fence of its own as literal content.
-        const fence = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-        if (codeFence) {
-            if (fence && fence[1][0] === codeFence[0] && fence[1].length >= codeFence.length) {
-                codeFence = null;
-            }
-        } else if (fence) {
-            codeFence = fence[1];
-        }
-        if (codeFence !== null || blockLines.has(index)) continue;
+        if (literal.has(index) || blockLines.has(index)) continue;
         const heading = parseHeadingLine(line);
         if (!heading?.startsPage) continue;
         openings.set(index, { ...heading, line: index + 1 });

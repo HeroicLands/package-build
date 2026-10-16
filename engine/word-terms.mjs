@@ -141,7 +141,7 @@ export const WORD_FIELDS = Object.freeze([
         kind: "string",
         required: true,
         shape: "one of the language's `fields` names",
-        describe: "The field the word is grouped under, named in the language's `fields`.",
+        describe: "The field tag beside the dictionary entry, named in the language's `fields`.",
     }),
     Object.freeze({
         name: "gloss",
@@ -376,27 +376,28 @@ export const GLOSSARY_ENTRY_FIELDS = Object.freeze([
         name: "name_sort",
         kind: "string",
         shape: "a string",
-        describe: "Its sort key; the name when unstated.",
+        describe: "Its sort key; the dictionary word's sort key, or the name, when unstated.",
     }),
     Object.freeze({
         name: "common",
         kind: "boolean",
         shape: "`true` or `false`",
-        describe: "A word a player is expected to know by heart; `false` when unstated.",
+        describe: "Core vocabulary for this glossary's owner; `false` when unstated.",
     }),
     Object.freeze({
         name: "definition",
         kind: "string",
         shape: "a string",
         describe:
-            "The sense text. Stated, it creates the entry or replaces every sense the " +
-            "entry's other sources give it.",
+            "The sense text, overriding the word's or governance sources' senses. Unstated, " +
+            "a named dictionary word supplies all its senses and class; a named rank or office supplies its descriptions.",
     }),
     Object.freeze({
         name: "pronunciation",
         kind: "string",
         shape: "a respelling such as `sol-MEH-reh`",
-        describe: "A respelling, held to the same rule as a word's.",
+        describe:
+            "A respelling, held to the same rule as a word's; the dictionary word's when unstated.",
     }),
     Object.freeze({
         name: "language",

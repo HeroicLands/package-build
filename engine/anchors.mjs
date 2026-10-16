@@ -39,10 +39,9 @@ import { scanAlerts } from "./content-alerts.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanPoetry } from "./content-poetry.mjs";
 import { scanSpans } from "./content-spans.mjs";
-import { codeRegions } from "./code-fences.mjs";
 import { slugify } from "./content-slug.mjs";
 import { scanFigures } from "./content-figures.mjs";
-import { HEADING_LINE, splitHeadingAttributes } from "./heading-attributes.mjs";
+import { scanHeadingAttributes } from "./heading-attributes.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 /**
@@ -71,25 +70,13 @@ export const ANCHOR_KINDS = Object.freeze(["prose", "event"]);
  */
 export function collectAnchors(body, bodyLine = 1, resolveRole) {
     const anchors = [];
-    const literal = codeRegions(body, { spans: false, poetryAsProse: false });
-    let offset = 0;
-    const lines = String(body ?? "").split("\n");
-
-    for (let i = 0; i < lines.length; i++) {
-        const lineOffset = offset;
-        offset += lines[i].length + 1;
-        if (literal.some((region) => lineOffset >= region.start && lineOffset < region.end))
-            continue;
-
-        const heading = HEADING_LINE.exec(lines[i]);
-        if (!heading) continue;
-        const attributes = splitHeadingAttributes(heading[2]);
-        if (!attributes.id) continue;
+    for (const heading of scanHeadingAttributes(body, bodyLine).headings) {
+        if (!heading.id) continue;
         anchors.push({
-            slug: attributes.id,
-            name: attributes.text,
-            level: heading[1].length,
-            line: bodyLine + i,
+            slug: heading.id,
+            name: heading.text,
+            level: heading.level,
+            line: heading.line,
             kind: "prose",
         });
     }

@@ -170,7 +170,7 @@ package-build.config.yaml:382:64: error: package-build config: `site.sections.be
 
 ## A worked case: the three states of a note
 
-A note with an empty body is a **stub**, and the diagnostics about one show each
+A place note with an empty body is a **stub**, and the diagnostics about one show each
 rule above in turn.
 
 An empty body must be deliberate, so a stub that says nothing about itself is an

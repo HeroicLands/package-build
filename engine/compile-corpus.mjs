@@ -84,11 +84,12 @@ export async function buildCompileCorpus({
     });
     const corpusOptions = { config: resolved, records };
     const sqlOptions = { ...corpusOptions, skipDirectories, parsed };
+    const sqlTables = await prepareTreeSqlTables(contentBase, sqlOptions);
     return {
         records,
         parsed,
         problems: collected,
-        linkIndex: buildContentLinkIndex(contentBase, router, corpusOptions),
-        sqlTables: await prepareTreeSqlTables(contentBase, sqlOptions),
+        linkIndex: buildContentLinkIndex(contentBase, router, { ...corpusOptions, sqlTables }),
+        sqlTables,
     };
 }

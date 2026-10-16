@@ -3,8 +3,10 @@
 See [the content format guide](docs/content-format.md) for the complete note
 format and publishing behavior.
 
-Every typed note must have a nonempty body after its frontmatter, including
-drafts, folders and homepages. Empty or whitespace-only bodies are errors.
+Nonempty `data.words` on a language note, or `data.glossary` on a culture or
+affiliation, supplies page content without an authored body. Every other
+typed note must have a nonempty body after its frontmatter, including drafts,
+folders and homepages. Empty or whitespace-only bodies are otherwise errors.
 Nonempty bodies with fewer than 25 prose words warn unless tagged `draft`.
 A folder note needs only a nonempty body: any content passes, tagged or not.
 Lint and publishing commands enforce the error; a description is not a body.
@@ -57,15 +59,31 @@ A language note states its words in `data.words`, beside `data.names`, with
 the `data.classModifiers`, `data.fields` and `data.affixes` they are read
 against; each word's class comes from the master word classes, and none of it
 reaches the compiled Item. A daughter language names its parent language in
-`data.family` and reads the parent's words as its own. A culture or an affiliation states its own glossary
-terms in `data.glossary`. Every entry resolves to a language: its own
+`data.family` and reads the parent's words as its own. A language note with
+`data.words` receives its full Dictionary section automatically on the site,
+in the Foundry journal and in the book: one alphabetical list with field tags
+and one key. A language with absent or empty `data.words` receives no Dictionary section.
+
+A culture or affiliation with nonempty `data.glossary` receives a Glossary section
+containing only that owner's declared entries. Ranks and offices have their
+own affiliation sections and enter the glossary only through an explicit
+entry. The glossary holds entries for common words in its core vocabulary, dictionary
+words with a context meaning, and phrases, compounds or terms of art outside
+the dictionary. An entry naming a dictionary word takes its senses and class
+and links to its language entry; an entry's `definition` supplies its meaning
+instead. Common marks belong to the owner's glossary, and a word may be
+common in one glossary and absent from another. Dictionaries and glossaries
+have no setting-wide pages. Every entry resolves to a language: its own
 `language`, else the affiliation's `data.language`, its parents' or its
 culture's, else the culture's `data.language`. An entry that resolves to none
 is a located build error. The `dictionary` relation lists every word under
 each language that has it, inherited words included, and the `terms` relation
-every glossary entry, rank and office with the cultures it reaches; an `sql`
-fence sets either with `layout=dictionary` or `layout=glossary`, and
-`package-build content-index` writes both beside the index. See
+every glossary entry, rank and office with its culture associations; an `sql`
+fence sets a custom view with `layout=dictionary` or `layout=glossary`.
+The default sections follow the authored text, or fill an existing
+`{#dictionary}`, `{#lexicon}` or `{#glossary}` heading after its authored
+introduction. `package-build content-index` writes both relations beside the
+index. See
 [a language's words](docs/reference/format-details.md#a-languages-words),
 [glossary terms](docs/reference/format-details.md#glossary-terms) and
 [dictionaries and glossaries](docs/reference/format-details.md#dictionaries-and-glossaries).

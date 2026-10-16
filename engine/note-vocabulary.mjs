@@ -600,7 +600,7 @@ const WORD_DATA_FIELDS = Object.freeze([
             fields: WORD_FIELDS,
         }),
         describe:
-            "The language's words, one map each, in the order they print. A language skill " +
+            "The words this language states, one map each, in authored order; its automatic dictionary sorts them alphabetically. A language skill " +
             "note only. See [a language's words](format-details.md#a-languages-words).",
     }),
     Object.freeze({
@@ -671,9 +671,10 @@ const GLOSSARY_FIELD = Object.freeze({
         fields: GLOSSARY_ENTRY_FIELDS,
     }),
     describe:
-        "Its own glossary terms: euphemisms, idioms, terms of art and titles that are not " +
-        "ranks. An entry with a `definition` creates a term or replaces its senses; one " +
-        "without marks a term the note already has. Every entry resolves to a language. " +
+        "Its own glossary entries: common vocabulary, dictionary words with a contextual " +
+        "meaning, and phrases, compounds or terms of art. A named dictionary word supplies " +
+        "its senses and class unless `definition` supplies the sense. Common marks belong " +
+        "to this owner. Every entry resolves to a language. " +
         "Empty when unstated. See [glossary terms](format-details.md#glossary-terms).",
 });
 
@@ -1820,8 +1821,8 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...LANGUAGE_FIELD,
                 describe:
                     "The trade, temple or order tongue the affiliation keeps, as a language " +
-                    "skill note. It reaches the affiliation's culture, and its words enter that " +
-                    "culture's glossary. A glossary entry that states no `language` is in it.",
+                    "skill note. A glossary entry that states no `language` is in it. The " +
+                    "affiliation chooses its own common vocabulary and context meanings.",
             },
             GLOSSARY_FIELD,
             {

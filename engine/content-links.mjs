@@ -90,7 +90,7 @@ import {
 import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
-import { parseWikilink, WIKILINK } from "./wikilink-syntax.mjs";
+import { isEventAnchor, parseWikilink, WIKILINK } from "./wikilink-syntax.mjs";
 import { readQualifier } from "./wikilinks.mjs";
 
 /**
@@ -243,7 +243,10 @@ export function buildLinkIndex(
         // same headings — the disagreement the anchor half removes.
         anchors.set(
             note,
-            new Set((record.anchors ?? []).filter((a) => a.kind === "prose").map((a) => a.slug)),
+            new Set([
+                ...(record.anchors ?? []).filter((a) => a.kind === "prose").map((a) => a.slug),
+                ...(sqlTables?.get(absPath)?.anchors ?? []).map((a) => a.slug),
+            ]),
         );
         eventAnchorsOf.set(
             note,
@@ -331,7 +334,13 @@ export function buildLinkIndex(
      */
     function expandedBody(note) {
         const body = note.body;
-        if (!/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:sql|pagelist)\b/im.test(body)) return body;
+        const prepared = sqlTables?.get(note.file);
+        if (
+            !prepared?.generated &&
+            !prepared?.lexical?.length &&
+            !/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:sql|pagelist)\b/im.test(body)
+        )
+            return body;
         return expandContentTables(body, {
             source: note.file,
             // A generated link is checked like an authored one, so both
@@ -940,18 +949,37 @@ export function auditLinks(index) {
     for (const note of notes) {
         for (const { target, rawTarget, anchor, text, occurrence, labelled } of linksOf(note)) {
             if (!anchor || !labelled) continue;
-            const dest = target ? resolve(target) : note;
-            // An unresolvable target is reported by the pass below; its anchor
-            // has nothing to be checked against. Neither has a file: an asset
-            // resolves but has no body, so it declares the empty set of anchors
-            // and every `#section` on one is dead.
-            if (!dest) continue;
-            if (!(anchors.get(dest) ?? new Set()).has(slugify(anchor))) {
+            const local = target ? resolve(target) : note;
+            const foreign = !local && target ? manifestHit(target) : null;
+            // An unresolved address is reported below. A foreign sheet opens
+            // its system document, so only the readable note view names prose
+            // sections. A public note's GM target is an audience refusal below.
+            if (!local) {
+                if (!foreign || (foreign.gm && !isGmNote(note.fm))) continue;
+                const qualified = readQualifier(
+                    target,
+                    index.types,
+                    index.packages,
+                    index.noIndexPackages,
+                );
+                if (qualified?.system !== NOTE_SYSTEM) continue;
+            }
+            const dest = local ?? foreign;
+            const slug = local ? slugify(anchor) : anchor;
+            const event =
+                local ?
+                    (index.eventAnchorsOf?.get(local) ?? new Set()).has(anchor)
+                :   isEventAnchor(foreign, anchor);
+            // Fetched note anchors are the publisher's declaration, independent
+            // of a site URL or a Foundry UUID. An asset has no body and therefore
+            // declares no sections; an absent foreign anchor list does too.
+            const declared =
+                local ?
+                    (anchors.get(local) ?? new Set()).has(slug)
+                :   foreign.noteAnchors?.some((one) => one.slug === anchor && one.kind === "prose");
+            if (!declared || (!local && event)) {
                 deadAnchors.push({
-                    reason:
-                        (index.eventAnchorsOf?.get(dest) ?? new Set()).has(anchor) ?
-                            "event-anchor"
-                        :   "unknown-anchor",
+                    reason: event ? "event-anchor" : "unknown-anchor",
                     note,
                     link: `${rawTarget}#${anchor}`,
                     // The two the shared `unknown-anchor` wording reads, in the
@@ -960,7 +988,7 @@ export function auditLinks(index) {
                     // declare. Carrying them is what lets one sentence serve
                     // the checker and the build.
                     target: rawTarget,
-                    anchor: slugify(anchor),
+                    anchor: slug,
                     dest,
                     text,
                     occurrence,

@@ -1013,7 +1013,15 @@ async function prepareWorld(resolved, { contentBase, findings, resolveReplacemen
         scheme,
     };
     const collected = collectContentPages(contentBase, ctx);
-    const gates = siteGates(collected.pages, collected, { config: resolved, records });
+    const sqlTables = await prepareTreeSqlTables(contentBase, {
+        config: resolved,
+        skipDirectories: resolved.skipDirectories,
+        records,
+        parsed,
+        database: db,
+        audience: "public",
+    });
+    const gates = siteGates(collected.pages, collected, { config: resolved, records, sqlTables });
     if (gatesFailed(gates)) {
         for (const [name, list] of Object.entries(gates)) {
             if (!Array.isArray(list)) continue;
@@ -1030,14 +1038,6 @@ async function prepareWorld(resolved, { contentBase, findings, resolveReplacemen
 
     const byFile = new Map(collected.pages.map((page) => [page.file, page]));
     const universe = tableUniverse(collected.pages);
-    const sqlTables = await prepareTreeSqlTables(contentBase, {
-        config: resolved,
-        skipDirectories: resolved.skipDirectories,
-        records,
-        parsed,
-        database: db,
-        audience: "public",
-    });
     // The address space an `![[…]]` embed resolves against — the same one the
     // site builds, so one authored picture reaches both surfaces or neither.
     const assets = assetAddressIndex(records, {

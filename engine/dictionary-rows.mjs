@@ -36,19 +36,19 @@
  * where it is a word of its language compared without case. A title of
  * several words, joined by a space or a hyphen, always is.
  *
- * **A glossary entry with a `definition`** replaces the senses of its owner's
- * own rank or office of that name, and otherwise is a term of its owner's own,
- * cited from the owner. **An entry without one** marks what it names: the term
- * of its name in the language it resolves to
- * ({@link module:engine/glossary-language}), among the words and the ranks and
- * offices that reach its note, and failing that the term of its name in any
- * language that reaches it. Marking sets `common`, and replaces `name_sort`
- * and `pronunciation`, on the word's row in that language or on the rank's or
- * office's row.
+ * **A glossary entry naming a dictionary word** carries the word's class and
+ * a link to its entry in the resolved language's dictionary. Without a
+ * `definition` it carries the word's senses; with one it carries that sense
+ * instead. An owner's own rank or office contributes its descriptions after
+ * the word's senses, unless the entry states a definition. An entry naming
+ * another body's rank or office carries its senses on the entry's own row.
+ * `common`, `name_sort` and `pronunciation` belong to each owner's entry;
+ * nothing a glossary states changes a dictionary word.
  *
  * @module
  */
 
+import { createHash } from "node:crypto";
 import { parseAddress, renderAddress } from "./address.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
 import { isNoteRecord } from "./index-records.mjs";
@@ -65,10 +65,10 @@ export const DICTIONARY_COLUMNS = Object.freeze([
     "letter",
     "pronunciation",
     "class",
+    "field",
     "etymology",
     "senses",
     "usage",
-    "common",
     "depth",
 ]);
 
@@ -82,6 +82,8 @@ export const TERM_COLUMNS = Object.freeze([
     "name_sort",
     "letter",
     "pronunciation",
+    "class",
+    "word",
     "senses",
     "usage",
     "common",
@@ -125,6 +127,20 @@ const isSingleWord = (title) => !/[\s\-‐‑]/u.test(title);
 
 /** Whether a glossary entry states a definition. */
 const defines = (entry) => typeof entry.definition === "string" && entry.definition.trim() !== "";
+
+/**
+ * The stable prose anchor of a word in one language's dictionary. The exact
+ * language and NFC form identify it, including case and accents.
+ *
+ * @param {string} language - The language's canonical note Address.
+ * @param {string} name - The dictionary headword.
+ * @returns {string} The anchor slug.
+ */
+export function dictionaryEntryAnchor(language, name) {
+    return `word-${createHash("sha256")
+        .update(JSON.stringify([language, nfc(name)]))
+        .digest("hex")}`;
+}
 
 /**
  * The heading letter of a sort key: its first letter or digit, accents taken
@@ -378,7 +394,7 @@ export function dictionaryAndTermRows(records, all = records) {
     }
     const allGovernance = [...governance.values()].flatMap((rows) => [...rows.values()]);
 
-    // ── Word rows, before marks ──────────────────────────────────────────────
+    // ── Word rows ────────────────────────────────────────────────────────────
     const wordRows = new Map();
     const wordKey = (language, name) => `${language}\0${name}`;
     for (const [language] of languages) {
@@ -389,7 +405,7 @@ export function dictionaryAndTermRows(records, all = records) {
                 const name = nfc(word.form);
                 const key = wordKey(language, name);
                 if (wordRows.has(key)) continue;
-                wordRows.set(key, { language, name, found: wordIn(language, name), marks: [] });
+                wordRows.set(key, { language, name, found: wordIn(language, name) });
             }
         }
     }
@@ -405,48 +421,35 @@ export function dictionaryAndTermRows(records, all = records) {
             culture ?
                 allGovernance.filter((row) => row.cultures.includes(note))
             :   [...(governance.get(note)?.values() ?? [])];
-        const reachLanguages = new Set([
-            languageOf(record, note, undefined),
-            ...(culture ? reach.map((row) => row.language) : []),
-        ]);
-        reachLanguages.delete(null);
         glossaryOf(note).forEach((entry, position) => {
             const name = nfc(entry.name);
             const language = languageOf(record, note, entry);
             const mark = { note, position, entry };
-            if (defines(entry)) {
-                const own = !culture ? governance.get(note)?.get(name) : undefined;
-                if (own) {
-                    own.definition = mark;
-                    own.marks.push(mark);
-                    own.named = true;
-                } else
-                    owned.push({
-                        owner: note,
-                        ownerKind: culture ? "culture" : "affiliation",
-                        language,
-                        name,
-                        cultures: culture ? [note] : culturesOf(note),
-                        mark,
-                    });
+            const found = wordRows.get(wordKey(language, name))?.found;
+            const own = !culture ? governance.get(note)?.get(name) : undefined;
+            if (own) {
+                own.language = language;
+                own.found = found;
+                if (defines(entry)) own.definition = mark;
+                own.marks.push(mark);
+                own.named = true;
                 return;
             }
-            const stated = typeof entry.language === "string" && entry.language;
-            const among = stated ? new Set([language]) : reachLanguages;
-            const found = [];
-            for (const candidate of among)
-                if (wordIn(candidate, name)) {
-                    const row = wordRows.get(wordKey(candidate, name));
-                    if (row) found.push({ language: candidate, row });
-                }
-            for (const row of reach)
-                if (row.name === name && among.has(row.language))
-                    found.push({ language: row.language, row });
-            const preferred = found.filter((one) => one.language === language);
-            for (const { row } of preferred.length ? preferred : found) {
-                row.marks.push(mark);
-                row.named = true;
-            }
+            const reached = reach.filter((row) => row.name === name);
+            const preferred = reached.filter((row) => row.language === language);
+            const providers = preferred.length ? preferred : reached;
+            if (!defines(entry)) for (const row of providers) row.named = true;
+            if (defines(entry) || found || providers.length)
+                owned.push({
+                    owner: note,
+                    ownerKind: culture ? "culture" : "affiliation",
+                    language,
+                    name,
+                    cultures: culture ? [note] : culturesOf(note),
+                    found,
+                    providers: found || defines(entry) ? [] : providers,
+                    mark,
+                });
         });
     }
 
@@ -485,38 +488,47 @@ export function dictionaryAndTermRows(records, all = records) {
 
     const citedBy = citationLookup(byKey.values());
     const dictionary = [];
-    for (const { language, name, found, marks } of wordRows.values()) {
-        const { word, depth, statedIn } = found;
+    const wordUsage = ({ word, statedIn }) =>
+        [...new Set(citedBy(statedIn, word.form).filter(citable))].sort(compare);
+    for (const { language, name, found } of wordRows.values()) {
+        const { word, depth } = found;
         const nameSort =
-            marked(marks, "name_sort") ??
-            (typeof word.name_sort === "string" && word.name_sort ? word.name_sort : name);
+            typeof word.name_sort === "string" && word.name_sort ? word.name_sort : name;
         dictionary.push({
             language,
             language_tag: tagOf(language),
             name,
             name_sort: nameSort,
             letter: dictionaryLetter(nameSort),
-            pronunciation:
-                marked(marks, "pronunciation") ??
-                (typeof word.pronunciation === "string" ? word.pronunciation : null),
+            pronunciation: typeof word.pronunciation === "string" ? word.pronunciation : null,
             class: typeof word.class === "string" ? word.class : null,
+            field: typeof word.field === "string" ? word.field : null,
             etymology: etymologyOf(found),
             senses: glossSenses(word.gloss).map((text) => ({ text, bodies: [] })),
-            usage: [...new Set(citedBy(statedIn, word.form).filter(citable))].sort(compare),
-            common: marks.some((one) => one.entry.common === true),
+            usage: wordUsage(found),
             depth,
         });
     }
 
     const terms = [];
     const termRow = (
-        { owner, ownerKind, language, name, cultures },
+        { owner, ownerKind, language, name, cultures, found },
         senses,
         usage,
         marks,
         origins,
     ) => {
-        const nameSort = marked(marks, "name_sort") ?? name;
+        const word = found?.word;
+        const wordLanguage =
+            (
+                Array.isArray(languages.get(language)?.data?.words) &&
+                languages.get(language).data.words.length
+            ) ?
+                language
+            :   found?.statedIn;
+        const nameSort =
+            marked(marks, "name_sort") ??
+            (typeof word?.name_sort === "string" && word.name_sort ? word.name_sort : name);
         terms.push({
             owner,
             owner_kind: ownerKind,
@@ -525,7 +537,9 @@ export function dictionaryAndTermRows(records, all = records) {
             name,
             name_sort: nameSort,
             letter: dictionaryLetter(nameSort),
-            pronunciation: marked(marks, "pronunciation") ?? null,
+            pronunciation: marked(marks, "pronunciation") ?? word?.pronunciation ?? null,
+            class: word?.class ?? null,
+            word: found ? `${wordLanguage}#${dictionaryEntryAnchor(wordLanguage, name)}` : null,
             senses,
             usage: [...new Set(usage)].filter(citable).sort(compare),
             common: marks.some((one) => one.entry.common === true),
@@ -533,34 +547,50 @@ export function dictionaryAndTermRows(records, all = records) {
             cultures,
         });
     };
+    const combineSenses = (senses) => {
+        const combined = [];
+        for (const sense of senses) {
+            const same = combined.find((one) => one.text === sense.text);
+            if (!same) combined.push({ ...sense, bodies: [...sense.bodies] });
+            else
+                for (const body of sense.bodies)
+                    if (!same.bodies.includes(body)) same.bodies.push(body);
+        }
+        return combined;
+    };
+    const governanceSenses = (row) => {
+        if (row.definition) return [{ text: row.definition.entry.definition, bodies: [row.owner] }];
+        return combineSenses([
+            ...glossSenses(row.found?.word.gloss).map((text) => ({ text, bodies: [] })),
+            ...[...row.pieces]
+                .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind])
+                .filter((piece) => piece.text?.trim())
+                .map((piece) => ({ text: piece.text, bodies: [row.owner] })),
+        ]);
+    };
     for (const row of allGovernance) {
         const enters =
             !isSingleWord(row.name) ||
             row.named ||
             (row.language !== null && hasWordIgnoringCase(row.language, row.name));
         if (!enters) continue;
-        const senses = [];
-        if (row.definition)
-            senses.push({ text: row.definition.entry.definition, bodies: [row.owner] });
-        else
-            for (const piece of [...row.pieces].sort(
-                (a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind],
-            ))
-                if (piece.text?.trim() && !senses.some((sense) => sense.text === piece.text))
-                    senses.push({ text: piece.text, bodies: [row.owner] });
-        termRow(row, senses, [...row.usage], row.marks, [
+        termRow(row, governanceSenses(row), [...row.usage], row.marks, [
             ...row.pieces.map((piece) => piece.kind),
             ...(row.marks.length ? ["glossary"] : []),
         ]);
     }
-    for (const one of owned)
-        termRow(
-            one,
-            [{ text: one.mark.entry.definition, bodies: [one.owner] }],
-            [one.owner],
-            [one.mark],
-            ["glossary"],
-        );
+    for (const one of owned) {
+        const defined = defines(one.mark.entry);
+        const senses =
+            defined ? [{ text: one.mark.entry.definition, bodies: [one.owner] }]
+            : one.found ? glossSenses(one.found.word.gloss).map((text) => ({ text, bodies: [] }))
+            : combineSenses(one.providers.flatMap(governanceSenses));
+        const usage =
+            defined ? [one.owner]
+            : one.found ? wordUsage(one.found)
+            : [one.owner, ...one.providers.flatMap((row) => [...row.usage])];
+        termRow(one, senses, usage, [one.mark], ["glossary"]);
+    }
 
     dictionary.sort(
         (a, b) =>

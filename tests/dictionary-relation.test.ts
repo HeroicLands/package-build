@@ -135,11 +135,18 @@ describe("the `dictionary` relation", () => {
         ]);
     });
 
-    it("takes a culture's mark, sort key and respelling for a word its glossary names", async () => {
-        const common = await rows(
-            `SELECT name, common, pronunciation FROM dictionary WHERE language = '${PROVENZAL}' AND common`,
+    it("keeps a culture's glossary choices on its own term", async () => {
+        const dictionary = await rows(
+            `SELECT name, pronunciation FROM dictionary WHERE language = '${PROVENZAL}' AND name = 'solmère'`,
         );
-        expect(common).toEqual([{ name: "solmère", common: true, pronunciation: "sol-MEH-reh" }]);
+        expect(dictionary).toEqual([{ name: "solmère", pronunciation: null }]);
+        const terms = await byOwner("SELECT * FROM terms");
+        expect(terms.get(`${PROVENZIA} solmère`)).toMatchObject({
+            common: true,
+            class: "n m",
+            pronunciation: "sol-MEH-reh",
+            senses: [{ text: "longing; the ache for a time that is gone", bodies: [] }],
+        });
     });
 
     it("tags a language that states no abbreviation with its name", async () => {
@@ -159,11 +166,11 @@ describe("the `terms` relation", () => {
 
     it("is one row per term per owning note", async () => {
         const all = await rows("SELECT owner, name FROM terms");
-        expect(all).toHaveLength(21);
+        expect(all).toHaveLength(23);
         const subjects = all
             .filter((row: any) => row.name === "Subject")
             .map((row: any) => row.owner);
-        expect(subjects.sort()).toEqual([DUCHY, KINGDOM]);
+        expect(subjects.sort()).toEqual([DUCHY, KINGDOM, PROVENZIA]);
     });
 
     it("makes a rank and an office of one title in one body one row", async () => {
@@ -222,10 +229,11 @@ describe("the `terms` relation", () => {
         expect(all.get(`${DUCHY} Écuyer Tranchant`).letter).toBe("E");
     });
 
-    it("marks a rank its culture names without a definition, and lets a single title in", async () => {
+    it("admits a rank its culture names and keeps the common choice on the culture's term", async () => {
         const all = await byOwner("SELECT * FROM terms");
-        expect(all.get(`${KINGDOM} Subject`)).toMatchObject({ common: true });
-        expect(all.get(`${DUCHY} Subject`)).toMatchObject({ common: true });
+        expect(all.get(`${KINGDOM} Subject`)).toMatchObject({ common: false });
+        expect(all.get(`${DUCHY} Subject`)).toMatchObject({ common: false });
+        expect(all.get(`${PROVENZIA} Subject`)).toMatchObject({ common: true });
         expect(all.get(`${KINGDOM} Duc`)).toMatchObject({
             senses: [{ text: "A peer of the realm.", bodies: [KINGDOM] }],
         });

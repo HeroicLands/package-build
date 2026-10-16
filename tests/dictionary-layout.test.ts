@@ -52,22 +52,19 @@ const SECTIONS: Array<[string, object, string, string]> = [
         "SELECT * FROM dictionary WHERE language = 'demo-note-skill-provnzlng'",
     ],
     [
-        "A language's common words on its culture's page",
+        "A culture's common words",
         PROVENZIA_PAGE,
-        "dictionary",
-        "SELECT * FROM dictionary WHERE language = 'demo-note-skill-provnzlng' AND common",
-    ],
-    [
-        "Dictionary of the Tongues",
-        SETTING_PAGE,
-        "dictionary",
-        "SELECT * EXCLUDE (common) FROM dictionary WHERE depth = 0",
+        "glossary",
+        "SELECT * FROM terms WHERE owner = 'demo-note-lore-provnzclt' AND common",
     ],
     [
         "A culture's glossary",
         PROVENZIA_PAGE,
         "glossary",
-        "SELECT * FROM terms WHERE list_contains(cultures, 'demo-note-lore-provnzclt')",
+        "SELECT * REPLACE ((owner = 'demo-note-lore-provnzclt' AND common) AS common) " +
+            "FROM terms WHERE owner = 'demo-note-lore-provnzclt' OR " +
+            "(list_contains(cultures, 'demo-note-lore-provnzclt') AND " +
+            "(list_contains(origins, 'rank') OR list_contains(origins, 'office')))",
     ],
     [
         "An affiliation's glossary",
@@ -75,7 +72,6 @@ const SECTIONS: Array<[string, object, string, string]> = [
         "glossary",
         "SELECT * FROM terms WHERE owner = 'demo-note-affiliation-watch'",
     ],
-    ["Glossary", SETTING_PAGE, "glossary", "SELECT * EXCLUDE (common) FROM terms"],
 ];
 
 const fence = (query: string, attributes: string) =>
@@ -112,7 +108,7 @@ describe("layout=dictionary and layout=glossary", () => {
             expect(result.reason, title).toBeUndefined();
             parts.push(`## ${title}`, "", result.markdown, "");
         }
-        expect(parts.join("\n")).toBe(fs.readFileSync(EXPECTED, "utf8"));
+        await expect(parts.join("\n")).toMatchFileSnapshot(EXPECTED);
     });
 
     it("leave out the key where the fence sets key=false, and print it otherwise", async () => {

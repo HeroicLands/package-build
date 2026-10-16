@@ -14,7 +14,7 @@
 /**
  * The three states of a note, and the one observable fact they rest on.
  *
- * A note whose body is empty is a **stub**: frontmatter only — identity and
+ * A note whose body is empty and has no automatic lexical content is a **stub**: frontmatter only — identity and
  * statistics — reaching the content index and queryable there, generating no
  * page, no address and no link target. A note with a body and the declared
  * `draft` tag is a **draft**: it publishes, compiles and resolves like any
@@ -39,6 +39,7 @@
  */
 
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
+import { hasLexicalEntries } from "./lexical-sections.mjs";
 
 /**
  * The three states, in the order they read as a ladder.
@@ -97,7 +98,8 @@ export function isStubbableType(type, vocabulary = NOTE_VOCABULARY) {
 }
 
 /**
- * Whether a note is a stub: an empty body on a type an empty body suppresses.
+ * Whether a note is a stub: an empty body on a type an empty body suppresses,
+ * without an automatic dictionary or glossary supplied by its frontmatter.
  *
  * The one place the two halves are put together, so the index, the lint and the
  * guard cannot answer it differently.
@@ -109,7 +111,11 @@ export function isStubbableType(type, vocabulary = NOTE_VOCABULARY) {
  * @returns {boolean} Whether the note is a stub.
  */
 export function isStubNote(frontmatter, body, vocabulary = NOTE_VOCABULARY) {
-    return isEmptyBody(body) && isStubbableType(frontmatter?.type, vocabulary);
+    return (
+        isEmptyBody(body) &&
+        !hasLexicalEntries(frontmatter) &&
+        isStubbableType(frontmatter?.type, vocabulary)
+    );
 }
 
 /**

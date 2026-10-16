@@ -11,6 +11,7 @@ import {
     emitContentIndex,
     indexRecordsFor,
     indexRecordsForNote,
+    prepareContentIndex,
     resolveCultures,
 } from "../engine/content-index.mjs";
 import { formatDiagnostic, formatLocator } from "../engine/diagnostics.mjs";
@@ -434,9 +435,10 @@ describe("a place three levels below a cultured root", () => {
         place("hamlet", "{parents: [vale]}");
     }
 
-    it("carries the root's culture in the written index, in its published form", () => {
+    it("carries the root's culture in the written index, in its published form", async () => {
         tree();
-        const { file } = emitContentIndex({ config: config() as never });
+        const publication = await prepareContentIndex({ config: config() });
+        const { file } = emitContentIndex({ publication });
         const hamlet = fs
             .readFileSync(file, "utf8")
             .split("\n")
@@ -446,10 +448,14 @@ describe("a place three levels below a cultured root", () => {
         expect(hamlet.data.culture).toEqual({ address: VEDYARI, anchor: null, anchorKind: null });
     });
 
-    it("writes a byte-identical index across two runs", () => {
+    it("writes a byte-identical index across two runs", async () => {
         tree();
-        const first = fs.readFileSync(emitContentIndex({ config: config() as never }).file);
-        const second = fs.readFileSync(emitContentIndex({ config: config() as never }).file);
+        const first = fs.readFileSync(
+            emitContentIndex({ publication: await prepareContentIndex({ config: config() }) }).file,
+        );
+        const second = fs.readFileSync(
+            emitContentIndex({ publication: await prepareContentIndex({ config: config() }) }).file,
+        );
         expect(first.toString("utf8")).toContain(VEDYARI);
         expect(second.equals(first)).toBe(true);
     });

@@ -430,9 +430,11 @@ export function writeHomepages(outRoot, pages, config, { related, records, forei
  * @param {object} options
  * @param {object} options.config - The resolved build configuration.
  * @param {object[]} options.records - Content-index records.
+ * @param {Map<string, object[]>} [options.sqlTables] - Prepared directives,
+ *   whose emitted anchors belong to the pages they expand in.
  * @returns {object} The gate results and, when they pass, the built index.
  */
-export function siteGates(pages, findings, { config, records }) {
+export function siteGates(pages, findings, { config, records, sqlTables }) {
     const out = {
         // Always empty here: the homepage count is decided in `buildSite`
         // before the content walk, and a failing count returns without ever
@@ -464,7 +466,18 @@ export function siteGates(pages, findings, { config, records }) {
     out.unaddressable = unaddressableForeignPackages(foreign.index);
     if (out.unaddressable.length) return out;
 
-    out.index = buildSiteIndex(pages, {
+    const expanded =
+        sqlTables ?
+            pages.map((page) => ({
+                ...page,
+                body: expandContentTables(page.body ?? "", {
+                    source: page.file,
+                    sqlTables: sqlTables.get(page.file),
+                    pageLists: sqlTables.pageLists?.get(page.file),
+                }).markdown,
+            }))
+        :   pages;
+    out.index = buildSiteIndex(expanded, {
         package: config.contentPackage,
         foreignIndex: foreign.index,
         foreignReferences: foreign.references,
@@ -1367,6 +1380,7 @@ export function buildSite({ config, sqlTables } = {}) {
     const gates = siteGates([...pages, ...homepageEntries], content, {
         config: resolved,
         records: ctx.records,
+        sqlTables,
     });
     if (gatesFailed(gates)) {
         return {

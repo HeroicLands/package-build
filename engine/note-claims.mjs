@@ -105,6 +105,7 @@ import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { FOLDER_TYPE } from "./folder-notes.mjs";
 import { BUNDLE_TYPE } from "./bundle-notes.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
+import { hasLexicalEntries } from "./lexical-sections.mjs";
 
 /**
  * Note types that compile into **no compendium document, by design**.
@@ -769,6 +770,7 @@ export function unclaimedNoteFindings(
         // claiming this note", because the answer there is yes.
         const produces = documentClassesFor(type, resolved, {
             hasProse: () => {
+                if (hasLexicalEntries(fm)) return true;
                 const source = parsed?.get(absPath);
                 return source ? Boolean(source.body) : noteHasProse(absPath);
             },

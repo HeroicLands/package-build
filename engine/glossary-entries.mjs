@@ -16,12 +16,12 @@
  * `lore` note of `subType: culture` or on an `affiliation`, a list of
  * `{ name, name_sort?, common?, definition?, pronunciation?, language? }`.
  *
- * It holds the terms that belong to the people or body using them rather than
- * to a language's grammar: euphemisms, idioms, terms of art, and titles that
- * are not ranks. An entry with a `definition` creates a term or replaces every
- * sense the term's other sources give it. An entry without one changes no
- * sense, and only marks a term the note already has — a word of a language
- * that reaches it, or a rank or office — as common, sorted or pronounced.
+ * An entry chooses a common word, gives a dictionary word a contextual
+ * meaning, or defines a phrase, compound or term of art. An entry naming a
+ * word of its resolved language carries that word's senses and class unless
+ * its own `definition` supplies the sense. A rank or office can also be named.
+ * Common marks, sort keys and pronunciation overrides belong to the entry's
+ * own glossary.
  *
  * The shape is the inner-key check's; this check owns what an entry means:
  *
@@ -88,7 +88,7 @@ export function checkGlossary(note, { index } = {}) {
     if (!Array.isArray(data.glossary)) return [];
 
     const findings = [];
-    const terms = index?.notes ? noteTerms(index, note) : undefined;
+    const hasTerms = Boolean(index?.notes);
     const seen = new Set();
     data.glossary.forEach((entry, i) => {
         if (!isMap(entry) || typeof entry.name !== "string" || !entry.name.trim()) return;
@@ -116,7 +116,7 @@ export function checkGlossary(note, { index } = {}) {
                     ),
                 );
         }
-        if (!terms) return;
+        if (!hasTerms) return;
         const stated = entry.language !== undefined && entry.language !== null;
         const named = stated ? languageProblem(index, entry.language) : undefined;
         if (named) findings.push(at([i, "language"], "error", named));
@@ -133,15 +133,15 @@ export function checkGlossary(note, { index } = {}) {
                         "; state `language` on the entry or `data.language` on the note",
                 ),
             );
-        const senses = terms.get(name);
+        const senses = noteTerms(index, note, entry).get(name);
         const defined = typeof entry.definition === "string" && entry.definition.trim() !== "";
         if (!defined && !senses)
             findings.push(
                 at(
                     [i, "name"],
                     "error",
-                    `\`${entry.name}\` names nothing: it is no word of a language that reaches ` +
-                        "this note and no rank or office it holds, and the entry gives no " +
+                    `\`${entry.name}\` names nothing: it is no word of its resolved language ` +
+                        "and no rank or office that reaches this note, and the entry gives no " +
                         "`definition` to make it a term",
                 ),
             );

@@ -73,12 +73,12 @@ import { resolveEmbeds } from "./content-embeds.mjs";
 /**
  * Whether a page's declared anchors include the slug a link names.
  *
- * A local page's entry carries a `Set` (built by {@link module:engine/site-index});
- * a foreign one carries the `{slug: uuid}` map a fetched manifest publishes.
- * `undefined` means neither build recorded an answer, which keeps a target
- * this check cannot speak for exactly as unchecked as it always was.
+ * A local page carries a `Set` built by {@link module:engine/site-index}.
+ * A foreign page declares prose anchors in its note metadata, independently
+ * of whether it has a Foundry target map. An empty collection declares none.
+ * An absent collection leaves the target unchecked.
  *
- * @param {Set<string>|Record<string, string>|undefined} anchors - The page's
+ * @param {Set<string>|Record<string, string>|Array<{slug: string, kind: string}>|undefined} anchors - The page's
  *   declared anchors, or `undefined` where none were recorded.
  * @param {string} slug - The anchor a link names.
  * @returns {boolean} Whether the anchor is declared, or `true` when `anchors`
@@ -87,6 +87,8 @@ import { resolveEmbeds } from "./content-embeds.mjs";
  */
 function hasAnchor(anchors, slug) {
     if (!anchors) return true;
+    if (Array.isArray(anchors))
+        return anchors.some((anchor) => anchor.kind === "prose" && anchor.slug === slug);
     return anchors instanceof Set ? anchors.has(slug) : Object.hasOwn(anchors, slug);
 }
 
@@ -478,7 +480,7 @@ export function resolveWebWikilinks(body, ctx) {
                     label ?? hit.name ?? target,
                 );
             }
-            if (anchor && hit.url && !hasAnchor(hit.anchors, anchor)) {
+            if (anchor && hit.url && !hasAnchor(hit.noteAnchors ?? hit.anchors, anchor)) {
                 return report(
                     all,
                     { target, reason: "unknown-anchor", anchor, addressed: true },

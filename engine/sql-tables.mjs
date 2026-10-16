@@ -26,7 +26,9 @@
  * @module
  */
 
-import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
+import { parseAddress, readCanonicalKey, renderAddress, isAddressTuple } from "./address.mjs";
+import { collectAnchors } from "./anchors.mjs";
+import { expandContentTables } from "./content-tables.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
 import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventRows } from "./event-rows.mjs";
@@ -47,6 +49,7 @@ import { DICTIONARY_COLUMNS, TERM_COLUMNS, dictionaryAndTermRows } from "./dicti
 import { LANGUAGE_COLUMN_TYPES, LANGUAGE_RELATIONS } from "./language-rows.mjs";
 import { renderDictionary, renderGlossary } from "./dictionary-layout.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
+import { lexicalSectionsFor } from "./lexical-sections.mjs";
 import { eventViewSections } from "./event-views.mjs";
 import { appendGeneratedSections, joinSections } from "./generated-sections.mjs";
 import fs from "node:fs";
@@ -60,7 +63,7 @@ import { MARKET_CLASSES } from "./market-class.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
 import { sqlQueriesInMarkdown } from "./markdown-expressions.mjs";
 // The record accessors only — see `engine/index-records.mjs`.
-import { isNoteRecord, noteFile, sortKeysDeep } from "./index-records.mjs";
+import { authoredFrontmatter, isNoteRecord, noteFile, sortKeysDeep } from "./index-records.mjs";
 
 /** Rendered in a cell whose value is absent. */
 const EMPTY_CELL = "—";
@@ -629,13 +632,35 @@ async function createWordRelations(connection, stem, records, prefix, audience) 
         `${prefix}dictionary`,
         DICTIONARY_COLUMNS,
     );
-    await createRowRelation(
-        connection,
-        `${stem}-terms.jsonl`,
-        terms,
-        `${prefix}terms`,
-        TERM_COLUMNS,
-    );
+    const termTypes = {
+        senses: "STRUCT(text VARCHAR, bodies VARCHAR[])[]",
+        usage: "VARCHAR[]",
+        common: "BOOLEAN",
+        origins: "VARCHAR[]",
+        cultures: "VARCHAR[]",
+    };
+    const termsFile = `${stem}-terms.jsonl`;
+    if (terms.length) {
+        // Terms retain declared types even when every value of a column is null.
+        fs.writeFileSync(termsFile, terms.map((row) => JSON.stringify(row)).join("\n"));
+        const columns = TERM_COLUMNS.map(
+            (column) => `CAST("${column}" AS ${termTypes[column] ?? "VARCHAR"}) AS "${column}"`,
+        );
+        await createTableFromFile(
+            connection,
+            `${prefix}terms`,
+            `SELECT ${columns.join(", ")} FROM (${readJsonAuto(termsFile)})`,
+        );
+    } else {
+        await createRowRelation(
+            connection,
+            termsFile,
+            terms,
+            `${prefix}terms`,
+            TERM_COLUMNS,
+            termTypes,
+        );
+    }
     for (const [name, rowsOf, columns] of LANGUAGE_RELATIONS)
         await createRowRelation(
             connection,
@@ -958,6 +983,20 @@ export async function prepareSqlTables(db, sources, { linkable, records, pageLan
                                 labelOf,
                                 showKey: block.showKey,
                                 pageLanguage: languageOf(source, frontmatter),
+                                pageOwner:
+                                    (
+                                        typeof frontmatter?.type === "string" &&
+                                        typeof frontmatter.shortcode === "string" &&
+                                        db.addressContext?.package
+                                    ) ?
+                                        renderAddress({
+                                            package: db.addressContext.package,
+                                            system: "note",
+                                            type: frontmatter.type,
+                                            shortcode: frontmatter.shortcode,
+                                        })
+                                    :   undefined,
+                                entryAnchors: false,
                             })
                         :   renderSqlTable(result, options),
                     rows: result.rows.length,
@@ -1113,8 +1152,11 @@ export async function prepareInlineSqlExpressions(db, sources) {
  * @param {Map<string, Map<string, string>>} [opts.derived] - The derived
  *   lists, from an earlier call over the same records, which are not derived
  *   again.
+ * @param {object[]} [opts.all=records] - Complete records for lexical lineage
+ *   traversal through providers outside the surface's audience.
  * @returns {Promise<{sections: Map<string, string>, views: Set<string>,
- *   derived: Map<string, Map<string, string>>}>} Note file to its sections,
+ *   derived: Map<string, Map<string, string>>,
+ *   lexical: Map<string, import("./lexical-sections.mjs").LexicalSection[]>}>} Note file to its sections,
  *   joined in order; the files whose sections hold an event view's fence; and
  *   the derived lists alone.
  */
@@ -1122,7 +1164,7 @@ export async function generatedSectionsFor(
     db,
     records,
     contentBase,
-    { only, foreignIndex, config, derived: given } = {},
+    { only, foreignIndex, config, derived: given, all = records } = {},
 ) {
     const notes = records.filter((record) => isNoteRecord(record));
     const fileOf = (record) => noteFile(contentBase, record);
@@ -1140,7 +1182,26 @@ export async function generatedSectionsFor(
     const sections = new Map();
     for (const file of new Set([...derived.keys(), ...views.keys()]))
         sections.set(file, joinSections([derived.get(file), views.get(file)]));
-    return { sections, views: new Set(views.keys()), derived };
+    // Automatic sections follow their source's audience even in a Foundry
+    // corpus containing both public and private packs. Explicit SQL keeps
+    // the database audience the caller requested.
+    const publicRecords = records.filter((record) => !isGmNote(record));
+    const publicOwners = lexicalSectionsFor(publicRecords, all);
+    const allOwners =
+        publicRecords.length === records.length ? publicOwners : lexicalSectionsFor(records, all);
+    const lexical = new Map();
+    for (const note of notes) {
+        const owners = isGmNote(note) ? allOwners : publicOwners;
+        const key = renderAddress({
+            package: note.package,
+            system: "note",
+            type: note.type,
+            shortcode: note.shortcode,
+        });
+        if (owners.has(key) && (only === undefined || fileOf(note) === only))
+            lexical.set(fileOf(note), owners.get(key));
+    }
+    return { sections, views: new Set(views.keys()), derived, lexical };
 }
 
 /**
@@ -1187,7 +1248,7 @@ export function joinGeneratedSections(generated, sources, parsed) {
  * empty set carrying them.
  *
  * @param {Map<string, object[]>} prepared - From {@link prepareSqlTables}.
- * @param {{sections: Map<string, string>}} generated - From
+ * @param {{sections: Map<string, string>, lexical?: Map<string, import("./lexical-sections.mjs").LexicalSection[]>}} generated - From
  *   {@link generatedSectionsFor}.
  * @returns {void}
  */
@@ -1196,6 +1257,51 @@ export function attachGeneratedSections(prepared, generated) {
         let results = prepared.get(absPath);
         if (!results) prepared.set(absPath, (results = []));
         results.generated = text;
+    }
+    for (const [absPath, sections] of generated.lexical ?? []) {
+        let results = prepared.get(absPath);
+        if (!results) prepared.set(absPath, (results = []));
+        results.lexical = sections;
+    }
+}
+
+/**
+ * Index the anchors the prepared bodies actually emit, including anchors in
+ * SQL results. Foundry maps use the same expanded body the compiler splits.
+ *
+ * @param {Map<string, object[]>} prepared - The prepared directives.
+ * @param {object[]} records - The visible content-index records.
+ * @param {string} contentBase - Root of the content tree.
+ * @param {Map<string, object>} parsed - Notes already parsed.
+ * @param {object} [config] - The resolved build configuration.
+ * @returns {Promise<void>}
+ */
+async function attachPreparedAnchors(prepared, records, contentBase, parsed, config) {
+    const { entriesForNote, foundryIdentities } = await import("./foundry-entries.mjs");
+    const identities = config ? foundryIdentities(config) : undefined;
+    for (const record of records) {
+        if (!isNoteRecord(record)) continue;
+        const file = noteFile(contentBase, record);
+        const results = prepared.get(file);
+        if (!results) continue;
+        const { body } = parsed.get(file) ?? parseMarkdownFile(file);
+        const expanded = expandContentTables(body, {
+            source: file,
+            sqlTables: results,
+            pageLists: prepared.pageLists?.get(file),
+        }).markdown;
+        results.anchors = collectAnchors(expanded);
+        if (!identities || !record.address?.slug) continue;
+        const frontmatter = authoredFrontmatter(record);
+        const entries = entriesForNote(
+            frontmatter,
+            frontmatter.name?.full ?? record.file.name,
+            record.address.slug,
+            expanded,
+            identities,
+        );
+        results.anchorUuids = entries[0]?.anchors;
+        results.docAnchorUuids = entries[1]?.anchors;
     }
 }
 
@@ -1359,8 +1465,10 @@ export async function prepareTreeSqlTables(
     const derivedOnly = await generatedSectionsFor(undefined, indexRecords, contentBase, {
         foreignIndex: foreign,
         config,
+        all: allRecords,
     });
-    if (!sources.length && !hasEvents && !derivedOnly.sections.size) return undefined;
+    if (!sources.length && !hasEvents && !derivedOnly.sections.size && !derivedOnly.lexical.size)
+        return undefined;
 
     // A page list is a filter over the records, so it needs no database. A tree
     // whose only corpus-reading directive is one therefore opens none — which
@@ -1379,6 +1487,7 @@ export async function prepareTreeSqlTables(
         pageOnly.inline = new Map();
         pageOnly.pageLists = preparePageLists(indexRecords, sources);
         attachGeneratedSections(pageOnly, derivedOnly);
+        await attachPreparedAnchors(pageOnly, indexRecords, contentBase, notes, config);
         return pageOnly;
     }
     // A cell links only where the address it would emit resolves, so a table
@@ -1393,7 +1502,11 @@ export async function prepareTreeSqlTables(
             .filter((record) => !record.documents)
             .map((record) => record.documentation ?? record.address?.canonical)
             .map((target) => target && encodeAddresses(target))
-            .filter(Boolean),
+            .filter(Boolean)
+            .flatMap((target) => [
+                target,
+                renderAddress({ ...readCanonicalKey(target), system: "note" }),
+            ]),
     );
     // Each declared dependency's published index, attached as its own schema so
     // a table can read `FROM <package>.notes`. Imported here for the
@@ -1409,6 +1522,7 @@ export async function prepareTreeSqlTables(
     try {
         const generated = await generatedSectionsFor(db, indexRecords, contentBase, {
             derived: derivedOnly.derived,
+            all: allRecords,
         });
         joinGeneratedSections(generated, sources, notes);
         const prepared = await prepareSqlTables(db, sources, {
@@ -1418,6 +1532,7 @@ export async function prepareTreeSqlTables(
         });
         prepared.inline = await prepareInlineSqlExpressions(db, sources);
         attachGeneratedSections(prepared, generated);
+        await attachPreparedAnchors(prepared, indexRecords, contentBase, notes, config);
         return prepared;
     } finally {
         if (!database) await db.close();
@@ -1447,6 +1562,7 @@ export async function prepareLinkSqlTables(
     const allRecords =
         records ?? indexRecordsFor({ contentBase, config, skipDirectories, parsed: notes });
     const sources = new Map();
+    const lexicalOwners = lexicalSectionsFor(allRecords);
     for (const record of allRecords) {
         if (!isNoteRecord(record)) continue;
         const file = noteFile(contentBase, record);
@@ -1459,7 +1575,15 @@ export async function prepareLinkSqlTables(
         if (
             findSqlBlocks(body).length ||
             findPageListBlocks(body).length ||
-            sqlQueriesInMarkdown(body, note.frontmatter).length
+            sqlQueriesInMarkdown(body, note.frontmatter).length ||
+            lexicalOwners.has(
+                renderAddress({
+                    package: record.package,
+                    system: "note",
+                    type: record.type,
+                    shortcode: record.shortcode,
+                }),
+            )
         )
             sources.set(file, isGmNote(record) ? "all" : "public");
     }

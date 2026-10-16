@@ -125,7 +125,7 @@ const ENTRIES = [
     "    - {name: síladòr, common: true}",
     "    - {name: Knight-Captain, common: true}",
     "    - {name: Warden}",
-    "    - {name: zarq, common: true}",
+    "    - {name: zarq, language: skill-tradelng, common: true}",
     '    - {name: blood-field, name_sort: bloodfield, definition: "ground where a battle tore the boundary", pronunciation: BLUD-feeld}',
 ];
 
@@ -229,6 +229,14 @@ describe("data.glossary", () => {
 
     it("names a rank of an affiliation that reaches it through a parent", () => {
         expect(lint(culture([...ENTRIES, "    - {name: Marcher-Lord, common: true}"]))).toEqual([]);
+    });
+
+    it("inherits a word only from the entry's resolved language", () => {
+        const text = culture(["    - {name: zarq, common: true}"]);
+        one(text, /`zarq`.*names nothing/, "zarq");
+        expect(
+            lint(culture(["    - {name: zarq, language: skill-tradelng, common: true}"])),
+        ).toEqual([]);
     });
 
     it("does not count a stem as a term", () => {

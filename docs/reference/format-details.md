@@ -2297,10 +2297,13 @@ convention rather than declared in a field — see
 
 ### Three states of a note
 
-Every typed note requires a nonempty body after its closing frontmatter fence.
-An empty or whitespace-only body is an error, regardless of description or
-`tags: [draft]`. This includes `folder` and `homepage` notes. Untyped vault
-scaffolding is excluded. A nonempty body with fewer than 25 prose words warns
+Nonempty `data.words` on a language note (`skill`/`language`), or `data.glossary`
+on a culture or affiliation, supplies page content without an authored body.
+Absent or empty arrays supply no such exemption. Every other typed note
+requires a nonempty body after its closing frontmatter fence, including
+`folder` and `homepage`. An empty or whitespace-only body is otherwise an error,
+regardless of description or `tags: [draft]`. Untyped vault scaffolding is
+excluded. A nonempty body with fewer than 25 prose words warns
 unless tagged `draft`; the tag never exempts an empty body. A `folder` note is
 held only to the nonempty rule: any body, a placeholder or a single line
 included, passes with or without `draft`.
@@ -2309,14 +2312,14 @@ The `lint`, `content-index`, `package compile`, `site` and `pdf` commands enforc
 body errors. Write a short beginning and tag it `draft` when work is unfinished.
 
 The internal classification below describes records, including incomplete notes
-that inspection APIs can still read. A **stub** is invalid authored content and
-must receive a body before these commands can publish it.
+that inspection APIs can still read. A **stub** has neither an authored body nor
+automatic lexical content and must receive content before it can publish.
 
-| State     | Body    | Marker          | Page         | Document                          | Link target |
-| --------- | ------- | --------------- | ------------ | --------------------------------- | ----------- |
-| **stub**  | empty   | none            | no           | yes, where one would not be empty | no          |
-| **draft** | written | `tags: [draft]` | yes, noticed | yes, noticed                      | yes         |
-| **full**  | written | none            | yes          | yes                               | yes         |
+| State     | Content         | Marker          | Page         | Document                          | Link target |
+| --------- | --------------- | --------------- | ------------ | --------------------------------- | ----------- |
+| **stub**  | none            | none            | no           | yes, where one would not be empty | no          |
+| **draft** | body or lexical | `tags: [draft]` | yes, noticed | yes, noticed                      | yes         |
+| **full**  | body or lexical | none            | yes          | yes                               | yes         |
 
 "Document" here is the document a note's frontmatter earns. A system's Actor or
 Item is earned by that system's block, in every state —
@@ -2338,7 +2341,7 @@ link starts resolving.
 
 The rule is that severe because the test has to be one you can apply by looking
 at the file. Every softer rule makes two files that look different behave the
-same.
+same. For a note without automatic lexical content:
 
 | After the fence         | Empty? | What happens                                                    |
 | ----------------------- | ------ | --------------------------------------------------------------- |
@@ -2368,7 +2371,8 @@ It keeps everything else:
 > index then names no artefact: `uuid`, `path` and `address` are `null`, which
 > is how a record says one was not made.
 
-The test is about the **output**, which is what lets one rule cover every case:
+The test is about the **output**. For a note with no generated Dictionary or
+Glossary content:
 
 | The note                           | The document                           | Made? |
 | ---------------------------------- | -------------------------------------- | ----- |
@@ -2399,6 +2403,11 @@ A `folder` note's page is a generated section index, and the homepage is the
 site's front door. The classification helpers retain their addresses and report
 **full** even when their bodies are empty. Validation still rejects an empty
 body for both types.
+
+Nonempty `data.words` on a language, or `data.glossary` on a culture or
+affiliation, supplies a generated Dictionary or Glossary page. These notes
+need no authored body. A nonempty authored body still follows the placeholder
+and short-prose rules.
 
 Every type in the vocabulary declares whether an empty body suppresses its page,
 so adding a type means answering the question rather than inheriting a default.
@@ -2446,8 +2455,8 @@ any note they do not own, with no finding.
 
 **Prose is untouched by this.** A body with content still compiles into one
 JournalEntry, one web page and one PDF page, however many blocks the note
-carries and whether or not it carries any; an empty body still compiles none of
-the three. So a note has three states, and each reaches the next by one edit in
+carries and whether or not it carries any; without automatic lexical content,
+an empty body compiles none of the three. For these notes, each state reaches the next by one edit in
 one file, with its address, its id, its index record and every link into it
 unchanged:
 
@@ -3534,7 +3543,10 @@ A `follows[].event` resolves to exactly one event: a note holding one event, or 
 
 #### Generated sections
 
-The build appends sections to the end of a note's body, after everything the author wrote, each an H1 with a fixed anchor holding Markdown an author could have written. Every surface sets one as it sets an authored section: a page of the Foundry journal, a section of the website page listed in its table of contents, a section of the book.
+The build supplies sections from a note's frontmatter and the content
+relationships around it. Every surface receives the same text: the Foundry
+journal, the website and the book. Relationship lists and event views follow
+the authored text as H1 sections with fixed anchors, in this order:
 
 | Section           | Anchor           | On                                                       | Content                                                                                                                               |
 | ----------------- | ---------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
@@ -3548,12 +3560,22 @@ The build appends sections to the end of a note's body, after everything the aut
 | In song and story | `insongandstory` | any note                                                 | the `literature` works whose `data.subjects` name the note or one of its events, as list entries with each work's `data.form`         |
 | From here         | `fromhere`       | a `place` that states, or is named in, a border or route | the map drawn from the place, as an image                                                                                             |
 
-- **Sections follow the author's text in the order of the table.**
+- **Relationship and event sections follow the author's text in the table's order.**
 - **A section with nothing to show is not generated.**
-- **An author's own section replaces a generated one.** A note whose body declares a prose anchor with the section's slug — `# Within {#within}`, or a block or span with that `id` — gets no generated section for it, and its own section is left exactly as written. This is the one way to turn a section off, and the way to choose different contents for it.
-- **An entry is a link to the note it names**, written `[[<address>|]]` so each surface resolves it and shows the note's current name. An entry naming a stub, which publishes no page, is its name as plain text. The lists take in the places, affiliations and works a fetched index carries.
+- **An author's own relationship or event section replaces its generated one.** A note whose body declares a prose anchor with the section's slug — `# Within {#within}`, or a block or span with that `id` — gets no generated section for it, and its own section is left exactly as written. This is the one way to turn a section off, and the way to choose different contents for it.
+- **A relationship list entry links to the note it names**, written `[[<address>|]]` so each surface resolves it and shows the note's current name. An entry naming a stub, which publishes no page, is its name as plain text. The lists take in the places, affiliations and works a fetched index carries.
 - **The map is a drawing the build makes**, named `generated/from-<shortcode>.svg`. The website sets it inline so its place names are links, the Foundry compile stages it into the module at `assets/generated/`, and the book draws it beside its source. `generated/` is the build's: an authored image addressed there is an error. `site.maps: false` gives no place the section.
 - A stub publishes no page and is given no section.
+
+**Dictionary and Glossary sections come from the owner's declarations.** A
+language with nonempty `data.words` receives its full alphabetical dictionary,
+with letter headings, field tags and one key. A culture or affiliation with
+nonempty `data.glossary` receives only its declared entries, including an
+explicitly named rank or office. An absent or empty declaration produces no
+section. An authored `{#dictionary}` or `{#lexicon}` heading receives the
+Dictionary list after its introduction, and `{#glossary}` does the same for a
+Glossary list. Without that heading, the build appends the section at the end
+of the note. See [dictionaries and glossaries](#dictionaries-and-glossaries).
 
 #### Event views
 
@@ -4800,9 +4822,9 @@ rank names the standing, and the standing says.
 | `language`                                      | `Address`                                                                 | The trade, temple or order tongue it keeps, naming a skill note with `subType: language`                                              |
 | `glossary`                                      | `{ name, name_sort?, common?, definition?, pronunciation?, language? }[]` | Its own glossary terms — see [glossary terms](#glossary-terms)                                                                        |
 | `glossary[].name`                               | `string`, required                                                        | The headword                                                                                                                          |
-| `glossary[].name_sort`                          | `string`                                                                  | Its sort key; the name when unstated                                                                                                  |
-| `glossary[].common`                             | `boolean`                                                                 | `true` for a word a player is expected to know by heart; `false` when unstated                                                        |
-| `glossary[].definition`                         | `string`                                                                  | The sense text; stated, it creates the term or replaces every sense its other sources give                                            |
+| `glossary[].name_sort`                          | `string`                                                                  | Its sort key; the matching word's, else the name, when unstated                                                                       |
+| `glossary[].common`                             | `boolean`                                                                 | `true` for a term in this owner's core vocabulary; `false` when unstated                                                              |
+| `glossary[].definition`                         | `string`                                                                  | Its context meaning or own gloss; unstated, a matching dictionary word supplies its senses                                            |
 | `glossary[].pronunciation`                      | `string`                                                                  | A respelling, as `sol-MEH-reh`: letters, apostrophes and hyphens, at most one syllable in capitals                                    |
 | `glossary[].language`                           | `Address`                                                                 | The language the term is in, naming a skill note with `subType: language`; unstated, the affiliation's, its parents' or its culture's |
 | `relations`                                     | `Map<Address, Standing>`                                                  | Standing with other affiliations, keyed by the other body's Address                                                                   |
@@ -4816,14 +4838,14 @@ together with every place whose `data.government` names it. See
 
 **An affiliation may keep a tongue of its own.** A trade cant, a temple
 language or an order's tongue is named in the affiliation's `data.language`, and
-it reaches the affiliation's culture: its words belong to that culture's
-glossary as much as the words of the tongue the culture names itself. It is
-also the language of the affiliation's own [glossary terms](#glossary-terms)
-where an entry names none. In a tree that holds at least one culture note, an
+it supplies the language of the affiliation's own
+[glossary terms](#glossary-terms) where an entry names none. A culture can
+select a word of that tongue for its own glossary by naming the language on
+the entry. In a tree that holds at least one culture note, an
 affiliation that reaches no culture — naming none, inheriting none through
 `data.parents`, and, for a `polity`, taking none from its places — is a warning
-at its `type:` line, because its ranks, offices and tongue enter no culture's
-glossary.
+at its `type:` line, because its ranks and offices have no culture associations
+for term queries.
 
 A language needs no culture and no affiliation. A dead language, or one kept
 only by a church, is a language note like any other, and nothing requires a
@@ -5321,7 +5343,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `fields`                                   | `{ name, holds }[]`                                                                                                            | `language` only: the fields its words are grouped under                                                                                                                              |
 | `fields[].name`                            | `string`, required                                                                                                             | The field's name, which a word's `field` names                                                                                                                                       |
 | `fields[].holds`                           | `string`, required                                                                                                             | What the field holds                                                                                                                                                                 |
-| `words`                                    | `{ form, class, field, gloss, … }[]`                                                                                           | `language` only: its words, one map each, in the order they print — see [a language's words](#a-languages-words)                                                                     |
+| `words`                                    | `{ form, class, field, gloss, … }[]`                                                                                           | `language` only: its words in authored order; its automatic dictionary sorts them alphabetically — see [a language's words](#a-languages-words)                                      |
 | `words[].form`                             | `string`, required                                                                                                             | The word as cited, bare: no backticks                                                                                                                                                |
 | `words[].variants`                         | `string[]`                                                                                                                     | Its other forms, as a short form beside a long one; a marked use of one cites the word                                                                                               |
 | `words[].name_sort`                        | `string`                                                                                                                       | Its sort key; the form when unstated                                                                                                                                                 |
@@ -5539,6 +5561,7 @@ data:
     - {
         form: solmère,
         class: n m,
+        pronunciation: sol-MEH-reh,
         field: Love and its conduct,
         gloss: "longing; the ache for a person, a place or a time that is gone",
         source: { kind: borrowed, language: skill-elvndrlng, form: sólmerë },
@@ -6220,7 +6243,7 @@ not a different cultural identity. See
 | `form`                                | `string`                                                                      | `literature` only: the kind of work in its people's own terms — `epic`, `saga`, `praise-song`, `elegy`. Free text                                                                                                                                                                                             |
 | `subjects`                            | `Address[]`                                                                   | `literature` only: the beings, places, gods and other notes the work concerns, and any event, as `note#id`                                                                                                                                                                                                    |
 | `parents`                             | `Address[]`                                                                   | `culture` only: the larger cultures this one belongs to; each target is a culture lore note — see [culture parents](#culture-parents-and-inherited-fields)                                                                                                                                                    |
-| `language`                            | `Address`                                                                     | `literature` and `culture` only: the tongue a work is composed in, or a culture's people speak, naming a skill note with `subType: language`; `package-build npc new` draws a culture's names from that language's [name lists](#name-lists), and the words of that language belong to the culture's glossary |
+| `language`                            | `Address`                                                                     | `literature` and `culture` only: the tongue a work is composed in, or a culture's people speak, naming a skill note with `subType: language`; `package-build npc new` draws a culture's names from that language's [name lists](#name-lists); glossary entries whose own `language` is unstated resolve to it |
 | `events`                              | event entries — see [Events](#events)                                         | What happened to or at this subject: dated, attributed events                                                                                                                                                                                                                                                 |
 | `appearanceProfile`                   | `{ frame, eye_color, hair_color, skin_color, complexion, height }`            | `culture` only: what its people look like, for `package-build npc new` — see [appearance profiles](#appearance-profiles)                                                                                                                                                                                      |
 | `appearanceProfile.frame`             | map of `frame` words to positive weights, required                            | How often each frame is drawn                                                                                                                                                                                                                                                                                 |
@@ -6233,9 +6256,9 @@ not a different cultural identity. See
 | `appearanceProfile.height.<name>.max` | height in metres or feet and inches, required                                 | The tallest height drawn for that gender                                                                                                                                                                                                                                                                      |
 | `glossary`                            | `{ name, name_sort?, common?, definition?, pronunciation?, language? }[]`     | `culture` only: the culture's own glossary terms — see [glossary terms](#glossary-terms)                                                                                                                                                                                                                      |
 | `glossary[].name`                     | `string`, required                                                            | The headword                                                                                                                                                                                                                                                                                                  |
-| `glossary[].name_sort`                | `string`                                                                      | Its sort key; the name when unstated                                                                                                                                                                                                                                                                          |
-| `glossary[].common`                   | `boolean`                                                                     | `true` for a word a player is expected to know by heart; `false` when unstated                                                                                                                                                                                                                                |
-| `glossary[].definition`               | `string`                                                                      | The sense text; stated, it creates the term or replaces every sense its other sources give                                                                                                                                                                                                                    |
+| `glossary[].name_sort`                | `string`                                                                      | Its sort key; the matching word's, else the name, when unstated                                                                                                                                                                                                                                               |
+| `glossary[].common`                   | `boolean`                                                                     | `true` for a term in this owner's core vocabulary; `false` when unstated                                                                                                                                                                                                                                      |
+| `glossary[].definition`               | `string`                                                                      | Its context meaning or own gloss; unstated, a matching dictionary word supplies its senses                                                                                                                                                                                                                    |
 | `glossary[].pronunciation`            | `string`                                                                      | A respelling, as `sol-MEH-reh`: letters, apostrophes and hyphens, at most one syllable in capitals                                                                                                                                                                                                            |
 | `glossary[].language`                 | `Address`                                                                     | The language the term is in, naming a skill note with `subType: language`; unstated, the note's language                                                                                                                                                                                                      |
 
@@ -6243,54 +6266,74 @@ not a different cultural identity. See
 
 #### Glossary terms
 
-A culture and an affiliation each state their own glossary terms in
-`data.glossary`: the terms that belong to the people or the members who use
-them rather than to a language's grammar — euphemisms, idioms, terms of art,
-and titles that are not ranks. A culture's glossary draws on three sources: the
-words of every language that reaches it — its own `data.language`, and the
-`data.language` of each affiliation whose culture it is — the ranks and offices
-of those affiliations, and the culture's own `data.glossary`. An affiliation's
-draws on its own ranks and offices, the words of its language, and its own
-`data.glossary`. `data.glossary` is the primary source, and it is the only one
-the note writes:
+**A dictionary belongs to a language; a glossary belongs to a culture or an
+affiliation.** A language note with nonempty `data.words` receives its full Dictionary
+section automatically, with grammar, senses, etymology and pronunciation,
+field tags, letter headings and one key in a single alphabetical list. A
+culture or affiliation with nonempty `data.glossary` receives a Glossary section
+containing only its explicitly declared entries. Ranks and offices stand in
+the affiliation's own sections; the glossary selects one only through an
+explicit entry. A note without the relevant frontmatter receives no such
+section. These sections appear on the site, in the Foundry journal and in
+the book. Dictionaries and glossaries have no setting-wide pages.
+
+A glossary entry belongs for one of three reasons:
+
+1. **A common word** is part of the owner's core vocabulary, the words a
+   player needs to adventure there. It states `common: true` and takes the
+   dictionary's senses when it gives no `definition`.
+2. **A dictionary word with a context meaning** states that meaning in
+   `definition`.
+3. **A term outside the dictionary** — a phrase, a hyphenated compound or a
+   term of art — states its gloss in `definition`.
+
+`common` belongs to an entry in its owner's glossary. A culture and an
+affiliation using the same language choose independently: a word may be
+common in one glossary and absent from another. A language's dictionary
+marks nothing common.
+
+This culture glossary uses the words from [the Provenzal language
+example](#a-languages-words). `solmère` is a common word with its dictionary
+sense, `amère` takes the context's song sense, and `blood-field` is a term
+outside the dictionary. `Knight-Captain` names a rank that reaches the
+culture:
 
 ```yaml
+shortcode: provenzianclt
+name: { full: Provenzia }
 type: lore
 subType: culture
 data:
-  language: skill-sinalelng
+  language: skill-provnzlng
   glossary:
-    - { name: síladòr, common: true }
-    - { name: Knight-Captain, common: true }
+    - { name: solmère, common: true }
+    - { name: amère, definition: "a sweetheart, in the songs" }
     - {
         name: blood-field,
         definition: "ground where a battle tore the boundary with the spirit world, and it did not close",
       }
-    - { name: meet a man about a horse, definition: "to leave without saying why", common: true }
+    - { name: Knight-Captain, common: true }
 ```
 
-**An entry with a `definition` creates a term**, or replaces every sense the
-term's other sources give it. **An entry without one changes no sense**: it marks
-a term the note already has as common, gives it a sort key or a
-pronunciation. A word of class `name`, `stem` or `pref` is no term, because
-those classes stand in no glossary.
+**An entry naming a word of its resolved language, without a `definition`,
+carries that word's senses and class.** Its headword links to the word's
+entry in the language's dictionary. An entry with a `definition` carries that
+meaning instead, keeping its word link and class when it names a dictionary
+word.
 
 **Every entry resolves to a language**, and the first match wins:
 
 1. the entry's own `language`;
-2. the note it is written on, where that note is a language — which is how
-   every word in a language note's `data.words` is in that language;
-3. on an affiliation, its own `data.language`, then the nearest parent
+2. on an affiliation, its own `data.language`, then the nearest parent
    affiliation's, nearest first and parents in the order `data.parents` lists
    them, then its culture's `data.language`;
-4. on a culture, its own `data.language`.
+3. on a culture, its own `data.language`.
 
 An affiliation's culture is the one it states or inherits, as
 [Culture in the index](#culture-in-the-index) describes, and a culture's
 `data.language` includes one it inherits from its
-[parent cultures](#culture-parents-and-inherited-fields). An idiom glossed in
-the setting's common tongue, such as the last entry above, takes the culture's
-language and is marked `common`.
+[parent cultures](#culture-parents-and-inherited-fields). An entry in another
+tongue names that language explicitly:
 
 ```yaml
 # Affiliations/Wardens.md — an order with a cant of its own
@@ -6314,76 +6357,111 @@ Each finding is located at the entry's key:
 - An entry that resolves to no language is an error at the entry: state its
   `language`, or `data.language` on the note.
 - An entry's `language` that names no language skill is an error at the value.
-- An entry with no `definition` whose name is no word, rank or office of the
-  note is an error at its `name`: it names nothing.
+- An entry with no `definition` naming neither a word of its resolved
+  language, including inherited words, nor a rank or office that reaches its
+  owner is an error at its `name`. State the word's `language`, or give the
+  term its own `definition`.
 - A pronunciation that is not a respelling is an error at the value.
 - A `definition` that only repeats the one sense it replaces is a warning at the
   definition, because the entry changes nothing.
 
-The `glossary` relation holds one row per entry, with the language it resolves
-to — see [Content tables](#content-tables).
+The `glossary` relation holds one row per entry as authored, with the language
+it resolves to. The `terms` relation supplies its senses and class for a
+`layout=glossary` fence — see [Content tables](#content-tables).
 
 #### Dictionaries and glossaries
 
-Two relations hold what a dictionary and a glossary set, and the query that
-reads them decides what a page shows. **A dictionary sets words**: the words
-of language notes, each with a class, an etymology, its senses and its
-citations. **A glossary sets terms**: the `data.glossary` entries of cultures
-and affiliations, and the ranks and offices of affiliations, each sense tagged
-with the body or culture it comes from, and none with a class. Any note may
-carry either kind of fence, with any `WHERE` clause — see
-[dictionaries and glossaries](../authoring/links-and-markup.md#dictionaries-and-glossaries)
-for the layouts and the queries.
+**A language's dictionary sets its words**, with their class, field,
+etymology, pronunciation, senses and citations. A language note with
+`data.words` receives that full dictionary automatically as one alphabetical
+list, with letter headings and one key. **A culture's or an affiliation's
+Glossary section sets its explicit `data.glossary` entries only**: common
+words, dictionary words with a context meaning, and phrases, compounds or
+terms of art with their own glosses. A note with absent or empty `data.words` or
+`data.glossary`, respectively, receives no such section. The site, Foundry
+journals and the book show the same sections.
+
+An authored heading with `{#dictionary}` or `{#lexicon}` receives the
+Dictionary list after its authored text; `{#glossary}` does the same for a
+Glossary list. The heading and its introduction stay in place, with a single
+list under it. Otherwise the build appends a **Dictionary** or **Glossary**
+heading and its entries at the end of the note. There are no setting-wide
+dictionary or glossary pages.
+
+`layout=dictionary` and `layout=glossary` remain available for custom SQL
+views of the same relations. The `terms` relation holds governance rows as
+well as declared glossary entries; the default Glossary section selects only
+the owner's explicitly declared entries. See [dictionaries and
+glossaries](../authoring/links-and-markup.md#dictionaries-and-glossaries) for
+the layouts and custom queries.
 
 **`dictionary`** is one row per word per language it is listed under. A
 language lists its own words at `depth` 0 and the words it inherits through
-`data.family` above that, nearest first, so `WHERE language = '<Address>'` is a
-language's whole word list, and `WHERE depth = 0` lists every word once, under
-the language that states it. Where a daughter and a parent state the same
+`data.family` above that, nearest first, so `WHERE language = '<Address>'` is
+that language's full dictionary. Where a daughter and a parent state the same
 form, the daughter's own word is the one listed. Words of class `name`, `stem`
-and `pref` are no entry.
+and `pref` are no entry. Nonempty `data.words` containing only these classes
+still supplies the Dictionary heading, with no entries or key. A word's sort
+key and pronunciation come from its declaration; a glossary's choices belong
+to its own entries.
 
 | Column          | What it holds                                                                                                                                                                                                        |
 | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `language`      | The language the word is listed under.                                                                                                                                                                               |
 | `language_tag`  | That language note's `data.abbreviation`, or its full name where it states none.                                                                                                                                     |
 | `name`          | The word's form.                                                                                                                                                                                                     |
-| `name_sort`     | Its sort key: a glossary entry's that names it, else the word's, else the form.                                                                                                                                      |
+| `name_sort`     | The word's sort key, or its form where unstated.                                                                                                                                                                     |
 | `letter`        | The heading letter: the first letter of `name_sort`, accents taken off and apostrophes skipped, in capitals.                                                                                                         |
-| `pronunciation` | A glossary entry's that names it, else the word's; `NULL` where neither states one.                                                                                                                                  |
+| `pronunciation` | The word's respelling; `NULL` where unstated.                                                                                                                                                                        |
 | `class`         | The word's class, as written.                                                                                                                                                                                        |
+| `field`         | The word's field, printed as a tag beside the entry; `NULL` where unstated.                                                                                                                                          |
 | `etymology`     | `{ kind, language, language_tag, form, parts, root, frame }` from the word's `source`, `built`, `root` and `frame`; an inherited word's is `inherited` from the language that states it. `NULL` where there is none. |
 | `senses`        | A list of `{ text, bodies }`: one per sense of the word's gloss, with no bodies. A dictionary numbers a word's senses where it has more than one.                                                                    |
 | `usage`         | The Addresses of the notes whose prose cites the word, as the language that states it records them.                                                                                                                  |
-| `common`        | Whether a glossary entry that names the word marks it a word a player is expected to know by heart.                                                                                                                  |
 | `depth`         | How far up the language's lineage the word is stated: `0` for its own.                                                                                                                                               |
+
+A daughter language with no own words has no automatic Dictionary section.
+A glossary word in that resolved language links to its visible defining
+ancestor's dictionary entry. The glossary's `language` remains the resolved
+daughter language.
 
 **`terms`** is one row per term per note that owns it: an entry of a culture's
 or an affiliation's `data.glossary`, or an affiliation's rank or office.
 
-| Column          | What it holds                                                                                                                                                    |
-| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `owner`         | The Address of the culture or affiliation that owns the term.                                                                                                    |
-| `owner_kind`    | `culture` or `affiliation`.                                                                                                                                      |
-| `language`      | The language the term is in: a glossary entry's, as it resolves; a rank's or office's, the language its body's glossary resolves to. `NULL` where none resolves. |
-| `language_tag`  | That language note's `data.abbreviation`, or its full name where it states none.                                                                                 |
-| `name`          | The headword.                                                                                                                                                    |
-| `name_sort`     | Its sort key: a glossary entry's, else the name.                                                                                                                 |
-| `letter`        | The heading letter, as for a word.                                                                                                                               |
-| `pronunciation` | A glossary entry's; `NULL` where none states one.                                                                                                                |
-| `senses`        | A list of `{ text, bodies }`, each sense naming the owner.                                                                                                       |
-| `usage`         | The Addresses the term is cited from: a rank's body and every being at that level, an office's body, holders and every being holding it, an entry's owner.       |
-| `common`        | Whether a glossary entry marks it a word a player is expected to know by heart.                                                                                  |
-| `origins`       | Which sources gave it: `rank`, `office`, `glossary`.                                                                                                             |
-| `cultures`      | Every culture the term reaches, as a list of Addresses.                                                                                                          |
+| Column          | What it holds                                                                                                                                                                    |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `owner`         | The Address of the culture or affiliation that owns the term.                                                                                                                    |
+| `owner_kind`    | `culture` or `affiliation`.                                                                                                                                                      |
+| `language`      | The language the term is in: a glossary entry's, as it resolves; a rank's or office's, the language its body's glossary resolves to. `NULL` where none resolves.                 |
+| `language_tag`  | That language note's `data.abbreviation`, or its full name where it states none.                                                                                                 |
+| `name`          | The headword.                                                                                                                                                                    |
+| `name_sort`     | The glossary entry's sort key, else the dictionary word's, else the headword.                                                                                                    |
+| `letter`        | The heading letter, as for a word.                                                                                                                                               |
+| `pronunciation` | The glossary entry's respelling, else the dictionary word's; `NULL` where neither states one.                                                                                    |
+| `class`         | The matching dictionary word's class, as written; `NULL` where no word matches.                                                                                                  |
+| `word`          | The matching word's anchored dictionary entry: the resolved language's when it has own words, else the visible defining language's; `NULL` where no word matches.                |
+| `senses`        | A list of `{ text, bodies }`: a dictionary word's gloss senses with no bodies, or the entry's definition with its owner, or a rank's or office's descriptions with their bodies. |
+| `usage`         | Citation Addresses: governance usage, inherited dictionary usage or the defining owner; a copied reached title also cites its selecting owner.                                   |
+| `common`        | Whether this owner's glossary entry marks the term part of its core vocabulary.                                                                                                  |
+| `origins`       | Which sources gave it: `rank`, `office`, `glossary`.                                                                                                                             |
+| `cultures`      | The cultures associated through the owner and its parents, as a list of Addresses for selecting reached ranks and offices.                                                       |
+
+A standalone word entry without a definition uses the dictionary's
+citations; an explicit term cites its owner. A rank or office keeps its
+body's and members' or holders' citations, including when its owner's
+glossary names a matching word or supplies a definition. An owner selecting
+a reached title also joins its own Address to that title's citations.
 
 **A term reaches the cultures its owner reaches.** A culture's own terms reach
 the culture. An affiliation's terms — its ranks, its offices and its own
 glossary entries alike — reach its culture, its own or one the index resolves
 for it, and the culture of every affiliation above it through `data.parents`.
-A culture's glossary is therefore `WHERE list_contains(cultures, '<Address>')`,
-and an affiliation's is `WHERE owner = '<Address>'`. An affiliation that
-reaches no culture has an empty list.
+`cultures` records those associations for custom queries. The default
+Glossary section selects its own owner's declared `data.glossary` entries;
+it adds no other rows from this reach. A custom view that includes reached
+governance rows can select `origins` containing `rank` or `office` and prints
+`common` only for the owner's own rows. An affiliation that reaches no culture
+has an empty list.
 
 **A rank and an office of one title in one body are one row**, the rank's
 sense first, and where their descriptions are identical, one sense.
@@ -6394,23 +6472,22 @@ of a culture it reaches, names it, or where it is a word of its language,
 compared without case. A title of several words, as `Knight-Captain` or
 `Lord Steward`, always is.
 
-**A glossary entry with a `definition`** replaces the senses of its owner's own
+**A glossary entry with a `definition`** carries that definition instead of a
+matching dictionary word's senses. It replaces the senses of its owner's own
 rank or office of that name. Otherwise it is a term of its owner's own, cited
 from the owner, so a culture's definition of a rank one of its affiliations
-holds is a second row beside the rank's, and a glossary of that culture sets
-both senses under one headword.
+holds is a second row beside the rank's. A glossary of that culture combines
+the senses under one headword where the rows share a language.
 
-**A glossary entry without a `definition`** changes no sense. It marks what it
-names: the word or the rank or office of its name in the language it resolves
-to, among what reaches its note — for a culture, the words of its language and
-of each affiliation's language, and the ranks and offices of the affiliations
-that reach it; for an affiliation, its own ranks and offices and the words of
-its language — and failing that, the one of its name in any language that
-reaches the note. Names are compared after NFC normalisation, with case kept.
-Marking sets `common`, and replaces `name_sort` and `pronunciation`, on the
-word's row in that language or on the rank's or office's row, and lets a
-one-word title in. Where several entries state one of these, the first in the
-order of the owner's Address wins.
+**A glossary entry without a `definition`** names a word of its resolved
+language, or a rank or office that reaches its owner. A dictionary word gives
+the entry all its senses, its class and a link to its entry on the language
+page; a rank or office gives its descriptions. Where the owner has a rank or
+office of the same title as the word, its distinct descriptions follow the
+dictionary senses. The glossary entry can state its own `name_sort` or
+`pronunciation`. Names are compared after NFC normalisation, with case kept. Its `common` value belongs to its owner, so a
+culture entry naming an affiliation's rank does not mark the affiliation's
+entry common. Naming the rank also admits a title of one word.
 
 **The datafiles.** `package-build content-index` writes each relation beside
 the index: `<package>-dictionary.jsonl`, sorted by `language`, `name_sort` and
@@ -7362,7 +7439,7 @@ the map for the pack it is writing and falls back to `default` when there is no
 such key, so a mistyped `journal:` files the folder wherever the default puts it
 — exactly the hierarchy the key was written to override, and silently.
 
-**A folder note requires a body**, like every typed note. Its body does not
+**A folder note requires a body.** Its body does not
 produce a documentation journal or take part in `docEntryTypes`.
 In a compiled Foundry journal, a wikilink to a folder prints its label as text:
 the folder can materialise in several packs and has no single compendium UUID.

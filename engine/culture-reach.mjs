@@ -15,17 +15,14 @@
  * Which terms reach a culture or an affiliation, and whether an affiliation
  * reaches a culture at all.
  *
- * A culture's terms are the words of its language, and the ranks, offices and
- * language words of every affiliation that reaches it — through its own
- * `data.culture`, the one the index resolves for it, or the culture of an
- * affiliation above it through `data.parents` —
- * each affiliation's language being the one its glossary resolves to
- * ({@link module:engine/glossary-language}). An affiliation's terms are its own
- * ranks and offices and the words of that language. A language's words include
- * the words it inherits through `data.family`, and a word is a term only where
+ * A culture can name the ranks and offices of every affiliation that reaches
+ * it through `data.culture` or `data.parents`. An affiliation can name its own
+ * ranks and offices. Each glossary entry can also name a word of its resolved
+ * language ({@link module:engine/glossary-language}). A language's words include
+ * those it inherits through `data.family`, and a word is a term only where
  * its class's base is a glossary base. The `dictionary` relation
- * ({@link module:engine/dictionary-rows}) names a glossary entry's term from
- * the same reach.
+ * ({@link module:engine/dictionary-rows}) uses the same resolved-language and
+ * governance sources.
  *
  * **An affiliation that reaches no culture is a warning**, at its `type`, in a
  * tree that describes peoples, which is a tree holding at least one culture
@@ -42,7 +39,7 @@ import { AddressLink } from "./address-values.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { glossaryLanguage } from "./glossary-language.mjs";
 import { parseWordClass, WORD_CLASS_BASES } from "./word-classes.mjs";
-import { LANGUAGE_SUBTYPE } from "./word-terms.mjs";
+import { glossSenses, LANGUAGE_SUBTYPE } from "./word-terms.mjs";
 
 /** The bases whose words are glossary terms. */
 const GLOSSARY_BASES = new Set(
@@ -189,6 +186,11 @@ export function entryLanguage(index, note, entry) {
  * @property {Map<string, Map<string, string[]>>} terms - Each culture's and
  *   affiliation's terms by NFC name, each with the sense texts its sources
  *   give it.
+ * @property {Map<string, Map<string, string[]>>} governance - The ranks and
+ *   offices each owner can name.
+ * @property {Map<string, Array<{form: string, gloss: unknown}>>} words - Each
+ *   language's dictionary words.
+ * @property {Map<string, string|undefined>} families - Each language's parent.
  */
 
 /** @type {WeakMap<object, GlossaryCorpus>} */
@@ -239,6 +241,23 @@ function reachedCultures(index, note) {
     return [...out];
 }
 
+/** Add the nearest dictionary definition of each form in a language's lineage. */
+function addLanguageWords(terms, key, language, words, families) {
+    const seen = new Set();
+    const forms = new Set();
+    for (let current = language; current && !seen.has(current); current = families.get(current)) {
+        seen.add(current);
+        for (const word of words.get(current) ?? []) {
+            const form = glossaryName(word.form);
+            if (forms.has(form)) continue;
+            forms.add(form);
+            const senses = glossSenses(word.gloss);
+            if (!senses.length) addTerm(terms, key, form, undefined);
+            for (const sense of senses) addTerm(terms, key, form, sense);
+        }
+    }
+}
+
 /**
  * The glossary corpus of an index.
  *
@@ -257,18 +276,7 @@ export function glossaryCorpus(index) {
             if (key) families.set(key, addressKeyOf(dataOf(note).family, index, "skill"));
         }
     const terms = new Map();
-    // A language's words include those it inherits through `data.family`.
-    const addWords = (key, language) => {
-        const seen = new Set();
-        for (
-            let current = language;
-            current && !seen.has(current);
-            current = families.get(current)
-        ) {
-            seen.add(current);
-            for (const word of words.get(current) ?? []) addTerm(terms, key, word.form, word.gloss);
-        }
-    };
+    const governance = new Map();
     for (const note of notes) {
         const culture = isCultureNote(note);
         if (!culture && typeOf(note) !== "affiliation") continue;
@@ -276,18 +284,22 @@ export function glossaryCorpus(index) {
         if (!key) continue;
         if (!terms.has(key)) terms.set(key, new Map());
         const data = dataOf(note);
-        if (culture) {
-            addWords(key, addressKeyOf(data.language, index, "skill"));
-            continue;
-        }
+        addLanguageWords(terms, key, entryLanguage(index, note, undefined), words, families);
+        if (culture) continue;
         addGovernance(terms, key, data);
-        addWords(key, entryLanguage(index, note, undefined));
+        addGovernance(governance, key, data);
         for (const home of reachedCultures(index, note)) {
             addGovernance(terms, home, data);
-            addWords(home, entryLanguage(index, note, undefined));
+            addGovernance(governance, home, data);
         }
     }
-    const corpus = { describesPeoples: notes.some(isCultureNote), terms };
+    const corpus = {
+        describesPeoples: notes.some(isCultureNote),
+        terms,
+        governance,
+        words,
+        families,
+    };
     CORPUS.set(index, corpus);
     return corpus;
 }
@@ -298,16 +310,31 @@ export function glossaryCorpus(index) {
  *
  * @param {object} index - The link index.
  * @param {object} note - The culture or affiliation note.
+ * @param {object} [entry] - A glossary entry, whose resolved language selects
+ *   its dictionary words. Absent, the note's own language is used.
  * @returns {Map<string, string[]>} The terms; empty for a note no source reaches.
  */
-export function noteTerms(index, note) {
+export function noteTerms(index, note, entry) {
     const key = ownKey(note, index);
-    return (key && glossaryCorpus(index).terms.get(key)) || new Map();
+    const corpus = glossaryCorpus(index);
+    if (!entry) return (key && corpus.terms.get(key)) || new Map();
+    const own = new Map(
+        [...(corpus.governance.get(key) ?? [])].map(([name, senses]) => [name, [...senses]]),
+    );
+    addLanguageWords(
+        new Map([[key, own]]),
+        key,
+        entryLanguage(index, note, entry),
+        corpus.words,
+        corpus.families,
+    );
+    return own;
 }
 
 /**
  * Warn of an affiliation that reaches no culture, its own or one it inherits,
- * in a tree that describes peoples.
+ * in a tree that describes peoples. Its ranks and offices then have no
+ * culture associations for term queries.
  *
  * @param {object} note - An `affiliation` note.
  * @param {{index?: object}} [context]
@@ -323,7 +350,7 @@ export function checkAffiliationReach(note, { index } = {}) {
             severity: "warning",
             message:
                 "this affiliation reaches no culture, its own or one inherited through " +
-                "`data.parents`, so its ranks, offices and language enter no culture's glossary; " +
+                "`data.parents`, so its ranks and offices have no culture associations for term queries; " +
                 "state `data.culture`",
         },
     ];

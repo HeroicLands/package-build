@@ -12,14 +12,16 @@
  */
 
 /**
- * Every typed note needs a nonempty body.
+ * Every typed note needs content: an authored body or automatic lexical data.
  *
- * A missing or whitespace-only body is an error, whether or not the note has
+ * Without automatic lexical data, a missing or whitespace-only body is an error, whether or not the note has
  * a `draft` tag or a frontmatter description. Placeholder-only bodies remain
  * errors. A nonempty body below twenty-five words receives a warning when it
  * is not tagged `draft`; the author decides whether that short note is done.
  * A `folder` note is held only to the first rule: any nonempty body passes,
  * with or without `draft`.
+ * A language's nonempty `words`, or a culture's or affiliation's nonempty
+ * `glossary`, supplies an automatic section and needs no authored prose.
  *
  * Counts and the oldest drafts remain reports. Classification and indexing
  * still derive full, draft and stub states from the existing note records;
@@ -36,6 +38,7 @@ import { positionInFrontmatter, positionOfLiteral } from "./diagnostics.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
 import { bodyWordCount, placeholderBody } from "./note-state.mjs";
 import { isDraftNote } from "./note-vocabulary.mjs";
+import { hasLexicalEntries } from "./lexical-sections.mjs";
 
 /**
  * The word count below which an unmarked body is asked whether it is a draft.
@@ -62,6 +65,7 @@ function checkNote({ fm, body, file, raw }) {
     const at = (key, value) => positionInFrontmatter(raw, key, value, { topLevel: true });
 
     if (String(body ?? "").trim() === "") {
+        if (hasLexicalEntries(fm)) return findings;
         findings.push({
             file,
             ...at("type", fm.type),

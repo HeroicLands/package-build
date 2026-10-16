@@ -334,7 +334,7 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 | `glossary`         | One row per entry a culture or an affiliation writes in `data.glossary`, with the `note` it belongs to and the `language` it resolves to.                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `language_lineage` | One row per language note and each language it inherits words from through `data.family`, itself included at `depth` 0. Join it to `words` for a language's words with inherited ones.                                                                                                                                                                                                                                                                                                                                                                                                             |
 | `dictionary`       | One row per word per language it is listed under, inherited words included, with its `depth`. See [dictionaries and glossaries](#dictionaries-and-glossaries).                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| `terms`            | One row per glossary entry, rank or office per note that owns it, with the `cultures` it reaches. See [dictionaries and glossaries](#dictionaries-and-glossaries).                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `terms`            | One row per glossary entry, rank or office per note that owns it, with its `cultures` associations. See [dictionaries and glossaries](#dictionaries-and-glossaries).                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `register`         | One row per name a language note writes in `data.register`, with its `tongue`, `kind`, `gloss` and `why`, its pieces as `built_text`, and the `notes` carrying the name, derived from the index.                                                                                                                                                                                                                                                                                                                                                                                                   |
 | `tongues`          | One row per tag a language note writes in `data.tongues`: `tag`, `meaning` and `tongue_language`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | `retired`          | One row per form a language note writes in `data.retired`: `form`, `instead` as a list, and `why`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
@@ -873,90 +873,145 @@ See [SQL details](../reference/format-details.md#content-tables) for query optio
 
 ### Dictionaries and glossaries
 
-Two layouts set a result as paragraphs under letter headings rather than as a table. **`layout=dictionary` sets words**, read from the `dictionary` relation: each with its class, its etymology, its senses, numbered where a word's `gloss` lists several, and the notes it is cited from — every note whose prose marks the word in italics. **`layout=glossary` sets terms**, read from the `terms` relation: a culture's or an affiliation's own glossary entries and an affiliation's ranks and offices, each sense tagged with the body or culture it comes from. Each needs the `name`, `senses` and `usage` columns, and a query that leaves one out is reported, naming the column.
+The build supplies a note's dictionary or glossary from its frontmatter on
+every surface: the site, the Foundry journal and the book.
 
-Public dictionaries omit citations to GM-only notes. `links` checks generated tables in the source note’s audience: public notes use public rows, and GM notes retain GM citations. An authored link from a public note to a GM-only note is still reported.
+- **A language note with nonempty `data.words` receives a Dictionary section.** It
+  contains the language's full dictionary as one alphabetical list, with
+  letter headings, each word's field beside it and the key printed once. A
+  language with absent or empty `data.words` receives no Dictionary section.
+- **A culture or affiliation with nonempty `data.glossary` receives a Glossary
+  section.** It contains only the entries that owner declares. Ranks and
+  offices stand in the affiliation's own sections; they enter its glossary
+  only when an explicit glossary entry names them. A note with absent or
+  empty `data.glossary` receives no Glossary section.
 
-**The query decides what appears**, and any note may carry either fence. These are the common ones:
+The sections follow the note's authored text. An existing heading with
+`{#dictionary}` or `{#lexicon}` receives the dictionary after its authored
+text; `{#glossary}` does the same for a glossary. The heading and its
+introduction stay in place, with one generated list under it:
 
-| What                                      | Layout       | Query                                                                             |
-| ----------------------------------------- | ------------ | --------------------------------------------------------------------------------- |
-| A language's dictionary                   | `dictionary` | `SELECT * FROM dictionary WHERE language = '<the language's Address>'`            |
-| A language's common words, on any page    | `dictionary` | `SELECT * FROM dictionary WHERE language = '<the language's Address>' AND common` |
-| A culture's glossary                      | `glossary`   | `SELECT * FROM terms WHERE list_contains(cultures, '<the culture's Address>')`    |
-| An affiliation's glossary                 | `glossary`   | `SELECT * FROM terms WHERE owner = '<the affiliation's Address>'`                 |
-| The setting's _Dictionary of the Tongues_ | `dictionary` | `SELECT * EXCLUDE (common) FROM dictionary WHERE depth = 0`                       |
-| The setting's _Glossary_                  | `glossary`   | `SELECT * EXCLUDE (common) FROM terms`                                            |
+```markdown
+## Lexicon {#lexicon}
 
-A language's dictionary lists the words it inherits through `data.family` beside its own; `depth = 0` lists each word once, under the language that states it. A culture's glossary holds the culture's own terms and the ranks, offices and glossary terms of every affiliation that reaches it. The two setting pages leave out `common`, so they mark no entry: which words are common is a culture's judgement.
+The tongue of Provenzia, whose _solmère_ is its own word.
+```
 
-The most common Vylari words, on the Vylarian culture's page:
+A dictionary belongs to a language; a glossary belongs to one culture or
+affiliation. A glossary entry belongs for one of three reasons: a common word
+in the owner's core vocabulary, a dictionary word with a context meaning,
+or a phrase, compound or term of art outside the dictionary with its own
+gloss. The [worked culture glossary](../reference/format-details.md#glossary-terms)
+selects `solmère` as a common word, gives `amère` a context meaning and glosses
+`blood-field` as a term outside the dictionary. Its frontmatter supplies the
+whole default Glossary section. There are no setting-wide dictionary or
+glossary pages.
+
+An entry naming a word of its resolved language without a `definition`
+carries the word's dictionary senses and class, with a link to the word's
+entry on its language page. An entry with a `definition` carries that meaning
+instead, retaining its word link and class when it names a dictionary word.
+Ranks, offices and definitions carry their source body or culture beside
+their senses. Common choices belong to each owner: a culture and an
+affiliation using the same language choose independently, and a word may be
+common in one glossary and absent from another. Dictionaries mark nothing
+common.
+
+Public dictionaries omit citations to GM-only notes. `links` checks generated
+tables in the source note's audience: public notes use public rows, and GM
+notes retain GM citations. An authored link from a public note to a GM-only
+note is still reported.
+
+#### Custom views
+
+An `sql` fence with `layout=dictionary` or `layout=glossary` sets a custom view
+of the same relations. A dictionary view reads `dictionary`; a glossary view
+reads `terms`. Each needs the `name`, `senses` and `usage` columns; a query
+that leaves one out is reported, naming the column.
+
+For a custom list of one culture's common entries:
 
 ````markdown
 ## Words Everyone Knows {#common-words}
 
-```sql {layout=dictionary section-level=3}
-SELECT * FROM dictionary WHERE language = 'thalorna-note-skill-vylarilng' AND common
-```
-````
-
-A culture's glossary:
-
-````markdown
-## Glossary {#glossary}
-
 ```sql {layout=glossary section-level=3}
-SELECT * FROM terms WHERE list_contains(cultures, 'thalorna-note-lore-provenzianclt')
+SELECT * FROM terms WHERE owner = 'thalorna-note-lore-provenzianclt' AND common
 ```
 ````
 
-A page that sets several fences, one per heading, states its key once: a `key=only` fence at the head over all the rows the page sets, then `key=false` on each fence below it, so the abbreviations are not repeated under every heading. The `key=only` fence prints the key for its rows and no letter heading and no entry:
+A custom dictionary view can select one field from the language's dictionary:
 
 ````markdown
-## Words {#words}
+## Love and its conduct
 
-```sql {layout=dictionary key=only}
-SELECT * FROM dictionary WHERE language = 'thalorna-note-skill-vylarilng' AND depth = 0
-```
-
-### Love and its conduct
-
-```sql {layout=dictionary key=false section-level=4}
-SELECT d.* FROM dictionary d JOIN words w ON w.language = d.language AND w.form = d.name
-WHERE d.language = 'thalorna-note-skill-vylarilng' AND w.field = 'Love and its conduct'
+```sql {layout=dictionary section-level=3}
+SELECT * FROM dictionary
+WHERE language = 'thalorna-note-skill-provnzlng' AND field = 'Love and its conduct'
 ```
 ````
 
-`key`, whatever its value, sets a dictionary's or a glossary's key, so it is refused on a fence set as a table.
+A custom view with several fences can print its key once: a `key=only` fence
+over all selected rows, then `key=false` on each fence below it. The
+`key=only` fence prints only the abbreviation key. `key`, whatever its value,
+is refused on a fence set as a table. The automatic Dictionary section
+prints its own key once for the full alphabetical list.
 
 Either layout prints, in order:
 
-- **a key**, once, unless the fence sets `key=false`, and nothing else where it sets `key=only`, listing only the abbreviations the result uses — a language's tag, and for words a class or a modifier — each with what it stands for, and the common mark where an entry carries it;
-- **a heading per letter**, at `section-level`, accents taken off and apostrophes skipped, so `'ostal` files under O and `Écuyer` under E;
-- **one paragraph per entry**: `•` for a common entry, the headword in bold, its pronunciation between slashes, its language tag in italics, the senses, and after a dash the notes it is cited from, as links.
+- **a key**, once, unless the fence sets `key=false`, and nothing else where
+  it sets `key=only`, listing the abbreviations the result uses — a language's
+  tag, a word's class or a modifier — each with its expansion; a glossary also
+  explains the common mark where an entry carries it;
+- **a heading per letter**, at `section-level`, accents taken off and
+  apostrophes skipped, so `'ostal` files under O and `Écuyer` under E;
+- **one paragraph per entry**: a glossary's `•` for a common entry, the
+  headword in bold, its pronunciation between slashes, its language tag and
+  word class in italics where present, its senses, and after a dash the notes
+  it is cited from, as links.
 
-A word also carries its class beside the tag and its etymology in brackets:
+A dictionary entry gives its field in italic parentheses and its etymology
+in brackets:
 
 ```markdown
-• **solmère** /sol-MEH-reh/ _n. m._ [fr. Élav. _sólmerë_] Longing; the ache for a time that is gone. — [[thalorna-note-lore-lastshrine|The Song of the Last Shrine]]
+**solmère** /sol-MEH-reh/ _n. m._ (_Love and its conduct_) [fr. Élav. _sólmerë_] Longing; the ache for a person, a place or a time that is gone. — [[thalorna-note-lore-lastshrine|The Song of the Last Shrine]]
 ```
 
-A term carries no class, and each of its senses names its source. A glossary sets the rows sharing a headword and a language as one entry, numbering their senses in the order the rows arrive and printing a sense several bodies give once, with all of them:
+A glossary entry naming a dictionary word uses the word's senses when
+`definition` is absent; a list of dictionary glosses supplies every sense.
+Those senses carry no body label. An entry with a `definition` uses that
+meaning and labels it with the owner, retaining its word link and class
+where it names a dictionary word. On the owner's own page, a sense attributed
+only to that owner omits the repeated label; other bodies and shared senses
+keep their labels. A glossary sets the rows sharing a headword
+and a language as one entry, numbering their senses in query order and
+printing a sense several bodies give once, with all of them:
 
 ```markdown
-**Sworn Knight** **1** (_Duchy of Aubrac_) Holds land of the duke. **2** (_Kingdom of Provenzia_) Holds land of the crown. **3** (_Provenzia_) A knight bound by oath to a lord. — [[thalorna-note-affiliation-duchy|Duchy of Aubrac]], [[thalorna-note-affiliation-kingdom|Kingdom of Provenzia]], [[thalorna-note-lore-provenzianclt|Provenzia]]
+**Sworn Knight** **1** (_Duchy of Aubrac_) Holds land of the duke. **2** (_Kingdom of Provenzia_) Holds land of the crown. **3** A knight bound by oath to a lord. — [[thalorna-note-affiliation-duchy|Duchy of Aubrac]], [[thalorna-note-affiliation-kingdom|Kingdom of Provenzia]], [[thalorna-note-lore-provenzianclt|Provenzia]]
 ```
 
-The entries are ordered by the layout, not by the query: by letter, then by `name_sort`. **The language tag prints where the entry's language is not the page's own**: a language note's own language, a culture's `data.language`, or the language an affiliation's glossary resolves to. It is the language note's `data.abbreviation`, or its full name where it states none. The etymology never repeats the entry's own language: a borrowed word prints `[fr. Élav. _sólmerë_]`, a built word its pieces each with its gloss, `[_am-_ "love" + _-ère_ "one who"]`, an inherited word its older form, `[*_hur_]` or `[Hel. *_thalass_]`, and a root word its root and pattern. A citation of a note with no published page prints as its name.
+The layout orders entries by letter, then by `name_sort`. **The language tag
+prints where the entry's language is not the page's own**: a language note's
+own language, a culture's `data.language`, or the language an affiliation's
+glossary resolves to. It is the language note's `data.abbreviation`, or its
+full name where unstated. Etymology never repeats the entry's own language:
+a borrowed word prints `[fr. Élav. _sólmerë_]`, a built word its pieces each
+with its gloss, `[_am-_ "love" + _-ère_ "one who"]`, an inherited word its
+older form, `[*_hur_]` or `[Hel. *_thalass_]`, and a root word its root and
+pattern. A citation of a note with no published page prints as its name.
 
-A built piece can name a language element by its `form` or one of its `variants`;
-its `sense` prints beside the piece. An affix can also be named by its `front`
-form. Words and affixes take precedence over
-elements in the same language, and the language is searched before its
-ancestors. Exact spellings are checked before ignoring joining hyphens; case
-and accents are preserved.
+A built piece can name a language element by its `form` or one of its
+`variants`; its `sense` prints beside the piece. An affix can also be named by
+its `front` form. Words and affixes take precedence over elements in the same
+language, and the language is searched before its ancestors. Exact spellings
+are checked before ignoring joining hyphens; case and accents are preserved.
 
-A culture's or an affiliation's `data.glossary` shapes both: an entry without a definition marks a word or a rank common, gives it a sort key or a respelling, and lets in a rank whose title is a single word; an entry with a definition replaces the senses of the owner's own rank or office, or is a term of the owner's own. The [format reference](../reference/format-details.md#dictionaries-and-glossaries) gives every column and rule.
+A glossary entry may give its own sort key or respelling. A reference to a
+rank or office inherits its descriptions and admits a title of one word; its
+`common` value belongs to the entry's owner. A definition replaces the senses
+of the owner's own rank or office, or supplies an entry of the owner's own.
+The [format reference](../reference/format-details.md#dictionaries-and-glossaries)
+gives every column and rule.
 
 ## Page lists
 
@@ -996,7 +1051,7 @@ That list names the `lore` notes tagged `key-concept`, grouped by type and alpha
 
 **A tag no page carries is a finding** at the fence's own line, naming the tag it looked for. A misspelled tag is the whole of what goes wrong here, and a heading with an empty list under it is how one goes unnoticed. Write `{allow-empty=true}` where a group that is genuinely empty is intended; the directive then leaves nothing behind rather than an empty list.
 
-A page list names this package's own pages. A **stub** — a note with an empty body — publishes no page, so it joins no list. A note tagged `gm` is listed in Foundry and left out of the website and the book, exactly as it is left out of a content table's relations.
+A page list names this package's own pages. A **stub** — a note with neither an authored body nor automatic lexical content — publishes no page, so it joins no list. A note tagged `gm` is listed in Foundry and left out of the website and the book, exactly as it is left out of a content table's relations.
 
 See [page-list details](../reference/format-details.md#page-lists) for the directive's full behaviour.
 

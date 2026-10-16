@@ -105,7 +105,12 @@ import { markupFindings } from "../engine/markup-validation.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import { lintProse, scoreProseTree } from "../engine/readability-lint.mjs";
 import { loadPackageBuildConfig } from "../config.mjs";
-import { emitContentIndex, indexRecordsFor, isAssetRecord } from "../engine/content-index.mjs";
+import {
+    emitContentIndex,
+    prepareContentIndex,
+    indexRecordsFor,
+    isAssetRecord,
+} from "../engine/content-index.mjs";
 import {
     buildSite,
     gatesFailed,
@@ -1616,12 +1621,15 @@ function contentIndexCommand() {
                 type: "string",
             });
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
                 const config = loadPackConfig();
+                const contentBase = argv.root ?? config.paths.content;
+                const publication = await prepareContentIndex({ config, contentBase });
                 const { file, notes, bytes, full, draft, stub, dictionary, terms } =
                     emitContentIndex({
                         config,
+                        publication,
                         ...(argv.root ? { contentBase: argv.root } : {}),
                         ...(argv.out ? { outDir: argv.out } : {}),
                     });

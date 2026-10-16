@@ -22,18 +22,21 @@
  * surface sets it as it sets a note:
  *
  * - **the key**, once, at the head unless the fence sets `key=false`: the abbreviations this rendering uses,
- *   each with its expansion, then the common mark where an entry carries it.
+ *   each with its expansion, then a glossary's common mark where an entry carries it.
  *   A fence setting `key=only` prints the key alone;
  * - **a heading per letter**, from `letter`, at the fence's `section-level`;
  * - **one paragraph per entry**: the common mark, the bold headword, the
- *   pronunciation between slashes, the language tag (and for a word its
- *   class) in italics, a word's etymology in brackets, the senses, and the
+ *   pronunciation between slashes, the language tag and word class in
+ *   italics, a dictionary word's field tag and etymology in brackets, the senses, and the
  *   citations as links.
  *
  * A glossary sets the rows that share a headword and a language as one entry:
  * their senses numbered in the order the rows arrive, each tagged with the
- * bodies it comes from, a sense several rows give printed once with all of
- * them. A word's senses carry no bodies, and a glossary's always do.
+ * bodies it comes from, except a sole owner's label on its own page. A sense
+ * several rows give is printed once with all its bodies. A dictionary word's
+ * senses carry no bodies; a glossary's contextual
+ * and governance senses name their owners. A glossary headword naming a
+ * dictionary word links to that word's anchored entry on its language page.
  *
  * The entries are ordered here rather than by the query: by letter, then by
  * `name_sort` with its accents taken off and its case folded, then as written.
@@ -43,8 +46,8 @@
  * @module
  */
 
-import { parseAddress, renderAddress } from "./address.mjs";
-import { dictionaryLetter } from "./dictionary-rows.mjs";
+import { parseAddress, readCanonicalKey, renderAddress, splitAnchor } from "./address.mjs";
+import { dictionaryEntryAnchor, dictionaryLetter } from "./dictionary-rows.mjs";
 import {
     WORD_CLASS_BASES,
     WORD_CLASS_MODIFIERS,
@@ -60,6 +63,50 @@ export const LAYOUT_REQUIRED_COLUMNS = Object.freeze({
 
 /** The mark a common entry opens with. */
 export const COMMON_MARK = "•";
+
+/** The word-entry span class whose Foundry rendering is a native TOC heading. */
+export const DICTIONARY_ENTRY_CLASS = "dictionary-entry";
+
+/**
+ * Render a dictionary entry's marked headword as an inline native heading in
+ * Foundry. Its paragraph becomes a div, so the heading has a valid container.
+ * The shared Markdown keeps its span and its containing journal page.
+ *
+ * @param {import("markdown-it")} md - The Foundry Markdown parser.
+ */
+export function dictionaryEntryPlugin(md) {
+    md.core.ruler.after("inline", "dictionary_entry_headings", (state) => {
+        for (let i = 1; i < state.tokens.length - 1; i++) {
+            const inline = state.tokens[i];
+            const opening = inline.children?.[0];
+            if (
+                inline.type !== "inline" ||
+                state.tokens[i - 1].type !== "paragraph_open" ||
+                state.tokens[i + 1].type !== "paragraph_close" ||
+                opening?.type !== "span_open" ||
+                !opening.attrGet("id") ||
+                !String(opening.attrGet("class") ?? "")
+                    .split(/\s+/)
+                    .includes(DICTIONARY_ENTRY_CLASS)
+            )
+                continue;
+            let depth = 0;
+            const closing = inline.children.find((token) => {
+                if (token.type === "span_open") depth++;
+                if (token.type === "span_close") return --depth === 0;
+                return false;
+            });
+            if (!closing) continue;
+            opening.tag = closing.tag = "h6";
+            opening.attrSet(
+                "style",
+                "display: inline; margin: 0; padding: 0; border: 0; font: inherit; text-transform: none",
+            );
+            state.tokens[i - 1].tag = state.tokens[i + 1].tag = "div";
+            state.tokens[i - 1].attrSet("style", "margin: 0 0 0.5em");
+        }
+    });
+}
 
 /** What the key says of the common mark. */
 const COMMON_KEY = "a common word, which a player is expected to know by heart";
@@ -97,6 +144,10 @@ function sentence(text) {
  *   `"only"` prints the key and nothing else.
  * @property {string} [pageLanguage] - The language of the page the fence is
  *   on, which no entry is tagged with.
+ * @property {string} [pageOwner] - The containing page's canonical note Address;
+ *   a sense attributed only to its own row's owner omits that label on this page.
+ * @property {boolean} [entryAnchors=true] - Whether dictionary headwords carry
+ *   their canonical targets; custom SQL views leave those to the automatic list.
  */
 
 /**
@@ -141,10 +192,18 @@ export function renderGlossary(result, opts = {}) {
                 for (const sense of Array.isArray(row.senses) ? row.senses : []) {
                     const same = senses.find((one) => one.text === sense?.text);
                     const bodies = Array.isArray(sense?.bodies) ? sense.bodies : [];
-                    if (!same) senses.push({ text: sense?.text, bodies: [...bodies] });
-                    else
+                    const omitBody = Boolean(
+                        opts.pageOwner &&
+                        row.owner === opts.pageOwner &&
+                        bodies.length === 1 &&
+                        bodies[0] === row.owner,
+                    );
+                    if (!same) senses.push({ text: sense?.text, bodies: [...bodies], omitBody });
+                    else {
+                        same.omitBody &&= omitBody;
                         for (const body of bodies)
                             if (!same.bodies.includes(body)) same.bodies.push(body);
+                    }
                 }
             for (const sense of senses) sense.bodies.sort(compare);
             const first = (column) =>
@@ -157,7 +216,8 @@ export function renderGlossary(result, opts = {}) {
                 pronunciation: first("pronunciation"),
                 name_sort: first("name_sort"),
                 letter: first("letter"),
-                class: undefined,
+                class: first("class"),
+                word: first("word"),
                 etymology: undefined,
             };
         }),
@@ -181,8 +241,8 @@ function requireColumns(result, layout) {
  *
  * @param {object[]} entries - One per entry, with the row columns.
  * @param {LayoutOptions} opts
- * @param {boolean} words - Whether the entries are words, with a class and an
- *   etymology.
+ * @param {boolean} words - Whether the entries are dictionary words, with
+ *   their own anchors and etymology.
  * @returns {string}
  */
 function render(
@@ -194,6 +254,7 @@ function render(
         labelOf = () => undefined,
         showKey = true,
         pageLanguage,
+        entryAnchors = true,
     },
     words,
 ) {
@@ -236,17 +297,26 @@ function render(
             paragraphs.push(`${"#".repeat(sectionLevel)} ${letter}`);
         }
         const parts = [];
-        if (row.common === true) {
+        if (!words && row.common === true) {
             anyCommon = true;
             parts.push(COMMON_MARK);
         }
-        parts.push(`**${row.name}**`);
+        let headword = `**${row.name}**`;
+        if (words && entryAnchors && typeof row.language === "string")
+            headword = `[${headword}]{#${dictionaryEntryAnchor(row.language, row.name)} .${DICTIONARY_ENTRY_CLASS}}`;
+        else if (!words && typeof row.word === "string") {
+            const { address, anchor } = splitAnchor(row.word);
+            const ref = readCanonicalKey(address);
+            if (ref && anchor && linkable(ref))
+                headword = `**[[${renderAddress(ref)}#${anchor}|${String(row.name).replace(/\|/g, "/")}]]**`;
+        }
+        parts.push(headword);
         if (row.pronunciation) parts.push(`/${row.pronunciation}/`);
 
         const italic = [];
         if (row.language_tag && row.language !== pageLanguage)
             italic.push(tag(row.language, row.language_tag));
-        if (words && row.class) {
+        if (row.class) {
             const parsed = parseWordClass(row.class);
             if (!parsed.reason) {
                 usedBases.add(parsed.base);
@@ -255,6 +325,7 @@ function render(
             } else italic.push(String(row.class));
         }
         if (italic.length) parts.push(`_${italic.join(" ")}_`);
+        if (words && row.field) parts.push(`(_${row.field}_)`);
 
         if (words) {
             const bracket = etymologyText(row.etymology, row.language, tag);
@@ -264,7 +335,8 @@ function render(
         const senses = Array.isArray(row.senses) ? row.senses : [];
         const senseText = (sense) => {
             const bodies = Array.isArray(sense?.bodies) ? sense.bodies : [];
-            const by = bodies.length ? `(_${bodies.map(label).join(", ")}_) ` : "";
+            const by =
+                bodies.length && !sense.omitBody ? `(_${bodies.map(label).join(", ")}_) ` : "";
             return `${by}${sentence(sense?.text)}`;
         };
         if (senses.length === 1) parts.push(senseText(senses[0]));

@@ -20,7 +20,8 @@ Start with one pack for each document class the notes produce. An Item, Actor,
 Macro, Scene, or Adventure note can also produce a JournalEntry for its prose,
 so a package with those notes generally needs a JournalEntry pack. A missing
 pack for a document a note actually produces is a finding on that note. An
-empty body produces no prose journal and needs no pack for it.
+empty body without automatic Dictionary or Glossary content produces no prose
+journal and needs no pack for it.
 
 ```yaml
 packs:
