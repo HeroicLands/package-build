@@ -506,7 +506,8 @@ export function s3ShellArgs(plan, command) {
  * @param {(ms: number) => void} [opts.sleep] - Waits.
  * @param {number} [opts.attempts] - How often to ask the server whether it is
  *   ready.
- * @throws {Error} When an input file is missing or the server never answers.
+ * @throws {Error} When an input is not a readable regular file, a reused
+ *   identities mount is incompatible, or the S3 HTTP service never answers.
  */
 export function ensureS3({
     plan,
@@ -521,6 +522,10 @@ export function ensureS3({
         if (!fs.existsSync(file)) {
             throw new Error(`FOUNDRYVTT_CONTAINER_S3 needs ${file}, which does not exist.`);
         }
+        if (!fs.statSync(file).isFile()) {
+            throw new Error(`FOUNDRYVTT_CONTAINER_S3 needs ${file} to be a regular file.`);
+        }
+        fs.accessSync(file, fs.constants.R_OK);
     }
     const configDir = path.join(dataRoot, "Config");
     fs.mkdirSync(configDir, { recursive: true });
@@ -540,6 +545,32 @@ export function ensureS3({
         "{{.Names}}",
     ]);
     if (present.split("\n").includes(plan.server)) {
+        let identitiesMount;
+        try {
+            const mounts = JSON.parse(
+                capture(["inspect", "--format", "{{json .Mounts}}", plan.server]),
+            );
+            identitiesMount = mounts.find(
+                (mount) => mount.Destination === "/etc/seaweedfs/s3.json",
+            );
+        } catch {
+            // An unreadable inspection cannot establish that this server is safe to reuse.
+        }
+        const source = identitiesMount?.Source;
+        const canonical = (file) =>
+            fs.existsSync(file) ? fs.realpathSync(file) : path.resolve(file);
+        if (
+            identitiesMount?.Type !== "bind" ||
+            typeof source !== "string" ||
+            canonical(source) !== canonical(plan.identities)
+        ) {
+            throw new Error(
+                `S3 server '${plan.server}' has an incompatible identities mount ` +
+                    `(found ${source ?? "no readable bind"}; expected ${plan.identities}). ` +
+                    `Restore the original checkout, or remove only this disposable S3 container ` +
+                    `with 'docker rm -f ${plan.server}' and rerun. Removing it discards its bucket data.`,
+            );
+        }
         const running = capture([
             "ps",
             "--filter",
@@ -553,10 +584,17 @@ export function ensureS3({
         const status = run(s3RunArgs(plan));
         if (status !== 0) throw new Error(`Starting the S3 server failed with status ${status}.`);
     }
-    // `weed shell` exits 0 whether or not the filer is up; it names the filers
-    // it found once there is one.
+    // A ready filer does not mean the S3 listener has started. SeaweedFS's
+    // unauthenticated health route runs on that listener.
+    const probe = [
+        "exec",
+        plan.server,
+        "sh",
+        "-c",
+        `wget -q -T 2 -O /dev/null http://127.0.0.1:${S3_PORT}/healthz && echo ready`,
+    ];
     for (let attempt = 0; ; attempt++) {
-        if (capture(s3ShellArgs(plan, "s3.bucket.list")).includes("filers: [")) break;
+        if (capture(probe).trim() === "ready") break;
         if (attempt >= attempts) {
             throw new Error(`The S3 server '${plan.server}' did not become ready.`);
         }

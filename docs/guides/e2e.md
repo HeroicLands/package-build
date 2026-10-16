@@ -223,4 +223,13 @@ container started with the variable set joins the network but keeps the
 environment it was created with; `--recreate` applies `FOUNDRY_AWS_CONFIG`.
 `package-build container <stage> rm` with the variable set removes the server
 and the network along with the container. The server is otherwise left running
-between runs, bucket intact.
+between runs, bucket intact. New and reused servers must answer the S3 HTTP
+health check before Foundry starts; a ready filer alone is insufficient.
+
+Both configuration paths must be readable regular files. When changing
+worktrees, an existing server must bind the identities file from the current
+checkout (symlinks to the same file are accepted). An incompatible or
+uninspectable bind stops the start and names the server and expected path.
+Restore the original checkout to keep its bucket data, or remove only the named
+disposable S3 server with `docker rm -f <container>-s3` and rerun. Removing that
+server discards its bucket data; the tool never removes it automatically.

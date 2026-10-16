@@ -1821,6 +1821,12 @@ console.log(dataEnvVar("dev"));
 | `removeContainer`          | `removeContainer(name, log = () => {})`                                                                                        | —                              | stopping and removing a container, tolerating "not running" and "no such container"                                                                                                         |
 | `containerAction`          | `containerAction({ action, stage, config, env, log })`                                                                         | `number`                       | performing one `CONTAINER_ACTIONS` action for a stage end to end                                                                                                                            |
 
+`ensureS3` requires readable regular configuration files. Reuse requires an
+inspectable identities bind pointing to the current file; an incompatible bind
+throws with a scoped recovery command and leaves the server and bucket data
+intact. Both new and reused servers must answer their S3 HTTP health endpoint
+before the bucket is ensured.
+
 ## `./coverage`
 
 Whether the localization keys a package **references** and the keys it **declares** are the same set. A referenced-but-undeclared key is an error — it renders as its raw key string to a player; a declared-but-unreferenced key is advisory only, since no scan can see every way a key might be reached. Generic Foundry reference shapes (`{{localize}}`, `game.i18n.localize`, `LOCALIZATION_PREFIXES`, template literals) are read here directly; a repository that mints keys by its own convention contributes a named module through configuration. Everything exported is pure — source text in, references or findings out.

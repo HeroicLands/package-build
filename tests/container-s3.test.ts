@@ -140,7 +140,12 @@ describe("starting and stopping the server", () => {
             dataRoot,
             run: (args) => (calls.push(args), 0),
             capture: (args) => {
-                if (args[0] === "exec") return ++listed < 3 ? "error" : "master: x filers: [a]";
+                if (args[0] === "exec")
+                    return (
+                        ++listed < 3 ? "error"
+                        : args.join(" ").includes("s3.bucket.list") ? "master: x filers: [a]"
+                        : "ready"
+                    );
                 return "";
             },
             sleep: () => {},
@@ -164,14 +169,68 @@ describe("starting and stopping the server", () => {
             dataRoot,
             run: (args) => (calls.push(args), 0),
             capture: (args) =>
-                args[0] === "network" ? plan.network
+                args[0] === "inspect" ?
+                    JSON.stringify([
+                        {
+                            Type: "bind",
+                            Source: plan.identities,
+                            Destination: "/etc/seaweedfs/s3.json",
+                        },
+                    ])
+                : args[0] === "network" ? plan.network
                 : args.includes("-a") || args[0] === "ps" ? plan.server
-                : "master: x filers: [a]",
+                : args.join(" ").includes("s3.bucket.list") ? "master: x filers: [a]"
+                : "ready",
             sleep: () => {},
         });
         expect(calls).toHaveLength(1);
         expect(calls[0].join(" ")).toContain(`s3.bucket.create -name ${S3_BUCKET}`);
     });
+
+    it("reuses a bind named through a symlink to the current identities file", () => {
+        const { root, plan, dataRoot } = setup();
+        const link = path.join(root, "ids-link.json");
+        fs.symlinkSync(plan.identities, link);
+        const calls: string[][] = [];
+        ensureS3({
+            plan,
+            dataRoot,
+            run: (args) => (calls.push(args), 0),
+            capture: (args) =>
+                args[0] === "inspect" ?
+                    JSON.stringify([
+                        { Type: "bind", Source: link, Destination: "/etc/seaweedfs/s3.json" },
+                    ])
+                : args[0] === "network" ? plan.network
+                : args[0] === "ps" ? plan.server
+                : "ready",
+            sleep: () => {},
+        });
+        expect(calls).toHaveLength(1);
+        expect(calls[0].join(" ")).toContain("s3.bucket.create");
+    });
+
+    it.each(["", "{", "{}"])(
+        "refuses reuse when mount inspection cannot be read: %j",
+        (inspection) => {
+            const { plan, dataRoot } = setup();
+            const calls: string[][] = [];
+            expect(() =>
+                ensureS3({
+                    plan,
+                    dataRoot,
+                    run: (args) => (calls.push(args), 0),
+                    capture: (args) =>
+                        args[0] === "inspect" ? inspection
+                        : args[0] === "network" ? plan.network
+                        : args[0] === "ps" ? plan.server
+                        : "ready",
+                    sleep: () => {},
+                }),
+            ).toThrow(`docker rm -f ${plan.server}`);
+            expect(calls).toEqual([]);
+        },
+    );
 
     it("waits for a stopped reused server to answer before ensuring the bucket", () => {
         const { plan, dataRoot } = setup();
@@ -185,10 +244,22 @@ describe("starting and stopping the server", () => {
                 return 0;
             },
             capture: (args) => {
+                if (args[0] === "inspect")
+                    return JSON.stringify([
+                        {
+                            Type: "bind",
+                            Source: plan.identities,
+                            Destination: "/etc/seaweedfs/s3.json",
+                        },
+                    ]);
                 if (args[0] === "network") return plan.network;
                 if (args[0] === "ps") return args.includes("-a") ? plan.server : "";
                 events.push("list");
-                return ++listed < 3 ? "error" : "master: x filers: [a]";
+                return (
+                    ++listed < 3 ? "error"
+                    : args.join(" ").includes("s3.bucket.list") ? "master: x filers: [a]"
+                    : "ready"
+                );
             },
             sleep: (ms) => events.push(`sleep ${ms}`),
         });
@@ -201,6 +272,79 @@ describe("starting and stopping the server", () => {
             "list",
             "bucket",
         ]);
+    });
+
+    it.each([
+        [
+            {
+                Type: "bind",
+                Source: "/absent/old-worktree/ids.json",
+                Destination: "/etc/seaweedfs/s3.json",
+            },
+        ],
+        [{ Type: "volume", Source: "identities", Destination: "/etc/seaweedfs/s3.json" }],
+        [],
+    ])(
+        "refuses an incompatible reused identities mount without changing the server: %j",
+        (...mounts) => {
+            const { plan, dataRoot } = setup();
+            const calls: string[][] = [];
+            expect(() =>
+                ensureS3({
+                    plan,
+                    dataRoot,
+                    run: (args) => (calls.push(args), 0),
+                    capture: (args) =>
+                        args[0] === "inspect" ? JSON.stringify(mounts)
+                        : args[0] === "network" ? plan.network
+                        : args[0] === "ps" ? plan.server
+                        : args.join(" ").includes("s3.bucket.list") ? "master: x filers: [a]"
+                        : "ready",
+                    sleep: () => {},
+                }),
+            ).toThrow(new RegExp(`S3 server.*${plan.server}.*identities mount`));
+            expect(calls).toEqual([]);
+        },
+    );
+
+    it("does not accept a ready filer while the S3 HTTP service cannot answer", () => {
+        const { plan, dataRoot } = setup();
+        const calls: string[][] = [];
+        const probes: string[][] = [];
+        expect(() =>
+            ensureS3({
+                plan,
+                dataRoot,
+                run: (args) => (calls.push(args), 0),
+                capture: (args) => {
+                    if (args[0] !== "exec") return "";
+                    probes.push(args);
+                    return args.join(" ").includes("s3.bucket.list") ? "master: x filers: [a]" : "";
+                },
+                sleep: () => {},
+                attempts: 2,
+            }),
+        ).toThrow(/did not become ready/);
+        expect(probes).toHaveLength(3);
+        expect(probes[0].join(" ")).toContain(`http://127.0.0.1:${S3_PORT}/healthz`);
+        expect(calls.some((args) => args.join(" ").includes("s3.bucket.create"))).toBe(false);
+    });
+
+    it("rejects a directory used in place of the identities file before calling Docker", () => {
+        const { plan, dataRoot } = setup();
+        fs.rmSync(plan.identities);
+        fs.mkdirSync(plan.identities);
+        const calls: string[][] = [];
+        expect(() =>
+            ensureS3({
+                plan,
+                dataRoot,
+                run: (args) => (calls.push(args), 0),
+                capture: () => "",
+                attempts: 0,
+            }),
+        ).toThrow(/ids\.json.*regular file/);
+        expect(calls).toEqual([]);
     });
 
     it("fails naming the file when an input is missing", () => {
