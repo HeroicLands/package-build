@@ -78,24 +78,39 @@ who knows the groups can guess a name.
 ### `prepare` — the git hooks
 
 ```json
-"prepare": "git config core.hooksPath node_modules/@heroiclands/package-build/githooks || true"
+"prepare": "git config core.hooksPath .githooks || true"
 ```
 
-npm runs `prepare` after every install, so this is what installs the hooks. It
-points git at the hook directory this package ships, which means a repository
-carries no hook files of its own and cannot drift from the others. `|| true` so
-that an install outside a git checkout — a Docker build, a CI cache step —
-does not fail on it.
+npm runs `prepare` after every install. In this repository it points Git at the
+committed `.githooks/`, including in a fresh worktree. Run `npm ci` for a fresh
+checkout or `npm run prepare` to repeat setup. `|| true` allows an install
+outside a Git checkout, such as a Docker build or CI cache step.
 
-Four hooks arrive with it, each with its own switch, read with git's normal
+The installed `commit-msg` and `pre-commit` are byte-identical copies of the
+[canonical POSIX hooks](https://github.com/HeroicLands/.github#local-git-hooks-and-actionsgithooks).
+The message guard refuses assistant credits without requiring Node; the branch
+guard refuses commits on `main` and `master`. These hooks honor
+`hooks.noAttribution`, `hooks.protectedBranch`, and `hooks.allowCommitOnMain`.
+CI compares every installed hook against the pinned canonical set. This setup
+installs no pre-push or pre-merge-commit hook.
+
+### Optional published hook bundle
+
+The package also ships `githooks/` for repositories that explicitly select its
+additional checks. To select that bundle, point `core.hooksPath` at
+`node_modules/@heroiclands/package-build/githooks` in that repository’s setup.
+That bundle requires the installed package and Node; it is separate from this
+repository’s canonical `.githooks/` installation.
+
+Four hooks are available, each with its own switch, read with Git’s normal
 precedence: a plain `git config` sets one clone, `--global` sets a machine.
 
-| Hook                             | What it does                                                    | Key                                  | Default |
-| -------------------------------- | --------------------------------------------------------------- | ------------------------------------ | ------- |
-| `pre-commit`, `pre-merge-commit` | Refuse a commit on a protected branch.                          | `hooks.allowCommitOnMain` (inverted) | on      |
-| `pre-commit`                     | Lint any `.changeset/*.md` the commit stages.                   | `hooks.changelogCheck`               | on      |
-| `commit-msg`                     | Refuse AI attribution in a commit message.                      | `hooks.noAttribution`                | on      |
-| `pre-push`                       | Run this repository's own Build & Test workflow in a container. | `hooks.prePushCi`                    | off     |
+| Hook                             | What it does                                                         | Key                                  | Default |
+| -------------------------------- | -------------------------------------------------------------------- | ------------------------------------ | ------- |
+| `pre-commit`, `pre-merge-commit` | Refuse a commit on a protected branch.                               | `hooks.allowCommitOnMain` (inverted) | on      |
+| `pre-commit`                     | Lint any `.changeset/*.md` the commit stages.                        | `hooks.changelogCheck`               | on      |
+| `commit-msg`                     | Refuse AI attribution in a commit message.                           | `hooks.noAttribution`                | on      |
+| `pre-push`                       | Run the consuming repository’s Build & Test workflow in a container. | `hooks.prePushCi`                    | off     |
 
 The defaults differ deliberately: a guard that costs nothing is on unless
 refused, and one that runs a container for minutes is off unless asked for.
@@ -120,8 +135,8 @@ Git comment lines and the verbose diff after a scissors comment are excluded.
 Findings report the original message line and column. This local hook examines
 commit messages only; the shared No Attribution workflow also checks pull
 request titles and bodies. Neither examines repository files, issues, comments,
-or Git author/committer metadata. The package-build repository's own hook uses
-the same matching code and remains enabled independently of the consumer switch.
+or Git author/committer metadata. The canonical shell hooks apply the same
+credit grammar with their own POSIX implementation.
 
 The branch guard is the one you meet first:
 

@@ -16,6 +16,33 @@ npm install -D @heroiclands/package-build
 
 The generated project includes a homepage, website and book targets, npm scripts, and a local `.gitignore`. [Getting started](docs/getting-started.md) routes you to a [system](docs/guides/system-project.md), [module](docs/guides/module-project.md), or [content authoring](docs/authoring/first-note.md) path. The [content-language-server](https://github.com/HeroicLands/content-language-server) provides editor navigation and completion.
 
+## Working on this repository
+
+Run `npm ci` in each fresh clone or worktree. Its `prepare` step installs the
+committed `.githooks/` with `git config core.hooksPath .githooks`; run
+`npm run prepare` to install the hooks again without reinstalling dependencies.
+Git uses the hook files in the current worktree.
+
+These are the canonical POSIX shell hooks from
+[HeroicLands/.github](https://github.com/HeroicLands/.github#local-git-hooks-and-actionsgithooks).
+They need Git, POSIX utilities and an available UTF-8 locale, and run without
+Node at commit time. `pre-commit` refuses commits on `main` and `master`;
+`commit-msg` refuses assistant coauthor credits and standalone assistant
+signatures while allowing ordinary prose and human coauthors. Both forges run
+the pinned canonical drift action against every installed hook file.
+
+Local opt-outs use Git configuration: `hooks.protectedBranch false` or
+`hooks.allowCommitOnMain true` for the branch guard, and
+`hooks.noAttribution false` for the message guard. Prefix each with `git config`
+to set it for this clone. `git commit --no-verify` skips both checks once.
+Server and pull-request enforcement still apply.
+
+The published `githooks/` bundle is a separate optional API described in
+[project setup](docs/project-setup.md#optional-published-hook-bundle). This
+repository’s setup installs the two canonical shell hooks; it installs no
+pre-push hook. Run `npm test` and the other checks directly, or use
+`package-build ci` for a container run.
+
 ## Documentation
 
 The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md). This toolchain does not build its own site or book. A Hugo theme dependency would form a cycle because the theme uses package-build for releases.

@@ -62,13 +62,15 @@ for (const entry of ["githooks/commit-msg", ".githooks/commit-msg"]) {
             const result = runHook(hook, message, true);
             expect(result.status, result.stderr).toBe(rejected ? 1 : 0);
         });
-        it("reports original lines and columns after comments and decoration", () => {
+        it("locates the credit after comments and decoration", () => {
             const result = runHook(
                 hook,
                 "Subject\r\n# comment\r\n\r\n  🤖 **Generated with** [Codex](https://openai.com/codex)\r\n",
             );
             expect(result.status).toBe(1);
-            expect(result.stderr).toContain(":4:8: error:");
+            expect(result.stderr).toContain(
+                entry.startsWith(".githooks/") ? ":4: error:" : ":4:8: error:",
+            );
         });
         it("runs directly through the portable shell shebang", () => {
             const message = path.join(scratch, "direct message");
@@ -97,11 +99,11 @@ it("allows the shipped hook to opt out", () => {
         runHook(path.join(root, "githooks/commit-msg"), "Generated with Claude Code", false).status,
     ).toBe(0);
 });
-it("keeps the repository hook enabled independently of the consumer switch", () => {
+it("allows the canonical repository hook to opt out", () => {
     expect(
         runHook(path.join(root, ".githooks/commit-msg"), "Generated with Claude Code", false)
             .status,
-    ).toBe(1);
+    ).toBe(0);
 });
 
 it("ships every hook dependency and runs the installed hook in a consumer", () => {

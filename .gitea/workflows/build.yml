@@ -27,6 +27,8 @@ jobs:
         runs-on: ubuntu-vm
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+            - name: Canonical git hooks
+              uses: HeroicLands/.github/actions/githooks@028cfaa520b588cae334f046d3530947a499fae3
             # Wants a checkout and nothing else, so it runs before the install
             # and fails in seconds rather than after one. The rule — deferred
             # work is an issue, not a marker in a comment — and its
