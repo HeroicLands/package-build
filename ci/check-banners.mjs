@@ -16,21 +16,16 @@
  *
  * `partials/hero-banner.html` needs to know which banner images exist, and Hugo
  * cannot ask a remote asset host that question at build time — so the answer is
- * declared in `data/banners.yaml` instead. A declaration nothing
- * checks is kept in step by hope, and the hole it was written to close reopens
- * the first time it drifts. It already had: when this check was written, four
- * names present in a local working copy of the artwork repository were not
- * published, and three that were published appeared in no local copy at all.
- *
- * So this fetches every declared name and fails on any non-200. It is the test
- * the template cannot make, moved to the one place that can make it.
+ * declared in `data/banners.yaml` instead. This checks every declaration and
+ * accepts HTTP 200 or 206. HTTP 404 and 410 identify absent artwork; other HTTP
+ * statuses and transport errors leave publication unverified and fail the check.
  *
  * It also refuses a name in `data/banner-kinds.yaml` that `banners.yaml` does
  * not declare, before any request is made: a mapping to undrawn art is a dead
  * URL on every page of that kind.
  *
  * Usage:
- *   node utils/check-banners.mjs [--base <url>] [--concurrency <n>]
+ *   node ci/check-banners.mjs [--base <url>] [--concurrency <n>]
  *
  * The host defaults to the Heroic Lands CDN and can be pointed anywhere with
  * `--base` or `BANNER_BASE_URL`, so a consumer publishing its own artwork set
@@ -158,6 +153,20 @@ function checkMapping(available) {
     if (undeclared.length) process.exit(1);
 }
 
+/** Fetch wraps transport errors in a cause, which can hold several connection failures. */
+function networkErrorDetails(error, seen = new Set()) {
+    if (!error || seen.has(error)) return [];
+    seen.add(error);
+    const message = [error.code, error.message].filter(Boolean).join(": ");
+    return [
+        ...(message ? [message] : []),
+        ...networkErrorDetails(error.cause, seen),
+        ...(Array.isArray(error.errors) ?
+            error.errors.flatMap((cause) => networkErrorDetails(cause, seen))
+        :   []),
+    ];
+}
+
 async function probe(url) {
     try {
         // HEAD first — it is what the question actually is. Some object stores
@@ -172,10 +181,15 @@ async function probe(url) {
         }
         return {
             ok: res.status === 200 || res.status === 206,
-            status: String(res.status),
+            missing: res.status === 404 || res.status === 410,
+            status: `HTTP ${res.status}`,
         };
     } catch (err) {
-        return { ok: false, status: `network error: ${err.message}` };
+        return {
+            ok: false,
+            missing: false,
+            status: `network error: ${networkErrorDetails(err).join("; ") || String(err)}`,
+        };
     }
 }
 
@@ -190,26 +204,30 @@ async function main() {
     const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
         for (let name = queue.shift(); name !== undefined; name = queue.shift()) {
             const url = `${root}/${name}.webp`;
-            const { ok, status } = await probe(url);
-            if (!ok) failures.push({ name, url, status });
+            const { ok, missing, status } = await probe(url);
+            if (!ok) failures.push({ name, url, missing, status });
         }
     });
     await Promise.all(workers);
 
     if (failures.length) {
         failures.sort((a, b) => a.name.localeCompare(b.name));
-        for (const { name, url, status } of failures) {
+        for (const { name, url, missing, status } of failures) {
             diag(
                 lineOf(source, name),
-                `declared banner ${name} is not published (${status}): ${url}`,
+                `declared banner ${name} ${missing ? "is not published" : "could not be verified"} (${status}): ${url}`,
             );
         }
+        const missing = failures.filter((failure) => failure.missing).length;
+        const unverified = failures.length - missing;
         console.error(
-            `check-banners: ${failures.length} of ${available.length} declared banners are missing from ${base}.`,
+            `check-banners: ${failures.length} of ${available.length} declared banners failed verification at ${base} (${missing} missing, ${unverified} unverified).`,
         );
-        console.error(
-            "Publish the artwork, or drop the name — an undrawn name here is a 404 on every page that resolves to it.",
-        );
+        if (missing) console.error("Publish the missing artwork or correct its inventory entry.");
+        if (unverified)
+            console.error(
+                "Check the asset host and request failures before changing the inventory.",
+            );
         process.exit(1);
     }
 
