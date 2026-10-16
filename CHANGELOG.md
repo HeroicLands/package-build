@@ -1,5 +1,32 @@
 # @heroiclands/package-build
 
+## 23.9.0
+
+### Minor Changes
+
+**Dictionaries and glossaries**
+
+- Language dictionaries and declared culture or affiliation glossaries appear automatically in journals, sites and books; remove SQL fences for these defaults.
+- Dictionaries use one full alphabetical list with field tags and one key; existing anchored Dictionary, Lexicon and Glossary headings keep their introductions and receive the lists.
+- Language notes with nonempty `data.words`, and cultures or affiliations with nonempty `data.glossary`, need no prose body; glossary sections show only their owner's declared entries.
+- Glossary entries naming dictionary words show their class and word link, with dictionary senses or the entry's context definition; sole-owner sense labels are omitted on that owner's page, while other attribution remains.
+- Common marks belong only to glossary terms; select or filter `terms.common`, because queries using `dictionary.common` fail.
+- Custom culture views select the culture's own entries and reached ranks or offices, applying common marks only to entries the culture owns.
+- Glossary entries without definitions must name a word in their resolved language or a reachable rank or office; specify the correct language or supply a definition when a name cannot resolve.
+
+**Links and publishing**
+
+- Correct links to headings inside HTML comments or raw HTML, which publish no section; builds also refuse section links absent from a dependency's published notes, including pages without prose anchors or journal documents.
+- Rebuild and fetch package indexes so dependent packages can link to generated sections and SQL-expression anchors; readable item documentation anchors target their documentation journals.
+- Engine publishers with dynamic content must await `prepareContentIndex` and pass its publication to `emitContentIndex` before writing metadata.
+
+### Patch Changes
+
+- Language dictionaries can show optional noun plurals and one verb pattern beside existing gender labels; languages without these details retain their output.
+- Dictionary fragments without a key omit the verb table; key-only fragments print abbreviations alone.
+- Built words show element senses in dictionary etymologies and pass the built-piece check, including declared variants, inherited elements and front-vowel affix forms.
+- Public dictionaries omit GM-only citations, preventing false link errors from hidden notes.
+
 ## 23.8.0
 
 ### Minor Changes
