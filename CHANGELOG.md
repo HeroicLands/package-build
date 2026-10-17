@@ -1,5 +1,26 @@
 # @heroiclands/package-build
 
+## 23.12.0
+
+### Minor Changes
+
+**Preview and layout**
+
+- Preview Markdown buffers directly in light or dark themes, without building a content index; cross-note constructs remain highlighted source.
+- Definition lists use bold terms and hanging definitions across websites, Foundry, preview and books, with a narrower definition column on small screens.
+
+**Dates and spoilers**
+
+- One setting-wide current date, defaulting to 720.1, drives age calculations; world-note dates are retired and authored ages are preserved.
+- Secret spans in Foundry and preview redact until hover or keyboard focus; secret preview sections and fences open as spoilers.
+- PDF inline secret spans print normally with their formatting; secret sections and fences retain labelled boxes.
+
+### Patch Changes
+
+**Alerts**
+
+- Note, Tip, Important and Warning alerts have tinted backgrounds with coordinated icons, headings and borders, adapting to each surface's color scheme.
+
 ## 23.11.0
 
 ### Minor Changes
