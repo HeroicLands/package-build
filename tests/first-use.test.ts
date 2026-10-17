@@ -362,6 +362,18 @@ describe("explicit name occurrences", () => {
         ).toEqual([]);
     });
 
+    it("lets a resolved wikilink introduce its note under any label", () => {
+        const { check } = fixture();
+        expect(check("[[place-arden|Arden]] lies east.")).toEqual([]);
+        expect(check("[[place-arden|the vale]] lies east.")).toEqual([]);
+        expect(rules(check("[[place-arden|Arden]] then [[place-arden|Arden Vale]]."))).toEqual([
+            "repeated-name",
+        ]);
+        expect(rules(check("[Arden](https://example.invalid) lies east."))).toEqual([
+            "short-before-full",
+        ]);
+    });
+
     it("keeps declared aliases attached to their indexed names", () => {
         const { check } = fixture([
             {
@@ -506,7 +518,7 @@ describe("source exclusions and canonical identities", () => {
                     "[[pub-sohl-skill-craft|Northern Craft]] then [[pub-note-skill-craft|North Craft]].",
                 ),
             ),
-        ).toEqual(["short-before-full", "repeated-name"]);
+        ).toEqual(["repeated-name"]);
         expect(
             rules(check("[North Craft]{.name} then [[pub-sohl-skill-craft|North Craft]].")),
         ).toEqual(["unlinked-name", "repeated-name"]);

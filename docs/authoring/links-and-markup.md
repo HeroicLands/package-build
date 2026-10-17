@@ -91,9 +91,12 @@ the attribute adds no book presentation.
 
 `package-build lint` warns when an indexed name or alias uses `.name`
 instead of a link, when the same name is marked or linked again, or when a
-short form appears before its full name. Only marked names and authored link
-labels count toward these rules. Introduce the full name before an alias such
-as `Arden`, then use plain text for later mentions. Full names and their
+`.name` span or Markdown link uses a short form before its full name. Only
+marked names and authored link labels count toward these rules. A wikilink
+introduces its note under whatever label reads naturally, so
+`[[place-arden|Arden]]` needs no earlier `Arden Vale`, and an article
+mid-sentence stays lowercase. A `.name` span introduces the full name before
+an alias such as `Arden`. Later mentions are plain text. Full names and their
 declared aliases count as the same name, including in links to different
 headings. Different labels do not become the same name just because they link
 to the same page.

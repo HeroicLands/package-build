@@ -1851,9 +1851,13 @@ infoboxes, code, comments and embeds are outside this check.
 
 A name is explicit: a `[Name]{.name}` bracket span or an authored link label.
 Use typed `.name` spans for unwritten subjects and ordinary wikilinks for
-indexed subjects, including private ones. Introduce another subject with its
-full canonical name at its first prose use; use plain text for the note's own
-subject and for later mentions and aliases.
+indexed subjects, including private ones. Mark or link another subject at its
+first prose use, and use plain text for the note's own subject and for later
+mentions and aliases. A wikilink identifies its note, so its label is whatever
+reads naturally in the sentence: `[[place-vedyara|Vedyara]]` for a note whose
+full name is _Vedyara Region_, and a lowercase article mid-sentence
+(`[[place-southwall|the Southern Wall]]`). A `.name` span has no note behind
+it, so it carries the full name.
 Plain prose is not searched for names. Wikilinks, ordinary Markdown links and
 reference links all supply names; a resolved empty wikilink label uses the
 note's full name. Images, code, footnote markers and bare autolinks without
@@ -1867,9 +1871,10 @@ authored labels supply none.
    anchors. Other labels use their whole text as their identity: different
    labels linking to one page are separate names, and a label is not
    automatically an alias of its destination.
-3. Introduce the full name before a short form or declared alias.
-   Possessives and regular plurals count as uses; other indexed forms can be
-   declared aliases.
+3. A `.name` span or an ordinary Markdown link introduces the full name
+   before a short form or declared alias. A resolved wikilink introduces its
+   note under any label. Possessives and regular plurals count as uses; other
+   indexed forms can be declared aliases.
 
 Bold is emphasis. A whole bold span exactly matching an indexed full name or
 alias receives one advisory to mark or link the name. It supplies no name

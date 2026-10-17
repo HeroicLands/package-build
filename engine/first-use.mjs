@@ -327,14 +327,16 @@ export function createFirstUseChecker({
                     "repeated-name",
                     `“${entry.full}” is linked or marked more than once`,
                 );
-            if (!entry.fullUse && !fullUsed.has(entry.key))
+            // A resolved wikilink identifies its note, so its label may be any natural form.
+            const introduces = entry.fullUse || entry.key === event.preferred?.key;
+            if (!introduces && !fullUsed.has(entry.key))
                 add(
                     event.start,
                     "short-before-full",
                     `“${event.label}” appears before the full name “${entry.full}”`,
                 );
             used.add(entry.key);
-            if (entry.fullUse) fullUsed.add(entry.key);
+            if (introduces) fullUsed.add(entry.key);
         }
         for (const span of bold) {
             if (typeof span.label !== "string") continue;
