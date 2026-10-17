@@ -432,6 +432,28 @@ Janapada
 : Also the land associated with that community.
 ```
 
+To continue the same definition, leave a blank line and indent the next
+paragraph or block by four spaces. For a fenced code block, indent both fences
+and its contents:
+
+````markdown
+Harbour due
+: A toll on every hull that ties up.
+
+    The harbourmaster collects it before unloading begins.
+
+    ```text
+    One hull: two silver pieces.
+    ```
+
+Anchorage
+: A sheltered place where a ship can lie at anchor.
+````
+
+The continuation paragraph and code block belong to the same definition.
+Repeat `:` only when starting a separate definition for the same term, as in
+the first example. The next unindented term starts a new entry.
+
 The web and Foundry render a definition list with HTML `<dl>`, `<dt>`, and
 `<dd>` elements. The book renders it as a term list.
 

@@ -2667,7 +2667,10 @@ local to a note; rendered markers are sequential numbers. A Foundry page
 collects its referenced footnotes in a Footnotes section at the bottom of that
 JournalEntryPage, while a book places them at the bottom of the page of
 reference. A term followed by `: definition` lines creates a definition list.
-See the [authoring examples](../authoring/links-and-markup.md#footnotes-and-definition-lists).
+After a blank line, indent continuation paragraphs and blocks by four spaces
+to keep them in the same definition; indent a code block's opening fence,
+contents and closing fence. Another `:` starts a separate definition for the
+same term. See the [authoring examples](../authoring/links-and-markup.md#footnotes-and-definition-lists).
 
 ```
 # Heading {#id .class1 .class2 attr="value"}
