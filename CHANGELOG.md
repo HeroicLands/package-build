@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 23.12.1
+
+### Patch Changes
+
+A wikilink now introduces its note under whatever label reads naturally, such as `[[place-vedyara|Vedyara]]` for _Vedyara Region_, so lint no longer asks for the note's full name in prose. A `.name` span still introduces the full name first.
+
 ## 23.12.0
 
 ### Minor Changes
