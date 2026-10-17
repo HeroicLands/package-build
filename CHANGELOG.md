@@ -1,5 +1,12 @@
 # @heroiclands/package-build
 
+## 23.11.0
+
+### Minor Changes
+
+- References to private notes and secret sections now conceal their labels on the web; authors can keep selected references visible.
+- Inline spoilers preserve formatted text across websites, Foundry journals and books.
+
 ## 23.10.0
 
 ### Minor Changes
