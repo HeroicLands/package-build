@@ -168,7 +168,6 @@ describe("manifestPacks — one pack list, not two", () => {
                 label: "Maps",
                 type: "Scene",
                 name: "scenes",
-                system: "sohl",
                 path: "packs/scenes",
                 private: false,
             },
@@ -176,7 +175,6 @@ describe("manifestPacks — one pack list, not two", () => {
                 label: "Adventures",
                 type: "Adventure",
                 name: "adventures",
-                system: "sohl",
                 path: "packs/adventures",
                 private: false,
             },
@@ -603,12 +601,22 @@ describe("manifestPacks — the system is per pack", () => {
         expect(entry).not.toHaveProperty("system");
     });
 
-    it("falls back to the package-wide systemId", () => {
-        const [entry] = manifestPacks({
+    it("falls back to the package-wide systemId for a system-specific pack", () => {
+        const entries = manifestPacks({
             stats: { systemId: "sohl" },
-            packs: [pack()],
+            packs: ["ActiveEffect", "Actor", "Item"].map((type) => pack({ name: type, type })),
         });
-        expect(entry.system).toBe("sohl");
+        expect(entries.map((e) => e.system)).toEqual(["sohl", "sohl", "sohl"]);
+    });
+
+    // A module whose Item and Actor packs belong to one system still reads its
+    // journals and adventures under any other.
+    it("leaves a journal or adventure pack system-less unless it names one", () => {
+        const entries = manifestPacks({
+            stats: { systemId: "sohl" },
+            packs: [pack(), pack({ name: "journals", type: "JournalEntry" })],
+        });
+        for (const entry of entries) expect(entry).not.toHaveProperty("system");
     });
 
     it("lets a pack override the package-wide systemId", () => {

@@ -718,17 +718,17 @@ packs:
   - { name: journals, type: JournalEntry, label: Journals }
 ```
 
-| Key (under `packs[]`) | Type                                                                  | Required | Default                                 |
-| --------------------- | --------------------------------------------------------------------- | -------- | --------------------------------------- |
-| `packs[].name`        | string                                                                | yes      | —                                       |
-| `packs[].type`        | one of `Actor`, `Adventure`, `Item`, `JournalEntry`, `Macro`, `Scene` | yes      | —                                       |
-| `packs[].label`       | string                                                                | no       | `packs[].name`                          |
-| `packs[].private`     | boolean                                                               | no       | `false`                                 |
-| `packs[].companions`  | array, same shape, one level only                                     | no       | `[]`                                    |
-| `packs[].mayBeEmpty`  | boolean                                                               | no       | `false`                                 |
-| `packs[].default`     | boolean                                                               | no       | `false`                                 |
-| `packs[].prebuilt`    | string (directory)                                                    | no       | `null`                                  |
-| `packs[].system`      | string                                                                | no       | `null` — falls back to `stats.systemId` |
+| Key (under `packs[]`) | Type                                                                  | Required | Default                                                                                                |
+| --------------------- | --------------------------------------------------------------------- | -------- | ------------------------------------------------------------------------------------------------------ |
+| `packs[].name`        | string                                                                | yes      | —                                                                                                      |
+| `packs[].type`        | one of `Actor`, `Adventure`, `Item`, `JournalEntry`, `Macro`, `Scene` | yes      | —                                                                                                      |
+| `packs[].label`       | string                                                                | no       | `packs[].name`                                                                                         |
+| `packs[].private`     | boolean                                                               | no       | `false`                                                                                                |
+| `packs[].companions`  | array, same shape, one level only                                     | no       | `[]`                                                                                                   |
+| `packs[].mayBeEmpty`  | boolean                                                               | no       | `false`                                                                                                |
+| `packs[].default`     | boolean                                                               | no       | `false`                                                                                                |
+| `packs[].prebuilt`    | string (directory)                                                    | no       | `null`                                                                                                 |
+| `packs[].system`      | string                                                                | no       | `null` — an ActiveEffect, Actor or Item pack falls back to `stats.systemId`; any other pack names none |
 
 `private: true` restricts a Foundry compendium to GMs. A note tagged `gm`
 compiles only into private packs. Set `data.pack` to a private pack for the

@@ -233,6 +233,9 @@ const MANIFEST_KEY_ORDER = Object.freeze([
     "download",
 ]);
 
+/** The pack types Foundry requires to name a system. */
+const SYSTEM_SPECIFIC_PACK_TYPES = Object.freeze(["ActiveEffect", "Actor", "Item"]);
+
 /**
  * The manifest's `packs`, derived from the one pack list the build already has.
  *
@@ -254,11 +257,12 @@ export function manifestPacks(config) {
     return config.packs.flatMap(flatten).map((pack) => {
         // Foundry requires `system` on ActiveEffect, Actor and Item packs and
         // on no others, so the value is per pack: its own declaration first,
-        // then the package-wide one. With neither, the key is omitted — an
-        // Adventure, Scene or JournalEntry pack that declares a system is
-        // hidden from every other system, which is rarely what a package that
-        // declined to name one meant.
-        const system = pack.system ?? config.stats.systemId;
+        // then, for those three types only, the package-wide one. Any other
+        // pack that declares a system is hidden from every other system, so it
+        // carries one only when it names one itself.
+        const system =
+            pack.system ??
+            (SYSTEM_SPECIFIC_PACK_TYPES.includes(pack.type) ? config.stats.systemId : undefined);
         return {
             label: pack.label,
             type: pack.type,
