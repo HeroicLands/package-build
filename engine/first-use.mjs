@@ -328,7 +328,7 @@ export function createFirstUseChecker({
                     `“${entry.full}” is linked or marked more than once`,
                 );
             // A resolved wikilink identifies its note, so its label may be any natural form.
-            const introduces = entry.fullUse || entry.key === event.preferred?.key;
+            const introduces = entry.fullUse || event.preferred !== undefined;
             if (!introduces && !fullUsed.has(entry.key))
                 add(
                     event.start,

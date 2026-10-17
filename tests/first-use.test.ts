@@ -366,6 +366,7 @@ describe("explicit name occurrences", () => {
         const { check } = fixture();
         expect(check("[[place-arden|Arden]] lies east.")).toEqual([]);
         expect(check("[[place-arden|the vale]] lies east.")).toEqual([]);
+        expect(check("[[lore-warden|Arden]] keeps the gate.")).toEqual([]);
         expect(rules(check("[[place-arden|Arden]] then [[place-arden|Arden Vale]]."))).toEqual([
             "repeated-name",
         ]);
