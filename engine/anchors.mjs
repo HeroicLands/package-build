@@ -41,7 +41,7 @@ import { scanPoetry } from "./content-poetry.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { slugify } from "./content-slug.mjs";
 import { scanFigures } from "./content-figures.mjs";
-import { scanHeadingAttributes } from "./heading-attributes.mjs";
+import { withheldSections, scanHeadingAttributes } from "./heading-attributes.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 /**
@@ -67,11 +67,12 @@ export const ANCHOR_KINDS = Object.freeze(["prose", "event"]);
  *   {@link module:engine/content-figures.scanFigures}.
  * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Exact-text scanner projections.
  * @returns {Array<{slug: string, name: string, level: number, line: number,
- *   kind: string}>} In document order.
+ *   kind: string, secret?: boolean}>} In document order.
  */
 export function collectAnchors(body, bodyLine = 1, resolveRole, syntax) {
     const anchors = [];
-    for (const heading of scanHeadingAttributes(body, bodyLine).headings) {
+    const headings = scanHeadingAttributes(body, bodyLine).headings;
+    for (const heading of headings) {
         if (!heading.id) continue;
         anchors.push({
             slug: heading.id,
@@ -91,9 +92,12 @@ export function collectAnchors(body, bodyLine = 1, resolveRole, syntax) {
             kind: "prose",
         });
     }
+    const secretBlocks = [];
     const blockAnchors = (source, firstLine) => {
         const sourceLines = source.split("\n");
         for (const block of (syntax ? syntax(source).blocks : scanBlocks(source)).blocks) {
+            if (block.name === "secret")
+                secretBlocks.push({ start: firstLine + block.start, end: firstLine + block.end });
             if (block.id)
                 anchors.push({
                     slug: slugify(block.id),
@@ -129,7 +133,8 @@ export function collectAnchors(body, bodyLine = 1, resolveRole, syntax) {
                 kind: "prose",
             });
     }
-    for (const span of (syntax ? syntax(body).spans : scanSpans(body)).spans) {
+    const spans = (syntax ? syntax(body).spans : scanSpans(body)).spans;
+    for (const span of spans) {
         if (span.id)
             anchors.push({
                 slug: slugify(span.id),
@@ -138,6 +143,33 @@ export function collectAnchors(body, bodyLine = 1, resolveRole, syntax) {
                 line: bodyLine + span.line - 1,
                 kind: "prose",
             });
+    }
+    const sections =
+        headings.some((heading) => heading.classes.includes("secret")) ?
+            withheldSections(body).sections
+        :   [];
+    const secretSpans = spans.filter((span) =>
+        span.attrs.some(([key, value]) => key === "class" && value.split(/\s+/).includes("secret")),
+    );
+    const secretSpanAnchors = new Set(
+        spans
+            .filter(
+                (target) =>
+                    target.id &&
+                    secretSpans.some(
+                        (parent) => parent.start <= target.start && parent.end >= target.end,
+                    ),
+            )
+            .map((span) => span.id),
+    );
+    for (const anchor of anchors) {
+        const line = anchor.line - bodyLine;
+        if (
+            sections.some((section) => line >= section.start && line < section.end) ||
+            secretBlocks.some((block) => anchor.line >= block.start && anchor.line <= block.end) ||
+            secretSpanAnchors.has(anchor.slug)
+        )
+            anchor.secret = true;
     }
     return anchors.sort((a, b) => a.line - b.line);
 }

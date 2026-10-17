@@ -515,7 +515,10 @@ is declared, so a near miss is a finding that names what you probably meant.
 
 `gm` marks a note for GM access. It is excluded from public site pages, SQL
 tables on the public site, and the book. Foundry compiles it only to private
-compendiums. A regular note cannot link to it; a GM note can.
+compendiums. Any note may reference it with an ordinary wikilink; the
+reference is automatically a spoiler. The `.show` override reveals that
+reference without changing the destination's audience or access permissions;
+see [references to secret subjects](#references-to-secret-subjects).
 
 **`draft` marks unfinished content.** It does two things and nothing
 else: a link _into_ a draft note renders marked, and the note itself states that
@@ -1808,6 +1811,37 @@ name at every citation with no link edited. `[[x|]]` is labelled; `[[x]]` is not
 It is the label that is required, not a target: the anchor-only form above
 carries its pipe like every other link.
 
+#### References to secret subjects
+
+Use `[[doc-divineactn|The Truth of Divine Action]]` for an indexed subject,
+including one with a GM-only audience. The renderer derives spoiler presentation
+from the resolved destination and conceals the whole reference, including its
+label. A public destination has no automatic concealment. An anchor inside secret
+content is a secret destination, including a same-note anchor reference. A
+link to the whole public note does not inherit a section's secrecy.
+
+The website renders an inline show/hide spoiler; an omitted GM-only target
+retains its reference as text without a dead link. A published secret section
+retains its link. Foundry renders a visible inline spoiler with a **Secret:**
+label, with access to its destination controlled by private packs and page
+permissions. Books print secret styling and a **Secret:** label, retaining text
+without a link when the GM-only destination is omitted. `.show` bypasses the
+automatic spoiler presentation on each surface; an unavailable destination
+still has no link.
+
+An immediately following `.show` attribute explicitly reveals the reference:
+
+```markdown
+[[doc-divineactn|The Truth of Divine Action]]{.show}
+[[doc-magictruth|The Truth of Magic]]{.show}
+```
+
+This override changes the reference's presentation only. It does not publish a
+GM-only note, alter Foundry permissions or reveal the destination's content.
+It is redundant for public destinations. `[text]{.secret}` separately marks
+text itself as a spoiler; it declares no destination audience. See
+[inline spans](#inline-spans) for inline spoiler syntax and surface behavior.
+
 #### Marking names in prose
 
 `package-build lint` reports name-marking warnings in authored body prose.
@@ -1815,7 +1849,10 @@ The warnings leave a valid package passing. Headings, frontmatter, tables,
 infoboxes, code, comments and embeds are outside this check.
 
 A name is explicit: a `[Name]{.name}` bracket span or an authored link label.
-Use `.name` for names without indexed notes and links for names with notes.
+Use typed `.name` spans for unwritten subjects and ordinary wikilinks for
+indexed subjects, including private ones. Introduce another subject with its
+full canonical name at its first prose use; use plain text for the note's own
+subject and for later mentions and aliases.
 Plain prose is not searched for names. Wikilinks, ordinary Markdown links and
 reference links all supply names; a resolved empty wikilink label uses the
 note's full name. Images, code, footnote markers and bare autolinks without
@@ -1856,7 +1893,7 @@ An optional `data-type` on a `.name` span states what the named thing is:
 
 ```markdown
 [Ravenmoor]{.name data-type="place/settlement"}
-[Aldric Venn]{.name data-type="being"}
+[Aldric Venn]{.name data-type="being/npc"}
 ```
 
 Use a declared [note type](note-types.md), optionally followed by `/` and one
@@ -3483,6 +3520,25 @@ The watch wears [a _blue_ sash]{#watch-sash .uniform lang=en}.
 
 The exact `.name` class marks a name, with optional `data-type="type/subType"`;
 see [marking names in prose](#marking-names-in-prose) for the vocabulary and index.
+The exact `.secret` class marks the enclosed text as an inline spoiler:
+
+```markdown
+[The hidden **passage**]{.secret}
+[Aldric Venn]{.name .secret data-type="being/npc"}
+```
+
+The website provides an inline show/hide button and preserves interactive links
+inside the revealed content. Foundry prints a visible inline `secret` span
+with a **Secret:** label; the span does not withhold its text from players.
+The book prints the text with secret styling and a **Secret:** label.
+Inline emphasis and combined `.name` classification survive rendering. Published HTML retains the text, so opening
+the spoiler or inspecting the source reveals it.
+
+This span has no effect on a destination's audience. Ordinary wikilinks derive
+spoilers from their resolved destinations; `.show` bypasses that automatic
+concealment without cancelling an enclosing authored `.secret`. An inline span
+does not change the scope of `.secret` headings or `:::secret` blocks, and it
+does not start or withhold a JournalEntryPage.
 
 Inline Markdown remains active inside the span. Bracket spans have lower priority than URL links, image links, reference links, footnotes and wikilinks. A bracketed form immediately preceded by `!`, followed by `(` or another `[`, or beginning with `[[` is not a span, even when the link is unresolved. Ordinary links retain their existing syntax. Escape a bracket when it should be literal, or put examples inside a code span or fence. A span identifier addresses that point in the note; it does not start a journal page.
 

@@ -21,6 +21,24 @@ An Address identifies a subject by package, system, type, and shortcode. It is i
 
 The content index uses JSON Lines. A record can retain the note's full frontmatter, anchors, and outgoing links, and streams without loading one giant JSON array. It is derived, disposable, and stable for a fixed source tree and toolchain version. SQL queries and editor navigation read that index rather than guessing from filenames.
 
+## Reference presentation and access
+
+An indexed subject has one ordinary wikilink syntax regardless of its audience.
+The renderer derives spoiler presentation from the actual destination, so an
+author does not duplicate a privacy declaration on every mention. The `.show`
+override reveals a particular reference without changing the destination's
+audience. A separate inline `.secret` span marks authored text as a spoiler.
+
+Concealment and access remain separate decisions. Public site and book builds
+omit GM-only notes; a reference to an omitted destination carries no unusable
+link. Foundry's private packs and page permissions govern destination access.
+Web inline spoilers use a separate show/hide control beside their content, so
+a revealed link is independently usable. Foundry and book inline spoilers are
+visible labelled text; an inline Foundry span has no native secret-section
+permission behavior. A spoiler in published HTML remains readable in the source. See the
+[authoring contract](authoring/links-and-markup.md#references-to-secret-subjects)
+for syntax and surface presentation.
+
 ## Build boundaries
 
 The content pass reads `assets/content/` and addressable assets. It emits the content index, page source, and Foundry documents. Site rendering and book typesetting consume those outputs; their layout decisions do not become fields of a Foundry DataModel. Packaging stages only the files a Foundry manifest declares. The build checks emitted fields against the target system schema because Foundry can otherwise discard an unknown field without an error.

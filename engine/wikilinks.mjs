@@ -27,7 +27,7 @@
 
 import { resolveShortcodeReference } from "./shortcode-references.mjs";
 
-import { readWikilink } from "./wikilink-syntax.mjs";
+import { presentWikilink, readWikilink } from "./wikilink-syntax.mjs";
 import crypto from "crypto";
 
 import { compendiumUuid, ITEM_PACK, packForType, pageUuid, PACK_BY_TYPE } from "./ids.mjs";
@@ -407,15 +407,29 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
     // one capture group. It is what makes two identical unresolved links on
     // one note tellable apart, and a position reportable at all.
     const out = replaceOutsideCode(markdown, WIKILINK, (all, rawInner, offset) => {
-        const parsed = readWikilink(rawInner, {
-            package: index.contentPackage,
-            system: "note",
-            types: index.types,
-            packages: index.packages,
-            noIndexPackages: index.noIndexPackages,
-        });
+        const parsed = readWikilink(
+            rawInner,
+            {
+                package: index.contentPackage,
+                system: "note",
+                types: index.types,
+                packages: index.packages,
+                noIndexPackages: index.noIndexPackages,
+            },
+            all,
+        );
         const target = parsed.rawTarget;
         const slug = parsed.anchor || null;
+        if (parsed.attributes?.problems.length) {
+            unresolved.push({
+                link: all,
+                target,
+                offset,
+                reason: "invalid-attributes",
+                problems: parsed.attributes.problems,
+            });
+            return unresolvedLink(authoredLabel(parsed) ?? target, target);
+        }
 
         // **Every link carries a label**. Without one there is nothing
         // to resolve against: a shortcode is an address rather than prose, so
@@ -512,7 +526,11 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
             if (hit) {
                 const uuid = slug ? hit.anchors?.[slug] : hit.uuid;
                 if (uuid) {
-                    return `@UUID[${uuid}]{${text || hit.name || target}}`;
+                    return presentWikilink(
+                        `@UUID[${uuid}]{${text || hit.name || target}}`,
+                        parsed,
+                        hit,
+                    );
                 }
                 unresolved.push({
                     link: all,
@@ -559,7 +577,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
         const entryUuid = itemDoc ? addresses.docUuid : addresses.uuid;
         // The target has no single Foundry document. Its address is real, but
         // a compendium has nothing to open, so the reader gets the label.
-        if (entryUuid === undefined) return text;
+        if (entryUuid === undefined) return presentWikilink(text, parsed, doc);
         const entryId = itemDoc ? itemDocEntryId(doc.id) : doc.id;
         const isJournal = itemDoc || packForType(doc.type).docType === "JournalEntry";
         // A JournalEntry link opens a journal — at its first page, or at the
@@ -614,7 +632,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index, cap
         // Presentation only — the UUID above is unchanged, and a
         // `[[#slug]]` self-link is not marked because the reader is already in
         // the note it would be telling them about.
-        return doc.draft ? draftLink(link) : link;
+        return presentWikilink(doc.draft ? draftLink(link) : link, parsed, doc);
     });
 
     return { markdown: out, unresolved };

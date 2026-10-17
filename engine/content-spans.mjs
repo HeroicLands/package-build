@@ -21,21 +21,41 @@ import { inlineText } from "./name-markup.mjs";
 
 /** Add bracket spans after recognized Markdown links and footnotes.
  * @param {import("markdown-it")} md - Markdown parser to extend.
+ * @param {object} [options] - Surface presentation.
+ * @param {boolean} [options.spoilers] - Add visible static Secret labels (Foundry).
  */
-export function spanMarkdownPlugin(md) {
+export function spanMarkdownPlugin(md, { spoilers = false } = {}) {
+    if (spoilers) {
+        md.renderer.rules.span_open = (tokens, index, options, env, renderer) => {
+            const token = tokens[index];
+            const secret = (token.attrGet("class") ?? "").split(/\s+/).includes("secret");
+            return (
+                renderer.renderToken(tokens, index, options) +
+                (secret ? '<strong class="inline-secret-label">Secret:</strong> ' : "")
+            );
+        };
+    }
     md.inline.ruler.after("link", "bracket_span", (state, silent) => {
         const start = state.pos;
         if (
             state.src[start] !== "[" ||
+            // Raw wikilinks are handled before spans render. Refuse their
+            // adjacent closing brackets without parsing every label twice.
+            (state.src[start + 1] === "[" &&
+                state.src[state.src.indexOf("]", start + 2) + 1] === "]") ||
             /@[A-Za-z]+$/.test(state.src.slice(0, start)) ||
-            state.src[start + 1] === "[" ||
             state.src[start + 1] === "^" ||
             state.src[start + 1] === "!" ||
             ["!", "[", "]"].includes(state.src[start - 1])
         )
             return false;
         const end = state.md.helpers.parseLinkLabel(state, start, false);
-        if (end < 0 || ["(", "["].includes(state.src[end + 1])) return false;
+        if (
+            end < 0 ||
+            ["(", "["].includes(state.src[end + 1]) ||
+            (state.src[start + 1] === "[" && state.src[end + 1] !== "{")
+        )
+            return false;
         let finish = end + 1;
         let parsed = { id: "", classes: [], values: {}, problems: [] };
         if (state.src[finish] === "{") {
@@ -259,10 +279,15 @@ export function renderSpans(source) {
         )
         .sort((a, b) => b.start - a.start)) {
         const attrs = span.attrs.map(([key, value]) => ` ${key}="${escape(value)}"`).join("");
-        markdown =
-            markdown.slice(0, span.start) +
-            `<span${attrs}>${renderSpans(markdown.slice(span.start + 1, span.contentEnd)).markdown}</span>` +
-            markdown.slice(span.end);
+        const inner = renderSpans(markdown.slice(span.start + 1, span.contentEnd)).markdown;
+        const secret = span.attrs.some(
+            ([key, value]) => key === "class" && value.split(/\s+/).includes("secret"),
+        );
+        const content =
+            secret ?
+                `<span${attrs} data-inline-secret><button type="button" class="inline-secret-toggle" aria-label="Show spoiler" aria-expanded="false">Show spoiler</button><span class="inline-secret-content" hidden>${inner}</span></span>`
+            :   `<span${attrs}>${inner}</span>`;
+        markdown = markdown.slice(0, span.start) + content + markdown.slice(span.end);
     }
     return { markdown, errors };
 }

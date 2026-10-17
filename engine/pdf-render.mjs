@@ -1630,7 +1630,7 @@ export function bookTypstPreamble() {
         // weight so it remains bold inside an ordinary strong phrase.
         "#let book-span(body, classes: ()) = {\n" +
             '  let styled = if classes.contains("name") { text(weight: "bold", body) } else { body }\n' +
-            "  box(styled)\n" +
+            '  if classes.contains("secret") { box(fill: rgb("#f2eefb"), inset: (x: 3pt, y: 1pt), text(fill: rgb("#5c4b8a"))[#strong[Secret:] #styled]) } else { box(styled) }\n' +
             "}",
         // Use the file's natural measure for auto. Every requested width is
         // bounded by the available measure and by the height of a page.

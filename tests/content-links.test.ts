@@ -75,7 +75,7 @@ describe("anchorsOf", () => {
 });
 
 describe("buildLinkIndex", () => {
-    it("reports a player-facing link to a GM note and allows GM-to-GM links", () => {
+    it("allows player-facing and GM links to valid private notes", () => {
         const result = audit({
             "Lore/Secret.md": note({ type: "lore", shortcode: "secret", tags: ["gm"] }),
             "Lore/Another.md": note(
@@ -84,12 +84,7 @@ describe("buildLinkIndex", () => {
             ),
             "Lore/Public.md": note({ type: "lore", shortcode: "public" }, "[[lore-secret|Secret]]"),
         });
-        expect(result.deadAddresses).toEqual([
-            expect.objectContaining({
-                reason: "gm",
-                note: expect.objectContaining({ rel: "Lore/Public.md" }),
-            }),
-        ]);
+        expect(result.deadAddresses).toEqual([]);
     });
 
     it("loads only notes carrying a type", () => {
@@ -168,6 +163,22 @@ describe("buildLinkIndex", () => {
 });
 
 describe("auditLinks", () => {
+    it("parses trailing attributes and reports refused ones through the shared finding", () => {
+        const r = audit({
+            "Lore/Secret.md": note({ type: "lore", shortcode: "secret", tags: ["gm"] }),
+            "Rules/A.md": note(
+                { type: "doc", shortcode: "a" },
+                "[[lore-secret|Secret]]{.show onclick=run}",
+            ),
+        });
+        expect(r.deadAddresses).toMatchObject([
+            {
+                reason: "invalid-attributes",
+                problems: ["onclick is an event handler and is not written"],
+            },
+        ]);
+    });
+
     it("reports nothing for a clean tree", () => {
         const r = audit({
             "Skills/Climbing.md": note(

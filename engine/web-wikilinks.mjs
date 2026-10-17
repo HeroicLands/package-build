@@ -41,7 +41,8 @@
 // cannot drift apart on it: they disagreed once over the unlabelled hyphen
 // form, which the packs showed as a raw shortcode and the knowledgebase as a
 // name.
-import { readWikilink } from "./wikilink-syntax.mjs";
+import { collectAnchors } from "./anchors.mjs";
+import { presentWikilink, readWikilink } from "./wikilink-syntax.mjs";
 import { readQualifier } from "./wikilinks.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The canonical `package-system-type-shortcode` key, so a package-qualified
@@ -354,6 +355,7 @@ export function resolveWebWikilinks(body, ctx) {
     // same counting the checker does, and what turns a finding into a
     // `file:line:column:` diagnostic rather than a note-wide one.
     const seen = new Map();
+    let ownAnchors = ctx.noteAnchors;
     /**
      * Records a finding against one authored literal.
      *
@@ -404,18 +406,28 @@ export function resolveWebWikilinks(body, ctx) {
     // Code is verbatim: a `[[…]]` inside a code fence, an indented block or an
     // inline span is source text, not a link.
     return replaceOutsideCode(embedded.markdown, WIKILINK, (all, rawInner) => {
-        const parsed = readWikilink(rawInner, {
-            package: ctx.contentPackage,
-            system: "note",
-            types: ctx.contentTypes ?? new Set(),
-            packages: ctx.packages,
-            noIndexPackages: ctx.noIndexPackages,
-        });
+        const parsed = readWikilink(
+            rawInner,
+            {
+                package: ctx.contentPackage,
+                system: "note",
+                types: ctx.contentTypes ?? new Set(),
+                packages: ctx.packages,
+                noIndexPackages: ctx.noIndexPackages,
+            },
+            all,
+        );
         const { rawTarget: target, anchor, display } = parsed;
         // An empty label is not a label: `[[x|]]` addresses the target and
         // shows its name, so `""` falls through to the same place `null` does.
         // One reading, from {@link authoredLabel}.
         const label = authoredLabel({ display });
+        if (parsed.attributes?.problems.length)
+            return report(
+                all,
+                { target, reason: "invalid-attributes", problems: parsed.attributes.problems },
+                label ?? target,
+            );
 
         // **Every link carries a label**. Without one there is nothing
         // to resolve against, and nothing to show either, a shortcode being an
@@ -445,7 +457,11 @@ export function resolveWebWikilinks(body, ctx) {
                     label ?? anchor,
                 );
             }
-            return `[${label ?? ctx.captionLabels?.get(anchor) ?? anchor}](#${slugify(anchor)})`;
+            return presentWikilink(
+                `[${label ?? ctx.captionLabels?.get(anchor) ?? anchor}](#${slugify(anchor)})`,
+                parsed,
+                { noteAnchors: (ownAnchors ??= collectAnchors(body)) },
+            );
         }
 
         // The canonical separator has to be resolved, not merely
@@ -480,7 +496,7 @@ export function resolveWebWikilinks(body, ctx) {
                     label ?? hit.name ?? target,
                 );
             }
-            if (anchor && hit.url && !hasAnchor(hit.noteAnchors ?? hit.anchors, anchor)) {
+            if (anchor && !hasAnchor(hit.noteAnchors ?? hit.anchors, anchor)) {
                 return report(
                     all,
                     { target, reason: "unknown-anchor", anchor, addressed: true },
@@ -506,8 +522,13 @@ export function resolveWebWikilinks(body, ctx) {
             // Presentation only — the href above is unchanged, and a
             // `[[#anchor]]` self-link is not marked because the reader is
             // already on the page it would be telling them about.
-            if (!hit.draft) return link;
-            return ctx.output === "book" ? `${link} (draft)` : draftLink(link);
+            return presentWikilink(
+                !hit.draft ? link
+                : ctx.output === "book" ? `${link} (draft)`
+                : draftLink(link),
+                parsed,
+                hit,
+            );
         }
 
         // **An address resolving nowhere is a failure, unconditionally**.

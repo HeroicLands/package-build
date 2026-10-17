@@ -70,7 +70,7 @@ import { contentPackage } from "./content-package.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { presentAmongRecords } from "./being-age.mjs";
 // The declared tag vocabulary, which is where `draft` is stated.
-import { isDraftNote } from "./note-vocabulary.mjs";
+import { isGmNote, isDraftNote } from "./note-vocabulary.mjs";
 
 /**
  * One page the site will publish, as the index needs to see it.
@@ -219,6 +219,24 @@ export function buildSiteIndex(
     // a stale vendored manifest and a shadowed local page.
     const { ambiguous } = mergeForeign(index, foreignIndex);
 
+    // Private notes have no public page, but still resolve references safely.
+    for (const record of records) {
+        if (!isGmNote(record) || !record.address || !record.shortcode) continue;
+        contentTypes.add(record.type);
+        const value = {
+            name: record.name?.full ?? record.name,
+            gm: true,
+            noteAnchors: record.anchors ?? [],
+        };
+        index.set(`${record.type}/${record.shortcode}`.toLowerCase(), value);
+        const pkg = record.package ?? ownPackage;
+        index.set(
+            canonicalKey(pkg, ownDocumentSystem(record.type), record.type, record.shortcode),
+            value,
+        );
+        index.set(canonicalKey(pkg, "note", record.type, record.shortcode), value);
+    }
+
     for (const e of entries) {
         // Only a content note is addressable; anything else is carried
         // through and takes no part in type-scoped indexing.
@@ -233,19 +251,20 @@ export function buildSiteIndex(
         // `subType` is: a being states a rank as a number, and what that
         // number is called is declared on the body.
         const standings = standingsDigest(e.fm);
+        const noteAnchors = collectAnchors(e.body ?? "", 1, undefined, syntax);
         const value = {
             url: e.url,
             name: e.name,
             draft: isDraftNote(e.fm),
+            gm: isGmNote(e.fm),
+            noteAnchors,
             ...(e.fm.subType ? { subType: e.fm.subType } : {}),
             ...(standings ? { standings } : {}),
             // The `{#anchor}` slugs this page declares, so a `#section`
             // written against it can be checked rather than joined onto the
             // URL unverified. A Set even when empty: a page that declares no
             // anchor still has a definite answer for one an author names.
-            anchors: new Set(
-                collectAnchors(e.body ?? "", 1, undefined, syntax).map((anchor) => anchor.slug),
-            ),
+            anchors: new Set(noteAnchors.map((anchor) => anchor.slug)),
             // The note's event ids, which a wikilink may not name.
             eventAnchors: new Set(eventAnchors(e.fm).map((anchor) => anchor.slug)),
         };

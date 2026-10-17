@@ -23,10 +23,48 @@ A link to a note tagged `draft` retains its target and carries a visible draft c
 
 An HTML comment is an aside to whoever reads the note next, and no surface shows one — the packs and the website emit it into the HTML, where it stays a comment, and a book leaves it out. Write a `markdownlint` pragma or a note about a quoted passage freely. A comment inside a fence or a code span is an example and is printed as written, and a comment that is never closed is an error.
 
+## References to secret subjects
+
+Use an ordinary wikilink for an indexed subject, including a GM-only note:
+
+```markdown
+[[doc-divineactn|The Truth of Divine Action]]
+```
+
+The renderer reads the destination's audience and conceals the entire reference,
+including its label, as a spoiler. Authors do not repeat that audience at each
+reference. A reference to a public subject stays visible. A link to an anchor inside secret content
+conceals its reference too, including a same-note `[[#anchor|label]]`.
+Linking to the public note as a whole does not inherit a section's secrecy.
+
+| Surface | Reference to a secret destination                                                                                                                                      |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Website | An inline show/hide spoiler conceals its label. An omitted GM-only destination produces text without an unusable link. A published secret heading can still be linked. |
+| Foundry | A visible inline spoiler labelled **Secret:** contains the reference. Private pack and page permissions govern whether its destination can be opened.                  |
+| Book    | The reference prints with secret styling and a **Secret:** label. An omitted GM-only destination produces text without a link.                                         |
+
+`.show` removes that automatic spoiler presentation on every surface. Where
+the target is unavailable it still produces text without a link.
+
+To intentionally reveal this reference, add `.show` immediately after the link:
+
+```markdown
+[[doc-divineactn|The Truth of Divine Action]]{.show}
+[[doc-magictruth|The Truth of Magic]]{.show}
+```
+
+`.show` reveals only this reference. It does not publish the destination, change
+its audience or grant Foundry access. It is redundant for a public target.
+Use `[text]{.secret}` when the text itself is a spoiler, independently of any
+destination; see [inline spoilers](#inline-spoilers).
+
 ## Marking names in prose
 
 Use `[Name]{.name}` for a name that has no indexed note. Link a name that has
-one; an empty link label uses the indexed full name. Bold is emphasis.
+one, including a private subject; an empty link label uses the indexed full
+name. Introduce another subject with its full canonical name at its first prose
+use. Keep the note's own subject in plain text, and use plain text for later
+mentions and aliases. Bold is emphasis.
 Plain text, including capitalized words, is not searched for names.
 
 ```markdown
@@ -39,7 +77,7 @@ creating a placeholder note:
 
 ```markdown
 [Ravenmoor]{.name data-type="place/settlement"}
-[Aldric Venn]{.name data-type="being"}
+[Aldric Venn]{.name data-type="being/npc"}
 ```
 
 `data-type` is optional. It names a declared [note type and
@@ -195,6 +233,38 @@ Use `[Ravenmoor]{.name data-type="place/settlement"}` to mark a name with its
 optional declared type; see [marking names](#marking-names-in-prose).
 
 Inline Markdown remains active inside the span. Bracket spans have lower priority than URL links, image links, reference links, footnotes and wikilinks. A bracketed form immediately preceded by `!`, followed by `(` or another `[`, or beginning with `[[` is not a span, even when the link is unresolved. Ordinary links retain their existing syntax. Escape a bracket when it should be literal, or put examples inside a code span or fence. A span identifier addresses that point in the note; it does not start a journal page.
+
+### Inline spoilers
+
+Mark text itself as a spoiler with `.secret`. It can contain inline Markdown or
+combine with a typed name for an unwritten subject:
+
+```markdown
+The key is [under the **third** stair]{.secret}.
+The informant is [Aldric Venn]{.name .secret data-type="being/npc"}.
+```
+
+This marks only the enclosed text; it does not declare a target's audience.
+For indexed subjects, use the ordinary wikilink and let the destination decide
+whether the reference needs a spoiler. `.show` on a wikilink bypasses automatic
+reference concealment; an enclosing authored `.secret` still marks its text.
+
+On the website an inline spoiler has a button to show or hide its content.
+It stays within the surrounding sentence, and links inside it can be followed
+after revealing it. Foundry prints a visible inline `secret` span labelled
+**Secret:**; this span does not withhold its text from players. The book prints
+the text with secret styling and a **Secret:** label; printed text cannot be
+interactively concealed.
+These presentations preserve inline emphasis and the `.name` classification.
+
+Published web HTML contains the spoiler's text. Revealing the spoiler or reading
+the page source exposes it; this is presentation, not access control. GM-only
+destination notes remain absent from public site and book output.
+
+A `.secret` span does not start a journal page or change surrounding text.
+Use a [secret heading](#a-section-players-must-not-read) to withhold a whole
+Foundry page or a [secret block](#secret-blocks) for a passage in a labelled
+section; those retain their own scope and presentation.
 
 ### Alerts
 
@@ -997,8 +1067,8 @@ common.
 
 Public dictionaries omit citations to GM-only notes. `links` checks generated
 tables in the source note's audience: public notes use public rows, and GM
-notes retain GM citations. An authored link from a public note to a GM-only
-note is still reported.
+notes retain GM citations. An authored wikilink from a public note to a GM-only
+note is valid and follows the [secret-reference rules](#references-to-secret-subjects).
 
 #### Custom views
 

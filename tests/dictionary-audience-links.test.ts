@@ -95,7 +95,7 @@ describe("dictionary citation audiences", () => {
         SUBPROCESS_TEST_TIMEOUT,
     );
     it(
-        "still rejects authored public links to hidden and unknown notes",
+        "accepts authored private links while rejecting unknown notes",
         () => {
             write(
                 path.join(content, "Authored.md"),
@@ -103,7 +103,7 @@ describe("dictionary citation audiences", () => {
             );
             const result = links();
             expect(result.status, result.output).toBe(1);
-            expect(result.output).toContain("GM-only note from a player-facing note");
+            expect(result.output).not.toContain("GM-only note from a player-facing note");
             expect(result.output).toContain("lore-missing");
         },
         SUBPROCESS_TEST_TIMEOUT,

@@ -118,6 +118,13 @@ Wikilinks resolve through the address index. Each emitted page receives
 derived `related` entries for the links its author wrote and the backlinks
 other authors wrote to it.
 
+A wikilink to a GM-only note or secret heading conceals its whole reference in
+an inline show/hide spoiler. `.show` reveals the reference without changing the
+destination's audience. GM-only pages remain omitted, so references to them
+have no link; published secret sections retain theirs. Spoiler text remains in
+the generated HTML and is readable in page source. See
+[secret references](../authoring/links-and-markup.md#references-to-secret-subjects).
+
 What lies within a place, who governs it, what an affiliation governs, the
 works naming a note and the map from a place reach the page as
 [generated sections](../reference/format-details.md#generated-sections): H1

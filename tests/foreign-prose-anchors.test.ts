@@ -276,10 +276,10 @@ describe("foreign prose anchors from the publisher's fetched metadata", () => {
         expect(result.deadAddresses).toEqual([]);
     });
 
-    it("keeps a public link to a foreign GM note an audience refusal", () => {
-        const result = audit("Read [[pub-note-doc-secret#missing|a secret]].");
-        expect(result.deadAddresses).toMatchObject([{ reason: "gm" }]);
-        expect(result.deadAnchors).toEqual([]);
+    it("checks foreign private anchors even with an explicit visible reference", () => {
+        const result = audit("Read [[pub-note-doc-secret#missing|a secret]]{.show}.");
+        expect(result.deadAddresses).toEqual([]);
+        expect(result.deadAnchors).toMatchObject([{ reason: "unknown-anchor", anchor: "missing" }]);
     });
 
     it("checks foreign GM sections from a GM note", () => {

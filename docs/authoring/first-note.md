@@ -41,6 +41,16 @@ For optional writing suggestions, run `npx package-build prose lint assets/conte
 
 The full Address is `<package>-note-lore-harbor`; `<package>` comes from `contentPackage` in `package-build.config.yaml`. In another note, `[[lore-harbor|Harbor]]` links to it. `[[lore-harbor|]]` asks the renderer to use the target's current name. The pipe is required.
 
+Use another subject's full canonical name at its first prose mention, then
+plain text for later mentions and aliases. Keep a note's own subject in plain
+text. Link indexed subjects even when they are private: the destination's
+audience automatically makes the whole reference a spoiler. Add `.show` only
+to intentionally reveal the reference; it grants no access to the destination.
+For an unwritten subject, use a typed span such as
+`[Aldric Venn]{.name data-type="being/npc"}`. The
+[links and markup guide](links-and-markup.md#marking-names-in-prose) covers
+these rules and separate `[text]{.secret}` spoilers.
+
 ## Grow the note only when needed
 
 Add `description` for a short page summary, `tags: [draft]` to mark unfinished prose, or `data` for fields the note's type permits. A system block such as `sohl:` or `hm3:` adds mechanics and can produce a Foundry Actor or Item. It does not replace the shared prose or make another JournalEntry. [Frontmatter](frontmatter.md) explains the allowed keys, and the [note-type reference](../reference/note-types.md) lists every type-specific field.

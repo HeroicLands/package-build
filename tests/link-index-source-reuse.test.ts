@@ -339,7 +339,9 @@ describe("the audit link index reuses the caller's captured raw sources", () => 
             expect(observed.resolutions.foreignHits).toHaveLength(1);
             expect(observed.audit.usedManifest.size).toBe(1);
             expect(observed.audit.deadAddresses.map((finding) => finding.reason)).toContain("stub");
-            expect(observed.audit.deadAddresses.map((finding) => finding.reason)).toContain("gm");
+            expect(observed.audit.deadAddresses.map((finding) => finding.reason)).not.toContain(
+                "gm",
+            );
             const target = supplied.index.notes.find((note) => note.rel === "Target.md");
             expect([...supplied.index.anchors.get(target)]).toContain("known");
             expect([...supplied.index.eventAnchorsOf.get(target)]).toContain("founding");

@@ -444,13 +444,17 @@ export function buildLinkIndex(
         // Code is verbatim, so a `[[…]]` inside a fence, an indented block or an
         // inline span is not a link — the compilers make none of it either.
         for (const [all, rawInner] of matchAllOutsideCode(body, new RegExp(WIKILINK.source, "g"))) {
-            const parsed = readWikilink(rawInner, {
-                package: pkg,
-                system: "note",
-                types,
-                packages,
-                noIndexPackages,
-            });
+            const parsed = readWikilink(
+                rawInner,
+                {
+                    package: pkg,
+                    system: "note",
+                    types,
+                    packages,
+                    noIndexPackages,
+                },
+                all,
+            );
             const target = parsed.target.kind ? parsed.rawTarget : parsed.target;
             const { anchor, rawTarget } = parsed;
             const occurrence = (seen.get(all) ?? 0) + 1;
@@ -459,6 +463,7 @@ export function buildLinkIndex(
             // in the file. A link a table generated is not in the file at all,
             // so the search simply fails and a finding names the file.
             out.push({
+                attributeProblems: parsed.attributes?.problems ?? [],
                 target,
                 rawTarget,
                 anchor,
@@ -962,15 +967,23 @@ export function auditLinks(index) {
 
     const deadAnchors = [];
     for (const note of notes) {
-        for (const { target, rawTarget, anchor, text, occurrence, labelled } of linksOf(note)) {
+        for (const {
+            target,
+            rawTarget,
+            anchor,
+            text,
+            occurrence,
+            labelled,
+            attributeProblems,
+        } of linksOf(note)) {
             if (!anchor || !labelled) continue;
             const local = target ? resolve(target) : note;
             const foreign = !local && target ? manifestHit(target) : null;
             // An unresolved address is reported below. A foreign sheet opens
             // its system document, so only the readable note view names prose
-            // sections. A public note's GM target is an audience refusal below.
+            // sections, including private destinations.
             if (!local) {
-                if (!foreign || (foreign.gm && !isGmNote(note.fm))) continue;
+                if (!foreign) continue;
                 const qualified = readQualifier(
                     target,
                     index.types,
@@ -1016,7 +1029,24 @@ export function auditLinks(index) {
     const unlabelledLinks = [];
     const usedManifest = new Set();
     for (const note of notes) {
-        for (const { target, rawTarget, anchor, text, occurrence, labelled } of linksOf(note)) {
+        for (const {
+            target,
+            rawTarget,
+            anchor,
+            text,
+            occurrence,
+            labelled,
+            attributeProblems,
+        } of linksOf(note)) {
+            if (attributeProblems.length)
+                deadAddresses.push({
+                    note,
+                    target: rawTarget,
+                    text,
+                    occurrence,
+                    reason: "invalid-attributes",
+                    problems: attributeProblems,
+                });
             // The label is required whatever the link part is, an anchor
             // included — so this is tested before the same-page form.
             if (!labelled) {
@@ -1063,9 +1093,6 @@ export function auditLinks(index) {
             }
             const resolved = index.resolveAddress(target);
             if (resolved) {
-                if ((isGmNote(resolved.fm) || resolved.gm) && !isGmNote(note.fm)) {
-                    deadAddresses.push({ ...at, reason: "gm" });
-                }
                 continue;
             }
             // A stub is in the index, so the refusal can name it. Asked before
@@ -1084,10 +1111,6 @@ export function auditLinks(index) {
             // report.
             const manifest = manifestHit(target);
             if (manifest) {
-                if (manifest.gm && !isGmNote(note.fm)) {
-                    deadAddresses.push({ ...at, reason: "gm" });
-                    continue;
-                }
                 usedManifest.add(encodeAddresses(target).toLowerCase());
                 continue;
             }

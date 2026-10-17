@@ -11,6 +11,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
+import { isGmNote } from "./note-vocabulary.mjs";
+
 import { parseAddress, isAddressTuple, splitAnchor } from "./address.mjs";
 
 /**
@@ -67,7 +70,7 @@ import { parseAddress, isAddressTuple, splitAnchor } from "./address.mjs";
  * copies of the exclusion is three places for it to be forgotten. An embed's
  * own grammar is {@link module:engine/content-embeds}.
  */
-export const WIKILINK = /(?<!!)\[\[([^\]\n]+)\]\]/g;
+export const WIKILINK = /(?<!!)\[\[([^\]\n]+)\]\](?:\{(?:[^{}"\n]|"(?:\\.|[^"\\\n])*")*\})?/g;
 
 /**
  * The parts of a wikilink's interior.
@@ -80,6 +83,7 @@ export const WIKILINK = /(?<!!)\[\[([^\]\n]+)\]\]/g;
  * @property {string} anchor - The `#section` slug, `""` when there is none.
  * @property {string|null} display - The text after `|`, or `null` when the link
  *   is unlabelled. `null` and `""` differ: an author may write `[[x|]]`.
+ * @property {ReturnType<typeof parseExtensionAttributes>} [attributes] - Trailing extension attributes.
  * @property {boolean} labelled - Whether a `|` was present at all. A link
  *   without one addresses nothing and is a finding — see
  *   {@link unlabelledLinkMessage} — so every reader has to be able to ask.
@@ -92,9 +96,10 @@ export const WIKILINK = /(?<!!)\[\[([^\]\n]+)\]\]/g;
  * not the whole link, so a caller that has already matched does not re-match.
  *
  * @param {string} rawInner - The text between `[[` and `]]`.
+ * @param {string} [literal] - Whole matched link, including trailing attributes.
  * @returns {ParsedWikilink} The parts, each trimmed.
  */
-export function parseWikilink(rawInner) {
+export function parseWikilink(rawInner, literal = "") {
     // A pipe inside a markdown table cell is escaped as `\|`; undo that before
     // looking for the label separator, or the cell's own escape reads as one.
     const inner = String(rawInner ?? "").replace(/\\\|/g, "|");
@@ -108,7 +113,18 @@ export function parseWikilink(rawInner) {
     // link and a field cannot disagree about where the anchor starts.
     const { address: target, anchor = "" } = splitAnchor(linkPart);
 
-    return { inner: inner.trim(), target, anchor, display, labelled };
+    const suffix = literal.slice(literal.indexOf("]]") + 2);
+    const attributes =
+        suffix.startsWith("{") ? parseExtensionAttributes(suffix.slice(1, -1)) : null;
+    if (attributes) attributes.problems.push(...refusedAttributes(attributes.values));
+    return {
+        inner: inner.trim(),
+        target,
+        anchor,
+        display,
+        labelled,
+        ...(attributes ? { attributes } : {}),
+    };
 }
 
 /**
@@ -193,6 +209,7 @@ export function unlabelledLinkMessage(target) {
  */
 export const LINK_FINDING_REASONS = Object.freeze(
     new Set([
+        "invalid-attributes",
         "unlabelled",
         "not-an-address",
         "not-lowercase",
@@ -201,7 +218,6 @@ export const LINK_FINDING_REASONS = Object.freeze(
         "not-an-asset",
         "unresolved",
         "stub",
-        "gm",
         "ambiguous",
         "unknown-anchor",
         "event-anchor",
@@ -323,6 +339,7 @@ export function ambiguousAddressMessage(target, packages = []) {
  * @param {string} [finding.stub] - For `stub`, where the stub is.
  * @param {string} [finding.shortcode] - For `shortcode-not-lowercase`, the
  *   shortcode as written.
+ * @param {string[]} [finding.problems] - Invalid attribute diagnostics.
  * @param {string} [finding.declared] - For `shortcode-not-lowercase`, the
  *   lowercase spelling, when it is a declared shortcode.
  * @returns {string} The message.
@@ -338,8 +355,11 @@ export function linkFindingMessage({
     stub,
     shortcode,
     declared,
+    problems,
 }) {
     switch (reason) {
+        case "invalid-attributes":
+            return `wikilink [[${target}]] has invalid attributes: ${(problems ?? []).join("; ")}`;
         case "unlabelled":
             return unlabelledLinkMessage(target);
         case "not-an-address":
@@ -386,8 +406,6 @@ export function linkFindingMessage({
             return unresolvedAddressMessage(target);
         case "stub":
             return stubAddressMessage(target, stub);
-        case "gm":
-            return `address [[${target}]] names a GM-only note from a player-facing note`;
         case "no-content-index":
             return (
                 `address [[${target}]] names a package declared \`contentIndex: false\` — ` +
@@ -419,10 +437,11 @@ export function isSamePage({ target, anchor }) {
  * Read an operational link target in its enclosing Address context.
  * @param {string} inner - Lexical link contents.
  * @param {object} context - Builder defaults and type vocabulary.
+ * @param {string} [literal] - Whole matched link, including trailing attributes.
  * @returns {object} Typed target and diagnostic source spelling.
  */
-export function readWikilink(inner, context) {
-    const parsed = parseWikilink(inner);
+export function readWikilink(inner, context, literal = "") {
+    const parsed = parseWikilink(inner, literal);
     const rawTarget = parsed.target;
     if (!rawTarget) return { ...parsed, rawTarget, target: { kind: "same-page" } };
     const target = parseAddress(rawTarget, context);
@@ -432,4 +451,42 @@ export function readWikilink(inner, context) {
     return target.reason ?
             { ...parsed, rawTarget, target: { kind: "literal", text: rawTarget }, problem: target }
         :   { ...parsed, rawTarget, target };
+}
+
+/** Whether the actual referenced destination needs spoiler presentation.
+ * @param {object} destination - Resolved note metadata.
+ * @param {string} [anchor] - Referenced prose anchor.
+ * @returns {boolean} Whole-note or section audience.
+ */
+export function secretDestination(destination, anchor = "") {
+    return Boolean(
+        destination?.gm ||
+        isGmNote(destination?.fm ?? destination) ||
+        (anchor && destination?.noteAnchors?.some((one) => one.slug === anchor && one.secret)),
+    );
+}
+
+/** Apply destination-derived presentation without changing its address.
+ * @param {string} reference - Rendered reference Markdown.
+ * @param {object} parsed - Shared parsed wikilink.
+ * @param {object} destination - Resolved target metadata.
+ * @returns {string} Inline spoiler or visible reference.
+ */
+export function presentWikilink(reference, parsed, destination) {
+    const attrs = parsed.attributes;
+    const classes = (attrs?.classes ?? []).filter((value) => value !== "show");
+    if (
+        !attrs?.classes.includes("show") &&
+        secretDestination(destination, parsed.anchor) &&
+        !classes.includes("secret")
+    )
+        classes.push("secret");
+    const fields = [
+        attrs?.id ? `#${attrs.id}` : "",
+        ...classes.map((value) => `.${value}`),
+        ...Object.entries(attrs?.values ?? {}).map(
+            ([key, value]) => `${key}="${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`,
+        ),
+    ].filter(Boolean);
+    return fields.length ? `[${reference}]{${fields.join(" ")}}` : reference;
 }

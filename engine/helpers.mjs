@@ -70,7 +70,7 @@ import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
 // The declared tag vocabulary, which is where `draft` is stated. Read
 // from there rather than respelt, so the tag and its one reader cannot drift.
-import { isDraftNote } from "./note-vocabulary.mjs";
+import { isGmNote, isDraftNote } from "./note-vocabulary.mjs";
 import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { spanMarkdownPlugin } from "./content-spans.mjs";
@@ -108,7 +108,7 @@ let localAssetImageInfoCache;
 export const md = markdownit({ html: true })
     .use(footnotePlugin)
     .use(deflistPlugin)
-    .use(spanMarkdownPlugin)
+    .use(spanMarkdownPlugin, { spoilers: true })
     .use(dictionaryEntryPlugin)
     // A heading's attribute block, written onto the heading element rather than
     // typeset into it — the reading the website's renderer does for itself.
@@ -888,6 +888,8 @@ export function buildContentLinkIndex(
             // *into* this note renders marked. It takes no part in resolution,
             // so the note is indexed, compiled and published as any other.
             draft: isDraftNote(fm),
+            gm: isGmNote(fm),
+            noteAnchors: [...(record.anchors ?? []), ...(prepared?.anchors ?? [])],
             // The anchors this note declares, carried so the *builds* can check
             // a `#section` link and not only the checker. A foreign
             // anchor has always been checked, because a fetched index

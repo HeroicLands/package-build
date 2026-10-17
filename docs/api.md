@@ -1474,6 +1474,15 @@ Wikilink resolution for the knowledgebase build. The same authored links the pac
 | `frontmatterWikilinks` | `function frontmatterWikilinks(fm)`       | {Array<{path: string, link: string}>} In reading order; `path` is the dotted key path of the offending value (`government.summary`, `aliases.1`). | Every wikilink authored inside a frontmatter value.                   |
 | `resolveWebWikilinks`  | `function resolveWebWikilinks(body, ctx)` | {string} The body with wikilinks rewritten.                                                                                                       | Rewrites the wikilinks in a markdown body as KB-local markdown links. |
 
+Both `resolveWebWikilinks` and Foundry's `convertWikilinks` derive reference
+spoilers from the resolved note audience and secret-anchor metadata. A trailing
+`{.show}` bypasses automatic spoiler wrapping, without changing destination
+access. A web destination excluded by audience retains its label without an
+href. Same-note secret anchors follow the same rule; a whole-note link to a
+public note does not inherit individual secret sections. See the
+[authoring contract](authoring/links-and-markup.md#references-to-secret-subjects)
+for surface presentation.
+
 ### `engine.contentTables`
 
 Prepared SQL content tables are expanded into Markdown before link resolution.
@@ -1602,8 +1611,8 @@ What a `[[…]]` **is**, before anything decides where it points. One authored l
 | Export                     | Signature                                                  | Returns                                                         | Use it when                                                                                       |
 | -------------------------- | ---------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `WIKILINK`                 | `const WIKILINK`                                           | —                                                               | A wikilink, as authored.                                                                          |
-| `parseWikilink`            | `function parseWikilink(rawInner)`                         | {ParsedWikilink} The parts, each trimmed.                       | Split a wikilink's interior into its parts.                                                       |
-| `readWikilink`             | `function readWikilink(inner, context)`                    | Typed target or literal target with diagnostic source.          | Parse a link target using complete builder Address context.                                       |
+| `parseWikilink`            | `function parseWikilink(rawInner, literal?)`               | {ParsedWikilink} The parts, each trimmed.                       | Split a wikilink's interior into its parts.                                                       |
+| `readWikilink`             | `function readWikilink(inner, context, literal?)`          | Typed target or literal target with diagnostic source.          | Parse a link target using complete builder Address context.                                       |
 | `authoredLabel`            | `authoredLabel({ display })`                               | {string\|null} The label, or `null` when there is none to show. | The label an author actually supplied, or `null` when they supplied none.                         |
 | `unlabelledLinkMessage`    | `function unlabelledLinkMessage(target)`                   | {string} The message, unpunctuated at the end as a finding is.  | What an author writing an unlabelled link is told, in one place.                                  |
 | `LINK_FINDING_REASONS`     | `const LINK_FINDING_REASONS`                               | —                                                               | Every way a link can fail, named once for all three resolvers.                                    |
@@ -1613,6 +1622,15 @@ What a `[[…]]` **is**, before anything decides where it points. One authored l
 | `linkFindingMessage`       | `linkFindingMessage({ reason, target, packages, anchor })` | {string} The message.                                           | The message for one link finding, whichever resolver found it.                                    |
 | `isEventAnchor`            | `isEventAnchor(hit, anchor)`                               | {boolean} Whether it is an event.                               | Whether the anchor a wikilink names is one of its target's events, which a wikilink may not name. |
 | `isSamePage`               | `isSamePage({ target, anchor })`                           | {boolean} True when the link is same-page.                      | Whether a parsed link addresses a section of the page it is written on.                           |
+
+`parseWikilink` and `readWikilink` accept the complete matched `literal` to
+read a trailing attribute block into `attributes`; its `classes` include the
+explicit `.show` override.
+
+| Export              | Signature                                         | Returns   | Use it when                                                                                       |
+| ------------------- | ------------------------------------------------- | --------- | ------------------------------------------------------------------------------------------------- |
+| `secretDestination` | `secretDestination(destination, anchor?)`         | `boolean` | Read the resolved note's GM audience or the referenced anchor's secret metadata.                  |
+| `presentWikilink`   | `presentWikilink(reference, parsed, destination)` | `string`  | Wrap a rendered reference as an inline spoiler unless the parsed link explicitly carries `.show`. |
 
 ### `engine.siteIndex`
 
@@ -2370,6 +2388,15 @@ The engine wildcard subpath also exposes the body parsers below. Their figure ex
 | `engine/content-blocks.mjs`  | `BLOCK_NAMES`, `BLOCK_CONTAINERS`, `scanBlocks`, `renderBlocks`, `renderWithheldSections`    | Read div and secret fences; generic div records have `name: "div"` and no generated title. Scanning includes poetry errors.                                                                                                            |
 | `engine/content-poetry.mjs`  | `verseLines`, `poetryStanzas`, `inlineVerse`, `poetryMarkdown`, `scanPoetry`, `renderPoetry` | Read `poetry` code fences, validate authored metadata and tabs, and preserve relative indent levels and stanzas.                                                                                                                       |
 | `engine/content-spans.mjs`   | `spanMarkdownPlugin`, `scanSpans`, `renderSpans`                                             | Parse bracket spans after recognized links. The scanner returns spans, the exact `.name` inventory and located errors, retaining visible text and attribute positions; rendering preserves inline Markdown and permitted attributes.   |
+
+Inline `.secret` spans preserve their inline content, name classes and
+attributes. Site rendering uses a separate show/hide button and content span,
+so a link inside the content does not become a nested control. Foundry renders
+visible inline text with a **Secret:** label, without native secret-section
+concealment; book rendering uses static secret styling and the same label.
+`collectAnchors` includes `secret: true` on secret anchors for destination
+presentation. Block and heading secrecy retain their separate scope and
+Foundry permission handling.
 
 `scanFigures` retains `line` (1-based caption line), `bodyStart`/`bodyEnd` (0-based, exclusive-end target range), and `close` (last consumed target line), plus caption attributes, kind, label and number. Unnumbered captions have an empty label and consume no number. `collectAnchors` discovers heading, caption, div, poem and span identifiers; `markupAnchorFindings(body)` reports collisions involving non-page identifiers; Foundry maps non-page anchors to the actual containing page UUID. An unnumbered `ref` requires `form="title"` or `form="full"`.
 

@@ -170,7 +170,7 @@ describe("one vocabulary of link findings", () => {
         expect([...LINK_FINDING_REASONS].sort()).toEqual([
             "ambiguous",
             "event-anchor",
-            "gm",
+            "invalid-attributes",
             "no-content-index",
             "not-an-address",
             "not-an-asset",

@@ -2992,3 +2992,19 @@ summary.info-sidebar-title::after {
 .single-content .alert-warning {
   --pb-alert-color: #d29922;
 }
+
+/* Inline spoiler controls remain inline, with links outside the button. */
+[data-inline-secret] .inline-secret-content[hidden] { display: none !important; }
+.inline-secret-toggle {
+    display: inline;
+    padding: 0.05em 0.35em;
+    border: 1px solid currentColor;
+    border-radius: 0.2em;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    font-size: 0.85em;
+    cursor: pointer;
+}
+.inline-secret-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.inline-secret-content { margin-inline-start: 0.25em; }
