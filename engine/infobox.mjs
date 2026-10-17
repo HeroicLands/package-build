@@ -1038,11 +1038,7 @@ function noteBox(
         // A culture note resolves to itself, and a row linking it to itself
         // says nothing.
         if (field.name === "culture" && cultureNamesItself(fm, raw, { contentPackage })) continue;
-        if (
-            ((fm?.type === "being" && ["born", "died"].includes(field.name)) ||
-                (fm?.type === "place" && field.name === "present")) &&
-            dates
-        ) {
+        if (fm?.type === "being" && ["born", "died"].includes(field.name) && dates) {
             const parsed = parseNoteDate(raw, dates).date;
             const era =
                 parsed?.marker ? dates.markers?.get(parsed.marker)

@@ -47,7 +47,7 @@ const CONTEXT = {
     profile: PROFILE,
     names: NAME_LISTS,
     language: "demo-note-skill-khelathi",
-    present: "720.300",
+    currentDate: "720.300",
     dateContext: { daysPerYear: 365 },
     defaults: { icon: "icon-person", species: "humanflk", packFolder: "regkhfolk" },
     taken: new Set(["ahmetegazeka"]),
@@ -197,12 +197,15 @@ describe("a generated npc", () => {
         }
     });
 
-    it("is born `unknown` where the package states no present", () => {
-        const { fm, body } = split(
-            generateNpc(spec("Ahmetega Zekar"), { ...CONTEXT, present: null }).text,
-        );
-        expect(fm.data.born).toBe("unknown");
-        expect(body).toMatch(/^\n# Appearance \{#appearance\}\n\nAhmetega Zekar is a man who/);
+    it("uses the default current date when the setting is omitted", () => {
+        const { currentDate, ...withoutDate } = CONTEXT;
+        const result = generateNpc(spec("Ahmetega Zekar"), withoutDate);
+        const explicit = generateNpc(spec("Ahmetega Zekar"), {
+            ...withoutDate,
+            currentDate: "720.1",
+        });
+        expect(result.text).toBe(explicit.text);
+        expect(split(result.text).fm.data.born).not.toBe("unknown");
     });
 
     it("never alters a field the spec gives", () => {

@@ -744,23 +744,23 @@ The corpus registry anchors each calendar's year 1, day 1 to its canonical `data
 
 A calendar is a `lore` note with `subType: calendar`, declaring the months it keeps, the weekdays it names, the seasons it marks and the eras it counts years in. How long the year is, how the day divides and how the moon moves are facts about the **world**, written on its `place` note and its moon's, and no calendar may restate them — which is why the months summing to the world's year is the only arithmetic a calendar note is held to. One definition is emitted per calendar, in array shape: Foundry core prunes the keys outside its schema, and Calendaria converts the arrays to its own keyed collections.
 
-| Export                      | Signature                                             | Returns                                    | Use it when                                                                       |
-| --------------------------- | ----------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------------- |
-| `CALENDAR_SUBTYPE`          | `const CALENDAR_SUBTYPE`                              | —                                          | naming the `lore` subType whose notes are calendars                               |
-| `INVARIANT_SUBTYPES`        | `const INVARIANT_SUBTYPES`                            | —                                          | naming the `place` subTypes a world fact may be written on                        |
-| `CALENDAR_FIELDS`           | `const CALENDAR_FIELDS`                               | —                                          | reading the closed list of what a calendar note may declare                       |
-| `CALENDAR_ENTRY_FIELDS`     | `const CALENDAR_ENTRY_FIELDS`                         | —                                          | reading the keys one entry of each calendar list takes, as inner-key declarations |
-| `CALENDAR_DATE_FORMAT_KEYS` | `const CALENDAR_DATE_FORMAT_KEYS`                     | —                                          | reading the supported Calendaria display slots                                    |
-| `CALENDAR_FORMAT_TOKENS`    | `const CALENDAR_FORMAT_TOKENS`                        | —                                          | checking bare date tokens in a format string                                      |
-| `INVARIANT_FIELDS`          | `const INVARIANT_FIELDS`                              | —                                          | reading the closed list of what a body may declare about itself                   |
-| `checkCalendarNote`         | `checkCalendarNote(note, opts)`                       | `object[]` — findings                      | holding a `lore` note to the family and to the year the world keeps               |
-| `checkCalendarDateFormats`  | `checkCalendarDateFormats(note)`                      | `object[]` — findings                      | checking named patterns and the readable default                                  |
-| `checkWorldFacts`           | `checkWorldFacts(note, opts)`                         | `object[]` — findings                      | holding a `place` note's world facts to one body, one year and one moon           |
-| `worldInvariants`           | `worldInvariants(index)`                              | `{year, present, moon, body, moonName, …}` | reading the year, the present and the moon a package's own notes state            |
-| `quarterDays`               | `quarterDays(daysPerYear)`                            | `number[]` — four days of the year         | asking which days the year turns on                                               |
-| `compileCalendar`           | `compileCalendar({note, invariants, contentPackage})` | `object` — the definition                  | building the one object both a core consumer and Calendaria read                  |
-| `compileCalendars`          | `compileCalendars(index, opts)`                       | `{calendars, invariants}`                  | building every calendar a package declares, or none where it states no year       |
-| `calendariaEnvelope`        | `calendariaEnvelope(definition, opts)`                | `object` — the import envelope             | wrapping a definition for a hand import through Calendaria's settings             |
+| Export                      | Signature                                             | Returns                            | Use it when                                                                       |
+| --------------------------- | ----------------------------------------------------- | ---------------------------------- | --------------------------------------------------------------------------------- |
+| `CALENDAR_SUBTYPE`          | `const CALENDAR_SUBTYPE`                              | —                                  | naming the `lore` subType whose notes are calendars                               |
+| `INVARIANT_SUBTYPES`        | `const INVARIANT_SUBTYPES`                            | —                                  | naming the `place` subTypes a world fact may be written on                        |
+| `CALENDAR_FIELDS`           | `const CALENDAR_FIELDS`                               | —                                  | reading the closed list of what a calendar note may declare                       |
+| `CALENDAR_ENTRY_FIELDS`     | `const CALENDAR_ENTRY_FIELDS`                         | —                                  | reading the keys one entry of each calendar list takes, as inner-key declarations |
+| `CALENDAR_DATE_FORMAT_KEYS` | `const CALENDAR_DATE_FORMAT_KEYS`                     | —                                  | reading the supported Calendaria display slots                                    |
+| `CALENDAR_FORMAT_TOKENS`    | `const CALENDAR_FORMAT_TOKENS`                        | —                                  | checking bare date tokens in a format string                                      |
+| `INVARIANT_FIELDS`          | `const INVARIANT_FIELDS`                              | —                                  | reading the closed list of what a body may declare about itself                   |
+| `checkCalendarNote`         | `checkCalendarNote(note, opts)`                       | `object[]` — findings              | holding a `lore` note to the family and to the year the world keeps               |
+| `checkCalendarDateFormats`  | `checkCalendarDateFormats(note)`                      | `object[]` — findings              | checking named patterns and the readable default                                  |
+| `checkWorldFacts`           | `checkWorldFacts(note, opts)`                         | `object[]` — findings              | holding a `place` note's world facts to one body, one year and one moon           |
+| `worldInvariants`           | `worldInvariants(index)`                              | `{year, moon, body, moonName, …}`  | reading the year and moon a package's own notes state                             |
+| `quarterDays`               | `quarterDays(daysPerYear)`                            | `number[]` — four days of the year | asking which days the year turns on                                               |
+| `compileCalendar`           | `compileCalendar({note, invariants, contentPackage})` | `object` — the definition          | building the one object both a core consumer and Calendaria read                  |
+| `compileCalendars`          | `compileCalendars(index, opts)`                       | `{calendars, invariants}`          | building every calendar a package declares, or none where it states no year       |
+| `calendariaEnvelope`        | `calendariaEnvelope(definition, opts)`                | `object` — the import envelope     | wrapping a definition for a hand import through Calendaria's settings             |
 
 ### `engine.calendarArtifacts`
 
@@ -776,18 +776,45 @@ identical bytes.
 | ----------------------- | ---------------------------------------------------- | ------------------------------- | ---------------------------------------------------- |
 | `emitCalendarArtifacts` | `emitCalendarArtifacts({config, calendariaVersion})` | `{directory, calendars, files}` | writing calendar files for a package's Foundry stage |
 
+### `engine.definitionList`
+
+HTML definition lists use semantic dictionary rows. The plugin groups each term
+and all its definitions inside one `div` under `dl.dictionary`, preserving
+nested blocks, inline formatting and document footnotes. Register it after
+`markdown-it-deflist`.
+
+| Export                 | Signature                  | Returns | Use it when                                                     |
+| ---------------------- | -------------------------- | ------- | --------------------------------------------------------------- |
+| `dictionaryListPlugin` | `dictionaryListPlugin(md)` | `void`  | Giving an HTML Markdown parser the shared dictionary structure. |
+
+The website groups Goldmark's final HTML through the `dictionary-lists.html`
+partial, retaining its headings, TOC and footnotes. Shared content styles use a
+150px hanging indent, a `.75em` term gap and `.5em` space between entries. At
+viewport widths of 600px or less the indent is 100px. Terms are bold and stay on
+one line. A long term pushes the first definition farther right; continuation
+lines return to the common indent. Profile infobox grids keep their own layout.
+
+### `engine.currentDate`
+
+The shared current-date setting is a neutral string and requires no calendar or
+configuration loading. Undefined selects the default; invalid explicit values
+throw `TypeError`. Day digits remain exactly as authored.
+
+| Export                 | Signature                      | Returns   | Use it when                                     |
+| ---------------------- | ------------------------------ | --------- | ----------------------------------------------- |
+| `DEFAULT_CURRENT_DATE` | Constant                       | `"720.1"` | Selecting the setting-wide default.             |
+| `normalizeCurrentDate` | `normalizeCurrentDate(value?)` | `string`  | Validating a configuration or adapter override. |
+
 ### `engine.beingAge`
 
-The middle state of a being's `age`: absent beside a dated `born`, it is computed against the package's declared present — the two dates compared, not the two years subtracted, so a birthday later in the year than the present counts one less. `applyComputedBeingAge` fills it in on the frontmatter object a pass already holds, never on the note; `checkBeingAge` is `being`'s `NOTE_VOCABULARY` check, raising a warning where an authored `age` disagrees with what a dated `born` computes to. An estimate's `~` is read the way a date's is: the authored string stays verbatim, and `ageYears` carries the magnitude beside it.
+The middle state of a being's `age`: absent beside a dated `born`, it is computed against the configured `currentDate` (default `"720.1"`) — the two dates compared, not the two years subtracted, so a birthday later in the year than the present counts one less. `applyComputedBeingAge` fills it in on the frontmatter object a pass already holds, never on the note; `checkBeingAge` is `being`'s `NOTE_VOCABULARY` check, raising a warning where an authored `age` disagrees with what a dated `born` computes to. An estimate's `~` is read the way a date's is: the authored string stays verbatim, and `ageYears` carries the magnitude beside it.
 
-| Export                     | Signature                                | Returns                        | Use it when                                                               |
-| -------------------------- | ---------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
-| `computeAge`               | `computeAge(bornRaw, presentRaw)`        | `number \| null`               | reading the age two dates imply, in whole years                           |
-| `parseAgeMagnitude`        | `parseAgeMagnitude(raw)`                 | `{approximate, value} \| null` | reading an authored `age`'s `~` mark and its magnitude                    |
-| `applyComputedBeingAge`    | `applyComputedBeingAge(fm, presentRaw)`  | `void` — mutates `fm.data`     | filling in a being's computed `age`, or the `ageYears` beside an estimate |
-| `presentAmongRecords`      | `presentAmongRecords(records)`           | the present, or `null`         | reading the declared present from a batch of flat index records           |
-| `presentAmongFrontmatters` | `presentAmongFrontmatters(frontmatters)` | the present, or `null`         | reading the declared present from a batch of raw frontmatter objects      |
-| `checkBeingAge`            | `checkBeingAge(note, opts)`              | `object[]` — findings          | holding a being's authored `age` to what `born` and the present compute   |
+| Export                  | Signature                                     | Returns                        | Use it when                                                               |
+| ----------------------- | --------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `computeAge`            | `computeAge(bornRaw, presentRaw)`             | `number \| null`               | reading the age two dates imply, in whole years                           |
+| `parseAgeMagnitude`     | `parseAgeMagnitude(raw)`                      | `{approximate, value} \| null` | reading an authored `age`'s `~` mark and its magnitude                    |
+| `applyComputedBeingAge` | `applyComputedBeingAge(fm, presentRaw)`       | `void` — mutates `fm.data`     | filling in a being's computed `age`, or the `ageYears` beside an estimate |
+| `checkBeingAge`         | `checkBeingAge(note, { index, currentDate })` | `object[]` — findings          | holding a being's authored `age` to what `born` and the present compute   |
 
 ### `engine.contentAddress`
 
@@ -1290,29 +1317,32 @@ index for checking page links.
 
 ### `engine.sitePreview`
 
-`prepareSitePreview({ config })` reads the saved content tree and declared dependency indexes, prepares its SQL corpus, and returns a private preview context. Pass the active note's absolute path and complete buffer text to `render(file, text)`. A successful result has `{ ok: true, markdown, frontmatter, findings: [] }`; a failed result has `{ ok: false, findings }` and no replacement content. Findings identify the source file and carry a line and column when the offending text can be located.
+`renderPreview(text, { dark = false, infobox = true, file = "", currentDate = "720.1" })` renders the current Markdown buffer directly to HTML. Frontmatter is optional. It needs no package configuration, saved note, content tree, dependency cache, database or Pandoc installation. The result is `{ ok, html, frontmatter, findings }`; `file` only labels diagnostics. Malformed frontmatter produces a warning and remains visible without preventing a preview update.
 
-| Export               | Signature                        | Returns                                    | Use it when                                        |
-| -------------------- | -------------------------------- | ------------------------------------------ | -------------------------------------------------- |
-| `prepareSitePreview` | `prepareSitePreview({ config })` | `{render(file, text), refresh(), close()}` | An editor needs a private, reusable page renderer. |
+| Export                   | Signature                       | Returns                               | Use it when                                                            |
+| ------------------------ | ------------------------------- | ------------------------------------- | ---------------------------------------------------------------------- |
+| `renderPreview`          | `renderPreview(text, options?)` | `{ ok, html, frontmatter, findings }` | An editor or external renderer needs a preview from one buffer.        |
+| `previewStyles`          | `previewStyles()`               | CSS string                            | A host needs the shared, scoped light and dark palettes.               |
+| `readPreviewCurrentDate` | `readPreviewCurrentDate(root)`  | `Promise<string>`                     | Opting into the nearest project's validated root current-date setting. |
+| `PREVIEW_HELPERS`        | Constant                        | Helper dependency policy              | Checking preview coverage when adding an expression helper.            |
 
-The context keeps other notes and foreign packages at their saved state. Call `refresh()` after a save to read them again, and `close()` when the editor releases the project. Rendering and refreshing never write the authored notes or the site's `build/hugo/content` mount. The editor owns any private HTML artifact and keeps its last complete artifact when a render fails.
+The returned HTML includes an `.hl-preview` wrapper with exactly one explicit mode class, `.hl-preview-light` or `.hl-preview-dark`. Include `previewStyles()` once in the host document. The stylesheet colors only the preview container, including its backgrounds, source tokens, alerts and optional local infobox. Set `dark` from the host's selected theme; browser preference does not override it.
 
 ```js
-import { sitePreview } from "@heroiclands/package-build/engine";
+import { renderPreview, previewStyles } from "@heroiclands/package-build/engine/site-preview";
 
-const preview = await sitePreview.prepareSitePreview({ config });
-try {
-  const result = await preview.render(absoluteFile, currentBufferText);
-  if (result.ok) {
-    // Convert result.markdown and result.frontmatter to the editor's HTML preview.
-  } else {
-    showDiagnostics(result.findings);
-  }
-} finally {
-  await preview.close();
-}
+const result = renderPreview(currentBufferText, { dark: true });
+// Include previewStyles() in a stylesheet and result.html in the preview document.
+showDiagnostics(result.findings);
 ```
+
+Ordinary Markdown, definition lists, footnotes, alert boxes, poetry, captions, local figures and container blocks render locally. Alerts reuse the four shared icons and titles, accept custom titles and nested alerts, and have opaque tinted backgrounds in both modes. Definition terms are bold; definitions retain ordinary Markdown styling. Wikilinks and image embeds retain their entire authored source: blue opening markers (including all of `![[`), brackets and pipes, purple addresses and anchors, bold foreground labels, and grey attributes. Spans retain their entire source in bold, with blue brackets and grey attributes. Code examples stay literal. Incomplete syntax remains visible while editing.
+
+SQL and pagelist fences remain grey source, including delimiters. Calendar/date expressions, cross-note references and maps remain green source. A dependent call nested inside a pure helper preserves the entire outer expression. Pure helpers and scalar frontmatter expressions evaluate locally; same-note figure references and non-date event facts can resolve from this buffer. Infobox fields show authored values and green reference source; image and portrait wikilinks use the image syntax colors. Missing ages are calculated locally from neutral birth dates and `currentDate`, defaulting to `"720.1"`; authored ages, including `0`, take precedence. Unavailable ages remain `null` internally, have no infobox row, and render as empty text in `{{data.age}}`. Named-calendar birth dates remain unavailable without calendar context. Set `infobox: false` to omit the profile.
+
+`readPreviewCurrentDate(root)` is an explicit configuration adapter. It discovers the nearest `package-build.config.yaml`, `.yml` or `.mjs` using the shared resolver. YAML reads only top-level `currentDate`, without loading the build pipeline or validating unrelated fields; MJS executes the trusted configuration module. Missing config or an absent setting returns the shared default. Invalid explicit values reject with a configuration-file diagnostic. Repeated calls reread YAML and refresh a changed MJS file. `renderPreview` never calls this adapter or reads configuration itself.
+
+Generated sections, Related pages and authored See also sections are absent. Preview performs no publication eligibility or link checks and never resolves other notes. It does not write notes or generated site files. Callers render each buffer directly without preparing or maintaining a snapshot.
 
 ### `engine.contentLint`
 
@@ -1999,6 +2029,29 @@ Where HM3 records the template priority — one statement (`data.templatePriorit
 | `HM3_DEFAULT_ITEM_ART` | `const HM3_DEFAULT_ITEM_ART` | —                                 | reading the full map of default item artwork keyed by **note** type (not document subtype) for HM3 items |
 | `hm3DefaultItemArt`    | `hm3DefaultItemArt(type)`    | `string` — the default image path | getting the default art path for an HM3 item's note type, throwing when the type is unknown              |
 
+## `./preview`
+
+Import the buffer-only renderer directly without loading the build pipeline:
+
+```js
+import { renderPreview, previewStyles } from "@heroiclands/package-build/preview";
+
+const { html, findings } = renderPreview(currentBufferText, { dark: true });
+const css = previewStyles();
+```
+
+| Export                   | Signature                       | Returns                               | Use it when                                                            |
+| ------------------------ | ------------------------------- | ------------------------------------- | ---------------------------------------------------------------------- |
+| `renderPreview`          | `renderPreview(text, options?)` | `{ ok, html, frontmatter, findings }` | Rendering one Markdown buffer without configuration or an index.       |
+| `previewStyles`          | `previewStyles()`               | CSS string                            | Installing both scoped palettes in an editor or external host.         |
+| `readPreviewCurrentDate` | `readPreviewCurrentDate(root)`  | `Promise<string>`                     | Opting into the nearest project's validated root current-date setting. |
+| `PREVIEW_HELPERS`        | Constant                        | Helper dependency policy              | Checking coverage for every registered expression helper.              |
+
+These are the same exports as [`engine.sitePreview`](#enginesitepreview), with
+the same explicit palette, local infobox, source-preservation and diagnostics
+contract. See [Source preview](source-preview.md) for the standalone command and
+Gitea installation.
+
 ## `./content-config`
 
 The per-repository configuration contract: what `package-build.config.yaml` (or an `.mjs` config calling `defineConfig` directly) must satisfy. `defineConfig` validates and normalizes the whole thing, returning a deeply frozen copy, and performs no I/O — `engine.packConfig` is what locates and reads a repository's file, deriving the three fields absent from authored YAML (`rootDir`, `stats.systemVersion`, the resolved `itemBuilders` table). See `docs/configuration.md` for the full key-by-key reference; this section covers the module's own exported shape.
@@ -2391,9 +2444,15 @@ The engine wildcard subpath also exposes the body parsers below. Their figure ex
 
 Inline `.secret` spans preserve their inline content, name classes and
 attributes. Site rendering uses a separate show/hide button and content span,
-so a link inside the content does not become a nested control. Foundry renders
-visible inline text with a **Secret:** label, without native secret-section
-concealment; book rendering uses static secret styling and the same label.
+so a link inside the content does not become a nested control. Foundry emits a
+focusable inline spoiler: scoped content CSS redacts its text and descendants
+until pointer hover or keyboard focus reveals them. Its focus outline and
+accessible cue identify the reveal interaction. Native Foundry secret sections
+keep their separate controls. Book rendering discards inline `.secret` classes
+and prints their content normally, retaining emphasis, links, anchors and `.name`
+bold styling. Book secret sections and fences retain their visible labelled
+boxes. The span parser's opaque source tokens retain a `secret` boolean from
+their parsed classes for preview presentation.
 `collectAnchors` includes `secret: true` on secret anchors for destination
 presentation. Block and heading secrecy retain their separate scope and
 Foundry permission handling.

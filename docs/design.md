@@ -33,9 +33,10 @@ Concealment and access remain separate decisions. Public site and book builds
 omit GM-only notes; a reference to an omitted destination carries no unusable
 link. Foundry's private packs and page permissions govern destination access.
 Web inline spoilers use a separate show/hide control beside their content, so
-a revealed link is independently usable. Foundry and book inline spoilers are
-visible labelled text; an inline Foundry span has no native secret-section
-permission behavior. A spoiler in published HTML remains readable in the source. See the
+a revealed link is independently usable. Foundry inline spoilers use a CSS
+redaction revealed on hover or keyboard focus; they have no native secret-section
+permission behavior. Books ignore inline `.secret` and preserve normal text
+formatting. A spoiler in published HTML remains readable in the source. See the
 [authoring contract](authoring/links-and-markup.md#references-to-secret-subjects)
 for syntax and surface presentation.
 

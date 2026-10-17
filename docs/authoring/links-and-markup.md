@@ -40,11 +40,12 @@ Linking to the public note as a whole does not inherit a section's secrecy.
 | Surface | Reference to a secret destination                                                                                                                                      |
 | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Website | An inline show/hide spoiler conceals its label. An omitted GM-only destination produces text without an unusable link. A published secret heading can still be linked. |
-| Foundry | A visible inline spoiler labelled **Secret:** contains the reference. Private pack and page permissions govern whether its destination can be opened.                  |
-| Book    | The reference prints with secret styling and a **Secret:** label. An omitted GM-only destination produces text without a link.                                         |
+| Foundry | A CSS-redacted inline spoiler reveals the reference on hover or keyboard focus. Private pack and page permissions govern whether its destination can be opened.        |
+| Book    | The reference prints normally, preserving emphasis and name styling. An omitted GM-only destination produces text without a link.                                      |
 
-`.show` removes that automatic spoiler presentation on every surface. Where
-the target is unavailable it still produces text without a link.
+`.show` removes automatic spoiler presentation on the website and in Foundry.
+Book references already print normally. Where the target is unavailable the
+reference still produces text without a link.
 
 To intentionally reveal this reference, add `.show` immediately after the link:
 
@@ -251,11 +252,13 @@ reference concealment; an enclosing authored `.secret` still marks its text.
 
 On the website an inline spoiler has a button to show or hide its content.
 It stays within the surrounding sentence, and links inside it can be followed
-after revealing it. Foundry prints a visible inline `secret` span labelled
-**Secret:**; this span does not withhold its text from players. The book prints
-the text with secret styling and a **Secret:** label; printed text cannot be
-interactively concealed.
-These presentations preserve inline emphasis and the `.name` classification.
+after revealing it. Foundry redacts inline `secret` spans with a solid cover;
+hover the span or focus it with the keyboard to reveal its text, links and
+images. A visible focus outline and a spoiler cue identify the interaction.
+This does not change native Foundry secret-section controls. The book ignores
+`.secret` on inline spans and prints their text normally, preserving emphasis,
+links, anchors and `.name` bold styling. Secret sections and `:::secret` fences
+retain their visible labelled boxes.
 
 Published web HTML contains the spoiler's text. Revealing the spoiler or reading
 the page source exposes it; this is presentation, not access control. GM-only
@@ -454,8 +457,18 @@ The continuation paragraph and code block belong to the same definition.
 Repeat `:` only when starting a separate definition for the same term, as in
 the first example. The next unindented term starts a new entry.
 
-The web and Foundry render a definition list with HTML `<dl>`, `<dt>`, and
-`<dd>` elements. The book renders it as a term list.
+Definition lists use a dictionary hanging indent in the website, Foundry,
+preview and book. A bold term begins the row, followed by its normally styled
+definition. Short terms share a definition column 150px from the row's left
+edge; browser viewports of 600px or less use 100px. The gap after a term is
+`.75em`, with `.5em` between entries. A long term stays on one line and pushes
+the first definition farther right; wrapped lines return to the common column.
+The book uses the equivalent print dimensions.
+
+HTML surfaces preserve the semantic `<dl class="dictionary">`, `<dt>` and `<dd>`
+elements, with one grouping `<div>` for each term and all its definitions.
+Multiple definitions, continuation paragraphs, nested lists and footnotes keep
+their normal Markdown meaning. Infobox profiles retain their own layout.
 
 ## Lists
 

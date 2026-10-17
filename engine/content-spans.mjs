@@ -22,17 +22,23 @@ import { inlineText } from "./name-markup.mjs";
 /** Add bracket spans after recognized Markdown links and footnotes.
  * @param {import("markdown-it")} md - Markdown parser to extend.
  * @param {object} [options] - Surface presentation.
- * @param {boolean} [options.spoilers] - Add visible static Secret labels (Foundry).
+ * @param {boolean} [options.source] - Emit opaque authored source tokens for buffer preview.
+ * @param {boolean} [options.spoilers] - Add focusable CSS spoiler wrappers (Foundry).
  */
-export function spanMarkdownPlugin(md, { spoilers = false } = {}) {
+export function spanMarkdownPlugin(md, { spoilers = false, source = false } = {}) {
     if (spoilers) {
         md.renderer.rules.span_open = (tokens, index, options, env, renderer) => {
             const token = tokens[index];
             const secret = (token.attrGet("class") ?? "").split(/\s+/).includes("secret");
-            return (
-                renderer.renderToken(tokens, index, options) +
-                (secret ? '<strong class="inline-secret-label">Secret:</strong> ' : "")
-            );
+            if (secret) {
+                token.attrSet("data-inline-spoiler", "");
+                token.attrSet("tabindex", "0");
+                if (!token.attrGet("title"))
+                    token.attrSet("title", "Spoiler: hover or focus to reveal");
+                if (!token.attrGet("aria-label"))
+                    token.attrSet("aria-label", "Spoiler; focus to reveal");
+            }
+            return renderer.renderToken(tokens, index, options);
         };
     }
     md.inline.ruler.after("link", "bracket_span", (state, silent) => {
@@ -86,6 +92,22 @@ export function spanMarkdownPlugin(md, { spoilers = false } = {}) {
         }
         const problems = [...parsed.problems, ...refusedAttributes(parsed.values)];
         if (silent) {
+            state.pos = finish;
+            return true;
+        }
+        if (source) {
+            // An incomplete attribute stays opaque through the end of its line.
+            if (state.src[finish] === "{") {
+                const newline = state.src.indexOf("\n", finish);
+                finish = newline < 0 ? state.posMax : newline;
+            }
+            const token = state.push("span_source", "", 0);
+            token.content = state.src.slice(start, finish);
+            token.meta = {
+                text: state.src.slice(start + 1, end),
+                labelEnd: end - start,
+                secret: parsed.classes.includes("secret"),
+            };
             state.pos = finish;
             return true;
         }

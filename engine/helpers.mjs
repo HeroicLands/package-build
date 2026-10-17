@@ -41,6 +41,7 @@ import unidecode from "unidecode";
 import markdownit from "markdown-it";
 import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
+import { dictionaryListPlugin } from "./definition-list.mjs";
 import { iconPlugin } from "./content-icons.mjs";
 import { imagePlugin, imagesIn } from "./content-images.mjs";
 import { embedRole, resolveEmbeds } from "./content-embeds.mjs";
@@ -108,6 +109,7 @@ let localAssetImageInfoCache;
 export const md = markdownit({ html: true })
     .use(footnotePlugin)
     .use(deflistPlugin)
+    .use(dictionaryListPlugin)
     .use(spanMarkdownPlugin, { spoilers: true })
     .use(dictionaryEntryPlugin)
     // A heading's attribute block, written onto the heading element rather than

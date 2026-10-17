@@ -114,6 +114,19 @@ afterEach(() => {
     vi.resetModules();
 });
 
+describe("currentDate locator", () => {
+    it.each([
+        'currentDate: "datefrom calendar 720 AF"',
+        "currentDate: 720.130",
+        "currentDate: null",
+    ])("locates the explicit invalid setting", (line) => {
+        const source = `${MINIMAL}\n${line}\n`;
+        const { err } = failureFor(source);
+        const at = locatorOf(err.message);
+        expect(textAt(source, at.line, at.column)).toContain("currentDate");
+    });
+});
+
 describe("yamlKeyPath", () => {
     it("splits a dotted path into map keys", () => {
         expect(yamlKeyPath("site.sections.affliction.title")).toEqual([

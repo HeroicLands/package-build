@@ -98,6 +98,7 @@ describe("docs/api.md documents the real export surface", () => {
             "./engine",
             "./sohl",
             "./hm3",
+            "./preview",
             "./content-config",
             "./config",
             "./prettier",

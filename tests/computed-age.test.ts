@@ -27,13 +27,14 @@ import {
     checkBeingAge,
     computeAge,
     parseAgeMagnitude,
-    presentAmongFrontmatters,
-    presentAmongRecords,
 } from "../engine/being-age.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
 import { collectContentIndex } from "../engine/content-index.mjs";
+import { BasePackCompiler } from "../engine/base-compiler.mjs";
+import { reckoningContext } from "../engine/reckoning-markers.mjs";
+import { collectContentPages } from "../engine/site-build.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 /** A note as the link index hands one over: parsed frontmatter beside its text. */
@@ -54,15 +55,15 @@ function note(fm: Record<string, unknown>, file = "Being.md") {
     return { file, rel: file, fm, raw, body: "Prose.", type: String(fm.type ?? "") };
 }
 
-/** A `place` note stating the world's year and present, the way `worldInvariants` reads it. */
-function worldNote(present: unknown, days = 360) {
+/** A world note supplies calendar year context only. */
+function worldNote(days = 360) {
     return note(
         {
             type: "place",
             subType: "world",
             shortcode: "world",
             name: { full: "The World" },
-            data: { year: { days }, present },
+            data: { year: { days } },
         },
         "World.md",
     );
@@ -76,6 +77,47 @@ function beingNote(data: Record<string, unknown>, file = "Being.md") {
 const lintOpts = { schemas: NOTE_SCHEMAS as any, vocabulary: NOTE_VOCABULARY };
 
 describe("computeAge", () => {
+    it.each([
+        ["700", "720.1", 20],
+        ["700.1", "720", 20],
+        ["700.2", "720.1", 19],
+        ["700.2", "720.2", 20],
+        ["700.130", "720.129", 19],
+        ["700.130", "720.130", 20],
+    ])("handles mixed precision and birthday boundaries", (born, current, age) => {
+        expect(computeAge(born, current)).toBe(age);
+    });
+
+    it("leaves future births unavailable without inventing a negative age", () => {
+        expect(computeAge("720.2", "720.1")).toBeNull();
+        expect(computeAge("721", "720.1")).toBeNull();
+        expect(computeAge("720.1", "720.1")).toBe(0);
+    });
+    it("retains named-calendar birth context against a neutral current date", () => {
+        const dates = reckoningContext({
+            notes: [
+                { type: "place", data: { year: { days: 360 } } },
+                {
+                    type: "lore",
+                    subType: "calendar",
+                    shortcode: "cal",
+                    data: {
+                        epoch: "1.1",
+                        months: Array.from({ length: 12 }, (_, i) => ({
+                            name: `Month ${i + 1}`,
+                            days: 30,
+                        })),
+                        eras: [
+                            { shortcode: "before", start: null },
+                            { shortcode: "after", start: 1 },
+                        ],
+                    },
+                },
+            ],
+        });
+        expect(computeAge("700/1/1 cal.after", "720.1", dates)).toBe(20);
+        expect(computeAge("700/1/2 cal.after", "720.1", dates)).toBe(19);
+    });
     it("computes from two dates, not from two years", () => {
         // A twelve-month, thirty-day calendar — `born`'s birthday (month 12)
         // falls later in the year than `present`'s (month 1), so the age is one
@@ -172,36 +214,34 @@ describe("applyComputedBeingAge", () => {
     });
 });
 
-describe("presentAmongRecords / presentAmongFrontmatters", () => {
-    it("reads the present from a flat index record", () => {
-        const records = [
-            { type: "place", subType: "world", data: { year: { days: 360 }, present: "720/1/1" } },
-        ];
-        expect(presentAmongRecords(records)).toBe("720/1/1");
-    });
-
-    it("reads the present from a raw frontmatter object", () => {
-        const frontmatters = [
-            { type: "place", subType: "world", data: { year: { days: 360 }, present: "720/1/1" } },
-        ];
-        expect(presentAmongFrontmatters(frontmatters)).toBe("720/1/1");
-    });
-
-    it("is null for a batch declaring no present", () => {
-        expect(presentAmongRecords([{ type: "being", data: {} }])).toBeNull();
-        expect(presentAmongFrontmatters([{ type: "being", data: {} }])).toBeNull();
-    });
-});
-
 describe("checkBeingAge", () => {
+    it("uses the explicit current date through the lint entry point", () => {
+        const being = beingNote({ born: "700.2", age: 19 });
+        const findings = lintNote(being, { ...lintOpts, currentDate: "721.1" });
+        expect(
+            findings.filter((finding: any) => finding.message.includes("computes to 20")),
+        ).toHaveLength(1);
+    });
+    it("rejects an undeclared world-note field through ordinary vocabulary checks", () => {
+        const world = worldNote();
+        (world.fm.data as any).present = "720.1";
+        const findings = lintNote(world, lintOpts);
+        expect(
+            findings.some(
+                (finding: any) =>
+                    finding.message.includes("present") && finding.severity === "error",
+            ),
+        ).toBe(true);
+    });
+
     it("is silent when age is not authored — nothing to disagree with", () => {
-        const world = worldNote("720/1/1");
+        const world = worldNote();
         const being = beingNote({ born: "676/12/5" });
         expect(checkBeingAge(being, { index: { notes: [world, being] } })).toEqual([]);
     });
 
     it("warns, naming both values, when an authored age disagrees", () => {
-        const world = worldNote("720/1/1");
+        const world = worldNote();
         const being = beingNote({ born: "676/12/5", age: 29 });
         const findings = checkBeingAge(being, { index: { notes: [world, being] } });
         expect(findings).toHaveLength(1);
@@ -212,30 +252,33 @@ describe("checkBeingAge", () => {
     });
 
     it("is silent when the authored age agrees, tilde and all", () => {
-        const world = worldNote("720/1/1");
+        const world = worldNote();
         const being = beingNote({ born: "676/12/5", age: "~43" });
         expect(checkBeingAge(being, { index: { notes: [world, being] } })).toEqual([]);
     });
 
     it("is silent beside `born: unknown`, however the age disagrees", () => {
-        const world = worldNote("720/1/1");
+        const world = worldNote();
         const being = beingNote({ born: "unknown", age: 29 });
         expect(checkBeingAge(being, { index: { notes: [world, being] } })).toEqual([]);
     });
 
     it("is silent beside an absent `born`", () => {
-        const world = worldNote("720/1/1");
+        const world = worldNote();
         const being = beingNote({ age: 29 });
         expect(checkBeingAge(being, { index: { notes: [world, being] } })).toEqual([]);
     });
 
-    it("is silent — no warning at all — when the package declares no present", () => {
-        const being = beingNote({ born: "676/12/5", age: 29 });
-        expect(checkBeingAge(being, { index: { notes: [being] } })).toEqual([]);
+    it("uses the configured current date without a world note", () => {
+        const being = beingNote({ born: "700.2", age: 19 });
+        expect(checkBeingAge(being, { currentDate: "720.1" })).toEqual([]);
+        expect(checkBeingAge(being, { currentDate: "721.1" })[0].message).toContain(
+            "computes to 20",
+        );
     });
 
     it("reaches the same result through `lintNote`, the actual lint entry point", () => {
-        const world = worldNote("720/1/1");
+        const world = worldNote();
         const being = beingNote({ born: "676/12/5", age: 29 });
         const findings = lintNote(being, { ...lintOpts, index: { notes: [world, being] } });
         const ageWarnings = findings.filter((f: any) => f.message.includes("computes to"));
@@ -287,7 +330,6 @@ describe("the content index, end to end against a real fixture tree", () => {
                 "data:",
                 "    year:",
                 "        days: 360",
-                "    present: 720/1/1",
             ].join("\n"),
         );
         const beingPath = writeNote(
@@ -312,7 +354,7 @@ describe("the content index, end to end against a real fixture tree", () => {
         expect(fs.readFileSync(beingPath, "utf8")).toBe(before);
     });
 
-    it("carries no age at all when the package declares no present", () => {
+    it("computes against the default current date without any world note", () => {
         writeNote(
             "Bandit.md",
             [
@@ -327,6 +369,61 @@ describe("the content index, end to end against a real fixture tree", () => {
         );
         const records = collectContentIndex(tmp, { contentPackage: "sohl", skipDirectories: [] });
         const bandit = records.find((r: any) => r.file?.name === "Bandit");
-        expect(bandit?.data?.age).toBeUndefined();
+        expect(bandit?.data?.age).toBe(43);
+        const later = collectContentIndex(tmp, {
+            contentPackage: "sohl",
+            skipDirectories: [],
+            currentDate: "721.1",
+        });
+        expect(later.find((r: any) => r.file?.name === "Bandit")?.data?.age).toBe(44);
+    });
+    it("uses one configured date for site pages and compiled documents", async () => {
+        writeNote(
+            "Person.md",
+            'type: being\nshortcode: person\nname: { full: Person }\ndata:\n  born: "700.1"',
+        );
+        const records = collectContentIndex(tmp, {
+            contentPackage: "sohl",
+            skipDirectories: [],
+            currentDate: "721.1",
+        });
+        const result = collectContentPages(tmp, {
+            config: { contentPackage: "sohl", currentDate: "721.1" },
+            records,
+            contentPackage: "sohl",
+            packages: new Set(["sohl"]),
+            skipDirectories: [],
+            base: "/sohl/",
+            mount: "/sohl/",
+            scheme: { prefix: "" },
+        });
+        expect(result.pages[0].fm.data.age).toBe(21);
+        class AgeProbe extends BasePackCompiler {
+            static override label = "age probe";
+            static override convertsWikilinks = false;
+            written: any[] = [];
+            override selects(fm: any) {
+                return fm.type === "being";
+            }
+            override buildEntry(fm: any) {
+                return { name: fm.name.full, age: fm.data.age };
+            }
+            override writeEntry(doc: any) {
+                this.written.push(doc);
+            }
+        }
+        const compiler = new AgeProbe({
+            contentBase: tmp,
+            skipDirectories: [],
+            corpus: {
+                records,
+                currentDate: "721.1",
+                parsed: new Map(),
+                linkIndex: {},
+            },
+        });
+        await compiler.compile();
+        expect(compiler.errorCount).toBe(0);
+        expect(compiler.written).toEqual([{ name: "Person", age: 21 }]);
     });
 });

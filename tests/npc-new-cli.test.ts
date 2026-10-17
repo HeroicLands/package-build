@@ -72,6 +72,7 @@ beforeAll(() => {
     fs.writeFileSync(
         path.join(root, "package-build.config.yaml"),
         `contentPackage: demo
+currentDate: "720.300"
 packageKind: modules
 compatibility: { minimum: "14.359", verified: "14.359" }
 stats: { lastModifiedBy: npcnewbuild00000 }
@@ -84,7 +85,7 @@ packs:
     note(
         "World.md",
         `---\nshortcode: world\nname: { full: The World }\ntype: place\nsubType: world\n` +
-            `data:\n  year: { days: 365 }\n  present: "720.300"\n---\n\n${PROSE}`,
+            `data:\n  year: { days: 365 }\n---\n\n${PROSE}`,
     );
     culture("Khelathi", "khelathi", "  language: skill-khelathilng\n" + PROFILE);
     culture("Plainfolk", "plainfolk", "  language: skill-khelathilng\n");

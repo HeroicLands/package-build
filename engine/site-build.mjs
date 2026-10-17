@@ -91,7 +91,8 @@ import { searchableFrontmatter } from "./note-package.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 // A being's computed `age` — see `engine/being-age.mjs`. `pdf-build.mjs`
 // reuses `collectContentPages`'s pages, so wiring it here reaches the book too.
-import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
+import { applyComputedBeingAge } from "./being-age.mjs";
+import { normalizeCurrentDate } from "./current-date.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { resolvedDateFields } from "./note-dates.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
@@ -213,9 +214,7 @@ export function collectContentPages(contentBase, ctx) {
     const addressFindings = [];
     const fmLinkFindings = [];
 
-    // The package's declared present, read once from the same corpus the site
-    // and the PDF share — see `engine/being-age.mjs`. `pdf-build.mjs` reaches
-    // this through the pages this function returns, so one call covers both.
+    // Site and PDF pages use the setting date alongside shared calendar context.
     const records =
         ctx.records ??
         indexRecordsFor({
@@ -223,7 +222,7 @@ export function collectContentPages(contentBase, ctx) {
             config: ctx.config,
             skipDirectories: ctx.skipDirectories,
         });
-    const present = presentAmongRecords(records);
+    const present = normalizeCurrentDate(ctx.config?.currentDate);
     const dates = reckoningContext({ notes: records });
 
     for (const file of siteCorpusFiles(contentBase, ctx)) {
@@ -479,6 +478,7 @@ export function siteGates(pages, findings, { config, records, sqlTables }) {
         :   pages;
     out.index = buildSiteIndex(expanded, {
         package: config.contentPackage,
+        currentDate: config.currentDate,
         foreignIndex: foreign.index,
         foreignReferences: foreign.references,
         records,

@@ -103,10 +103,11 @@ import { packForType } from "./ids.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 import { carriesSystemBlock } from "./system-block.mjs";
 import { checkAuthoredSystemData, checkEmittedSystemData } from "./schema-check.mjs";
-// A being's computed `age`, filled in against the package's own declared
-// present before this pass reads `data:` for anything else — see
+// A being's computed `age`, filled in against the configured setting
+// current date before this pass reads `data:` for anything else — see
 // `engine/being-age.mjs`.
-import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
+import { applyComputedBeingAge } from "./being-age.mjs";
+import { normalizeCurrentDate } from "./current-date.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { annotateAssetReferences, assetReferenceLookup } from "./asset-references.mjs";
@@ -632,10 +633,8 @@ export class BasePackCompiler {
         if (this.constructor.convertsWikilinks) {
             this.sqlTables = this.corpus.sqlTables;
         }
-        // The package's declared present, read once from the same corpus — so
-        // a being's computed `age` reaches every compiled document, not only
-        // the content index.
-        this.worldPresent = presentAmongRecords(this.corpus.records);
+        // Use the compile corpus's setting date.
+        this.currentDate = normalizeCurrentDate(this.corpus.currentDate);
         this.unresolvedLinks = 0;
     }
 
@@ -1277,7 +1276,7 @@ export class BasePackCompiler {
                 stats.skippedOther++;
                 continue;
             }
-            applyComputedBeingAge(fm, this.worldPresent, dates);
+            applyComputedBeingAge(fm, this.currentDate, dates);
             // `package:` is refused before `selects`, so a note is answered
             // whichever pass would have claimed it: a note's package is the
             // repository's configured one, so declaring it restates a

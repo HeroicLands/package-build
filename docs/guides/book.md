@@ -522,12 +522,16 @@ Anchors on headings are scoped to their entries, so two entries can use the
 same heading anchor. The build reports an unresolved destination while
 keeping the source available for inspection.
 
-A reference to a GM-only note or secret heading prints with secret styling
-and a **Secret:** label. GM-only notes remain omitted, and references to them
-print as text without a link. `.show` removes the automatic spoiler presentation
-of that reference, without adding the destination to the book. An authored
-`[text]{.secret}` uses the same static inline styling. Printed text remains
-visible; see [secret references](../authoring/links-and-markup.md#references-to-secret-subjects).
+A reference to a GM-only note or secret heading prints normally. GM-only notes
+remain omitted, and references to them print as text without a link. `.show`
+does not add an omitted destination to the book. Inline `[text]{.secret}` spans
+print as ordinary text, preserving emphasis, links, anchors and `.name` bold
+styling; the book ignores their `.secret` class.
+
+Secret sections and `:::secret` fences keep their visible contents in pale
+lavender boxes (`#f2eefb`) with a purple left border and title (`#5c4b8a`). The
+default title is **! Secret**; a fence can supply its own title. See
+[secret references](../authoring/links-and-markup.md#references-to-secret-subjects).
 
 The [generated sections](../reference/format-details.md#generated-sections)
 an entry carries — **Within**, **Governed by**, **In song and story**, the

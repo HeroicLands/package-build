@@ -9,12 +9,13 @@ import { describe, expect, it } from "vitest";
 import { buildIndexRecord } from "../engine/content-index.mjs";
 import { buildSiteIndex, wikiContext } from "../engine/site-index.mjs";
 import { parseWikilink, WIKILINK } from "../engine/wikilink-syntax.mjs";
-import { renderSpans } from "../engine/content-spans.mjs";
+import MarkdownIt from "markdown-it";
+import { renderSpans, spanMarkdownPlugin } from "../engine/content-spans.mjs";
 import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "../engine/wikilinks.mjs";
 import { collectAnchors } from "../engine/anchors.mjs";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
-import { markdownToTypst } from "../engine/pdf-render.mjs";
+import { bookTypstPreamble, markdownToTypst } from "../engine/pdf-render.mjs";
 
 const body =
     "# Open {#open}\n\n# Truth {#truth .secret}\n\nA [detail]{#detail}\n\nText.\n\n# End {#end}\n";
@@ -98,11 +99,67 @@ describe("inline spoiler presentation", () => {
             'class="name secret"',
         );
     });
-    it("retains inline spoiler text and name classes in books", () => {
-        expect(markdownToTypst("[Joe *Blow*]{.name .secret}")).toContain(
-            'classes: ("name", "secret")',
+    it("makes Foundry secret spans focusable without changing their nested content", () => {
+        const html = renderFoundryMarkdown(
+            "[Joe *Blow* and [a link](https://example.test)]{.name .secret}",
         );
-        expect(markdownToTypst("[Joe *Blow*]{.name .secret}")).toContain("Joe #emph[Blow]");
+        expect(html).toContain('data-inline-spoiler=""');
+        expect(html).toContain('tabindex="0"');
+        expect(html).toContain('aria-label="Spoiler; focus to reveal"');
+        expect(html).toContain('title="Spoiler: hover or focus to reveal"');
+        expect(html).toContain("<em>Blow</em>");
+        expect(html).toContain('<a href="https://example.test">a link</a>');
+        expect(renderFoundryMarkdown("[Ordinary]{.name}")).not.toContain("data-inline-spoiler");
+        expect(html).not.toContain("inline-secret-label");
+    });
+    it("marks opaque preview tokens from parsed secret classes", () => {
+        const parser = new MarkdownIt().use(spanMarkdownPlugin, { source: true });
+        const tokens = parser.parseInline("[Source]{.name .secret} and [Public]{.name}", {});
+        const spans = tokens[0].children!.filter((token: any) => token.type === "span_source");
+        expect(spans.map((token: any) => token.meta.secret)).toEqual([true, false]);
+    });
+    it("ignores inline secrecy in books while retaining name styling and emphasis", () => {
+        expect(markdownToTypst("[Joe *Blow*]{.name .secret}")).toBe(
+            '#book-span(classes: ("name",))[Joe #emph[Blow]]',
+        );
+        expect(markdownToTypst("[Joe]{.secret .quiet .name}")).toBe(
+            '#book-span(classes: ("quiet", "name"))[Joe]',
+        );
+    });
+    it("prints secret-only spans as ordinary inline content with links and anchors", () => {
+        const source = "Before [A **bold** [link](https://example.test)]{#detail .secret} after.";
+        expect(markdownToTypst(source, { anchorPrefix: "note" })).toBe(
+            'Before #box[A #strong[bold] #link("https://example.test")[link]] <note--detail> after.',
+        );
+        expect(markdownToTypst("[Outer [inner]{#inner .secret}]{#outer .secret}")).toBe(
+            "#box[Outer #box[inner] <inner>] <outer>",
+        );
+        const preamble = bookTypstPreamble();
+        expect(preamble).not.toContain('classes.contains("secret")');
+        expect(preamble).not.toContain("#strong[Secret:]");
+        expect(preamble).toContain('classes.contains("name")');
+        expect(preamble).toContain("box(styled)");
+    });
+    it("retains visible labelled lavender boxes for secret sections and fences", () => {
+        const sources = [
+            "# Hidden {#hidden .secret}\n\nSection content.",
+            ":::secret\nFence content.\n:::",
+            ':::secret {title="Only *GMs*"}\nCustom content.\n:::',
+        ];
+        for (const source of sources) {
+            const result = markdownToTypst(source);
+            expect(result).toContain('fill: rgb("#f2eefb")');
+            expect(result).toContain('stroke: (left: 2pt + rgb("#5c4b8a"))');
+            expect(result).toContain('text(fill: rgb("#5c4b8a"), weight: "bold")');
+            expect(result).toContain(
+                source.includes("Only") ? "[! Only #emph[GMs]]" : "[! Secret]",
+            );
+            expect(result).toContain(
+                source.includes("Section") ? "Section content."
+                : source.includes("Custom") ? "Custom content."
+                : "Fence content.",
+            );
+        }
     });
 });
 
@@ -160,10 +217,10 @@ describe("shared spoiler audience metadata", () => {
         resolveWebWikilinks("[[being-joe#missing|Joe]]{.show}", ctx);
         expect(errors.at(-1)?.reason).toBe("unknown-anchor");
     });
-    it("keeps default private and section references as static spoilers in book Markdown", () => {
+    it("prints private reference text without inline secrecy in books", () => {
         const ctx = { ...web(), output: "book" };
         const result = resolveWebWikilinks("[[doc-truth|Truth]]", ctx);
-        expect(markdownToTypst(result)).toContain('#book-span(classes: ("secret",))[Truth]');
+        expect(markdownToTypst(result)).toBe("#box[Truth]");
         expect(renderSpans("[[Go](/truth/)]{.secret}").markdown).toContain(
             "hidden>[Go](/truth/)</span>",
         );

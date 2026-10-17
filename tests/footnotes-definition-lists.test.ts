@@ -86,14 +86,15 @@ describe("definition lists", () => {
 
     it("renders terms and multiple definitions in Foundry HTML", () => {
         const html = renderFoundryMarkdown(source);
-        expect(html).toContain("<dl>");
+        expect(html).toContain('<dl class="dictionary">');
+        expect(html.match(/<div>/g)).toHaveLength(2);
         expect(html).toContain("<dt>Second Term</dt>");
         expect(html.match(/<dd>/g)).toHaveLength(3);
     });
 
     it("renders one book term with both definitions", () => {
         const typst = markdownToTypst(source);
-        expect(typst).toContain("#terms(");
-        expect(typst).toContain("terms.item([Second Term],[One.\n\nTwo.])");
+        expect(typst).toContain("let book-definition(term, body)");
+        expect(typst).toContain("book-definition([Second Term],[One.\n\nTwo.])");
     });
 });

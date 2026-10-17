@@ -11,51 +11,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-/**
- * **The middle state of `age`: absent beside a dated `born`, it follows from
- * the date.**
- *
- * `age` is a three-state override — authored it wins, absent beside a dated
- * `born` it is computed, absent beside `born: unknown` or an absent `born` it
- * stays unknown. This module builds the middle state, which nothing else in
- * the toolchain does: `born` and `age` are read straight through to every
- * compiled surface exactly as authored, unless a note's own package states the
- * day the setting stops.
- *
- * ## Where the present comes from
- *
- * A world's `present` is a fact about the world, not about a calendar or a
- * build configuration — it is `data.present` on the package's own `place` note
- * of `subType: world` (or `celestial`), read through
- * {@link module:engine/calendar-notes.worldInvariants}. A package with no such
- * note states no present, computes no age, and says nothing about it: the
- * absence is silent, exactly as a package that declares no calendar is asked
- * no calendar questions.
- *
- * ## The arithmetic is on two dates, not on two years
- *
- * A year subtracted from a year is wrong whenever the birthday has not yet
- * happened in the present's year — the common shape, not the exception. So
- * {@link computeAge} compares the two dates' canonical day ordinals where an
- * era marker supplies them. The birthday that still lies ahead in the current
- * year does not count as a completed year. An unmarked slash date has no
- * calendar to convert, so it uses its written month and day as its ordinal.
- *
- * ## `~` follows the convention {@link module:engine/note-dates} sets
- *
- * A date's `~` marks the value approximate without changing what it parses to,
- * so a renderer keeps the authored text and a comparison still has a number.
- * {@link parseAgeMagnitude} draws the same distinction for `age` — the tilde,
- * the magnitude — without routing through {@link module:engine/note-dates}
- * itself: `age` is a plain count of years, not a date, so it has no month, no
- * day, no era, and — unlike a date — no refusal of `0`. Reusing the date
- * grammar's month/day/era machinery here would accept an age nothing about the
- * field means, and refuse the one age an infant can have.
- *
- * @module
- */
+/** Authored ages and setting-wide current-date age calculations. @module */
 
-import { worldInvariants } from "./calendar-notes.mjs";
+import { DEFAULT_CURRENT_DATE } from "./current-date.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
@@ -107,11 +65,9 @@ export function parseAgeMagnitude(raw) {
  *
  * @param {unknown} bornRaw - The being's authored `born`, or `undefined`/`null`
  *   where it wrote none.
- * @param {unknown} presentRaw - The package's `data.present`, as
- *   {@link module:engine/calendar-notes.worldInvariants} read it, or
- *   `undefined`/`null` where the package states none.
+ * @param {unknown} presentRaw - The configured neutral current date.
  * @returns {number|null} The age, or `null` where `born` is `unknown` or
- *   absent, where no present is declared, or where either date fails to parse.
+ *   absent or future, or where either date fails to parse.
  */
 export function computeAge(bornRaw, presentRaw, dateContext = {}) {
     if (bornRaw === undefined || bornRaw === null) return null;
@@ -126,11 +82,15 @@ export function computeAge(bornRaw, presentRaw, dateContext = {}) {
     // A resolved marker supplies a canonical day. An unmarked slash date uses
     // its written month and day. Missing parts read as the first day that the
     // value can name.
-    const bornOrdinal = born.canonicalDay ?? (born.month ?? 1) * 100 + (born.day ?? 1);
-    const presentOrdinal = present.canonicalDay ?? (present.month ?? 1) * 100 + (present.day ?? 1);
+    const bornOrdinal =
+        born.canonicalDay ?? (born.month === null ? 1 : (born.month ?? 1) * 100 + (born.day ?? 1));
+    const presentOrdinal =
+        present.canonicalDay ??
+        (present.month === null ? 1 : (present.month ?? 1) * 100 + (present.day ?? 1));
     const notYetHappened = bornOrdinal > presentOrdinal;
 
-    return present.canonicalYear - born.canonicalYear - (notYetHappened ? 1 : 0);
+    const age = present.canonicalYear - born.canonicalYear - (notYetHappened ? 1 : 0);
+    return age < 0 ? null : age;
 }
 
 /**
@@ -146,8 +106,7 @@ export function computeAge(bornRaw, presentRaw, dateContext = {}) {
  * itself untouched.
  *
  * @param {object} fm - A note's frontmatter, as freshly parsed.
- * @param {unknown} presentRaw - The package's declared present, or
- *   `undefined`/`null` where it states none.
+ * @param {unknown} presentRaw - The configured neutral current date.
  * @returns {void}
  */
 export function applyComputedBeingAge(fm, presentRaw, dateContext = {}) {
@@ -171,63 +130,21 @@ export function applyComputedBeingAge(fm, presentRaw, dateContext = {}) {
 }
 
 /**
- * A being's `data.present`, read from every `place` note a batch of records or
- * frontmatter objects carries.
- *
- * Two shapes reach this by way of two thin adapters, because the callers that
- * need a present hold their notes two different ways: a flat index record
- * (`type` and `data` at the top level) and a raw walk's `{frontmatter}` pair.
- * Neither shape is the `{fm, type}` pair {@link worldInvariants} reads, so each
- * adapter states the one conversion its caller needs rather than asking every
- * caller to know it.
- *
- * @param {readonly object[]|undefined} records - Flat index records — a
- *   content-index record, or anything else spreading a note's frontmatter to
- *   its own top level.
- * @returns {unknown} The present, or `null` where no `place` note in the batch
- *   declares one.
- */
-export function presentAmongRecords(records) {
-    return worldInvariants({
-        notes: (records ?? []).map((record) => ({ fm: record, type: record?.type })),
-    }).present;
-}
-
-/**
- * The present read from a batch of raw frontmatter objects.
- *
- * @param {readonly (object|null|undefined)[]|undefined} frontmatters - One
- *   entry per note walked, as parsed — never a record.
- * @returns {unknown} The present, or `null` where none is declared.
- */
-export function presentAmongFrontmatters(frontmatters) {
-    return worldInvariants({
-        notes: (frontmatters ?? []).map((fm) => ({ fm, type: fm?.type })),
-    }).present;
-}
-
-/**
- * Check a being's authored `age` against what `born` and the package's present
- * compute.
+ * Check an authored age against the birth date and configured current date.
  *
  * Registered as `being`'s whole-note `check` in `note-vocabulary.mjs`, run the
  * way `checkPlace` and `checkCalendarNote` are — beside every other check the
  * closed `data:` container earns, with the same `index`.
  *
- * Two silences, both deliberate: beside `born: unknown` or an absent `born`
- * there is nothing to disagree with, and a package that declares no present
- * computes no age to disagree with either — both cases are read by
- * {@link computeAge} returning `null`, and neither says a word.
+ * An unknown or absent birth date supplies no computed age to compare.
  *
- * @param {object} note - The note, as the link index hands it over —
- *   {@link module:engine/calendar-notes.worldInvariants}'s `index.notes` shape.
+ * @param {object} note - The note, as the link index hands it over.
  * @param {object} [opts]
- * @param {object} [opts.index] - The link index, holding the package's `place`
- *   notes. Its absence skips the check, the way a reference check with no
- *   index skips reporting every reference as dead.
+ * @param {object} [opts.index] - Calendar context for authored birth dates.
+ * @param {string} [opts.currentDate="720.1"] - The configured neutral current date.
  * @returns {object[]} Findings — at most one `warning`, naming both values.
  */
-export function checkBeingAge(note, { index } = {}) {
+export function checkBeingAge(note, { index, currentDate = DEFAULT_CURRENT_DATE } = {}) {
     if (!isBeingType(note?.type ?? note?.fm?.type)) return [];
     const data = dataOf(note?.fm);
     if (!data) return [];
@@ -235,10 +152,7 @@ export function checkBeingAge(note, { index } = {}) {
     const bornRaw = data.born;
     const ageRaw = data.age;
     if (ageRaw === undefined || ageRaw === null || ageRaw === "") return [];
-    if (!index) return [];
-
-    const present = worldInvariants(index).present;
-    const computed = computeAge(bornRaw, present, reckoningContext(index));
+    const computed = computeAge(bornRaw, currentDate, reckoningContext(index));
     if (computed === null) return [];
 
     const authored = parseAgeMagnitude(ageRaw);

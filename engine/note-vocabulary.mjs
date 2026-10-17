@@ -92,7 +92,7 @@ import {
     checkWorldFacts,
 } from "./calendar-notes.mjs";
 // Whether a being's authored `age` disagrees with what `born` and the
-// package's declared present compute — the closed `data:` container's own
+// configured current date compute — the closed `data:` container's own
 // question, asked the way `checkPlace` and `checkCalendarNote` are.
 import { checkBeingAge } from "./being-age.mjs";
 import { checkSocialTies } from "./social-ties.mjs";
@@ -1522,7 +1522,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         stubbable: true,
         subTypes: Object.freeze(["npc", "character", "creature"]),
         // Whether an authored `age` disagrees with what `born` and the
-        // package's declared present compute — see `engine/being-age.mjs`.
+        // configured current date compute — see `engine/being-age.mjs`.
         check: checkBeingAge,
         data: Object.freeze([
             TOKEN_ICON,

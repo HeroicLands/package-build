@@ -31,7 +31,7 @@
  */
 
 /*
- * Definition lists, in two states of one style.
+ * Profile definition grids, in two states of one style.
  *
  * **Wide.** Two columns, the term right-aligned against a fixed gutter so every
  * term in the list shares one right edge, the definition in the remaining
@@ -58,7 +58,8 @@
  * The three tunable values are custom properties, so a package adjusts the term
  * column, the gutter or the stacking point without copying the rule.
  */
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) dl {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    dl:not(.dictionary) {
     display: grid;
     /* `minmax(0, …)` keeps the track at its full width wherever there is room
      * and lets it shrink rather than overflow where there is not. */
@@ -68,7 +69,9 @@
     container-name: pb-deflist;
 }
 
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) dl > dt {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    dl:not(.dictionary)
+    > dt {
     grid-column: 1;
     /* The one rule that holds on every surface, so an author writes the term
      * and nothing else rather than bolding it by hand. */
@@ -78,13 +81,17 @@
     margin: 0;
 }
 
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) dl > dd {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    dl:not(.dictionary)
+    > dd {
     grid-column: 2;
     margin: 0 0 var(--pb-deflist-row-gap, 1.5rem);
     line-height: 1.6;
 }
 
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) dl > dd:last-child {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    dl:not(.dictionary)
+    > dd:last-child {
     margin-bottom: 0;
 }
 
@@ -96,12 +103,16 @@
  * against whichever ancestor container happens to be nearest.
  */
 @container pb-deflist (max-width: 32rem) {
-    dt {
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+        dl:not(.dictionary)
+        > dt {
         grid-column: 1 / -1;
         text-align: left;
     }
 
-    dd {
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+        dl:not(.dictionary)
+        > dd {
         grid-column: 1 / -1;
     }
 }
@@ -205,20 +216,22 @@
     }
 }
 
-/* Alerts share ordinary body colors, with an accent on their edge and title. */
+/* Alerts select a tinted palette from the host's color scheme. */
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert {
     border-inline-start: 0.25rem solid var(--pb-alert-color);
-    padding: 0.5rem 1rem;
+    border-radius: 0.375rem;
+    padding: 1rem;
     margin: 1rem 0;
-    color: inherit;
-    background: transparent;
+    color: #24292f;
+    color: light-dark(#24292f, #e6edf3);
+    background: var(--pb-alert-background);
 }
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-title {
     display: flex;
     align-items: center;
     gap: 0.5em;
     margin: 0 0 0.5rem;
-    font-weight: 600;
+    font-weight: 700;
     color: var(--pb-alert-color);
 }
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-icon {
@@ -234,17 +247,107 @@
 }
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-note {
     --pb-alert-color: #0969da;
-    --pb-alert-color: light-dark(#0969da, #4493f8);
+    --pb-alert-color: light-dark(#0969da, #58a6ff);
+    --pb-alert-background: #f6faff;
+    --pb-alert-background: light-dark(#f6faff, #101a28);
 }
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-tip {
     --pb-alert-color: #1a7f37;
-    --pb-alert-color: light-dark(#1a7f37, #3fb950);
+    --pb-alert-color: light-dark(#1a7f37, #7ee787);
+    --pb-alert-background: #f4fbf5;
+    --pb-alert-background: light-dark(#f4fbf5, #102018);
 }
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-important {
-    --pb-alert-color: #8250df;
-    --pb-alert-color: light-dark(#8250df, #ab7df8);
+    --pb-alert-color: #6c3fd1;
+    --pb-alert-color: light-dark(#6c3fd1, #c4b0ff);
+    --pb-alert-background: #faf7ff;
+    --pb-alert-background: light-dark(#faf7ff, #1c172a);
 }
 :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .alert-warning {
     --pb-alert-color: #9a6700;
     --pb-alert-color: light-dark(#9a6700, #d29922);
+    --pb-alert-background: #fffaf0;
+    --pb-alert-background: light-dark(#fffaf0, #241d10);
+}
+
+/* Authored definition lists use dictionary rows; profile grids remain separate. */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .dictionary {
+    --indent: 150px;
+    --gap: 0.75em;
+    margin: 0;
+    display: block;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .dictionary > div {
+    padding-left: var(--indent);
+    text-indent: calc(-1 * var(--indent));
+    margin-bottom: 0.5em;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .dictionary
+    > div
+    > dt {
+    display: inline-block;
+    min-width: calc(var(--indent) - var(--gap));
+    margin-right: var(--gap);
+    font-weight: bold;
+    white-space: nowrap;
+    text-indent: 0;
+    text-align: left;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .dictionary
+    > div
+    > dd {
+    display: inline;
+    margin: 0;
+    font-weight: normal;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .dictionary
+    > div
+    > dd
+    > :is(p, ul, ol, dl, blockquote, pre, table, div) {
+    text-indent: 0;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .dictionary
+    > div
+    > dd
+    > p:first-child {
+    display: inline;
+}
+@media (max-width: 600px) {
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .dictionary {
+        --indent: 100px;
+    }
+}
+
+/* Inline spoilers reveal on pointer hover or keyboard focus. Native secret
+ * sections retain Foundry's separate GM reveal control. */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    span.secret[data-inline-spoiler] {
+    cursor: help;
+    border-radius: 0.15em;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    span.secret[data-inline-spoiler]:not(:hover):not(:focus):not(:focus-within) {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    background-color: var(--pb-redaction-fill, #24292f) !important;
+    text-shadow: none !important;
+    text-decoration-color: transparent !important;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    span.secret[data-inline-spoiler]:not(:hover):not(:focus):not(:focus-within)
+    * {
+    color: transparent !important;
+    -webkit-text-fill-color: transparent !important;
+    visibility: hidden !important;
+    text-shadow: none !important;
+    text-decoration-color: transparent !important;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    span.secret[data-inline-spoiler]:focus-visible {
+    outline: 2px solid currentColor;
+    outline-offset: 2px;
 }

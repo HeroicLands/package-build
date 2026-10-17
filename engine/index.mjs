@@ -155,6 +155,8 @@ export * as calendarNotes from "./calendar-notes.mjs";
 export * as calendarArtifacts from "./calendar-artifacts.mjs";
 
 /** A being's `age`, absent beside a dated `born`: the age the date computes to. */
+export * as definitionList from "./definition-list.mjs";
+export * as currentDate from "./current-date.mjs";
 export * as beingAge from "./being-age.mjs";
 
 /** The one normalisation this build makes: prose to a URL-safe token. */

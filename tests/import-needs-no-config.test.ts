@@ -87,7 +87,10 @@ const MODULES = ["engine", "sohl", "hm3"]
  * `PACKAGE_BUILD_CONFIG` pointing the toolchain at a configuration it would
  * otherwise never find.
  */
-function run(args: string[]): {
+function run(
+    args: string[],
+    input?: string,
+): {
     status: number;
     stdout: string;
     stderr: string;
@@ -98,6 +101,7 @@ function run(args: string[]): {
         cwd: sandbox,
         encoding: "utf8",
         env,
+        input,
     });
     return {
         status: result.status ?? 1,
@@ -190,10 +194,52 @@ describe("the shipped package needs no configuration to be imported", () => {
         SUBPROCESS_TEST_TIMEOUT,
     );
 
-    it("publishes one executable", () => {
-        expect(manifest.bin).toEqual({ "package-build": "./bin/package-build.mjs" });
+    it("publishes exactly the build and preview executables", () => {
+        expect(manifest.bin).toEqual({
+            "package-build": "./bin/package-build.mjs",
+            "package-build-preview": "./bin/package-build-preview.mjs",
+        });
+        for (const executable of Object.values(manifest.bin)) {
+            expect(fs.existsSync(path.join(installed, executable)), executable).toBe(true);
+        }
         expect(fs.existsSync(path.join(installed, "bin", "content-build.mjs"))).toBe(false);
     });
+
+    it(
+        "answers preview --help from the shipped copy",
+        () => {
+            const { status, stdout, stderr } = run([
+                path.join(installed, "bin", "package-build-preview.mjs"),
+                "--help",
+            ]);
+            expect(status, stderr).toBe(0);
+            expect(stdout).toContain("Usage: package-build-preview");
+            expect(stdout).toContain("--dark");
+            expect(stdout).toContain("--css");
+            expect(stderr).toBe("");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it.each([false, true])(
+        "renders preview stdin from the shipped copy without configuration (dark=%s)",
+        (dark) => {
+            const { status, stdout, stderr } = run(
+                [
+                    path.join(installed, "bin", "package-build-preview.mjs"),
+                    ...(dark ? ["--dark"] : []),
+                ],
+                "# Bare preview\n\nA **local** note with [[place-demo|label]].\n",
+            );
+            expect(status, stderr).toBe(0);
+            expect(stdout).toContain(`class="hl-preview hl-preview-${dark ? "dark" : "light"}"`);
+            expect(stdout).toContain("<h1>Bare preview</h1>");
+            expect(stdout).toContain("<strong>local</strong>");
+            expect(stdout).toContain('class="hl-preview-address">place-demo</span>');
+            expect(stderr).toBe("");
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
 
     it(
         "answers --help",

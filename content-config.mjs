@@ -65,6 +65,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
+import { normalizeCurrentDate } from "./engine/current-date.mjs";
 
 // Leaves with no local imports of their own, so naming them here cannot close
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
@@ -569,6 +570,7 @@ export function publishesContentPages(config) {
  *                                          repository — every configured path is
  *                                          resolved against it, so the build never
  *                                          depends on the working directory.
+ * @property {string} [currentDate] Setting-wide neutral current date; defaults to "720.1".
  * @property {string} contentPackage        Content package name — the address
  *                                          namespace every note in this
  *                                          repository is published under.
@@ -643,6 +645,7 @@ export function publishesContentPages(config) {
  * The normalized, frozen configuration the toolchain reads.
  *
  * @typedef {object} ContentBuildConfig
+ * @property {string} currentDate Setting-wide neutral current date.
  * @property {string} rootDir
  * @property {string} contentPackage
  * @property {string|null} foundryPackage  `null` for a `documentation`
@@ -726,6 +729,7 @@ export function publishesContentPages(config) {
 const CONFIG_KEYS = [
     "rootDir",
     "contentPackage",
+    "currentDate",
     "foundryPackage",
     "homepage",
     "authors",
@@ -2943,6 +2947,13 @@ export function defineConfig(config) {
 
     return Object.freeze({
         rootDir,
+        currentDate: (() => {
+            try {
+                return normalizeCurrentDate(input.currentDate);
+            } catch (error) {
+                fail("currentDate", error.message);
+            }
+        })(),
         contentPackage: requireContentPackage(input.contentPackage, docEntryTypes, {
             rootDir,
             packageKind,

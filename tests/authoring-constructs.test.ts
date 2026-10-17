@@ -210,7 +210,9 @@ describe("every surface renders every construct", () => {
 
     it("renders a definition list as one on every surface", () => {
         expect(foundry(CASES["definition list"])).toContain("<dt>Harbour due</dt>");
-        expect(book(CASES["definition list"])).toContain("terms.item(");
+        expect(book(CASES["definition list"])).toContain(
+            "book-definition([Harbour due],[A toll on every hull that ties up.])",
+        );
     });
 });
 

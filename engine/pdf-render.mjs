@@ -822,9 +822,9 @@ function renderBlock(tokens, i, out, ctx) {
                     definitions.push(renderTokens(tokens.slice(at + 1, definitionEnd), ctx));
                     at = definitionEnd + 1;
                 }
-                entries.push(`terms.item([${term}],[${definitions.join("\n\n")}])`);
+                entries.push(`book-definition([${term}],[${definitions.join("\n\n")}])`);
             }
-            out.push(`\n#terms(${entries.join(", ")})\n\n`);
+            out.push(`\n${renderDefinitionList(entries)}\n\n`);
             return end - i + 1;
         }
         case "table_open": {
@@ -838,6 +838,36 @@ function renderBlock(tokens, i, out, ctx) {
         default:
             return 1;
     }
+}
+
+/**
+ * Self-contained dictionary rows with the website's 150 CSS-pixel hanging indent.
+ *
+ * Each row remains a breakable block; only the bold term is an inline box. The
+ * negative first-line space lets its label start at the original margin while
+ * subsequent paragraphs, lists and blocks retain the definition's inset. A long
+ * term enlarges its slot without changing the continuation margin.
+ *
+ * Scope the helper to this list so exported Markdown fragments also work without
+ * a book preamble, including nested definition lists.
+ * @param {string[]} entries - Calls containing already-rendered terms and bodies.
+ * @returns {string} Typst markup.
+ */
+function renderDefinitionList(entries) {
+    return `#context {
+  let book-definition(term, body) = {
+    let indent = 112.5pt
+    let gap = (0.75em).to-absolute()
+    let label = text(weight: "bold", term)
+    let slot = calc.max(indent - gap, measure(label).width)
+    block(width: 100%, breakable: true, inset: (left: indent), above: 0pt, below: 0.5em)[
+      #set par(first-line-indent: 0pt, hanging-indent: 0pt)
+      #set text(weight: "regular")
+      #h(-indent)#box(width: slot, label)#h(gap)#body
+    ]
+  }
+  ${entries.join("\n  ")}
+}`;
 }
 
 /**
@@ -1210,7 +1240,10 @@ function renderInline(token, ctx) {
                 out.push(inlineRaw(child.content));
                 break;
             case "span_open": {
-                const classes = (child.attrGet?.("class") ?? "").split(/\s+/).filter(Boolean);
+                // Inline secrecy has no print presentation; other classes and ids survive.
+                const classes = (child.attrGet?.("class") ?? "")
+                    .split(/\s+/)
+                    .filter((value) => value && value !== "secret");
                 const values = classes
                     .map((value) => '"' + escapeTypstString(value) + '"')
                     .join(", ");
@@ -1630,7 +1663,7 @@ export function bookTypstPreamble() {
         // weight so it remains bold inside an ordinary strong phrase.
         "#let book-span(body, classes: ()) = {\n" +
             '  let styled = if classes.contains("name") { text(weight: "bold", body) } else { body }\n' +
-            '  if classes.contains("secret") { box(fill: rgb("#f2eefb"), inset: (x: 3pt, y: 1pt), text(fill: rgb("#5c4b8a"))[#strong[Secret:] #styled]) } else { box(styled) }\n' +
+            "  box(styled)\n" +
             "}",
         // Use the file's natural measure for auto. Every requested width is
         // bounded by the available measure and by the height of a page.

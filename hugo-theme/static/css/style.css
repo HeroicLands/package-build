@@ -2955,20 +2955,21 @@ summary.info-sidebar-title::after {
   }
 }
 
-/* GitHub-style author alerts remain open and inherit the prose foreground. */
+/* Author alerts use the dark palette of this site's single-mode theme. */
 .single-content .alert {
   border-inline-start: 0.25rem solid var(--pb-alert-color);
-  padding: 0.5rem 1rem;
+  border-radius: 0.375rem;
+  padding: 1rem;
   margin: 1rem 0;
-  color: inherit;
-  background: transparent;
+  color: #e6edf3;
+  background: var(--pb-alert-background);
 }
 .single-content .alert-title {
   display: flex;
   align-items: center;
   gap: 0.5em;
   margin: 0 0 0.5rem;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--pb-alert-color);
 }
 .single-content .alert-icon {
@@ -2981,16 +2982,20 @@ summary.info-sidebar-title::after {
   margin-bottom: 0;
 }
 .single-content .alert-note {
-  --pb-alert-color: #4493f8;
+  --pb-alert-color: #58a6ff;
+  --pb-alert-background: #101a28;
 }
 .single-content .alert-tip {
-  --pb-alert-color: #3fb950;
+  --pb-alert-color: #7ee787;
+  --pb-alert-background: #102018;
 }
 .single-content .alert-important {
-  --pb-alert-color: #ab7df8;
+  --pb-alert-color: #c4b0ff;
+  --pb-alert-background: #1c172a;
 }
 .single-content .alert-warning {
   --pb-alert-color: #d29922;
+  --pb-alert-background: #241d10;
 }
 
 /* Inline spoiler controls remain inline, with links outside the button. */
@@ -3008,3 +3013,12 @@ summary.info-sidebar-title::after {
 }
 .inline-secret-toggle:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .inline-secret-content { margin-inline-start: 0.25em; }
+
+/* Authored definition lists use dictionary rows; profile grids remain separate. */
+.single-body .dictionary { --indent:150px; --gap:.75em; margin:0; display:block; }
+.single-body .dictionary > div { padding-left:var(--indent); text-indent:calc(-1 * var(--indent)); margin-bottom:.5em; }
+.single-body .dictionary > div > dt { display:inline-block; min-width:calc(var(--indent) - var(--gap)); margin-right:var(--gap); font-weight:bold; white-space:nowrap; text-indent:0; text-align:left; }
+.single-body .dictionary > div > dd { display:inline; margin:0; font-weight:normal; }
+.single-body .dictionary > div > dd > :is(p, ul, ol, dl, blockquote, pre, table, div) { text-indent:0; }
+.single-body .dictionary > div > dd > p:first-child { display:inline; }
+@media (max-width:600px) { .single-body .dictionary { --indent:100px; } }

@@ -35,6 +35,11 @@
             "types": "./types/hm3/*.d.mts",
             "import": "./hm3/*.mjs"
         },
+        "./preview": {
+            "types": "./types/engine/site-preview.d.mts",
+            "import": "./engine/site-preview.mjs",
+            "default": "./engine/site-preview.mjs"
+        },
         "./content-config": {
             "types": "./types/content-config.d.mts",
             "import": "./content-config.mjs"
@@ -95,7 +100,8 @@
         "./package.json": "./package.json"
     },
     "bin": {
-        "package-build": "./bin/package-build.mjs"
+        "package-build": "./bin/package-build.mjs",
+        "package-build-preview": "./bin/package-build-preview.mjs"
     },
     "files": [
         "CHANGELOG-content-build.md",

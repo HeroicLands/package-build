@@ -333,7 +333,6 @@ types:
             - year.hoursPerDay
             - year.minutesPerHour
             - year.secondsPerMinute
-            - present
             - body.diameterKm
             - body.orbitalRadiusKm
             - body.orbit

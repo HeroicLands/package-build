@@ -44,9 +44,8 @@
  *   `complexion` is a list of the one word drawn.
  * - `height` — from the profile's range for the gender, in feet and inches.
  * - `weight` — from the height and the frame's body-mass band, in pounds.
- * - `born` — an adult age of {@link ADULT_AGE} years before the package's
- *   present, as a neutral `<year>.<day>` date. A package that states no present
- *   gets `born: unknown`.
+ * - `born` — an adult age of {@link ADULT_AGE} years before the configured
+ *   current date, as a neutral `<year>.<day>` date. The default is `720.1`.
  * - `archetypes: [commoner]`, the archetype for a person who fits no more
  *   specific one.
  * - `icon`, `species` and `packFolder` — what the caller derives from the
@@ -55,7 +54,7 @@
  *   are `[]`; `affiliations` is `{}`; `appearance.extra_features` is `[]`.
  *
  * Plain ESM with no filesystem access; the CLI resolves the culture, its
- * language's name lists and the present and hands them in.
+ * language's name lists and the configured current date and hands them in.
  *
  * @module
  */
@@ -65,6 +64,7 @@ import YAML from "yaml";
 import { BEING_LOOK_VOCABULARY } from "./note-vocabulary.mjs";
 import { FRAME_MASS_INDEX, profileLookKeys } from "./appearance-profile.mjs";
 import { parseBeingHeight } from "./being-measurements.mjs";
+import { normalizeCurrentDate } from "./current-date.mjs";
 import { computeAge, parseAgeMagnitude } from "./being-age.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
 import { eraYear } from "./calendars.mjs";
@@ -435,7 +435,7 @@ function frontmatterYaml(frontmatter) {
  *   about a name that does not fit.
  * @param {string} [context.seed] - Text joined to the spec's own seed, to draw a
  *   different person from the same spec.
- * @param {unknown} [context.present] - The package's present, or `null`.
+ * @param {unknown} [context.currentDate] - The setting's neutral current date, defaulting to "720.1".
  * @param {object} [context.dateContext] - The reckoning context the present
  *   and `born` are read in, with `daysPerYear`.
  * @param {{icon?: unknown, species?: unknown, packFolder?: unknown}} [context.defaults] -
@@ -449,7 +449,8 @@ function frontmatterYaml(frontmatter) {
 export function generateNpc(spec, context) {
     const problems = npcSpecProblems(spec);
     if (problems.length) throw new Error(problems.join("; "));
-    const { profile, names, present = null, dateContext = {}, defaults = {} } = context;
+    const { profile, names, currentDate, dateContext = {}, defaults = {} } = context;
+    const present = normalizeCurrentDate(currentDate);
     if (!isPlainMap(names)) throw new Error("`npc new` needs the language's `data.names`");
     const taken = context.taken ?? new Set();
     const seed = canonicalSpec(spec) + (given(context.seed) ? `\u0000${context.seed}` : "");

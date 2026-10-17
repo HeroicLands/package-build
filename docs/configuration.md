@@ -54,7 +54,7 @@ around its own evaluation.
 
 ### Quick reference
 
-23 top-level keys. `rootDir` is not one of them — a data configuration never
+24 top-level keys. `rootDir` is not one of them — a data configuration never
 writes it — and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
@@ -62,6 +62,7 @@ authoring.
 
 | Key                                         | Type                                                                       | Required                                                                                           | Default                   |
 | ------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------- |
+| [`currentDate`](#currentdate)               | quoted neutral date string                                                 | no                                                                                                 | `"720.1"`                 |
 | [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                         |
 | [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                         |
 | [`homepage`](#homepage)                     | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                    |
@@ -87,7 +88,7 @@ authoring.
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -194,7 +195,7 @@ build writes its `name` as `params.author`. `null` when `authors` is empty.
 as an unknown key, at the key's own line, because `authors` is the one list a
 package names its people in:
 
-> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog).``
+> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog).``
 
 `package.json`'s own `author` is npm's and is not read.
 
@@ -294,7 +295,23 @@ Unlike the first three, authoring `itemBuilders` is not an error — it is
 
 ---
 
-## The 22 keys
+## Configuration keys
+
+### `currentDate`
+
+The setting-wide date used for computed ages, age lint, content-index dates,
+Foundry and website output, NPC generation and editor preview. It defaults to
+`"720.1"`. Quote the value so YAML preserves the exact ordinal day digits:
+
+```yaml
+contentPackage: thalorna
+currentDate: "720.130"
+```
+
+Use a neutral `<year>[.<day>[:HHMMSS]]` string. A bare quoted year means its first
+day. Named calendars, `unknown`, numeric YAML values and malformed dates are
+configuration errors located at `currentDate`. Birth dates can still use named
+calendars when the output has the relevant calendar context.
 
 ### `contentPackage`
 

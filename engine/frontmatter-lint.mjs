@@ -1143,6 +1143,7 @@ function checkEmbeddedShortcodes(note, blockName) {
  * @param {object} note - A note from the link index (`{fm, file, raw, type}`).
  * @param {object} opts
  * @param {Record<string, readonly object[]>} opts.schemas - Type → declaration.
+ * @param {string} [opts.currentDate="720.1"] - Setting-wide neutral date for age checks.
  * @param {object} [opts.index] - The link index, for the reference check, which
  *   runs through its `shortcodeHit`. Its absence skips that check rather than
  *   reporting every reference as dead.
@@ -1175,6 +1176,7 @@ export function lintNote(
     {
         schemas,
         index,
+        currentDate,
         vocabulary,
         packs,
         emittedArt,
@@ -1544,7 +1546,8 @@ export function lintNote(
             findings.push(...field.check(note, { index, addressContext: referenceContext }));
         }
         // A check the type declares of the whole note, with the same index.
-        if (typeof entry.check === "function") findings.push(...entry.check(note, { index }));
+        if (typeof entry.check === "function")
+            findings.push(...entry.check(note, { index, currentDate }));
     }
 
     const fields = authoredFields(schema);
@@ -1717,6 +1720,7 @@ export function lintNote(
  * @param {object} index - From `buildLinkIndex`.
  * @param {object} opts
  * @param {Record<string, readonly object[]>} opts.schemas - Type → declaration.
+ * @param {string} [opts.currentDate="720.1"] - Setting-wide neutral date for age checks.
  * @param {Record<string, object>} [opts.vocabulary] - Type → the closed regions
  *   it declares; see {@link lintNote}.
  * @param {boolean} [opts.references=true] - Whether to check references.
@@ -1732,7 +1736,7 @@ export function lintNote(
  */
 export function lintFrontmatter(
     index,
-    { schemas, vocabulary, packs, emittedArt, references = true, systems },
+    { schemas, vocabulary, packs, emittedArt, references = true, systems, currentDate },
 ) {
     const findings = [];
     const notes = [...index.notes].sort((a, b) =>
@@ -1745,6 +1749,7 @@ export function lintFrontmatter(
             ...lintNote(note, {
                 schemas,
                 vocabulary,
+                currentDate,
                 packs,
                 emittedArt,
                 index: references ? index : undefined,

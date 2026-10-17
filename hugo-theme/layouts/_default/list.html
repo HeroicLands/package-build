@@ -19,7 +19,7 @@
   <div class="single-content">
     {{ if .Content }}
     <div class="single-body" data-pagefind-body>
-      {{ .Content }}
+      {{ partial "dictionary-lists.html" .Content }}
     </div>
     {{ end }}
 

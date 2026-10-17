@@ -66,6 +66,50 @@ behaviour where they appear below; read the command, not the name.
 
 ---
 
+## Standalone source preview
+
+### `package-build-preview`
+
+**NAME**
+
+Render a Markdown buffer without a content index.
+
+**SYNOPSIS**
+
+`package-build-preview [--dark] [--current-date DATE] [--css] < note.md`
+
+**DESCRIPTION**
+
+Reads Markdown from stdin and writes an HTML fragment. Requires no package
+configuration. Local Markdown and extensions render; constructs needing other
+notes remain highlighted source. Shared CSS is supplied separately.
+
+**OPTIONS**
+
+- `--dark` — select dark mode; light is the default.
+- `--current-date DATE` — override the setting-wide neutral current date; otherwise
+  read the nearest root configuration setting, defaulting to `"720.1"`.
+- `--css` — emit the shared scoped stylesheet without reading stdin.
+- `--help`, `-h` — show usage.
+
+**EXIT STATUS**
+
+0 on success, 1 for an invalid argument or rendering error. Findings go to
+stderr; stdout contains only HTML (or CSS with `--css`).
+
+**EXAMPLES**
+
+```sh
+package-build-preview --dark < note.md > preview.html
+package-build-preview --css > preview.css
+```
+
+**SEE ALSO**
+
+[Source preview and Gitea renderer](source-preview.md), [API](api.md).
+
+---
+
 ## Package and release operations
 
 ### `package-build ci`
@@ -3017,7 +3061,7 @@ exactly as given, at every depth, and every field it leaves out is generated:
 | `data.templatePriority`, `data.occupation`, `data.died` | `null`.                                                                                                                                   |
 | `data.lore`, `data.homes`                               | `[]`.                                                                                                                                     |
 | `data.affiliations`                                     | `{}`.                                                                                                                                     |
-| `data.born`                                             | An adult age of 18 to 60 years before the package's present, as a `<year>.<day>` date; `unknown` where the package states no present.     |
+| `data.born`                                             | An adult age of 18 to 60 years before the configured `currentDate` (default `"720.1"`), as a `<year>.<day>` date.                         |
 | `data.frame`, `data.appearance.*`                       | Weighted draws from the culture's appearance profile; `extra_features` is `[]`.                                                           |
 | `data.height`                                           | From the profile's range for the gender, in feet and inches.                                                                              |
 | `data.weight`                                           | From the height and the frame's body-mass band, in pounds. A spec giving height and weight but no frame gets the frame they imply.        |
@@ -3105,7 +3149,7 @@ dossier: |
   record rather than of reputation.
 ```
 
-Run against a package whose world states `present: "720.300"`, whose
+Run against a package configured with `currentDate: "720.300"`, whose
 `khelathi` culture carries the profile in
 [appearance profiles](reference/format-details.md#appearance-profiles) and
 names `language: skill-khelathilng`, and whose language carries the lists in

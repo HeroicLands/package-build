@@ -100,7 +100,6 @@ function worldNote(data: Record<string, unknown> = {}) {
             name: { full: "The World of Thalorna" },
             data: {
                 year: { days: 365, hoursPerDay: 24, minutesPerHour: 60, secondsPerMinute: 60 },
-                present: "720.1",
                 ...data,
             },
         },
@@ -409,25 +408,6 @@ describe("a world fact is written on a body", () => {
         );
         expect(findings[0].line).toBeGreaterThan(0);
         expect(findings[0].column).toBeGreaterThan(0);
-    });
-
-    it("reads the present through the parser a note's dates go through", () => {
-        const wrong = worldNote({ present: "midsummer" });
-        const findings = checkWorldFacts(wrong, { index: index(wrong) });
-        expect(findings.map((f) => f.severity)).toEqual(["error"]);
-        expect(findings[0].message).toContain("is not a frontmatter date");
-    });
-
-    it("accepts a year-precision present date", () => {
-        const world = worldNote({ present: 720 });
-        expect(checkWorldFacts(world, { index: index(world) })).toEqual([]);
-    });
-
-    it("refuses `unknown` as a present, because a setting has one", () => {
-        const wrong = worldNote({ present: "unknown" });
-        expect(checkWorldFacts(wrong, { index: index(wrong) })[0].message).toContain(
-            "`data.present: unknown`",
-        );
     });
 });
 

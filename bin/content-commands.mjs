@@ -144,7 +144,6 @@ import { GRAPHVIZ_ENGINES } from "../engine/map-graphviz.mjs";
 import { loadMapWorld } from "../engine/map-places.mjs";
 import { encodeAddresses } from "../engine/address-values.mjs";
 import YAML from "yaml";
-import { worldInvariants } from "../engine/calendar-notes.mjs";
 import { reckoningContext } from "../engine/reckoning-markers.mjs";
 import { BEING_LOOK_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { profileFindings } from "../engine/appearance-profile.mjs";
@@ -1054,6 +1053,7 @@ function lintCommand() {
                     );
                 }
                 const frontmatter = lintFrontmatter(index, {
+                    currentDate: config.currentDate,
                     schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
                     // The closed frontmatter regions. Passed in rather
                     // than reached for, so the linter stays a checker of
@@ -2905,7 +2905,7 @@ function newNpc(config, argv) {
             names,
             language: languageKey,
             seed: argv.seed,
-            present: worldInvariants(index).present,
+            currentDate: config.currentDate,
             dateContext: reckoningContext(index),
             defaults,
             taken,

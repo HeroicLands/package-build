@@ -1822,11 +1822,12 @@ link to the whole public note does not inherit a section's secrecy.
 
 The website renders an inline show/hide spoiler; an omitted GM-only target
 retains its reference as text without a dead link. A published secret section
-retains its link. Foundry renders a visible inline spoiler with a **Secret:**
-label, with access to its destination controlled by private packs and page
-permissions. Books print secret styling and a **Secret:** label, retaining text
-without a link when the GM-only destination is omitted. `.show` bypasses the
-automatic spoiler presentation on each surface; an unavailable destination
+retains its link. Foundry renders a CSS-redacted inline spoiler, revealed on
+hover or keyboard focus, with destination access controlled by private packs
+and page permissions. Books ignore inline `.secret` presentation and print
+references normally, retaining text without a link when the GM-only destination
+is omitted. `.show` bypasses automatic spoiler presentation on the website and
+in Foundry; book references already print normally. An unavailable destination
 still has no link.
 
 An immediately following `.show` attribute explicitly reveals the reference:
@@ -2670,7 +2671,10 @@ reference. A term followed by `: definition` lines creates a definition list.
 After a blank line, indent continuation paragraphs and blocks by four spaces
 to keep them in the same definition; indent a code block's opening fence,
 contents and closing fence. Another `:` starts a separate definition for the
-same term. See the [authoring examples](../authoring/links-and-markup.md#footnotes-and-definition-lists).
+same term. See the [authoring examples](../authoring/links-and-markup.md#footnotes-and-definition-lists). Definition lists use dictionary hanging indents: bold, nonwrapping terms,
+normal definitions, a 150px shared column (100px at browser widths up to 600px),
+a `.75em` term gap and `.5em` entry spacing. A long term pushes only the first
+definition line beyond the shared column; continuation lines return to it.
 
 ```
 # Heading {#id .class1 .class2 attr="value"}
@@ -3531,11 +3535,13 @@ The exact `.secret` class marks the enclosed text as an inline spoiler:
 ```
 
 The website provides an inline show/hide button and preserves interactive links
-inside the revealed content. Foundry prints a visible inline `secret` span
-with a **Secret:** label; the span does not withhold its text from players.
-The book prints the text with secret styling and a **Secret:** label.
-Inline emphasis and combined `.name` classification survive rendering. Published HTML retains the text, so opening
-the spoiler or inspecting the source reveals it.
+inside the revealed content. Foundry renders a focusable, CSS-redacted inline
+span that reveals its text and nested content on hover or keyboard focus.
+Native Foundry secret sections retain their own controls. Books ignore `.secret`
+on inline spans, preserving their text, emphasis, links, anchors and `.name`
+bold styling. Secret sections and `:::secret` fences keep their visible labelled
+boxes. Published HTML retains the text, so opening the spoiler or inspecting the
+source reveals it.
 
 This span has no effect on a destination's audience. Ordinary wikilinks derive
 spoilers from their resolved destinations; `.show` bypasses that automatic
@@ -4558,7 +4564,7 @@ three fields are built around.
   unrecorded. Both spellings of `died` mean dead.
 - **`age` is optional and is an override.** Written, it wins over anything the
   dates say. Unwritten beside a dated `born`, it is the age that follows from
-  the date and the package's declared present — see below. Unwritten beside
+  the date and the configured current date — see below. Unwritten beside
   `born: unknown` or an absent `born`, the age is unknown.
 
 Most people in a setting do not know their own birth date, so an age beside
@@ -4571,22 +4577,15 @@ read it.
 
 #### The age a dated `born` computes to
 
-A package states the day its setting stops on `data.present`, on its own
-`world` or `celestial` `place` note — see _What a body states about itself_
-under `type: place`. Against that date, a being with a dated `born` and no
-authored `age` compiles the age it implies: the two dates compared, not the
-two years subtracted, so a birthday that falls later in the year than the
-present counts one less than the years alone would say. A package that
-declares no present computes no age and says nothing about it — the same
-silence a package with no calendar mechanism meets.
+The root configuration's `currentDate` states the setting's neutral current
+date, defaulting to `"720.1"`. A being with a dated `born` and no authored `age`
+compiles the age implied by those dates. A birthday later in the year counts one
+less than the difference between the years. A year-only birth date uses day one.
+Unknown and absent birth dates supply no computed age.
 
-**An authored `age` beside a dated `born` is expected to agree with what the
-date computes.** Where it does not, `package-build lint` raises a warning
-naming both values, so a stale age left behind after a `born` was corrected
-does not go unnoticed. The warning is silent beside `born: unknown` or an
-absent `born` — there is nothing there to disagree with — and silent wherever
-the package declares no present, for the same reason no age is computed at
-all.
+An authored `age` beside a dated `born` is expected to agree with the configured
+current date. `package-build lint` warns when the values disagree. Authored ages,
+including zero and estimates such as `~34`, remain unchanged in built output.
 
 Use `born:` for a being's birth date.
 
@@ -6992,7 +6991,6 @@ level with no background prints nothing.
 | `year.hoursPerDay`                | `number`                                                                         | How many hours the day divides into                                                                       |
 | `year.minutesPerHour`             | `number`                                                                         | How many minutes the hour divides into                                                                    |
 | `year.secondsPerMinute`           | `number`                                                                         | How many seconds the minute divides into                                                                  |
-| `present`                         | `date`                                                                           | The day the setting stops and play begins                                                                 |
 | `body.diameterKm`                 | `number`                                                                         | The body's diameter, in kilometres                                                                        |
 | `body.orbitalRadiusKm`            | `number`                                                                         | How far it orbits from the body it circles, in kilometres                                                 |
 | `body.orbit`                      | `string`                                                                         | The orbit's shape — `circular` means the cycle never varies                                               |
@@ -7024,7 +7022,6 @@ about the world's year.
 data:
   world: { equatorialCircumferenceKm: 40000, surfaceGravityG: 1.0, axialTiltDegrees: 23.5 }
   year: { days: 365, hoursPerDay: 24, minutesPerHour: 60, secondsPerMinute: 60 }
-  present: 720
 
 # its moon — a note of its own, because a moon is a body and not a property
 data:
@@ -7042,14 +7039,13 @@ else wrote down.
 can say which one a calendar divides; a `moon` with no `year` anywhere is
 refused, because a cycle counted in days has no year to be measured against.
 
-**`present` is the day an age is computed against**, written in the grammar a
-note's dates are written in, so a setting whose present is best said in an era
-says it that way.
+The root configuration's `currentDate` supplies the neutral date used for age
+calculations throughout the setting. Its default is `"720.1"`.
 
 **`world.axialTiltDegrees`, the circumference, the gravity, the moon's diameter
 and its orbital radius are read by nobody.** They are there so a reader knows
 what kind of world this is. What the build consumes is the year, the day's
-divisions, the present, the moon's cycle and epoch, and whether its orbit is
+divisions, the moon's cycle and epoch, and whether its orbit is
 circular and inclined.
 
 #### What a settlement's market supports

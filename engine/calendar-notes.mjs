@@ -20,7 +20,7 @@
  * A **world fact** is how long the year is, how the day divides, and how the
  * moon moves. Every people on the world lives under the same ones, so no
  * calendar may restate them: they are read from the package's `place` notes —
- * `data.year` and `data.present` from the world, `data.moon` from the moon —
+ * `data.year` from the world, `data.moon` from the moon —
  * and written by the emitters.
  *
  * A **calendar** is one people's division of those days: the months they name,
@@ -301,7 +301,7 @@ export const CALENDAR_FIELDS = Object.freeze([
  * The `data:` keys a world or a celestial body may write.
  *
  * Four groups, and which note carries which is a fact about the body rather
- * than a convention: a planet states its own size, tilt, year and present; a
+ * than a convention: a planet states its own size, tilt and year; a
  * moon states its own size, orbit and cycle.
  *
  * @type {readonly object[]}
@@ -348,12 +348,6 @@ export const INVARIANT_FIELDS = Object.freeze([
         shape: "number",
         kind: "number",
         describe: "How many seconds the minute divides into.",
-    },
-    {
-        name: "present",
-        shape: "a date",
-        kind: "string",
-        describe: "The day the setting stops and play begins — what an age is computed against.",
     },
     {
         name: "body.diameterKm",
@@ -438,14 +432,13 @@ function keysWritten(note, keys) {
  * note has no year, and every question that depends on one goes unasked.
  *
  * @param {object} [index] - The link index, holding every note in the package.
- * @returns {{year: object|null, present: unknown, moon: object|null,
+ * @returns {{year: object|null, moon: object|null,
  *   body: object|null, moonName: string|null, yearNote: object|null,
  *   moonNote: object|null}} What the package's notes state.
  */
 export function worldInvariants(index) {
     const empty = {
         year: null,
-        present: null,
         moon: null,
         body: null,
         moonName: null,
@@ -459,7 +452,6 @@ export function worldInvariants(index) {
         const data = dataOf(note);
         if (!found.yearNote && data.year && typeof data.year === "object") {
             found.year = data.year;
-            found.present = data.present ?? null;
             found.yearNote = note;
         }
         if (!found.moonNote && data.moon && typeof data.moon === "object") {
@@ -619,9 +611,6 @@ function checkCalendarDayNames(note, daysPerYear) {
  * - a moon with no year is refused, because a cycle measured in days has
  *   nothing to be measured against.
  *
- * `data.present` is read through the parser a note's dates go through, with the
- * corpus in hand, so a present written in an era resolves where it is written.
- *
  * @param {object} note - The note, as the link index hands it over.
  * @param {object} [opts]
  * @param {object} [opts.index] - The link index, holding every note.
@@ -650,17 +639,6 @@ export function checkWorldFacts(note, { index } = {}) {
         return findings;
     }
 
-    if (written.includes("present")) {
-        const { findings: dated } = parseNoteDate(dataOf(note).present, {
-            ...reckoningContext(index),
-            field: "data.present",
-            allowUnknown: false,
-            file: note.file,
-            raw: note.raw,
-            keyPath: ["data", "present"],
-        });
-        findings.push(...dated);
-    }
     if (written.includes("moon") && dataOf(note).moon?.newOn !== undefined) {
         const parsed = parseNoteDate(dataOf(note).moon.newOn, {
             ...reckoningContext(index),

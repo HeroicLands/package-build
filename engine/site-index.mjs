@@ -68,7 +68,7 @@ import {
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
-import { presentAmongRecords } from "./being-age.mjs";
+import { normalizeCurrentDate } from "./current-date.mjs";
 // The declared tag vocabulary, which is where `draft` is stated.
 import { isGmNote, isDraftNote } from "./note-vocabulary.mjs";
 
@@ -165,6 +165,8 @@ function mergeForeign(index, foreignIndex) {
  * @param {readonly SiteEntry[]} entries - Every page the site will publish,
  *   each already knowing its own `url`.
  * @param {object} [options] - Cross-package inputs.
+ * @param {string} [options.package] - The builder's own content package.
+ * @param {string} [options.currentDate="720.1"] - Setting-wide neutral date for recurring events.
  * @param {Map<string, {package: string, type?: string}>} [options.foreignIndex]
  *   The merged index from `loadForeignIndexes`. Omit when the build publishes
  *   no cross-package links.
@@ -183,6 +185,7 @@ export function buildSiteIndex(
         foreignIndex = new Map(),
         noIndexPackages = new Set(),
         package: builderPackage,
+        currentDate,
         records = [],
         foreignReferences = new Map(),
         syntax,
@@ -303,7 +306,7 @@ export function buildSiteIndex(
         // event's `next` is computed against this present.
         dateContext: {
             ...reckoningContext({ notes: records }),
-            present: presentAmongRecords(records),
+            present: normalizeCurrentDate(currentDate),
         },
         referenceTargets: buildReferenceTargets(records, new Map([...foreignReferences, ...index])),
         index,

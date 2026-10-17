@@ -69,6 +69,7 @@ The documentation lives in the Markdown files in this repository. Start with [th
 | Localization and templates                        | [Localization](docs/guides/localization.md)                               |
 | Foundry integration testing                       | [End-to-end testing](docs/guides/e2e.md), including an optional S3 server |
 | Release and deployment                            | [Release and deploy](docs/guides/release-and-deploy.md)                   |
+| Buffer-only preview and Gitea rendering           | [Source preview](docs/source-preview.md)                                  |
 | Every CLI command                                 | [Commands](docs/commands.md)                                              |
 | Every build setting                               | [Configuration](docs/configuration.md)                                    |
 | Programmatic exports                              | [API](docs/api.md)                                                        |

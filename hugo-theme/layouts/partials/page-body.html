@@ -67,7 +67,7 @@
     {{ end }}
 
     <div class="single-body" data-pagefind-body>
-      {{ .Content }}
+      {{ partial "dictionary-lists.html" .Content }}
     </div>
 
     {{ partial "related.html" . }}

@@ -179,7 +179,8 @@ import { isDraftNote } from "./note-vocabulary.mjs";
 // A being's computed `age` — the middle state between an authored override and
 // an unknown one — filled in against the package's own declared present before
 // a record is built, so the index carries it without the note being written to.
-import { applyComputedBeingAge, presentAmongFrontmatters } from "./being-age.mjs";
+import { applyComputedBeingAge } from "./being-age.mjs";
+import { normalizeCurrentDate } from "./current-date.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { resolvedDateFields } from "./note-dates.mjs";
 
@@ -1097,6 +1098,7 @@ export function resolveCultures(
  *   asserts that it does not exist. The same holds for a culture conflict: a
  *   reader receives each as a finding, and the emitter throws once, listing
  *   every one.
+ * @param {string} [options.currentDate="720.1"] - Setting-wide neutral current date.
  * @param {(key: string) => ({culture?: unknown}|undefined)} [options.foreignRecord] -
  *   Another package's entry for a canonical address, read for a parent that
  *   package publishes; see {@link resolveCultures}.
@@ -1113,6 +1115,7 @@ export function collectContentIndex(
     contentBase,
     {
         contentPackage,
+        currentDate,
         skipDirectories,
         assetsBase,
         manifest,
@@ -1134,10 +1137,7 @@ export function collectContentIndex(
     // tree to walk and the index is its asset records. The caller decides
     // whether an absent tree is a mistake; by the time the walk is reached it
     // is simply a package with nothing to compile.
-    // Materialised rather than consumed lazily: the present is read from this
-    // same walk before the loop below reads it a second time, and
-    // `walkMarkdownTree` is a generator — a single-use one, exhausted the
-    // moment anything else iterates it first.
+    // Materialize parsed notes once for shared calendar and source context.
     const notes = fs.existsSync(contentBase) ? [...walkMarkdownTree(contentBase, walkOpts)] : [];
     const parsedNotes = [];
     for (const note of notes) {
@@ -1165,10 +1165,8 @@ export function collectContentIndex(
         problems.push(problem);
     }
 
-    // The package's declared present, read once from whichever `place` note in
-    // this same walk states one — the whole tree is already in memory, so no
-    // second read is needed to answer a question about all of it.
-    const present = presentAmongFrontmatters(parsedNotes.map((n) => n.frontmatter));
+    // Every derived age and recurring event uses the same configured date.
+    const present = normalizeCurrentDate(currentDate);
     // Carried on the same context `resolvedDateFields` reads: a recurring
     // event's `next` is computed against this present exactly as a being's
     // `age` already is, above.
@@ -1497,6 +1495,7 @@ export function indexRecordsFor({
     };
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
+        currentDate: resolved.currentDate,
         addressContext: {
             ...noteAddressContext(resolved),
             declaresAddress: dependencyAddresses(resolved),
@@ -1680,6 +1679,7 @@ export async function prepareContentIndex({ contentBase, config, session } = {})
         });
         const index = buildSiteIndex(pages, {
             package: resolved.contentPackage,
+            currentDate: resolved.currentDate,
             records: visible,
             foreignIndex: foreign.index,
             syntax: session?.syntax,

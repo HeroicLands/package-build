@@ -11,6 +11,7 @@ import {
 } from "../engine/note-dates.mjs";
 import { resolveReckoningMarkers } from "../engine/reckoning-markers.mjs";
 import { buildIndexRecord } from "../engine/content-index.mjs";
+import { normalizeCurrentDate } from "../engine/current-date.mjs";
 import { noteInfobox } from "../engine/infobox.mjs";
 import { resolvedDateFields } from "../engine/note-dates.mjs";
 import { checkCalendarChoice } from "../engine/calendar-choice.mjs";
@@ -314,18 +315,9 @@ describe("printable reckoning dates", () => {
         });
     });
 
-    it("prints a place's present in its chosen calendar", () => {
-        const fm = {
-            type: "place",
-            subType: "world",
-            name: { full: "World" },
-            data: { calendar: "latercal", present: "720.134:143005" },
-        };
-        expect(noteInfobox(fm, { dates: context }).sections[0].rows).toContainEqual({
-            label: "Present",
-            kind: "text",
-            value: "Year 20/5/14:143005 of the Later Count",
-        });
+    it("prints an explicit configured neutral date in a chosen calendar", () => {
+        const currentDate = normalizeCurrentDate("720.134:143005");
+        expect(dateToCalendar("latercal", currentDate, context)).toBe("14 Month 5 20 LR 14:30:05");
     });
 
     it("validates the chosen calendar's lore subtype", () => {
