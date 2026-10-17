@@ -17,7 +17,7 @@ describe("secret blocks and general divs", () => {
         const web = renderBlocks(source, "web");
         expect(web.errors).toEqual([]);
         expect(web.markdown).toContain(
-            '<details class="secret wide" id="mine" data-source="survey">',
+            '<details class="secret wide" id="mine" data-source="survey" data-pagefind-ignore>',
         );
         expect(web.markdown).toContain('<summary class="secret">GM <em>Only</em></summary>');
         const foundry = renderBlocks(source, "foundry").markdown;
@@ -83,7 +83,7 @@ describe("secret blocks and general divs", () => {
         const source = ":::secret\nBefore\n::: {.inner}\nBody\n:::\nAfter\n:::";
         expect(scanBlocks(source).errors).toEqual([]);
         const result = renderBlocks(source, "web").markdown;
-        expect(result).toContain('<details class="secret">');
+        expect(result).toContain('<details class="secret" data-pagefind-ignore>');
         expect(result).toContain('<div class="inner">');
         expect(result).toContain("After");
         expect(scanBlocks(source.replace("Body", "# Heading")).errors[0]).toMatchObject({

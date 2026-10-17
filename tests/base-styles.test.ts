@@ -30,6 +30,8 @@ import {
     withBaseStyle,
 } from "../engine/base-styles.mjs";
 import { ALERT_TYPES, renderAlerts } from "../engine/content-alerts.mjs";
+import { renderFoundryMarkdown } from "../engine/helpers.mjs";
+import { convertWikilinks } from "../engine/wikilinks.mjs";
 import { buildManifest } from "../manifest.mjs";
 import { resolvePackageBuildConfig } from "../config.mjs";
 
@@ -271,4 +273,69 @@ it("custom alert titles retain their type styling and have no expander", () => {
     expect(result.markdown).toContain("Shoal ahead");
     expect(result.markdown).not.toContain("<details");
     expect(result.markdown).not.toContain("<summary");
+});
+
+describe("what the Foundry renderer emits", () => {
+    // Every construct an author can write, rendered the way a journal page is.
+    // A class it emits is either styled by the shipped sheet or named below with
+    // the reason it needs no rule, so a new construct cannot reach Foundry
+    // looking different from the preview and the site without a test saying so.
+    const constructs = [
+        'A man named [Forgath the Old]{.name data-type="being/npc"} and a [hidden thing]{.secret}.[^1]',
+        ...Object.keys(ALERT_TYPES).map((type) => `> [!${type.toUpperCase()}]\n> Text.`),
+        ':::secret {title="For the GM"}\nGM text.\n:::',
+        "Term\n: Its definition.",
+        "```poetry\n    A line\n      An indented line\n```",
+        ":@ A picture\n\n![A](icons/svg/mystery-man.svg)",
+        ":@ A table\n\n| A | B |\n| --- | --- |\n| a | b |",
+        ":@ A verse\n\n```poetry\nA verse\n```",
+        ":@ A passage\n\nA paragraph.",
+        "| Left | Right |\n| :--- | ---: |\n| a | b |",
+        "[^1]: A footnote.",
+    ].join("\n\n");
+    const unresolved = convertWikilinks("See [[place-nowhere|Nowhere]].", {
+        type: "place",
+        id: "x",
+        pack: "p",
+        docPack: "p",
+        index: new Map(),
+    }).markdown;
+    const html = renderFoundryMarkdown(`${constructs}\n\n${unresolved}`);
+    const emitted = new Set(
+        [...html.matchAll(/class="([^"]*)"/g)].flatMap((match) => match[1].split(/\s+/)),
+    );
+
+    const NO_RULE: Record<string, string> = {
+        secret: "Foundry styles section.secret and owns its reveal control",
+        footnotes: "an ordinary section and ordered list read correctly unstyled",
+        "footnotes-list": "an ordinary ordered list",
+        "footnote-item": "an ordinary list item",
+        "footnote-ref": "a superscript link, styled as a link",
+        "footnote-backref": "an ordinary link",
+    };
+    // Font Awesome classes are Foundry's own; figure kinds are styled alike
+    // through `.content-figure`, so a kind added later needs no rule.
+    const isIcon = (name: string) => /^fa(-|$)/.test(name);
+    const isFigureKind = (name: string) =>
+        /^content-figure-/.test(name) && name !== "content-figure-label";
+
+    it("renders the constructs it is meant to check", () => {
+        for (const name of ["name", "alert", "poetry", "dictionary", "content-figure"])
+            expect(emitted).toContain(name);
+        expect(emitted).toContain("sohl-unresolved-link");
+    });
+
+    it("styles every class it emits, or says why none is needed", () => {
+        const css = readFileSync(baseStylesheetSource(), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+        const styled = new Set([...css.matchAll(/\.([A-Za-z][\w-]*)/g)].map((match) => match[1]));
+        const missing = [...emitted].filter(
+            (name) =>
+                !styled.has(name) && !(name in NO_RULE) && !isIcon(name) && !isFigureKind(name),
+        );
+        expect(missing).toEqual([]);
+    });
+
+    it("keeps no exemption for a class that is no longer emitted", () => {
+        for (const name of Object.keys(NO_RULE)) expect(emitted).toContain(name);
+    });
 });

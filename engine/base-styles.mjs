@@ -14,11 +14,11 @@
 /**
  * The **base stylesheet** every package ships, and where it lands.
  *
- * Compiled content relies on a handful of rules to be legible — a definition
- * list is the whole of it today — and five packages need them. Four of those
- * have no stylesheet at all, so writing the rules by hand means one edit and
- * four new files, each with a configuration entry, each free to diverge from
- * the first time one of them is touched. This repository already ships
+ * Compiled content relies on a handful of rules to read the same in Foundry as
+ * in the preview and on the site, and every package needs them. Most packages
+ * have no stylesheet of their own, so writing the rules by hand means a new
+ * file in each, each with a configuration entry, each free to diverge from the
+ * first time one of them is touched. This repository already ships
  * configuration to consumers and already generates the manifest that declares
  * a package's `styles`, so it can ship the sheet the same way: one file,
  * staged into every package, corrected in one place.

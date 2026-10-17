@@ -1861,10 +1861,13 @@ Whether the package takes the shared base stylesheet. It defaults to `true`,
 is staged to `styles/package-build-base.css` under the stage root, and is
 named first in the generated manifest's `styles`.
 
-The sheet carries only what every package's compiled content relies on to be
-legible — the definition-list style an infobox and the markdown `Term` /
-`: definition` syntax both emit — and is scoped to the journal, enriched-field
-and editor containers so it cannot reach Foundry's own interface.
+The sheet carries what every package's compiled content needs to read in
+Foundry as it does in the preview and on the site: definition lists (an
+infobox and the markdown `Term` / `: definition` syntax both emit one),
+poetry, alerts, inline spoilers, marked names in bold, unresolved links and
+captioned blocks. It is scoped to the journal, enriched-field and editor
+containers so it cannot reach Foundry's own interface, where `.name` and `dl`
+style Foundry's and the system's own elements.
 
 It loads into the cascade layer Foundry reserves for the package kind,
 `system` or `modules`, which is the weakest layer a package can occupy. A

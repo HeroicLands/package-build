@@ -15,10 +15,12 @@
  * The base stylesheet every package ships, staged into the package root and
  * named first in the manifest's `styles`.
  *
- * It carries only what every package needs for its compiled content to be
- * legible, which today is the definition list: an infobox emits one, and so
- * does the ordinary markdown `Term` / `: definition` syntax. A package keeps
- * its own stylesheet for its own needs and overrides anything here from it.
+ * It carries what every package's compiled content needs to read in Foundry as
+ * it does in the preview and on the site: definition lists, poetry, alerts,
+ * inline spoilers, marked names, unresolved links and captioned blocks. Every
+ * class the Foundry renderer emits is styled here or exempted by name in
+ * `tests/base-styles.test.ts`. A package keeps its own stylesheet for its own
+ * needs and overrides anything here from it.
  *
  * `packageBuild.baseStyles: false` declines it.
  *
@@ -350,4 +352,84 @@
     span.secret[data-inline-spoiler]:focus-visible {
     outline: 2px solid currentColor;
     outline-offset: 2px;
+}
+
+/*
+ * A name the text marks is bold, as on the site, in the preview and in the book.
+ * Foundry's interface and a system's sheets use `.name` for their own elements,
+ * which the content roots leave untouched.
+ */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .name {
+    font-weight: var(--pb-name-weight, 700);
+}
+
+/*
+ * A wikilink whose target no package publishes keeps its text and is marked, so
+ * the sentence still reads and a reader can tell a link was meant. Each value
+ * defers to a SoHL custom property, so the system's theme wins where it is
+ * installed. `light-dark()` follows the colour scheme Foundry sets, rather than
+ * the operating system's. The underline serves a reader who cannot separate
+ * the hue from body text.
+ */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .sohl-unresolved-link {
+    font-weight: var(--sohl-unresolved-link-weight, 700);
+    color: var(--sohl-unresolved-link-color, light-dark(#b3261e, #ff8a80));
+    text-decoration: var(--sohl-unresolved-link-decoration, underline dotted currentcolor);
+    text-underline-offset: 0.15em;
+    cursor: help;
+}
+
+/*
+ * A captioned block: picture, table, verse or passage. Every kind is styled
+ * alike, so a kind added to the vocabulary arrives styled. The block owns the
+ * space around what it wraps, and its label reads as a caption rather than as
+ * another paragraph.
+ */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .content-figure {
+    margin: 1.5rem 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .content-figure
+    > :first-child {
+    margin-top: 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) figure.note-image {
+    display: table;
+    max-width: 100%;
+    margin: 1.5rem 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .content-figure
+    > figure.note-image {
+    margin: 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    figure.note-image
+    img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: none;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .content-figure-label {
+    margin: 0.5rem 0 0;
+    font-size: 0.85em;
+    line-height: 1.4;
+    opacity: 0.75;
+}
+
+/* `.border` is the one class an author may write on a block, and it draws the
+ * block as a boxed aside. */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .content-figure.border {
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--pb-figure-border, currentcolor);
+    border-radius: 4px;
 }

@@ -307,7 +307,7 @@ export function renderSpans(source) {
         );
         const content =
             secret ?
-                `<span${attrs} data-inline-secret><button type="button" class="inline-secret-toggle" aria-label="Show spoiler" aria-expanded="false">Show spoiler</button><span class="inline-secret-content" hidden>${inner}</span></span>`
+                `<span${attrs} data-inline-secret data-pagefind-ignore><button type="button" class="inline-secret-toggle" aria-label="Show spoiler" aria-expanded="false">Show spoiler</button><span class="inline-secret-content" hidden>${inner}</span></span>`
             :   `<span${attrs}>${inner}</span>`;
         markdown = markdown.slice(0, span.start) + content + markdown.slice(span.end);
     }

@@ -479,7 +479,7 @@ describe("buildSite end to end", () => {
                 "utf8",
             );
             expect(result.secretErrors).toEqual([]);
-            expect(page).toContain('<details class="secret">');
+            expect(page).toContain('<details class="secret" data-pagefind-ignore>');
             expect(page).toContain('<summary class="secret">Secret</summary>');
             // Left as Markdown for Hugo's own render, not pre-rendered here —
             // see `engine/content-blocks.mjs`.

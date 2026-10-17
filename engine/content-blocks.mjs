@@ -290,7 +290,7 @@ export function renderBlocks(source, target) {
         } else {
             output.push(
                 "",
-                `<details ${attributes}>`,
+                `<details ${attributes} data-pagefind-ignore>`,
                 `<summary class="${escapeAttribute(block.name)}">${title}</summary>`,
                 "",
                 held,
