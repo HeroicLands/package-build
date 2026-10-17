@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 23.12.2
+
+### Patch Changes
+
+A wikilink whose label also names a different note no longer asks for its full name first.
+
 ## 23.12.1
 
 ### Patch Changes
