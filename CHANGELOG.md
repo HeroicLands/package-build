@@ -1,5 +1,23 @@
 # @heroiclands/package-build
 
+## 23.12.5
+
+### Patch Changes
+
+In PDF books, the page number and section name at the foot of each page are set at the size of the body text.
+
+In PDF books, list items sit apart from one another and carry a bullet large enough to see at book size.
+
+In PDF books, a reference to another book that already sits in brackets joins them, reading (The Crossing, Thal. p524) rather than nesting a second pair.
+
+Chronology sections, and the other event sections, list each event's date first, written in the setting's calendar. A chronology shows its Felt here column only when some event is felt in the place, and prints across the full page in PDF books. A captioned table can ask to span the page in a PDF book with `.full-width`. A wide table floats to where it fits, and the text runs on past its heading rather than leaving an empty page.
+
+In PDF books, a profile box too long for the rest of a page continues on the next one between its rows, instead of running off the page over the footer.
+
+A note's name may give a `sort` form, the way an index would write it: `sort: Black Flame, The` for _The Black Flame_, or `sort: Hilvan, Doran`. It files the note in the book index, page lists and other name-ordered lists, and it is the note's entry text in the book index; every other list still shows the full name. Authored `sql` fences can order by the new `nameSort` column of `entries`, which is the `sort` form or, without one, the full name.
+
+Profile figures read as numbers do: 12,500 under a million, and 11 million or 1.2 million above it, on the website, in Foundry and in PDF books.
+
 ## 23.12.4
 
 ### Patch Changes
