@@ -1069,6 +1069,9 @@ export function renderPages(pages, options) {
             title: pageTitle(page),
             url: page.url,
             type: String(page.fm.type),
+            ...(typeof page.fm.name?.sort === "string" && page.fm.name.sort ?
+                { sort: page.fm.name.sort }
+            :   {}),
         });
     }
     for (const home of homepages) {

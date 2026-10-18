@@ -201,6 +201,7 @@ describe("querying the index", () => {
                     "address",
                     "data",
                     "name",
+                    "nameSort",
                     "package",
                     "shortcode",
                     "state",

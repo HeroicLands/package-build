@@ -49,6 +49,7 @@
  * @module
  */
 
+import { nameSortKey } from "./name-sort.mjs";
 import { encodeAddresses } from "./address-values.mjs";
 import { slugify } from "./content-slug.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
@@ -416,7 +417,7 @@ export async function runTreeFilters(nodes, db, { keep = () => true, text } = {}
  * without a renderer or a PDF. Only how the result *looks* needs eyes.
  *
  * **Notes are sorted, prose is not.** A section's entries come out in
- * `nameAscii` order — the ASCII fold `buildIndexRecord` already derives, so a
+ * name-sort order (`name.sort`, else `name.full`, folded to ASCII), so a
  * circumflex sorts with its letter instead of after `Z` as a raw codepoint
  * comparison would put it. Prose keeps the position it was written in, because
  * its place in the sequence is the author's statement.
@@ -566,8 +567,8 @@ function emitSection(node, nodes, ctx) {
  */
 function sortRecords(records) {
     return [...records].sort((a, b) => {
-        const an = a?.nameAscii ?? a?.name?.full ?? "";
-        const bn = b?.nameAscii ?? b?.name?.full ?? "";
+        const an = nameSortKey(a);
+        const bn = nameSortKey(b);
         if (an !== bn) return an < bn ? -1 : 1;
         const as = a?.address?.slug ?? "";
         const bs = b?.address?.slug ?? "";

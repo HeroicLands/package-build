@@ -445,6 +445,9 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
             const foundry = record.foundry?.[parts.system];
             index.set(key, {
                 name: record.name?.full ?? record.name,
+                ...(typeof record.name?.sort === "string" && record.name.sort ?
+                    { nameSort: record.name.sort }
+                :   {}),
                 aliases: record.name?.aliases,
                 // Absent where the package publishes no page for it. A consumer
                 // must tolerate that rather than invent an href, exactly as it

@@ -24,13 +24,14 @@ import { isAddressTuple, ownDocumentSystem, parseAddress, renderAddress } from "
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
 
-/** @typedef {{title:string,url?:string,address:string,type:string,subType?:string}} HoldingsEntry */
+/** @typedef {{title:string,sort?:string,url?:string,address:string,type:string,subType?:string}} HoldingsEntry */
 /**
  * @typedef {object} HoldingsNode
  * @property {string} shortcode
  * @property {"place"|"affiliation"} type
  * @property {string} [subType]
  * @property {string} title
+ * @property {string} [sort] The note's `name.sort`; the list files by it in place of `title`.
  * @property {string} [url]
  * @property {string} [package] Owning content package.
  * @property {string} [system] Own document system.
@@ -108,6 +109,7 @@ function listed(node) {
 function entryOf(node) {
     return {
         title: node.title,
+        ...(node.sort ? { sort: node.sort } : {}),
         ...(listed(node) ? { url: node.url } : {}),
         address: ownKey(node),
         type: node.type,
@@ -118,7 +120,7 @@ function entryOf(node) {
 function bySubTypeThenTitle(a, b) {
     return (
         (a.subType ?? "").localeCompare(b.subType ?? "", "en") ||
-        a.title.localeCompare(b.title, "en")
+        (a.sort ?? a.title).localeCompare(b.sort ?? b.title, "en")
     );
 }
 
@@ -141,6 +143,7 @@ export function holdingsNode(
         type,
         subType: fm.subType == null ? undefined : String(fm.subType),
         title,
+        ...(typeof fm.name?.sort === "string" && fm.name.sort ? { sort: fm.name.sort } : {}),
         url,
         ...(pkg ? { package: pkg } : {}),
         ...(system ? { system } : {}),
@@ -173,6 +176,9 @@ export function foreignHoldingsNodes(foreignIndex) {
             type,
             subType: entry.subType == null ? undefined : String(entry.subType),
             title: String(entry.name ?? tuple.shortcode),
+            ...(typeof entry.nameSort === "string" && entry.nameSort ?
+                { sort: entry.nameSort }
+            :   {}),
             url: entry.url,
             parents:
                 type === "place" ?

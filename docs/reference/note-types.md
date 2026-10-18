@@ -18,7 +18,7 @@ These are the only keys a note writes at its top level, in the order the formatt
 | Key           | Meaning                                                                                   |
 | ------------- | ----------------------------------------------------------------------------------------- |
 | `shortcode`   | The note's own address segment, unique within its type.                                   |
-| `name`        | The display names — a required `full`, and any `aliases`.                                 |
+| `name`        | The display names — a required `full`, and any `aliases` and `sort`.                      |
 | `type`        | What the note is about, which decides its vocabulary and its document.                    |
 | `subType`     | The type's own genre, where it declares one.                                              |
 | `description` | The short page summary.                                                                   |

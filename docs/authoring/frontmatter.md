@@ -21,7 +21,7 @@ data: {}
 ---
 ```
 
-`name` is a map with a required, nonempty `full` display name. Every note may also use `aliases` for an ordered list of other names. The note infobox lists aliases directly beneath the full name. For a `being` with `subType: character`, `given` and `clan` are optional name components. The first alias of a character or NPC is its nickname. Omit optional keys when they do not apply; `given`, `clan`, and alias entries must be nonempty strings when present. No other keys are accepted under `name`.
+`name` is a map with a required, nonempty `full` display name. Every note may also use `aliases` for an ordered list of other names, and `sort` for the form the name takes in an index, such as `Black Flame, The` or `Hilvan, Doran`. The note infobox lists aliases directly beneath the full name. `sort` files the note wherever notes are ordered by name — the book index, page lists, generated lists of related notes, and the `nameSort` column of the `entries` relation — and is the note's entry text in the book index. Every other list still displays the `full` name. A note with no `sort` files and indexes by its `full` name. For `name: {full: The Black Flame, sort: "Black Flame, The"}`, the book index prints _Black Flame, The_ under **B**, and a page list prints _The Black Flame_ at the same place.
 
 `description` is the short page summary. `tags` hold draft state and descriptive labels. The note type's classification belongs in `subType` where it is declared. `data` holds facts about the subject shared by systems. A YAML comment is the place for an author-only note: commented values remain valid YAML but do not enter the content index or generated documents.
 

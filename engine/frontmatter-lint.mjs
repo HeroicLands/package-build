@@ -1285,6 +1285,17 @@ export function lintNote(
                     });
                 }
             }
+            if (
+                Object.hasOwn(name, "sort") &&
+                (typeof name.sort !== "string" || !name.sort.trim())
+            ) {
+                findings.push({
+                    file: note.file,
+                    ...nameAt(["sort"]),
+                    severity: "error",
+                    message: "`name.sort` must be a nonempty string",
+                });
+            }
             for (const key of CHARACTER_NAME_KEYS) {
                 if (!Object.hasOwn(name, key) || !allowed.has(key)) continue;
                 if (typeof name[key] === "string" && name[key].trim()) continue;

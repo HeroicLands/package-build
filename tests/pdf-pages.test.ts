@@ -10,6 +10,7 @@
  * entry sits on (`pdfinfo -dests`), neither of which the build reads.
  */
 
+import { indexTerms } from "../engine/pdf-index.mjs";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -125,6 +126,36 @@ describe("the page table", () => {
         const forB = elsewhereFor({ entries, book: "b", printed: new Map(), seeAlso: true });
         expect(forB.get("weapongear-sword")).toMatchObject({ abbreviation: "Aelw." });
         expect(forB.listed[0]).toMatchObject({ abbreviation: "Aelw." });
+    });
+
+    it("lists a note another book prints by its sort form", () => {
+        const entries = [
+            {
+                key: "pkg-note-lore-forge",
+                book: "a",
+                slug: "lore-forge",
+                aliases: [],
+                title: "Book A",
+                record: { name: { full: "The Sacred Forge", sort: "Sacred Forge, The" } },
+            },
+        ];
+        const forB = elsewhereFor({ entries, book: "b", printed: new Map(), seeAlso: true });
+        expect(forB.listed[0].name).toBe("Sacred Forge, The");
+        const terms = indexTerms([], {
+            foreign: [
+                { ...forB.listed[0], name: forB.listed[0].name, page: 3 },
+                {
+                    slug: "lore-tower",
+                    name: "The Tower",
+                    title: "Book A",
+                    page: 4,
+                },
+            ],
+        });
+        expect(terms.map((t: any) => [t.letter, t.name])).toEqual([
+            ["S", "Sacred Forge, The"],
+            ["T", "The Tower"],
+        ]);
     });
 
     it("prints `?` for every page before a table exists", () => {

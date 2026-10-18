@@ -49,6 +49,8 @@ import { homepageAddresses } from "./homepage.mjs";
  *                          site-root-relative form the page states for itself.
  * @property {string} [gloss] Why the author recommends this page.
  * @property {string} type  The note's `type`, which the theme groups by.
+ * @property {string} [sort] The note's `name.sort`. It orders the list in place
+ *                          of `title` and is not published.
  */
 
 /**
@@ -73,7 +75,10 @@ import { homepageAddresses } from "./homepage.mjs";
  * @returns {number}
  */
 function byTypeThenTitle(a, b) {
-    return a.type.localeCompare(b.type, "en") || a.title.localeCompare(b.title, "en");
+    return (
+        a.type.localeCompare(b.type, "en") ||
+        (a.sort ?? a.title).localeCompare(b.sort ?? b.title, "en")
+    );
 }
 
 /**
@@ -118,7 +123,12 @@ export function relatedPages(edges, entries, deliberate = new Map()) {
     const list = (urls) =>
         [...urls]
             .map((url) => /** @type {RelatedEntry} */ (entries.get(url)))
-            .sort(byTypeThenTitle);
+            .sort(byTypeThenTitle)
+            .map((entry) => {
+                if (entry.sort === undefined) return entry;
+                const { sort, ...published } = entry;
+                return published;
+            });
 
     const out = new Map();
     for (const [url, { backlinks, mentions }] of graph) {

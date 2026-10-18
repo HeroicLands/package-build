@@ -31,11 +31,12 @@ import { AddressLink } from "./address-values.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
 import { LITERATURE_SUBTYPE } from "./literature-notes.mjs";
 
-/** @typedef {{title: string, url?: string, address: string, form?: string}} WorkEntry */
+/** @typedef {{title: string, sort?: string, url?: string, address: string, form?: string}} WorkEntry */
 /**
  * @typedef {object} WorksNode
  * @property {string} key Own Address, normalized to the `note` system.
  * @property {string} title
+ * @property {string} [sort] The note's `name.sort`; the list files by it in place of `title`.
  * @property {string} [url] Absent for a note that publishes no page.
  * @property {string} [package] Owning content package.
  * @property {string} [form] A work's `data.form`.
@@ -79,6 +80,7 @@ export function worksNode(fm, { title, url, package: pkg }) {
     return {
         key: renderAddress({ package: pkg ?? "local", system: "note", type, shortcode }),
         title,
+        ...(typeof fm.name?.sort === "string" && fm.name.sort ? { sort: fm.name.sort } : {}),
         ...(url ? { url } : {}),
         ...(pkg ? { package: pkg } : {}),
         ...(work && typeof data.form === "string" && data.form ? { form: data.form } : {}),
@@ -107,6 +109,9 @@ export function foreignWorksNodes(foreignIndex) {
         out.push({
             key: renderAddress({ ...tuple, system: "note" }),
             title: String(entry.name ?? tuple.shortcode),
+            ...(typeof entry.nameSort === "string" && entry.nameSort ?
+                { sort: entry.nameSort }
+            :   {}),
             ...(entry.url ? { url: entry.url } : {}),
             package: tuple.package,
             ...(typeof entry.form === "string" && entry.form ? { form: entry.form } : {}),
@@ -149,6 +154,7 @@ export function worksPages(nodes, { types }) {
             if (!block) lists.set(target.url, (block = { works: [] }));
             block.works.push({
                 title: work.title,
+                ...(work.sort ? { sort: work.sort } : {}),
                 ...(work.url ? { url: work.url } : {}),
                 address: work.key,
                 ...(work.form ? { form: work.form } : {}),
@@ -156,6 +162,6 @@ export function worksPages(nodes, { types }) {
         }
     }
     for (const block of lists.values())
-        block.works.sort((a, b) => a.title.localeCompare(b.title, "en"));
+        block.works.sort((a, b) => (a.sort ?? a.title).localeCompare(b.sort ?? b.title, "en"));
     return lists;
 }

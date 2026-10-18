@@ -39,6 +39,7 @@ import { spawnSync } from "node:child_process";
 import { encodeAddresses } from "./address-values.mjs";
 import { recordKey } from "./pdf-coverage.mjs";
 import { labelFor } from "./pdf-render.mjs";
+import { nameSortOf } from "./name-sort.mjs";
 
 /** What a reference prints for a page that has not been measured. */
 export const UNMEASURED_PAGE = "?";
@@ -259,7 +260,7 @@ export function elsewhereFor({ entries, book, printed, table, seeAlso = false })
         if (seeAlso && entry.slug && !printed.has(entry.slug)) {
             listed.push({
                 slug: entry.slug,
-                name: String(entry.record?.name?.full ?? "").trim(),
+                name: String(nameSortOf(entry.record) ?? "").trim(),
                 title: entry.title,
                 abbreviation: entry.abbreviation,
                 page,

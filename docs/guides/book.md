@@ -406,12 +406,12 @@ A book that prints at least one note ends with an **Index** chapter, grouped
 under letter headings. Nothing configures it: the build derives it from the
 notes the book prints.
 
-| Term                     | Source                | Shown as                                                                           |
-| ------------------------ | --------------------- | ---------------------------------------------------------------------------------- |
-| A note's name            | `name.full`           | the page of the note's entry in **bold**, then the pages of every authored mention |
-| A name without its head  | `name.full`           | the same pages as the note's entry, filed as `Targud, Kingdom of`                  |
-| An alias                 | `name.aliases`        | _see_ the note's name                                                              |
-| An event's in-world name | `data.events[].names` | _see_ the name of the note that holds the event                                    |
+| Term                     | Source                        | Shown as                                                                           |
+| ------------------------ | ----------------------------- | ---------------------------------------------------------------------------------- |
+| A note's name            | `name.sort`, else `name.full` | the page of the note's entry in **bold**, then the pages of every authored mention |
+| A name without its head  | `name.full`                   | the same pages as the note's entry, filed as `Targud, Kingdom of`                  |
+| An alias                 | `name.aliases`                | _see_ the note's name                                                              |
+| An event's in-world name | `data.events[].names`         | _see_ the name of the note that holds the event                                    |
 
 A name that opens with a generic word a reader would not look under, such as
 `Kingdom of Targud` or `Ritual: Blessing`, is also filed under the rest of the
@@ -460,7 +460,7 @@ Two kinds of link add nothing:
 
 Terms sort on the ASCII fold the content index derives for names (`nameAscii`),
 ignoring case, so an accented name files under its base letter and the order
-matches the table of contents. A term that does not begin with a letter files
+matches the table of contents. A note's own entry reads as its `name.sort` when it declares one, in index form such as `Black Flame, The` or `Hilvan, Doran`, and as its `name.full` otherwise; it files, and takes its letter heading, from that form. A note that declares a `sort` is not also filed under `pdf.indexHeads`. A term that does not begin with a letter files
 first, under `#`. An alias or event name that folds to the same text as the
 note's own name is not listed again.
 

@@ -379,7 +379,13 @@ content, comment out its YAML lines with `#`. Comments remain valid YAML text
 and do not become data in the JSONL index, generated pages, or Foundry documents.
 
 `name` is a map with a required nonempty `full` string when present. It may
-also contain `aliases`, an ordered list of nonempty strings. A being with
+also contain `aliases`, an ordered list of nonempty strings, and `sort`, a nonempty
+string giving the form the name takes in an index, such as `Black Flame, The` or
+`Hilvan, Doran`. `sort` files the note wherever notes are ordered by name (page
+lists, generated lists of related notes, the book index, the `nameSort` column)
+and is the note's entry text in the book index; every other list still displays
+`full`. Without `sort`, the note files and indexes by `full`. Ordering compares
+the ASCII fold of the key (`Árdavon` files beside `Ardavon`). A being with
 `subType: character` may additionally contain nonempty `given` and `clan`
 strings. Other keys under `name` are errors. For a character or NPC, the first
 alias is its nickname. A being's homes belong in `data.homes`.
@@ -2916,7 +2922,9 @@ reads `NULL` rather than failing. `data.culture` is the one field that reads as
 a derived value: the note's own culture, or the one it inherits. See
 [Culture in the index](#culture-in-the-index).
 
-**`notes` leaves out stubs; `entries` does not.** Both carry a derived `state`
+**`notes` leaves out stubs; `entries` does not.** Both carry a derived `nameSort`
+column — the note's `name.sort` when it declares one, otherwise its `name.full`,
+unfolded — for `ORDER BY`, and a derived `state`
 column — `stub`, `draft` or `full` — and `notes` is exactly
 `SELECT * FROM entries WHERE state <> 'stub'`. So every table already written
 selects what it always selected, and gains `state` for free; a table that should

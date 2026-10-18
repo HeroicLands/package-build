@@ -67,6 +67,7 @@ import { parseMarkdownFile } from "./helpers.mjs";
 import { sqlQueriesInMarkdown } from "./markdown-expressions.mjs";
 // The record accessors only — see `engine/index-records.mjs`.
 import { authoredFrontmatter, isNoteRecord, noteFile, sortKeysDeep } from "./index-records.mjs";
+import { nameSortOf } from "./name-sort.mjs";
 
 /** Rendered in a cell whose value is absent. */
 const EMPTY_CELL = "—";
@@ -440,10 +441,24 @@ export async function openNotesDatabase(
 const WITH_STUBS_SCHEMA = "__with_stubs";
 
 /**
+ * The record with its `nameSort` stated: the declared `name.sort`, otherwise
+ * `name.full`. A record with no name has none.
+ *
+ * @param {object} record - An index record.
+ * @returns {object} The record, with `nameSort` where it has a name.
+ */
+function withNameSort(record) {
+    const key = nameSortOf(record);
+    return key === undefined ? record : { ...record, nameSort: key };
+}
+
+/**
  * Create the two relations an index is read through, and the ladder one of them
  * derives.
  *
- * **`entries` is every row**, stubs included, plus a derived `state` column:
+ * **`entries` is every row**, stubs included, plus a derived `nameSort` column
+ * (the note's `name.sort`, otherwise its `name.full`) and a derived `state`
+ * column:
  *
  * ```text
  * address IS NULL                 → stub
@@ -485,7 +500,7 @@ async function createRelations(connection, file, records, prefix = "", audience 
         records
             .map((record) =>
                 JSON.stringify({
-                    record: sortKeysDeep(record),
+                    record: sortKeysDeep(withNameSort(record)),
                     visible: audience !== "public" || !isGmNote(record),
                 }),
             )

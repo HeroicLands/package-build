@@ -939,7 +939,7 @@ export const NOTE_TOP_LEVEL_FIELDS = Object.freeze([
     }),
     Object.freeze({
         name: "name",
-        describe: "The display names — a required `full`, and any `aliases`.",
+        describe: "The display names — a required `full`, and any `aliases` and `sort`.",
     }),
     Object.freeze({
         name: "type",

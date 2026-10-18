@@ -22,7 +22,7 @@ export {
 } from "./note-vocabulary.mjs";
 
 /** The name properties every note accepts, in display order. */
-export const NOTE_NAME_KEYS = Object.freeze(["full", "aliases"]);
+export const NOTE_NAME_KEYS = Object.freeze(["full", "aliases", "sort"]);
 
 /** Additional name components accepted by an individual character. */
 export const CHARACTER_NAME_KEYS = Object.freeze(["given", "clan"]);

@@ -33,12 +33,15 @@
  *
  * Terms sort on the ASCII fold the content index derives for names
  * ({@link module:engine/content-index.asciiName}), ignoring case, so an
- * accented name files under its base letter.
+ * accented name files under its base letter. A note's own entry is its
+ * `name.sort` when it declares one (`Black Flame, The`, `Hilvan, Doran`) and
+ * its `name.full` otherwise; it prints, files and takes its letter heading
+ * from that one form.
  *
  * @module
  */
 
-import { asciiName } from "./content-index.mjs";
+import { asciiName, nameSortOf } from "./name-sort.mjs";
 
 /**
  * The marker an entry heading or an authored mention carries.
@@ -125,8 +128,9 @@ export function indexTerms(entries, { owns = () => true, foreign = [], heads = [
     for (const entry of entries ?? []) {
         if (entry?.kind !== "note" || !owns(entry)) continue;
         const slug = slugOf(entry.record);
-        const name = String(entry.record?.name?.full ?? "").trim();
+        const name = String(nameSortOf(entry.record) ?? "").trim();
         if (!slug || !name || info.has(slug)) continue;
+        const declared = Boolean(String(entry.record?.name?.sort ?? "").trim());
         const parents = Array.isArray(entry.record?.data?.parents) ? entry.record.data.parents : [];
         const parent = parents
             .map((one) =>
@@ -139,7 +143,10 @@ export function indexTerms(entries, { owns = () => true, foreign = [], heads = [
         });
         terms.push({ name, slug, main: true });
         const taken = new Set([sortKey(name)]);
-        const head = byLength.find((one) => name.startsWith(one) && name.slice(one.length).trim());
+        const head =
+            declared ? undefined : (
+                byLength.find((one) => name.startsWith(one) && name.slice(one.length).trim())
+            );
         if (head) {
             const inverted = `${name.slice(head.length).trim()}, ${head.replace(/[\s:]+$/, "")}`;
             taken.add(sortKey(inverted));

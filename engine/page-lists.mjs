@@ -41,6 +41,7 @@
  * @module
  */
 
+import { nameSortKey } from "./name-sort.mjs";
 import { FENCE_LINE, parseHeaderArgs } from "./code-fences.mjs";
 import { booleanAttribute } from "./extension-attributes.mjs";
 import { isNoteRecord } from "./index-records.mjs";
@@ -195,8 +196,8 @@ export function findPageListBlocks(markdown) {
     return blocks;
 }
 
-/** A page's sort key, folded so a circumflex sorts with its letter. */
-const nameKey = (record) => String(record?.nameAscii ?? record?.name?.full ?? "").toLowerCase();
+/** A page's sort key: its `name.sort` or `name.full`, folded so a circumflex sorts with its letter. */
+const nameKey = (record) => nameSortKey(record).toLowerCase();
 
 /** The address a page is addressed by, as a stable tiebreak. */
 const slugKey = (record) => String(record?.address?.slug ?? "");
