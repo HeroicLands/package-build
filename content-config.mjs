@@ -787,6 +787,7 @@ const PDF_KEYS = [
 const PDF_BOOK_KEYS = [
     "id",
     "title",
+    "abbreviation",
     "subtitle",
     "coverImage",
     "front",
@@ -1813,6 +1814,8 @@ function normalizeSite(value) {
  * @typedef {object} ResolvedPdfBook
  * @property {string} id          Its name on the command line, `--book <id>`.
  * @property {string} title
+ * @property {string} abbreviation  Names the book in another book's
+ *                                references; `""` when none is declared.
  * @property {string} subtitle    `""` when none is declared.
  * @property {string} coverImage  Absolute; `""` when none is declared.
  *                                Whether the file exists is checked when the
@@ -1984,6 +1987,8 @@ function normalizePdfBooks(value, rootDir, contentPackage) {
     const ids = new Set();
     /** @type {Map<string, number>} Stem → the book that took it. */
     const stems = new Map();
+    /** @type {Map<string, string>} Abbreviation → the id of the book that took it. */
+    const abbreviations = new Map();
     return Object.freeze(
         value.map((entry, i) => {
             const where = `pdf.books[${i}]`;
@@ -2003,6 +2008,19 @@ function normalizePdfBooks(value, rootDir, contentPackage) {
             if (ids.has(id)) fail(`${where}.id`, `is \`${id}\`, which names a book more than once`);
             ids.add(id);
             const title = requireNonEmptyString(book.title, `${where}.title`);
+            let abbreviation = "";
+            if (book.abbreviation !== undefined) {
+                abbreviation = requireNonEmptyString(book.abbreviation, `${where}.abbreviation`);
+                const holder = abbreviations.get(abbreviation);
+                if (holder !== undefined) {
+                    fail(
+                        `${where}.abbreviation`,
+                        `is \`${abbreviation}\`, which books \`${holder}\` and \`${id}\` both ` +
+                            "declare — a reader could not tell which book to open",
+                    );
+                }
+                abbreviations.set(abbreviation, id);
+            }
 
             // One tree, from exactly one place: two would leave the reader to
             // guess which is printed, and none prints nothing.
@@ -2059,6 +2077,7 @@ function normalizePdfBooks(value, rootDir, contentPackage) {
             return Object.freeze({
                 id,
                 title,
+                abbreviation,
                 subtitle:
                     book.subtitle === undefined ?
                         ""

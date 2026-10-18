@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 
 import { markdownToTypst, renderBook } from "../engine/pdf-render.mjs";
 import { compileTypst } from "../engine/pdf-build.mjs";
-import { indexTerms } from "../engine/pdf-index.mjs";
+import { indexPreamble, indexTerms } from "../engine/pdf-index.mjs";
 import { markGenerated, splitGenerated } from "../engine/generated-sections.mjs";
 
 const HAS_TYPST = spawnSync("typst", ["--version"], { encoding: "utf8" }).status === 0;
@@ -355,5 +355,13 @@ describe.runIf(HAS_TYPST && HAS_PDFTOTEXT)("the compiled index", () => {
     it("cross-references an alias and an event name to the main name", () => {
         expect(indexText).toMatch(/Port Eclair,?\s+see\s+Éclair Harbour/);
         expect(indexText).toMatch(/The Long Siege,?\s+see\s+Zed Keep/);
+    });
+});
+
+describe("the index marker", () => {
+    // A space between the metadata and its label would print, leaving a gap
+    // between a linked name and the punctuation after it.
+    it("adds nothing visible beside the text it marks", () => {
+        expect(indexPreamble()).toContain("[#metadata((key: key, main: main))<book-index>]");
     });
 });

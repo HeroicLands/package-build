@@ -1156,6 +1156,7 @@ pdf:
   books:
     - id: core
       title: The World of Thalorna
+      abbreviation: Thal.
       subtitle: A Song of Heroic Lands Sourcebook
       coverImage: assets/images/covers/core.webp
       document: book.yaml
@@ -1209,7 +1210,8 @@ The keys of `pdf` itself are shared by every book:
 
 - `pdf.indexSeeAlso` adds a line to a book's index for each note that another
   book prints and this book mentions in authored prose, written
-  `Name: _Book title_, p. N` with the page the note's entry starts on in its
+  `Name: _Book title_, p. N` (or `Name: Aelw. p307` when that book declares an
+  `abbreviation`) with the page the note's entry starts on in its
   home book. It is `false` by default, and the index then lists only the notes
   the book is home to. See [The index](guides/book.md#the-index).
 - `pdf.indexHeads` lists leading words that open many names, such as
@@ -1236,20 +1238,29 @@ Targud` is also listed as `Targud, Kingdom of`, with the same pages as the
 
 Each entry of `pdf.books` is one PDF:
 
-| Key                      | Type                      | Required       | Default                 |
-| ------------------------ | ------------------------- | -------------- | ----------------------- |
-| `pdf.books[].id`         | string                    | yes            | —                       |
-| `pdf.books[].title`      | string                    | yes            | —                       |
-| `pdf.books[].subtitle`   | string                    | no             | `""`                    |
-| `pdf.books[].coverImage` | string (path)             | no             | `""` — no cover         |
-| `pdf.books[].front`      | string[] (markdown files) | no             | `[]`                    |
-| `pdf.books[].out`        | string (file stem)        | no             | `<contentPackage>-<id>` |
-| `pdf.books[].contents`   | list (the tree, inline)   | one of the two | —                       |
-| `pdf.books[].document`   | string (path to the tree) | one of the two | —                       |
+| Key                        | Type                      | Required       | Default                   |
+| -------------------------- | ------------------------- | -------------- | ------------------------- |
+| `pdf.books[].id`           | string                    | yes            | —                         |
+| `pdf.books[].title`        | string                    | yes            | —                         |
+| `pdf.books[].abbreviation` | string                    | no             | `""` — the title names it |
+| `pdf.books[].subtitle`     | string                    | no             | `""`                      |
+| `pdf.books[].coverImage`   | string (path)             | no             | `""` — no cover           |
+| `pdf.books[].front`        | string[] (markdown files) | no             | `[]`                      |
+| `pdf.books[].out`          | string (file stem)        | no             | `<contentPackage>-<id>`   |
+| `pdf.books[].contents`     | list (the tree, inline)   | one of the two | —                         |
+| `pdf.books[].document`     | string (path to the tree) | one of the two | —                         |
 
 - `id` is lowercase letters, digits and hyphens, starting with a letter or
   digit. It is what `--book <id>` names and the tail of the default file stem.
   Each `id` is used once.
+- `abbreviation` is a short name for the book, such as `Aelw.`. It is used only
+  where another book refers to this one: a reference to a note this book
+  prints reads `Name (Aelw. p307)`, with a non-breaking space between the
+  abbreviation and the page, and the other book's index, when
+  `pdf.indexSeeAlso` is on, lists the note as `Name: Aelw. p307`. A book
+  with no abbreviation is named by its full title in italics, `Name (_Book
+title_, p. 307)`. Each abbreviation is used once, since a reader could not
+  tell which book to open from one shared by two.
 - `contents` is the tree written inline — the same `sectionName` /
   `contents` / `filter` / `file` shape a tree file holds under its own
   `contents:` key — and `document` names the file holding it. A book declares
@@ -1296,6 +1307,10 @@ file, line and column the key is written at:
 
 > ``package-build config: `pdf.books[0].title` must be a non-empty string.``
 
+> ``package-build config: `pdf.books[0].abbreviation` must be a non-empty string.``
+
+> ``package-build config: `pdf.books[1].abbreviation` is `Thal.`, which books `core` and `vedyara` both declare — a reader could not tell which book to open.``
+
 > ``package-build config: `pdf.books[0]` must declare exactly one of `contents` and `document` — the tree written inline, or the file holding it.``
 
 > ``package-build config: `pdf.books[0].out` is `dist/core`, which is not a file stem — letters, digits, `.`, `_` and `-`, with no directory; the directory is `pdf.out`.``
@@ -1304,7 +1319,7 @@ file, line and column the key is written at:
 
 > ``package-build config: `pdf.books[0].front` must be a list of markdown files.``
 
-> ``package-build config: `pdf.books[0].<key>` is not a recognized option (expected one of: id, title, subtitle, coverImage, front, out, contents, document).``
+> ``package-build config: `pdf.books[0].<key>` is not a recognized option (expected one of: id, title, abbreviation, subtitle, coverImage, front, out, contents, document).``
 
 > ``package-build config: `pdf.coverage` must be one of: warning, error, off.``
 

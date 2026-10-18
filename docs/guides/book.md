@@ -174,11 +174,11 @@ the Lyrebird Inn (The Tenebrae Volume, p. 214)
 
 Which form a wikilink takes depends on where its target is printed:
 
-| The target is                                                 | The link prints                           |
-| ------------------------------------------------------------- | ----------------------------------------- |
-| An entry of the same book, including a note the book reprints | An internal destination                   |
-| An entry of another book, and not of this one                 | `Name (_Book title_, p. N)`, with no link |
-| A note in no book                                             | The web address of the note's page        |
+| The target is                                                 | The link prints                                                                      |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| An entry of the same book, including a note the book reprints | An internal destination                                                              |
+| An entry of another book, and not of this one                 | `Name (_Book title_, p. N)`, or `Name (Aelw. pN)` with an abbreviation, with no link |
+| A note in no book                                             | The web address of the note's page                                                   |
 
 The page is the page the PDF itself numbers, which is the number printed in the
 footer and used by the contents and the index, so the printed `p. N` is the
@@ -438,7 +438,7 @@ first book in `pdf.books` that selects it. In a package of several books:
   as the cross-book references (`pages.json`), so the page a reference prints
   for a note is the page its home book's index lists for the note's own entry.
 - A mention of a note another book prints is not a term of the mentioning
-  book. The mention reads `Name (_Book title_, p. N)` in the text, and the note's
+  book. The mention reads `Name (_Book title_, p. N)` in the text (`Name (Aelw. pN)` when the home book declares an `abbreviation`), and the note's
   entry and its page are in the other book's index.
 
 Set [`pdf.indexSeeAlso`](../configuration.md) to `true` to list those mentions
@@ -446,6 +446,8 @@ too. Each note another book prints that this book mentions in authored prose
 then has a line, filed under its name:
 
 > Sword: _Book A_, p. 12
+
+A home book with an `abbreviation` files the line as `Sword: BkA. p12`.
 
 Two kinds of link add nothing:
 

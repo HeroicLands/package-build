@@ -102,11 +102,13 @@ function letterOf(key) {
  * @param {string[]} [opts.heads] - Leading words (`pdf.indexHeads`) matched
  *   literally against the start of a name; a name that opens with one is also
  *   listed as `<rest>, <head>`, the head without its trailing space or colon. None when absent.
- * @param {Array<{slug: string, name: string, title: string, page: string|number}>} [opts.foreign] -
+ * @param {Array<{slug: string, name: string, title: string, abbreviation?: string,
+ *   page: string|number}>} [opts.foreign] -
  *   Notes another book prints, listed as `Name: Book title, p. N` once this
- *   book mentions them.
+ *   book mentions them, or `Name: Aelw. p12` when the home book has an
+ *   abbreviation.
  * @returns {Array<{letter: string, name: string, slug: string, see?: string,
- *   foreign?: {title: string, page: string}}>} Terms with `see` set for a
+ *   foreign?: {title: string, abbreviation?: string, page: string}}>} Terms with `see` set for a
  *   cross-reference to the main name it points at.
  */
 export function indexTerms(entries, { owns = () => true, foreign = [], heads = [] } = {}) {
@@ -198,7 +200,11 @@ export function indexTerms(entries, { owns = () => true, foreign = [], heads = [
         keyed.push({
             name,
             slug: other.slug,
-            foreign: { title: String(other.title), page: String(other.page) },
+            foreign: {
+                title: String(other.title),
+                ...(other.abbreviation ? { abbreviation: String(other.abbreviation) } : {}),
+                page: String(other.page),
+            },
             key: sortKey(name),
         });
     }
@@ -234,7 +240,7 @@ export function indexTerms(entries, { owns = () => true, foreign = [], heads = [
 export function indexPreamble({ seeAlso = false } = {}) {
     return [
         // Zero-size and invisible; the label is what the chapter queries.
-        "#let book-ix(key, main: false) = [#metadata((key: key, main: main)) <book-index>]",
+        "#let book-ix(key, main: false) = [#metadata((key: key, main: main))<book-index>]",
         "#let book-index(terms) = context {",
         "  set par(justify: false, first-line-indent: 0em, hanging-indent: 1em, spacing: 0.45em)",
         "  set text(size: 8.8pt)",
@@ -271,7 +277,12 @@ export function indexPreamble({ seeAlso = false } = {}) {
         ...(seeAlso ?
             [
                 "    if away != none {",
-                "      par[#term.name: #emph[#away.title], p. #away.page]",
+                '      let short = away.at("abbreviation", default: none)',
+                "      if short != none {",
+                "        par[#term.name: #short~p#away.page]",
+                "      } else {",
+                "        par[#term.name: #emph[#away.title], p. #away.page]",
+                "      }",
                 "      continue",
                 "    }",
             ]
@@ -309,8 +320,11 @@ export function indexChapter(entries, title, opts = {}) {
             }${
                 term.foreign === undefined ?
                     ""
-                :   `, foreign: (title: "${escapeString(term.foreign.title)}", ` +
-                    `page: "${escapeString(term.foreign.page)}")`
+                :   `, foreign: (title: "${escapeString(term.foreign.title)}", ${
+                        term.foreign.abbreviation === undefined ?
+                            ""
+                        :   `abbreviation: "${escapeString(term.foreign.abbreviation)}", `
+                    }` + `page: "${escapeString(term.foreign.page)}")`
             })`,
     );
     return [

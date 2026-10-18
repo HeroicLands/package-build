@@ -15,7 +15,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { configFromData } from "../engine/pack-config.mjs";
 import { buildPdf } from "../engine/pdf-build.mjs";
-import { indexChapter, indexTerms } from "../engine/pdf-index.mjs";
+import { indexChapter, indexPreamble, indexTerms } from "../engine/pdf-index.mjs";
 
 const ok = (cmd: string, args: string[]) => spawnSync(cmd, args, { encoding: "utf8" }).status === 0;
 const HAS_TYPST = ok("typst", ["--version"]);
@@ -44,6 +44,17 @@ describe("the terms of one book's index", () => {
             slug: "place-z",
             foreign: { title: "Book Z", page: "7" },
         });
+    });
+
+    it("carries a home book's abbreviation into the term and the source", () => {
+        const foreign = [
+            { slug: "place-z", name: "Zeta", title: "Book Z", abbreviation: "Zed.", page: 7 },
+        ];
+        const terms = indexTerms(entries, { foreign });
+        expect(terms[2].foreign).toEqual({ title: "Book Z", abbreviation: "Zed.", page: "7" });
+        const source = indexChapter(entries, "T", { foreign });
+        expect(source).toContain('abbreviation: "Zed."');
+        expect(indexPreamble({ seeAlso: true })).toContain("#short~p#away.page");
     });
 
     it("writes the see-also machinery into the source only when asked", () => {

@@ -119,6 +119,14 @@ describe("the page table", () => {
         expect(forB.used).toBe(2);
     });
 
+    it("carries a home book's abbreviation to the lookup and the listing", () => {
+        const withAbbr = books.map((b) => (b.id === "a" ? { ...b, abbreviation: "Aelw." } : b));
+        const entries = homeEntries({ books: withAbbr, homes });
+        const forB = elsewhereFor({ entries, book: "b", printed: new Map(), seeAlso: true });
+        expect(forB.get("weapongear-sword")).toMatchObject({ abbreviation: "Aelw." });
+        expect(forB.listed[0]).toMatchObject({ abbreviation: "Aelw." });
+    });
+
     it("prints `?` for every page before a table exists", () => {
         const entries = homeEntries({ books, homes });
         const forB = elsewhereFor({ entries, book: "b", printed: new Map() });
@@ -138,6 +146,15 @@ describe("the printed form", () => {
         );
     });
 
+    it("is the abbreviation and `p` against the page when the book has one", () => {
+        const short = { ...away, abbreviation: "Aelw." };
+        expect(crossBookReference("the sword", short)).toBe("the sword (Aelw.~p12)");
+        expect(crossBookReference("x", { ...short, abbreviation: "A *B*" })).toBe(
+            "x (A \\*B\\*~p12)",
+        );
+        expect(crossBookReference("x", { ...away, abbreviation: "" })).toContain("#emph[");
+    });
+
     it("replaces a prose link to another book's note, and only that", () => {
         const elsewhere = { get: (key: string) => (key === "weapongear-sword" ? away : undefined) };
         const links = new Map([["weapongear-dagger", "weapongear-dagger"]]);
@@ -150,6 +167,22 @@ describe("the printed form", () => {
         expect(out).not.toContain("weapongear-sword/");
         expect(out).toContain("#link(<weapongear-dagger>)[a dagger]");
         expect(out).toContain('#link("https://www.heroiclands.org/sohl/armorgear-cap/")[a cap]');
+    });
+
+    it("renders a prose link and an infobox link with the home book's abbreviation", () => {
+        const short = { ...away, abbreviation: "Core." };
+        const elsewhere = { get: () => short };
+        const out = markdownToTypst("[the sword](/sohl/weapongear-sword/)", {
+            links: new Map(),
+            elsewhere,
+            url: "https://www.heroiclands.org/sohl/",
+        });
+        expect(out).toContain("the sword (Core.~p12)");
+        expect(out).not.toContain("#emph[The Core Volume]");
+        const value = { text: "Sword", address: "pkg-note-x", url: "/sohl/x/" };
+        expect(linkToTypst(value, new Map(), labelFor, "https://h/sohl/", elsewhere)).toBe(
+            "Sword (Core.~p12)",
+        );
     });
 
     it("applies to an infobox link by address", () => {

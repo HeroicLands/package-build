@@ -144,6 +144,21 @@ describe("pdf.books — accepted", () => {
         expect(config.pdf.out).toBe("build/pdf");
     });
 
+    it("an abbreviation is optional, and kept as written", () => {
+        const config = load(
+            data({
+                pdf: {
+                    books: [
+                        { ...CORE, abbreviation: "Core." },
+                        { ...CORE, id: "more", out: "other" },
+                    ],
+                },
+            }),
+        );
+        expect(config.pdf.books[0].abbreviation).toBe("Core.");
+        expect(config.pdf.books[1].abbreviation).toBe("");
+    });
+
     it("two books, one inline, each with its own stem, front and cover", () => {
         const config = load(
             data({
@@ -259,6 +274,26 @@ describe("pdf.books — refused, each at its key", () => {
             field: "pdf.books[1].id",
             line: /^\s+- id: core/,
             message: /`core`.*more than once/,
+        },
+        {
+            name: "an empty abbreviation",
+            input: data({ pdf: { books: [{ ...CORE, abbreviation: "" }] } }),
+            field: "pdf.books[0].abbreviation",
+            line: /abbreviation:/,
+        },
+        {
+            name: "an abbreviation two books share",
+            input: data({
+                pdf: {
+                    books: [
+                        { ...CORE, abbreviation: "Core." },
+                        { ...CORE, id: "more", out: "other", abbreviation: "Core." },
+                    ],
+                },
+            }),
+            field: "pdf.books[1].abbreviation",
+            line: /abbreviation: Core\./,
+            message: /`Core\.`.*`core` and `more`/,
         },
         {
             name: "an id outside the charset",

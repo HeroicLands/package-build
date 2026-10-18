@@ -780,6 +780,7 @@ export async function buildPdf({
             books: buildable.map((b) => ({
                 id: b.entry.id,
                 title: b.entry.title,
+                abbreviation: b.entry.abbreviation,
                 plan: b.selection.plan,
             })),
             homes,

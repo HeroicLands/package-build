@@ -2632,7 +2632,8 @@ Typst compiler; `--no-compile` emits the Typst source and stops there,
 which is what lets the source be inspected or compiled by hand.
 
 A reference to a note that another book is home to prints that book and page,
-`Name (_Book title_, p. 12)`. A compile renders and lays out every book, writes
+`Name (_Book title_, p. 12)`, or `Name (Aelw. p12)` when that book declares an
+`abbreviation`. A compile renders and lays out every book, writes
 `pages.json` (each note's home book and the page its entry starts on) into the
 output directory, and renders again with those pages; `--no-compile` runs
 neither pass and prints `p. ?`. See the

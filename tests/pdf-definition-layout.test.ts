@@ -34,21 +34,19 @@ const complex = [
 ].join("\n");
 
 describe("definition-list source", () => {
-    it("uses a self-contained breakable hanging layout with the fixed book indent", () => {
+    it("runs the bold term in at the margin and indents the rest of the row 1em", () => {
         const source = markdownToTypst("Short\n: A normal definition.");
-        expect(source).toContain("#context {");
+        expect(source).toContain("#{");
         expect(source).toContain("let book-definition(term, body)");
-        expect(source).toContain("let indent = 112.5pt");
-        expect(source).toContain("let gap = (0.75em).to-absolute()");
-        expect(source).toContain('let label = text(weight: "bold", term)');
-        expect(source).toContain("calc.max(indent - gap, measure(label).width)");
         expect(source).toContain("breakable: true");
-        expect(source).toContain("inset: (left: indent)");
-        expect(source).toContain("below: 0.5em");
+        expect(source).toContain("inset: (left: 1em)");
         expect(source).toContain("first-line-indent: 0pt");
         expect(source).toContain('#set text(weight: "regular")');
-        expect(source).toContain("#h(-indent)#box(width: slot, label)#h(gap)#body");
+        expect(source).toContain('#h(-1em)#text(weight: "bold", term)#h(0.5em)#body');
         expect(source).toContain("book-definition([Short],[A normal definition.])");
+        // A long term takes no wider slot, and rows keep the book's paragraph spacing.
+        expect(source).not.toContain("measure(");
+        expect(source).not.toContain("above: 0pt");
         expect(source).not.toContain("#terms(");
     });
 
@@ -137,7 +135,7 @@ describe.runIf(HAS_TYPST && HAS_POPPLER)("compiled definition-list geometry", ()
     }
 
     it(
-        "aligns short terms, expands long terms, and hangs all continuation lines",
+        "runs each term in at the margin and hangs every continuation line 1em in",
         () => {
             const pages = compile(
                 [
@@ -157,16 +155,18 @@ describe.runIf(HAS_TYPST && HAS_POPPLER)("compiled definition-list geometry", ()
                 return found!;
             };
             expect(word("Short").x).toBeCloseTo(36, 1);
-            expect(word("FIRST").x).toBeCloseTo(36 + 112.5, 1);
+            // 10pt type: the definition starts 0.5em after its term, and every
+            // continuation line and paragraph hangs 1em in from the margin.
+            expect(word("FIRST").x - word("Short").right).toBeCloseTo(5, 1);
             expect(Math.abs(word("Short").y - word("FIRST").y)).toBeLessThan(1);
-            expect(word("SECOND").x).toBeCloseTo(36 + 112.5, 1);
+            expect(word("SECOND").x).toBeCloseTo(36 + 10, 1);
             const termLast = word("term");
             expect(word("A").x).toBeCloseTo(36, 1);
             for (const part of ["A", "considerably", "longer", "unbreakable"]) {
                 expect(Math.abs(word(part).y - termLast.y)).toBeLessThan(1);
             }
             expect(word("LONGSTART").x).toBeGreaterThan(word("FIRST").x);
-            expect(word("LONGSTART").x - termLast.right).toBeCloseTo(7.5, 1);
+            expect(word("LONGSTART").x - termLast.right).toBeCloseTo(5, 1);
             expect(Math.abs(word("LONGSTART").y - termLast.y)).toBeLessThan(1);
             const continuation = words.filter(
                 (item) => item.y > word("FIRST").y + 1 && item.y < word("SECOND").y - 1,
@@ -175,13 +175,13 @@ describe.runIf(HAS_TYPST && HAS_POPPLER)("compiled definition-list geometry", ()
             const firstOnLine = new Map<number, (typeof words)[number]>();
             for (const item of continuation)
                 if (!firstOnLine.has(item.y)) firstOnLine.set(item.y, item);
-            for (const item of firstOnLine.values()) expect(item.x).toBeCloseTo(36 + 112.5, 1);
+            for (const item of firstOnLine.values()) expect(item.x).toBeCloseTo(36 + 10, 1);
             const longContinuation = words.filter((item) => item.y > word("LONGSTART").y + 1);
             expect(longContinuation.length).toBeGreaterThan(0);
             const longFirstOnLine = new Map<number, (typeof words)[number]>();
             for (const item of longContinuation)
                 if (!longFirstOnLine.has(item.y)) longFirstOnLine.set(item.y, item);
-            for (const item of longFirstOnLine.values()) expect(item.x).toBeCloseTo(36 + 112.5, 1);
+            for (const item of longFirstOnLine.values()) expect(item.x).toBeCloseTo(36 + 10, 1);
         },
         subprocessTimeout(2),
     );
@@ -226,7 +226,7 @@ describe.runIf(HAS_TYPST && HAS_POPPLER)("compiled definition-list geometry", ()
             }
             for (const page of pages) {
                 for (const paragraph of page.filter((word) => /^Paragraph\d+$/.test(word.text))) {
-                    expect(paragraph.x).toBeCloseTo(36 + 112.5, 1);
+                    expect(paragraph.x).toBeCloseTo(36 + 10, 1);
                 }
             }
         },

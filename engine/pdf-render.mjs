@@ -841,12 +841,10 @@ function renderBlock(tokens, i, out, ctx) {
 }
 
 /**
- * Self-contained dictionary rows with the website's 150 CSS-pixel hanging indent.
- *
- * Each row remains a breakable block; only the bold term is an inline box. The
- * negative first-line space lets its label start at the original margin while
- * subsequent paragraphs, lists and blocks retain the definition's inset. A long
- * term enlarges its slot without changing the continuation margin.
+ * Definition rows set as a book sets them: the term in bold, run in at the
+ * margin, and the definition following on the same line, with its continuation
+ * lines and any further paragraphs, lists and blocks indented 1em. A long term
+ * takes no more room than a short one. Rows are spaced as paragraphs are.
  *
  * Scope the helper to this list so exported Markdown fragments also work without
  * a book preamble, including nested definition lists.
@@ -854,18 +852,12 @@ function renderBlock(tokens, i, out, ctx) {
  * @returns {string} Typst markup.
  */
 function renderDefinitionList(entries) {
-    return `#context {
-  let book-definition(term, body) = {
-    let indent = 112.5pt
-    let gap = (0.75em).to-absolute()
-    let label = text(weight: "bold", term)
-    let slot = calc.max(indent - gap, measure(label).width)
-    block(width: 100%, breakable: true, inset: (left: indent), above: 0pt, below: 0.5em)[
-      #set par(first-line-indent: 0pt, hanging-indent: 0pt)
-      #set text(weight: "regular")
-      #h(-indent)#box(width: slot, label)#h(gap)#body
-    ]
-  }
+    return `#{
+  let book-definition(term, body) = block(width: 100%, breakable: true, inset: (left: 1em))[
+    #set par(first-line-indent: 0pt, hanging-indent: 0pt)
+    #set text(weight: "regular")
+    #h(-1em)#text(weight: "bold", term)#h(0.5em)#body
+  ]
   ${entries.join("\n  ")}
 }`;
 }
@@ -1457,17 +1449,22 @@ function renderLink(href, inner, ctx) {
 
 /**
  * A reference to a note another book prints, as Typst: the words the link
- * carried, then the book and the page, `Name (_Book title_, p. 12)`.
+ * carried, then the book and the page. A book with an abbreviation reads
+ * `Name (Aelw. p12)`; one without reads `Name (_Book title_, p. 12)`.
  *
- * The space before the page number does not break, so a number never starts a
- * line of its own.
+ * The space before the page number, or between the abbreviation and the page,
+ * does not break, so a number never starts a line of its own.
  *
  * @param {string} inner - The already-rendered link text.
- * @param {{title: string, page: string|number}} away - The home book's title
- *   and the page the entry starts on.
+ * @param {{title: string, abbreviation?: string, page: string|number}} away -
+ *   The home book's title, its abbreviation when it declares one, and the page
+ *   the entry starts on.
  * @returns {string} Typst markup.
  */
 export function crossBookReference(inner, away) {
+    if (away.abbreviation) {
+        return `${inner} (${escapeTypst(away.abbreviation)}~p${away.page})`;
+    }
     return `${inner} (#emph[${escapeTypst(away.title)}], p.~${away.page})`;
 }
 

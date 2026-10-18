@@ -142,7 +142,7 @@ export function readEntryPages(typPath, fontArgs, binary = "typst") {
  *   The books that render, in configuration order.
  * @param {Map<string, string>} input.homes - Each note's key → its home book's
  *   id, from {@link module:engine/pdf-coverage.coverage}.
- * @returns {Array<{key: string, book: string, title: string, anchor: string,
+ * @returns {Array<{key: string, book: string, title: string, abbreviation?: string, anchor: string,
  *   record: object, slug: string, aliases: string[]}>} One per homed note, in book order and
  *   then entry order.
  */
@@ -160,6 +160,7 @@ export function homeEntries({ books, homes }) {
                 key,
                 book: book.id,
                 title: book.title,
+                abbreviation: book.abbreviation,
                 anchor: entry.anchor,
                 record,
                 slug: String(record?.address?.slug ?? record?.shortcode ?? ""),
@@ -246,13 +247,21 @@ export function elsewhereFor({ entries, book, printed, table, seeAlso = false })
         const keys = [entry.slug, ...entry.aliases].filter((key) => key && !printed.has(key));
         const page = table?.[entry.key]?.page ?? UNMEASURED_PAGE;
         for (const key of keys) {
-            if (!map.has(key)) map.set(key, { slug: entry.slug, title: entry.title, page });
+            if (!map.has(key)) {
+                map.set(key, {
+                    slug: entry.slug,
+                    title: entry.title,
+                    abbreviation: entry.abbreviation,
+                    page,
+                });
+            }
         }
         if (seeAlso && entry.slug && !printed.has(entry.slug)) {
             listed.push({
                 slug: entry.slug,
                 name: String(entry.record?.name?.full ?? "").trim(),
                 title: entry.title,
+                abbreviation: entry.abbreviation,
                 page,
             });
         }
