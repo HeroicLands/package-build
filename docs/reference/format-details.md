@@ -432,17 +432,55 @@ A named date uses `datefrom <calendar> <date>`, where the final text follows the
 
 `package-build datefrom <calendar> <date>` reads the default calendar pattern and prints a canonical day. `package-build dateto <calendar> <canonical-date>` prints the day in the covering era; `--format <name>` chooses another named output pattern. The [authoring guide](../authoring/dates-and-calendars.md) gives a complete example.
 
+##### A note's calendar
+
+A note's dates print in one calendar, the first of:
+
+1. its own `data.calendar`, which every note type accepts, and which always
+   wins;
+2. its culture's calendar: the culture note its `data.culture` names, resolved
+   by these same rules — in effect that culture's own `data.calendar`;
+3. for a `place`, its parents' calendar: each note its `data.parents` names,
+   resolved by these same rules;
+4. the package's [`defaultCalendar`](../configuration.md#defaultcalendar);
+5. otherwise none, and a date prints as it was written.
+
+Steps 2 and 3 take only a calendar that some note states. A culture or a
+parent that itself falls through to `defaultCalendar` contributes nothing, so a
+place whose parents all fall through takes the default. Parents that resolve to
+**two or more distinct calendars** are a build error at the place's
+`data.parents`, naming the place and each calendar with the parent it came
+through:
+
+```text
+Places/Edge.md:6:3: error: place edge: data.parents resolve to different calendars (thalorna-note-lore-commoncal via north, thalorna-note-lore-vrcal via south); state data.calendar
+```
+
+Stating `data.calendar` on the place settles it. A cycle through
+`data.parents` or `data.culture` contributes nothing, and the chain goes on to
+`defaultCalendar`. A culture or parent in another package contributes the
+`data.calendar` its published entry states, and nothing else.
+
+The calendar decides what a reader sees wherever the note prints a date: the
+infobox's `born` and `died`, `dateformat` with no calendar named, the `events`
+relation's `whenText`, and every date in the [event views](#event-views) the
+note's page shows.
+
 Markdown prose accepts inline `{{...}}` expressions. A property path reads
 the note's frontmatter, and `dateformat` converts a date to the reckoning used by a
-specified calendar. The first argument names a calendar note by shortcode or
-Address, or one of its eras by `<calendar>.<era>`. Use a full Address when a
-short name is ambiguous. The second argument is a canonical date or a
-frontmatter property holding a date. An optional third argument names an output
-format from the calendar note. An explicit era that does not cover the date is an error.
+calendar. The first argument names a calendar note by shortcode or Address, or
+one of its eras by `<calendar>.<era>`; left out, the calendar is
+[the note's own](#a-notes-calendar), and a note with none prints the date as
+written. Use a full Address when a short name is ambiguous. The date is a
+canonical date or a frontmatter property holding a date. An optional last
+argument names an output format from the calendar note. With two arguments,
+the first is the calendar unless it is a date that names no calendar, so
+`{{dateformat data.born "long"}}` prints the note's date in its own calendar's
+`long` format. An explicit era that does not cover the date is an error.
 
 ```markdown
 {{name.full}} was born on {{dateformat "vrcal" data.born}}.
-{{dateformat data.calendar data.born}}
+{{dateformat data.born}}
 The event fell on {{dateformat "vrcal" "300.25"}}.
 {{and (gt 3 5) (lt 4 2)}}
 {{sql "SELECT COUNT(*) FROM notes WHERE type = 'being'"}}
@@ -870,6 +908,7 @@ noticed:
 | `seeAlso`              | list of `{ address, gloss? }` | Deliberate cross-references in reading order, shown on the site, in journals and in books. |
 | `seeAlso[].address`    | a note `Address`              | Required; the whole note to read next.                                                     |
 | `seeAlso[].gloss`      | `string`                      | An optional short phrase saying why to follow the reference.                               |
+| `calendar`             | `Address`                     | The calendar note this note's dates print in — see [a note's calendar](#a-notes-calendar). |
 | `id`                   | `string`                      | A pinned document identity.                                                                |
 | `pack`                 | `string`                      | The shared compendium route.                                                               |
 | `packFolder`           | `Address` or pack map         | The shared compendium folder Address.                                                      |
@@ -2972,14 +3011,22 @@ ORDER BY whenSort
 ```
 ````
 
-| Column                   | What it holds                                                                                                                                                                                                                                                                                  |
-| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `note`                   | The canonical Address of the note the event is written on.                                                                                                                                                                                                                                     |
-| `address`                | The event's own Address: `note#id` where the event has an `id`, the note's Address alone where it has none.                                                                                                                                                                                    |
-| `id`, `kind`, `depth`, … | Every key of an event, each its own column under its own name — `id`, `kind`, `depth`, `when`, `until`, `recurs`, `summary`, `standing`, `names`, `where`, `who`, `follows`, `accounts`, `unresolved`, `sources`, `stated`.                                                                    |
-| `whenSort`, `untilSort`  | The date's position on the canonical axis: the canonical year, with a day as its fraction of the year where the calendar states the year's length. `ORDER BY whenSort` is date order.                                                                                                          |
-| `whenText`, `untilText`  | The date as a reader sees it, printed as `dateformat` prints it in the calendar the owning note names in `data.calendar`, else the one the world note names, else in the era the date itself names; `~` marks an approximate date. A date that does not resolve keeps the text its note wrote. |
-| `whenYear`, `untilYear`  | The canonical year alone, for a filter such as `whenYear BETWEEN 200 AND 299`.                                                                                                                                                                                                                 |
+| Column                   | What it holds                                                                                                                                                                                                                                                            |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `note`                   | The canonical Address of the note the event is written on.                                                                                                                                                                                                               |
+| `address`                | The event's own Address: `note#id` where the event has an `id`, the note's Address alone where it has none.                                                                                                                                                              |
+| `id`, `kind`, `depth`, … | Every key of an event, each its own column under its own name — `id`, `kind`, `depth`, `when`, `until`, `recurs`, `summary`, `standing`, `names`, `where`, `who`, `follows`, `accounts`, `unresolved`, `sources`, `stated`.                                              |
+| `whenSort`, `untilSort`  | The date's position on the canonical axis: the canonical year, with a day as its fraction of the year where the calendar states the year's length. `ORDER BY whenSort` is date order.                                                                                    |
+| `whenText`, `untilText`  | The date as a reader of the owning note sees it, printed as `dateformat` prints it in [the owning note's calendar](#a-notes-calendar), else in the era the date itself names; `~` marks an approximate date. A date that does not resolve keeps the text its note wrote. |
+| `whenIn`, `untilIn`      | The date in every calendar: a struct keyed by each calendar note's canonical Address, holding the date as `dateformat` prints it there. `whenIn['thalorna-note-lore-commoncal']` reads it in that calendar; a date that calendar cannot print reads as in `whenText`.    |
+| `whenYear`, `untilYear`  | The canonical year alone, for a filter such as `whenYear BETWEEN 200 AND 299`.                                                                                                                                                                                           |
+
+A fence chooses which calendar its dates print in. `whenText` prints each
+row in the calendar of the note that owns the event, so a table gathering the
+events of notes with different calendars reads in more than one count;
+`whenIn['<calendar Address>']` prints every row in one. The generated [event
+views](#event-views) do the second, in the calendar of the page showing the
+view.
 
 `when` and `until` read as the text the note wrote, `~` included. The sort
 keys and years are positions on the canonical axis, which counts a year `0`
@@ -3777,7 +3824,7 @@ The build appends sections to the end of a note's body that list the events conc
 | Accounts      | `accounts`   | an `affiliation`, a `place`, a `lore` note of `subType: culture` | each `accounts[]` entry the note gives, with the event it concerns                                                                                                                | When, Event, What they say, Agrees |
 | What followed | `followed`   | a note holding events                                            | events whose `follows[].event` names one of this note's events, with how                                                                                                          | When, What followed, How           |
 
-- **Every view's first column is When**, the event's date written in the setting's calendar — the `events` relation's `whenText` column. An event whose date does not resolve shows the text its note wrote.
+- **Every view's first column is When**, every row's date written in [the calendar of the page showing the view](#a-notes-calendar), whichever note owns the event, so one table reads in one count. The fence reads `whenIn['<calendar Address>']` for that calendar; on a page with no calendar it reads `whenText`, each date in its owning note's calendar. An event whose date does not resolve shows the text its note wrote.
 - **A chronology's Felt here column appears only where some row is felt in the place.** A place whose rows are all events that happened there, or world events, has the When and What happened columns alone.
 - **A chronology is always set across the full page width in a PDF book**, whatever its columns.
 - **The views follow everything the author wrote**, in the order of the [generated sections](#generated-sections).
@@ -4080,7 +4127,6 @@ See [a being's subtype describes the subject](#a-beings-subtype-describes-the-su
 | `gender`                           | `male \| female \| nonbinary \| none \| other` | Gender of the being — see [a being's look](#a-beings-look)                                                                                            |
 | `species`                          | `Address`                                      | Being's species (lore)                                                                                                                                |
 | `born`                             | `date \| unknown`                              | When the being was born; absent, it was never born                                                                                                    |
-| `calendar`                         | `Address`                                      | Calendar note that prints the being's dates                                                                                                           |
 | `died`                             | `date \| unknown`                              | When the being died; absent, it is alive                                                                                                              |
 | `age`                              | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                                                                         |
 | `ageYears`                         | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this                                                        |
@@ -6982,7 +7028,6 @@ level with no background prints nothing.
 | `data` property                   | Values                                                                           | Description                                                                                               |
 | --------------------------------- | -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
 | `events`                          | event entries — see [Events](#events)                                            | What happened to or at this subject: dated, attributed events                                             |
-| `calendar`                        | `Address`                                                                        | Calendar note that prints this place's dates                                                              |
 | `demonym`                         | `string`                                                                         | What a person from this place is called — a Vylarian                                                      |
 | `purpose`                         | `placeCharacter` tag                                                             | The reason a settlement, site, or structure exists                                                        |
 | `lore`                            | `Address[]`                                                                      | Lore concerning this place — its peoples, its law, its calendar, its history                              |

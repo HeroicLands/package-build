@@ -631,7 +631,7 @@ describe("edges", () => {
         const problems: any[] = [];
         const records = collect(problems, { foreignRecord });
         expect(problems).toEqual([]);
-        expect(asked).toEqual(["sohl-note-place-shire"]);
+        expect([...new Set(asked)]).toEqual(["sohl-note-place-shire"]);
         expect(cultureOf(records, "place", "hamlet")).toBe(VEDYARI);
     });
 

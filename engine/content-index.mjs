@@ -86,6 +86,7 @@
  */
 
 import { isAddressSegment } from "./address-charset.mjs";
+import { configFileIn, resolveNoteCalendars } from "./note-calendars.mjs";
 import { cultureInheritance, reportCultureParents } from "./culture-parents.mjs";
 import {
     formatDiagnostic,
@@ -162,7 +163,7 @@ import { resolveNoteId } from "./note-ids.mjs";
 // The `package:` refusal, so a note declaring one is reported where it is
 // rather than as a bare abort.
 import { assertNoDeclaredPackage } from "./note-package.mjs";
-import { loadPackConfig } from "./pack-config.mjs";
+import { CONFIG_FILENAMES, loadPackConfig } from "./pack-config.mjs";
 // The record accessors, which live apart so that a module the compilers load
 // can read a record without importing this one and closing a cycle.
 // Re-exported because this is where callers have always addressed them.
@@ -1062,6 +1063,10 @@ export function resolveCultures(
  *   reader receives each as a finding, and the emitter throws once, listing
  *   every one.
  * @param {string} [options.currentDate="720.1"] - Setting-wide neutral current date.
+ * @param {string} [options.defaultCalendar] - The calendar of last resort, a
+ *   calendar note's shortcode; see {@link module:engine/note-calendars}.
+ * @param {string} [options.configFile] - The configuration file, where an
+ *   unknown `defaultCalendar` is reported.
  * @param {(key: string) => ({culture?: unknown}|undefined)} [options.foreignRecord] -
  *   Another package's entry for a canonical address, read for a parent that
  *   package publishes; see {@link resolveCultures}.
@@ -1079,6 +1084,8 @@ export function collectContentIndex(
     {
         contentPackage,
         currentDate,
+        defaultCalendar,
+        configFile,
         skipDirectories,
         assetsBase,
         manifest,
@@ -1234,7 +1241,17 @@ export function collectContentIndex(
 
     // Every note record exists and every Address in it is a tuple, so a parent
     // is found by its canonical address. Before the sort, which reads nothing
-    // the pass writes.
+    // the pass writes. Calendars first: they read the culture a note states,
+    // which the culture pass then replaces with the one it resolves.
+    resolveNoteCalendars(records, {
+        contentPackage,
+        defaultCalendar,
+        configFile,
+        contentBase,
+        foreignRecord,
+        problems,
+        parsed,
+    });
     resolveCultures(records, { contentPackage, contentBase, foreignRecord, problems, parsed });
     const cultureNotes = records
         .filter((record) => isNoteRecord(record) && record.type === "lore")
@@ -1459,6 +1476,8 @@ export function indexRecordsFor({
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
         currentDate: resolved.currentDate,
+        defaultCalendar: resolved.defaultCalendar ?? undefined,
+        configFile: configFileIn(resolved.rootDir, CONFIG_FILENAMES),
         addressContext: {
             ...noteAddressContext(resolved),
             declaresAddress: dependencyAddresses(resolved),

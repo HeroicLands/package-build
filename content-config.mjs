@@ -571,6 +571,10 @@ export function publishesContentPages(config) {
  *                                          resolved against it, so the build never
  *                                          depends on the working directory.
  * @property {string} [currentDate] Setting-wide neutral current date; defaults to "720.1".
+ * @property {string} [defaultCalendar]     Shortcode of the `lore` note with
+ *                                          `subType: calendar` that prints the
+ *                                          dates of a note no other rule gives a
+ *                                          calendar.
  * @property {string} contentPackage        Content package name — the address
  *                                          namespace every note in this
  *                                          repository is published under.
@@ -646,6 +650,8 @@ export function publishesContentPages(config) {
  *
  * @typedef {object} ContentBuildConfig
  * @property {string} currentDate Setting-wide neutral current date.
+ * @property {string|null} defaultCalendar The calendar of last resort's
+ *                                     shortcode, `null` when none is named.
  * @property {string} rootDir
  * @property {string} contentPackage
  * @property {string|null} foundryPackage  `null` for a `documentation`
@@ -730,6 +736,7 @@ const CONFIG_KEYS = [
     "rootDir",
     "contentPackage",
     "currentDate",
+    "defaultCalendar",
     "foundryPackage",
     "homepage",
     "authors",
@@ -910,6 +917,24 @@ function isPlainObject(value) {
  */
 function fail(field, problem) {
     throw Object.assign(new TypeError(`package-build config: \`${field}\` ${problem}.`), { field });
+}
+
+/**
+ * The configured `defaultCalendar`: a calendar note's shortcode, or `null`.
+ * Whether it names a calendar note is checked against the content tree when
+ * the content index is built.
+ *
+ * @param {unknown} value - The configured value.
+ * @returns {string|null} The shortcode.
+ */
+function normalizeDefaultCalendar(value) {
+    if (value === undefined || value === null) return null;
+    if (typeof value !== "string" || !isAddressSegment(value))
+        fail(
+            "defaultCalendar",
+            "must be the shortcode of a calendar note — lowercase letters and digits",
+        );
+    return /** @type {string} */ (value);
 }
 
 /**
@@ -2973,6 +2998,7 @@ export function defineConfig(config) {
                 fail("currentDate", error.message);
             }
         })(),
+        defaultCalendar: normalizeDefaultCalendar(input.defaultCalendar),
         contentPackage: requireContentPackage(input.contentPackage, docEntryTypes, {
             rootDir,
             packageKind,

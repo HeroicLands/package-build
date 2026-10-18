@@ -84,7 +84,35 @@ package-build dateto commoncal 326.114 --format long
 
 The CLI `datefrom` command requires a day and reads the default (`std`, or first) pattern. `dateto` prints the era covering the canonical day. A clock time makes a date exact; a year or day without one spans the stated interval. `data.epoch` and `data.moon.newOn` require a day. The [detailed date rules](../reference/format-details.md#dates-and-calendars) describe precision and bounds.
 
-In prose, `{{dateformat "commoncal" data.born}}` prints a date in the chosen calendar. `{{dateformat data.calendar data.born}}` uses the note's calendar Address. A third argument chooses another named pattern. A being or place can set `data.calendar`; its infobox uses that calendar for dates.
+In prose, `{{dateformat "commoncal" data.born}}` prints a date in the chosen calendar, and `{{dateformat data.born}}` prints it in the note's own calendar. A last argument chooses another named pattern: `{{dateformat "commoncal" data.born "long"}}`, or `{{dateformat data.born "long"}}`.
+
+## Choose the calendar a note's dates print in
+
+Every note reads its dates in one calendar. The infobox's birth and death dates, `dateformat` with no calendar named, and every date in the event sections the build adds to the note's page all print in it. It is the first of:
+
+1. the note's own `data.calendar`, which any note may set and which always wins;
+2. its culture's calendar — the `data.calendar` of the culture note its `data.culture` names;
+3. for a place, its parents' calendar — the calendar each place in its `data.parents` reads in, by these same rules;
+4. the package's `defaultCalendar`, set in the [configuration](../configuration.md#defaultcalendar);
+5. otherwise none, and a date prints as it was written.
+
+```yaml
+# package-build.config.yaml
+defaultCalendar: commoncal
+```
+
+```yaml
+# A town in a province that keeps the Vylarian count
+type: place
+subType: settlement
+shortcode: brenford
+data:
+  parents: [vylaria]
+```
+
+Brenford names no calendar and no culture, so it reads in Vylaria's. A place whose parents read in **different** calendars is a build error at its `data.parents`, naming the place and each calendar; give the place its own `data.calendar` to settle it. A parent, or a culture, that only reaches the default counts for nothing, so a place among parents that all fall through to `defaultCalendar` takes the default without an error.
+
+An event section prints every date in the calendar of the page showing it, whichever note the event is written on: Brenford's chronology reads in Vylaria's count even where an event comes from a history kept in the common calendar. The [format reference](../reference/format-details.md#a-notes-calendar) gives the rules in full.
 
 ## Write a recurring date
 

@@ -130,7 +130,7 @@ const NOTES: Record<string, { fm: object; body?: string }> = {
             type: "place",
             subType: "world",
             shortcode: "wrld",
-            data: { year: { days: 365 }, calendar: "demcal" },
+            data: { year: { days: 365 } },
         },
     },
     "Demcal.md": {
@@ -204,7 +204,11 @@ beforeAll(async () => {
             `---\n${YAML.stringify({ name, ...fm })}---\n\n${body ?? `Prose about ${(fm as any).shortcode}.\n`}`,
         );
     }
-    const records = collectContentIndex(dir, { contentPackage: PACKAGE, skipDirectories: [] });
+    const records = collectContentIndex(dir, {
+        contentPackage: PACKAGE,
+        skipDirectories: [],
+        defaultCalendar: "demcal",
+    });
     const db = await openNotesDatabase(records);
     try {
         prepared = await prepareTreeSqlTables(dir, {
@@ -417,8 +421,12 @@ describe("column order", () => {
 });
 
 describe("the When column", () => {
-    it("prints each date in the setting's calendar, as dateformat does", async () => {
-        const records = collectContentIndex(dir, { contentPackage: PACKAGE, skipDirectories: [] });
+    it("prints each date in the default calendar, as dateformat does", async () => {
+        const records = collectContentIndex(dir, {
+            contentPackage: PACKAGE,
+            skipDirectories: [],
+            defaultCalendar: "demcal",
+        });
         const dates = reckoningContext({ notes: records, contentPackage: PACKAGE });
         const db = await openNotesDatabase(records);
         try {

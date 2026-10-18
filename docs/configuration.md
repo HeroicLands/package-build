@@ -54,7 +54,7 @@ around its own evaluation.
 
 ### Quick reference
 
-24 top-level keys. `rootDir` is not one of them — a data configuration never
+25 top-level keys. `rootDir` is not one of them — a data configuration never
 writes it — and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
@@ -63,6 +63,7 @@ authoring.
 | Key                                         | Type                                                                       | Required                                                                                           | Default                   |
 | ------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------- |
 | [`currentDate`](#currentdate)               | quoted neutral date string                                                 | no                                                                                                 | `"720.1"`                 |
+| [`defaultCalendar`](#defaultcalendar)       | calendar note shortcode                                                    | no                                                                                                 | —                         |
 | [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                         |
 | [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                         |
 | [`homepage`](#homepage)                     | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                    |
@@ -88,7 +89,7 @@ authoring.
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -195,7 +196,7 @@ build writes its `name` as `params.author`. `null` when `authors` is empty.
 as an unknown key, at the key's own line, because `authors` is the one list a
 package names its people in:
 
-> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog).``
+> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog).``
 
 `package.json`'s own `author` is npm's and is not read.
 
@@ -312,6 +313,29 @@ Use a neutral `<year>[.<day>[:HHMMSS]]` string. A bare quoted year means its fir
 day. Named calendars, `unknown`, numeric YAML values and malformed dates are
 configuration errors located at `currentDate`. Birth dates can still use named
 calendars when the output has the relevant calendar context.
+
+### `defaultCalendar`
+
+**Type:** string · optional · no default.
+
+The shortcode of the `lore` note with `subType: calendar` that prints the dates
+of every note no other rule gives a calendar. A note reads its dates in its own
+`data.calendar`, else its culture's, else — for a place — its parents', and
+only then in this one; with no `defaultCalendar` and nothing else to go on, a
+date prints as it was written. The
+[format reference](reference/format-details.md#a-notes-calendar) gives the
+rules in full.
+
+```yaml
+contentPackage: thalorna
+defaultCalendar: commoncal
+```
+
+A value that is not a lowercase alphanumeric shortcode is a configuration
+error at load. A shortcode that names no calendar note in the package is a
+build error located at `defaultCalendar`:
+
+> `defaultCalendar commonkal names no calendar note in thalorna; name the shortcode of a lore note with subType: calendar`
 
 ### `contentPackage`
 

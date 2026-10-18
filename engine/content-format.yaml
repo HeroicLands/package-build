@@ -15,7 +15,6 @@ types:
             - gender
             - species
             - born
-            - calendar
             - died
             - age
             - ageYears
@@ -315,7 +314,6 @@ types:
     place:
         data:
             - events
-            - calendar
             - demonym
             - purpose
             - lore

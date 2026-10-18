@@ -209,13 +209,69 @@ export function resolveReckoningMarkers(index, daysPerYear) {
     return { eras, markers, findings };
 }
 
+/**
+ * The key a note's resolved calendar is filed under: its type and shortcode.
+ *
+ * @param {object|undefined} fm - A note's frontmatter or record.
+ * @returns {string|undefined} The key.
+ */
+export function noteCalendarKey(fm) {
+    return fm?.type && fm?.shortcode ? `${fm.type}\u0000${fm.shortcode}` : undefined;
+}
+
+/**
+ * A record's `resolvedCalendar` as its canonical Address string: an Address
+ * tuple, as a record in memory carries it, or the string an encoded record
+ * carries.
+ *
+ * @param {unknown} value - The value.
+ * @returns {string|undefined} The Address, or `undefined` for none.
+ */
+export function calendarAddress(value) {
+    if (typeof value === "string") return value || undefined;
+    return value && typeof value === "object" && "shortcode" in value ?
+            renderAddress(/** @type {any} */ (value))
+        :   undefined;
+}
+
+/**
+ * Each note's resolved calendar, by {@link noteCalendarKey}, from the
+ * `resolvedCalendar` the content index writes on a record.
+ *
+ * @param {Iterable<object>|undefined} notes - Index records, or
+ *   `{ fm, resolvedCalendar }` entries.
+ * @returns {Map<string, string>} Note key to the calendar's canonical Address.
+ */
+export function noteCalendarMap(notes) {
+    const out = new Map();
+    for (const note of notes ?? []) {
+        const calendar = calendarAddress(note?.resolvedCalendar);
+        if (!calendar) continue;
+        const key = noteCalendarKey(note?.fm ?? note?.frontmatter ?? note);
+        if (key && !out.has(key)) out.set(key, calendar);
+    }
+    return out;
+}
+
 /** One resolved date context per corpus index. */
 const contexts = new WeakMap();
 
-/** Read the world's year length and resolve every calendar era in one corpus. */
+/**
+ * Read the world's year length and resolve every calendar era in one corpus.
+ *
+ * The context also carries `noteCalendars`, each note's resolved calendar by
+ * note, read from the `resolvedCalendar` the content index writes on a record;
+ * {@link module:engine/note-calendars.noteCalendar} reads it.
+ */
 export function reckoningContext(index) {
     if (!index || typeof index !== "object")
-        return { eras: new Map(), markers: new Map(), daysPerYear: undefined, findings: [] };
+        return {
+            eras: new Map(),
+            markers: new Map(),
+            daysPerYear: undefined,
+            findings: [],
+            noteCalendars: new Map(),
+        };
     const cached = contexts.get(index);
     if (cached) return cached;
     const world = (index.notes ?? []).find((note) => {
@@ -224,7 +280,11 @@ export function reckoningContext(index) {
     });
     const fm = world?.fm ?? world?.frontmatter ?? world;
     const daysPerYear = fm?.data?.year?.days;
-    const context = { ...resolveReckoningMarkers(index, daysPerYear), daysPerYear };
+    const context = {
+        ...resolveReckoningMarkers(index, daysPerYear),
+        daysPerYear,
+        noteCalendars: noteCalendarMap(index.notes),
+    };
     contexts.set(index, context);
     return context;
 }

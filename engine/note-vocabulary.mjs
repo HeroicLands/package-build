@@ -1031,6 +1031,17 @@ export const SHARED_DATA_FIELDS = Object.freeze([
             "Deliberate cross-references in reading order, with optional glosses; shown on the site, in journals and in books.",
     }),
     Object.freeze({
+        name: "calendar",
+        ...LINK,
+        ref: "lore",
+        accepts: Object.freeze(["lore"]),
+        check: checkCalendarChoice,
+        describe:
+            "The calendar this note's dates print in, as a calendar lore note. Absent, the " +
+            "note takes its culture's calendar, then — for a place — its parents', then the " +
+            "configured `defaultCalendar`.",
+    }),
+    Object.freeze({
         name: "id",
         ...TEXT,
         describe: "A fixed document identity when the derived identity is unsuitable.",
@@ -1595,14 +1606,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe:
                     "When the being was born — a date, or `unknown` where the birth is " +
                     "unrecorded. Absent, the being was never born.",
-            },
-            {
-                name: "calendar",
-                ...LINK,
-                ref: "lore",
-                accepts: ["lore"],
-                check: checkCalendarChoice,
-                describe: "Calendar that displays this being's dates.",
             },
             {
                 name: "died",
@@ -2281,14 +2284,6 @@ export const NOTE_VOCABULARY = Object.freeze({
         check: checkPlace,
         data: Object.freeze([
             EVENTS_FIELD,
-            {
-                name: "calendar",
-                ...LINK,
-                ref: "lore",
-                accepts: ["lore"],
-                check: checkCalendarChoice,
-                describe: "Calendar that displays this place's dates.",
-            },
             {
                 name: "demonym",
                 ...TEXT,

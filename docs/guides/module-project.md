@@ -275,7 +275,7 @@ Five keys, and each answers a question the build cannot answer for itself:
 Everything omitted has a default, and the defaults are the conventional
 HeroicLands layout: the content tree at `assets/content`, the compiled packs at
 `build/stage/packs`, the intermediates and caches elsewhere under `build/`.
-[`configuration.md`](../configuration.md) documents all eighteen top-level keys,
+[`configuration.md`](../configuration.md) documents every top-level key,
 what each refusal message means, and the five values that are derived rather
 than authored.
 

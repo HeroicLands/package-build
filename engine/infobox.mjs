@@ -128,6 +128,7 @@ import {
     standingLead,
 } from "./standings.mjs";
 import { AddressEntries } from "./address-values.mjs";
+import { noteCalendar } from "./note-calendars.mjs";
 
 /**
  * How a section arranges what it holds.
@@ -1066,15 +1067,10 @@ function noteBox(
                 : parsed?.qualifier ? dates.eras?.get(parsed.qualifier)
                 : null;
             let printable = null;
-            if (parsed?.known && data.calendar) {
+            const calendar = noteCalendar(fm, dates);
+            if (parsed?.known && calendar) {
                 try {
-                    printable = formatDateInCalendar(
-                        parsed,
-                        isAddressTuple(data.calendar) ?
-                            renderAddress(data.calendar)
-                        :   data.calendar,
-                        dates,
-                    );
+                    printable = formatDateInCalendar(parsed, calendar, dates);
                 } catch {
                     // The calendar reference is checked at the authored field.
                 }

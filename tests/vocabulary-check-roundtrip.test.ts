@@ -83,7 +83,6 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
     being: {
         covers: [
             "culture",
-            "calendar",
             "affiliations",
             "socialTies",
             "born",
@@ -112,16 +111,7 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
         }),
     },
     place: {
-        covers: [
-            "events",
-            "calendar",
-            "purpose",
-            "culture",
-            "population",
-            "market",
-            "borders",
-            "routes",
-        ],
+        covers: ["events", "purpose", "culture", "population", "market", "borders", "routes"],
         fm: () => ({
             type: "place",
             subType: "settlement",
@@ -267,6 +257,13 @@ for (const type of Object.keys(NOTE_VOCABULARY)) {
                 ],
             },
         }),
+    };
+}
+
+for (const type of Object.keys(NOTE_VOCABULARY)) {
+    FIXTURES[`${type}:calendar`] = {
+        covers: ["calendar"],
+        fm: () => ({ type, shortcode: "subject", data: { calendar: "calendarone" } }),
     };
 }
 

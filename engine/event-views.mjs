@@ -41,12 +41,23 @@
 
 import { ownDocumentSystem, renderAddress } from "./address.mjs";
 import { authoredSection, sectionHeading } from "./generated-sections.mjs";
+import { calendarAddress } from "./reckoning-markers.mjs";
 
 /** A literal SQL string. */
 const literal = (text) => `'${String(text).replace(/'/g, "''")}'`;
 
 /** A list of SQL string literals, for an `IN (…)`. */
 const literals = (texts) => texts.map(literal).join(", ");
+
+/**
+ * The `When` column of a view on a page whose dates print in `calendar`: the
+ * event's date in that calendar, or — on a page with no calendar — in its
+ * owning note's.
+ *
+ * @param {string} [calendar] - The page's calendar, a canonical Address.
+ * @returns {string} The column's expression.
+ */
+const whenColumn = (calendar) => (calendar ? `e.whenIn[${literal(calendar)}]` : "e.whenText");
 
 /** The order every view sorts its rows in: by date, undated last. */
 const BY_DATE = "ORDER BY e.whenSort NULLS LAST, e.address";
@@ -65,7 +76,7 @@ const BY_DATE = "ORDER BY e.whenSort NULLS LAST, e.address";
  *
  * @type {ReadonlyArray<Readonly<{slug: string, heading: string,
  *   applies: (record: object) => boolean,
- *   query: (self: string[], shape: CorpusShape, columns?: {felt?: boolean}) => {fence: string, own?: string}|null,
+ *   query: (self: string[], shape: CorpusShape, columns?: {felt?: boolean, calendar?: string}) => {fence: string, own?: string}|null,
  *   owners?: (db: object, selves: string[][], shape: CorpusShape) => Promise<Set<string>>,
  *   felt?: (db: object, selves: string[][], shape: CorpusShape) => Promise<Set<string>>}>>}
  */
@@ -87,13 +98,13 @@ export const EVENT_VIEWS = Object.freeze([
             (record.type === "lore" && record.subType === "culture"),
         owners: (db, selves, shape) =>
             namedOwners(db, selves, "SELECT unnest(who).ref AS ref FROM events", shape.who),
-        query: (self, shape) => {
+        query: (self, shape, columns = {}) => {
             if (!shape.who) return null;
             const named = `list_filter(e.who, w -> w.ref IN (${literals(self)}))`;
             return {
                 fence: [
                     "SELECT e.note AS _ref,",
-                    '       e.whenText AS "When",',
+                    `       ${whenColumn(columns.calendar)} AS "When",`,
                     '       e.summary AS "What happened",',
                     `       array_to_string(list_transform(${named}, w -> w.role), ', ') AS "Role"`,
                     "FROM events e",
@@ -117,12 +128,12 @@ export const EVENT_VIEWS = Object.freeze([
                 'SELECT account."by" AS ref FROM (SELECT unnest(accounts) AS account FROM events)',
                 shape.accounts,
             ),
-        query: (self, shape) => {
+        query: (self, shape, columns = {}) => {
             if (!shape.accounts) return null;
             return {
                 fence: [
                     "SELECT e.note AS _ref,",
-                    '       e.whenText AS "When",',
+                    `       ${whenColumn(columns.calendar)} AS "When",`,
                     '       e.summary AS "Event",',
                     '       e.account.says AS "What they say",',
                     '       e.account.agrees AS "Agrees"',
@@ -145,7 +156,7 @@ export const EVENT_VIEWS = Object.freeze([
                     "FROM (SELECT unnest(follows) AS edge FROM events)",
                 shape.follows,
             ),
-        query: (self, shape) => {
+        query: (self, shape, columns = {}) => {
             if (!shape.follows) return null;
             const edges =
                 `list_filter(e.follows, f -> split_part(f.event, '#', 1) ` +
@@ -153,7 +164,7 @@ export const EVENT_VIEWS = Object.freeze([
             return {
                 fence: [
                     "SELECT e.note AS _ref,",
-                    '       e.whenText AS "When",',
+                    `       ${whenColumn(columns.calendar)} AS "When",`,
                     '       e.summary AS "What followed",',
                     `       array_to_string(list_transform(${edges}, f -> f.how), ', ') AS "How"`,
                     "FROM events e",
@@ -307,8 +318,9 @@ async function chronologyRoots(db, selves, shape, conditions) {
  *
  * @param {string[]} self - The place's Address, in each form.
  * @param {CorpusShape} shape - What the corpus states.
- * @param {{felt?: boolean}} [columns] - `felt: false` when no row of this
- *   place is felt there, which leaves the `Felt here` column out.
+ * @param {{felt?: boolean, calendar?: string}} [columns] - `felt: false` when
+ *   no row of this place is felt there, which leaves the `Felt here` column
+ *   out; `calendar`, the page's calendar, which the `When` column prints in.
  * @returns {{fence: string, own: string}|null} The query, and the one that
  *   counts the place's own rows.
  */
@@ -332,7 +344,7 @@ function chronologyQuery(self, shape, columns = {}) {
         ...below,
         "here AS (SELECT list(place) AS places FROM below)",
         "SELECT e.note AS _ref,",
-        '       e.whenText AS "When",',
+        `       ${whenColumn(columns.calendar)} AS "When",`,
         shape.reach && columns.felt !== false ?
             '       e.summary AS "What happened",'
         :   '       e.summary AS "What happened"',
@@ -453,11 +465,12 @@ export async function eventViewSections(db, records, fileOf, only) {
         const sections = new Map();
         for (const view of EVENT_VIEWS) {
             if (!view.applies(record) || authoredSection(record, view.slug)) continue;
-            const query = view.query(
-                self,
-                shape,
-                felt.has(view.slug) ? { felt: felt.get(view.slug).has(self[0]) } : undefined,
-            );
+            const query = view.query(self, shape, {
+                ...(felt.has(view.slug) ? { felt: felt.get(view.slug).has(self[0]) } : {}),
+                ...(calendarAddress(record.resolvedCalendar) ?
+                    { calendar: calendarAddress(record.resolvedCalendar) }
+                :   {}),
+            });
             if (!query) continue;
             const has =
                 owned.has(view.slug) ?

@@ -15,11 +15,12 @@ import Handlebars from "handlebars";
 
 import { isAddressTuple, renderAddress } from "./address.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
-import { formatDateInCalendar, parseNoteDate } from "./note-dates.mjs";
+import { calendarEras, formatDateInCalendar, parseNoteDate } from "./note-dates.mjs";
 import { numberWords, numberDigits } from "./number-words.mjs";
 import { slugify } from "./content-slug.mjs";
 import { WIKILINK, authoredLabel, isSamePage, parseWikilink } from "./wikilink-syntax.mjs";
-import { EVENT_REFERENCE_FIELDS, eventFieldText } from "./event-fields.mjs";
+import { EVENT_REFERENCE_FIELDS, eventFieldText, printEventDate } from "./event-fields.mjs";
+import { noteCalendar } from "./note-calendars.mjs";
 
 /**
  * An inline expression, as an author writes one.
@@ -32,6 +33,48 @@ import { EVENT_REFERENCE_FIELDS, eventFieldText } from "./event-fields.mjs";
  * @type {RegExp}
  */
 export const EXPRESSION = /(?<![\\{])\{\{(?![{<%])([^{}\n]+)\}\}(?!\})/g;
+
+/**
+ * Which of `dateformat`'s arguments is which. Three are a calendar, a date and
+ * a format. Two are a calendar and a date, unless the first is absent — a
+ * `data.calendar` the note leaves unset is no calendar — or is a date that
+ * names no calendar, when they are a date and a format. One is a date.
+ *
+ * @param {unknown[]} given - The arguments, without Handlebars' options.
+ * @param {object} [dates] - The reckoning context.
+ * @returns {{calendar?: unknown, authored: unknown, format?: unknown}} The roles.
+ */
+function dateformatArguments(given, dates) {
+    if (given.length >= 3) {
+        const [calendar, authored, format] = given;
+        return { calendar: calendar ?? undefined, authored, format };
+    }
+    if (given.length < 2) return { authored: given[0] };
+    const [first, second] = given;
+    if (first === undefined || first === null) return { authored: second };
+    if (typeof first === "number") return { authored: first, format: second };
+    if (typeof first === "string" && !namesCalendar(first, dates)) {
+        const parsed = parseNoteDate(first, { ...dates, allowUnknown: false });
+        if (parsed.date && !parsed.findings.some((item) => item.severity === "error"))
+            return { authored: first, format: second };
+    }
+    return { calendar: first, authored: second };
+}
+
+/**
+ * Whether a string names a calendar or one of its eras.
+ *
+ * @param {string} value - The string.
+ * @param {object} [dates] - The reckoning context.
+ * @returns {boolean} Whether it resolves to one.
+ */
+function namesCalendar(value, dates) {
+    try {
+        return calendarEras(value, dates).length > 0;
+    } catch {
+        return false;
+    }
+}
 
 /**
  * Every helper an expression may call, with the parameters it takes.
@@ -135,30 +178,42 @@ const HELPERS = Object.freeze([
     }),
     Object.freeze({
         name: "dateformat",
-        params: 'calendar date ["format"]',
+        params: '[calendar] date ["format"]',
         summary:
-            "A date written in a calendar. The calendar is an Address or its shortcode, the date " +
-            "is the value a note carries, and the optional third argument names an output pattern.",
+            "A date written in a calendar. The calendar is an Address or its shortcode; left " +
+            "out, it is the note's own calendar — its `data.calendar`, else its culture's, " +
+            "else for a place its parents', else the configured `defaultCalendar` — and a " +
+            "note with none prints the date as written. The date is the value a note " +
+            "carries, and the optional last argument names an output pattern.",
         make:
-            ({ dates }) =>
-            (calendar, authored, formatOrOptions) => {
+            ({ dates, fm }) =>
+            (...args) => {
+                const { calendar, authored, format } = dateformatArguments(
+                    args.slice(0, -1),
+                    dates,
+                );
                 if (
-                    !(typeof calendar === "string" || isAddressTuple(calendar)) ||
-                    !["string", "number"].includes(typeof authored)
+                    !(
+                        calendar === undefined ||
+                        typeof calendar === "string" ||
+                        isAddressTuple(calendar)
+                    ) ||
+                    !["string", "number"].includes(typeof authored) ||
+                    !(format === undefined || typeof format === "string")
                 )
-                    throw new TypeError("dateformat needs a calendar Address and a date");
+                    throw new TypeError("dateformat needs a date, and takes a calendar Address");
                 const parsed = parseNoteDate(authored, { ...dates, allowUnknown: false });
                 const error = parsed.findings.find((item) => item.severity === "error");
                 if (error || !parsed.date)
                     throw new RangeError(error?.message ?? "date does not resolve");
-                const printable = formatDateInCalendar(
-                    parsed.date,
-                    isAddressTuple(calendar) ? renderAddress(calendar) : calendar,
-                    dates,
-                    typeof formatOrOptions === "string" ? formatOrOptions : undefined,
-                );
+                const reference =
+                    calendar === undefined ? noteCalendar(fm, dates)
+                    : isAddressTuple(calendar) ? renderAddress(calendar)
+                    : calendar;
+                if (reference === undefined) return printEventDate(authored, parsed.date, dates);
+                const printable = formatDateInCalendar(parsed.date, reference, dates, format);
                 if (!printable)
-                    throw new RangeError(`date cannot be printed in calendar ${calendar}`);
+                    throw new RangeError(`date cannot be printed in calendar ${reference}`);
                 return printable.prose ?? printable.text;
             },
     }),

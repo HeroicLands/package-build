@@ -25,10 +25,19 @@
  * `resolvedDates.events`, position for position with `data.events`, and the
  * sort keys are read from it rather than parsed again here.
  *
- * **`whenText` and `untilText` are the dates as a reader sees them**: printed
- * as the `dateformat` helper prints a date, in the calendar the owning note
- * names in `data.calendar`, else the one the world note names, else in the era
- * the date itself names. A date that does not resolve keeps its authored text.
+ * **`whenText` and `untilText` are the dates as a reader of the owning note
+ * sees them**: printed as the `dateformat` helper prints a date, in the
+ * calendar the owning note resolves to — see
+ * {@link module:engine/note-calendars} — else in the era the date itself
+ * names. A date that does not resolve keeps its authored text.
+ *
+ * **`whenIn` and `untilIn` are the same dates in every calendar**: a struct
+ * keyed by each calendar note's canonical Address, every calendar the corpus
+ * holds or any note resolves to, so a query reads a date in the calendar it
+ * chooses — `e.whenIn['thalorna-note-lore-commoncal']`. Every row carries every
+ * key; a date a calendar cannot print reads there as it would in `whenText`
+ * with no calendar, and an absent date is `NULL`. The event views select the
+ * key of the page's calendar.
  *
  * @module
  */
@@ -36,6 +45,7 @@
 import { ownDocumentSystem, renderAddress } from "./address.mjs";
 import { printEventDateIn } from "./event-fields.mjs";
 import { EVENT_ENTRY_KEYS } from "./note-event-terms.mjs";
+import { calendarAddress } from "./reckoning-markers.mjs";
 
 /** The columns a row carries besides the event's own keys, before them. */
 const IDENTITY_COLUMNS = Object.freeze(["note", "address"]);
@@ -46,12 +56,16 @@ export const EVENT_SORT_COLUMNS = Object.freeze(["whenSort", "whenYear", "untilS
 /** The printed dates a row carries, after the sort keys. */
 export const EVENT_TEXT_COLUMNS = Object.freeze(["whenText", "untilText"]);
 
+/** The dates a row carries in every calendar, after the printed ones. */
+export const EVENT_CALENDAR_COLUMNS = Object.freeze(["whenIn", "untilIn"]);
+
 /** Every column of the `events` relation, in order. */
 export const EVENT_COLUMNS = Object.freeze([
     ...IDENTITY_COLUMNS,
     ...EVENT_ENTRY_KEYS,
     ...EVENT_SORT_COLUMNS,
     ...EVENT_TEXT_COLUMNS,
+    ...EVENT_CALENDAR_COLUMNS,
 ]);
 
 /** The keys whose authored value is a date, printed as the text it was written as. */
@@ -95,18 +109,35 @@ function axisKeys(date) {
 }
 
 /**
- * The calendar the world note names, which displays every date whose own note
- * names none.
+ * Every calendar a set of records can print an event's date in: each calendar
+ * note's canonical Address, and every calendar a note resolves to.
  *
- * @param {Record<string, any>[]} records - Index records.
- * @returns {string|undefined} The calendar's Address or shortcode.
+ * @param {Iterable<Record<string, any>>} records - Index records, every
+ *   Address a string.
+ * @returns {string[]} The calendars, sorted.
  */
-function worldCalendar(records) {
+export function eventCalendars(records) {
+    const calendars = new Set();
     for (const record of records) {
-        if (record?.type === "place" && record.data?.year?.days && record.data.calendar)
-            return String(record.data.calendar);
+        const resolved = calendarAddress(record?.resolvedCalendar);
+        if (resolved) calendars.add(resolved);
+        if (
+            record?.type === "lore" &&
+            String(record.subType ?? "").toLowerCase() === "calendar" &&
+            record.package &&
+            record.shortcode &&
+            !record.documents
+        )
+            calendars.add(
+                renderAddress({
+                    package: String(record.package),
+                    system: "note",
+                    type: "lore",
+                    shortcode: String(record.shortcode),
+                }),
+            );
     }
-    return undefined;
+    return [...calendars].sort();
 }
 
 /**
@@ -115,12 +146,16 @@ function worldCalendar(records) {
  * @param {Iterable<Record<string, any>>} records - Index records, every
  *   Address a string, already narrowed to the audience being published to.
  * @param {object} [dates] - The reckoning context the dates are printed in.
+ * @param {readonly string[]} [calendars] - The calendars `whenIn` and
+ *   `untilIn` are keyed by: {@link eventCalendars} of every record of the
+ *   corpus, whatever the audience, so every surface's relation has the same
+ *   keys. Absent, those of `records`.
  * @returns {object[]} One row per event entry, in record then entry order.
  */
-export function eventRows(records, dates) {
+export function eventRows(records, dates, calendars) {
     const rows = [];
     const all = [...records];
-    const world = worldCalendar(all);
+    const keys = calendars ?? eventCalendars(all);
     for (const record of all) {
         const events = record?.data?.events;
         if (!Array.isArray(events) || !events.length) continue;
@@ -128,7 +163,7 @@ export function eventRows(records, dates) {
         if (!note) continue;
         const resolved =
             Array.isArray(record.resolvedDates?.events) ? record.resolvedDates.events : [];
-        const calendar = record.data?.calendar ? String(record.data.calendar) : world;
+        const calendar = calendarAddress(record.resolvedCalendar);
         events.forEach((entry, position) => {
             if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
             const row = {
@@ -149,10 +184,20 @@ export function eventRows(records, dates) {
             row.untilSort = until.sort;
             row.untilYear = until.year;
             for (const key of DATE_KEYS) {
+                const date = resolved[position]?.[key];
                 row[`${key}Text`] =
-                    row[key] === null ?
-                        null
-                    :   printEventDateIn(row[key], resolved[position]?.[key], dates, calendar);
+                    row[key] === null ? null : printEventDateIn(row[key], date, dates, calendar);
+                row[`${key}In`] =
+                    keys.length ?
+                        Object.fromEntries(
+                            keys.map((each) => [
+                                each,
+                                row[key] === null ?
+                                    null
+                                :   printEventDateIn(row[key], date, dates, each),
+                            ]),
+                        )
+                    :   null;
             }
             rows.push(row);
         });

@@ -31,7 +31,7 @@ import { collectAnchors } from "./anchors.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
-import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventRows } from "./event-rows.mjs";
+import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventCalendars, eventRows } from "./event-rows.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { NAME_COLUMNS, namesRows } from "./name-rows.mjs";
 import {
@@ -552,7 +552,7 @@ async function createRelations(connection, file, records, prefix = "", audience 
  */
 async function createEventRelation(connection, file, records, prefix, audience) {
     const visible = audience === "public" ? records.filter((record) => !isGmNote(record)) : records;
-    const rows = eventRows(visible, reckoningContext({ notes: records }));
+    const rows = eventRows(visible, reckoningContext({ notes: records }), eventCalendars(records));
     if (!rows.length) {
         const columns = EVENT_COLUMNS.map((column) => {
             const type = EVENT_SORT_COLUMNS.includes(column) ? "DOUBLE" : "VARCHAR";
@@ -564,7 +564,13 @@ async function createEventRelation(connection, file, records, prefix, audience) 
         return;
     }
     fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
-    await createTableFromFile(connection, `${prefix}events`, readJsonAuto(file));
+    // `whenIn` and `untilIn` are keyed by calendar Address, and read as structs
+    // whatever their number of keys, so `whenIn['<calendar>']` always binds.
+    await createTableFromFile(
+        connection,
+        `${prefix}events`,
+        readJsonAuto(file).replace(/\)$/, ", map_inference_threshold=-1)"),
+    );
 }
 
 /**
