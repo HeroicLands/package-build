@@ -1,5 +1,15 @@
 # @heroiclands/package-build
 
+## 23.12.4
+
+### Patch Changes
+
+A PDF book may declare a short `abbreviation`, so references into it read `(Aelw. p307)` instead of naming the full title, and the other books' indexes list its notes the same way.
+
+In PDF books, a definition list sets its term in bold at the start of the line with the description running on after it, indented on later lines, and no space appears between a linked name and the punctuation that follows it.
+
+`project init` scaffolds the build workflow at `.gitea/workflows/build.yml`, and `project check` and `package-build ci` read it from there.
+
 ## 23.12.3
 
 ### Patch Changes
