@@ -174,11 +174,11 @@ the Lyrebird Inn (The Tenebrae Volume, p. 214)
 
 Which form a wikilink takes depends on where its target is printed:
 
-| The target is                                                 | The link prints                                                                      |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| An entry of the same book, including a note the book reprints | An internal destination                                                              |
-| An entry of another book, and not of this one                 | `Name (_Book title_, p. N)`, or `Name (Aelw. pN)` with an abbreviation, with no link |
-| A note in no book                                             | The web address of the note's page                                                   |
+| The target is                                                 | The link prints                                                                                                                            |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| An entry of the same book, including a note the book reprints | An internal destination                                                                                                                    |
+| An entry of another book, and not of this one                 | `Name (_Book title_, p. N)`, or `Name (Aelw. pN)` with an abbreviation, with no link; inside a bracket the text closes, `(Name, Aelw. pN)` |
+| A note in no book                                             | The web address of the note's page                                                                                                         |
 
 The page is the page the PDF itself numbers, which is the number printed in the
 footer and used by the contents and the index, so the printed `p. N` is the

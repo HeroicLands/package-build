@@ -185,6 +185,30 @@ describe("the printed form", () => {
         );
     });
 
+    it("joins the bracket a link closes rather than opening its own", () => {
+        const short = { ...away, abbreviation: "Core." };
+        const render = (markdown: string, book = short) =>
+            markdownToTypst(markdown, {
+                links: new Map(),
+                elsewhere: { get: () => book },
+                url: "https://www.heroiclands.org/sohl/",
+            });
+        expect(render("Steel ([the sword](/sohl/weapongear-sword/)) is old.")).toContain(
+            "Steel (the sword, Core.~p12) is old.",
+        );
+        expect(render("Steel (see [the sword](/sohl/weapongear-sword/)).")).toContain(
+            "(see the sword, Core.~p12).",
+        );
+        expect(render("Steel ([the sword](/sohl/weapongear-sword/)).", away)).toContain(
+            "(the sword, #emph[The Core Volume], p.~12).",
+        );
+        // In running text the reference keeps its own brackets.
+        expect(render("Steel from [the sword](/sohl/weapongear-sword/) is old.")).toContain(
+            "the sword (Core.~p12) is old.",
+        );
+        expect(crossBookReference("x", short, { bracketed: true })).toBe("x, Core.~p12");
+    });
+
     it("applies to an infobox link by address", () => {
         const elsewhere = { get: (key: string) => (key === "pkg-note-x" ? away : undefined) };
         const value = { text: "Sword", address: "pkg-note-x", url: "/sohl/x/" };

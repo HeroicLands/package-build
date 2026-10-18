@@ -1259,7 +1259,9 @@ Each entry of `pdf.books` is one PDF:
   abbreviation and the page, and the other book's index, when
   `pdf.indexSeeAlso` is on, lists the note as `Name: Aelw. p307`. A book
   with no abbreviation is named by its full title in italics, `Name (_Book
-title_, p. 307)`. Each abbreviation is used once, since a reader could not
+title_, p. 307)`. A link the text closes a bracket on takes the reference
+  inside that bracket after a comma, so `(see The Crossing)` prints
+  `(see The Crossing, Thal. p524)` rather than nesting brackets. Each abbreviation is used once, since a reader could not
   tell which book to open from one shared by two.
 - `contents` is the tree written inline — the same `sectionName` /
   `contents` / `filter` / `file` shape a tree file holds under its own

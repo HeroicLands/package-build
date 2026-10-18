@@ -1295,7 +1295,11 @@ function renderInline(token, ctx) {
             case "link_open": {
                 const close = childMatching(children, i, "link_open", "link_close");
                 const inner = renderInline({ children: children.slice(i + 1, close) }, ctx);
-                out.push(renderLink(child.attrGet?.("href") ?? "", inner, ctx));
+                // A link the text closes a bracket on takes its reference
+                // inside that bracket.
+                const after = children[close + 1];
+                const bracketed = after?.type === "text" && after.content.startsWith(")");
+                out.push(renderLink(child.attrGet?.("href") ?? "", inner, ctx, { bracketed }));
                 i = close;
                 break;
             }
@@ -1411,9 +1415,11 @@ function pageOfLabel(label) {
  * @param {string} href - The resolved URL.
  * @param {string} inner - The already-rendered link text.
  * @param {object} ctx - Render context.
+ * @param {{bracketed?: boolean}} [opts] - `bracketed` when the text closes a
+ *   bracket right after the link; see {@link crossBookReference}.
  * @returns {string} Typst markup.
  */
-function renderLink(href, inner, ctx) {
+function renderLink(href, inner, ctx, { bracketed = false } = {}) {
     const url = String(href ?? "");
     const fragment = /#([^?]*)/.exec(url)?.[1] ?? "";
     if (url.startsWith("#") && fragment)
@@ -1441,7 +1447,7 @@ function renderLink(href, inner, ctx) {
         // A mention in authored prose is what lists the note, under
         // `pdf.indexSeeAlso`.
         const marker = ctx.indexMentions && ctx.elsewhere.seeAlso ? indexMarker(away.slug) : "";
-        return `${crossBookReference(inner, away)}${marker}`;
+        return `${crossBookReference(inner, away, { bracketed })}${marker}`;
     }
     if (!url || ctx.generated) return inner;
     return `#link("${escapeTypstString(absolutePageUrl(url, ctx.url))}")[${inner}]`;
@@ -1452,6 +1458,10 @@ function renderLink(href, inner, ctx) {
  * carried, then the book and the page. A book with an abbreviation reads
  * `Name (Aelw. p12)`; one without reads `Name (_Book title_, p. 12)`.
  *
+ * A link the text already closes a bracket on, as in `(see Name)`, takes the
+ * reference inside that bracket after a comma, `(see Name, Aelw. p12)`, so the
+ * brackets never nest.
+ *
  * The space before the page number, or between the abbreviation and the page,
  * does not break, so a number never starts a line of its own.
  *
@@ -1459,13 +1469,16 @@ function renderLink(href, inner, ctx) {
  * @param {{title: string, abbreviation?: string, page: string|number}} away -
  *   The home book's title, its abbreviation when it declares one, and the page
  *   the entry starts on.
+ * @param {{bracketed?: boolean}} [opts] - `bracketed` when the text closes a
+ *   bracket right after the link.
  * @returns {string} Typst markup.
  */
-export function crossBookReference(inner, away) {
-    if (away.abbreviation) {
-        return `${inner} (${escapeTypst(away.abbreviation)}~p${away.page})`;
-    }
-    return `${inner} (#emph[${escapeTypst(away.title)}], p.~${away.page})`;
+export function crossBookReference(inner, away, { bracketed = false } = {}) {
+    const where =
+        away.abbreviation ?
+            `${escapeTypst(away.abbreviation)}~p${away.page}`
+        :   `#emph[${escapeTypst(away.title)}], p.~${away.page}`;
+    return bracketed ? `${inner}, ${where}` : `${inner} (${where})`;
 }
 
 /**
