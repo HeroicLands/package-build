@@ -2957,20 +2957,21 @@ query rather than a list kept by hand:
 
 ````markdown
 ```sql
-SELECT note AS _ref, "when" AS "When", summary AS "What happened"
+SELECT note AS _ref, whenText AS "When", summary AS "What happened"
 FROM events
 WHERE kind IN ('war', 'siege', 'battle')
 ORDER BY whenSort
 ```
 ````
 
-| Column                   | What it holds                                                                                                                                                                                                               |
-| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `note`                   | The canonical Address of the note the event is written on.                                                                                                                                                                  |
-| `address`                | The event's own Address: `note#id` where the event has an `id`, the note's Address alone where it has none.                                                                                                                 |
-| `id`, `kind`, `depth`, … | Every key of an event, each its own column under its own name — `id`, `kind`, `depth`, `when`, `until`, `recurs`, `summary`, `standing`, `names`, `where`, `who`, `follows`, `accounts`, `unresolved`, `sources`, `stated`. |
-| `whenSort`, `untilSort`  | The date's position on the canonical axis: the canonical year, with a day as its fraction of the year where the calendar states the year's length. `ORDER BY whenSort` is date order.                                       |
-| `whenYear`, `untilYear`  | The canonical year alone, for a filter such as `whenYear BETWEEN 200 AND 299`.                                                                                                                                              |
+| Column                   | What it holds                                                                                                                                                                                                                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `note`                   | The canonical Address of the note the event is written on.                                                                                                                                                                                                                                     |
+| `address`                | The event's own Address: `note#id` where the event has an `id`, the note's Address alone where it has none.                                                                                                                                                                                    |
+| `id`, `kind`, `depth`, … | Every key of an event, each its own column under its own name — `id`, `kind`, `depth`, `when`, `until`, `recurs`, `summary`, `standing`, `names`, `where`, `who`, `follows`, `accounts`, `unresolved`, `sources`, `stated`.                                                                    |
+| `whenSort`, `untilSort`  | The date's position on the canonical axis: the canonical year, with a day as its fraction of the year where the calendar states the year's length. `ORDER BY whenSort` is date order.                                                                                                          |
+| `whenText`, `untilText`  | The date as a reader sees it, printed as `dateformat` prints it in the calendar the owning note names in `data.calendar`, else the one the world note names, else in the era the date itself names; `~` marks an approximate date. A date that does not resolve keeps the text its note wrote. |
+| `whenYear`, `untilYear`  | The canonical year alone, for a filter such as `whenYear BETWEEN 200 AND 299`.                                                                                                                                                                                                                 |
 
 `when` and `until` read as the text the note wrote, `~` included. The sort
 keys and years are positions on the canonical axis, which counts a year `0`
@@ -3498,7 +3499,7 @@ The caption attaches to exactly the next supported block:
 
 The optional `type` attribute overrides inference and accepts `figure`, `table`, `poetry`, `code`, `prose`, and `example`. `type=example` uses **Example 1**, **Example 2**, and so on. It does not allow an unsupported target. A heading, list, thematic break, another caption or end of document after a caption is an error. Caption markers without separating spaces or caption text are errors too.
 
-Identifiers are optional and must be unique within the note. Classes are unrestricted; `.border` uses the shared border style, while other classes can be styled by the medium. Named attributes use `key=value`, with quoted values for text containing spaces. Use `#id` and `.class` rather than `id=` and `class=`; event-handler attributes are refused.
+Identifiers are optional and must be unique within the note. Classes are unrestricted; `.border` uses the shared border style, while other classes can be styled by the medium. On a captioned table or SQL fence, `.full-width` sets the table across the page in a PDF book instead of in one column (`: Regional trade routes {.full-width}`); the other surfaces ignore it. Named attributes use `key=value`, with quoted values for text containing spaces. Use `#id` and `.class` rather than `id=` and `class=`; event-handler attributes are refused.
 
 Each numbered type has its own counter. Websites and Foundry number within a note; books number across their reading order. Unnumbered captions neither display nor consume a number. A map image can retain its asset-derived **Map** classification when no type is specified.
 
@@ -3763,11 +3764,14 @@ The build appends sections to the end of a note's body that list the events conc
 
 | View          | Anchor       | On                                                               | Rows                                                                                                                                                                              | Columns                            |
 | ------------- | ------------ | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| Chronology    | `chronology` | a `place`                                                        | events whose `where.locus` names the place or a place below it in `parents`; events whose `where.reach` names one, with that entry's `how`; every `depth: world` event as context | What happened, When, Felt here     |
-| Events        | `events`     | a `being`, an `affiliation`, a `lore` note of `subType: culture` | events whose `who[].ref` names the note, with the role it played                                                                                                                  | What happened, When, Role          |
-| Accounts      | `accounts`   | an `affiliation`, a `place`, a `lore` note of `subType: culture` | each `accounts[]` entry the note gives, with the event it concerns                                                                                                                | Event, When, What they say, Agrees |
-| What followed | `followed`   | a note holding events                                            | events whose `follows[].event` names one of this note's events, with how                                                                                                          | What followed, When, How           |
+| Chronology    | `chronology` | a `place`                                                        | events whose `where.locus` names the place or a place below it in `parents`; events whose `where.reach` names one, with that entry's `how`; every `depth: world` event as context | When, What happened, Felt here     |
+| Events        | `events`     | a `being`, an `affiliation`, a `lore` note of `subType: culture` | events whose `who[].ref` names the note, with the role it played                                                                                                                  | When, What happened, Role          |
+| Accounts      | `accounts`   | an `affiliation`, a `place`, a `lore` note of `subType: culture` | each `accounts[]` entry the note gives, with the event it concerns                                                                                                                | When, Event, What they say, Agrees |
+| What followed | `followed`   | a note holding events                                            | events whose `follows[].event` names one of this note's events, with how                                                                                                          | When, What followed, How           |
 
+- **Every view's first column is When**, the event's date written in the setting's calendar — the `events` relation's `whenText` column. An event whose date does not resolve shows the text its note wrote.
+- **A chronology's Felt here column appears only where some row is felt in the place.** A place whose rows are all events that happened there, or world events, has the When and What happened columns alone.
+- **A chronology is always set across the full page width in a PDF book**, whatever its columns.
 - **The views follow everything the author wrote**, in the order of the [generated sections](#generated-sections).
 - **A view with no rows is not generated.** A chronology is generated only where the place has rows of its own; the world events beside them are context and make no chronology by themselves.
 - **An author's own section replaces a view.** A note whose body declares a prose anchor with the view's slug — `# Chronology {#chronology}`, or a block or span with that `id` — gets no generated section for it, and its own section is left exactly as written. This is the one way to turn a view off, and the way to choose a different table: write the section and its own `sql` fence.

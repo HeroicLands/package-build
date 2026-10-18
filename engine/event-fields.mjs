@@ -23,7 +23,7 @@
  */
 
 import { ownDocumentSystem, parseAddress, readCanonicalKey, renderAddress } from "./address.mjs";
-import { formatNoteDate, parseNoteDate } from "./note-dates.mjs";
+import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 
 /** The fields of an event an inline reference may print, in the order a message names them. */
@@ -159,6 +159,29 @@ export function printEventDate(written, date, dates) {
         : null;
     const printable = era ? formatNoteDate(date, era, dates?.daysPerYear) : null;
     return printable?.prose ?? printable?.text ?? date.prose ?? date.text ?? String(written);
+}
+
+/**
+ * A date as `dateformat` prints it in a calendar, where one is named and
+ * prints it; otherwise as {@link printEventDate} prints it.
+ *
+ * @param {unknown} written - The date as the event writes it.
+ * @param {object|null} date - The resolved date.
+ * @param {object} [dates] - The reckoning context.
+ * @param {string} [calendar] - The calendar's Address or shortcode.
+ * @returns {string} The printed date; the authored text when nothing resolves.
+ */
+export function printEventDateIn(written, date, dates, calendar) {
+    if (date?.known && calendar) {
+        try {
+            const printable = formatDateInCalendar(date, calendar, dates);
+            const text = printable?.prose ?? printable?.text;
+            if (text) return text;
+        } catch {
+            // A calendar that does not resolve leaves the date in its own era.
+        }
+    }
+    return printEventDate(written, date, dates);
 }
 
 /**

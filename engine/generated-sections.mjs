@@ -42,6 +42,13 @@
  */
 
 /**
+ * The anchor of the Chronology section, which the book sets across the page.
+ *
+ * @type {string}
+ */
+export const CHRONOLOGY_SLUG = "chronology";
+
+/**
  * Every generated section, in the order it follows the author's text: where a
  * place sits and who governs it, then what happened, then what was written
  * about it, then the map.
@@ -53,7 +60,7 @@ export const GENERATED_SECTIONS = Object.freeze(
         { slug: "within", heading: "Within" },
         { slug: "governedby", heading: "Governed by" },
         { slug: "governedplaces", heading: "Governed places" },
-        { slug: "chronology", heading: "Chronology" },
+        { slug: CHRONOLOGY_SLUG, heading: "Chronology" },
         { slug: "events", heading: "Events" },
         { slug: "accounts", heading: "Accounts" },
         { slug: "followed", heading: "What followed" },

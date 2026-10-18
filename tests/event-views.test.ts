@@ -22,6 +22,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { collectContentIndex } from "../engine/content-index.mjs";
 import { expandContentTables } from "../engine/content-tables.mjs";
 import { EVENT_VIEWS, selfForms } from "../engine/event-views.mjs";
+import { renderMarkdownExpressions } from "../engine/markdown-expressions.mjs";
+import { reckoningContext } from "../engine/reckoning-markers.mjs";
 import { parseMarkdownFile } from "../engine/helpers.mjs";
 import { findSqlBlocks, openNotesDatabase, prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 
@@ -109,6 +111,57 @@ const NOTES: Record<string, { fm: object; body?: string }> = {
                         summary: "Famine follows the plague.",
                         follows: [{ event: "lore-plague", how: "caused" }],
                     },
+                ],
+            },
+        },
+    },
+    "Lone.md": {
+        fm: {
+            type: "place",
+            subType: "region",
+            shortcode: "lone",
+            data: {
+                events: [{ when: 250, summary: "Lone is founded.", where: { locus: ["lone"] } }],
+            },
+        },
+    },
+    "World.md": {
+        fm: {
+            type: "place",
+            subType: "world",
+            shortcode: "wrld",
+            data: { year: { days: 365 }, calendar: "demcal" },
+        },
+    },
+    "Demcal.md": {
+        fm: {
+            type: "lore",
+            subType: "calendar",
+            shortcode: "demcal",
+            data: {
+                epoch: "1.1",
+                months: Array.from({ length: 12 }, (_, index) => ({
+                    name: `Month ${index + 1}`,
+                    days: index === 11 ? 35 : 30,
+                })),
+                eras: [
+                    { shortcode: "before", name: "Before", abbreviation: "BF", start: null },
+                    { shortcode: "after", name: "After", abbreviation: "AF", start: 1 },
+                ],
+            },
+        },
+    },
+    "Dates.md": {
+        fm: {
+            type: "lore",
+            subType: "history",
+            shortcode: "dates",
+            data: {
+                events: [
+                    { when: "~-100", summary: "An approximate old event." },
+                    { when: -300, summary: "A negative event." },
+                    { when: "250.100", summary: "An exact day." },
+                    { when: "unknown", summary: "An undated event." },
                 ],
             },
         },
@@ -333,5 +386,80 @@ describe("the other views", () => {
         const plague = expanded("Plague.md");
         expect(plague).toContain("Famine follows the plague.");
         expect(plague).toContain("caused");
+    });
+});
+
+/** The column names of a view's query, in order. */
+function columnsOf(slug: string): string[] {
+    const view: any = EVENT_VIEWS.find((one: any) => one.slug === slug);
+    const shape = {
+        parents: true,
+        locus: true,
+        reach: true,
+        who: true,
+        accounts: true,
+        follows: true,
+        depth: true,
+    } as any;
+    const { fence } = view.query(["demo-note-place-x"], shape);
+    return [...fence.matchAll(/ AS "([^"]+)"/g)].map((match) => match[1]);
+}
+
+describe("column order", () => {
+    it.each([
+        ["chronology", ["When", "What happened", "Felt here"]],
+        ["events", ["When", "What happened", "Role"]],
+        ["accounts", ["When", "Event", "What they say", "Agrees"]],
+        ["followed", ["When", "What followed", "How"]],
+    ])("puts When first in the %s view", (slug, columns) => {
+        expect(columnsOf(slug)).toEqual(columns);
+    });
+});
+
+describe("the When column", () => {
+    it("prints each date in the setting's calendar, as dateformat does", async () => {
+        const records = collectContentIndex(dir, { contentPackage: PACKAGE, skipDirectories: [] });
+        const dates = reckoningContext({ notes: records, contentPackage: PACKAGE });
+        const db = await openNotesDatabase(records);
+        try {
+            const { rows } = await db.query(
+                `SELECT "when" AS written, whenText FROM events WHERE note LIKE '%lore-dates'`,
+            );
+            const byWritten = new Map(rows.map((row: any) => [String(row.written), row.whenText]));
+            const expected = (written: string) =>
+                renderMarkdownExpressions(`{{dateformat "demcal" "${written}"}}`, { dates })
+                    .markdown;
+            for (const written of ["~-100", "-300", "250.100"]) {
+                expect(byWritten.get(written), written).toBe(expected(written));
+            }
+            expect(byWritten.get("~-100")).toMatch(/^~/);
+            expect(byWritten.get("~-100")).not.toMatch(/^~~/);
+            expect(byWritten.get("-300")).toContain("BF");
+            expect(byWritten.get("250.100")).toContain("AF");
+            expect(byWritten.get("unknown")).toBe("unknown");
+        } finally {
+            await db.close();
+        }
+    });
+
+    it("is what a chronology prints", () => {
+        const rha = expanded("Rha.md");
+        expect(rha).toContain("|200 AF]]");
+        expect(rha).not.toContain("|200]]");
+    });
+});
+
+describe("the Felt here column", () => {
+    it("is kept in a chronology where some row is felt", () => {
+        expect(expanded("Rha.md")).toContain("Felt here");
+    });
+
+    it("is left out of a chronology where no row is felt", () => {
+        const lone = expanded("Lone.md");
+        expect(lone).toContain("Lone is founded.");
+        expect(lone).not.toContain("Felt here");
+        expect(String(prepared.get(path.join(dir, "Lone.md")).generated)).not.toContain(
+            "Felt here",
+        );
     });
 });

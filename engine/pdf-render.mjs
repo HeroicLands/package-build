@@ -75,6 +75,7 @@ import {
     imagePlugin,
 } from "./content-images.mjs";
 import { bookImageWidthIn } from "./pdf-images.mjs";
+import { CHRONOLOGY_SLUG } from "./generated-sections.mjs";
 
 /** Requested print width for every named image size. */
 export const BOOK_IMAGE_WIDTHS = Object.freeze({
@@ -738,6 +739,8 @@ function renderBlock(tokens, i, out, ctx) {
             // the same words later in the same entry.
             const base = anchor || slugify(plainHeadingText(inline)) || "heading";
             const unique = anchorFor(base, ctx.seen);
+            // The section a table falls in decides whether it spans the page.
+            ctx.section = base;
             const label = ` <${sectionLabel(ctx.anchorPrefix, unique)}>`;
             // A body heading is never printed and never bookmarked — it is
             // structure a reader reaches only by following a link, not a
@@ -1166,8 +1169,14 @@ function renderTable(tokens, ctx) {
     // Wide content is given an explicit span rather than left to overflow the
     // measure: past three columns a table is set across the page, and
     // `book-wide` decides between a float and pages of its own by measuring it.
-    if (columns > WIDE_TABLE_COLUMNS)
-        return `${caption ? "" : "\n#pagebreak(weak: true)\n"}\n#book-wide[\n${labelled}\n]\n\n`;
+    // A table can ask for the span, whatever its columns: its caption takes
+    // `.full-width`, and a Chronology section is always set that way. A wide
+    // table floats to where it fits and the text runs on past it, so a heading
+    // is never left alone above an empty page; its heading, caption and any
+    // reference to it are what lead a reader there.
+    const asked =
+        Boolean(caption?.classes?.includes("full-width")) || ctx.section === CHRONOLOGY_SLUG;
+    if (asked || columns > WIDE_TABLE_COLUMNS) return `\n#book-wide[\n${labelled}\n]\n\n`;
     return `\n${labelled}\n\n`;
 }
 

@@ -25,10 +25,16 @@
  * `resolvedDates.events`, position for position with `data.events`, and the
  * sort keys are read from it rather than parsed again here.
  *
+ * **`whenText` and `untilText` are the dates as a reader sees them**: printed
+ * as the `dateformat` helper prints a date, in the calendar the owning note
+ * names in `data.calendar`, else the one the world note names, else in the era
+ * the date itself names. A date that does not resolve keeps its authored text.
+ *
  * @module
  */
 
 import { ownDocumentSystem, renderAddress } from "./address.mjs";
+import { printEventDateIn } from "./event-fields.mjs";
 import { EVENT_ENTRY_KEYS } from "./note-event-terms.mjs";
 
 /** The columns a row carries besides the event's own keys, before them. */
@@ -37,11 +43,15 @@ const IDENTITY_COLUMNS = Object.freeze(["note", "address"]);
 /** The sort keys a row carries, after the event's own keys. */
 export const EVENT_SORT_COLUMNS = Object.freeze(["whenSort", "whenYear", "untilSort", "untilYear"]);
 
+/** The printed dates a row carries, after the sort keys. */
+export const EVENT_TEXT_COLUMNS = Object.freeze(["whenText", "untilText"]);
+
 /** Every column of the `events` relation, in order. */
 export const EVENT_COLUMNS = Object.freeze([
     ...IDENTITY_COLUMNS,
     ...EVENT_ENTRY_KEYS,
     ...EVENT_SORT_COLUMNS,
+    ...EVENT_TEXT_COLUMNS,
 ]);
 
 /** The keys whose authored value is a date, printed as the text it was written as. */
@@ -85,21 +95,40 @@ function axisKeys(date) {
 }
 
 /**
+ * The calendar the world note names, which displays every date whose own note
+ * names none.
+ *
+ * @param {Record<string, any>[]} records - Index records.
+ * @returns {string|undefined} The calendar's Address or shortcode.
+ */
+function worldCalendar(records) {
+    for (const record of records) {
+        if (record?.type === "place" && record.data?.year?.days && record.data.calendar)
+            return String(record.data.calendar);
+    }
+    return undefined;
+}
+
+/**
  * The `events` rows of a set of index records.
  *
  * @param {Iterable<Record<string, any>>} records - Index records, every
  *   Address a string, already narrowed to the audience being published to.
+ * @param {object} [dates] - The reckoning context the dates are printed in.
  * @returns {object[]} One row per event entry, in record then entry order.
  */
-export function eventRows(records) {
+export function eventRows(records, dates) {
     const rows = [];
-    for (const record of records) {
+    const all = [...records];
+    const world = worldCalendar(all);
+    for (const record of all) {
         const events = record?.data?.events;
         if (!Array.isArray(events) || !events.length) continue;
         const note = noteAddressOf(record);
         if (!note) continue;
         const resolved =
             Array.isArray(record.resolvedDates?.events) ? record.resolvedDates.events : [];
+        const calendar = record.data?.calendar ? String(record.data.calendar) : world;
         events.forEach((entry, position) => {
             if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
             const row = {
@@ -119,6 +148,12 @@ export function eventRows(records) {
             row.whenYear = when.year;
             row.untilSort = until.sort;
             row.untilYear = until.year;
+            for (const key of DATE_KEYS) {
+                row[`${key}Text`] =
+                    row[key] === null ?
+                        null
+                    :   printEventDateIn(row[key], resolved[position]?.[key], dates, calendar);
+            }
             rows.push(row);
         });
     }

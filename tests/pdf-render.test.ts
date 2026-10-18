@@ -153,10 +153,38 @@ describe("markdownToTypst", () => {
             ["| A | B | C | D |", "| - | - | - | - |", "| 1 | 2 | 3 | 4 |"].join("\n"),
         );
         expect(wide).toContain("#book-wide[");
+        // It floats to where it fits; no break strands the heading above it.
+        expect(wide).not.toContain("#pagebreak");
         const narrow = markdownToTypst(
             ["| A | B | C |", "| - | - | - |", "| 1 | 2 | 3 |"].join("\n"),
         );
         expect(narrow).not.toContain("#book-wide[");
+    });
+
+    it("spans the page for a table whose caption asks for .full-width", () => {
+        const table = ["| A | B |", "| - | - |", "| 1 | 2 |"];
+        const asked = markdownToTypst([": Trade routes. {.full-width}", "", ...table].join("\n"));
+        expect(asked).toContain("#book-wide[");
+        expect(asked).toContain("Trade routes.");
+        const numbered = markdownToTypst(
+            [":@ Trade routes. {.full-width}", "", ...table].join("\n"),
+        );
+        expect(numbered).toContain("#book-wide[");
+        const plain = markdownToTypst([": Trade routes.", "", ...table].join("\n"));
+        expect(plain).not.toContain("#book-wide[");
+        expect(markdownToTypst(table.join("\n"))).not.toContain("#book-wide[");
+    });
+
+    it("spans the page for a table under the Chronology heading, however few its columns", () => {
+        const table = ["| When | What happened |", "| - | - |", "| 1 AF | A thing |"];
+        const chronology = markdownToTypst(["# Chronology {#chronology}", "", ...table].join("\n"));
+        expect(chronology).toContain("#book-wide[");
+        const other = markdownToTypst(["# Notes {#notes}", "", ...table].join("\n"));
+        expect(other).not.toContain("#book-wide[");
+        const after = markdownToTypst(
+            ["# Chronology {#chronology}", "", "# Notes {#notes}", "", ...table].join("\n"),
+        );
+        expect(after).not.toContain("#book-wide[");
     });
 
     it("nests a list as a call rather than by indentation", () => {

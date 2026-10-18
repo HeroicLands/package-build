@@ -65,8 +65,9 @@ const BY_DATE = "ORDER BY e.whenSort NULLS LAST, e.address";
  *
  * @type {ReadonlyArray<Readonly<{slug: string, heading: string,
  *   applies: (record: object) => boolean,
- *   query: (self: string[], shape: CorpusShape) => {fence: string, own?: string}|null,
- *   owners?: (db: object, selves: string[][], shape: CorpusShape) => Promise<Set<string>>}>>}
+ *   query: (self: string[], shape: CorpusShape, columns?: {felt?: boolean}) => {fence: string, own?: string}|null,
+ *   owners?: (db: object, selves: string[][], shape: CorpusShape) => Promise<Set<string>>,
+ *   felt?: (db: object, selves: string[][], shape: CorpusShape) => Promise<Set<string>>}>>}
  */
 export const EVENT_VIEWS = Object.freeze([
     Object.freeze({
@@ -75,6 +76,7 @@ export const EVENT_VIEWS = Object.freeze([
         applies: (record) => record.type === "place",
         query: chronologyQuery,
         owners: chronologyOwners,
+        felt: chronologyFeltOwners,
     }),
     Object.freeze({
         slug: "events",
@@ -91,8 +93,8 @@ export const EVENT_VIEWS = Object.freeze([
             return {
                 fence: [
                     "SELECT e.note AS _ref,",
+                    '       e.whenText AS "When",',
                     '       e.summary AS "What happened",',
-                    '       e."when" AS "When",',
                     `       array_to_string(list_transform(${named}, w -> w.role), ', ') AS "Role"`,
                     "FROM events e",
                     `WHERE len(${named}) > 0`,
@@ -120,8 +122,8 @@ export const EVENT_VIEWS = Object.freeze([
             return {
                 fence: [
                     "SELECT e.note AS _ref,",
+                    '       e.whenText AS "When",',
                     '       e.summary AS "Event",',
-                    '       e."when" AS "When",',
                     '       e.account.says AS "What they say",',
                     '       e.account.agrees AS "Agrees"',
                     "FROM (SELECT *, unnest(accounts) AS account FROM events) e",
@@ -151,8 +153,8 @@ export const EVENT_VIEWS = Object.freeze([
             return {
                 fence: [
                     "SELECT e.note AS _ref,",
+                    '       e.whenText AS "When",',
                     '       e.summary AS "What followed",',
-                    '       e."when" AS "When",',
                     `       array_to_string(list_transform(${edges}, f -> f.how), ', ') AS "How"`,
                     "FROM events e",
                     `WHERE len(${edges}) > 0`,
@@ -237,6 +239,36 @@ function chronologyOwnRows(shape) {
  * @returns {Promise<Set<string>>} The roots with at least one own row.
  */
 async function chronologyOwners(db, selves, shape) {
+    return chronologyRoots(db, selves, shape, chronologyOwnRows(shape));
+}
+
+/**
+ * Which places have a row felt there, asked of every place in one query. A
+ * chronology prints its `Felt here` column only for these.
+ *
+ * @param {object} db - From {@link module:engine/sql-tables.openNotesDatabase}.
+ * @param {string[][]} selves - Each place's Address, in each form.
+ * @param {CorpusShape} shape - What the corpus states.
+ * @returns {Promise<Set<string>>} The roots with at least one felt row.
+ */
+async function chronologyFeltOwners(db, selves, shape) {
+    if (!shape.reach) return new Set();
+    return chronologyRoots(db, selves, shape, [
+        `len(list_filter(${chronologyFelt()}, r -> coalesce(r.how, '') <> '')) > 0`,
+    ]);
+}
+
+/**
+ * The roots among `selves` for which an event satisfies one of `conditions`,
+ * over the places at or below each root.
+ *
+ * @param {object} db - From {@link module:engine/sql-tables.openNotesDatabase}.
+ * @param {string[][]} selves - Each place's Address, in each form.
+ * @param {CorpusShape} shape - What the corpus states.
+ * @param {string[]} conditions - Alternatives over `e` and `here.places`.
+ * @returns {Promise<Set<string>>} The roots with at least one such event.
+ */
+async function chronologyRoots(db, selves, shape, conditions) {
     const values = [...new Set(selves.map((self) => self[0]))]
         .map((root) => `(${literal(root)})`)
         .join(", ");
@@ -258,7 +290,7 @@ async function chronologyOwners(db, selves, shape) {
             "here AS (SELECT root, list(place) AS places FROM below GROUP BY root)",
             "SELECT DISTINCT here.root AS root",
             "FROM events e, here",
-            `WHERE ${chronologyOwnRows(shape).join(" OR ")}`,
+            `WHERE ${conditions.join(" OR ")}`,
         ].join("\n"),
     );
     return new Set(rows.map((row) => String(row.root)));
@@ -275,10 +307,12 @@ async function chronologyOwners(db, selves, shape) {
  *
  * @param {string[]} self - The place's Address, in each form.
  * @param {CorpusShape} shape - What the corpus states.
+ * @param {{felt?: boolean}} [columns] - `felt: false` when no row of this
+ *   place is felt there, which leaves the `Felt here` column out.
  * @returns {{fence: string, own: string}|null} The query, and the one that
  *   counts the place's own rows.
  */
-function chronologyQuery(self, shape) {
+function chronologyQuery(self, shape, columns = {}) {
     if (!shape.locus && !shape.reach) return null;
     const below =
         shape.parents ?
@@ -298,11 +332,13 @@ function chronologyQuery(self, shape) {
         ...below,
         "here AS (SELECT list(place) AS places FROM below)",
         "SELECT e.note AS _ref,",
-        '       e.summary AS "What happened",',
-        '       e."when" AS "When",',
-        shape.reach ?
-            `       array_to_string(list_transform(${felt}, r -> r.how), '; ') AS "Felt here"`
-        :   '       NULL AS "Felt here"',
+        '       e.whenText AS "When",',
+        shape.reach && columns.felt !== false ?
+            '       e.summary AS "What happened",'
+        :   '       e.summary AS "What happened"',
+        ...(shape.reach && columns.felt !== false ?
+            [`       array_to_string(list_transform(${felt}, r -> r.how), '; ') AS "Felt here"`]
+        :   []),
         "FROM events e, here",
     ];
     const context = shape.depth ? ["e.depth = 'world'"] : [];
@@ -394,6 +430,7 @@ export async function eventViewSections(db, records, fileOf, only) {
     // A view that can say which notes have rows in one query is asked once, over
     // every note it will be given, and the per-note count is skipped.
     const owned = new Map();
+    const felt = new Map();
     for (const view of EVENT_VIEWS) {
         if (!view.owners) continue;
         const selves = [];
@@ -404,7 +441,10 @@ export async function eventViewSections(db, records, fileOf, only) {
             const self = selfForms(record);
             if (view.query(self, shape)) selves.push(self);
         }
-        if (selves.length) owned.set(view.slug, await view.owners(db, selves, shape));
+        if (selves.length) {
+            owned.set(view.slug, await view.owners(db, selves, shape));
+            if (view.felt) felt.set(view.slug, await view.felt(db, selves, shape));
+        }
     }
     for (const record of all) {
         if (!record?.address || record.documents || !record.shortcode) continue;
@@ -413,7 +453,11 @@ export async function eventViewSections(db, records, fileOf, only) {
         const sections = new Map();
         for (const view of EVENT_VIEWS) {
             if (!view.applies(record) || authoredSection(record, view.slug)) continue;
-            const query = view.query(self, shape);
+            const query = view.query(
+                self,
+                shape,
+                felt.has(view.slug) ? { felt: felt.get(view.slug).has(self[0]) } : undefined,
+            );
             if (!query) continue;
             const has =
                 owned.has(view.slug) ?

@@ -32,6 +32,7 @@ import { expandContentTables } from "./content-tables.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
 import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventRows } from "./event-rows.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 import { NAME_COLUMNS, namesRows } from "./name-rows.mjs";
 import {
     GLOSSARY_COLUMNS,
@@ -535,9 +536,8 @@ async function createRelations(connection, file, records, prefix = "", audience 
  * @returns {Promise<void>}
  */
 async function createEventRelation(connection, file, records, prefix, audience) {
-    const rows = eventRows(
-        audience === "public" ? records.filter((record) => !isGmNote(record)) : records,
-    );
+    const visible = audience === "public" ? records.filter((record) => !isGmNote(record)) : records;
+    const rows = eventRows(visible, reckoningContext({ notes: records }));
     if (!rows.length) {
         const columns = EVENT_COLUMNS.map((column) => {
             const type = EVENT_SORT_COLUMNS.includes(column) ? "DOUBLE" : "VARCHAR";

@@ -197,7 +197,7 @@ The caption attaches to exactly the next supported block:
 
 The optional `type` attribute overrides inference and accepts `figure`, `table`, `poetry`, `code`, `prose`, and `example`. `type=example` uses **Example 1**, **Example 2**, and so on. It does not allow an unsupported target. A heading, list, thematic break, another caption or end of document after a caption is an error. Caption markers without separating spaces or caption text are errors too.
 
-Identifiers are optional and must be unique within the note. Classes are unrestricted; `.border` uses the shared border style, while other classes can be styled by the medium. Named attributes use `key=value`, with quoted values for text containing spaces. Use `#id` and `.class` rather than `id=` and `class=`; event-handler attributes are refused.
+Identifiers are optional and must be unique within the note. Classes are unrestricted; `.border` uses the shared border style, while other classes can be styled by the medium. On a captioned table or SQL fence, `.full-width` sets the table across the page in a PDF book instead of in one column (`: Regional trade routes {.full-width}`); the other surfaces ignore it. Named attributes use `key=value`, with quoted values for text containing spaces. Use `#id` and `.class` rather than `id=` and `class=`; event-handler attributes are refused.
 
 Each numbered type has its own counter. Websites and Foundry number within a note; books number across their reading order. Unnumbered captions neither display nor consume a number. A map image can retain its asset-derived **Map** classification when no type is specified.
 
@@ -567,7 +567,7 @@ The vale holds three villages, of which only [[place-ford|Ford]] is walled.
 
 ### Sections the build adds about events
 
-A note's events are listed for you on the notes they concern: a place gets a **Chronology** of what happened there and below it, with every `depth: world` event as context, a being, affiliation or people the **Events** it took part in, an affiliation, place or people the **Accounts** it gives, and a note holding events **What followed** them. Each is a section appended after everything you wrote, with a fixed anchor — `chronology`, `events`, `accounts`, `followed` — and it appears only where it has something to list.
+A note's events are listed for you on the notes they concern: a place gets a **Chronology** of what happened there and below it, with every `depth: world` event as context, a being, affiliation or people the **Events** it took part in, an affiliation, place or people the **Accounts** it gives, and a note holding events **What followed** them. Each is a section appended after everything you wrote, with a fixed anchor — `chronology`, `events`, `accounts`, `followed` — and it appears only where it has something to list. Each lists the date first, written in the setting's calendar, followed by what happened; a Chronology adds a **Felt here** column only where some event is felt in the place, and a PDF book prints it across the full page width.
 
 To replace one, write the section yourself with the same anchor. The build then adds nothing for it and leaves yours exactly as written:
 
@@ -577,7 +577,7 @@ To replace one, write the section yourself with the same anchor. The build then 
 The fells keep no reckoning before the raising.
 
 ```sql
-SELECT summary AS "What happened", "when" AS "When"
+SELECT summary AS "What happened", whenText AS "When"
 FROM events
 WHERE list_contains("where".locus, 'thalorna-note-place-ironfells')
 ORDER BY whenSort
