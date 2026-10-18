@@ -128,16 +128,16 @@ package-build ci [--native]
 
 The default command runs in Docker on Linux against a clean export of the
 current commit. It reads the repository's pull-request workflows under
-`.github/workflows/` and runs their `run:` steps in workflow order. A failed
+`.gitea/workflows/` and runs their `run:` steps in workflow order. A failed
 step stops the replay. Uncommitted changes are absent from the clean export.
 
 `--native` runs the same steps on the host in the current working tree. It
 needs no Docker and includes uncommitted changes, but its operating system and
-existing files can differ from a clean GitHub runner. The steps themselves
+existing files can differ from a clean CI runner. The steps themselves
 still come from the workflow files.
 
 The command lists `uses:` steps that it cannot run locally. A successful replay
-covers the listed `run:` steps; GitHub runs the published actions separately.
+covers the listed `run:` steps; the forge runs the published actions separately.
 Workflow steps may install dependencies, generate files, or perform other
 declared build actions.
 

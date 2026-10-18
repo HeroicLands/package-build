@@ -513,7 +513,7 @@ tool:
 organisation-level and defined in `HeroicLands/.github`, so the repository
 carries no label registry of its own.
 
-`.github/workflows/` then carries the repository's own CI. The org-wide
+`.gitea/workflows/` carries the repository's own CI. The org-wide
 `HeroicLands/.github` repository supplies the shared composite actions those
 workflows `uses:` — `labels`, `no-attribution` and `todos` — plus the reusable
 site-deploy workflow, so a fix to any of them reaches every repository at once.
@@ -522,16 +522,16 @@ site-deploy workflow, so a fix to any of them reaches every repository at once.
 
 A summary, because "where does this come from" is the question that recurs.
 
-| Read                          | By                                                                                                        |
-| ----------------------------- | --------------------------------------------------------------------------------------------------------- |
-| `package.json`                | The Foundry package id, the version, the release addresses; the site's `baseURL`, description and author. |
-| `package-build.config.yaml`   | Everything else about the build.                                                                          |
-| `assets/content/**/*.md`      | Every content command.                                                                                    |
-| `.gitignore`                  | `package-build format`, `package-build markdown`.                                                         |
-| `.prettierignore`             | `package-build format`.                                                                                   |
-| `lang/*.json`                 | `package-build lang`.                                                                                     |
-| `.env.local`                  | `package-build deploy`.                                                                                   |
-| `.github/workflows/build.yml` | The `pre-push` hook, for its step list.                                                                   |
+| Read                         | By                                                                                                        |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `package.json`               | The Foundry package id, the version, the release addresses; the site's `baseURL`, description and author. |
+| `package-build.config.yaml`  | Everything else about the build.                                                                          |
+| `assets/content/**/*.md`     | Every content command.                                                                                    |
+| `.gitignore`                 | `package-build format`, `package-build markdown`.                                                         |
+| `.prettierignore`            | `package-build format`.                                                                                   |
+| `lang/*.json`                | `package-build lang`.                                                                                     |
+| `.env.local`                 | `package-build deploy`.                                                                                   |
+| `.gitea/workflows/build.yml` | The `pre-push` hook, for its step list.                                                                   |
 
 Everything written goes under `build/`. Nothing the toolchain generates is
 committed.

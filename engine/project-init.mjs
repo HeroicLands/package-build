@@ -308,7 +308,7 @@ function projectText(answers) {
             "Labels are organization-level, defined in `HeroicLands/.github`.",
             "",
         ].join("\n"),
-        ".github/workflows/build.yml": [
+        ".gitea/workflows/build.yml": [
             "# SPDX-License-Identifier: GPL-3.0-or-later",
             "name: Build and Test",
             "on:",
@@ -424,7 +424,7 @@ export function checkProject(rootDir) {
         "LICENSE.md",
         ".changeset/config.json",
         ".github/ISSUE_REPORTING.md",
-        ".github/workflows/build.yml",
+        ".gitea/workflows/build.yml",
     ];
     for (const file of required) {
         if (!fs.existsSync(path.join(root, file))) add(file, "required project file is missing");

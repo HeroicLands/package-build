@@ -1,16 +1,16 @@
 #!/usr/bin/env sh
 #
 # Before pushing, run exactly what the Build & Test workflow runs — in a
-# container, over a clean export of HEAD — so a red GitHub check is something
+# container, over a clean export of HEAD — so a red CI check is something
 # you chose rather than something you discover.
 #
 # The steps are not listed here. `ci/ci-steps.mjs` reads them out of
-# `.github/workflows/build.yml`, because a hook holding its own copy of the
+# `.gitea/workflows/build.yml`, because a hook holding its own copy of the
 # command list is a second statement of one thing, and the copy is the one that
 # goes stale — silently, since running four of five steps still exits 0.
 #
 # **On push rather than at `gh pr create`**, because a push is where this
-# repository's work reaches GitHub: normally one, just before the pull request.
+# repository's work reaches the forge: normally one, just before the pull request.
 # Nothing to remember, no wrapper command, and no entry in package.json — the
 # hook is the whole mechanism.
 #
@@ -92,7 +92,7 @@ status=$?
 # 2 means the check could not run — no Docker — which is not the same as a
 # failure and must not stop the push. Whoever is pushing may not be the
 # maintainer, may be on a machine without Docker, and is entitled to open a
-# pull request; GitHub is what enforces the workflow. Said loudly, though: a
+# pull request; CI is what enforces the workflow. Said loudly, though: a
 # skipped check that reads like a passed one is how a guard loses its meaning.
 # 127 is "could not execute it at all" — no node on PATH, package not
 # installed. Infrastructure, not a verdict, so it is handled the same way.
@@ -104,6 +104,6 @@ fi
 
 if [ "$status" -ne 0 ]; then
     echo ""
-    echo "pre-push: refusing to push — GitHub would report the same failure."
+    echo "pre-push: refusing to push — CI would report the same failure."
     exit 1
 fi

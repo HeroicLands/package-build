@@ -18,7 +18,7 @@
  * of the command list is a second statement of one thing, and the copy is the
  * one that goes stale — silently, because a pre-push check that runs four of
  * five steps still exits 0. So the steps are parsed out of
- * `.github/workflows/build.yml` at run time and there is nothing to keep in
+ * `.gitea/workflows/build.yml` at run time and there is nothing to keep in
  * step.
  *
  * **It refuses rather than assumes.** If the workflow's shape changes so that
@@ -28,7 +28,7 @@
  *
  * **What it cannot run**, and says so: a `uses:` step is a published action, not
  * a command — the forbidden-marker check, the coverage upload. Those stay
- * GitHub's to run, and the summary names them so the gap is visible rather than
+ * CI's to run, and the summary names them so the gap is visible rather than
  * assumed away.
  *
  * **It parses the workflow itself rather than importing a YAML library**, for a
@@ -64,7 +64,7 @@ const ROOT = process.cwd();
  * failed*. Mirrors the same constant in `ci-docker.mjs`.
  */
 export const UNAVAILABLE = 2;
-const WORKFLOW_DIR = path.join(ROOT, ".github/workflows");
+const WORKFLOW_DIR = path.join(ROOT, ".gitea/workflows");
 
 /**
  * The workflow's steps, split into what can be run here and what cannot.
@@ -77,7 +77,7 @@ export function ciSteps() {
     const files = prTriggeredWorkflows();
     if (!files.length) {
         throw new NoWorkflow(
-            `no workflow under .github/workflows is triggered by \`pull_request\`, ` +
+            `no workflow under .gitea/workflows is triggered by \`pull_request\`, ` +
                 `so there is nothing here that a pull request would run.`,
         );
     }
@@ -236,7 +236,7 @@ function main() {
         });
         if (result.status !== 0) {
             console.error(
-                `\nci-steps: FAILED at "${step.name}" — this is what GitHub would report.\n` +
+                `\nci-steps: FAILED at "${step.name}" — this is what CI would report.\n` +
                     `  Fix it, or push with --no-verify if you mean to.`,
             );
             return result.status ?? 1;

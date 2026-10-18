@@ -22,7 +22,7 @@ afterEach(() => {
 });
 
 function workflow(steps: string) {
-    const directory = path.join(root, ".github", "workflows");
+    const directory = path.join(root, ".gitea", "workflows");
     fs.mkdirSync(directory, { recursive: true });
     fs.writeFileSync(
         path.join(directory, "build.yml"),
@@ -51,7 +51,7 @@ describe("package-build ci", () => {
             expect(result.code).toBe(0);
             expect(result.output).toContain("checked");
             expect(result.output).toContain("Published check");
-            expect(result.output).toContain(".github/workflows/build.yml");
+            expect(result.output).toContain(".gitea/workflows/build.yml");
         },
         SUBPROCESS_TEST_TIMEOUT,
     );

@@ -23,7 +23,7 @@ import { fileURLToPath } from "node:url";
 import { stepsIn } from "../ci/ci-steps.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const WORKFLOW = path.join(ROOT, ".github", "workflows", "build.yml");
+const WORKFLOW = path.join(ROOT, ".gitea", "workflows", "build.yml");
 const BASH = ["/bin/bash", "/usr/bin/bash"].find((p) => fs.existsSync(p)) ?? "bash";
 
 /** The tool each install step provides, keyed by what its `--version` probe calls. */

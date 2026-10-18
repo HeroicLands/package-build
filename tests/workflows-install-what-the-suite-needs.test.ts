@@ -6,7 +6,7 @@
  */
 
 /**
- * Every workflow that runs the suite installs the binaries the suite refuses
+ * Every Gitea workflow that runs the suite installs the binaries the suite refuses
  * to run without.
  *
  * Most binary-dependent cases here probe and stand down — a tree with no Typst
@@ -17,9 +17,7 @@
  *
  * That makes Hugo a precondition of `npm test` under CI rather than a
  * nicety, and a workflow that runs the suite without it fails at that step.
- * Both halves of the gate run the suite — the pull-request build on each forge
- * and the publish job — so all of them need the install, and the publish job
- * failing means no release reaches the registry at all.
+ * The pull-request build runs the suite, so it needs the install.
  *
  * The check is derived from the workflow files rather than from a list of
  * their names, so a third workflow that runs the suite is held to the same
@@ -32,10 +30,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-/** Gitea's workflows and its GitHub mirror's; each forge reads one directory. */
-const WORKFLOWS = [".gitea/workflows", ".github/workflows"];
+/** Gitea's workflows, where every check runs. */
+const WORKFLOWS = [".gitea/workflows"];
 
-/** Every workflow file on either forge, by its path. */
+/** Every workflow file, by its path. */
 function workflows(): Map<string, string> {
     const found = new Map<string, string>();
     for (const dir of WORKFLOWS) {
