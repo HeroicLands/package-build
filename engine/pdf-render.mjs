@@ -2030,6 +2030,12 @@ export function renderBook({
     // becomes wider than `1.`.
     out.push("#show list: set par(first-line-indent: 0em)");
     out.push("#show enum: set par(first-line-indent: 0em)");
+    // Items sit three-quarters of a line apart, so a list of several-line
+    // items reads as separate entries. The face's own bullet is small at book
+    // size, so it is enlarged and lifted to the middle of the first line; a
+    // nested level takes a dash.
+    out.push("#set list(spacing: 0.75em, marker: (text(size: 1.3em, baseline: -0.08em)[•], [–]))");
+    out.push("#set enum(spacing: 0.75em)");
     // The mono face is a separate claim from the book face: a fenced block is
     // the one place the corpus is allowed box-drawing characters, and the
     // serif that sets the prose is not the font that carries them.

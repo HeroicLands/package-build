@@ -792,6 +792,10 @@ describe("renderBook", () => {
         expect(out).toContain("#set par(justify: true, leading: 0.55em, first-line-indent: 1.2em)");
         expect(out).toContain("#show list: set par(first-line-indent: 0em)");
         expect(out).toContain("#show enum: set par(first-line-indent: 0em)");
+        expect(out).toContain(
+            "#set list(spacing: 0.75em, marker: (text(size: 1.3em, baseline: -0.08em)[•], [–]))",
+        );
+        expect(out).toContain("#set enum(spacing: 0.75em)");
         // The marker column is Typst's to measure, so a list whose markers
         // widen at `10.` keeps every body on one column.
         expect(out).not.toMatch(/#set (list|enum)\([^)]*indent/);
