@@ -1,5 +1,17 @@
 # @heroiclands/package-build
 
+## 23.12.3
+
+### Patch Changes
+
+In Foundry, every package's journals now show marked names in bold, mark links to pages no package publishes, and set captioned pictures, tables and verse with their labels, as the site and the preview do.
+
+Sites build again on Hugo 0.163, where a page without a definition list stopped the whole build.
+
+Site search no longer finds or quotes the text of secrets.
+
+A module's journals, scenes, macros and adventures load under any system; only its Actor and Item packs belong to the system it declares.
+
 ## 23.12.2
 
 ### Patch Changes
