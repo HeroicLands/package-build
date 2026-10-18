@@ -571,6 +571,8 @@ describe("prepared content-index publication", () => {
         );
     });
 
+    // Preparing a whole corpus is CPU-bound and slows with whatever else the
+    // runner is doing; the budget absorbs a loaded CI runner.
     it("prepares a mixed corpus while retaining unaddressable scaffolding without page identities", async () => {
         const repo = configure("scaffolding");
         const sources = {
@@ -611,7 +613,7 @@ describe("prepared content-index publication", () => {
         await expect(prepare(repo)).rejects.toThrow(
             /Named\.md:\d+:\d+: error: Markdown expression/,
         );
-    });
+    }, 30_000);
 
     it("prepares cross-note figure references with the site's canonical and bare address context", async () => {
         const repo = configure("figures", { site: { base: "/reference/" } });

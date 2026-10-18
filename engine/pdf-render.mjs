@@ -1724,10 +1724,12 @@ export function bookTypstPreamble() {
             "    ]\n" +
             "  ])\n" +
             "]",
-        "#let book-ornament = box(baseline: 1pt, " +
-            "rotate(45deg, rect(width: 3pt, height: 3pt, fill: book-accent)))",
+        "#let book-ornament = box(baseline: 1.2pt, " +
+            "rotate(45deg, rect(width: 3.6pt, height: 3.6pt, fill: book-accent)))",
+        // The foot is set at the body's size, in the faint ink, so the page
+        // number and the section name read without being taken for text.
         "#let book-footer(name) = context {\n" +
-            "  set text(size: 8pt, fill: book-faint)\n" +
+            "  set text(fill: book-faint)\n" +
             "  grid(columns: (1fr, auto, 1fr), align(left)[#name], align(center)[#book-ornament],\n" +
             "    align(right)[#counter(page).display()])\n" +
             "}",

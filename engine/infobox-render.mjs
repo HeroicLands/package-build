@@ -296,9 +296,14 @@ function entryToTypst(entry, link) {
 }
 
 /**
- * One section as Typst, whole and unbreakable.
+ * One section as Typst.
  *
- * `lead` rides **inside** the block rather than above it. A panel breaks
+ * A stat grid is whole and unbreakable. A section of rows or run-in lists may
+ * break between its rows, so a section taller than the space left on a page
+ * continues on the next one instead of running past the page's foot; each row
+ * stays whole, and the section's label and `lead` stay with its first row.
+ *
+ * `lead` rides **inside** the section rather than above it. A panel breaks
  * between its sections, and a title sitting outside the first one is a break
  * the panel is allowed to take — which leaves the heading and a rule stranded
  * at the foot of a page with nothing under them.
@@ -309,8 +314,9 @@ function entryToTypst(entry, link) {
  * @returns {string} Typst markup.
  */
 function sectionToTypst(section, link, lead = "") {
-    const body = lead ? [lead] : [];
-    if (section.label) body.push(`#infobox-head[${escapeTypst(section.label)}]`);
+    const head = lead ? [lead] : [];
+    if (section.label) head.push(`#infobox-head[${escapeTypst(section.label)}]`);
+    const body = [];
 
     if (section.layout === "rows") {
         for (const row of section.rows ?? []) {
@@ -346,7 +352,12 @@ function sectionToTypst(section, link, lead = "") {
         }
     }
 
-    return `#block(breakable: false)[\n${body.join("\n")}\n]`;
+    if (section.layout === "grid" || body.length < 2)
+        return `#block(breakable: false)[\n${[...head, ...body].join("\n")}\n]`;
+    const [first, ...rest] = body;
+    const kept = `#block(breakable: false)[\n${[...head, first].join("\n")}\n]`;
+    const rows = rest.map((row) => `#block(breakable: false)[${row}]`);
+    return `#block(breakable: true)[\n${[kept, ...rows].join("\n")}\n]`;
 }
 
 /**

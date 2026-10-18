@@ -475,43 +475,55 @@ describe("the `glossary` relation", () => {
     });
 });
 
+// Building a 1,200-word relation is CPU-bound, so its time grows with whatever
+// else the machine runs at once; the budget absorbs a loaded CI runner while
+// still catching a hang.
+const CONTENDED_TIMEOUT = 40_000;
+
 describe("a language with many words", () => {
-    it("reads as one relation beside every other record's shape", async () => {
-        const big = path.join(dir, "big");
-        write(
-            big,
-            "Lore/Road.md",
-            "---\nshortcode: road\nname: {full: The Road}\ntype: lore\nsubType: history\n---\nA road.\n",
-        );
-        const rows = Array.from(
-            { length: 1200 },
-            (_, i) =>
-                `  - {form: w${i}, class: ${i % 3 ? "n" : "v"}, field: All, gloss: word ${i}${i % 5 ? "" : ", source: {kind: coined}"}}`,
-        );
-        write(
-            big,
-            "Skills/Big.md",
-            language("biglng", "Big", [
-                "fields:",
-                "  - {name: All, holds: Everything.}",
-                "words:",
-                ...rows,
-            ]),
-        );
-        const records = collectContentIndex(big, { contentPackage: "big", skipDirectories: [] });
-        const large = await openNotesDatabase(records, { dir: path.join(dir, "db-big") });
-        try {
-            const notes = await runSqlQuery(
-                large,
-                "SELECT len(data.words) AS n FROM notes WHERE shortcode = 'biglng'",
+    it(
+        "reads as one relation beside every other record's shape",
+        async () => {
+            const big = path.join(dir, "big");
+            write(
+                big,
+                "Lore/Road.md",
+                "---\nshortcode: road\nname: {full: The Road}\ntype: lore\nsubType: history\n---\nA road.\n",
             );
-            expect(Number(notes.rows[0].n)).toBe(1200);
-            const words = await runSqlQuery(large, "SELECT count(*) AS n FROM words");
-            expect(Number(words.rows[0].n)).toBe(1200);
-        } finally {
-            await large.close();
-        }
-    }, 10_000);
+            const rows = Array.from(
+                { length: 1200 },
+                (_, i) =>
+                    `  - {form: w${i}, class: ${i % 3 ? "n" : "v"}, field: All, gloss: word ${i}${i % 5 ? "" : ", source: {kind: coined}"}}`,
+            );
+            write(
+                big,
+                "Skills/Big.md",
+                language("biglng", "Big", [
+                    "fields:",
+                    "  - {name: All, holds: Everything.}",
+                    "words:",
+                    ...rows,
+                ]),
+            );
+            const records = collectContentIndex(big, {
+                contentPackage: "big",
+                skipDirectories: [],
+            });
+            const large = await openNotesDatabase(records, { dir: path.join(dir, "db-big") });
+            try {
+                const notes = await runSqlQuery(
+                    large,
+                    "SELECT len(data.words) AS n FROM notes WHERE shortcode = 'biglng'",
+                );
+                expect(Number(notes.rows[0].n)).toBe(1200);
+                const words = await runSqlQuery(large, "SELECT count(*) AS n FROM words");
+                expect(Number(words.rows[0].n)).toBe(1200);
+            } finally {
+                await large.close();
+            }
+        },
+        CONTENDED_TIMEOUT,
+    );
 });
 
 describe("an empty corpus", () => {

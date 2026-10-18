@@ -841,10 +841,19 @@ describe("the rendered box", () => {
         expect(infoboxesToHtml(boxes)).not.toContain("Nothing");
     });
 
-    it("makes every section unbreakable inside a breakable panel", () => {
+    it("keeps a stat grid whole and lets a section of rows break between rows", () => {
         const typst = infoboxesToTypst(boxes);
-        expect(typst.match(/#block\(breakable: false\)/g)).toHaveLength(3);
         expect(typst).toContain("#infobox-panel[");
+        // A grid is one unbreakable block.
+        expect(typst).toMatch(/#block\(breakable: false\)\[\n(?:[^\n]*\n)*?#grid\(/);
+        // A section of several rows may break, but never inside a row: every
+        // row after the first sits in an unbreakable block of its own, and the
+        // first rides with the section's title.
+        expect(typst).toContain("#block(breakable: true)[");
+        const rows = typst.match(/#infobox-row\[/g) ?? [];
+        const wrapped = typst.match(/#block\(breakable: false\)\[#infobox-row\[/g) ?? [];
+        expect(rows.length).toBeGreaterThan(1);
+        expect(wrapped).toHaveLength(rows.length - 1);
     });
 
     it("carries a panel's title inside its first section, so a break cannot strand it", () => {
@@ -1000,7 +1009,7 @@ describe("a system box", () => {
         );
         const sohl = boxes.find((box) => box.id === "sohl");
         expect(sohl.sections[0].rows).toEqual([
-            { label: "Mastery level base", kind: "number", value: 40 },
+            { label: "Mastery level base", kind: "number", value: "40" },
         ]);
     });
 });

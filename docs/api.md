@@ -384,6 +384,7 @@ The declared infobox: what a note's summary panel holds, decided once and render
 | `assertInfoboxSet`        | `assertInfoboxSet(boxes, fm, options)` | `readonly object[]`, throws | refusing a page that carries anything but the boxes its type maps to                   |
 | `buildInfoboxes`          | `buildInfoboxes(fm, options)`          | `object[]`                  | building every box a note carries, against a given set of maps and declarations        |
 | `defineInfobox`           | `defineInfobox(declaration)`           | `object`                    | declaring one system's half of the infobox                                             |
+| `formatQuantity`          | `formatQuantity(value)`                | `string`                    | writing a number as a profile shows it: `12,500` under a million, `11 million` above   |
 | `hasRenderableValue`      | `hasRenderableValue(kind, value)`      | `boolean`                   | deciding whether a built value is worth a row                                          |
 | `hasValue`                | `hasValue(value)`                      | `boolean`                   | deciding whether an authored value is worth a row                                      |
 | `humanizeFieldName`       | `humanizeFieldName(name)`              | `string`                    | turning a declared key into the label a reader sees                                    |

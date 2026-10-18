@@ -863,6 +863,8 @@ describe("renderBook", () => {
         const out = renderBook({ plan, title: "A Book" });
         expect(out).toContain("#set page(margin: book-margin, columns: 2,");
         expect(out).toContain("#set page(columns: 2, footer: book-footer[Gear])");
+        // The foot follows the body's size rather than a smaller one of its own.
+        expect(out).toContain("#let book-footer(name) = context {\n  set text(fill: book-faint)\n");
 
         const narrow = renderBook({
             plan: {

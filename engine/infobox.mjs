@@ -594,6 +594,27 @@ export function valueKindOf(field, value) {
 }
 
 /**
+ * A number as a reader reads it in a profile: under a million in full with
+ * thousands separators (`850`, `12,500`), and from a million up in words with
+ * at most one decimal (`11 million`, `1.2 million`, `3 billion`). Every figure
+ * the setting gives at that scale is an estimate, and the words say so.
+ * Decimals below a million keep the digits they were written with.
+ *
+ * @param {number} value - The number.
+ * @returns {string} The text the row shows.
+ */
+export function formatQuantity(value) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return String(value);
+    const size = Math.abs(n);
+    if (size < 1e6) return n.toLocaleString("en-US", { maximumFractionDigits: 20 });
+    // A figure that rounds up to a thousand million is a billion.
+    const [scale, word] = size < 999.95e6 ? [1e6, "million"] : [1e9, "billion"];
+    const scaled = Math.round((n / scale) * 10) / 10;
+    return `${scaled.toLocaleString("en-US", { maximumFractionDigits: 1 })} ${word}`;
+}
+
+/**
  * Build one row's value, resolving whatever the kind says is a reference.
  *
  * @param {string} kind - One of {@link INFOBOX_VALUE_KINDS}.
@@ -616,7 +637,7 @@ function rowValue(kind, raw, resolve, hint, verbatim = false) {
     if (kind === "list") {
         return (Array.isArray(raw) ? raw : [raw]).filter(hasValue).map((v) => shown(v));
     }
-    if (kind === "number") return raw;
+    if (kind === "number") return formatQuantity(raw);
     return shown(raw);
 }
 
@@ -904,7 +925,7 @@ function declaredKeyRows(fields, raw) {
             (inner.kind === "number" || inner.kind === "integer") &&
             Number.isFinite(Number(value))
         ) {
-            rows.push({ label, kind: "number", value: Number(value) });
+            rows.push({ label, kind: "number", value: formatQuantity(Number(value)) });
         } else {
             rows.push({ label, kind: "text", value: shown(value) });
         }
