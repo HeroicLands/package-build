@@ -799,7 +799,7 @@ export function suiteExecutables(command) {
 }
 
 /** The Chrome for Testing build shared by local and CI Cypress runs. */
-export const CHROME_BUILD_ID = "155.0.8059.84";
+export const CHROME_BUILD_ID = "158.0.8110.0";
 
 /**
  * The browser cache survives reseeding and container teardown.
