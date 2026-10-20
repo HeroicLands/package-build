@@ -15,6 +15,10 @@
         // step whose job is to publish `.d.mts` files. Types are still emitted
         // from the JSDoc that is there.
         "checkJs": false,
+        // A dependency's own declaration files are not this step's to check:
+        // one with a fault of its own (markdownlint 0.42's `resolve-module.d.cts`
+        // mixes `export =` with named exports) would otherwise stop the emit.
+        "skipLibCheck": true,
         "declaration": true,
         "emitDeclarationOnly": true,
         "noEmitOnError": true,

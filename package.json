@@ -160,7 +160,7 @@
         "markdown-it": "^15.0.0",
         "markdown-it-deflist": "^4.0.0",
         "markdown-it-footnote": "^4.0.0",
-        "markdownlint": "^0.41.1",
+        "markdownlint": "^0.42.0",
         "minimatch": "^10.2.6",
         "pagefind": "^1.5.2",
         "prettier": "^3.9.6",
