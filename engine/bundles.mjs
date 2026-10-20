@@ -332,8 +332,13 @@ export class Bundles extends BasePackCompiler {
             // it compiles into already has somewhere to put the prose.
             description:
                 markdown.trim() ?
-                    renderFoundryMarkdown(markdown, undefined, undefined, undefined, (pathname) =>
-                        roles.get(pathname),
+                    renderFoundryMarkdown(
+                        markdown,
+                        undefined,
+                        undefined,
+                        undefined,
+                        (pathname) => roles.get(pathname),
+                        this.corpus?.runs,
                     )
                 :   "",
             folder: this.folderResolver(authoredFolder, { isAddress: folderIsAddress }),

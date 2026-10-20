@@ -2485,6 +2485,12 @@ with visible text, nullable type/subtype and original source line/column.
 Local and dependency SQL schemas expose them through `names`; they travel in
 the metadata artifact.
 
+Metadata also includes each own note's spans, divs and poetry fences marked with
+`lang=`, `font=` or `map=` under `runs`, with the language as written, the tag
+it resolves to, the font, the map and the original source line/column. Local
+and dependency SQL schemas expose them through `runs`, and each mapping note's
+rows through `maps`.
+
 The command prepares SQL tables, page lists, automatic sections and scalar
 expressions before publishing their prose targets. Each source uses its own
 audience for prose declarations: public notes use public providers and usage,
@@ -2969,6 +2975,127 @@ $ package-build reachability assets/content
 
 `package-build links [root]`, `package-build lint [root]`, [Diagnostics](diagnostics.md),
 [Configuration](configuration.md).
+
+### `package-build transliterate <map> [text..]`
+
+**NAME**
+
+Map a passage into a script exactly as the build maps a marked run.
+
+**SYNOPSIS**
+
+```
+package-build transliterate <map> [--lang <language>] [--font <slug>] [--hex] [text..]
+```
+
+**DESCRIPTION**
+
+Reads the content index, as `package-build lint` does, and prints the passage
+rewritten by the mapping note whose `data.map.name` is `<map>`, through the
+same code the build sets a run marked `map=<map> lang=<language> font=<slug>`
+with. With `--lang`, each word the language's lexicon states a native form for
+is written by it and every other word is spelled by the rows; without it, the
+rows alone apply. See
+[a map reads the dictionary first](reference/format-details.md#a-map-reads-the-dictionary-first).
+The text is the words given, joined by single spaces; `-` or no text reads it
+from standard input, less one trailing newline. Writes nothing.
+
+**OPTIONS**
+
+| Positional | Type             | Default | Description                            |
+| ---------- | ---------------- | ------- | -------------------------------------- |
+| `map`      | string           | —       | The `data.map.name` of a mapping note. |
+| `text`     | string, variadic | stdin   | The passage; `-` reads it from stdin.  |
+
+| Option   | Type    | Default                    | Description                                                                     |
+| -------- | ------- | -------------------------- | ------------------------------------------------------------------------------- |
+| `--lang` | string  | —                          | A language declared in `languages`, whose lexicon is read first.                |
+| `--font` | string  | the map's one face, if one | The face, whose own rows come first; required when the map lists more than one. |
+| `--hex`  | boolean | `false`                    | Print the code points, as `U+XXXX` separated by spaces.                         |
+
+**EXIT STATUS**
+
+1 if the content index could not be built for any note, or the map, the
+language or the face names nothing, each reported as a finding: an unknown
+language at `languages` in the configuration, an unknown map or face at the
+content tree. 1, with the build's own message, if a capitalised word of the
+passage has a native form the rows cannot capitalise. Otherwise 0.
+
+**EXAMPLES**
+
+With Vylari's `zaron` stating a native form for `semaron`, and `lonak` stating
+none:
+
+```
+$ package-build transliterate semaron --lang vyl --hex zaron lonak
+U+F024F U+F0230 U+F023F U+F023C U+0020 U+F023A U+F023D U+F023C U+F0230 U+F0239
+$ package-build transliterate semaron --hex zaron
+U+F0255 U+F0230 U+F023F U+F023D U+F023C
+$ package-build transliterate semoran zaron
+assets/content: error: `semoran` is not a map: a map is named by the `data.map.name` of a mapping note; did you mean `semaron`?
+```
+
+The first run writes `zaron` by its exception; the second, with no `--lang`,
+spells it by the rows.
+
+**SEE ALSO**
+
+`package-build lexicon <language>`, [Mapping notes](reference/format-details.md#mapping-notes).
+
+### `package-build lexicon <language>`
+
+**NAME**
+
+List a language's words with their native forms under a map.
+
+**SYNOPSIS**
+
+```
+package-build lexicon <language> --map <map> [--font <slug>] [--json]
+```
+
+**DESCRIPTION**
+
+Reads the content index and lists every word of the language note
+[`languages.<language>.note`](configuration.md#languages) names, in `data.words`
+order, each with its native form under `<map>`: the stated exception where the
+word has one, else the rows' spelling, each exactly as
+`package-build transliterate` and the build give it. Each line holds, separated
+by tabs, the word's `form`, its native form, `exception` or `rows`, its `class`
+and its `gloss`. Writes nothing.
+
+**OPTIONS**
+
+| Positional | Type   | Default | Description                                         |
+| ---------- | ------ | ------- | --------------------------------------------------- |
+| `language` | string | —       | A declared language whose `note` names its lexicon. |
+
+| Option   | Type    | Default                    | Description                                                                |
+| -------- | ------- | -------------------------- | -------------------------------------------------------------------------- |
+| `--map`  | string  | —                          | Required: the `data.map.name` of a mapping note.                           |
+| `--font` | string  | the map's one face, if one | The face; required when the map lists more than one.                       |
+| `--json` | boolean | `false`                    | Print a JSON array of `{ form, native, exception, class, gloss }` instead. |
+
+**EXIT STATUS**
+
+1 if the content index could not be built for any note, or the language, the
+map or the face names nothing, the language states no `note`, or a capitalised
+word has a native form the rows cannot capitalise, each reported as a finding.
+Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build lexicon vyl --map semaron | head -3
+zaron	<native form>	exception	n	an oath
+lonak	<native form>	rows	n	a road
+thizaron	<native form>	rows	n	a seal
+```
+
+**SEE ALSO**
+
+`package-build transliterate <map> [text..]`,
+[A language's words](reference/format-details.md#a-languages-words).
 
 ### `package-build addresses diff`
 

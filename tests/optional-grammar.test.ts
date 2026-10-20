@@ -93,6 +93,7 @@ describe("optional grammar states shapes without enforcing words", () => {
             {},
             { plural: [] },
             GRAMMAR,
+            { verbs: { replaces: "then", persons: PERSONS } },
             { verbs: { invariant: true } },
             {
                 plural: [
@@ -129,6 +130,17 @@ describe("optional grammar states shapes without enforcing words", () => {
             "both alternatives",
             { grammar: { verbs: { invariant: true, persons: PERSONS } } },
             "data.grammar.verbs",
+        ],
+        ["replaces string", { grammar: { verbs: { replaces: 3, persons: PERSONS } } }, ".replaces"],
+        [
+            "empty replaces",
+            { grammar: { verbs: { replaces: " ", persons: PERSONS } } },
+            ".replaces",
+        ],
+        [
+            "replaces with invariant",
+            { grammar: { verbs: { replaces: "then", invariant: true } } },
+            ".replaces",
         ],
         ["unknown grammar key", { grammar: { tense: "present" } }, "grammar"],
         ["unknown person", { grammar: { verbs: { persons: { ...PERSONS, he: "a" } } } }, "persons"],
@@ -212,6 +224,23 @@ describe("dictionary grammar presentation", () => {
         const only = renderDictionary(result(), { showKey: "only" });
         expect(only).toMatch(/^\*\*Key:\*\* [^\n]+$/);
         expect(only).not.toContain("| Person |");
+    });
+
+    it("heads the table with what an ending replaces, where the pattern states it", () => {
+        const added = renderDictionary(result());
+        expect(added).toContain("| Person | Ending added to citation form |");
+        const replacing = renderDictionary(
+            result([
+                language("vylari", {
+                    grammar: { verbs: { replaces: "then", persons: { ...PERSONS, I: "men" } } },
+                    words: [word("lokathen", { class: "v" })],
+                }),
+            ]),
+        );
+        expect(replacing).toContain("| Person | Ending in place of a closing -then |");
+        expect(replacing).toContain("| I | -men |");
+        expect(replacing).toContain("| he/she | -then dropped |");
+        expect(replacing).not.toContain("Ending added to citation form");
     });
 
     it("prints invariant verbs and escapes supplied table cells", () => {
@@ -382,6 +411,27 @@ describe("grammar through SQL and published data", () => {
             expect(
                 (await runSqlQuery(db, `SELECT plural FROM words WHERE form = 'velos'`)).rows,
             ).toEqual([{ plural: "velen" }]);
+        } finally {
+            await db.close();
+        }
+    });
+
+    it("carries `replaces` through SQL into the verb table", async () => {
+        const notes = [
+            language("vylari", {
+                grammar: { verbs: { replaces: "then", persons: PERSONS } },
+                words: [word("lokathen", { class: "v" })],
+            }),
+            language("other", {
+                grammar: { verbs: { persons: PERSONS } },
+                words: [word("sanos", { class: "v" })],
+            }),
+        ];
+        const db = await openNotesDatabase(notes);
+        try {
+            const text = renderDictionary(await runSqlQuery(db, "SELECT * FROM dictionary"));
+            expect(text).toContain("| Person | Ending in place of a closing -then |");
+            expect(text).toContain("| Person | Ending added to citation form |");
         } finally {
             await db.close();
         }

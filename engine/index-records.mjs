@@ -65,6 +65,7 @@ export const DERIVED_KEYS = Object.freeze([
     "resolvedCalendar",
     "citations",
     "names",
+    "runs",
 ]);
 
 /**

@@ -77,6 +77,24 @@ import { parseExtensionAttributes, refusedAttributes } from "./extension-attribu
 
 const structureParser = new MarkdownIt({ html: true });
 
+/**
+ * The keys a poetry fence's attribute block takes. `lang`, `font` and `map`
+ * are read by `scanRuns` in content-scripts.mjs; `dir`, and on the site
+ * `data-pagefind-ignore`, are written by its rewrite of a fence set in one of
+ * the faces, and reach the element as they are written.
+ */
+export const POETRY_KEYS = Object.freeze([
+    "form",
+    "meter",
+    "rhyme",
+    "syllables",
+    "lang",
+    "font",
+    "map",
+    "dir",
+    "data-pagefind-ignore",
+]);
+
 /** Read poetry code fences; start/end are inclusive zero-based source lines.
  * @param {string} source - Authored Markdown.
  */
@@ -157,15 +175,13 @@ export function scanPoetry(source) {
         for (const message of [...parsed.problems, ...refusedAttributes(parsed.values)])
             errors.push({ ...at, message });
         for (const [key, value] of Object.entries(parsed.values)) {
-            if (!["form", "meter", "rhyme", "syllables", "lang"].includes(key))
+            if (!POETRY_KEYS.includes(key))
                 errors.push({ ...at, message: `${key}= is not a poetry attribute` });
             else if (key === "syllables" && !/^[1-9]\d*(?:,[1-9]\d*)*$/.test(value))
                 errors.push({
                     ...at,
                     message: "poetry syllables= needs positive comma-separated counts",
                 });
-            else if (key === "lang" && !/^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$/.test(value))
-                errors.push({ ...at, message: "poetry lang= needs a language tag" });
         }
     }
     if (opening?.name === "poetry")
@@ -197,7 +213,9 @@ export function renderPoetry(source) {
         if (block.id) attrs.push(`id="${escape(slugify(block.id))}"`);
         for (const [key, value] of Object.entries(block.attributes))
             if (!refusedAttributes({ [key]: value }).length)
-                attrs.push(`${key === "lang" ? key : `data-${key}`}="${escape(value)}"`);
+                attrs.push(
+                    `${["lang", "dir", "data-pagefind-ignore"].includes(key) ? key : `data-${key}`}="${escape(value)}"`,
+                );
         let indent = block.indent;
         if (
             indent.length >= 4 &&

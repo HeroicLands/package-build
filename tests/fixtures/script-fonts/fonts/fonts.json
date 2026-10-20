@@ -1,0 +1,1432 @@
+{
+    "version": 1,
+    "families": [
+        {
+            "name": "Semaron Kuriale",
+            "family": "Semaron Kuriale",
+            "class": "hl-semaron-kuriale",
+            "files": {
+                "woff2": "fonts/SemaronKuriale-Regular.woff2",
+                "ttf": "fonts/SemaronKuriale-Regular.ttf"
+            },
+            "direction": "ltr",
+            "features": [],
+            "codepoints": [
+                {
+                    "codepoint": "U+F0200",
+                    "glyph": "A",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0201",
+                    "glyph": "B",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0202",
+                    "glyph": "D",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0203",
+                    "glyph": "E",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0204",
+                    "glyph": "F",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0205",
+                    "glyph": "G",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0206",
+                    "glyph": "H",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0207",
+                    "glyph": "I",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0208",
+                    "glyph": "J",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0209",
+                    "glyph": "K",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F020A",
+                    "glyph": "L",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F020B",
+                    "glyph": "M",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F020C",
+                    "glyph": "N",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F020D",
+                    "glyph": "O",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F020E",
+                    "glyph": "P",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F020F",
+                    "glyph": "R",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0210",
+                    "glyph": "S",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0211",
+                    "glyph": "T",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0212",
+                    "glyph": "U",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0213",
+                    "glyph": "V",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0214",
+                    "glyph": "W",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0215",
+                    "glyph": "Y",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0216",
+                    "glyph": "Z",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0220",
+                    "glyph": "A.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0221",
+                    "glyph": "E.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0222",
+                    "glyph": "I.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0223",
+                    "glyph": "O.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0224",
+                    "glyph": "U.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0230",
+                    "glyph": "a",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0231",
+                    "glyph": "b",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0232",
+                    "glyph": "d",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0233",
+                    "glyph": "e",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0234",
+                    "glyph": "f",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0235",
+                    "glyph": "g",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0236",
+                    "glyph": "h",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0237",
+                    "glyph": "i",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0238",
+                    "glyph": "j",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0239",
+                    "glyph": "k",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F023A",
+                    "glyph": "l",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F023B",
+                    "glyph": "m",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F023C",
+                    "glyph": "n",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F023D",
+                    "glyph": "o",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F023E",
+                    "glyph": "p",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F023F",
+                    "glyph": "r",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0240",
+                    "glyph": "s",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0241",
+                    "glyph": "t",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0242",
+                    "glyph": "u",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0243",
+                    "glyph": "v",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0244",
+                    "glyph": "w",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0245",
+                    "glyph": "y",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0246",
+                    "glyph": "z",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0248",
+                    "glyph": "a.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0249",
+                    "glyph": "e.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F024A",
+                    "glyph": "i.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F024B",
+                    "glyph": "o.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F024C",
+                    "glyph": "u.long",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0250",
+                    "glyph": "th",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0251",
+                    "glyph": "TH",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0258",
+                    "glyph": "num.0",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0259",
+                    "glyph": "num.1",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F025A",
+                    "glyph": "num.2",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F025B",
+                    "glyph": "num.3",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F025C",
+                    "glyph": "num.4",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F025D",
+                    "glyph": "num.5",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F025E",
+                    "glyph": "num.6",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F025F",
+                    "glyph": "num.7",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0260",
+                    "glyph": "num.8",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0261",
+                    "glyph": "num.9",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0268",
+                    "glyph": "point",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+F0270",
+                    "glyph": "grave",
+                    "kind": "mark"
+                }
+            ]
+        },
+        {
+            "name": "Pirzath Hand Lifted",
+            "family": "Pirzath Hand",
+            "class": "hl-pirzath-hand-lifted",
+            "files": {
+                "woff2": "fonts/PirzathHand-Regular.woff2",
+                "ttf": "fonts/PirzathHand-Regular.ttf"
+            },
+            "direction": "ltr",
+            "features": [],
+            "codepoints": [
+                {
+                    "codepoint": "U+F0000",
+                    "glyph": "a",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0001",
+                    "glyph": "e",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0002",
+                    "glyph": "i",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0003",
+                    "glyph": "o",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0004",
+                    "glyph": "u",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0005",
+                    "glyph": "p",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0006",
+                    "glyph": "b",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0007",
+                    "glyph": "f",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0008",
+                    "glyph": "v",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0009",
+                    "glyph": "m",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F000A",
+                    "glyph": "t",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F000B",
+                    "glyph": "d",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F000C",
+                    "glyph": "n",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F000D",
+                    "glyph": "k",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F000E",
+                    "glyph": "g",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F000F",
+                    "glyph": "s",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0010",
+                    "glyph": "z",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0011",
+                    "glyph": "h",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0012",
+                    "glyph": "l",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0013",
+                    "glyph": "r",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0014",
+                    "glyph": "j",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0015",
+                    "glyph": "q",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0016",
+                    "glyph": "w",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0017",
+                    "glyph": "y",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0018",
+                    "glyph": "catch",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0020",
+                    "glyph": "t_h",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0021",
+                    "glyph": "d_h",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0022",
+                    "glyph": "k_h",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0023",
+                    "glyph": "g_h",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0024",
+                    "glyph": "sh",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0025",
+                    "glyph": "zh",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0026",
+                    "glyph": "ts",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0027",
+                    "glyph": "ch",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0028",
+                    "glyph": "ng",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0029",
+                    "glyph": "ny",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F002A",
+                    "glyph": "hl",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0030",
+                    "glyph": "ai",
+                    "kind": "diphthong"
+                },
+                {
+                    "codepoint": "U+F0031",
+                    "glyph": "au",
+                    "kind": "diphthong"
+                },
+                {
+                    "codepoint": "U+F0032",
+                    "glyph": "ei",
+                    "kind": "diphthong"
+                },
+                {
+                    "codepoint": "U+F0033",
+                    "glyph": "oi",
+                    "kind": "diphthong"
+                },
+                {
+                    "codepoint": "U+F0034",
+                    "glyph": "ou",
+                    "kind": "diphthong"
+                },
+                {
+                    "codepoint": "U+F0040",
+                    "glyph": "num.0",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0041",
+                    "glyph": "num.1",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0042",
+                    "glyph": "num.2",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0043",
+                    "glyph": "num.3",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0044",
+                    "glyph": "num.4",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0045",
+                    "glyph": "num.5",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0046",
+                    "glyph": "num.6",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0047",
+                    "glyph": "num.7",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0048",
+                    "glyph": "num.8",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0049",
+                    "glyph": "num.9",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F004A",
+                    "glyph": "num.10",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F004B",
+                    "glyph": "num.11",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F004C",
+                    "glyph": "num.12",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F004D",
+                    "glyph": "num.13",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F004E",
+                    "glyph": "num.14",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F004F",
+                    "glyph": "num.15",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0050",
+                    "glyph": "period",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+F0051",
+                    "glyph": "comma",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+F0052",
+                    "glyph": "exclam",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+F0053",
+                    "glyph": "hyphen",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+F0054",
+                    "glyph": "quote.open",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+F0055",
+                    "glyph": "quote.close",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+F0060",
+                    "glyph": "lengthmark",
+                    "kind": "mark"
+                }
+            ]
+        },
+        {
+            "name": "Thuravark Carved",
+            "family": "Thuravark Carved",
+            "class": "hl-thuravark-carved",
+            "files": {
+                "woff2": "fonts/ThuravarkCarved-Regular.woff2",
+                "ttf": "fonts/ThuravarkCarved-Regular.ttf"
+            },
+            "direction": "ltr",
+            "features": ["ss01", "liga"],
+            "codepoints": [
+                {
+                    "codepoint": "U+F0100",
+                    "glyph": "a",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0101",
+                    "glyph": "e",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0102",
+                    "glyph": "i",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0103",
+                    "glyph": "o",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0104",
+                    "glyph": "u",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0105",
+                    "glyph": "b",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0106",
+                    "glyph": "d",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0107",
+                    "glyph": "f",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0108",
+                    "glyph": "g",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0109",
+                    "glyph": "h",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F010A",
+                    "glyph": "j",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F010B",
+                    "glyph": "k",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F010C",
+                    "glyph": "l",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F010D",
+                    "glyph": "m",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F010E",
+                    "glyph": "n",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F010F",
+                    "glyph": "p",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0110",
+                    "glyph": "r",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0111",
+                    "glyph": "s",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0112",
+                    "glyph": "t",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0113",
+                    "glyph": "v",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0114",
+                    "glyph": "w",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0115",
+                    "glyph": "z",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+F0120",
+                    "glyph": "th",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0121",
+                    "glyph": "dh",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0122",
+                    "glyph": "kh",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0123",
+                    "glyph": "gh",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0124",
+                    "glyph": "hl",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0125",
+                    "glyph": "ng",
+                    "kind": "digraph"
+                },
+                {
+                    "codepoint": "U+F0130",
+                    "glyph": "num.0",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0131",
+                    "glyph": "num.1",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0132",
+                    "glyph": "num.2",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0133",
+                    "glyph": "num.3",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0134",
+                    "glyph": "num.4",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0135",
+                    "glyph": "num.5",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0136",
+                    "glyph": "num.6",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0137",
+                    "glyph": "num.7",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0138",
+                    "glyph": "num.8",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0139",
+                    "glyph": "num.9",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+F0140",
+                    "glyph": "period",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+F0148",
+                    "glyph": "acutecomb",
+                    "kind": "mark"
+                }
+            ]
+        },
+        {
+            "name": "Qalezu Hand",
+            "family": "Qalezu Hand",
+            "class": "hl-qalezu-hand",
+            "files": {
+                "woff2": "fonts/QalezuHand-Regular.woff2",
+                "ttf": "fonts/QalezuHand-Regular.ttf"
+            },
+            "direction": "rtl",
+            "features": [],
+            "codepoints": [
+                {
+                    "codepoint": "U+1EA00",
+                    "glyph": "l",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA01",
+                    "glyph": "r",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA02",
+                    "glyph": "t",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA03",
+                    "glyph": "d",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA04",
+                    "glyph": "z",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA05",
+                    "glyph": "s",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA06",
+                    "glyph": "g",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA07",
+                    "glyph": "k",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA08",
+                    "glyph": "n",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA09",
+                    "glyph": "th",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA0A",
+                    "glyph": "m",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA0B",
+                    "glyph": "q",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA0C",
+                    "glyph": "kh",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA0D",
+                    "glyph": "gh",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA0E",
+                    "glyph": "h",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA0F",
+                    "glyph": "sh",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA10",
+                    "glyph": "p",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA11",
+                    "glyph": "b",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA12",
+                    "glyph": "f",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA13",
+                    "glyph": "w",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA14",
+                    "glyph": "y",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA15",
+                    "glyph": "catch",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA16",
+                    "glyph": "tj",
+                    "kind": "letter"
+                },
+                {
+                    "codepoint": "U+1EA17",
+                    "glyph": "l.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA18",
+                    "glyph": "r.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA19",
+                    "glyph": "t.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA1A",
+                    "glyph": "d.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA1B",
+                    "glyph": "z.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA1C",
+                    "glyph": "s.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA1D",
+                    "glyph": "g.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA1E",
+                    "glyph": "k.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA1F",
+                    "glyph": "n.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA20",
+                    "glyph": "th.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA21",
+                    "glyph": "m.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA22",
+                    "glyph": "q.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA23",
+                    "glyph": "kh.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA24",
+                    "glyph": "gh.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA25",
+                    "glyph": "h.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA26",
+                    "glyph": "sh.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA27",
+                    "glyph": "p.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA28",
+                    "glyph": "b.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA29",
+                    "glyph": "f.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA2A",
+                    "glyph": "w.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA2B",
+                    "glyph": "y.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA2C",
+                    "glyph": "tj.dbl",
+                    "kind": "doubled"
+                },
+                {
+                    "codepoint": "U+1EA2D",
+                    "glyph": "zero",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA2E",
+                    "glyph": "one",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA2F",
+                    "glyph": "two",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA30",
+                    "glyph": "three",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA31",
+                    "glyph": "four",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA32",
+                    "glyph": "five",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA33",
+                    "glyph": "six",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA34",
+                    "glyph": "seven",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA35",
+                    "glyph": "eight",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA36",
+                    "glyph": "nine",
+                    "kind": "numeral"
+                },
+                {
+                    "codepoint": "U+1EA37",
+                    "glyph": "period",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+1EA38",
+                    "glyph": "comma",
+                    "kind": "point"
+                },
+                {
+                    "codepoint": "U+1ECC0",
+                    "glyph": "l.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECC1",
+                    "glyph": "r.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECC2",
+                    "glyph": "t.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECC3",
+                    "glyph": "d.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECC4",
+                    "glyph": "z.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECC5",
+                    "glyph": "s.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECC6",
+                    "glyph": "g.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECC7",
+                    "glyph": "k.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECC8",
+                    "glyph": "n.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECC9",
+                    "glyph": "th.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECCA",
+                    "glyph": "m.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECCB",
+                    "glyph": "q.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECCC",
+                    "glyph": "kh.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECCD",
+                    "glyph": "gh.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECCE",
+                    "glyph": "h.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECCF",
+                    "glyph": "sh.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD0",
+                    "glyph": "p.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD1",
+                    "glyph": "b.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD2",
+                    "glyph": "f.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD3",
+                    "glyph": "w.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD4",
+                    "glyph": "y.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD5",
+                    "glyph": "tj.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD6",
+                    "glyph": "l.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD7",
+                    "glyph": "r.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD8",
+                    "glyph": "t.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECD9",
+                    "glyph": "d.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECDA",
+                    "glyph": "z.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECDB",
+                    "glyph": "s.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECDC",
+                    "glyph": "g.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECDD",
+                    "glyph": "k.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECDE",
+                    "glyph": "n.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECDF",
+                    "glyph": "th.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE0",
+                    "glyph": "m.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE1",
+                    "glyph": "q.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE2",
+                    "glyph": "kh.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE3",
+                    "glyph": "gh.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE4",
+                    "glyph": "h.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE5",
+                    "glyph": "sh.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE6",
+                    "glyph": "p.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE7",
+                    "glyph": "b.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE8",
+                    "glyph": "f.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECE9",
+                    "glyph": "w.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECEA",
+                    "glyph": "y.dbl.catch",
+                    "kind": "catchbefore"
+                },
+                {
+                    "codepoint": "U+1ECEB",
+                    "glyph": "tj.dbl.catch",
+                    "kind": "catchbefore"
+                }
+            ]
+        }
+    ]
+}

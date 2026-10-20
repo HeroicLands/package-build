@@ -30,6 +30,8 @@
  *   npx package-build site [--out <dir>]
  *   npx package-build map [--tree] [--from <shortcode>] [--chart <shortcode>] [--travel] [--out <dir>]
  *   npx package-build reachability <dir> [file] [--index <shortcode>]
+ *   npx package-build transliterate <map> [--lang <language>] [--font <slug>] [--hex] [text..]
+ *   npx package-build lexicon <language> --map <map> [--font <slug>] [--json]
  *   npx package-build addresses diff --from <zip|dir> [--strict]
  *   npx package-build npc new (--spec <json> | --specfile <path>) [--seed <text>] [--out <path>]
  *
@@ -62,7 +64,19 @@ import {
     unaddressableForeignPackages,
     formatUnaddressableFinding,
 } from "../engine/metadata-index.mjs";
-import { fetchNavigation, generateHugoConfig, writeHugoConfig } from "../engine/site-config.mjs";
+import {
+    fetchNavigation,
+    generateHugoConfig,
+    HUGO_SOURCE,
+    writeHugoConfig,
+} from "../engine/site-config.mjs";
+import {
+    checkScriptFonts,
+    copyScriptFonts,
+    scriptFontFiles,
+    SITE_FONTS_DIR,
+    siteFontsDestination,
+} from "../engine/script-font-delivery.mjs";
 import { renderItemFieldReference, renderItemFieldsPage } from "../engine/field-reference.mjs";
 import { checkDocLinks, checkDocIndex } from "../engine/docs-checks.mjs";
 import { checkArtSlotSizes } from "../engine/art-fields.mjs";
@@ -102,6 +116,14 @@ import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { markupFindings } from "../engine/markup-validation.mjs";
+import { runContext } from "../engine/content-scripts.mjs";
+import {
+    checkLexiconNatives,
+    checkMapFonts,
+    languageNoteFindings,
+    lexiconEntries,
+    transliterate,
+} from "../engine/map-lexicon.mjs";
 import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import { lintProse, scoreProseTree } from "../engine/readability-lint.mjs";
 import { loadPackageBuildConfig } from "../config.mjs";
@@ -300,6 +322,8 @@ export function registerContentCommands(cli) {
         )
         .command(withIndexPreflight(mapCommand()))
         .command(withIndexPreflight(reachabilityCommand()))
+        .command(transliterateCommand())
+        .command(lexiconCommand())
         .command(addressesCommand())
         .command(withIndexPreflight(npcCommand()));
 }
@@ -461,7 +485,7 @@ function withBodyPreflight(
                         :   undefined;
                     const records = session?.records ?? indexRecordsFor({ config, contentBase });
                     if (session?.problems.length) {
-                        emitDiagnostic(session.problems[0]);
+                        for (const problem of session.problems) emitDiagnostic(problem);
                         process.exitCode = 1;
                         return;
                     }
@@ -1257,10 +1281,19 @@ function lintCommand() {
                     assetsBase: config.paths.assets,
                 });
 
+                // Text marked with a language, a font or a map, checked against
+                // the languages this package declares, the faces it installed
+                // and the maps its notes declare.
+                const runs = runContext(config, records);
                 const findings = [
                     ...index.notes.flatMap((note) =>
-                        markupFindings(note.raw, note.file, session.syntax),
+                        markupFindings(note.raw, note.file, session.syntax, runs),
                     ),
+                    // Each mapping note's faces, each language's native forms
+                    // and each language's `note`, against the faces and maps.
+                    ...index.notes.flatMap((note) => checkMapFonts(note, runs)),
+                    ...index.notes.flatMap((note) => checkLexiconNatives(note, runs)),
+                    ...languageNoteFindings({ ...config, configFile: packConfigPath() }, records),
                     ...index.notes.flatMap(firstUseChecker),
                     ...(names ? [names] : []),
                     ...addresses.findings,
@@ -1892,6 +1925,38 @@ function pdfCommand() {
 }
 
 /**
+ * Copy the installed script fonts into the Hugo static tree, under a path that
+ * names their version, and drop any other version's copy.
+ *
+ * A package that has not installed `@heroiclands/fonts`, or sets no text in
+ * one of its faces, gets no copy; a package missing a file its fonts depend on
+ * gets a located error and a non-zero exit.
+ *
+ * @param {object} config - The resolved content configuration.
+ * @returns {void}
+ */
+function stageSiteFonts(config) {
+    const root = path.join(config.rootDir, HUGO_SOURCE, "static", SITE_FONTS_DIR);
+    fs.rmSync(root, { recursive: true, force: true });
+    const found = scriptFontFiles(config, ["woff2"]);
+    if (!found) return;
+    const findings = checkScriptFonts(config);
+    for (const finding of findings) emitDiagnostic(finding);
+    if (findings.length) {
+        process.exitCode = 1;
+        return;
+    }
+    const dest = path.join(
+        config.rootDir,
+        HUGO_SOURCE,
+        "static",
+        siteFontsDestination(found.version),
+    );
+    const count = copyScriptFonts(config, dest, ["woff2"]);
+    log.info(`wrote ${count} script font file(s) to ${path.relative(process.cwd(), dest)}`);
+}
+
+/**
  * `package-build site` — publish the content tree as a website.
  *
  * The sibling of `package compile`: the same tree, rendered as pages instead of
@@ -2077,6 +2142,7 @@ function siteCommand() {
                 );
                 const { file } = writeHugoConfig(config, hugo);
                 log.info(`wrote ${path.relative(process.cwd(), file)}`);
+                stageSiteFonts(config);
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
@@ -2233,6 +2299,201 @@ function mapCommand() {
                         `${path.relative(process.cwd(), outDir) || "."}`,
                 );
                 if (errors) process.exitCode = 1;
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * The run context a mapping command reads: the content index's maps and
+ * lexicons, and the configured languages and installed faces, exactly as the
+ * build has them.
+ *
+ * @returns {{config: object, ctx: object}|undefined} The context, or
+ *   `undefined` when the content tree could not be read whole, which is
+ *   reported.
+ */
+function mappingContext() {
+    const config = loadPackConfig();
+    const problems = [];
+    const records = indexRecordsFor({
+        contentBase: config.paths.content,
+        config,
+        skipDirectories: config.skipDirectories,
+        problems,
+    });
+    for (const problem of problems) emitDiagnostic(problem);
+    if (problems.length) return undefined;
+    return { config, ctx: runContext(config, records) };
+}
+
+/**
+ * Report what a mapping command was given that names nothing: an unknown
+ * language at the configuration's `languages`, and an unknown map or face at
+ * the content tree, where mapping notes are. A word the rows cannot
+ * capitalise is in the passage given, so it has no file.
+ *
+ * @param {object} config - The resolved configuration.
+ * @param {{problem: string, about: string}} found - What is wrong.
+ * @param {string} [lang] - The language asked for.
+ */
+function reportMapping(config, found) {
+    if (found.about === "lang") {
+        const file = packConfigPath();
+        let text;
+        try {
+            text = fs.readFileSync(file, "utf8");
+        } catch {
+            text = undefined;
+        }
+        emitDiagnostic({
+            file,
+            ...(text ? positionOfYamlPath(text, ["languages"], { key: true }) : {}),
+            severity: "error",
+            message: found.problem,
+        });
+    } else if (found.about === "word")
+        // A word of the passage given, which sits in no file.
+        emitDiagnostic({ severity: "error", message: found.problem });
+    else emitDiagnostic({ file: config.paths.content, severity: "error", message: found.problem });
+    process.exitCode = 1;
+}
+
+/**
+ * `package-build transliterate <map> [text..]` — map a passage exactly as the
+ * build maps a run marked with the same `map=`, `lang=` and `font=`.
+ *
+ * @returns {object} The yargs command module.
+ */
+// eslint-disable-next-line
+function transliterateCommand() {
+    return {
+        command: "transliterate <map> [text..]",
+        describe: "Map a passage into a script exactly as the build maps a marked run",
+        builder: (yargs) =>
+            yargs
+                .positional("map", {
+                    type: "string",
+                    describe: "The `data.map.name` of a mapping note",
+                })
+                .positional("text", {
+                    type: "string",
+                    array: true,
+                    describe: "The passage; `-` or nothing reads it from stdin",
+                })
+                .option("lang", {
+                    type: "string",
+                    describe: "A declared language, whose lexicon is read first",
+                })
+                .option("font", {
+                    type: "string",
+                    describe: "The face; required when the map lists more than one",
+                })
+                .option("hex", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Print the code points, as `U+XXXX` separated by spaces",
+                }),
+        handler: (argv) => {
+            try {
+                const read = mappingContext();
+                if (!read) {
+                    process.exitCode = 1;
+                    return;
+                }
+                const words = (argv.text ?? []).map(String);
+                const text =
+                    !words.length || (words.length === 1 && words[0] === "-") ?
+                        fs.readFileSync(0, "utf8").replace(/\r?\n$/, "")
+                    :   words.join(" ");
+                const mapped = transliterate(
+                    read.ctx,
+                    { map: String(argv.map), lang: argv.lang, font: argv.font },
+                    text,
+                );
+                if ("problem" in mapped) {
+                    reportMapping(read.config, mapped);
+                    return;
+                }
+                console.log(
+                    argv.hex ?
+                        Array.from(
+                            mapped.text,
+                            (char) =>
+                                `U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, "0")}`,
+                        ).join(" ")
+                    :   mapped.text,
+                );
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `package-build lexicon <language> --map <map>` — every word of a language's
+ * lexicon with its native form under a map, as the build writes it.
+ *
+ * @returns {object} The yargs command module.
+ */
+// eslint-disable-next-line
+function lexiconCommand() {
+    return {
+        command: "lexicon <language>",
+        describe: "List a language's words with their native forms under a map",
+        builder: (yargs) =>
+            yargs
+                .positional("language", {
+                    type: "string",
+                    describe: "A declared language whose `note` names its language note",
+                })
+                .option("map", {
+                    type: "string",
+                    demandOption: true,
+                    describe: "The `data.map.name` of a mapping note",
+                })
+                .option("font", {
+                    type: "string",
+                    describe: "The face; required when the map lists more than one",
+                })
+                .option("json", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Print a JSON array rather than tab-separated lines",
+                }),
+        handler: (argv) => {
+            try {
+                const read = mappingContext();
+                if (!read) {
+                    process.exitCode = 1;
+                    return;
+                }
+                const listed = lexiconEntries(read.ctx, {
+                    lang: String(argv.language),
+                    map: String(argv.map),
+                    font: argv.font,
+                });
+                if ("problem" in listed) {
+                    reportMapping(read.config, listed);
+                    return;
+                }
+                if (argv.json) console.log(JSON.stringify(listed.entries, null, 2));
+                else
+                    for (const entry of listed.entries)
+                        console.log(
+                            [
+                                entry.form,
+                                entry.native,
+                                entry.exception ? "exception" : "rows",
+                                entry.class ?? "",
+                                entry.gloss ?? "",
+                            ].join("\t"),
+                        );
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

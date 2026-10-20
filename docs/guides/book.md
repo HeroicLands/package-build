@@ -503,6 +503,17 @@ successfully. The [content format](../content-format.md) covers icon names
 written in notes; the [configuration reference](../configuration.md) covers
 the font registry.
 
+### Fonts for marked text
+
+Text marked with `font=` and one of the faces of `@heroiclands/fonts` is set in
+that face once the package installs the fonts package in `devDependencies`.
+The build then adds the fonts package's `fonts/` directory, which holds the
+TrueType files, to the compiler's font search path after the shipped faces and
+`fonts.path`. `font=serif`, `sans` and `mono` set the book's own serif, sans and
+mono. A package without the fonts, or whose notes set no text in a face,
+searches the same directories as before. See
+[marking language, font and mapping](../authoring/links-and-markup.md#marking-language-font-and-mapping).
+
 ## Build and inspect
 
 ```bash

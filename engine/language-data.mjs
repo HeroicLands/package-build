@@ -34,6 +34,9 @@
  *   type;
  * - every language a cognate's `forms` names is a language note;
  * - a register row states a `tongue` or a `kind`;
+ * - a register row tagged `other:<tongue>` or `exonym:<tongue>` names a name
+ *   the tongue's own language note registers under that tongue, case folded
+ *   and NFC (see {@link foreignRowFindings});
  * - a sound-change set's name stands once in the note, a step's label once
  *   in its set, and its `from` and `to` name language notes;
  * - a frame's classes are bases of the master word classes;
@@ -52,7 +55,7 @@
 
 import { pathLabel as label } from "./data-keys.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
-import { addressKeyOf } from "./culture-reach.mjs";
+import { addressKeyOf, isLanguageNote } from "./culture-reach.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { isAddressTuple, renderAddress } from "./address.mjs";
 import {
@@ -109,6 +112,119 @@ export function tongueDeclared(tag, declared) {
     return match[2] === undefined ?
             declared.has(tag)
         :   declared.has(`${match[1]}:${TONGUE_PLACEHOLDER}`);
+}
+
+/** The tag families whose rows name a name of another tongue's register. */
+const FOREIGN_FAMILIES = new Set(["other", "exonym"]);
+
+/** How a foreign row that its tongue's register does not bear out is reported. */
+export const FOREIGN_ROW_SEVERITY = "warning";
+
+/** A name as a foreign row is compared: NFC and lowercase. */
+const foldName = (name) => name.normalize("NFC").toLowerCase();
+
+/**
+ * Each tag a language note of the index declares with a `language`, to the
+ * canonical Addresses of the language notes it names, keyed once per index.
+ *
+ * @type {WeakMap<object, Map<string, Set<string>>>}
+ */
+const tongueLanguagesByIndex = new WeakMap();
+
+/**
+ * The language notes each tag names: every `data.tongues` entry of the index's
+ * own language notes whose `tag` is a plain tag and that states a `language`.
+ *
+ * @param {object} index - The link index.
+ * @returns {Map<string, Set<string>>} Canonical Addresses by tag.
+ */
+function tongueLanguages(index) {
+    const known = tongueLanguagesByIndex.get(index);
+    if (known) return known;
+    const out = new Map();
+    for (const note of index.notes ?? []) {
+        if (!isLanguageNote(note.fm)) continue;
+        for (const tongue of listOf(note.fm?.data?.tongues)) {
+            if (!isMap(tongue) || typeof tongue.tag !== "string" || tongue.tag.includes(":"))
+                continue;
+            const key = addressKeyOf(tongue.language, index, "skill");
+            if (!key) continue;
+            if (!out.has(tongue.tag)) out.set(tongue.tag, new Set());
+            out.get(tongue.tag).add(key);
+        }
+    }
+    tongueLanguagesByIndex.set(index, out);
+    return out;
+}
+
+/**
+ * The findings on a register's rows tagged `other:<tongue>` or
+ * `exonym:<tongue>`, each checked against the register of the tongue's own
+ * language note.
+ *
+ * A tongue names the language note a `data.tongues` entry of one of the
+ * index's language notes tags it with, through its `language`: `other:helonic`
+ * reads the note that `{tag: helonic, language: skill-helonclng}` names. The
+ * row passes when that note's `data.register` holds a row of the same name
+ * whose `tongue` is `helonic`. A tongue no entry links to a language note, or
+ * one linked to two, is a finding at the row's `tongue`; a language note of
+ * another package is not read, since its register does not reach this index.
+ * Bare `other`, and every other tag, are not checked.
+ *
+ * @param {Array<{row: object, i: number}>} rows - The register rows whose tag
+ *   `data.tongues` declares.
+ * @param {object|undefined} index - The link index.
+ * @param {(path: Array<string|number>, severity: string, message: string) => object} finding -
+ *   Builds a finding at a frontmatter path.
+ * @returns {object[]} The findings.
+ */
+function foreignRowFindings(rows, index, finding) {
+    if (!index?.addressHit) return [];
+    const findings = [];
+    for (const { row, i } of rows) {
+        const match = USED_TAG_PATTERN.exec(row.tongue);
+        if (!match || match[2] === undefined || !FOREIGN_FAMILIES.has(match[1])) continue;
+        const tongue = match[2];
+        const languages = [...(tongueLanguages(index).get(tongue) ?? [])];
+        if (languages.length !== 1) {
+            findings.push(
+                finding(
+                    ["data", "register", i, "tongue"],
+                    FOREIGN_ROW_SEVERITY,
+                    languages.length ?
+                        `the tongue \`${tongue}\` in \`${row.tongue}\` names ${languages.length} ` +
+                            `language notes, ${languages.join(" and ")}; the \`data.tongues\` entries ` +
+                            `tagged \`${tongue}\` name one`
+                    :   `the tongue \`${tongue}\` in \`${row.tongue}\` names no language note: no ` +
+                            `language note's \`data.tongues\` tags \`${tongue}\` with a \`language\``,
+                ),
+            );
+            continue;
+        }
+        const target = index.addressHit(languages[0]);
+        const fm = target?.fm;
+        if (!fm || !isLanguageNote(fm)) continue;
+        const name = foldName(row.name);
+        const listed = listOf(fm.data?.register).some(
+            (other) =>
+                isMap(other) &&
+                other.tongue === tongue &&
+                typeof other.name === "string" &&
+                foldName(other.name) === name,
+        );
+        if (listed) continue;
+        const title = typeof fm.name?.full === "string" ? fm.name.full : fm.name;
+        findings.push(
+            finding(
+                ["data", "register", i, "name"],
+                FOREIGN_ROW_SEVERITY,
+                `\`${row.name}\` is registered as \`${row.tongue}\`, but the register of ` +
+                    `${title} (${fm.type}-${fm.shortcode}) lists no \`${tongue}\` name ` +
+                    `\`${row.name}\`; correct the spelling, or register the name there first`,
+            ),
+        );
+    }
+    return findings;
 }
 
 /**
@@ -190,6 +306,22 @@ export function checkLanguageData(note, { index, types } = {}) {
                     ["data", "grammar", "verbs"],
                     "error",
                     "`data.grammar.verbs` must state exactly one of `invariant: true` or `persons`",
+                ),
+            );
+        else if (invariant && Object.hasOwn(verbs, "replaces"))
+            findings.push(
+                finding(
+                    ["data", "grammar", "verbs", "replaces"],
+                    "error",
+                    "`data.grammar.verbs.replaces` states what a `persons` ending replaces, and an invariant pattern has none",
+                ),
+            );
+        else if (typeof verbs.replaces === "string" && !verbs.replaces.trim())
+            findings.push(
+                finding(
+                    ["data", "grammar", "verbs", "replaces"],
+                    "error",
+                    "`data.grammar.verbs.replaces` must name the letters an ending replaces; leave it out where endings are added",
                 ),
             );
         else if (invariant && (verbs.invariant == null || verbs.invariant === false))
@@ -319,6 +451,7 @@ export function checkLanguageData(note, { index, types } = {}) {
             );
         });
     };
+    const foreignRows = [];
     listOf(data.register).forEach((row, i) => {
         if (!isMap(row)) return;
         if (row.tongue == null && row.kind == null)
@@ -331,7 +464,10 @@ export function checkLanguageData(note, { index, types } = {}) {
             );
         if (typeof row.tongue !== "string") return;
         undeclared([row.tongue], () => ["data", "register", i, "tongue"]);
+        if (typeof row.name === "string" && tongueDeclared(row.tongue, declared))
+            foreignRows.push({ row, i });
     });
+    findings.push(...foreignRowFindings(foreignRows, index, finding));
 
     // ── Sounds ───────────────────────────────────────────────────────────────
     const sounds = isMap(data.sounds) ? data.sounds : {};

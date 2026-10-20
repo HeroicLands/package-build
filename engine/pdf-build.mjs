@@ -81,6 +81,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 import { CONFIG_FILENAMES, loadPackConfig, packConfigPath } from "./pack-config.mjs";
+import { runContext } from "./content-scripts.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
@@ -160,6 +161,7 @@ import { resolveIconGlyphs } from "./pdf-fonts.mjs";
 import { drawMapsFrom } from "./derived-sections.mjs";
 import { generatedDrawing, markGenerated, splitGenerated } from "./generated-sections.mjs";
 import { resolveAssetReplacement } from "./asset-replacement.mjs";
+import { typstScriptFontPath } from "./script-font-delivery.mjs";
 
 /**
  * The file on disk an authored image pathname names, or `null`.
@@ -832,7 +834,7 @@ export async function buildPdf({
          *   message: string}} The table, or null with why it could not be read.
          */
         const measureAll = (written) => {
-            const fontArgs = typstFontArgs(resolved.pdf);
+            const fontArgs = typstFontArgs(resolved.pdf, resolved);
             const measured = new Map();
             for (const { entry } of toRender) {
                 const result = readPages(
@@ -906,7 +908,7 @@ export async function buildPdf({
             if (!wanted) continue;
             const result = pass.written.get(entry.id);
             imageReports.push(...(result.imageReports ?? []));
-            const ok = compile ? compileBook(result, resolved.pdf, findings) : true;
+            const ok = compile ? compileBook(result, resolved.pdf, findings, resolved) : true;
             if (!ok) built = false;
             books.push({
                 id: entry.id,
@@ -1616,6 +1618,7 @@ async function buildBook(book, shared) {
                 url: site,
                 elsewhere,
                 findings,
+                runs: runContext(resolved, records),
                 file: page.file,
                 bodyLine: page.bodyLine,
                 prepared: true,
@@ -1706,6 +1709,7 @@ async function buildBook(book, shared) {
                     elsewhere,
                     indexMentions: true,
                     findings,
+                    runs: runContext(resolved, records),
                     file,
                 }),
             );
@@ -1737,6 +1741,7 @@ async function buildBook(book, shared) {
                 elsewhere,
                 indexMentions: true,
                 findings,
+                runs: runContext(resolved, records),
                 file,
             });
         } catch {
@@ -1910,6 +1915,7 @@ async function buildBook(book, shared) {
         copyright: shared.copyright,
         license: shared.license,
         index,
+        runs: runContext(resolved, records),
     });
     // Last, over the whole document: a reference can only be checked once every
     // declaration is in one string, and Typst treats a dangling one as fatal.
@@ -1932,10 +1938,11 @@ async function buildBook(book, shared) {
  * @param {{typ: string, pdf: string}} written - From {@link buildBook}.
  * @param {object} pdf - The resolved `pdf:` block.
  * @param {object[]} findings - Collected here rather than thrown.
+ * @param {object} config - The resolved configuration.
  * @returns {boolean} Whether the PDF was written.
  */
-function compileBook(written, pdf, findings) {
-    const compiled = compileTypst(written.typ, written.pdf, pdf);
+function compileBook(written, pdf, findings, config) {
+    const compiled = compileTypst(written.typ, written.pdf, pdf, config);
     findings.push(...compiled.findings);
     if (!compiled.ok) {
         findings.push({ file: written.typ, severity: "error", message: compiled.message });
@@ -1979,10 +1986,13 @@ export const BOOK_FONTS_PATH = path.join(
  * @param {string} typPath - The `.typ` file.
  * @param {string} pdfPath - Where the PDF goes.
  * @param {object} [pdf] - The resolved `pdf:` block.
+ * @param {{rootDir?: string, paths?: {content?: string}}} [config] - The
+ *   resolved configuration; the installed faces are searched when a note sets
+ *   text in one.
  * @returns {string[]} The arguments, in order.
  */
-export function typstArgs(typPath, pdfPath, pdf = {}) {
-    return ["compile", ...typstFontArgs(pdf), typPath, pdfPath];
+export function typstArgs(typPath, pdfPath, pdf = {}, config) {
+    return ["compile", ...typstFontArgs(pdf, config), typPath, pdfPath];
 }
 
 /**
@@ -1990,14 +2000,20 @@ export function typstArgs(typPath, pdfPath, pdf = {}) {
  * the page measurement so both lay the book out in the same metrics.
  *
  * @param {object} [pdf] - The resolved `pdf:` block.
+ * @param {{rootDir?: string, paths?: {content?: string}}} [config] - The
+ *   resolved configuration; the installed faces are searched when a note sets
+ *   text in one.
  * @returns {string[]} The arguments, in order.
  */
-export function typstFontArgs(pdf = {}) {
+export function typstFontArgs(pdf = {}, config) {
     // One flag, the paths joined by the platform's separator: the compiler
     // takes a list, and the shipped faces come first so a consumer's own
-    // directory extends the set rather than standing in for it.
+    // directory and the installed script fonts extend the set rather than
+    // standing in for it.
     const fontPaths = [BOOK_FONTS_PATH];
     if (pdf.fonts?.path) fontPaths.push(pdf.fonts.path);
+    const scriptFonts = config && typstScriptFontPath(config);
+    if (scriptFonts) fontPaths.push(scriptFonts);
     return ["--ignore-system-fonts", "--font-path", fontPaths.join(path.delimiter)];
 }
 
@@ -2044,12 +2060,14 @@ export function typstWarnings(output) {
  * @param {string} typPath - The `.typ` file.
  * @param {string} pdfPath - Where the PDF goes.
  * @param {object} pdf - The resolved `pdf:` block.
+ * @param {{rootDir?: string, paths?: {content?: string}}} [config] - The
+ *   resolved configuration, for the installed faces.
  * @returns {{ok: boolean, message: string, findings: object[]}} What happened,
  *   and what the compiler warned about on the way.
  */
-export function compileTypst(typPath, pdfPath, pdf = {}) {
+export function compileTypst(typPath, pdfPath, pdf = {}, config) {
     const binary = pdf.binary || "typst";
-    const args = typstArgs(typPath, pdfPath, pdf);
+    const args = typstArgs(typPath, pdfPath, pdf, config);
     let result;
     try {
         result = spawnSync(binary, args, { encoding: "utf8" });

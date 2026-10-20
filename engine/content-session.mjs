@@ -21,6 +21,7 @@ import * as sql from "./sql-tables.mjs";
 import { captureContentSources } from "./content-sources.mjs";
 import { buildLinkIndex } from "./content-links.mjs";
 import { buildContentLinkIndex } from "./helpers.mjs";
+import { runContext } from "./content-scripts.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
@@ -199,6 +200,7 @@ export async function createContentSession({
             return memo("compile", async () => {
                 const sqlTables = await session.sqlTables("all");
                 return {
+                    runs: runContext(config, records),
                     records,
                     parsed,
                     problems,

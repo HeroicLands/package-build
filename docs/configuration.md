@@ -54,7 +54,7 @@ around its own evaluation.
 
 ### Quick reference
 
-25 top-level keys. `rootDir` is not one of them — a data configuration never
+26 top-level keys. `rootDir` is not one of them — a data configuration never
 writes it — and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
@@ -75,6 +75,7 @@ authoring.
 | [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                                                                                 | `[]`                      |
 | [`forbidGeneratedArt`](#forbidgeneratedart) | boolean                                                                    | no                                                                                                 | `false`                   |
 | [`icons`](#icons)                           | object, or a path to a file holding one                                    | no                                                                                                 | empty registry            |
+| [`languages`](#languages)                   | object (name → `{tag, note?}`)                                             | no                                                                                                 | `{}`                      |
 | [`packs`](#packs)                           | array                                                                      | yes, at least one entry, in a `systems` or `modules` package; refused in a `documentation` package | —                         |
 | [`docs`](#docs)                             | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                      |
 | [`site`](#site)                             | object                                                                     | no                                                                                                 | see [`site`](#site)       |
@@ -89,7 +90,7 @@ authoring.
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -196,7 +197,7 @@ build writes its `name` as `params.author`. `null` when `authors` is empty.
 as an unknown key, at the key's own line, because `authors` is the one list a
 package names its people in:
 
-> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog).``
+> ``package-build config: `author` is not a recognized option (expected one of: rootDir, contentPackage, currentDate, defaultCalendar, foundryPackage, homepage, authors, packageKind, stats, itemBuilders, paths, skipDirectories, forbidGeneratedArt, icons, languages, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog).``
 
 `package.json`'s own `author` is npm's and is not read.
 
@@ -721,6 +722,68 @@ here, because this is the table every note in the package is read against,
 any finding it reports is a refusal, joined into one message:
 
 > ``package-build config: `icons` <findings, semicolon-joined>.``
+
+### `languages`
+
+**Type:** object (name → `{tag, note?}`) · **Optional** · default: `{}`.
+
+The languages a note may tag text with, by short name. A note writes the short
+name, as in `[Daimela, helthos.]{lang=vyl}`; the build gives the text the
+language's tag. See
+[marking language, font and mapping](authoring/links-and-markup.md#marking-language-font-and-mapping).
+
+```yaml
+languages:
+  vyl: { tag: art-x-vyl, note: skill-vylarilng }
+  khel: { tag: art-x-khel }
+```
+
+| Key                     | Type                       | Required |
+| ----------------------- | -------------------------- | -------- |
+| `languages.<name>.tag`  | BCP 47 language tag        | yes      |
+| `languages.<name>.note` | Address of a language note | no       |
+
+**The name** is lowercase letters, digits and single hyphens, starting with a
+letter. Lowercase is part of the rule, so no two names differ only in case. A
+real language needs no entry: `lang=la` is read as its tag.
+
+**`tag`** is the BCP 47 tag the language's text carries. A real language takes
+its own tag (`la`, `grc`). A constructed language takes `art-x-<name>`: `art`
+is the registered code for artificial languages, and the private-use part
+after `x` says which one. The tag is checked for its form and for repeated
+variants or extension singletons. Whether each subtag is registered is not
+checked.
+
+**`note`** names the language note whose `data.words` is the language's
+lexicon, as an Address in this package: `skill-vylarilng`, or the bare
+shortcode, whose type defaults to `skill`. A run marked with the language and a
+`map=` writes each word the lexicon states a native form for by that form, and
+spells every other word by the map's rows; see
+[a map reads the dictionary first](reference/format-details.md#a-map-reads-the-dictionary-first).
+Every word of such a run is a word of the lexicon, of a name the language note's
+own register lists, or a regular form of a lexicon word, and any other word is an error; see
+[a mapped run's words](authoring/links-and-markup.md#a-mapped-runs-words).
+A language with no `note` tags its text and has no lexicon. Whether the note
+resolves is checked by `package-build lint`, at the key:
+
+> ``package-build.config.yaml:5:5: error: `languages.vyl.note` is `skill-vylarilg`, which names no language note in thalorna; it names a skill note whose subType is language``
+
+The shape is checked when the configuration loads, and each fault is a
+configuration error at its key:
+
+> ``package-build config: `languages` must be a mapping of language name to `{tag}`.``
+
+> ``package-build config: `languages.Vyl` is not a name: a name is lowercase letters, digits and single hyphens, starting with a letter.``
+
+> ``package-build config: `languages.vyl` must be a mapping with `tag`.``
+
+> ``package-build config: `languages.vyl.script` is not a recognized option (expected one of: tag, note).``
+
+> ``package-build config: `languages.vyl.note` must be the Address of a language note, such as `skill-vylarilng`.``
+
+> ``package-build config: `languages.vyl.tag` must be a BCP 47 language tag, such as `art-x-vyl` for a constructed language.``
+
+> ``package-build config: `languages.vyl.tag` art_x_vyl is not a valid BCP 47 language tag; a constructed language takes `art-x-<name>`.``
 
 ### `packs`
 

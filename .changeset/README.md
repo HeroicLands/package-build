@@ -19,24 +19,23 @@ that is worth saying explicitly; otherwise write no file.
 
 ## Which bump
 
-This package builds and deploys a Foundry package for the repositories that
-consume it, so read the bump from the **consumer's** point of view, not the
-diff's size:
+Read the bump from the point of view of a person who installs the package, not
+the diff's size. Three rules decide it, and nothing else does:
 
-| Bump      | What it means here                                                                                                                                   |
-| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **major** | A consumer must change something to upgrade — a removed export, a renamed `packageBuild:` key, a command-line flag that no longer means what it did. |
-| **minor** | New capability a consumer can opt into; a raised floor on `@heroiclands/content-build` or any other dependency it also resolves.                     |
-| **patch** | A fix that changes no interface — a wrong path corrected, a diagnostic clarified, a crash removed.                                                   |
+| Bump      | When                                                                                                                                                             |
+| --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **major** | Only on the owner's direct instruction, confirmed before it is written. It is never chosen from the nature of a change, however breaking it looks.               |
+| **minor** | The change adds or removes **non-optional** user-visible functionality: something a user meets whether or not they went looking for it.                          |
+| **patch** | Everything else, which is nearly everything — a fix, and anything optional however visible: a new flag, a new export, a new key a note may write, a new command. |
 
-Below 1.0.0 a **minor** is the breaking-change bump under a caret range: `^0.2.0`
-never crosses to `0.3.0`, so a consumer's Dependabot offers it as a distinct pull
-request. Use **major** anyway when the break is real; the changelog says so either
-way.
+**A removal is a patch until it is enforced.** Retiring a key while input that
+still states it is accepted breaks nobody; retiring it _and_ making it a finding
+is a minor, because a package that changed nothing now fails. The question is
+whether a package that did nothing now behaves differently.
 
-**A raised dependency floor is a release note.** 0.2.0 began requiring
-`@heroiclands/content-build >= 0.15.0` and said so nowhere a consumer would look.
-When a change moves a floor, the changeset is where that gets recorded.
+**A raised install requirement is a release note.** When a change raises a
+floor a consumer must meet, such as a dependency it also resolves, the changeset
+says so.
 
 ## Writing the summary
 

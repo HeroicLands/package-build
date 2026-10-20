@@ -26,6 +26,7 @@
  */
 
 import { renderAlerts } from "./content-alerts.mjs";
+import { renderRuns } from "./content-scripts.mjs";
 import { buildReferenceTargets } from "./reference-targets.mjs";
 import { standingsDigest } from "./standings.mjs";
 
@@ -224,10 +225,15 @@ md.renderer.rules.footnote_open = (tokens, idx, options, env, renderer) => {
  * @param {(address: string) => string|undefined} [resolveRole] - From a
  *   picture's address to the role its asset declares — see
  *   {@link module:engine/content-figures.scanFigures}.
+ * @param {import("./content-scripts.mjs").RunContext} [runs] - The package's
+ *   languages, faces and maps. Given, text marked with `lang=`, `font=` and
+ *   `map=` is rewritten first, so it is tagged for its language, mapped and
+ *   set in its font.
  * @returns {string} The rendered HTML.
  */
-export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, resolveRole) {
-    const figured = renderFigureBlocks(body, (block) => md.render(block), figures, {
+export function renderFoundryMarkdown(body, figures, footnoteNumbers, docId, resolveRole, runs) {
+    const marked = runs ? renderRuns(body, runs, undefined, { target: "foundry" }).markdown : body;
+    const figured = renderFigureBlocks(marked, (block) => md.render(block), figures, {
         resolveRole,
     });
     const blocks = renderBlocks(figured.markdown, "foundry");

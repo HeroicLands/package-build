@@ -47,6 +47,7 @@ import { stringify as stringifyToml } from "smol-toml";
 
 import { checkHomepage, fail } from "../config.mjs";
 import { slugify } from "./content-slug.mjs";
+import { siteFontsParam } from "./script-font-delivery.mjs";
 
 /** The Hugo source directory, relative to the repository root. */
 export const HUGO_SOURCE = "build/hugo";
@@ -402,6 +403,10 @@ export function hugoConfig({ config, navigation, themesDir }) {
     if (config.site.assets) params.cdnBaseURL = config.site.assets;
     params.brand = { ...BRAND };
     if (config.site.notfound) params.notfound = structuredClone(config.site.notfound);
+    // Named only when the build copies the fonts, so the theme links nothing
+    // it does not ship.
+    const scriptFonts = siteFontsParam(config);
+    if (scriptFonts) params.scriptFonts = scriptFonts;
 
     const generated = {
         baseURL: config.homepage,

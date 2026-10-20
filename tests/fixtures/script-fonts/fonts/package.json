@@ -1,0 +1,9 @@
+{
+    "name": "@heroiclands/fonts",
+    "version": "0.0.0-fixture",
+    "type": "module",
+    "exports": {
+        "./fonts.json": "./fonts.json",
+        "./package.json": "./package.json"
+    }
+}

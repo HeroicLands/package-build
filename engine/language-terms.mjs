@@ -1597,7 +1597,8 @@ function listOfMaps(name, fields, describe) {
 
 /**
  * The six present persons of the one optional regular verb pattern, in
- * presentation order. Empty endings leave the citation form unchanged.
+ * presentation order. Each ending is added to the citation form, or takes the
+ * place of its closing `replaces`; an empty ending adds nothing.
  *
  * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
  */
@@ -1617,7 +1618,7 @@ export const VERB_PERSON_FIELDS = Object.freeze(
             required: true,
             allowEmpty: true,
             shape: "an ending string, empty for unchanged",
-            describe: `The ending added to the citation form for ${label}.`,
+            describe: `The ending for ${label}, added to the citation form or in place of its closing \`replaces\`.`,
         }),
     ),
 );
@@ -1635,7 +1636,18 @@ const VERB_PATTERN_FIELDS = Object.freeze([
         kind: "map",
         shape: "a map — `{ I, you, heShe, we, youAll, they }` of ending strings",
         fields: VERB_PERSON_FIELDS,
-        describe: "All six present endings, each added to the citation form; excludes `invariant`.",
+        describe:
+            "All six present endings, each added to the citation form or in place of its " +
+            "closing `replaces`; excludes `invariant`.",
+    }),
+    Object.freeze({
+        name: "replaces",
+        kind: "string",
+        shape: "the closing letters every ending takes the place of",
+        describe:
+            "Letters a citation form closes on, swapped for each `persons` ending: with `then`, " +
+            "`lokathen` and `zor` give `lokazor`. A citation form closing otherwise takes the " +
+            "ending whole. With `persons` only.",
     }),
 ]);
 
@@ -1664,7 +1676,7 @@ const GRAMMAR_FIELDS = Object.freeze([
     Object.freeze({
         name: "verbs",
         kind: "map",
-        shape: "a map — `{ invariant: true }` or `{ persons: { I, you, heShe, we, youAll, they } }`",
+        shape: "a map — `{ invariant: true }` or `{ persons: { I, you, heShe, we, youAll, they }, replaces? }`",
         fields: VERB_PATTERN_FIELDS,
         describe: "One optional regular present pattern, printed once at the dictionary head.",
     }),

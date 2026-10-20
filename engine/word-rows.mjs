@@ -47,6 +47,12 @@ import {
     glossText,
 } from "./word-terms.mjs";
 
+/**
+ * The word's own keys a word row carries: all but `native`, whose entries are
+ * rows of the `natives` relation.
+ */
+const WORD_ROW_KEYS = Object.freeze(WORD_KEYS.filter((key) => key !== "native"));
+
 /** The columns a word row carries before the word's own keys. */
 const WORD_IDENTITY_COLUMNS = Object.freeze(["language", "position"]);
 
@@ -56,7 +62,7 @@ const WORD_DERIVED_COLUMNS = Object.freeze(["built_text", "built_parts", "senses
 /** Every column of the `words` relation, in order. */
 export const WORD_COLUMNS = Object.freeze([
     ...WORD_IDENTITY_COLUMNS,
-    ...WORD_KEYS,
+    ...WORD_ROW_KEYS,
     ...WORD_DERIVED_COLUMNS,
 ]);
 
@@ -260,7 +266,7 @@ export function wordRows(records, all = records) {
         words.forEach((entry, position) => {
             if (!isMap(entry)) return;
             const row = { language, position };
-            for (const key of WORD_KEYS) row[key] = entry[key] ?? null;
+            for (const key of WORD_ROW_KEYS) row[key] = entry[key] ?? null;
             if (row.name_sort === null) row.name_sort = row.form;
             const built = Array.isArray(entry.built) ? entry.built.map(String) : [];
             row.built_text = built.length ? built.join(" + ") : null;

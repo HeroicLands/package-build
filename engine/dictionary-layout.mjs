@@ -48,7 +48,7 @@
 
 import { parseAddress, readCanonicalKey, renderAddress, splitAnchor } from "./address.mjs";
 import { dictionaryEntryAnchor, dictionaryLetter } from "./dictionary-rows.mjs";
-import { VERB_PERSON_FIELDS } from "./language-terms.mjs";
+import { verbPattern } from "./verb-pattern.mjs";
 import {
     WORD_CLASS_BASES,
     WORD_CLASS_MODIFIERS,
@@ -191,16 +191,22 @@ function verbTables(rows, opts) {
         patterns.set(opts.pageLanguage ?? "", { verbs: opts.verbs });
     const tables = [];
     for (const [language, { verbs, label }] of [...patterns].sort(([a], [b]) => compare(a, b))) {
-        let endings;
-        if (verbs.invariant === true) endings = [["All persons", "unchanged"]];
-        else if (
-            VERB_PERSON_FIELDS.every((person) => typeof verbs.persons?.[person.name] === "string")
-        )
-            endings = VERB_PERSON_FIELDS.map((person) => [
-                person.label,
-                verbs.persons[person.name] ? `-${verbs.persons[person.name]}` : "unchanged",
-            ]);
-        else continue;
+        const pattern = verbPattern(verbs);
+        if (!pattern) continue;
+        const replaced = pattern.replaces === undefined ? undefined : `-${pattern.replaces}`;
+        const endings =
+            pattern.invariant ?
+                [["All persons", "unchanged"]]
+            :   pattern.endings.map(({ label, ending }) => [
+                    label,
+                    ending ? `-${ending}`
+                    : replaced ? `${replaced} dropped`
+                    : "unchanged",
+                ]);
+        const heading =
+            replaced && !pattern.invariant ?
+                `Ending in place of a closing ${replaced}`
+            :   "Ending added to citation form";
         const title =
             patterns.size > 1 ?
                 `**Verbs (${String(opts.labelOf?.(language) ?? label ?? language).replace(/[\r\n]+/g, " ")})**`
@@ -209,7 +215,7 @@ function verbTables(rows, opts) {
             [
                 title,
                 "",
-                "| Person | Ending added to citation form |",
+                `| Person | ${verbCell(heading)} |`,
                 "| --- | --- |",
                 ...endings.map((ending) => `| ${ending.map(verbCell).join(" | ")} |`),
             ].join("\n"),

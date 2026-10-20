@@ -363,6 +363,7 @@ types:
     doc:
         data:
             - culture
+            - map
         subTypes:
             - rules
             - userguide

@@ -153,6 +153,7 @@ import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkSettlementTables } from "./settlement-tables.mjs";
+import { checkMapField } from "./text-maps.mjs";
 
 /**
  * One `data:` key a note type may carry.
@@ -1515,6 +1516,47 @@ export const BEING_ARCHETYPES = Object.freeze({
 });
 
 /**
+ * One row of a mapping note's `data.map.rows` or of a face's own `rows`.
+ *
+ * @type {object}
+ */
+const MAP_ROW_ENTRY = Object.freeze({
+    kind: "list-or-map",
+    shape: "`[from, to]` or `{ from, to, before?, at? }`",
+    entries: Object.freeze({ ...TEXT, shape: "a string" }),
+    fields: Object.freeze([
+        {
+            name: "from",
+            ...TEXT,
+            shape: "a string of one or more characters",
+            required: true,
+            describe: "The one or more characters the row matches.",
+        },
+        {
+            name: "to",
+            ...TEXT,
+            shape: "a string, which may be empty",
+            required: true,
+            allowEmpty: true,
+            describe: "What the row writes in their place; empty to drop them.",
+        },
+        {
+            name: "before",
+            ...TEXT,
+            allowed: Object.freeze(["vowel", "consonant"]),
+            describe:
+                "`vowel` or `consonant`: what must follow the match for the " + "row to apply.",
+        },
+        {
+            name: "at",
+            ...TEXT,
+            allowed: Object.freeze(["start", "end"]),
+            describe: "`start` or `end`: where the match must sit for the row to " + "apply.",
+        },
+    ]),
+});
+
+/**
  * Every note type this toolchain compiles, and the closed vocabulary it
  * declares.
  *
@@ -2147,6 +2189,77 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe:
                     "The culture a setting guide introduces, as a culture lore note. " +
                     "Required on `settingguide`; no other subType states it.",
+            },
+            {
+                name: "map",
+                kind: "map",
+                shape: "a map — `{ name, vowels?, fonts, rows }`",
+                check: checkMapField,
+                fields: Object.freeze([
+                    {
+                        name: "name",
+                        ...TEXT,
+                        required: true,
+                        describe:
+                            "What `map=` names the map by: lowercase letters, digits and `-`, " +
+                            "unique in the package.",
+                    },
+                    {
+                        name: "vowels",
+                        ...TEXT,
+                        describe:
+                            "The characters a row's `before: vowel` reads as vowels; any other " +
+                            "letter is a consonant.",
+                    },
+                    {
+                        name: "rows",
+                        kind: "list",
+                        shape: "list of `[from, to]` or `{ from, to, before?, at? }`",
+                        required: true,
+                        entries: MAP_ROW_ENTRY,
+                        describe:
+                            "The rewrites, each `[from, to]` or `{ from, to, before?, at? }`: " +
+                            "`before` is `vowel` or `consonant`, `at` is `start` or `end`. The " +
+                            "longest `from` wins, and a character no row matches passes through.",
+                    },
+                    {
+                        name: "fonts",
+                        kind: "list",
+                        shape: "list of `{ font, rows? }`",
+                        required: true,
+                        entries: Object.freeze({
+                            kind: "map",
+                            shape: "a map — `{ font, rows? }`",
+                            fields: Object.freeze([
+                                {
+                                    name: "font",
+                                    ...TEXT,
+                                    required: true,
+                                    shape: "an installed face's slug",
+                                    describe:
+                                        "A face the map is drawn in, by the slug `font=` names it by.",
+                                },
+                                {
+                                    name: "rows",
+                                    kind: "list",
+                                    shape: "list of `[from, to]` or `{ from, to, before?, at? }`",
+                                    entries: MAP_ROW_ENTRY,
+                                    describe:
+                                        "Rows for this face alone, tried before the shared `rows`; " +
+                                        "the same shapes and conditions.",
+                                },
+                            ]),
+                        }),
+                        describe:
+                            "The faces the map is drawn in, at least one, each with any rows of " +
+                            "its own. A run in another face is refused, and each face must draw " +
+                            "every character its rows and the lexicon's native forms write.",
+                    },
+                ]),
+                describe:
+                    "A mapping, which text marked `map=` with its `name` is rewritten by " +
+                    "before it is set. See " +
+                    "[mapping notes](format-details.md#mapping-notes).",
             },
         ]),
     }),

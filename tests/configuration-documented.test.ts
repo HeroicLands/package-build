@@ -357,6 +357,15 @@ describe("every nested key list is documented", () => {
             allowedKeys(() => defineConfig(minimal({ changelog: { __unrecognised__: true } }))),
         );
     });
+
+    it("`languages.<name>`", () => {
+        assertDocuments(
+            "languages.<name>",
+            allowedKeys(() =>
+                defineConfig(minimal({ languages: { vyl: { __unrecognised__: true } } })),
+            ),
+        );
+    });
 });
 
 describe("the `packageBuild` section is documented", () => {

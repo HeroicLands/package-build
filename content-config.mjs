@@ -70,6 +70,7 @@ import { normalizeCurrentDate } from "./engine/current-date.mjs";
 // Leaves with no local imports of their own, so naming them here cannot close
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
+import { isLanguageTag } from "./engine/language-tag.mjs";
 import { ASSET_TYPE_NAMES, shippingLicensesProblem } from "./engine/asset-types.mjs";
 import { isReservedPackage } from "./engine/packages.mjs";
 import { EMPTY_ICON_REGISTRY, checkIconRegistry } from "./engine/content-icons.mjs";
@@ -614,6 +615,9 @@ export function publishesContentPages(config) {
  *                                          `{ system, builders }` registries
  *                                          instead, and the accepted type
  *                                          vocabulary is their union.
+ * @property {Record<string, LanguageSpec>} [languages]  The languages a
+ *                                          note may tag text with, by short
+ *                                          name. Default `{}`.
  * @property {PackSpec[]} packs             Packs to compile. More than one entry
  *                                          may share a `type`: a note then names
  *                                          the pack it belongs in with its
@@ -719,6 +723,8 @@ export function publishesContentPages(config) {
  *                                     fonts this package ships and the names it
  *                                     draws from them; empty when it declares
  *                                     none.
+ * @property {Readonly<Record<string, Readonly<LanguageSpec>>>} languages
+ *                                     Frozen; `{}` when absent.
  * @property {readonly Readonly<ResolvedPackSpec>[]} packs
  * @property {readonly string[]} packDirectories  Derived: every pack directory
  *                                     the build produces, in compile order —
@@ -747,6 +753,7 @@ const CONFIG_KEYS = [
     "skipDirectories",
     "forbidGeneratedArt",
     "icons",
+    "languages",
     "packs",
     "docs",
     "site",
@@ -935,6 +942,70 @@ function normalizeDefaultCalendar(value) {
             "must be the shortcode of a calendar note — lowercase letters and digits",
         );
     return /** @type {string} */ (value);
+}
+
+/**
+ * One entry of `languages`.
+ *
+ * @typedef {object} LanguageSpec
+ * @property {string} tag   Its BCP 47 tag. A constructed language takes
+ *                          `art-x-<name>`.
+ * @property {string} [note] The Address of its language note, whose
+ *                          `data.words` is the lexicon a mapped run in the
+ *                          language reads first.
+ */
+
+/**
+ * What a language name may be: lowercase letters, digits and single hyphens,
+ * starting with a letter. Lowercase keeps two names from differing only in
+ * case, which an index keyed by them cannot tell apart.
+ */
+const LANGUAGE_NAME = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
+
+/**
+ * Check `languages` and freeze it.
+ *
+ * @param {unknown} value - The configured mapping.
+ * @returns {Readonly<Record<string, Readonly<LanguageSpec>>>} The frozen
+ *   mapping; `{}` when absent.
+ */
+function normalizeLanguages(value) {
+    if (value === undefined || value === null) return Object.freeze({});
+    if (!isPlainObject(value)) fail("languages", "must be a mapping of language name to `{tag}`");
+    const out = {};
+    for (const [name, entry] of Object.entries(/** @type {object} */ (value))) {
+        const where = `languages.${name}`;
+        if (!LANGUAGE_NAME.test(name))
+            fail(
+                where,
+                "is not a name: a name is lowercase letters, digits and single hyphens, " +
+                    "starting with a letter",
+            );
+        if (!isPlainObject(entry)) fail(where, "must be a mapping with `tag`");
+        rejectUnknownKeys(entry, ["tag", "note"], `${where}.`);
+        const { tag, note } = /** @type {Record<string, unknown>} */ (entry);
+        if (tag === undefined || tag === null || tag === "")
+            fail(
+                `${where}.tag`,
+                "must be a BCP 47 language tag, such as `art-x-vyl` for a constructed language",
+            );
+        if (!isLanguageTag(tag))
+            fail(
+                `${where}.tag`,
+                `${String(tag)} is not a valid BCP 47 language tag; a constructed ` +
+                    "language takes `art-x-<name>`",
+            );
+        if (note !== undefined && (typeof note !== "string" || note.trim() === ""))
+            fail(
+                `${where}.note`,
+                "must be the Address of a language note, such as `skill-vylarilng`",
+            );
+        out[name] = Object.freeze({
+            tag: /** @type {string} */ (tag),
+            ...(note === undefined ? {} : { note: /** @type {string} */ (note) }),
+        });
+    }
+    return Object.freeze(out);
 }
 
 /**
@@ -3075,6 +3146,7 @@ export function defineConfig(config) {
         skipDirectories: Object.freeze(skipDirectories),
         forbidGeneratedArt,
         icons: normalizeIcons(input.icons, rootDir),
+        languages: normalizeLanguages(input.languages),
         packs: Object.freeze(packs),
         packDirectories: Object.freeze(packDirectories),
         docs: normalizeDocs(input.docs),

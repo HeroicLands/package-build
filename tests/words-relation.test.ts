@@ -334,13 +334,14 @@ describe("the `words` relation", () => {
         expect(result.rows).toEqual([{ form: "ur", language: "elder-note-skill-elderlng" }]);
     });
 
-    it("carries the language, the position and every word key as its own column", async () => {
+    it("carries the language, the position and every word key but `native` as its own column", async () => {
         const result = await runSqlQuery(db, "SELECT * FROM words WHERE form = 'göich'");
+        expect(result.columns).not.toContain("native");
         expect(result.columns).toEqual(
             expect.arrayContaining([
                 "language",
                 "position",
-                ...WORD_KEYS,
+                ...WORD_KEYS.filter((key: string) => key !== "native"),
                 "built_text",
                 "built_parts",
                 "senses",

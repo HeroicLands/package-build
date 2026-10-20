@@ -34,6 +34,9 @@ import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs
 import { EVENT_COLUMNS, EVENT_SORT_COLUMNS, eventCalendars, eventRows } from "./event-rows.mjs";
 import { reckoningContext } from "./reckoning-markers.mjs";
 import { NAME_COLUMNS, namesRows } from "./name-rows.mjs";
+import { RUN_COLUMNS, ownerOf, runsRows } from "./run-rows.mjs";
+import { MAP_COLUMNS, mapRows } from "./text-maps.mjs";
+import { NATIVE_COLUMNS, nativeRows } from "./map-lexicon.mjs";
 import {
     GLOSSARY_COLUMNS,
     AFFIX_COLUMNS,
@@ -276,6 +279,8 @@ export async function openNotesDatabase(
     await createRelations(connection, jsonl, encoded, "", audience);
     await createEventRelation(connection, path.join(base, "events.jsonl"), encoded, "", audience);
     await createNameRelation(connection, path.join(base, "names.jsonl"), encoded, "", audience);
+    await createRunRelation(connection, path.join(base, "runs.jsonl"), encoded, "", audience);
+    await createMapRelation(connection, path.join(base, "maps.jsonl"), encoded, "", audience);
     await createWordRelations(connection, path.join(base, "notes"), encoded, "", audience);
 
     // One schema per declared dependency, so `FROM sohl.notes` reads the notes
@@ -308,6 +313,20 @@ export async function openNotesDatabase(
         await createNameRelation(
             connection,
             flat.replace(/\.jsonl$/, "-names.jsonl"),
+            depRecords,
+            `${schema}.`,
+            audience,
+        );
+        await createRunRelation(
+            connection,
+            flat.replace(/\.jsonl$/, "-runs.jsonl"),
+            depRecords,
+            `${schema}.`,
+            audience,
+        );
+        await createMapRelation(
+            connection,
+            flat.replace(/\.jsonl$/, "-maps.jsonl"),
             depRecords,
             `${schema}.`,
             audience,
@@ -346,6 +365,8 @@ export async function openNotesDatabase(
     for (const relation of [
         "events",
         "names",
+        "runs",
+        "maps",
         "words",
         "affixes",
         "fields",
@@ -609,6 +630,95 @@ async function createNameRelation(connection, file, records, prefix, audience) {
 }
 
 /**
+ * Create the `runs` relation: one row per span, div and poetry fence an own
+ * note marks with `lang=`, `font=` or `map=`, with the columns
+ * {@link module:engine/run-rows.RUN_COLUMNS} names. The columns are declared
+ * rather than inferred, so every value stays a string and none becomes a
+ * struct key whose case DuckDB folds.
+ *
+ * @param {object} connection - An open DuckDB connection.
+ * @param {string} file - Where to write the rows.
+ * @param {object[]} records - Index records, every Address a string.
+ * @param {string} prefix - A schema to qualify the relation name with.
+ * @param {"all"|"public"} audience - Whether to leave out GM notes.
+ * @returns {Promise<void>}
+ */
+async function createRunRelation(connection, file, records, prefix, audience) {
+    const rows = runsRows(
+        audience === "public" ? records.filter((record) => !isGmNote(record)) : records,
+    );
+    await createTypedRelation(connection, file, `${prefix}runs`, rows, RUN_COLUMNS, [
+        "line",
+        "column",
+    ]);
+}
+
+/**
+ * Create the `maps` relation: one row per row of a mapping note's
+ * `data.map`, with the columns {@link module:engine/text-maps.MAP_COLUMNS}
+ * names; and the `natives` relation, one row per native form of a language's
+ * word, with the columns {@link module:engine/map-lexicon.NATIVE_COLUMNS}
+ * names. A row is a row here, never a struct key, so `A` and `a` are two rows.
+ *
+ * @param {object} connection - An open DuckDB connection.
+ * @param {string} file - Where to write the rows.
+ * @param {object[]} records - Index records, every Address a string.
+ * @param {string} prefix - A schema to qualify the relation name with.
+ * @param {"all"|"public"} audience - Whether to leave out GM notes.
+ * @returns {Promise<void>}
+ */
+async function createMapRelation(connection, file, records, prefix, audience) {
+    const rows = mapRows(
+        audience === "public" ? records.filter((record) => !isGmNote(record)) : records,
+        ownerOf,
+    );
+    await createTypedRelation(connection, file, `${prefix}maps`, rows, MAP_COLUMNS, ["row"]);
+    const visible = audience === "public" ? records.filter((record) => !isGmNote(record)) : records;
+    await createTypedRelation(
+        connection,
+        file.replace(/maps\.jsonl$/, "natives.jsonl"),
+        `${prefix}natives`,
+        nativeRows(visible),
+        NATIVE_COLUMNS,
+        ["word", "native"],
+    );
+}
+
+/**
+ * Create a relation whose columns are declared rather than inferred, so every
+ * value stays a string or a number and none becomes a struct key whose case
+ * DuckDB folds. An empty relation keeps its columns.
+ *
+ * @param {object} connection - An open DuckDB connection.
+ * @param {string} file - Where to write the rows.
+ * @param {string} name - The relation, schema-qualified where it is a dependency's.
+ * @param {object[]} rows - Its rows.
+ * @param {readonly string[]} columns - Its columns, in order.
+ * @param {readonly string[]} integers - The columns that are `BIGINT`; the
+ *   rest are `VARCHAR`.
+ * @returns {Promise<void>}
+ */
+async function createTypedRelation(connection, file, name, rows, columns, integers) {
+    const columnTypes = columns.map((column) => [
+        column,
+        integers.includes(column) ? "BIGINT" : "VARCHAR",
+    ]);
+    if (!rows.length) {
+        const nulls = columnTypes.map(([column, type]) => `NULL::${type} AS "${column}"`);
+        await connection.run(`CREATE VIEW ${name} AS SELECT ${nulls.join(", ")} WHERE false`);
+        return;
+    }
+    fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
+    const schema = columnTypes.map(([column, type]) => `'${column}': '${type}'`).join(", ");
+    await createTableFromFile(
+        connection,
+        name,
+        `SELECT * FROM read_json('${file.replace(/'/g, "''")}', columns={${schema}}, ` +
+            "format='newline_delimited', maximum_object_size=20000000)",
+    );
+}
+
+/**
  * Create a relation as a table, so the JSONL behind it is parsed once when the
  * database opens rather than on every query. A view over `read_json_auto`
  * re-reads and re-parses the whole file for each query that touches it.
@@ -699,7 +809,7 @@ async function createWordRelations(connection, stem, records, prefix, audience) 
         senses: "STRUCT(text VARCHAR, bodies VARCHAR[])[]",
         usage: "VARCHAR[]",
         depth: "BIGINT",
-        verbs: `STRUCT(invariant BOOLEAN, persons STRUCT(${VERB_PERSON_FIELDS.map((person) => `"${person.name}" VARCHAR`).join(", ")}))`,
+        verbs: `STRUCT(invariant BOOLEAN, replaces VARCHAR, persons STRUCT(${VERB_PERSON_FIELDS.map((person) => `"${person.name}" VARCHAR`).join(", ")}))`,
     };
     const dictionaryFile = `${stem}-dictionary.jsonl`;
     if (dictionary.length) {

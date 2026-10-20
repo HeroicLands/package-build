@@ -19,8 +19,8 @@ import { formatLocator } from "./diagnostics.mjs";
 import { FOLDER_TYPE } from "./folder-notes.mjs";
 import { isNoteRecord } from "./index-records.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
+import { WORD } from "./word-pattern.mjs";
 
-const WORD = /[\p{L}\p{M}\p{N}]+(?:[’'–-][\p{L}\p{M}\p{N}]+)*/gu;
 const compare = (a, b) =>
     a < b ? -1
     : a > b ? 1

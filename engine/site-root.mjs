@@ -111,16 +111,29 @@ export function noindexHeaders() {
 }
 
 /**
- * The `_headers` file's contents: the `noindex` rules, and nothing else.
+ * The `_headers` file's contents: the `noindex` rules, and the script fonts'
+ * cache rule when the site carries them.
  *
  * No `Cache-Control` is pinned on the prefix root. It is the homepage, and a
  * lifetime on it would hold a stale copy at the most-linked address after a
- * deploy; Pages' own defaults for a page apply.
+ * deploy; Pages' own defaults for a page apply. The fonts sit under a path
+ * that names their version, so a year's lifetime never serves a stale file.
  *
+ * @param {object} [options] - Options.
+ * @param {string} [options.pkg] - The content package, which is the prefix.
+ * @param {boolean} [options.fonts] - Whether the site carries the fonts.
  * @returns {string} The file's contents.
  */
-export function headers() {
-    return noindexHeaders().join("\n");
+export function headers({ pkg, fonts = false } = {}) {
+    const lines = noindexHeaders();
+    if (fonts && pkg) {
+        lines.push(
+            `/${pkg}/fonts/heroiclands/*`,
+            "  Cache-Control: public, max-age=31536000, immutable",
+            "",
+        );
+    }
+    return lines.join("\n");
 }
 
 /**
@@ -256,7 +269,8 @@ export async function writeSiteRoot({ pkg, out, search = true, indexer = indexSi
     }
 
     const file = path.join(root, "_headers");
-    fs.writeFileSync(file, headers());
+    const fonts = fs.existsSync(path.join(rendered, "fonts", "heroiclands"));
+    fs.writeFileSync(file, headers({ pkg, fonts }));
     fs.rmSync(path.join(root, "_redirects"), { force: true });
 
     const dir = path.join(rendered, SEARCH_DIR);

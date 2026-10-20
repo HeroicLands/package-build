@@ -62,7 +62,7 @@ import { nearest } from "./near-miss.mjs";
  * @property {string} name - The key as an author writes it.
  * @property {string} [kind] - Its value's shape: `string`, `date`, `number`,
  *   `integer`, `boolean`, `address`, `list`, `map`, `scalar-or-map`,
- *   `string-or-list`, or `string-list-or-map` — see {@link fitsKind}. Absent, the check
+ *   `string-or-list`, `string-list-or-map` or `list-or-map` — see {@link fitsKind}. Absent, the check
  *   makes no claim about the value.
  * @property {readonly string[]} [allowed] - The closed set a present value is
  *   one of, where the key takes a fixed word.
@@ -156,6 +156,10 @@ export function fitsKind(value, kind) {
         // described by `values`.
         case "string-list-or-map":
             return fitsKind(value, "string-or-list") || fitsKind(value, "map");
+        // A list described by `entries`, or a map with the keys `fields` names:
+        // a mapping row is `[from, to]` or `{from, to, before?, at?}`.
+        case "list-or-map":
+            return Array.isArray(value) || fitsKind(value, "map");
         default:
             return true;
     }

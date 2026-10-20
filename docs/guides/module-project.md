@@ -689,6 +689,22 @@ package-build: Cannot stage assets — these paths do not exist:
    lang
 ```
 
+### Fonts for marked text
+
+A module shows text marked with `font=` and one of the faces of
+`@heroiclands/fonts` in that face once the package installs the fonts package
+in `devDependencies`. Nothing is configured: the build reads which faces the
+notes use from their `font=` keys.
+
+`package-build assets` then stages the font stylesheet, the WOFF2 files and the
+licence under `fonts/heroiclands/` in the package; the staged stylesheet lists
+only the WOFF2 sources, since the TrueType files are not staged. The generated manifest
+names the stylesheet in `styles`, after the shared base sheet and before the
+package's own. A package that has not installed the fonts, or whose notes set
+no text in a face, stages nothing and its manifest names nothing. The stage
+refuses a fonts package that lacks its stylesheet, its licence or a file its
+manifest lists, with a finding at the fonts package's `fonts.json`.
+
 ## Step 9 — generate the manifest
 
 ```console

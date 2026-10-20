@@ -1,0 +1,19 @@
+@font-face {
+    font-family: "Pirzath Hand";
+    src:
+        url("fonts/PirzathHand-Regular.woff2") format("woff2"),
+        url("fonts/PirzathHand-Regular.ttf") format("truetype");
+    font-display: swap;
+}
+
+@font-face {
+    font-family: "Semaron Kuriale";
+    src:
+        url("fonts/SemaronKuriale-Regular.woff2") format("woff2"),
+        url("fonts/SemaronKuriale-Regular.ttf") format("truetype");
+    font-display: swap;
+}
+
+.hl-semaron-kuriale {
+    font-family: "Semaron Kuriale";
+}

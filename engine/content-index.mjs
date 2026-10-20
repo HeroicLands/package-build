@@ -106,6 +106,7 @@ import { AddressLink } from "./address-values.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { rebaseNameSpans } from "./name-markup.mjs";
 import { analyzeNameSpans } from "./names.mjs";
+import { recordRuns } from "./run-rows.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -448,6 +449,8 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw)
  *   `name` reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
  * @param {import("./content-session.mjs").ContentSyntax} [options.syntax] - Session scanner projections.
+ * @param {import("./content-scripts.mjs").RunContext} [options.runContext] -
+ *   The configured languages, which give each run's `lang=` its tag.
  * @returns {Record<string, any>} The record, keys sorted at every depth. A
  *   **stub** — a note with an empty body, on a type an empty body suppresses —
  *   carries `address` and `anchors` as `null`: it publishes no page, so it
@@ -474,6 +477,7 @@ export function buildIndexRecord({
     dateContext,
     resolveRole,
     syntax,
+    runContext,
 }) {
     assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage, raw);
 
@@ -541,6 +545,7 @@ export function buildIndexRecord({
                 ...(Object.keys(resolvedDates).length ? { resolvedDates } : {}),
                 package: contentPackage,
                 names: marked.names,
+                runs: recordRuns(source, { context: runContext, bodyLine, bodyColumn, syntax }),
                 address: stub ? null : address,
                 nameAscii: asciiName(frontmatter?.name?.full),
                 aliasesAscii: asciiAliases(frontmatter?.name?.aliases),
@@ -695,6 +700,7 @@ export function indexRecordsForNote({
     dateContext,
     resolveRole,
     syntax,
+    runContext,
 }) {
     resolveNoteId(frontmatter, { pkg: contentPackage });
     const record = buildIndexRecord({
@@ -712,6 +718,7 @@ export function indexRecordsForNote({
         dateContext,
         resolveRole,
         syntax,
+        runContext,
     });
     const records = [decodeIndexAddresses(record, addressContext ?? { package: contentPackage })];
     const address = noteAddress(frontmatter, contentPackage);
@@ -1067,6 +1074,8 @@ export function resolveCultures(
  *   calendar note's shortcode; see {@link module:engine/note-calendars}.
  * @param {string} [options.configFile] - The configuration file, where an
  *   unknown `defaultCalendar` is reported.
+ * @param {Readonly<Record<string, {tag: string}>>} [options.languages] - The
+ *   configured languages, which give each run's `lang=` its tag.
  * @param {(key: string) => ({culture?: unknown}|undefined)} [options.foreignRecord] -
  *   Another package's entry for a canonical address, read for a parent that
  *   package publishes; see {@link resolveCultures}.
@@ -1086,6 +1095,7 @@ export function collectContentIndex(
         currentDate,
         defaultCalendar,
         configFile,
+        languages,
         skipDirectories,
         assetsBase,
         manifest,
@@ -1192,6 +1202,7 @@ export function collectContentIndex(
                 dateContext: dates,
                 resolveRole,
                 syntax,
+                runContext: { languages },
             });
             records.push(...made);
             bodies.push({ record: made[0], body });
@@ -1478,6 +1489,7 @@ export function indexRecordsFor({
         currentDate: resolved.currentDate,
         defaultCalendar: resolved.defaultCalendar ?? undefined,
         configFile: configFileIn(resolved.rootDir, CONFIG_FILENAMES),
+        languages: resolved.languages,
         addressContext: {
             ...noteAddressContext(resolved),
             declaresAddress: dependencyAddresses(resolved),

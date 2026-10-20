@@ -600,3 +600,51 @@ summary: "see [[weapongear-dagger]]"`,
         fs.rmSync(path.join(root, "assets/content/Gear/Dagger3.md"));
     });
 });
+
+describe("text set in one of the faces", () => {
+    it("is kept out of site search", () => {
+        const site = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), "cb-site-faces-")));
+        try {
+            fs.writeFileSync(
+                path.join(site, "package.json"),
+                JSON.stringify({ name: "sandbox", version: "1.0.0" }),
+            );
+            fs.mkdirSync(path.join(site, "build/cache/metadata"), { recursive: true });
+            fs.cpSync(
+                path.join(import.meta.dirname, "fixtures", "script-fonts", "fonts"),
+                path.join(site, "node_modules", "@heroiclands", "fonts"),
+                { recursive: true },
+            );
+            const content = path.join(site, "assets/content");
+            fs.mkdirSync(path.join(content, "Rules"), { recursive: true });
+            fs.writeFileSync(
+                path.join(content, "homepage.md"),
+                "---\ntype: homepage\nshortcode: root\n---\n\nThe module.\n",
+            );
+            fs.writeFileSync(
+                path.join(content, "Rules", "Carved.md"),
+                "---\ntype: doc\nsubType: rules\nshortcode: carved\nname:\n    full: Carved\n---\n\n" +
+                    "Cut as [\u{F0239}]{font=semaron-kuriale}.\n",
+            );
+            buildSite({
+                config: defineConfig({
+                    rootDir: site,
+                    contentPackage: "demo",
+                    foundryPackage: "demo",
+                    packageKind: "modules",
+                    compatibility: { minimum: "14.359" },
+                    stats: { lastModifiedBy: "demobuilder0000" },
+                    packs: [{ name: "journals", type: "JournalEntry" }],
+                }),
+            });
+            const page = fs.readFileSync(
+                path.join(site, "build/hugo/content/doc-carved.md"),
+                "utf8",
+            );
+            expect(page).toContain("hl-semaron-kuriale");
+            expect(page).toContain("data-pagefind-ignore");
+        } finally {
+            fs.rmSync(site, { recursive: true, force: true });
+        }
+    });
+});

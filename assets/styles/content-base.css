@@ -164,6 +164,31 @@
     --poetry-indent: 10em;
 }
 
+/* Text set in one of the faces. The font family and features come from the
+ * face's own class; a right-to-left block or verse reads from the right. */
+.script-block {
+    margin: 1rem 0;
+    line-height: 1.7;
+}
+
+.script-block[dir="rtl"],
+.poetry[dir="rtl"] {
+    text-align: start;
+}
+
+/* Text set in the reader's generic families, `font=serif`, `sans` and `mono`. */
+.font-serif {
+    font-family: serif;
+}
+
+.font-sans {
+    font-family: sans-serif;
+}
+
+.font-mono {
+    font-family: monospace;
+}
+
 /*
  * Historical info/warn section classes remain available for styled prose.
  * New alerts use the separate alert classes below.

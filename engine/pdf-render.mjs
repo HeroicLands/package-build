@@ -91,6 +91,7 @@ import { indexChapter, indexMarker, indexPreamble } from "./pdf-index.mjs";
 import { slugify } from "./content-slug.mjs";
 import { alertMarkdownPlugin, scanAlerts, ALERT_TYPES } from "./content-alerts.mjs";
 import { spanMarkdownPlugin, scanSpans } from "./content-spans.mjs";
+import { GENERIC_FONTS, renderRuns, scanRuns } from "./content-scripts.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
 import { inlineVerse, poetryStanzas, scanPoetry } from "./content-poetry.mjs";
@@ -370,7 +371,11 @@ function reportUnrenderable(source, definitions, opts, original) {
                 );
         }
     }
-    for (const error of [...scanSpans(source).errors, ...markupAnchorFindings(source)])
+    for (const error of [
+        ...scanSpans(source).errors,
+        ...scanRuns(source, opts.runs).errors,
+        ...markupAnchorFindings(source),
+    ])
         report(linePosition(error.line, error.column, opts), "error", error.message);
     for (const error of scanFigures(source).errors)
         report(linePosition(error.line, error.column, opts), "error", error.message);
@@ -462,6 +467,9 @@ function reportUnrenderable(source, definitions, opts, original) {
  *   Typst and is told nothing.
  * @param {string} [opts.file] - The file the markdown came from, named in every
  *   finding.
+ * @param {import("./content-scripts.mjs").RunContext} [opts.runs] - The
+ *   package's languages, faces and maps, which text marked with `lang=`,
+ *   `font=` and `map=` is checked against and set by.
  * @param {number} [opts.bodyLine] - The 1-based file line the body starts on, so
  *   a finding's line is the file's rather than the body's.
  * @param {number} [opts.bodyColumn] - The 1-based column the body starts at.
@@ -497,7 +505,7 @@ export function markdownToTypst(markdown, opts = {}) {
     } = opts;
     const given = opts.nested ? String(markdown ?? "") : stripHtmlComments(markdown);
     const separated = opts.footnoteDefinitions === undefined ? separateFootnotes(given) : null;
-    const source = separated?.markdown ?? given;
+    const authored = separated?.markdown ?? given;
     const definitions = opts.footnoteDefinitions ?? separated?.definitions ?? "";
     const footnoteState = opts.footnoteState ?? { seen: new Set() };
     const sharedOptions = {
@@ -508,7 +516,13 @@ export function markdownToTypst(markdown, opts = {}) {
     };
     // Read once, over the body as it arrived: every position a finding carries
     // is an offset into *this* string, and the renderer below walks slices of it.
-    if (!opts.nested) reportUnrenderable(source, definitions, opts, given);
+    if (!opts.nested) reportUnrenderable(authored, definitions, opts, given);
+    // Text marked with a language, a font or a map is rewritten once, ahead of
+    // every other pass, line for line; the nested calls below read the result.
+    const source =
+        opts.nested ? authored : (
+            renderRuns(authored, opts.runs, undefined, { target: "book" }).markdown
+        );
     // One map for the whole body, not one per block: a heading inside a
     // blockquote or a list item shares the entry's anchor namespace with every
     // other heading in the same body, because `sectionLabel` scopes by entry
@@ -584,7 +598,9 @@ export function markdownToTypst(markdown, opts = {}) {
                         insideAdmonition: false,
                     });
                     const anchor = block.id ? ` <${sectionLabel(anchorPrefix, block.id)}>` : "";
-                    output.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
+                    output.push(
+                        `\n#block(width: 100%)[${scriptWrapped(content, block.classes, block.attributes)}]${anchor}\n`,
+                    );
                     cursor = block.end + 1;
                     continue;
                 }
@@ -771,7 +787,9 @@ function renderBlock(tokens, i, out, ctx) {
                     `${token.markup}${token.info}\n${token.content}${token.markup}`,
                 ).blocks[0];
                 const anchor = poem?.id ? ` <${sectionLabel(ctx.anchorPrefix, poem.id)}>` : "";
-                out.push(`\n#block(width: 100%)[${content}]${anchor}\n`);
+                out.push(
+                    `\n#block(width: 100%)[${scriptWrapped(content, poem?.classes, poem?.attributes)}]${anchor}\n`,
+                );
             } else out.push(rawBlock(token.content, token.info?.trim() || ""));
             return 1;
         }
@@ -1216,6 +1234,43 @@ function rawBlock(content, info) {
 }
 
 /**
+ * The language code Typst's `text(lang:)` takes for a BCP 47 tag.
+ *
+ * Typst takes an ISO 639 code and applies the hyphenation of that language, so
+ * a real language passes its primary subtag and an invented one (`art-x-…`),
+ * which has no patterns, leaves the book's language alone.
+ *
+ * @param {string|null|undefined} tag - A BCP 47 tag.
+ * @returns {string|undefined} The code, or `undefined` for none.
+ */
+function typstLanguage(tag) {
+    const primary = /^([a-z]{2,3})(?:-|$)/i.exec(tag ?? "")?.[1]?.toLowerCase();
+    return primary && primary !== "art" ? primary : undefined;
+}
+
+/** The classes that set a run in a font: a face's run carries `script`. */
+const FONT_CLASSES = Object.freeze(["script", ...Object.values(GENERIC_FONTS)]);
+
+/**
+ * Wrap a block's Typst in its font, its language and its direction.
+ *
+ * @param {string} content - The block's Typst.
+ * @param {string[]|undefined} classes - The classes the block carries.
+ * @param {Record<string, string>|undefined} attributes - Its `lang` and `dir`.
+ * @returns {string} The content, unchanged when the block is marked with none.
+ */
+function scriptWrapped(content, classes = [], attributes = {}) {
+    const lang = typstLanguage(attributes.lang);
+    const direction = attributes.dir === "rtl" ? "#set text(dir: rtl)\n" : "";
+    if (!classes.some((name) => FONT_CLASSES.includes(name)) && !lang && !direction) return content;
+    const list = classes.map((name) => `"${escapeTypstString(name)}"`);
+    const arguments_ =
+        `classes: (${list.join(", ")}${list.length === 1 ? "," : ""})` +
+        (lang ? `, lang: "${lang}"` : "");
+    return `${direction}#book-script-text(${arguments_})[${content}]`;
+}
+
+/**
  * Render an inline token's children.
  *
  * @param {object} token - An `inline` token.
@@ -1248,9 +1303,15 @@ function renderInline(token, ctx) {
                 const values = classes
                     .map((value) => '"' + escapeTypstString(value) + '"')
                     .join(", ");
+                const lang = typstLanguage(child.attrGet?.("lang"));
                 out.push(
-                    classes.length ?
-                        "#book-span(classes: (" + values + (classes.length === 1 ? "," : "") + "))["
+                    classes.length || lang ?
+                        "#book-span(classes: (" +
+                            values +
+                            (classes.length === 1 ? "," : "") +
+                            ")" +
+                            (lang ? `, lang: "${lang}"` : "") +
+                            ")["
                     :   "#box[",
                 );
                 break;
@@ -1633,6 +1694,30 @@ function renderIcon(token, ctx) {
 const WIDE_TABLE_COLUMNS = 3;
 
 /**
+ * The `book-script-fonts` dictionary: each installed face's class, and each
+ * generic family's, to its font family and OpenType features.
+ *
+ * @param {import("./content-scripts.mjs").RunContext} runs - The installed faces.
+ * @param {{serif?: string, sans?: string, mono?: string}} families - The book's
+ *   own serif, sans and mono, which `font=serif`, `sans` and `mono` set.
+ * @returns {string} Typst markup.
+ */
+function scriptFontsTypst(runs, families) {
+    const entry = (name, family, features = []) =>
+        `"${escapeTypstString(name)}": (family: "${escapeTypstString(family)}", ` +
+        `features: (${features.map((feature) => `"${escapeTypstString(feature)}"`).join(", ")}` +
+        `${features.length === 1 ? "," : ""}))`;
+    const faces = [];
+    for (const face of runs.faces?.values() ?? [])
+        if (face.class && face.family) faces.push(entry(face.class, face.family, face.features));
+    for (const [generic, name] of Object.entries(GENERIC_FONTS)) {
+        const family = families[/** @type {"serif"|"sans"|"mono"} */ (generic)];
+        if (family) faces.push(entry(name, family));
+    }
+    return `#let book-script-fonts = (${faces.length ? faces.join(", ") : ":"})`;
+}
+
+/**
  * The Typst definitions the book's page furniture is drawn with.
  *
  * Emitted once at the head of the document, for the reason the infobox panel's
@@ -1669,20 +1754,37 @@ const WIDE_TABLE_COLUMNS = 3;
  * carries are not the same set, and a missing glyph on 2,000 feet is a
  * tofu box on every page of the book.
  *
+ * @param {import("./content-scripts.mjs").RunContext} [runs] - The installed
+ *   faces, each of whose classes sets its family.
+ * @param {{serif?: string, sans?: string, mono?: string}} [families] - The
+ *   book's own serif, sans and mono, which `font=serif`, `sans` and `mono` set.
  * @returns {string} Typst markup.
  */
-export function bookTypstPreamble() {
+export function bookTypstPreamble(runs = {}, families = {}) {
     return [
         "#let book-margin = 1.9cm",
         "#let book-page-width = 8.5in",
         "#let book-page-height = 11in",
         "#let book-text-width = book-page-width - 2 * book-margin",
         "#let book-text-height = book-page-height - 2 * book-margin",
+        // Each face's class, and each generic family's, sets its font family
+        // and OpenType features.
+        scriptFontsTypst(runs, families),
+        "#let book-script-text(body, classes: (), lang: none) = {\n" +
+            "  let styled = body\n" +
+            "  for name in classes {\n" +
+            "    if name in book-script-fonts {\n" +
+            "      let face = book-script-fonts.at(name)\n" +
+            "      styled = text(font: face.family, features: face.features, styled)\n" +
+            "    }\n" +
+            "  }\n" +
+            "  if lang != none { text(lang: lang, styled) } else { styled }\n" +
+            "}",
         // Span classes reach the book intact; name styling sets an absolute
         // weight so it remains bold inside an ordinary strong phrase.
-        "#let book-span(body, classes: ()) = {\n" +
+        "#let book-span(body, classes: (), lang: none) = {\n" +
             '  let styled = if classes.contains("name") { text(weight: "bold", body) } else { body }\n' +
-            "  box(styled)\n" +
+            "  box(book-script-text(styled, classes: classes, lang: lang))\n" +
             "}",
         // Use the file's natural measure for auto. Every requested width is
         // bounded by the available measure and by the height of a page.
@@ -2001,6 +2103,8 @@ function authorLine({ name, role }) {
  * @param {object} [opts.index] - As {@link module:engine/pdf-index.indexTerms}:
  *   `owns` limits the index to the notes this book is home to, and `foreign`
  *   (present only under `pdf.indexSeeAlso`) lists notes another book prints.
+ * @param {import("./content-scripts.mjs").RunContext} [opts.runs] - The
+ *   installed faces, which the preamble maps to font families.
  * @returns {string} A complete `.typ` document.
  */
 export function renderBook({
@@ -2019,6 +2123,7 @@ export function renderBook({
     copyright = "",
     license = "",
     index = {},
+    runs = {},
 } = {}) {
     // The two halves of one superfamily, chosen together: matched metrics are
     // most of why the sans can carry every heading over a serif body without
@@ -2030,7 +2135,7 @@ export function renderBook({
     const mono = fonts.mono || "DejaVu Sans Mono";
     const out = [];
 
-    out.push(bookTypstPreamble());
+    out.push(bookTypstPreamble(runs, { serif, sans, mono }));
     out.push(indexPreamble({ seeAlso: index.foreign !== undefined }));
     out.push("");
     out.push(`#set document(title: "${escapeTypstString(title)}")`);

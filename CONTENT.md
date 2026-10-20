@@ -87,3 +87,18 @@ index. See
 [a language's words](docs/reference/format-details.md#a-languages-words),
 [glossary terms](docs/reference/format-details.md#glossary-terms) and
 [dictionaries and glossaries](docs/reference/format-details.md#dictionaries-and-glossaries).
+
+A span, a div or a poetry fence marks its text with `lang=`, `font=` and
+`map=`, each optional: `lang=` gives the language tag, `font=` sets the text in
+a face of the installed `@heroiclands/fonts` or in `mono`, `serif` or `sans`,
+and `map=` rewrites the text by a mapping note first. A mapping note is a `doc`
+note whose `data.map` has a `name`, the `fonts` it is drawn in (each with any
+`rows` of its own, tried first) and a list of shared `rows`, each `[from, to]`
+or `{from, to, before?, at?}`; the longest match wins. With `lang=` naming a
+language whose `languages.<name>.note` names its language note, a word whose
+entry states a `native` form for the map is written by it, and the rows spell
+every other word. Every word of such a run is a lexicon form, a word of a name
+the language's own register lists, or a regular form of a lexicon word, and any other word is a
+located error, as is a character a face does not draw after the map. See
+[marking language, font and mapping](docs/authoring/links-and-markup.md#marking-language-font-and-mapping)
+and [mapping notes](docs/reference/format-details.md#mapping-notes).

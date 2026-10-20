@@ -13,6 +13,7 @@
 
 import { scanBlocks } from "./content-blocks.mjs";
 import { scanAlerts } from "./content-alerts.mjs";
+import { scanRuns } from "./content-scripts.mjs";
 
 /**
  * Validate authored block syntax with positions in the original file.
@@ -20,20 +21,33 @@ import { scanAlerts } from "./content-alerts.mjs";
  * @param {string} source - Complete Markdown source, optionally with frontmatter.
  * @param {string} file - Diagnostic filename.
  * @param {import("./content-session.mjs").ContentSyntax} [syntax] - Exact-text scanner projections.
- * @returns {Array<{file: string, line: number, column: number, severity: string, message: string}>} Syntax errors.
+ * @param {import("./content-scripts.mjs").RunContext} [runs] - The package's
+ *   languages, faces and maps. Given, text marked with `lang=`, `font=` and
+ *   `map=` is checked against them; a caller with no package configuration
+ *   leaves it out.
+ * @returns {Array<{file: string, line: number, column: number, severity: string, message: string}>} Syntax errors,
+ *   then warnings.
  */
-export function markupFindings(source, file, syntax) {
+export function markupFindings(source, file, syntax, runs) {
     const body = String(source ?? "").replace(
         /^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/,
         (frontmatter) => frontmatter.replace(/[^\r\n]/g, " "),
     );
     const scanned = syntax?.(body);
-    return [
+    const marked = runs ? scanRuns(body, runs, syntax) : undefined;
+    const errors = [
         ...(scanned?.blocks ?? scanBlocks(body)).errors,
         ...(scanned?.alerts ?? scanAlerts(body)).errors,
+        ...(marked?.errors ?? []),
     ].map((error) => ({
         file,
         ...error,
         severity: "error",
     }));
+    const warnings = (marked?.warnings ?? []).map((warning) => ({
+        file,
+        ...warning,
+        severity: "warning",
+    }));
+    return [...errors, ...warnings];
 }

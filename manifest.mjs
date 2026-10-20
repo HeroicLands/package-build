@@ -54,6 +54,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 
 import { withBaseStyle } from "./engine/base-styles.mjs";
+import { scriptFontFiles, withScriptFontStyle } from "./engine/script-font-delivery.mjs";
 import { emitDiagnostic, formatDiagnostic, positionOfYamlPath } from "./engine/diagnostics.mjs";
 import { metadataFileName } from "./engine/metadata-index.mjs";
 
@@ -571,10 +572,17 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
     // the five that do have no stylesheet of their own to name it from. See
     // `engine/base-styles.mjs` for the layer it loads into and why that is what
     // lets a package override it.
-    const styles = withBaseStyle({
+    const withBase = withBaseStyle({
         declared: declared.styles,
         artifact: /** @type {"system"|"module"} */ (artifact),
         enabled: config.packageBuild?.baseStyles !== false,
+    });
+    // The installed script fonts' stylesheet follows it, when the module
+    // carries them: see `engine/script-font-delivery.mjs`.
+    const styles = withScriptFontStyle({
+        styles: withBase,
+        artifact: /** @type {"system"|"module"} */ (artifact),
+        delivered: scriptFontFiles(config, ["woff2"]) !== undefined,
     });
     if (styles !== undefined) merged.styles = styles;
 

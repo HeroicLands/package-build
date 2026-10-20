@@ -65,6 +65,7 @@ import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { eventNoteIndex } from "./event-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderSpans, scanSpans } from "./content-spans.mjs";
+import { renderRuns, runContext, scanRuns } from "./content-scripts.mjs";
 import { renderBlocks, renderWithheldSections, scanBlocks } from "./content-blocks.mjs";
 import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
 import { renderFigureBlocks, scanFigures } from "./content-figures.mjs";
@@ -728,6 +729,7 @@ export function renderSitePage(
         figuresByAddress = new Map(),
         events,
         drawings = new Map(),
+        runs = runContext(config),
     },
 ) {
     const tableErrors = [];
@@ -879,9 +881,12 @@ export function renderSitePage(
     const authoredLinks = resolved.length;
     const resolvedBody =
         generated ? `${authoredBody}\n${protectCode(generated, resolve)}` : authoredBody;
-    const figured = renderFigureBlocks(resolvedBody, undefined, undefined, {
-        resolveRole: (address) => roleByWebSrc.get(address),
-    });
+    const figured = renderFigureBlocks(
+        renderRuns(resolvedBody, runs, undefined, { target: "site" }).markdown,
+        undefined,
+        undefined,
+        { resolveRole: (address) => roleByWebSrc.get(address) },
+    );
     for (const error of figureScan.errors)
         captionErrors.push({
             file: page.file,
@@ -893,6 +898,7 @@ export function renderSitePage(
         ...scanBlocks(page.body).errors,
         ...scanAlerts(page.body).errors,
         ...scanSpans(page.body).errors,
+        ...scanRuns(page.body, runs).errors,
         ...markupAnchorFindings(page.body),
     ])
         secretErrors.push({
@@ -1098,6 +1104,7 @@ export function renderPages(pages, options) {
             figuresByAddress,
             events,
             drawings: maps,
+            runs: runContext(config, records),
         });
         tableErrors.push(...result.tableErrors);
         expressionErrors.push(...result.expressionErrors);

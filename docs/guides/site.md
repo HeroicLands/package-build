@@ -182,6 +182,25 @@ The build writes these keys; [what the theme draws](../reference/theme-pages.md)
 describes the panel each one feeds — the infobox, the hero band, the related
 card, and search — and the generated sections the theme draws as any other.
 
+## Show marked text in its font
+
+A site shows text marked with `font=` and one of the faces of
+`@heroiclands/fonts` in that face once the package installs the fonts package
+in `devDependencies`, as the
+[authoring guide](../authoring/links-and-markup.md#marking-language-font-and-mapping)
+describes. Nothing else is configured: the build reads which faces the notes use
+from their `font=` keys.
+
+`package-build site` copies the font stylesheet, the WOFF2 files and the
+licence to a path that names the fonts package's version,
+`fonts/heroiclands/<version>/` beside the pages, and the theme links the
+stylesheet from every page. The copied stylesheet lists only the WOFF2
+sources, since the TrueType files are not copied. `package-build site-root` gives that path a
+one-year, immutable cache lifetime in `_headers`. A package that has not
+installed the fonts, or whose notes set no text in a face, ships no font files
+and its pages carry no link. `font=serif`, `sans` and `mono` need no fonts
+package.
+
 ## Build and serve
 
 ```bash

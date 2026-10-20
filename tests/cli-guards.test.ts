@@ -201,7 +201,15 @@ describe("what still answers without a configuration", () => {
             const { code, out } = run("--help");
 
             expect(code).toBe(0);
-            for (const command of ["package", "docs", "lint", "links", "reachability"]) {
+            for (const command of [
+                "package",
+                "docs",
+                "lint",
+                "links",
+                "reachability",
+                "transliterate",
+                "lexicon",
+            ]) {
                 expect(out).toContain(command);
             }
         },

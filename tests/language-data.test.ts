@@ -35,6 +35,22 @@ afterAll(() => {
 const SUPPORT: Record<string, string> = {
     "Skills/Sovidur.md":
         "---\nshortcode: sovidurlng\nname: {full: Sovidur}\ntype: skill\nsubType: language\n---\nA tongue.\n",
+    "Skills/Vylari.md": [
+        "---",
+        "shortcode: vylarilng",
+        "name: {full: Vylari}",
+        "type: skill",
+        "subType: language",
+        "data:",
+        "  tongues:",
+        "    - {tag: vylari, meaning: a Vylari name, language: skill-vylarilng}",
+        "  register:",
+        "    - {name: Dunhara, tongue: vylari}",
+        "    - {name: The Sands, tongue: translation}",
+        "---",
+        "A tongue.",
+        "",
+    ].join("\n"),
     "Skills/Riding.md":
         "---\nshortcode: riding\nname: {full: Riding}\ntype: skill\nsubType: physical\n---\nA skill.\n",
     "Lore/Dunhari.md":
@@ -282,6 +298,60 @@ describe("tongues", () => {
         expect(tongueDeclared("exonym", declared)).toBe(false);
         expect(tongueDeclared("other:vylari", declared)).toBe(false);
         expect(tongueDeclared("ashaian", declared)).toBe(false);
+    });
+});
+
+describe("a register row in another tongue", () => {
+    /** `DUNHARI` declaring the tags these tests use, its `exonym:vylari` row replaced by `row`. */
+    const foreign = (row: string) =>
+        edit(
+            '    - {tag: "exonym:<tongue>", meaning: "a name another people gives, in the tongue named"}',
+            [
+                '    - {tag: "exonym:<tongue>", meaning: "a name another people gives, in the tongue named"}',
+                '    - {tag: "other:<tongue>", meaning: "a name in another tongue of the setting"}',
+                "    - {tag: other, meaning: a name in no tongue these pages name}",
+                "    - {tag: kept, meaning: a loanword kept in its source spelling}",
+                "    - {tag: ancient, meaning: a name of the old tongue}",
+            ].join("\n"),
+        ).replace("    - {name: Dunhara, tongue: exonym:vylari}", row);
+
+    it("passes a name the tongue's own register lists under that tongue, case folded", () => {
+        expect(dunhari(foreign("    - {name: Dunhara, tongue: exonym:vylari}"))).toEqual([]);
+        expect(dunhari(foreign("    - {name: dunhara, tongue: other:vylari}"))).toEqual([]);
+    });
+
+    it("refuses a name the tongue's register does not list, at the name", () => {
+        one(
+            foreign("    - {name: Dunharra, tongue: other:vylari}"),
+            /^`Dunharra` is registered as `other:vylari`, but the register of Vylari \(skill-vylarilng\) lists no `vylari` name `Dunharra`; correct the spelling, or register the name there first$/,
+            "Dunharra",
+            "warning",
+        );
+    });
+
+    it("refuses a name the tongue's register lists only under another tongue", () => {
+        one(
+            foreign("    - {name: The Sands, tongue: exonym:vylari}"),
+            /lists no `vylari` name `The Sands`/,
+            "The Sands",
+            "warning",
+        );
+    });
+
+    it("refuses a tongue no tongue declaration links to a language note, at the tongue", () => {
+        one(
+            foreign("    - {name: Dunhara, tongue: exonym:nordmal}"),
+            /^the tongue `nordmal` in `exonym:nordmal` names no language note: no language note's `data\.tongues` tags `nordmal` with a `language`$/,
+            "exonym:nordmal",
+            "warning",
+        );
+    });
+
+    it("does not check bare `other`, `kept`, `ancient` or `translation`", () => {
+        for (const tongue of ["other", "kept", "ancient", "translation"])
+            expect(dunhari(foreign(`    - {name: Qazzurath, tongue: ${tongue}}`)), tongue).toEqual(
+                [],
+            );
     });
 });
 

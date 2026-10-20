@@ -485,10 +485,12 @@ function soleFigurePicture(figure, page) {
  * @param {Map<string, number>} footnoteNumbers - Shared across the note.
  * @param {(address: string) => string|undefined} [resolveRole] - See
  *   {@link splitPages}.
+ * @param {import("./content-scripts.mjs").RunContext} [runs] - The package's
+ *   languages, faces and maps — see {@link module:engine/helpers.renderFoundryMarkdown}.
  * @returns {{name: string, type: "image", src: string, image: {caption?: string}}
  *   |{name: string, type: "text", text: {format: number, content: string}}}
  */
-function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRole) {
+function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRole, runs) {
     const picture = soleFigurePicture(figure, page);
     if (picture && !captionCarriesMarkup(figure.caption)) {
         let src = picture;
@@ -515,6 +517,7 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
         footnoteNumbers,
         pageId,
         resolveRole,
+        runs,
     );
     return {
         name: figure.label || captionPageName(figure.caption),
@@ -547,13 +550,15 @@ function buildFigurePageFields(figure, page, pageId, footnoteNumbers, resolveRol
  *   carries its own figure already, from {@link splitPages}.
  * @param {(address: string) => string|undefined} [resolveRole] - See
  *   {@link splitPages}.
+ * @param {import("./content-scripts.mjs").RunContext} [runs] - The package's
+ *   languages, faces and maps — see {@link module:engine/helpers.renderFoundryMarkdown}.
  * @returns {Array<{_id: string, name: string, type: string,
  *   title: {show: boolean, level: number},
  *   text: {format: number, content: string}, _key: string,
  *   ownership?: {default: number}}>} The page documents, in order.
  * @throws {Error} When the note has no content at all, or repeats an anchor.
  */
-export function buildPages(rawPages, entryId, noteName, figures, resolveRole) {
+export function buildPages(rawPages, entryId, noteName, figures, resolveRole, runs) {
     if (rawPages.length === 0) {
         throw new Error(
             `note "${noteName}" has no Introduction content and no H1 headings — nothing to compile`,
@@ -573,7 +578,7 @@ export function buildPages(rawPages, entryId, noteName, figures, resolveRole) {
         const withheld = (page.classes ?? []).includes(WITHHELD_CLASS);
         const fields =
             page.figure ?
-                buildFigurePageFields(page.figure, page, pageId, footnoteNumbers, resolveRole)
+                buildFigurePageFields(page.figure, page, pageId, footnoteNumbers, resolveRole, runs)
             :   {
                     name: page.name,
                     type: "text",
@@ -587,6 +592,7 @@ export function buildPages(rawPages, entryId, noteName, figures, resolveRole) {
                                     footnoteNumbers,
                                     pageId,
                                     resolveRole,
+                                    runs,
                                 )
                             :   "",
                     },
@@ -638,6 +644,8 @@ export function buildPages(rawPages, entryId, noteName, figures, resolveRole) {
  *   name reads `Map 1` rather than `Figure 1` where it is due — see
  *   {@link module:engine/content-figures.scanFigures}.
  * @param {import("./content-session.mjs").ContentSyntax} [params.syntax] - Session scanner projections.
+ * @param {import("./content-scripts.mjs").RunContext} [params.runs] - The package's
+ *   languages, faces and maps — see {@link module:engine/helpers.renderFoundryMarkdown}.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({
@@ -651,6 +659,7 @@ export function buildJournalEntry({
     notice = "",
     resolveRole,
     syntax,
+    runs,
 }) {
     const rawPages = splitPages(markdown, leadName, resolveRole, syntax);
     const pages = buildPages(
@@ -659,6 +668,7 @@ export function buildJournalEntry({
         name,
         scanFigures(markdown, { resolveRole }).figures,
         resolveRole,
+        runs,
     );
     for (const box of infoboxes) {
         const pageId = makeId("journal-infobox-page", `${id}:${box.id}`);
@@ -844,6 +854,7 @@ export class Journals extends BasePackCompiler {
                 .filter(Boolean)
                 .join("\n\n"),
             resolveRole: (pathname) => roles.get(pathname),
+            runs: this.corpus?.runs,
             infoboxes: boxes.map((box) => ({
                 id: box.id,
                 name: `${

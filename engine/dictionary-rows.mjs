@@ -130,8 +130,17 @@ const isSingleWord = (title) => !/[\s\-‐‑]/u.test(title);
 /** Whether a glossary entry states a definition. */
 const defines = (entry) => typeof entry.definition === "string" && entry.definition.trim() !== "";
 
-/** A noun's stated plural, or the first literal ending replacement that fits. */
-function pluralOf(word, grammar) {
+/**
+ * A noun's stated plural, or the first literal ending replacement that fits.
+ *
+ * @param {{form: string, class?: unknown, plural?: unknown}} word - A word of
+ *   `data.words`.
+ * @param {Record<string, any>|undefined} grammar - Its language's
+ *   `data.grammar`.
+ * @returns {string|null} The plural, or `null` for a word that is no noun or
+ *   that no rule fits.
+ */
+export function pluralOf(word, grammar) {
     if (parseWordClass(word.class).base !== "n") return null;
     if (typeof word.plural === "string" && word.plural) return word.plural;
     for (const rule of Array.isArray(grammar?.plural) ? grammar.plural : []) {

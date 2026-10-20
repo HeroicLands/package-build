@@ -295,3 +295,40 @@ describe("walking a tree", () => {
         expect(findings).toEqual([]);
     });
 });
+
+describe("the HeroicLands script blocks", () => {
+    it("admits a plane-15 character in a body", () => {
+        const text = `A mapped run: ${String.fromCodePoint(0xf0123)}\n`;
+        expect(checkText(text, "a.md")).toEqual([]);
+    });
+
+    it("admits every registered block at both ends", () => {
+        for (const cp of [
+            0xf0000, 0xf2fff, 0x1e960, 0x1ea00, 0x1ec6f, 0x1ecc0, 0x1ecff, 0x13430, 0x1345f,
+        ]) {
+            expect(isAllowedCodePoint(cp), cp.toString(16)).toBe(true);
+        }
+    });
+
+    it("still refuses the characters just outside the blocks", () => {
+        for (const cp of [0xeffff, 0xf3000, 0x1e95f, 0x1ec70, 0x1ecbf, 0x13460, 0x1342f]) {
+            expect(isAllowedCodePoint(cp), cp.toString(16)).toBe(false);
+        }
+    });
+
+    it("warns on a basic-plane Private Use character", () => {
+        const found = checkText(`x ${String.fromCodePoint(0xe051)}\n`, "a.md");
+        expect(found).toHaveLength(1);
+        expect(found[0].message).toContain("U+E051");
+    });
+
+    it("carries no empty code span in the message", () => {
+        const found = checkText(`x ${String.fromCodePoint(0xe051)}\n`, "a.md");
+        expect(found[0].message).not.toContain("``");
+        expect(found[0].message.startsWith("U+E051")).toBe(true);
+    });
+
+    it("keeps the code span around a visible character", () => {
+        expect(checkText("x ⚔\n", "a.md")[0].message.startsWith("`⚔` U+2694")).toBe(true);
+    });
+});

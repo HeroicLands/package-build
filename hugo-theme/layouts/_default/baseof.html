@@ -9,6 +9,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&family=Lora:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ "css/style.css" | relURL }}">
+  {{/* Script fonts: the site build sets params.scriptFonts only when it has
+       copied them. */}}
+  {{ with .Site.Params.scriptFonts }}<link rel="stylesheet" href="{{ . | relURL }}">{{ end }}
   {{/* Icon glyphs. SoHL documentation writes icons as <i class="fa-solid …">
        or <i class="ginf-…">, the same markup the Foundry client renders, so a
        page reads identically in a journal and here. Font Awesome's FREE set is

@@ -100,11 +100,11 @@ describe("span classes in emitted books", () => {
             bodies: new Map([[anchor, body]]),
         });
         expect(book.match(/#let book-span\(/g)).toHaveLength(1);
-        expect(book).toContain("#let book-span(body, classes: ())");
+        expect(book).toContain("#let book-span(body, classes: (), lang: none)");
         expect(book).toContain(
             'if classes.contains("name") { text(weight: "bold", body) } else { body }',
         );
-        expect(book).toContain("box(styled)");
+        expect(book).toContain("box(book-script-text(styled, classes: classes, lang: lang))");
         expect(book).toContain(
             '#strong[This is a phrase with #book-span(classes: ("name", "quiet"))[Joe Blow] <lore-person--joe> in it]',
         );

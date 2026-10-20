@@ -41,6 +41,7 @@
 import { indexRecordsFor } from "./content-index.mjs";
 import { buildContentLinkIndex } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { runContext } from "./content-scripts.mjs";
 import { prepareTreeSqlTables } from "./sql-tables.mjs";
 
 /**
@@ -61,7 +62,7 @@ import { prepareTreeSqlTables } from "./sql-tables.mjs";
  *   the index refuses is a note the compile must still *report*, exactly as the
  *   compile loop reported it when the loop was the first to see it.
  * @param {import("./content-session.mjs").ContentSession} [opts.session] - Captured context shared with other operations.
- * @returns {Promise<{currentDate: string, records: object[], parsed: Map<string, object>, linkIndex: object, sqlTables: Map<string, object[]>|undefined, problems: object[], syntax?: import("./content-session.mjs").ContentSyntax}>} The corpus,
+ * @returns {Promise<{currentDate: string, runs: import("./content-scripts.mjs").RunContext, records: object[], parsed: Map<string, object>, linkIndex: object, sqlTables: Map<string, object[]>|undefined, problems: object[], syntax?: import("./content-session.mjs").ContentSyntax}>} The corpus,
  *   its indexes, and the notes it could not record.
  */
 export async function buildCompileCorpus({
@@ -100,6 +101,7 @@ export async function buildCompileCorpus({
     const sqlTables = await prepareTreeSqlTables(contentBase, sqlOptions);
     return {
         currentDate: resolved.currentDate,
+        runs: runContext(resolved, records),
         records,
         parsed,
         problems: collected,

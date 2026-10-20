@@ -176,6 +176,7 @@ export class Scenes extends BasePackCompiler {
                     markdown,
                     leadName: name,
                     resolveRole,
+                    runs: this.corpus?.runs,
                     // As in the journals pass: an address resolves in the pack
                     // that emits it, which is what makes the folder
                     // materialise there too.

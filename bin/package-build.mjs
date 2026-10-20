@@ -97,6 +97,11 @@ import { cleanBuildArtifacts, resetStage, stageAssets } from "../stage.mjs";
 import { rowsStagingPictureRoots, stagePackageAssets } from "../engine/asset-shipping.mjs";
 import { baseStyleStageEntry } from "../engine/base-styles.mjs";
 import {
+    checkScriptFonts,
+    copyScriptFonts,
+    STAGED_FONTS_DIR,
+} from "../engine/script-font-delivery.mjs";
+import {
     CDN_ENV,
     cdnCredentials,
     noteArtFindings,
@@ -575,6 +580,26 @@ function assetsCommand() {
                 });
                 count += staged.entries;
                 files += staged.files;
+            }
+
+            // The installed fonts, when the package has installed the fonts
+            // package and a note sets text in one of its faces: the
+            // stylesheet, the WOFF2 files and the licence, which the
+            // manifest's `styles` names.
+            const fontFindings = checkScriptFonts(packConfig);
+            if (fontFindings.length) {
+                const error = new Error(fontFindings.map(formatDiagnostic).join("\n"));
+                error.located = true;
+                die(error);
+            }
+            const fonts = copyScriptFonts(
+                packConfig,
+                path.resolve(config.rootDir, config.stageDir, STAGED_FONTS_DIR),
+                ["woff2"],
+            );
+            if (fonts) {
+                count += 1;
+                files += fonts;
             }
             console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
         }),

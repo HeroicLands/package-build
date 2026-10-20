@@ -242,6 +242,21 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             data: { culture: "cultureone" },
         }),
     },
+    "doc:map": {
+        covers: ["map"],
+        fm: () => ({
+            type: "doc",
+            subType: "reference",
+            shortcode: "vylsemaron",
+            data: {
+                map: {
+                    name: "vyl-semaron",
+                    vowels: "aeiou",
+                    rows: [["a", "\u{F0230}"], { from: "y", to: "\u{F0237}", before: "consonant" }],
+                },
+            },
+        }),
+    },
 };
 
 for (const type of Object.keys(NOTE_VOCABULARY)) {

@@ -163,13 +163,31 @@ export const NOTATION = Object.freeze(
 );
 
 /**
+ * Tier 4 — the blocks the HeroicLands script fonts are registered in, so a
+ * mapping note or a `font=` run never draws a warning for a script character.
+ *
+ * @type {ReadonlyArray<readonly [number, number]>}
+ */
+const SCRIPT_BLOCKS = Object.freeze([
+    [0xf0000, 0xf2fff], // plane 15: Pirzath, Thuravark, Semaron, the reserved alphabets, Teng Chou
+    [0x1e960, 0x1ec6f], // Zethu overflow, Qalezu, Zethu
+    [0x1ecc0, 0x1ecff], // Qalezu catch-before forms
+    [0x13430, 0x1345f], // the Egyptian format controls Zethu uses
+]);
+
+/**
  * Whether the charset admits a code point anywhere in a note.
  *
  * @param {number} cp - A Unicode code point.
  * @returns {boolean} Whether it is allowed outside a code fence.
  */
 export function isAllowedCodePoint(cp) {
-    return isLetterTier(cp) || TYPOGRAPHY.has(cp) || NOTATION.has(cp);
+    return (
+        isLetterTier(cp) ||
+        TYPOGRAPHY.has(cp) ||
+        NOTATION.has(cp) ||
+        SCRIPT_BLOCKS.some(([from, to]) => cp >= from && cp <= to)
+    );
 }
 
 /**
@@ -362,7 +380,8 @@ export function checkText(text, file) {
                 line: i + 1,
                 column,
                 severity: /** @type {const} */ ("warning"),
-                message: `\`${ch}\` ${hex(cp)} is ${refusalFor(cp)}`,
+                // A Private Use character draws as nothing, so quoting it leaves an empty span.
+                message: `${/\p{Co}/u.test(ch) ? "" : `\`${ch}\` `}${hex(cp)} is ${refusalFor(cp)}`,
             });
         }
     }

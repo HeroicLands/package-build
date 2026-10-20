@@ -3022,3 +3022,13 @@ summary.info-sidebar-title::after {
 .single-body .dictionary > div > dd > :is(p, ul, ol, dl, blockquote, pre, table, div) { text-indent:0; }
 .single-body .dictionary > div > dd > p:first-child { display:inline; }
 @media (max-width:600px) { .single-body .dictionary { --indent:100px; } }
+
+/* ---- Text in one of the faces ----
+   The font family and features come from the face's own class. A
+   right-to-left block or verse reads from the right. `font=serif`, `sans`
+   and `mono` set the site's own serif and mono, and the reader's sans. */
+.script-block { margin:1rem 0; line-height:1.7; }
+.script-block[dir="rtl"], .poetry[dir="rtl"] { text-align:start; }
+.font-serif { font-family:var(--font-body); }
+.font-sans { font-family:sans-serif; }
+.font-mono { font-family:var(--font-mono); }

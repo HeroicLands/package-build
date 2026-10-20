@@ -66,6 +66,7 @@ import { authoredFrontmatter } from "./index-records.mjs";
 import { markupAnchorFindings } from "./anchors.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
+import { scanRuns } from "./content-scripts.mjs";
 import { scanHeadingAttributes, withheldSections } from "./heading-attributes.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { footnoteFindings } from "./content-footnotes.mjs";
@@ -691,6 +692,7 @@ export class BasePackCompiler {
             ...(scanned?.blocks ?? scanBlocks(body)).errors,
             ...(scanned?.alerts ?? scanAlerts(body)).errors,
             ...(scanned?.spans ?? scanSpans(body)).errors,
+            ...scanRuns(body, this.corpus?.runs, syntax).errors,
             ...markupAnchorFindings(body, syntax),
         ]) {
             findings.push({

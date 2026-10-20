@@ -100,6 +100,37 @@ export const WORD_SOURCE_FIELDS = Object.freeze([
 ]);
 
 /**
+ * The keys of one entry of a word's `native`.
+ *
+ * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
+ */
+export const WORD_NATIVE_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "map",
+        kind: "string",
+        required: true,
+        shape: "a mapping note's `data.map.name`",
+        describe: "The map the native form is written for.",
+    }),
+    Object.freeze({
+        name: "font",
+        kind: "string",
+        shape: "a face the map lists",
+        describe:
+            "The one face the native form is for; unstated, it is for every face the map lists, " +
+            "and a form stated for a face wins over it there.",
+    }),
+    Object.freeze({
+        name: "text",
+        kind: "string",
+        required: true,
+        shape: "the word in the script, as the map's characters",
+        describe:
+            "The word as the script writes it, where the map's rows would write it otherwise.",
+    }),
+]);
+
+/**
  * The keys one word of a language note's `data.words` carries.
  *
  * @type {readonly import("./data-keys.mjs").InnerKeySpec[]}
@@ -208,6 +239,19 @@ export const WORD_FIELDS = Object.freeze([
         kind: "string",
         shape: "a frame of the language's `sounds.frames`",
         describe: "The frame a root is set in, named in the language's `sounds.frames`.",
+    }),
+    Object.freeze({
+        name: "native",
+        kind: "list",
+        shape: "a list of `{ map, font?, text }`",
+        entries: Object.freeze({
+            kind: "map",
+            shape: "a map — `{ map, font?, text }`",
+            fields: WORD_NATIVE_FIELDS,
+        }),
+        describe:
+            "The word's native form under a map, stated only where the map's rows spell it " +
+            "differently. Its derived forms are spelled by the rows.",
     }),
 ]);
 

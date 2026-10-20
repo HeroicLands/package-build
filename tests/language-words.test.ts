@@ -168,6 +168,7 @@ describe("a language note's words", () => {
             "tones",
             "root",
             "frame",
+            "native",
         ]);
     });
 

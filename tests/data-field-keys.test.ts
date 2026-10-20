@@ -72,6 +72,11 @@ function unstated(spec: Spec, path: string): string | undefined {
         case "map":
             if (!spec.fields && !spec.values) return `${path}: a map declaring no keys or values`;
             return children();
+        case "list-or-map":
+            if (!spec.entryKind && !spec.entries)
+                return `${path}: a list form declaring no entries`;
+            if (!spec.fields && !spec.values) return `${path}: a map form declaring no keys`;
+            return children();
         case "string-list-or-map":
             if (!spec.entryKind && !spec.entries)
                 return `${path}: a list form declaring no entries`;
