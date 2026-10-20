@@ -312,3 +312,76 @@ describe("a row cannot stage a picture root around the filter", () => {
         subprocessTimeout(1),
     );
 });
+
+describe("a row that copies into a picture root keeps what it staged", () => {
+    /** Run `assets` with one extra row, into its own stage directory. */
+    function runWithRow(name: string, files: Record<string, string>, row: object) {
+        for (const [rel, body] of Object.entries(files)) {
+            const full = path.join(repo, ...rel.split("/"));
+            fs.mkdirSync(path.dirname(full), { recursive: true });
+            fs.writeFileSync(full, body, "utf8");
+        }
+        const config = path.join(repo, `${name}.config.yaml`);
+        fs.writeFileSync(
+            config,
+            YAML.stringify({
+                contentPackage: PKG,
+                packageKind: "modules",
+                compatibility: { minimum: "14.359", verified: "14.359" },
+                stats: { lastModifiedBy: "tpkgbuild0000000" },
+                packs: [],
+                packageBuild: {
+                    baseStyles: false,
+                    stageDir: `build/${name}`,
+                    manifest: { title: "Test Package" },
+                    assets: [row],
+                },
+            }),
+        );
+        return spawnSync(process.execPath, [CLI, "assets"], {
+            cwd: repo,
+            env: { ...process.env, PACKAGE_BUILD_CONFIG: config },
+            encoding: "utf8",
+        });
+    }
+
+    it(
+        "ships a row's files beside the staged pictures",
+        () => {
+            const result = runWithRow(
+                "kept",
+                { "legacy/help/x.jpg": "help" },
+                { from: "legacy/help", to: "images/help" },
+            );
+            expect(result.status).toBe(0);
+            const kept = listed(path.join(repo, "build", "kept"));
+            expect(kept).toContain("images/help/x.jpg");
+            for (const file of EXPECTED_STAGED) expect(kept).toContain(file);
+        },
+        subprocessTimeout(1),
+    );
+
+    it(
+        "refuses a picture whose deployed path a row already staged, and keeps the row's file",
+        () => {
+            const result = runWithRow(
+                "collided",
+                { "legacy/flat/gate.png": "from the row" },
+                { from: "legacy/flat", to: "images" },
+            );
+            expect(result.status).not.toBe(0);
+            const lines = result.stderr
+                .split("\n")
+                .filter((line: string) =>
+                    /^build\/collided\/images\/gate\.png: error: /.test(line),
+                );
+            expect(lines).toHaveLength(1);
+            expect(lines[0]).toContain("assets/images/places/gate.png");
+            expect(lines[0]).toContain("was not staged over it");
+            expect(
+                fs.readFileSync(path.join(repo, "build", "collided", "images", "gate.png"), "utf8"),
+            ).toBe("from the row");
+        },
+        subprocessTimeout(1),
+    );
+});

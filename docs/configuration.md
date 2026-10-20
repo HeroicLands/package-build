@@ -1905,6 +1905,13 @@ holding one is refused at the row:
 
 > ``package-build.config.yaml:<line>:<column>: error: `packageBuild.assets[<index>]` copies `<from>`, which reaches assets/images/ — the stage copies the icon and image roots itself, flat and filtered by each file's provenance, so a row copying them would ship every file unfiltered. Remove the row``
 
+A row may still copy other files into `icons/` or `images/` — a subdirectory of
+older art, say. The staged pictures are written beside them and remove nothing.
+A picture whose flat path is already a file a row staged is an error, and the
+file the row staged stays as it is:
+
+> ``<stage>/images/<basename>: error: `images/<basename>` is already in the stage, copied by a `packageBuild.assets` row; the picture `<source>` was not staged over it``
+
 | Key                             | Type                       | Required |
 | ------------------------------- | -------------------------- | -------- |
 | `packageBuild.assets[].from`    | string                     | yes      |

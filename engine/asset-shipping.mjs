@@ -270,6 +270,11 @@ export function assetsManifest(staged, stageDir) {
  * stage before a file is copied: a package whose provenance cannot be read is
  * not one whose shipping can be decided.
  *
+ * The pictures are written beside whatever a `packageBuild.assets` row already
+ * put under `icons/` and `images/`; nothing there is removed. A picture whose
+ * deployed path is already a file in the stage is a finding, and no picture is
+ * written. Clearing an earlier run's pictures is the stage reset's work.
+ *
  * @param {object} opts - Options.
  * @param {string} opts.assetsBase - The package's asset directory, the roots'
  *   parent.
@@ -304,15 +309,24 @@ export function stagePackageAssets({
     if (findings.length) return { staged: [], excluded: [], findings, manifest: null };
 
     const { staged, excluded } = selectStagedAssets(records, shippingLicenses);
-    for (const { root } of DEPLOYED_ASSET_TYPES) {
-        fs.rmSync(path.join(stageDir, root), { recursive: true, force: true });
+    const planned = staged.map((record) => ({
+        record,
+        from: path.join(assetsBase, ...record.asset.path.split("/")),
+        to: path.join(stageDir, .../** @type {string} */ (deployedAssetPath(record)).split("/")),
+    }));
+    for (const { record, from, to } of planned) {
+        if (!fs.existsSync(to)) continue;
+        findings.push({
+            file: to,
+            severity: "error",
+            message:
+                `\`${deployedAssetPath(record)}\` is already in the stage, copied by a ` +
+                `\`packageBuild.assets\` row; the picture \`${path.relative(process.cwd(), from)}\` ` +
+                "was not staged over it",
+        });
     }
-    for (const record of staged) {
-        const from = path.join(assetsBase, ...record.asset.path.split("/"));
-        const to = path.join(
-            stageDir,
-            .../** @type {string} */ (deployedAssetPath(record)).split("/"),
-        );
+    if (findings.length) return { staged: [], excluded: [], findings, manifest: null };
+    for (const { from, to } of planned) {
         fs.mkdirSync(path.dirname(to), { recursive: true });
         const transformed = transform ? transform(from) : null;
         if (transformed != null) fs.writeFileSync(to, transformed);

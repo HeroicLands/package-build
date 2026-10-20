@@ -2493,6 +2493,12 @@ layout serves Foundry (`modules/thalorna/images/thorn.webp`), the website's CDN
 (`<cdn base>/thalorna/images/thorn.webp`), and every location a world copies
 the pictures to.
 
+**A row's files are kept.** Staging the pictures writes them beside whatever a
+`packageBuild.assets` row copied under `icons/` or `images/`, such as a
+subdirectory of other art, and removes none of it. A picture whose flat path is
+already a file a row staged is an error, and the row's file stays. Clearing an
+earlier build's pictures is the stage reset's work.
+
 **The package's asset set**, `asset-sets/default.json` under the package
 root, lists what it ships. The name is fixed, so a world always finds the
 package's own set there:

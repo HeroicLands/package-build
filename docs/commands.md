@@ -350,9 +350,16 @@ the shipping list (the default list plus `packageBuild.shippingLicenses`) is cop
 at the package root, through the same transform, and the package's asset set,
 `asset-sets/default.json`, lists what was staged. Everything else stays in the repository. See
 [what a package ships](reference/format-details.md#what-a-package-ships).
-A `packageBuild.assets` row that copies a picture root, a directory inside
-one, or a directory holding one is refused, because it would ship every file
-unfiltered.
+
+The pictures are written beside whatever a `packageBuild.assets` row copied
+into `icons/` or `images/`, and nothing there is removed. A picture whose
+deployed path is already a file a row staged is an error, and no picture is
+staged:
+
+> ``build/stage/images/gate.png: error: `images/gate.png` is already in the stage, copied by a `packageBuild.assets` row; the picture `assets/images/places/gate.png` was not staged over it``
+> A `packageBuild.assets` row that copies a picture root, a directory inside
+> one, or a directory holding one is refused, because it would ship every file
+> unfiltered.
 
 **OPTIONS**
 
