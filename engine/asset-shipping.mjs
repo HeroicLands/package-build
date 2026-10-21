@@ -272,8 +272,11 @@ export function assetsManifest(staged, stageDir) {
  *
  * The pictures are written beside whatever a `packageBuild.assets` row already
  * put under `icons/` and `images/`; nothing there is removed. A picture whose
- * deployed path is already a file in the stage is a finding, and no picture is
- * written. Clearing an earlier run's pictures is the stage reset's work.
+ * deployed path already holds a file with the bytes it would stage — after the
+ * transform, when there is one — is its own earlier output and is skipped, so
+ * staging twice into one directory is quiet. A file there with other bytes is a
+ * finding, and no picture is written. Clearing an earlier run's pictures is the
+ * stage reset's work.
  *
  * @param {object} opts - Options.
  * @param {string} opts.assetsBase - The package's asset directory, the roots'
@@ -309,13 +312,22 @@ export function stagePackageAssets({
     if (findings.length) return { staged: [], excluded: [], findings, manifest: null };
 
     const { staged, excluded } = selectStagedAssets(records, shippingLicenses);
-    const planned = staged.map((record) => ({
-        record,
-        from: path.join(assetsBase, ...record.asset.path.split("/")),
-        to: path.join(stageDir, .../** @type {string} */ (deployedAssetPath(record)).split("/")),
-    }));
-    for (const { record, from, to } of planned) {
+    const planned = staged.map((record) => {
+        const from = path.join(assetsBase, ...record.asset.path.split("/"));
+        return {
+            record,
+            from,
+            transformed: transform ? transform(from) : null,
+            to: path.join(
+                stageDir,
+                .../** @type {string} */ (deployedAssetPath(record)).split("/"),
+            ),
+        };
+    });
+    for (const { record, from, to, transformed } of planned) {
         if (!fs.existsSync(to)) continue;
+        const bytes = transformed != null ? transformed : fs.readFileSync(from);
+        if (Buffer.from(fs.readFileSync(to)).equals(Buffer.from(bytes))) continue;
         findings.push({
             file: to,
             severity: "error",
@@ -326,9 +338,9 @@ export function stagePackageAssets({
         });
     }
     if (findings.length) return { staged: [], excluded: [], findings, manifest: null };
-    for (const { from, to } of planned) {
+    for (const { from, to, transformed } of planned) {
+        if (fs.existsSync(to)) continue;
         fs.mkdirSync(path.dirname(to), { recursive: true });
-        const transformed = transform ? transform(from) : null;
         if (transformed != null) fs.writeFileSync(to, transformed);
         else fs.copyFileSync(from, to);
     }
