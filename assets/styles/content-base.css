@@ -280,6 +280,33 @@
     text-align: start;
 }
 
+/*
+ * Emphasis in a script follows the script's convention, never a weight or a
+ * slant the face does not have: the element keeps the face's Regular, and its
+ * class sets the convention. The rubric is carried by colour alone, so each
+ * half holds 4.5:1 on Foundry's journal page in its theme and stays apart from
+ * the body text in lightness; a package that overrides it re-checks both.
+ */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) {
+    --pb-rubric: #9c281b;
+    --pb-rubric: light-dark(#9c281b, #e0705f);
+}
+
+.script :is(em, strong) {
+    font-style: normal;
+    font-weight: inherit;
+    font-synthesis: none;
+}
+
+.emph-rubric {
+    color: var(--pb-rubric);
+}
+
+.emph-overline {
+    text-decoration-line: overline;
+    text-decoration-skip-ink: none;
+}
+
 /* Text set in the reader's generic families, `font=serif`, `sans` and `mono`. */
 .font-serif {
     font-family: serif;

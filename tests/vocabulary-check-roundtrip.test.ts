@@ -233,6 +233,24 @@ const FIXTURES: Record<string, { fm: () => any; covers: string[] }> = {
             data: { family: "languageone", abbreviation: "Dau." },
         }),
     },
+    "skill:script": {
+        covers: ["script"],
+        fm: () => ({
+            type: "skill",
+            subType: "script",
+            shortcode: "semaronscrpt",
+            data: { script: { fonts: ["semaron-kuriale"], emphasis: "rubric" } },
+        }),
+    },
+    "skill:emphasis": {
+        covers: ["emphasis"],
+        fm: () => ({
+            type: "skill",
+            subType: "language",
+            shortcode: "vylarilng",
+            data: { emphasis: "words" },
+        }),
+    },
     doc: {
         covers: ["culture"],
         fm: () => ({

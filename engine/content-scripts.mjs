@@ -50,6 +50,10 @@
  * - **Text with a font, a map or a declared language is plain.** A span or a
  *   verse holds no emphasis, link, image, footnote, wikilink, code or HTML,
  *   and no span but a marked one; a div holds paragraphs and line breaks only.
+ * - **Text set in a face takes `*…*` and `**…**`**, set by the convention its
+ *   language's note states, else its face's script note, else plainly; see
+ *   {@link module:engine/script-emphasis}. A language that marks emphasis
+ *   with a word makes either a finding at the emphasis.
  *   The text is read as written, so `[`, `]`, `"`, `<<`, `>>`, `!` and
  *   `@#$%^&` are characters, and need no escaping. A real language's tag alone
  *   marks text and leaves its Markdown alone.
@@ -72,9 +76,12 @@ import { expandVerse, expandVerseOrigins, scanVerse, sourcePosition } from "./co
 import { scanSpans } from "./content-spans.mjs";
 import { isLanguageTag } from "./language-tag.mjs";
 import { distance, nearest } from "./near-miss.mjs";
+import { emphasesFromRecords, languageEmphasesOf } from "./script-emphasis.mjs";
+import { EMPHASIS_CLASSES } from "./script-emphasis-terms.mjs";
 import { FONTS_PACKAGE, resolveScriptFonts } from "./script-fonts.mjs";
 import {
     fontProblem,
+    languageRecordsByName,
     lexiconsFromRecords,
     mappingFor,
     uncapitalisedMessage,
@@ -113,6 +120,12 @@ const CONFIG = "package-build.config.yaml";
  * @property {ReadonlyMap<string, import("./run-words.mjs").WordBook>} [wordBooks] -
  *   What each configured language's mapped runs are checked against, from
  *   {@link module:engine/run-words.wordBooksFromRecords}.
+ * @property {ReadonlyMap<string, import("./script-emphasis.mjs").Emphasis>} [emphases] -
+ *   Each face's emphasis conventions, from the script notes, by
+ *   {@link module:engine/script-emphasis.emphasesFromRecords}.
+ * @property {ReadonlyMap<string, import("./script-emphasis.mjs").LanguageEmphasis>} [languageEmphases] -
+ *   The convention each configured language's note states, by language name,
+ *   from {@link module:engine/script-emphasis.languageEmphasesOf}.
  */
 
 /**
@@ -181,6 +194,8 @@ export function runContext(config, records) {
         maps: mapsFromRecords(records),
         lexicons: lexiconsFromRecords(records, config),
         wordBooks: wordBooksFromRecords(records, config),
+        emphases: emphasesFromRecords(records),
+        languageEmphases: languageEmphasesOf(languageRecordsByName(records, config)),
     });
     byRecords.set(records, context);
     return context;
@@ -298,9 +313,11 @@ function closing(text, open) {
  * @param {ReadonlyMap<number, number>} [holes] - Marked spans inside the
  *   text, each its offset of `[` to the offset past its attributes. They are
  *   runs of their own and checked as such.
+ * @param {boolean} [stars] - Whether `*…*` and `**…**` are emphasis the text
+ *   may hold, as in a run in a script face; `_` and `~~` still are not.
  * @returns {Array<{offset: number, what: string}>} Each fault, in order.
  */
-function inlineMarkup(text, footnotes, holes = new Map()) {
+function inlineMarkup(text, footnotes, holes = new Map(), stars = false) {
     const faults = [];
     const skip = new Map();
     const runs = [];
@@ -384,6 +401,10 @@ function inlineMarkup(text, footnotes, holes = new Map()) {
         if (char === "*" || char === "_" || (char === "~" && text[i + 1] === "~")) {
             let j = i;
             while (text[j] === char) j++;
+            if (stars && char === "*") {
+                i = j - 1;
+                continue;
+            }
             const before = text[i - 1] ?? " ",
                 after = text[j] ?? " ";
             const left =
@@ -401,7 +422,7 @@ function inlineMarkup(text, footnotes, holes = new Map()) {
             i = j - 1;
         }
     }
-    let outside = text;
+    let outside = stars ? text.replace(/\*/g, " ") : text;
     for (const [from, to] of holes)
         outside = outside.slice(0, from) + " ".repeat(to - from) + outside.slice(to);
     if (runs.length && holdsEmphasis(outside)) {
@@ -420,6 +441,91 @@ function inlineMarkup(text, footnotes, holes = new Map()) {
         if (!found) faults.push({ offset: 0, what: "emphasis" });
     }
     return faults.sort((a, b) => a.offset - b.offset);
+}
+
+/** A parser that reads emphasis and nothing else in text whose other punctuation is escaped. */
+const starParser = new MarkdownIt({ html: false, linkify: false, typographer: false });
+
+/** ASCII punctuation, which a backslash escapes. */
+const ASCII_PUNCTUATION = /[!-/:-@[-`{-~]/;
+
+/**
+ * One `*` or `**` that Markdown reads as opening or closing emphasis.
+ *
+ * @typedef {object} Delimiter
+ * @property {number} offset - Its first star's offset.
+ * @property {number} length - 1 for `*`, 2 for `**`.
+ * @property {"em"|"strong"} tag - Which level it opens or closes.
+ * @property {boolean} open - Whether it opens.
+ */
+
+/**
+ * The stars Markdown reads as emphasis in a run's text, as CommonMark pairs
+ * them. Every other character is read as itself: an escaped star, or one that
+ * pairs with none, is a character of the text. A marked span inside the text
+ * reads as one letter, so emphasis may enclose it.
+ *
+ * @param {string} text - Inline text, as written.
+ * @param {ReadonlyMap<number, number>} [holes] - Marked spans inside it, by
+ *   offset in `text`.
+ * @returns {Delimiter[]} Each delimiter, in order, at its offset in `text`.
+ */
+function emphasisDelimiters(text, holes = new Map()) {
+    let masked = "";
+    const stars = [];
+    for (let i = 0; i < text.length; i++) {
+        if (holes.has(i)) {
+            masked += "x";
+            i = /** @type {number} */ (holes.get(i)) - 1;
+            continue;
+        }
+        const char = text[i];
+        if (char === "\\" && ASCII_PUNCTUATION.test(text[i + 1] ?? "")) {
+            masked += text[i + 1] === "*" ? "\\!" : `\\${text[i + 1]}`;
+            i++;
+        } else if (char === "*") {
+            masked += "*";
+            stars.push(i);
+        } else masked += ASCII_PUNCTUATION.test(char) ? `\\${char}` : char;
+    }
+    if (!stars.length) return [];
+    const delimiters = [];
+    let at = 0;
+    for (const token of starParser.parseInline(masked, {})[0]?.children ?? []) {
+        if (token.type === "text") at += (token.content.match(/\*/g) ?? []).length;
+        else if (/^(?:em|strong)_(?:open|close)$/.test(token.type)) {
+            delimiters.push({
+                offset: stars[at],
+                length: token.markup.length,
+                tag: /** @type {"em"|"strong"} */ (token.tag),
+                open: token.nesting === 1,
+            });
+            at += token.markup.length;
+        }
+    }
+    return delimiters;
+}
+
+/**
+ * The parts of ranges of text that no delimiter covers.
+ *
+ * @param {Array<[number, number]>} parts - The ranges, as offsets.
+ * @param {readonly Delimiter[]} delimiters - Delimiters, by absolute offset.
+ * @returns {Array<[number, number]>} The ranges, split around each delimiter.
+ */
+function outsideDelimiters(parts, delimiters) {
+    if (!delimiters.length) return parts;
+    const out = [];
+    for (const [from, to] of parts) {
+        let at = from;
+        for (const delimiter of delimiters) {
+            if (delimiter.offset < at || delimiter.offset >= to) continue;
+            if (delimiter.offset > at) out.push([at, delimiter.offset]);
+            at = delimiter.offset + delimiter.length;
+        }
+        if (at < to) out.push([at, to]);
+    }
+    return out;
 }
 
 /** A line split into its indentation, its text, a trailing break and its trailing space. */
@@ -574,7 +680,40 @@ const BLOCK_WHAT = Object.freeze({
  * @property {[number, number]|undefined} body - A div's or fence's body, as
  *   offsets: the first body line's start to the end of the last.
  * @property {number|undefined} contentEnd - A span's offset of its closing `]`.
+ * @property {import("./script-emphasis.mjs").LanguageEmphasis|undefined} languageEmphasis -
+ *   The convention its language's note states.
+ * @property {import("./script-emphasis.mjs").Emphasis|undefined} conventions -
+ *   What its emphasis is set by: its language's convention, else its face's
+ *   script's; `undefined` sets it plain.
+ * @property {Delimiter[]} emphasis - The emphasis it holds, by absolute offset.
  */
+
+/**
+ * The finding for emphasis in a language that marks it with a word.
+ *
+ * @param {string} lang - The language, as `lang=` names it.
+ * @returns {string} The message.
+ */
+function wordsMessage(lang) {
+    return `\`${lang}\` marks emphasis with a word, not a mark; write the word`;
+}
+
+/**
+ * What a run's emphasis is set by: the convention its language's note states,
+ * else the one its face's script note states, else none. A language that
+ * marks emphasis with a word sets none, and its emphasis is a finding.
+ *
+ * @param {{face: import("./script-fonts.mjs").Face|undefined, languageEmphasis: string|undefined}} detail -
+ *   The run.
+ * @param {RunContext} ctx - The conventions.
+ * @returns {import("./script-emphasis.mjs").Emphasis|undefined} The conventions.
+ */
+function conventionsOf({ face, languageEmphasis }, ctx) {
+    if (!face || languageEmphasis === "words") return undefined;
+    if (languageEmphasis === "rubric" || languageEmphasis === "overline")
+        return { em: languageEmphasis, strong: languageEmphasis };
+    return ctx.emphases?.get(face.slug);
+}
 
 /**
  * Read every marked construct in a source, and every fault in it.
@@ -790,25 +929,44 @@ function analyseRuns(source, ctx, syntax) {
         );
 
     /**
-     * Report the markup in inline text that must be plain.
+     * Report the markup in inline text that must be plain, and collect the
+     * emphasis a run in a script face holds.
      *
      * @param {string} inline - The text.
      * @param {number} offset - Its offset in the source.
      * @param {string} marking - How its construct is marked.
+     * @param {RunDetail} detail - The run, whose `emphasis` collects each
+     *   delimiter by absolute offset.
      * @param {ReadonlyMap<number, number>} [holes] - Marked spans in it, by
      *   absolute offset.
      */
-    const plainInline = (inline, offset, marking, holes = new Map()) => {
+    const plainInline = (inline, offset, marking, detail, holes = new Map()) => {
         const relative = new Map(
             [...holes]
                 .filter(([start]) => start >= offset && start < offset + inline.length)
                 .map(([start, end]) => [start - offset, end - offset]),
         );
-        for (const fault of inlineMarkup(inline, footnotes, relative))
+        const { lang } = detail.run;
+        const words = detail.languageEmphasis === "words";
+        const stars = words || detail.face !== undefined;
+        for (const fault of inlineMarkup(inline, footnotes, relative, stars))
             report(
                 positionOf(starts, offset + fault.offset),
-                `text marked \`${marking}\` is plain text and holds no ${fault.what}`,
+                fault.what !== "emphasis" || !stars ?
+                    `text marked \`${marking}\` is plain text and holds no ${fault.what}`
+                : words ? wordsMessage(/** @type {string} */ (lang))
+                : `text marked \`${marking}\` takes emphasis only as \`*…*\` or \`**…**\``,
             );
+        if (!stars) return;
+        for (const delimiter of emphasisDelimiters(inline, relative)) {
+            if (words) {
+                if (delimiter.open)
+                    report(
+                        positionOf(starts, offset + delimiter.offset),
+                        wordsMessage(/** @type {string} */ (lang)),
+                    );
+            } else detail.emphasis.push({ ...delimiter, offset: offset + delimiter.offset });
+        }
     };
 
     /**
@@ -963,7 +1121,11 @@ function analyseRuns(source, ctx, syntax) {
             holes: new Map(),
             body: undefined,
             contentEnd: construct.kind === "span" ? construct.node.contentEnd : undefined,
+            languageEmphasis: lang === undefined ? undefined : ctx.languageEmphases?.get(lang),
+            conventions: undefined,
+            emphasis: [],
         };
+        detail.conventions = conventionsOf(detail, ctx);
         details.push(detail);
         if (!plain) continue;
         const marking = [
@@ -976,11 +1138,15 @@ function analyseRuns(source, ctx, syntax) {
         if (construct.kind === "span") {
             const span = construct.node;
             const inline = text.slice(span.start + 1, span.contentEnd);
-            plainInline(inline, span.start + 1, marking);
+            plainInline(inline, span.start + 1, marking, detail);
             if (named && errors.length === before) {
-                lexical([[span.start + 1, span.contentEnd]], detail);
-                capitals([[span.start + 1, span.contentEnd]], detail);
-                covered([[span.start + 1, span.contentEnd]], detail);
+                const parts = outsideDelimiters(
+                    [[span.start + 1, span.contentEnd]],
+                    detail.emphasis,
+                );
+                lexical(parts, detail);
+                capitals(parts, detail);
+                covered(parts, detail);
             }
             continue;
         }
@@ -1014,6 +1180,7 @@ function analyseRuns(source, ctx, syntax) {
                             body.slice(top, past).join("\n"),
                             starts[first + top],
                             marking,
+                            detail,
                             detail.holes,
                         );
                     continue;
@@ -1029,12 +1196,13 @@ function analyseRuns(source, ctx, syntax) {
             }
         } else {
             for (let line = first; line < last; line++)
-                plainInline(lines[line], starts[line], marking, detail.holes);
+                plainInline(lines[line], starts[line], marking, detail, detail.holes);
         }
         if (named && errors.length === before) {
-            lexical(outsideHoles(from, to, detail.holes), detail);
-            capitals(outsideHoles(from, to, detail.holes), detail);
-            covered(outsideHoles(from, to, detail.holes), detail);
+            const parts = outsideDelimiters(outsideHoles(from, to, detail.holes), detail.emphasis);
+            lexical(parts, detail);
+            capitals(parts, detail);
+            covered(parts, detail);
         }
     }
 
@@ -1157,6 +1325,57 @@ function rewrittenAttributes(detail, search) {
 }
 
 /**
+ * The tag a delimiter is written as: an `<em>` or a `<strong>` carrying its
+ * convention's class. The book's parser reads only the classed form, so a
+ * delimiter with no convention writes nothing there, and the text is set in
+ * the face's Regular.
+ *
+ * @param {Delimiter} delimiter - The delimiter.
+ * @param {import("./script-emphasis.mjs").Emphasis|undefined} conventions -
+ *   The run's conventions.
+ * @param {boolean} book - Whether the target is the book.
+ * @returns {string} The tag.
+ */
+function emphasisTag(delimiter, conventions, book) {
+    const convention = conventions?.[delimiter.tag];
+    if (!convention && book) return "";
+    if (!delimiter.open) return `</${delimiter.tag}>`;
+    return convention ?
+            `<${delimiter.tag} class="${EMPHASIS_CLASSES[convention]}">`
+        :   `<${delimiter.tag}>`;
+}
+
+/**
+ * Set a range of a run's text, each piece between its emphasis delimiters by
+ * {@link setText}, and each delimiter as its tag.
+ *
+ * @param {string} text - The source.
+ * @param {number} from - The range's first offset.
+ * @param {number} to - The offset past it.
+ * @param {RunDetail} detail - The run.
+ * @param {boolean} lineStart - Whether `from` starts its line.
+ * @param {boolean} book - Whether the target is the book.
+ * @returns {string} The set text.
+ */
+function setRange(text, from, to, detail, lineStart, book) {
+    let out = "";
+    let at = from;
+    for (const delimiter of detail.emphasis) {
+        if (delimiter.offset < from || delimiter.offset >= to) continue;
+        if (delimiter.offset > at)
+            out += setText(
+                text.slice(at, delimiter.offset),
+                detail.mapping,
+                at === from && lineStart,
+            ).text;
+        out += emphasisTag(delimiter, detail.conventions, book);
+        at = delimiter.offset + delimiter.length;
+    }
+    if (at < to) out += setText(text.slice(at, to), detail.mapping, at === from && lineStart).text;
+    return out;
+}
+
+/**
  * Rewrite text marked with `lang=`, `font=` and `map=` into the plain span,
  * div and verse grammar the rest of each chain renders, one line for one line.
  *
@@ -1166,6 +1385,9 @@ function rewrittenAttributes(detail, search) {
  *   rewrite that changes the number of lines.
  * - **The map, if any, is applied first.** Characters Markdown would read are
  *   then backslash-escaped, so they reach every later pass as characters.
+ * - **Emphasis in a face** becomes an `<em>` or a `<strong>` carrying its
+ *   convention's class, or no class where none is stated. The book reads
+ *   only the classed form, so a classless one writes nothing there.
  * - **The construct carries** the language's tag as `lang`, the face's class
  *   (with `script`, and `script-block` on a div) or the generic family's
  *   class. On the site, a face's construct also carries
@@ -1188,6 +1410,7 @@ function rewrittenAttributes(detail, search) {
  */
 export function renderRuns(source, ctx = {}, syntax, options = {}) {
     const search = options.target === "site";
+    const book = options.target === "book";
     const authored = String(source ?? "");
     const text = expandVerse(authored);
     if (text !== authored) syntax = undefined;
@@ -1219,11 +1442,14 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
             const contentEnd = /** @type {number} */ (detail.contentEnd);
             let inner = text.slice(run.start + 1, contentEnd);
             if (detail.plain)
-                inner = setText(
-                    inner,
-                    detail.mapping,
+                inner = setRange(
+                    text,
+                    run.start + 1,
+                    contentEnd,
+                    detail,
                     run.start === 0 || text[run.start - 1] === "\n",
-                ).text;
+                    book,
+                );
             else if (attributes === undefined) continue;
             const braces = attributes ?? text.slice(contentEnd + 2, run.end - 1);
             edits.push({ from: run.start, to: run.end, text: `[${inner}]{${braces}}` });
@@ -1241,7 +1467,7 @@ export function renderRuns(source, ctx = {}, syntax, options = {}) {
         if (detail.plain && detail.body)
             for (const [from, to] of outsideHoles(detail.body[0], detail.body[1], detail.holes)) {
                 const lineStart = from === 0 || text[from - 1] === "\n";
-                const set = setText(text.slice(from, to), detail.mapping, lineStart).text;
+                const set = setRange(text, from, to, detail, lineStart, book);
                 if (set !== text.slice(from, to)) edits.push({ from, to, text: set });
             }
     }

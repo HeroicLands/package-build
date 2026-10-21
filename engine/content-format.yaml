@@ -224,6 +224,8 @@ types:
             - older
             - negation
             - naming
+            - emphasis
+            - script
         subTypes:
             - social
             - nature

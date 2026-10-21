@@ -154,6 +154,8 @@ import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkSettlementTables } from "./settlement-tables.mjs";
 import { checkMapField } from "./text-maps.mjs";
+import { checkLanguageEmphasis, checkScriptField } from "./script-emphasis.mjs";
+import { EMPHASIS_CONVENTIONS, LANGUAGE_EMPHASES } from "./script-emphasis-terms.mjs";
 
 /**
  * One `data:` key a note type may carry.
@@ -2098,6 +2100,61 @@ export const NOTE_VOCABULARY = Object.freeze({
             ABBREVIATION_FIELD,
             ...WORD_DATA_FIELDS,
             ...LANGUAGE_DATA_FIELDS,
+            {
+                name: "emphasis",
+                kind: "string",
+                shape: "`words`, `rubric` or `overline`",
+                allowed: LANGUAGE_EMPHASES,
+                check: checkLanguageEmphasis,
+                describe:
+                    "How the language marks a stressed word, over its script's `emphasis`: " +
+                    "`rubric` or `overline` sets `*…*` and `**…**` so in a run of the language, " +
+                    "and `words` marks it with a word, so either is a finding. Only a skill of " +
+                    "`subType: language` states it.",
+            },
+            {
+                name: "script",
+                kind: "map",
+                shape: "a map — `{ fonts, emphasis, strongEmphasis? }`",
+                check: checkScriptField,
+                fields: Object.freeze([
+                    {
+                        name: "fonts",
+                        kind: "list",
+                        shape: "list of installed faces' slugs",
+                        required: true,
+                        entries: Object.freeze({
+                            kind: "string",
+                            shape: "an installed face's slug",
+                        }),
+                        describe:
+                            "The faces the script is written in, by the slug `font=` names them by. " +
+                            "A face belongs to one script.",
+                    },
+                    {
+                        name: "emphasis",
+                        kind: "string",
+                        shape: "`rubric` or `overline`",
+                        allowed: EMPHASIS_CONVENTIONS,
+                        required: true,
+                        describe:
+                            "How the script marks a stressed word: `rubric` sets it in red, " +
+                            "`overline` draws a line above it. It sets `*…*` and `**…**` inside a " +
+                            "run in one of its faces, unless the run's language states its own " +
+                            "`emphasis`.",
+                    },
+                    {
+                        name: "strongEmphasis",
+                        kind: "string",
+                        shape: "`rubric` or `overline`",
+                        allowed: EMPHASIS_CONVENTIONS,
+                        describe: "The convention `**…**` takes instead of `emphasis`'s.",
+                    },
+                ]),
+                describe:
+                    "A script note's faces and how it marks emphasis. Only a skill of " +
+                    "`subType: script` states it.",
+            },
         ]),
     }),
 

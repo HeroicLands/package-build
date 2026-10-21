@@ -53,6 +53,13 @@
      a footnote may be called from inside a blockquote or a named block. */
   --footnote-marker: var(--accent-hover);
 
+  /* A rubric script's emphasis, which is carried by colour alone. Checked
+     against every surface text sits on, and against --text so the emphasis
+     survives without its hue: 5.62:1 on --bg, 5.21:1 on --bg-card, 4.57:1 on
+     --surface, and 2.13:1 against --text. A consuming site that overrides it
+     re-checks both. */
+  --rubric: #e0705f;
+
   --font-display:  'Cinzel', 'Georgia', serif;
   --font-body:     'Lora', 'Georgia', serif;
   --font-mono:     'JetBrains Mono', monospace;
@@ -3110,3 +3117,10 @@ summary.info-sidebar-title::after {
 .font-serif { font-family:var(--font-body); }
 .font-sans { font-family:sans-serif; }
 .font-mono { font-family:var(--font-mono); }
+
+/* Emphasis in a script follows the script's convention, never a weight or a
+   slant the face does not have: the element keeps the face's Regular, and
+   its class sets the convention. */
+.script :is(em, strong) { font-style:normal; font-weight:inherit; font-synthesis:none; }
+.emph-rubric { color:var(--rubric); }
+.emph-overline { text-decoration-line:overline; text-decoration-skip-ink:none; }

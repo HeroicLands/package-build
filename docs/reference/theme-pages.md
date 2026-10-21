@@ -386,6 +386,30 @@ stacks as well. The Foundry stylesheet draws the same.
 | `.verse-part`      | one entry's text, in the body serif unless its face sets it   |
 | `.verse-secondary` | every entry after a column's first, muted                     |
 
+## Emphasis in a script
+
+Emphasis inside a run set in a face stays an `<em>` or a `<strong>`, and its
+class names the convention its language or script states (see
+[script notes and emphasis](format-details.md#script-notes-and-emphasis)):
+
+| class            | drawn as                      |
+| ---------------- | ----------------------------- |
+| `.emph-rubric`   | the text in `var(--rubric)`   |
+| `.emph-overline` | the text with a line above it |
+
+`.script em` and `.script strong` keep the face's Regular: no slant, no added
+weight, and `font-synthesis: none`. A script whose notes state no convention
+gives a bare `<em>` or `<strong>`, which therefore looks like the text around
+it.
+
+The theme's `--rubric` is `#e0705f`, a warm red for its dark ground. Because a
+rubric carries emphasis by colour alone, it holds 4.5:1 against `--bg`,
+`--bg-card` and `--surface`, and 1.75:1 against `--text`, so a reader who
+cannot see its hue still sees a lighter or darker word. A site that overrides
+`--rubric` keeps both. Foundry's base stylesheet sets the same classes from
+`--pb-rubric`, `light-dark(#9c281b, #e0705f)`, against Foundry's journal page in
+each theme, and the book prints its rubric in `#9c281b` on its paper.
+
 ## Search
 
 `params.search = true` renders a search box in the header; left unset (or

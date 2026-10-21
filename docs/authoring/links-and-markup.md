@@ -864,6 +864,8 @@ plain text.
 
 - **A span or a verse line** holds no emphasis, link, image, footnote,
   wikilink, code or HTML, and no span but a marked one inside a div or a fence.
+  Text set in a face is the one exception: it takes `*…*` and `**…**`, as
+  [emphasis in a script](#emphasis-in-a-script) describes.
 - **A div** holds paragraphs and line breaks only: no heading, list, block
   quote, code fence, verse fence, table, rule, footnote definition or nested
   block. Mark a poem's own fence instead of a div around it.
@@ -876,6 +878,66 @@ defines `[^id]:`. A bracket with no partner takes a backslash, `\[`.
 
 Text marked with a real language's tag alone keeps its Markdown, so
 `[ad _astra_]{lang=la}` and an English poem with emphasis are both accepted.
+
+### Emphasis in a script
+
+Inside a run set in a face, `*…*` and `**…**` are written exactly as in
+English. No script marks a stressed word by a bold or a slant, so the build sets
+emphasis by the scribal convention the text's language or its script states:
+
+| Convention | On the site and in Foundry                         | In the book           |
+| ---------- | -------------------------------------------------- | --------------------- |
+| `rubric`   | `<em class="emph-rubric">`, in red                 | in the book's red ink |
+| `overline` | `<em class="emph-overline">`, with a line above it | under an overline     |
+| none       | `<em>` with no class, in the face's Regular        | in the face's Regular |
+
+`**…**` gives a `<strong>` in the same way. The element stays an `<em>` or a
+`<strong>`, so a screen reader and a copied passage keep the emphasis.
+
+**The convention is the language's, else the script's.** A run's `lang=`
+language, through the note its [`languages.<name>.note`](../configuration.md#languages)
+names, may state `data.emphasis`; otherwise the script note listing the run's
+face states it in `data.script`; otherwise there is none. A script note:
+
+```yaml
+---
+shortcode: semaronscrpt
+name: { full: Semaron Script }
+type: skill
+subType: script
+data:
+  script:
+    fonts: [semaron-kuriale]
+    emphasis: rubric
+---
+```
+
+So a tongue that states nothing takes its script's convention. Provenzal set in
+Semaron is rubric:
+
+```markdown
+The lintel reads [a _stressed_ word]{lang=prv font=semaron-kuriale map=semaron}.
+```
+
+and renders on the site as
+
+```html
+<span class="script hl-semaron-kuriale" lang="art-x-prv" data-pagefind-ignore="true"
+  >… <em class="emph-rubric">…</em> …</span
+>
+```
+
+**A language may mark emphasis with a word** instead of a mark:
+`data.emphasis: words` on its language note. Emphasis in a run of that language
+is then an error at the emphasis, and the remedy is the word the language
+stresses with. A language may also state `rubric` or `overline`, which it takes
+in every script it is written in.
+
+Underscores, `_…_` and `__…__`, and a strikethrough are still errors in a face;
+an escaped `\*`, or a star that pairs with none, is a character the map and the
+face are checked for. A stressed word is best enclosed whole: a star inside a
+word splits it, so a map's row or a lexicon word that crosses the star is not
+matched.
 
 ### Errors
 
@@ -897,6 +959,8 @@ that `lint` reports and that fails nothing:
 | `` `thiruthrimar` is not a word of the `vyl` lexicon, a registered name, or a regular form of one; coin it in the lexicon (or register the name) first ``                                                                                                      | Coin the word in the language note's `data.words`, register the name in its own `data.register`, or correct the spelling. |
 | `` `thuravark-carved` is not a font of the map `semaron`; it is for `semaron-kuriale` ``                                                                                                                                                                       | Set the run in a face the map lists, or list the face in `data.map.fonts`.                                                |
 | ``text marked `lang=vyl` is plain text and holds no emphasis``                                                                                                                                                                                                 | Remove the markup, or escape the character with a backslash.                                                              |
+| ``text marked `lang=prv font=semaron-kuriale map=semaron` takes emphasis only as `*…*` or `**…**` ``                                                                                                                                                           | Write the emphasis with stars.                                                                                            |
+| `` `vyl` marks emphasis with a word, not a mark; write the word ``                                                                                                                                                                                             | Remove the stars and write the word the language stresses with.                                                           |
 | ``a div marked `lang=vyl font=semaron-kuriale map=semaron` holds paragraphs and line breaks only, not a list``                                                                                                                                                 | Move the list out of the div.                                                                                             |
 | `` `font=` is read on a span, a div or a verse fence, not on a secret block ``                                                                                                                                                                                 | Put a marked div inside the secret block.                                                                                 |
 | `` `vly` is read as a BCP 47 tag; did you mean the declared language `vyl`? `` (a warning)                                                                                                                                                                     | Write the declared name, or ignore it when the tag is meant.                                                              |

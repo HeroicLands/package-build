@@ -196,13 +196,53 @@ export function labelFor(anchor) {
     );
 }
 
+/** The tag {@link module:engine/content-scripts.renderRuns} writes for emphasis in a script. */
+const SCRIPT_EMPHASIS_OPEN = /^<(em|strong) class="emph-(rubric|overline)">/;
+
+/**
+ * Read the emphasis a script run's convention sets: an `<em>` or a `<strong>`
+ * carrying `emph-rubric` or `emph-overline`, which
+ * {@link module:engine/content-scripts.renderRuns} writes, and the closing tag
+ * that matches one. Nothing else that looks like HTML is read.
+ *
+ * @param {import("markdown-it")} md - The parser.
+ */
+function scriptEmphasisPlugin(md) {
+    md.inline.ruler.before("text", "script_emphasis", (state, silent) => {
+        if (state.src.charCodeAt(state.pos) !== 0x3c) return false;
+        const rest = state.src.slice(state.pos);
+        const open = SCRIPT_EMPHASIS_OPEN.exec(rest);
+        if (open) {
+            if (!silent) {
+                const token = state.push("script_emphasis_open", open[1], 1);
+                token.meta = { convention: open[2] };
+            }
+            state.pos += open[0].length;
+            return true;
+        }
+        const close = /^<\/(em|strong)>/.exec(rest);
+        if (!close) return false;
+        let depth = 0;
+        for (const token of state.tokens) {
+            if (token.type === "script_emphasis_open" && token.tag === close[1]) depth++;
+            else if (token.type === "script_emphasis_close" && token.tag === close[1]) depth--;
+        }
+        if (depth <= 0) return false;
+        if (!silent) state.push("script_emphasis_close", close[1], -1);
+        state.pos += close[0].length;
+        return true;
+    });
+}
+
 /**
  * A markdown-it configured to parse, not to render.
  *
  * `html: false` is the load-bearing setting: raw HTML in a note has no route to
  * Typst at all, which is why {@link module:engine/content-html} reports it. With
  * HTML disabled markdown-it emits the tag as text, so it arrives in the book
- * visibly wrong rather than invisibly missing.
+ * visibly wrong rather than invisibly missing. The one tag it reads is the
+ * emphasis a script run's convention sets, which the run's rewrite writes and
+ * the book prints in its rubric ink or under an overline.
  *
  * @param {object} [registry] - The icon registry.
  * @returns {object} A markdown-it instance.
@@ -228,6 +268,7 @@ export function createParser(registry) {
             );
         }
     });
+    md.use(scriptEmphasisPlugin);
     md.use(deflistPlugin);
     md.use(iconPlugin(registry));
     // The same plugin the HTML surfaces use, so one directive is read once and
@@ -1419,6 +1460,16 @@ function renderInline(token, ctx) {
                 out.push(`]${id ? ` <${sectionLabel(ctx.anchorPrefix, id)}>` : ""}`);
                 break;
             }
+            case "script_emphasis_open":
+                out.push(
+                    child.meta?.convention === "rubric" ?
+                        "#text(fill: book-rubric)["
+                    :   "#overline[",
+                );
+                break;
+            case "script_emphasis_close":
+                out.push("]");
+                break;
             case "strong_open":
                 out.push("#strong[");
                 break;
@@ -1890,6 +1941,9 @@ export function bookTypstPreamble(runs = {}, families = {}) {
         // run to the trimmed edge of the paper.
         "#let book-title-measure = book-text-width - 2.5cm",
         '#let book-ink = rgb("#241f1a")',
+        // A rubric script's emphasis: a vermilion that holds 4.5:1 on the paper
+        // and stays apart from the ink in lightness.
+        '#let book-rubric = rgb("#9c281b")',
         '#let book-paper = rgb("#f4efe4")',
         '#let book-accent = rgb("#7c3b1e")',
         '#let book-head = rgb("#5e2b14")',

@@ -1987,7 +1987,9 @@ names a layer or none at all, with no specificity contest and no
 `!important`. The term column, the gutter and the width at which the list
 stacks are custom properties — `--pb-deflist-term-width`,
 `--pb-deflist-gutter` and `--pb-deflist-row-gap` — so a package adjusts them
-without copying the rule.
+without copying the rule. `--pb-rubric` is the red a rubric script's emphasis
+is set in, `light-dark(#9c281b, #e0705f)`; see
+[emphasis in a script](reference/theme-pages.md#emphasis-in-a-script).
 
 Declare `false` to decline it; nothing is staged and nothing is added to
 `styles`:

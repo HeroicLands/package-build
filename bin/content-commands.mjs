@@ -118,6 +118,7 @@ import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { markupFindings } from "../engine/markup-validation.mjs";
 import { runContext } from "../engine/content-scripts.mjs";
+import { checkScriptNoteFonts } from "../engine/script-emphasis.mjs";
 import {
     checkLexiconNatives,
     checkMapFonts,
@@ -1293,6 +1294,7 @@ function lintCommand() {
                     // Each mapping note's faces, each language's native forms
                     // and each language's `note`, against the faces and maps.
                     ...index.notes.flatMap((note) => checkMapFonts(note, runs)),
+                    ...index.notes.flatMap((note) => checkScriptNoteFonts(note, runs)),
                     ...index.notes.flatMap((note) => checkLexiconNatives(note, runs)),
                     ...languageNoteFindings({ ...config, configFile: packConfigPath() }, records),
                     ...index.notes.flatMap(firstUseChecker),
