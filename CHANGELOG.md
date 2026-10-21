@@ -1,5 +1,41 @@
 # @heroiclands/package-build
 
+## 24.0.0
+
+### Major Changes
+
+**Upgrading**
+
+- Build and preview sites with `package-build site build` and `package-build site serve`; Hugo is no longer used, so update your scripts and workflows and drop its install step.
+- Remove `site.hugo` from `package-build.config.yaml`, and write `[x]{.glyph}` or `[signs]{.cartouche}` where a note used a Hugo shortcode.
+- Describe a verse's metre, rhyme or syllable pattern in prose, since `meter=`, `rhyme=` and `syllables=` are errors; write a language's `stress` as a map, `{ two: first, longer: penultimate, mark: acute }`.
+- Use `engine.wikilinks` in place of `engine.webWikilinks`, and copy the new `assets/preview/gitea.ini` into the Gitea renderer's `app.ini`.
+
+### Patch Changes
+
+**Every surface**
+
+- Foundry journals, the editor preview and the book render alerts, verse, captions, footnotes, pictures and secret blocks alike; an editor passes its content index to `renderPreview` as `previewIndex`.
+- Fenced code that names a language is highlighted, a captioned map reads **Map N**, and `[label]{.glyph}` and `[label]{.cartouche}` set a sign or framed seal from `icons/<slug>.svg` or `images/cartouches/<slug>.svg`.
+
+**Fixes**
+
+- Errors on a note's first body line are reported at their own column, `extends` in a `.markdownlint-cli2` options file applies, building pictures twice reports no collisions, and `npm audit` reports no KaTeX advisory.
+
+**Languages and scripts**
+
+- A `doc` note lists a setting's core concepts in `data.concepts`, a language with `core: true` must cover them, words name theirs in `concept`, and `package-build core` lists the gaps.
+- Emphasis in a script reads as its own mark, a red rubric or an overline, stated in `data.script` or a language's `data.emphasis`; `_…_` and `__…__` work as `*…*` and `**…**` do.
+- A mapping with `logographic: true` writes each word from the lexicon by its own writing or its parts', and a word with neither is an error.
+- A verse fence's `scan=` names a metre declared in `data.metres`, and a line that cannot have its beats is a warning; a word's `variants` take the language's endings.
+
+**Sites**
+
+- `package-build site build` renders every page, `404.html`, `sitemap.xml` and the search index, minified; `site serve` rebuilds a page when its note or the theme changes and reloads the browser.
+- Blog posts are `doc` notes of `subType: post` with `data.date` and `data.author`, listed newest first and fed as Atom by `site.feed`; `site.sections` and `site.tags` add section and tag pages.
+- `site.base: /` serves a site at its domain's root, where `site.sitemaps` and `site.mergeIndexes` extend its sitemap index, `robots.txt` and search across package sites.
+- Search filters by package, type, subtype, culture, continent, region, author and tag, ranks a note's name first, shows its icon, and leaves out `.secret` sections.
+
 ## 23.13.0
 
 ### Minor Changes
