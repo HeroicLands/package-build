@@ -234,7 +234,7 @@ const FRONTMATTER_WIKILINK = new RegExp(WIKILINK.source, "g");
  * Values are read from the *parsed* frontmatter, so a `[[` inside a YAML comment
  * is not a hit, and every hit can be named by the path a reader would look at.
  *
- * @param {unknown} fm - Parsed frontmatter, as `gray-matter` returns it.
+ * @param {unknown} fm - Parsed frontmatter, as `readMatter` returns it.
  * @returns {Array<{path: string, link: string}>} In reading order; `path` is the
  *   dotted key path of the offending value (`government.summary`, `aliases.1`).
  */

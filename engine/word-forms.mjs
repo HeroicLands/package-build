@@ -22,7 +22,8 @@
  *   `data.grammar.verbs.replaces` where the pattern states one (see
  *   {@link module:engine/verb-pattern.verbForm});
  * - **a replacing suffix**: a suffix of `data.affixes` that states `replaces`,
- *   or its `front` form, on any word: `vowel` takes the place of a closing
+ *   or its `front` form, on a word whose class base its `attachesTo` names,
+ *   or on any word where it states none: `vowel` takes the place of a closing
  *   vowel (a letter whose base is `a`, `e`, `i`, `o` or `u`), letters take the
  *   place of those letters, and a stem closing otherwise takes the suffix
  *   whole. An affix that states no `replaces` derives nothing here;
@@ -124,16 +125,28 @@ function suffixesOf(affix) {
 }
 
 /**
- * The suffixes a language's affixes state `replaces` for.
+ * The suffixes a language's affixes state `replaces` for, each with the class
+ * bases its `attachesTo` names.
  *
  * @param {Record<string, any>} data - The language note's `data`.
- * @returns {Array<{suffix: string, replaces: string}>} The suffixes, folded.
+ * @returns {Array<{suffix: string, replaces: string, classes: ReadonlySet<string>|undefined}>}
+ *   The suffixes, folded; `classes` is `undefined` where the affix attaches to
+ *   every class.
  */
 function replacingSuffixes(data) {
     const out = [];
     for (const affix of listOf(data.affixes)) {
         if (!isMap(affix) || typeof affix.replaces !== "string") continue;
-        for (const suffix of suffixesOf(affix)) out.push({ suffix, replaces: affix.replaces });
+        const classes =
+            Array.isArray(affix.attachesTo) ?
+                new Set(
+                    affix.attachesTo
+                        .filter((item) => typeof item === "string")
+                        .map((item) => item.trim()),
+                )
+            :   undefined;
+        for (const suffix of suffixesOf(affix))
+            out.push({ suffix, replaces: affix.replaces, classes });
     }
     return out;
 }
@@ -298,10 +311,13 @@ export function derivedForms(data) {
         if (verbs && base === "v")
             for (const { ending } of verbs.endings)
                 add(verbForm(folded, foldWord(ending), replaces));
-        if (suffixes.length)
+        const attaching = suffixes.filter(
+            ({ classes }) => classes === undefined || (base !== undefined && classes.has(base)),
+        );
+        if (attaching.length)
             for (const [stem] of word.form.matchAll(WORD)) {
                 const one = foldWord(stem);
-                for (const { suffix, replaces: closing } of suffixes)
+                for (const { suffix, replaces: closing } of attaching)
                     add(attach(one, suffix, closing));
             }
         if (agreement && base !== undefined && agreement.classes.has(base))

@@ -39,7 +39,8 @@
  *   and NFC (see {@link foreignRowFindings});
  * - a sound-change set's name stands once in the note, a step's label once
  *   in its set, and its `from` and `to` name language notes;
- * - a frame's classes are bases of the master word classes;
+ * - a frame's classes, and the classes an affix's `attachesTo` names, are
+ *   bases of the master word classes, each named once;
  * - a calling-name closing states a `form` or `doubled: true`, not both;
  * - a form stands once in `data.older`;
  * - the mutation `data.negation` names is one of `data.sounds.mutations`;
@@ -118,9 +119,6 @@ export function tongueDeclared(tag, declared) {
 /** The tag families whose rows name a name of another tongue's register. */
 const FOREIGN_FAMILIES = new Set(["other", "exonym"]);
 
-/** How a foreign row that its tongue's register does not bear out is reported. */
-export const FOREIGN_ROW_SEVERITY = "warning";
-
 /** A name as a foreign row is compared: NFC and lowercase. */
 const foldName = (name) => name.normalize("NFC").toLowerCase();
 
@@ -191,7 +189,7 @@ function foreignRowFindings(rows, index, finding) {
             findings.push(
                 finding(
                     ["data", "register", i, "tongue"],
-                    FOREIGN_ROW_SEVERITY,
+                    "error",
                     languages.length ?
                         `the tongue \`${tongue}\` in \`${row.tongue}\` names ${languages.length} ` +
                             `language notes, ${languages.join(" and ")}; the \`data.tongues\` entries ` +
@@ -218,7 +216,7 @@ function foreignRowFindings(rows, index, finding) {
         findings.push(
             finding(
                 ["data", "register", i, "name"],
-                FOREIGN_ROW_SEVERITY,
+                "error",
                 `\`${row.name}\` is registered as \`${row.tongue}\`, but the register of ` +
                     `${title} (${fm.type}-${fm.shortcode}) lists no \`${tongue}\` name ` +
                     `\`${row.name}\`; correct the spelling, or register the name there first`,
@@ -331,6 +329,38 @@ function checkAgreement(agreement, finding) {
             );
         out.push(...repeats(agreement.endings, [...at, "endings"], "states", finding));
     }
+    return out;
+}
+
+/**
+ * Check each `data.affixes[].attachesTo` against what it means: bases of the
+ * master word classes, each once, and at least one.
+ *
+ * @param {unknown} affixes - The note's `data.affixes`.
+ * @param {Function} finding - The note's finding builder.
+ * @returns {object[]} The findings.
+ */
+function checkAffixClasses(affixes, finding) {
+    const out = [];
+    const bases = WORD_CLASS_BASES.map((base) => base.token);
+    listOf(affixes).forEach((affix, i) => {
+        if (!isMap(affix) || !Array.isArray(affix.attachesTo)) return;
+        const at = ["data", "affixes", i, "attachesTo"];
+        if (!affix.attachesTo.length)
+            out.push(finding(at, "error", `\`${label(at)}\` must name at least one word class`));
+        affix.attachesTo.forEach((item, j) => {
+            if (typeof item !== "string" || bases.includes(item.trim())) return;
+            out.push(
+                finding(
+                    [...at, j],
+                    "error",
+                    `\`${label([...at, j])}\` is \`${item}\`, which is not a word class` +
+                        classSuggestion(item, bases),
+                ),
+            );
+        });
+        out.push(...repeats(affix.attachesTo, at, "names", finding));
+    });
     return out;
 }
 
@@ -509,6 +539,7 @@ export function checkLanguageData(note, { index, types } = {}) {
     findings.push(
         ...checkAgreement(grammar.agreement, finding),
         ...checkParticiples(grammar.participles, data.affixes, finding),
+        ...checkAffixClasses(data.affixes, finding),
     );
 
     /**

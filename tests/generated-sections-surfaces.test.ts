@@ -28,7 +28,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 
 import { defineConfig } from "../index.mjs";
 import { resolveDanglingLabels } from "../engine/pdf-render.mjs";
@@ -324,7 +324,7 @@ function journals(
 
 /** One generated section of a website page, heading to the next heading. */
 function webSection(page: string, slug: string): string {
-    const body = matter(page).content;
+    const body = readMatter(page).content;
     const start = body.indexOf(`{#${slug}}`);
     if (start < 0) return "";
     const from = body.lastIndexOf("\n# ", start) + 1;
@@ -406,7 +406,7 @@ afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
 
 describe("on the website", () => {
     it("uses the same public lexical providers in the published site, journal and book artifacts", () => {
-        const language = matter(site["skill-tongue.md"]).content;
+        const language = readMatter(site["skill-tongue.md"]).content;
         const journal = foundry.journals.Tongue.find((page) => page.name === "Lexicon")!.text;
         const printed = bookEntry(book.source, "Tongue");
         for (const body of [language, journal, printed]) {
@@ -422,8 +422,8 @@ describe("on the website", () => {
         expect(gm).toContain("privateonly");
     });
     it("sets automatic lexical entries under the authored heading and links the owned glossary to its word", () => {
-        const language = matter(site["skill-tongue.md"]).content;
-        const glossary = matter(site["lore-folk.md"]).content;
+        const language = readMatter(site["skill-tongue.md"]).content;
+        const glossary = readMatter(site["lore-folk.md"]).content;
         const anchor = dictionaryEntryAnchor("demo-note-skill-tongue", "zethu");
         expect(language.match(/\{#lexicon\}/g)).toHaveLength(1);
         expect(language.indexOf("loanword introduction")).toBeLessThan(language.indexOf("zethu"));
@@ -441,7 +441,7 @@ describe("on the website", () => {
     });
 
     it("keeps an author's own section byte for byte, and adds none", () => {
-        const body = matter(site["place-moor.md"]).content;
+        const body = readMatter(site["place-moor.md"]).content;
         expect(body.match(/\{#within\}/g)).toHaveLength(1);
         expect(body).toContain("Only the Tor, which the author lists by hand.");
         expect(body).not.toContain("place-tor");

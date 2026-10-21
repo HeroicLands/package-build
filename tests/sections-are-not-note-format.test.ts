@@ -39,7 +39,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 
 import { defineConfig } from "../index.mjs";
 import * as contentAddressModule from "../engine/content-address.mjs";
@@ -330,7 +330,7 @@ describe("every page's `url:` survives the move, byte for byte", () => {
         ]);
 
         for (const name of files) {
-            const { data } = matter(fs.readFileSync(path.join(mount, name), "utf8"));
+            const { data } = readMatter(fs.readFileSync(path.join(mount, name), "utf8"));
             // Site-root relative: the package base is Hugo's own `baseURL`,
             // and stating it here published the page inside it twice.
             expect(data.url, name).toBe(`/${name.replace(/\.md$/, "")}/`);

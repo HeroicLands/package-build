@@ -33,6 +33,8 @@ const compare = (a, b) =>
  * @property {string} full - Declared full name.
  * @property {true} indexed - The identity belongs to the indexed catalog.
  * @property {boolean} [fullUse] - The label is a full-name form rather than an alias.
+ * @property {string} [type] - The note's type, absent on an ambiguous label identity.
+ * @property {string|null} [subType] - The note's subtype, or null.
  * @property {NameMatch[]} [candidates] - Indexed identities sharing the label.
  * @property {string} [destination] - Canonical Address used by a resolved link.
  */
@@ -40,8 +42,16 @@ const compare = (a, b) =>
 /**
  * The prepared name and declared-alias lookup.
  * @typedef {object} NameCatalog
- * @property {(label: string, preferred?: {key: string}) => NameMatch|undefined} recognize - Match a whole visible label.
+ * @property {(label: string, preferred?: {key: string}, kind?: NameKind) => NameMatch|undefined} recognize - Match a whole visible label, among notes of `kind` when it supplies a type.
  * @property {(target: string) => NameMatch|undefined} resolve - Resolve an Address target without its anchor to its indexed identity.
+ */
+
+/**
+ * What a typed `.name` span says the named thing is. A null type matches any note;
+ * a type matches only notes of that type, and a subtype only notes of that subtype.
+ * @typedef {object} NameKind
+ * @property {string|null} type - Supplied type, or null.
+ * @property {string|null} subType - Supplied subtype, or null.
  */
 
 /**
@@ -150,10 +160,16 @@ export function createNameCatalog({ records, index }) {
     const names = new Map(),
         byFile = new Map(),
         entries = new Map();
-    const addName = (key, full, aliases = []) => {
-        const entry = entries.get(key) ?? { key, full, indexed: true };
+    const addName = (key, full, aliases, type, subType) => {
+        const entry = entries.get(key) ?? {
+            key,
+            full,
+            indexed: true,
+            type,
+            subType: typeof subType === "string" && subType ? subType : null,
+        };
         entries.set(key, entry);
-        for (const text of [full, ...aliases]) {
+        for (const text of [full, ...(aliases ?? [])]) {
             if (typeof text !== "string" || !text.trim()) continue;
             for (const spelling of nameForms(text)) {
                 if (!names.has(spelling)) names.set(spelling, new Map());
@@ -173,7 +189,13 @@ export function createNameCatalog({ records, index }) {
         const full = record.name?.full;
         if (!parts || parts.type === FOLDER_TYPE || typeof full !== "string") continue;
         const page = canonicalKey(parts.package, "note", parts.type, parts.shortcode);
-        const entry = addName(index.resolve(page) ? page : canonical, full, record.name.aliases);
+        const entry = addName(
+            index.resolve(page) ? page : canonical,
+            full,
+            record.name.aliases,
+            parts.type,
+            record.subType,
+        );
         entries.set(canonical, entry);
         if (index.resolve(page)) entries.set(page, entry);
         if (record.file?.path) byFile.set(record.file.path, entry);
@@ -189,11 +211,16 @@ export function createNameCatalog({ records, index }) {
             continue;
         const page = canonicalKey(parts.package, "note", parts.type, parts.shortcode);
         const key = index.foreign.index.has(page) ? page : canonical;
-        entries.set(canonical, addName(key, hit.name, hit.aliases));
+        entries.set(canonical, addName(key, hit.name, hit.aliases, parts.type, hit.subType));
     }
     return {
-        recognize(label, preferred) {
-            const candidates = [...(names.get(normalizeName(label))?.values() ?? [])];
+        recognize(label, preferred, kind) {
+            const candidates = [...(names.get(normalizeName(label))?.values() ?? [])].filter(
+                (entry) =>
+                    !kind?.type ||
+                    (entry.type === kind.type &&
+                        (kind.subType == null || entry.subType === kind.subType)),
+            );
             const target =
                 candidates.find((entry) => entry.key === preferred?.key) ??
                 (candidates.length === 1 ? candidates[0] : undefined);
@@ -268,7 +295,7 @@ export function collectUnwrittenNames({ records, catalog }) {
     const kinds = new Map();
     for (const record of records.filter(isNoteRecord)) {
         for (const occurrence of record.names ?? []) {
-            if (catalog.recognize(occurrence.name)) continue;
+            if (catalog.recognize(occurrence.name, undefined, occurrence)) continue;
             const type = occurrence.type,
                 subType = occurrence.subType,
                 kind = JSON.stringify([type, subType]);

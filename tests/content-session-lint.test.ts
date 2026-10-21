@@ -65,14 +65,13 @@ it.each([{ args: ["lint"] }, { args: ["content", "run", "lint", "lint"] }])(
         });
         const expected = expectedChecker({ file, raw });
         expectedSession.dispose();
-        expect(expected).toHaveLength(6);
+        expect(expected).toHaveLength(5);
         expect(new Set(expected.map((finding) => `${finding.line}:${finding.column}`)).size).toBe(
             expected.length,
         );
         expect(expected.map((finding) => finding.rules)).toEqual([
             ["unlinked-name", "short-before-full"],
             ["unlinked-name", "repeated-name"],
-            ["bold-name"],
             ["repeated-name"],
             ["repeated-name"],
             ["repeated-name"],

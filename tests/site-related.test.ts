@@ -17,7 +17,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 import os from "node:os";
 import path from "node:path";
 
@@ -137,7 +137,7 @@ function config() {
 
 /** The published front matter of one page under the content mount. */
 function published(rel: string): Record<string, unknown> {
-    return matter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8")).data;
+    return readMatter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8")).data;
 }
 
 const ash = { title: "Ash", url: "/demo/being-ash/", type: "being" };

@@ -145,13 +145,22 @@ describe("explicit name occurrences", () => {
         ).toEqual([]);
     });
 
-    it("keeps only the exact indexed whole-bold transition advisory", () => {
-        const { check } = fixture();
-        const found = check("**Arden Vale** and **Arden** and __Warden__ and **Arden Vale**.");
-        expect(found).toHaveLength(4);
-        expect(rules(found)).toEqual(["bold-name", "bold-name", "bold-name", "bold-name"]);
-        for (const finding of found) expect(finding.message).toContain("mark or link");
-        expect(check("**Arden Vale**. [Arden]{.name}")[1].rules).toEqual([
+    it("treats bold that matches an indexed name as emphasis", () => {
+        const { check } = fixture([
+            { type: "lore", shortcode: "strength", name: { full: "Strength" } },
+            { type: "place", shortcode: "olives", name: { full: "Olives" } },
+        ]);
+        expect(
+            check(
+                [
+                    "**Arden Vale** and **Arden** and __Warden__ and **Arden Vale**.",
+                    "- **Strength**: physically capable, though not heavily muscled.",
+                    "- **Olives** on the lower slopes, for local use rather than export.",
+                    "**[Arden Vale]{.wide}** and **[Arden Vale]**.",
+                ].join("\n\n"),
+            ),
+        ).toEqual([]);
+        expect(rules(check("**Arden Vale**. [Arden]{.name}"))).toEqual([
             "unlinked-name",
             "short-before-full",
         ]);
@@ -248,7 +257,7 @@ describe("explicit name occurrences", () => {
         expect(check("[[place-arden]] [[place-missing|]]")).toEqual([]);
     });
 
-    it("extracts a marked name inside bold and other inline emphasis without another bold advisory", () => {
+    it("extracts a marked name inside bold and other inline emphasis", () => {
         const { check } = fixture();
         expect(
             rules(
@@ -263,8 +272,7 @@ describe("explicit name occurrences", () => {
             "**[Arden Vale](https://example.invalid)**",
         ]) {
             const found = check(raw);
-            expect(rules(found)).not.toContain("bold-name");
-            expect(found.length).toBe(raw.includes("{.name}") ? 1 : 0);
+            expect(rules(found)).toEqual(raw.includes("{.name}") ? ["unlinked-name"] : []);
         }
     });
 
@@ -342,8 +350,6 @@ describe("explicit name occurrences", () => {
             String.raw`[Arden \[Vale\]]{.name}`,
         ])
             expect(rules(check(raw))).toEqual(["unlinked-name"]);
-        expect(rules(check("**[Arden Vale]{.wide}**"))).toEqual(["bold-name"]);
-        expect(rules(check("**[Arden Vale]**"))).toEqual(["bold-name"]);
     });
 
     it("gives links priority over span syntax and ignores escaped syntax and literal code", () => {

@@ -13,7 +13,6 @@
  */
 
 /** Render stdin with optional date-only configuration and no content index. */
-import { readFileSync } from "node:fs";
 import { formatDiagnostic } from "../engine/diagnostics.mjs";
 
 const HELP = `Usage: package-build-preview [--dark] [--current-date DATE] [--css]
@@ -54,10 +53,11 @@ try {
     else {
         const { renderPreview, previewStyles, readPreviewCurrentDate } =
             await import("../engine/site-preview.mjs");
+        const { readStdin } = await import("../engine/read-stdin.mjs");
         if (css) process.stdout.write(`${previewStyles()}\n`);
         else {
             currentDate ??= await readPreviewCurrentDate(process.cwd());
-            const result = await renderPreview(readFileSync(0, "utf8"), {
+            const result = await renderPreview(await readStdin(), {
                 dark,
                 file: "<stdin>",
                 currentDate,

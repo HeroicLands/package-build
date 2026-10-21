@@ -1910,7 +1910,15 @@ authored labels supply none.
 
 1. A `.name` span whose whole text matches an indexed `name.full` or
    `name.aliases` should be a link. Use `[[place-arden|Arden Vale]]` or
-   `[[place-arden|]]` to introduce that note.
+   `[[place-arden|]]` to introduce that note. A span with a `data-type`
+   matches only notes of that type, and only notes of that subtype when it
+   names one; an untyped span matches a note of any type. One name can
+   belong to two things, so
+   `[Theinuvael]{.name data-type="affiliation/lineage"}` draws no warning
+   when _Theinuvael_ is an alias of a place note, while
+   `[Theinuvael]{.name data-type="place"}` and `[Theinuvael]{.name}` should
+   be links to it. The same match decides a span's identity for the rules
+   below and for the unwritten-name advisory.
 2. Mark or link each name at most once per note. An indexed full name and its
    declared aliases share one identity, including across different heading
    anchors. Other labels use their whole text as their identity: different
@@ -1921,10 +1929,9 @@ authored labels supply none.
    note under any label. Possessives and regular plurals count as uses; other
    indexed forms can be declared aliases.
 
-Bold is emphasis. A whole bold span exactly matching an indexed full name or
-alias receives one advisory to mark or link the name. It supplies no name
-occurrence or introduction, and bold containing a marked or linked name
-receives no such advisory. Unknown bold phrases supply no names.
+Bold is emphasis and is never read as a name. A bold label such as
+`**Strength**:` is ordinary emphasis even when its text matches an indexed
+full name or alias, and it supplies no name occurrence or introduction.
 
 Inline Markdown remains active inside name spans, and name spans remain
 valid inside emphasis:
@@ -1968,7 +1975,8 @@ This is derived metadata, not frontmatter. Documentation mirrors and assets
 do not duplicate a note's occurrences. The [`names` relation](#content-tables)
 flattens these entries with their containing NOTE Address.
 
-Lint groups names without an indexed full-name or alias match by supplied
+Lint groups names without an indexed full-name or alias match, among notes
+of the span's type and subtype when it supplies them, by supplied
 classification and lists all their source uses. It also groups conflicting
 annotations of the same visible name. Untyped uses do not conflict. A bare
 type and its subtype agree; different supplied types or different supplied
@@ -2185,7 +2193,8 @@ lists under a `tongue` other than `translation`, or a form one rule derives from
 the `data.grammar.plural` plural of a noun or its own `plural`, a verb's form
 with one ending of `data.grammar.verbs.persons` (in place of a closing
 `data.grammar.verbs.replaces` where one is stated), a suffix of `data.affixes`
-stating `replaces` (`vowel` takes the place of a closing `a`, `e`, `i`, `o` or
+stating `replaces` on a word of a class its `attachesTo` names, or on any word
+where it names none (`vowel` takes the place of a closing `a`, `e`, `i`, `o` or
 `u`, accented or not; letters take the place of those letters; a stem closing
 otherwise takes the suffix whole), an agreeing form `data.grammar.agreement`
 gives a word of one of its `classes`, or a participle `data.grammar.participles`
@@ -3316,7 +3325,7 @@ inherited words are read through `language_lineage`.
 **`affixes`** is one row per entry of `data.affixes` on every language note,
 and **`fields`** one per entry of `data.fields`, in the order the note states
 them. Each has `language` and `position` as `words` does, then every key of the
-entry as its own column: `form`, `zero`, `kind`, `given`, `where`, `gloss`, `attaches`, `replaces`, `lengthens`, `front`, `examples`, `barredAfter`
+entry as its own column: `form`, `zero`, `kind`, `given`, `where`, `gloss`, `attaches`, `replaces`, `attachesTo`, `lengthens`, `front`, `examples`, `barredAfter`
 and `tones` for an affix, then `written`, its form as a table prints it (`∅` for a zero affix), `name` and `holds` for a field. A key an entry does not state is
 `NULL`, `examples` is a list, and a language note tagged `gm` contributes no
 row on a public surface. An affix's `tones` is the tone pattern it carries,
@@ -5942,6 +5951,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `affixes[].barredAfter`                    | `string[]`                                                                                                                     | The sounds a stem may not close on to take the affix, as `[n]`                                                                                                                       |
 | `affixes[].tones`                          | `string`                                                                                                                       | The tone pattern it carries, as `L`                                                                                                                                                  |
 | `affixes[].replaces`                       | `string`                                                                                                                       | What it takes the place of at the close of the stem: `vowel` for any closing vowel, or the letters, as `a`; added to the whole stem where absent                                     |
+| `affixes[].attachesTo`                     | `string[]`                                                                                                                     | The word classes it attaches to, by their base, as `[n, adj]`; every class where absent                                                                                              |
 | `affixes[].lengthens`                      | `boolean`                                                                                                                      | Whether the stem's last vowel lengthens before it; `false` where unstated, and never beside `replaces`                                                                               |
 | `affixes[].front`                          | `string`                                                                                                                       | Its form after front vowels, where the language keeps vowel harmony, as `-ür`                                                                                                        |
 | `tongues`                                  | `{ tag, meaning, language? }[]`                                                                                                | `language` only: the tags a register row's `tongue` names — see [a language's register, sounds and history](#a-languages-register-sounds-and-history)                                |
@@ -6520,8 +6530,8 @@ note of the package: `{ tag: vylari, language: skill-vylarilng }` makes
 `exonym:vylari` read the Vylari note. That note's `data.register` must hold a
 row of the same name, case folded and NFC, whose `tongue` is the tongue itself,
 so a misspelt foreign name is caught where it is listed. A tongue that no entry
-links to a language note, or that entries link to two, is a warning at the
-row's `tongue`; a missing name is a warning at its `name`:
+links to a language note, or that entries link to two, is an error at the
+row's `tongue`; a missing name is an error at its `name`:
 
 > `` `Dunharra` is registered as `other:vylari`, but the register of Vylari Language (skill-vylarilng) lists no `vylari` name `Dunharra`; correct the spelling, or register the name there first ``
 
@@ -6671,7 +6681,12 @@ to take the affix.
 
 **An affix states `replaces`** where it takes the place of the stem's close —
 `vowel` for any closing vowel, or the letters, as `a` — and is added to the
-whole stem where it states none. An affix states `lengthens: true` where the
+whole stem where it states none. An affix states `attachesTo` where it
+attaches to some word classes and not others, naming each by its base, as
+`attachesTo: [n, adj]`: a suffix stating `replaces` then derives forms of those
+classes' words alone, so `-andi` with `attachesTo: [n]` gives _zunelandi_ from
+the noun _zunel_ and nothing from a verb. Where it states none, the suffix
+attaches to a word of every class. An affix states `lengthens: true` where the
 stem's last vowel lengthens before it, and never beside `replaces`. A language
 that keeps vowel harmony gives an affix's form after front vowels in `front`.
 
@@ -6706,12 +6721,13 @@ Each finding is located at the key at fault:
 | A `scope` Address that does not resolve, or a type that is no note type                                                                                                                                                                                                                                                                                                  | error    |
 | A tongue `language` or a cognate form's language that is no language note                                                                                                                                                                                                                                                                                                | error    |
 | A register row with neither a `tongue` nor a `kind`, at the row                                                                                                                                                                                                                                                                                                          | error    |
-| A register row tagged `other:<tongue>` or `exonym:<tongue>` whose tongue no `data.tongues` entry links to one language note, at the tongue                                                                                                                                                                                                                               | warning  |
-| A register row tagged `other:<tongue>` or `exonym:<tongue>` whose name the tongue's own register does not list under that tongue, at the name                                                                                                                                                                                                                            | warning  |
+| A register row tagged `other:<tongue>` or `exonym:<tongue>` whose tongue no `data.tongues` entry links to one language note, at the tongue                                                                                                                                                                                                                               | error    |
+| A register row tagged `other:<tongue>` or `exonym:<tongue>` whose name the tongue's own register does not list under that tongue, at the name                                                                                                                                                                                                                            | error    |
 | A sound-change set's name stated twice, at the second                                                                                                                                                                                                                                                                                                                    | error    |
 | A step label stated twice in one set, at the second                                                                                                                                                                                                                                                                                                                      | error    |
 | A set's `from` or `to` that is no language note, at the value                                                                                                                                                                                                                                                                                                            | error    |
 | A frame class that is no word class base, at the class                                                                                                                                                                                                                                                                                                                   | error    |
+| An affix's `attachesTo` that names no class, at the key, or a class that is no word class base or one named twice, at the class                                                                                                                                                                                                                                          | error    |
 | An affix stating both `replaces` and `lengthens: true`, at `lengthens`                                                                                                                                                                                                                                                                                                   | error    |
 | A calling-name closing with both or neither of `form` and `doubled`                                                                                                                                                                                                                                                                                                      | error    |
 

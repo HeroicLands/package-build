@@ -369,6 +369,15 @@ export const AFFIX_FIELDS = Object.freeze([
             "vowel, or the letters it replaces; added to the whole stem where absent.",
     }),
     Object.freeze({
+        name: "attachesTo",
+        kind: "list",
+        shape: "a list of word classes, such as `[n, adj]`",
+        entries: Object.freeze({ kind: "string", shape: "a word class, such as `n`" }),
+        describe:
+            "The word classes it attaches to, by their base; every class where absent. A " +
+            "suffix stating `replaces` derives forms of these classes' words alone.",
+    }),
+    Object.freeze({
         name: "lengthens",
         kind: "boolean",
         shape: "`true` or `false`",

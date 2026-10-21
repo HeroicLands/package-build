@@ -45,6 +45,7 @@ import fs from "fs";
 import path from "node:path";
 import log from "loglevel";
 import prefix from "loglevel-plugin-prefix";
+import { readStdin } from "../engine/read-stdin.mjs";
 import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
 import { compilesFoundryDocuments, publishesContentPages } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
@@ -2397,7 +2398,7 @@ function transliterateCommand() {
                     default: false,
                     describe: "Print the code points, as `U+XXXX` separated by spaces",
                 }),
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
                 const read = mappingContext();
                 if (!read) {
@@ -2407,7 +2408,7 @@ function transliterateCommand() {
                 const words = (argv.text ?? []).map(String);
                 const text =
                     !words.length || (words.length === 1 && words[0] === "-") ?
-                        fs.readFileSync(0, "utf8").replace(/\r?\n$/, "")
+                        (await readStdin()).replace(/\r?\n$/, "")
                     :   words.join(" ");
                 const mapped = transliterate(
                     read.ctx,

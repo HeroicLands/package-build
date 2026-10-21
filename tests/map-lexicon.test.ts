@@ -18,7 +18,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -748,6 +748,34 @@ describe("`package-build transliterate` and `package-build lexicon`", () => {
             });
             expect(r.status).toBe(0);
             expect(r.stdout).toBe(`${rowsOf("lonak")}\n`);
+        },
+        SUBPROCESS_TEST_TIMEOUT,
+    );
+
+    it(
+        "reads a passage larger than a pipe buffer from a slow writer",
+        async () => {
+            const child = spawn(process.execPath, [BIN, "transliterate", "m", "-"], {
+                cwd: project,
+                env: {
+                    ...process.env,
+                    PACKAGE_BUILD_CONFIG: path.join(project, "package-build.config.yaml"),
+                },
+            });
+            let out = "";
+            let err = "";
+            child.stdout.on("data", (chunk) => (out += chunk));
+            child.stderr.on("data", (chunk) => (err += chunk));
+            const closed = new Promise<number | null>((resolve) => child.on("close", resolve));
+            const line = "lonak ".repeat(1024);
+            for (let i = 0; i < 24; i++) {
+                child.stdin.write(line);
+                await new Promise((resolve) => setTimeout(resolve, 30));
+            }
+            child.stdin.end("\n");
+            expect(await closed).toBe(0);
+            expect(err).toBe("");
+            expect(out.length).toBeGreaterThan(24 * 1024);
         },
         SUBPROCESS_TEST_TIMEOUT,
     );

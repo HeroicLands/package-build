@@ -325,7 +325,7 @@ describe("a register row in another tongue", () => {
             foreign("    - {name: Dunharra, tongue: other:vylari}"),
             /^`Dunharra` is registered as `other:vylari`, but the register of Vylari \(skill-vylarilng\) lists no `vylari` name `Dunharra`; correct the spelling, or register the name there first$/,
             "Dunharra",
-            "warning",
+            "error",
         );
     });
 
@@ -334,7 +334,7 @@ describe("a register row in another tongue", () => {
             foreign("    - {name: The Sands, tongue: exonym:vylari}"),
             /lists no `vylari` name `The Sands`/,
             "The Sands",
-            "warning",
+            "error",
         );
     });
 
@@ -343,7 +343,7 @@ describe("a register row in another tongue", () => {
             foreign("    - {name: Dunhara, tongue: exonym:nordmal}"),
             /^the tongue `nordmal` in `exonym:nordmal` names no language note: no language note's `data\.tongues` tags `nordmal` with a `language`$/,
             "exonym:nordmal",
-            "warning",
+            "error",
         );
     });
 

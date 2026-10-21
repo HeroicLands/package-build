@@ -19,7 +19,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { defineConfig } from "../index.mjs";
@@ -252,7 +252,7 @@ describe("a withheld section in a real note, on every surface", () => {
 
     it("wraps the heading and its section in the spoiler, on the website", () => {
         for (const file of ["place-inn.md", "lore-guide.md", "lore-reference.md"]) {
-            const content = matter(site[file]).content;
+            const content = readMatter(site[file]).content;
             const open = content.indexOf('<details class="secret">');
             expect(open, file).toBeGreaterThan(-1);
             const inside = content.slice(open, content.indexOf("</details>", open));
@@ -260,9 +260,9 @@ describe("a withheld section in a real note, on every surface", () => {
             expect(inside, file).toContain("The contraband is behind the false wall.");
         }
         expect(
-            matter(site["place-inn.md"]).content.slice(
+            readMatter(site["place-inn.md"]).content.slice(
                 0,
-                matter(site["place-inn.md"]).content.indexOf("<details"),
+                readMatter(site["place-inn.md"]).content.indexOf("<details"),
             ),
         ).toContain("The harbor faces west.");
     });

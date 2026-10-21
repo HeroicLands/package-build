@@ -35,7 +35,7 @@
  */
 
 import path from "node:path";
-import matter from "gray-matter";
+import { writeMatter } from "./note-matter.mjs";
 import { formatNoteFrontmatter } from "./note-format.mjs";
 
 import { authoredFields, runtimeOnlyFields } from "./field-spec.mjs";
@@ -422,7 +422,7 @@ export function shortcodeFromBasename(destination) {
  *   {@link shortcodeFromBasename}.
  * @param {Record<string, unknown>} [options.frontmatter] - The consumer's
  *   declared `docs.itemFields.frontmatter`.
- * @returns {Record<string, unknown>} The envelope, ready for `matter.stringify`.
+ * @returns {Record<string, unknown>} The envelope, ready for `writeMatter`.
  */
 export function itemFieldsEnvelope({ title, shortcode, frontmatter }) {
     return deepMerge(
@@ -464,8 +464,8 @@ export function renderItemFieldsPage(body, { title, destination, contentRoot, fr
         shortcode: shortcodeFromBasename(destination),
         frontmatter,
     });
-    const page = matter.stringify(body, envelope);
-    // `matter.stringify` closes the frontmatter fence directly onto the
+    const page = writeMatter(body, envelope);
+    // `writeMatter` closes the frontmatter fence directly onto the
     // body's first line; Prettier's markdown printer requires a blank line
     // between them, so a page written without one fails a consumer's
     // `lint:format` the moment it is committed. Insert it here rather than

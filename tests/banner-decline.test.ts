@@ -17,7 +17,7 @@
 
 import { describe, it, expect, afterAll } from "vitest";
 import fs from "node:fs";
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 import os from "node:os";
 import path from "node:path";
 
@@ -84,7 +84,8 @@ function configFor(root: string) {
 function emitted(banners: { home?: string; page?: string }) {
     const root = sandbox(banners);
     buildSite({ config: configFor(root) });
-    const read = (rel: string) => matter.read(path.join(root, "build/hugo/content", rel)).data;
+    const read = (rel: string) =>
+        readMatter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8")).data;
     return {
         home: read("_index.md"),
         page: read("kb/doc-combat.md"),

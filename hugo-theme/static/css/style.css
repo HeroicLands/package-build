@@ -3097,6 +3097,8 @@ summary.info-sidebar-title::after {
 .single-body .dictionary > div > dd { display:inline; margin:0; font-weight:normal; }
 .single-body .dictionary > div > dd > :is(p, ul, ol, dl, blockquote, pre, table, div) { text-indent:0; }
 .single-body .dictionary > div > dd > p:first-child { display:inline; }
+.single-body .dictionary > div > dd + dd { display:block; text-indent:0; }
+.single-body .dictionary > div > dd + dd > p:first-child { display:block; }
 @media (max-width:600px) { .single-body .dictionary { --indent:100px; } }
 
 /* ---- Text in one of the faces ----

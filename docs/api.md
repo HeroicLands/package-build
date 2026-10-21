@@ -1001,7 +1001,6 @@ into one warning for each occurrence; the message names the full name or
 explicit label that needs attention. Only `.name` spans and authored link
 labels enter name tracking; plain text is not searched. Indexed full names and
 declared aliases share an identity, while other labels use their whole text.
-A whole bold indexed name receives an advisory without entering name tracking.
 Local and captured dependency names and aliases share the same corpus
 context. The command's lint target constructs
 the checker once, uses exact authored `raw` strings and keeps these findings

@@ -5,6 +5,9 @@ import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
+import { markdownToTypst } from "../engine/pdf-render.mjs";
+import { baseStylesheetSource } from "../engine/base-styles.mjs";
+import { rules } from "./helpers/theme-css.ts";
 
 const source = `## Navigation anchor
 
@@ -132,4 +135,29 @@ describe("dictionary definition-list markup", () => {
             );
         },
     );
+});
+
+describe("several descriptions under one term", () => {
+    const sheets = {
+        "the site theme": path.resolve(import.meta.dirname, "../hugo-theme/static/css/style.css"),
+        "the Foundry base stylesheet": baseStylesheetSource(),
+    };
+
+    it.each(Object.entries(sheets))(
+        "%s sets every description after the first on its own line",
+        (_name, file) => {
+            const following = rules(fs.readFileSync(file, "utf8")).filter(
+                (rule) => /\.dictionary/.test(rule.selector) && /dd\s*\+\s*dd/.test(rule.selector),
+            );
+            const declared = following.map((rule) => rule.body).join(";");
+            expect(following.length).toBeGreaterThan(0);
+            expect(declared).toMatch(/display\s*:\s*block/);
+            expect(declared).toMatch(/text-indent\s*:\s*0/);
+        },
+    );
+
+    it("sets each description of the book as its own paragraph", () => {
+        const source = markdownToTypst("Term\n: First sense.\n: Second sense.");
+        expect(source).toContain("book-definition([Term],[First sense.\n\nSecond sense.])");
+    });
 });

@@ -18,7 +18,7 @@ import footnotePlugin from "markdown-it-footnote";
 import deflistPlugin from "markdown-it-deflist";
 import { dictionaryListPlugin } from "./definition-list.mjs";
 import Handlebars from "handlebars";
-import matter from "gray-matter";
+import { readMatter } from "./note-matter.mjs";
 import { ALERT_TYPES, alertMarkdownPlugin, scanAlerts } from "./content-alerts.mjs";
 import { spanMarkdownPlugin } from "./content-spans.mjs";
 import { scanVerse, verseStanzas } from "./content-verse.mjs";
@@ -583,7 +583,7 @@ export function renderPreview(
     let frontmatter = {},
         body = String(text ?? "");
     try {
-        const parsed = matter(body);
+        const parsed = readMatter(body);
         frontmatter =
             parsed.data && typeof parsed.data === "object" && !Array.isArray(parsed.data) ?
                 structuredClone(parsed.data)

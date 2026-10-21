@@ -980,6 +980,7 @@ async function prepareWorld(resolved, { contentBase, findings, resolveReplacemen
         dir,
         dependencies: await cachedDependencies(resolved),
         audience: "public",
+        contentBase,
     });
 
     // Pages, indexed and gated exactly as the site does. A book of a tree whose

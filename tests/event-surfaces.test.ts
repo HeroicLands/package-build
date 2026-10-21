@@ -19,7 +19,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 
 import { defineConfig } from "../index.mjs";
 import { buildSite, gatesFailed } from "../engine/site-build.mjs";
@@ -244,7 +244,7 @@ describe("an inline reference to an event's field, on every surface", () => {
 
 describe("a note's event views, on every surface", () => {
     it("are a section of the website page, after the author's text", () => {
-        const page = matter(site["place-ironfells.md"]);
+        const page = readMatter(site["place-ironfells.md"]);
         expect(page.content).toContain("# Chronology {#chronology}");
         expect(page.content.indexOf("A town of the fells.")).toBeLessThan(
             page.content.indexOf("# Chronology"),
@@ -267,7 +267,7 @@ describe("a note's event views, on every surface", () => {
     });
 
     it("put nothing from events in the infobox", () => {
-        const front = JSON.stringify(matter(site["place-ironfells.md"]).data.infoboxes);
+        const front = JSON.stringify(readMatter(site["place-ironfells.md"]).data.infoboxes);
         expect(front).toContain("Ironfells");
         for (const text of ["sacked", "raised", "The Burning", "siege", "~280"])
             expect(front, text).not.toContain(text);

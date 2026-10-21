@@ -28,6 +28,7 @@
 
 import { parseAddress, readCanonicalKey, renderAddress, isAddressTuple } from "./address.mjs";
 import { collectAnchors } from "./anchors.mjs";
+import { keyCaseCollisionDiagnostics } from "./key-case-collisions.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { NOTE_VOCABULARY, isGmNote } from "./note-vocabulary.mjs";
 import { encodeAddresses, flattenPublishedAddresses } from "./address-values.mjs";
@@ -260,12 +261,14 @@ export function findSqlBlocks(markdown) {
  * @param {object} [opts.addressContext] - Address resolution context.
  * @param {"all"|"public"} [opts.audience] - Whether to exclude GM notes from
  *   local and dependency relations.
+ * @param {string} [opts.contentBase] - The directory the records' paths are
+ *   relative to, so a refused key is reported at its file and line.
  * @returns {Promise<{query: (sql: string) => Promise<object[]>,
  *   close: () => Promise<void>}>} The open database.
  */
 export async function openNotesDatabase(
     records,
-    { dir, dependencies = [], addressContext, audience = "all" } = {},
+    { dir, dependencies = [], addressContext, audience = "all", contentBase } = {},
 ) {
     const { DuckDBInstance } = await import("@duckdb/node-api");
     const base = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
@@ -276,7 +279,20 @@ export async function openNotesDatabase(
     const instance = await DuckDBInstance.create(":memory:");
     const connection = await instance.connect();
     await connection.run("SET threads=1");
-    await createRelations(connection, jsonl, encoded, "", audience);
+    try {
+        await createRelations(connection, jsonl, encoded, "", audience);
+    } catch (err) {
+        // DuckDB names the clashing key but not the notes that spell it.
+        if (/Duplicate name ".*" in struct/.test(String(err?.message))) {
+            const lines = keyCaseCollisionDiagnostics(records, { contentBase });
+            if (lines.length) {
+                const located = new Error(lines.join("\n"));
+                /** @type {any} */ (located).located = true;
+                throw located;
+            }
+        }
+        throw err;
+    }
     await createEventRelation(connection, path.join(base, "events.jsonl"), encoded, "", audience);
     await createNameRelation(connection, path.join(base, "names.jsonl"), encoded, "", audience);
     await createRunRelation(connection, path.join(base, "runs.jsonl"), encoded, "", audience);
@@ -1732,6 +1748,7 @@ export async function prepareTreeSqlTables(
         (await openNotesDatabase(allRecords, {
             dependencies: await cachedDependencies(config),
             audience,
+            contentBase,
         }));
     try {
         const generated = await generatedSectionsFor(db, indexRecords, contentBase, {

@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 import os from "node:os";
 import path from "node:path";
 
@@ -69,7 +69,7 @@ const FIXTURE: Record<string, string> = {
 describe("the site build sets In song and story on each subject's page", () => {
     let root: string;
     const published = (rel: string) =>
-        matter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8"));
+        readMatter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8"));
 
     /** A page's In song and story section, heading to the next heading. */
     const section = (rel: string): string => {

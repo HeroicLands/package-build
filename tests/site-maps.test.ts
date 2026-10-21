@@ -21,7 +21,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 import os from "node:os";
 import path from "node:path";
 
@@ -115,12 +115,12 @@ const MOUNT = () => path.join(root, "build/hugo/content/kb");
 
 /** The published front matter of one page under the content mount. */
 function published(rel: string): Record<string, unknown> {
-    return matter(fs.readFileSync(path.join(MOUNT(), rel), "utf8")).data;
+    return readMatter(fs.readFileSync(path.join(MOUNT(), rel), "utf8")).data;
 }
 
 /** The published body of one page under the content mount. */
 function body(rel: string): string {
-    return matter(fs.readFileSync(path.join(MOUNT(), rel), "utf8")).content;
+    return readMatter(fs.readFileSync(path.join(MOUNT(), rel), "utf8")).content;
 }
 
 /** Build the site, its generated sections prepared as the command prepares them. */

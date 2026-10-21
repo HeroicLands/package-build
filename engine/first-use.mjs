@@ -83,6 +83,14 @@ function readLabel(text, env = {}) {
 }
 const labelText = (text, env) => readLabel(text, env).text;
 
+/** The kind a span's `data-type` supplies; an invalid value is refused by the span check. */
+function spanKind(span) {
+    const value = span.attrs?.find(([key]) => key === "data-type")?.[1];
+    if (typeof value !== "string") return undefined;
+    const [type, subType] = value.split("/");
+    return { type, subType: subType ?? null };
+}
+
 /** Join overlapping source ranges so lookups stay logarithmic. */
 function ranges(values) {
     const out = [];
@@ -119,7 +127,6 @@ function prose(source, capturedNames) {
     const links = [],
         regions = [],
         excluded = [],
-        bold = [],
         html = [];
     const masked = source
         .replace(/!\[\[[^\]\n]+\]\]|\{\{[^}\n]+\}\}/g, (text, start) => {
@@ -142,7 +149,6 @@ function prose(source, capturedNames) {
             excluded.push({ start, end });
         else if (node.type === "html") html.push(node);
         else if (["strong", "emphasis", "delete", "link", "linkReference"].includes(node.type)) {
-            if (node.type === "strong") bold.push({ start, end });
             if (["link", "linkReference"].includes(node.type) && source[start] === "[")
                 links.push({ start, end, labelled: true });
             for (const child of node.children ?? []) inline(child);
@@ -224,18 +230,8 @@ function prose(source, capturedNames) {
     const linked = ranges(authoredLinks);
     const marked = (capturedNames ?? scanSpans(source).names)
         .filter((span) => eligible(span) && !contains(linked, span))
-        .map((span) => ({ ...span, label: span.visible }));
-    const explicit = ranges([...marked, ...authoredLinks]);
-    return {
-        marked,
-        links: authoredLinks,
-        bold: bold
-            .filter((span) => eligible(span) && !overlaps(explicit, span))
-            .map((span) => ({
-                ...span,
-                label: labelText(source.slice(span.start, span.end), env),
-            })),
-    };
+        .map((span) => ({ ...span, label: span.visible, nameKind: spanKind(span) }));
+    return { marked, links: authoredLinks };
 }
 
 /**
@@ -264,7 +260,7 @@ export function createFirstUseChecker({
                     { raw, bodyLine: authored.bodyLine, bodyColumn: authored.bodyColumn },
                 )
             :   undefined;
-        const { marked, links, bold } = prose(raw, capturedNames);
+        const { marked, links } = prose(raw, capturedNames);
         const events = [
             ...marked.map((span) => ({ ...span, kind: "marked" })),
             ...links.map((link) => {
@@ -286,7 +282,10 @@ export function createFirstUseChecker({
         for (const event of [...events].sort(
             (a, b) => a.label.length - b.label.length || a.label.localeCompare(b.label),
         )) {
-            if (recognized(event.label, event.preferred) || unknown.has(normalize(event.label)))
+            if (
+                recognized(event.label, event.preferred, event.nameKind) ||
+                unknown.has(normalize(event.label))
+            )
                 continue;
             const entry = {
                 key: "name:" + normalize(event.label),
@@ -309,7 +308,8 @@ export function createFirstUseChecker({
             fullUsed = new Set();
         for (const event of events.sort((a, b) => a.start - b.start)) {
             const entry =
-                recognized(event.label, event.preferred) ?? unknown.get(normalize(event.label));
+                recognized(event.label, event.preferred, event.nameKind) ??
+                unknown.get(normalize(event.label));
             if (event.kind === "marked" && entry.indexed) {
                 const destinations = (entry.candidates ?? [entry])
                     .map((target) => target.key)
@@ -337,16 +337,6 @@ export function createFirstUseChecker({
                 );
             used.add(entry.key);
             if (introduces) fullUsed.add(entry.key);
-        }
-        for (const span of bold) {
-            if (typeof span.label !== "string") continue;
-            const entry = recognized(span.label);
-            if (entry)
-                add(
-                    span.start,
-                    "bold-name",
-                    `“${span.label}” matches an indexed name; mark or link this name`,
-                );
         }
         const lineStarts = [0];
         for (let i = 0; i < raw.length; i++) if (raw[i] === "\n") lineStarts.push(i + 1);

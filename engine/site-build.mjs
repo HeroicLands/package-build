@@ -57,7 +57,7 @@ import { decodeNoteAddresses, noteAddressContext, encodeAddresses } from "./note
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
-import matter from "gray-matter";
+import { readMatter, writeMatter } from "./note-matter.mjs";
 
 import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
@@ -166,7 +166,7 @@ function readNote(file, ctx) {
     let source;
     try {
         source = fs.readFileSync(file, "utf8");
-        parsed = matter(source);
+        parsed = readMatter(source);
     } catch {
         return null;
     }
@@ -401,7 +401,7 @@ export function writeHomepages(outRoot, pages, config, { related, records, forei
         resolveArtFields(data, webSrc, artSrc);
         const dest = path.join(outRoot, HOMEPAGE_DESTINATION);
         fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.writeFileSync(dest, matter.stringify(page.body, encodeAddresses(data)));
+        fs.writeFileSync(dest, writeMatter(page.body, encodeAddresses(data)));
     }
     return pages.length;
 }
@@ -1133,7 +1133,7 @@ export function renderPages(pages, options) {
         if (write) {
             const dest = path.join(outRoot, pageDestination(page));
             fs.mkdirSync(path.dirname(dest), { recursive: true });
-            fs.writeFileSync(dest, matter.stringify(body, encodeAddresses(data)));
+            fs.writeFileSync(dest, writeMatter(body, encodeAddresses(data)));
         }
         if (outputs) outputs.set(page.file, { markdown: body, frontmatter: data });
         byKind[page.kind] = (byKind[page.kind] ?? 0) + 1;

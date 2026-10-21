@@ -7,7 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 import os from "node:os";
 import path from "node:path";
 
@@ -158,7 +158,7 @@ describe("the site build sets Within, Governed by and Governed places in the pag
 
     /** One published page under the content mount. */
     const published = (rel: string) =>
-        matter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8"));
+        readMatter(fs.readFileSync(path.join(root, "build/hugo/content", rel), "utf8"));
 
     /** One generated section of a published page, heading to the next heading. */
     const section = (rel: string, slug: string): string => {

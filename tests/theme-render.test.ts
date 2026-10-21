@@ -37,7 +37,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -240,7 +240,7 @@ beforeAll(async () => {
 
     emitted = new Set<string>();
     for (const file of pages) {
-        const data = matter(fs.readFileSync(file, "utf8")).data;
+        const data = readMatter(fs.readFileSync(file, "utf8")).data;
         for (const key of Object.keys(data)) emitted.add(key);
         if (file.includes("place-rgn")) regionPage = data;
     }

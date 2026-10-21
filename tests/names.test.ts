@@ -221,6 +221,114 @@ describe("indexed name catalog", () => {
     });
 });
 
+describe("typed name spans", () => {
+    const lineage = { type: "affiliation", subType: "lineage" };
+
+    it("match only indexed notes of the supplied type and subtype", () => {
+        const source = fixture([
+            {
+                type: "place",
+                subType: "region",
+                shortcode: "saddle",
+                name: { full: "The Western Saddle", aliases: ["Theinuvael"] },
+            },
+            { type: "lore", shortcode: "other", name: { full: "Arden" } },
+        ]);
+        const catalog = createNameCatalog(source);
+        expect(catalog.recognize("Theinuvael", undefined, lineage)).toBeUndefined();
+        expect(
+            catalog.recognize("Theinuvael", undefined, { type: "affiliation", subType: null }),
+        ).toBeUndefined();
+        for (const kind of [
+            undefined,
+            { type: null, subType: null },
+            { type: "place", subType: null },
+            { type: "place", subType: "region" },
+        ])
+            expect(catalog.recognize("Theinuvael", undefined, kind)).toMatchObject({
+                key: "test-note-place-saddle",
+            });
+        expect(
+            catalog.recognize("Theinuvael", undefined, { type: "place", subType: "settlement" }),
+        ).toBeUndefined();
+        expect(catalog.recognize("Arden").candidates).toHaveLength(2);
+        expect(
+            catalog.recognize("Arden", undefined, { type: "lore", subType: null }),
+        ).toMatchObject({
+            key: "test-note-lore-other",
+        });
+        expect(
+            catalog.recognize("North Craft", undefined, { type: "skill", subType: null }),
+        ).toMatchObject({
+            full: "North Craft",
+        });
+        expect(
+            catalog.recognize("North Craft", undefined, { type: "place", subType: null }),
+        ).toBeUndefined();
+    });
+
+    it("report a span naming another kind of thing as neither unlinked nor repeated", () => {
+        const source = fixture([
+            {
+                type: "place",
+                shortcode: "saddle",
+                name: { full: "The Western Saddle", aliases: ["Theinuvael"] },
+            },
+        ]);
+        const check = createFirstUseChecker(source);
+        const rules = (raw: string) =>
+            check({ file: "Reader.md", raw }).flatMap((finding) => finding.rules);
+        expect(
+            rules('the lineage [Theinuvael]{.name data-type="affiliation/lineage"} holds it'),
+        ).toEqual([]);
+        expect(rules('[Theinuvael]{.name data-type="place"}')).toContain("unlinked-name");
+        expect(rules("[Theinuvael]{.name}")).toContain("unlinked-name");
+        expect(
+            rules(
+                '[[place-saddle|]] is held by [Theinuvael]{.name data-type="affiliation/lineage"}, and [Theinuvael]{.name data-type="affiliation/lineage"} again.',
+            ),
+        ).toEqual(["repeated-name"]);
+        expect(rules('[[place-saddle|]] and [Theinuvael]{.name data-type="place"}')).toEqual([
+            "unlinked-name",
+            "repeated-name",
+        ]);
+    });
+
+    it("group a typed span matching only another kind's name as unwritten", () => {
+        const source = fixture([
+            {
+                type: "place",
+                shortcode: "saddle",
+                name: { full: "The Western Saddle", aliases: ["Theinuvael"] },
+            },
+        ]);
+        const catalog = createNameCatalog(source);
+        const names = [
+            { name: "Theinuvael", type: "affiliation", subType: "lineage", line: 3, column: 5 },
+            { name: "Theinuvael", type: "place", subType: null, line: 4, column: 1 },
+            { name: "Theinuvael", type: null, subType: null, line: 5, column: 1 },
+        ];
+        const { groups } = collectUnwrittenNames({
+            records: [
+                { address: { canonical: "test-note-doc-reader" }, file: { path: "1.md" }, names },
+            ],
+            catalog,
+        });
+        expect(groups).toEqual([
+            {
+                type: "affiliation",
+                subType: "lineage",
+                names: [
+                    {
+                        name: "Theinuvael",
+                        uses: [{ owner: "test-note-doc-reader", file: "1.md", line: 3, column: 5 }],
+                    },
+                ],
+            },
+        ]);
+    });
+});
+
 describe("unwritten marked names", () => {
     it("groups only captured occurrences and keeps every use with its exact source site", () => {
         const source = fixture();
@@ -584,12 +692,12 @@ describe("one package names report", () => {
         ).toHaveLength(1);
     });
 
-    it("checks equal visible text even when known, without comparing a note's real type or aliases", () => {
+    it("checks equal visible text for conflicts whether or not a note of that kind matches", () => {
         const source = fixture();
         const catalog = createNameCatalog(source);
         const names = [
-            { name: "Arden Vale", type: "being", subType: null, line: 2, column: 1 },
-            { name: "Arden", type: "place", subType: "settlement", line: 3, column: 1 },
+            { name: "Arden Vale", type: "place", subType: null, line: 2, column: 1 },
+            { name: "Arden", type: "place", subType: null, line: 3, column: 1 },
         ];
         expect(createNamesReport({ package: "test", records: [{ names }], catalog })).toEqual({
             package: "test",
@@ -601,12 +709,23 @@ describe("one package names report", () => {
             records: [
                 {
                     file: { path: "Known.md" },
-                    names: [...names, { ...names[0], type: "place", line: 4 }],
+                    names: [...names, { ...names[0], type: "being", line: 4 }],
                 },
             ],
             catalog,
         });
-        expect(report.unwritten).toEqual([]);
+        expect(report.unwritten).toEqual([
+            {
+                type: "being",
+                subType: null,
+                names: [
+                    {
+                        name: "Arden Vale",
+                        uses: [{ owner: null, file: "Known.md", line: 4, column: 1 }],
+                    },
+                ],
+            },
+        ]);
         expect(report.conflicts.map((conflict) => conflict.name)).toEqual(["Arden Vale"]);
         expect(namesReportFinding(report)).toMatchObject({
             file: "Known.md",

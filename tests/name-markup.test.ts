@@ -35,7 +35,7 @@ function at(source: string, value: string, from = 0) {
 }
 
 describe("the actual authored marked-name inventory", () => {
-    it("uses a supplied catalog for markers, links and bold without rebuilding it", async () => {
+    it("uses a supplied catalog for markers and links without rebuilding it", async () => {
         const input = fixture();
         roots.push(input.root);
         const file = [...input.files.keys()][0];
@@ -61,7 +61,6 @@ describe("the actual authored marked-name inventory", () => {
             expect(checker({ file, raw }).map((finding) => finding.rules)).toEqual([
                 ["unlinked-name"],
                 ["repeated-name"],
-                ["bold-name"],
             ]);
             expect(recognize).toHaveBeenCalled();
             expect(resolve).toHaveBeenCalledWith("lore-n1");

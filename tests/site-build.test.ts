@@ -17,7 +17,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 import os from "node:os";
 import path from "node:path";
 
@@ -391,8 +391,8 @@ describe("buildSite end to end", () => {
         try {
             const result = buildSite({ config: configFor() });
             expect(gatesFailed(result.gates)).toBe(false);
-            const published = matter.read(
-                path.join(root, "build/hugo/content/kb/being-njorven.md"),
+            const published = readMatter(
+                fs.readFileSync(path.join(root, "build/hugo/content/kb/being-njorven.md"), "utf8"),
             );
             expect(Object.hasOwn(published.data, "sohl")).toBe(false);
             expect(published.data.infoboxes).toEqual(expect.any(Array));

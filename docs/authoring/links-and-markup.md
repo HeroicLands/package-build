@@ -91,7 +91,11 @@ the attribute adds no book presentation.
 
 `package-build lint` warns when an indexed name or alias uses `.name`
 instead of a link, when the same name is marked or linked again, or when a
-`.name` span or Markdown link uses a short form before its full name. Only
+`.name` span or Markdown link uses a short form before its full name. A
+`.name` span with a `data-type` is compared only with notes of that type (and
+subtype, when it names one), so a lineage that shares its name with a place
+note is marked `[Theinuvael]{.name data-type="affiliation/lineage"}` and
+draws no warning to link the place. Only
 marked names and authored link labels count toward these rules. A wikilink
 introduces its note under whatever label reads naturally, so
 `[[place-arden|Arden]]` needs no earlier `Arden Vale`, and an article
@@ -108,9 +112,8 @@ A name span can sit inside emphasis:
 ```
 
 The marked name is `Joe Blow`. Sites and books display `.name` text in bold, including
-inside an emphasized phrase. A whole bold span matching an indexed name or
-alias receives an advisory to mark or link that name; bold containing an
-explicit name span or link needs no such advisory.
+inside an emphasized phrase. Bold itself is emphasis, never a name: a bold
+label such as `**Strength**:` draws no warning, whatever names the index holds.
 
 These are warnings at each occurrence's `file:line:column`; they do not make
 a valid package fail. The check reads authored prose outside headings,
@@ -672,7 +675,9 @@ Each word, case folded, is one of:
      is `a`, `e`, `i`, `o` or `u`), letters such as `replaces: a` take the
      place of those letters, and a stem that closes otherwise takes the suffix
      whole. An affix that states no `replaces` makes no form here, whatever its
-     `attaches` says, because `attaches` is prose;
+     `attaches` says, because `attaches` is prose. A suffix stating
+     `attachesTo: [n, adj]` attaches only to words of those classes, and one
+     stating no `attachesTo` attaches to a word of every class;
    - an agreeing form, where the language states `data.grammar.agreement`: a
      word of one of its `classes` closing on one of its `endings` takes each
      other ending in its place, and each form takes the `plural` rule;
@@ -1022,7 +1027,7 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 | `maps`             | One row per row of a mapping note's `data.map`, with its containing NOTE Address, the map's `name`, the `font` whose own row it is (`NULL` for a shared row), the row's 1-based place as `"row"`, and its `"from"`, `"to"`, `before` and `"at"`. See [mapping notes](#mapping-notes).                                                                                                                                                                                                                                                                                                                                                  |
 | `natives`          | One row per native form a language note's word states in `native`, with that note as its `language`, the word's place as `word`, its `form`, the entry's place as `native`, and its `map`, `font` and `"text"`. See [what `map=` takes](#what-map-takes).                                                                                                                                                                                                                                                                                                                                                                              |
 | `words`            | One row per word a language note writes in `data.words`, with that note as its `language`, its `position` and what it is built from.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `affixes`          | One row per affix a language note writes in `data.affixes`, with that note as its `language`, its `position`, and each key the affix states: `form` (`NULL` on a zero affix), `zero`, `kind`, `given`, `"where"`, `gloss`, `attaches`, `replaces`, `lengthens`, `front`, `examples`, `barredAfter` and `tones`, then `written`, the form as a table prints it, `∅` for a zero affix.                                                                                                                                                                                                                                                   |
+| `affixes`          | One row per affix a language note writes in `data.affixes`, with that note as its `language`, its `position`, and each key the affix states: `form` (`NULL` on a zero affix), `zero`, `kind`, `given`, `"where"`, `gloss`, `attaches`, `replaces`, `attachesTo`, `lengthens`, `front`, `examples`, `barredAfter` and `tones`, then `written`, the form as a table prints it, `∅` for a zero affix.                                                                                                                                                                                                                                     |
 | `fields`           | One row per field a language note writes in `data.fields`, with that note as its `language`, its `position`, and the field's `name` and what it `holds`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `glossary`         | One row per entry a culture or an affiliation writes in `data.glossary`, with the `note` it belongs to and the `language` it resolves to.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `language_lineage` | One row per language note and each language it inherits words from through `data.family`, itself included at `depth` 0. Join it to `words` for a language's words with inherited ones.                                                                                                                                                                                                                                                                                                                                                                                                                                                 |

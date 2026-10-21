@@ -447,6 +447,22 @@
     > p:first-child {
     display: inline;
 }
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .dictionary
+    > div
+    > dd
+    + dd {
+    display: block;
+    text-indent: 0;
+}
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .dictionary
+    > div
+    > dd
+    + dd
+    > p:first-child {
+    display: block;
+}
 @media (max-width: 600px) {
     :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .dictionary {
         --indent: 100px;

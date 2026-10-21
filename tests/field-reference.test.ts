@@ -28,7 +28,7 @@
 import { describe, it, expect } from "vitest";
 import path from "node:path";
 import prettier from "prettier";
-import matter from "gray-matter";
+import { readMatter } from "../engine/note-matter.mjs";
 import { formatNoteFrontmatter } from "../engine/note-format.mjs";
 
 import {
@@ -280,7 +280,7 @@ describe("renderItemFieldsPage", () => {
             destination: path.join(contentRoot, "item-frontmatter.md"),
             contentRoot,
         });
-        const parsed = matter(rendered);
+        const parsed = readMatter(rendered);
         expect(parsed.data).toEqual({
             type: "doc",
             subType: "reference",
@@ -298,7 +298,7 @@ describe("renderItemFieldsPage", () => {
             contentRoot,
             frontmatter: { description: "The generated per-type field tables." },
         });
-        const parsed = matter(rendered);
+        const parsed = readMatter(rendered);
         expect(parsed.data.description).toBe("The generated per-type field tables.");
     });
 
