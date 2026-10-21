@@ -31,7 +31,7 @@
  *   npx package-build map [--tree] [--from <shortcode>] [--chart <shortcode>] [--travel] [--out <dir>]
  *   npx package-build reachability <dir> [file] [--index <shortcode>]
  *   npx package-build transliterate <map> [--lang <language>] [--font <slug>] [--hex] [text..]
- *   npx package-build lexicon <language> --map <map> [--font <slug>] [--json]
+ *   npx package-build lexicon <language> --map <map> [--font <slug>] [--derived] [--json]
  *   npx package-build addresses diff --from <zip|dir> [--strict]
  *   npx package-build npc new (--spec <json> | --specfile <path>) [--seed <text>] [--out <path>]
  *
@@ -2437,7 +2437,9 @@ function transliterateCommand() {
 
 /**
  * `package-build lexicon <language> --map <map>` — every word of a language's
- * lexicon with its native form under a map, as the build writes it.
+ * lexicon with its native form under a map, as the build writes it; with
+ * `--derived`, the forms its rules derive follow, each naming its word in a
+ * sixth column.
  *
  * @returns {object} The yargs command module.
  */
@@ -2461,6 +2463,12 @@ function lexiconCommand() {
                     type: "string",
                     describe: "The face; required when the map lists more than one",
                 })
+                .option("derived", {
+                    type: "boolean",
+                    default: false,
+                    describe:
+                        "Also list the forms the language's rules derive, each beside its lexicon word",
+                })
                 .option("json", {
                     type: "boolean",
                     default: false,
@@ -2477,6 +2485,7 @@ function lexiconCommand() {
                     lang: String(argv.language),
                     map: String(argv.map),
                     font: argv.font,
+                    derived: Boolean(argv.derived),
                 });
                 if ("problem" in listed) {
                     reportMapping(read.config, listed);
@@ -2492,6 +2501,7 @@ function lexiconCommand() {
                                 entry.exception ? "exception" : "rows",
                                 entry.class ?? "",
                                 entry.gloss ?? "",
+                                ...(argv.derived ? [entry.from ?? ""] : []),
                             ].join("\t"),
                         );
             } catch (err) {

@@ -2535,16 +2535,17 @@ The wildcard engine subpath exposes
 `@heroiclands/package-build/engine/dictionary-rows` for deriving the
 `dictionary` and `terms` SQL relations from content-index records:
 
-| Export                  | Signature                                       | Returns                                     | Use it when                                                                                        |
-| ----------------------- | ----------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------------------------------------------- |
-| `DICTIONARY_COLUMNS`    | `const DICTIONARY_COLUMNS`                      | A readonly list of column names             | Declaring the schema of a language's dictionary.                                                   |
-| `TERM_COLUMNS`          | `const TERM_COLUMNS`                            | A readonly list of column names             | Declaring the schema of owner-specific glossary terms.                                             |
-| `ETYMOLOGY_KEYS`        | `const ETYMOLOGY_KEYS`                          | A readonly list of keys                     | Reading the structure of a dictionary word's etymology.                                            |
-| `dictionaryLetter`      | `dictionaryLetter(text)`                        | `string`                                    | Deriving a heading letter from a sort key.                                                         |
-| `dictionaryEntryAnchor` | `dictionaryEntryAnchor(language, name)`         | `string`                                    | Deriving the stable entry anchor for a word in a language's dictionary.                            |
-| `dictionaryAndTermRows` | `dictionaryAndTermRows(records, all = records)` | `{ dictionary: object[], terms: object[] }` | Deriving dictionary words and glossary terms for the selected records.                             |
-| `serializeRows`         | `serializeRows(rows)`                           | `string`                                    | Writing deterministic JSON Lines with keys sorted at every depth.                                  |
-| `pluralOf`              | `pluralOf(word, grammar)`                       | `string \| null`                            | Deriving a noun's plural: its own `plural`, else the first `grammar.plural` row whose ending fits. |
+| Export                  | Signature                                       | Returns                                     | Use it when                                                                                                        |
+| ----------------------- | ----------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `DICTIONARY_COLUMNS`    | `const DICTIONARY_COLUMNS`                      | A readonly list of column names             | Declaring the schema of a language's dictionary.                                                                   |
+| `TERM_COLUMNS`          | `const TERM_COLUMNS`                            | A readonly list of column names             | Declaring the schema of owner-specific glossary terms.                                                             |
+| `ETYMOLOGY_KEYS`        | `const ETYMOLOGY_KEYS`                          | A readonly list of keys                     | Reading the structure of a dictionary word's etymology.                                                            |
+| `dictionaryLetter`      | `dictionaryLetter(text)`                        | `string`                                    | Deriving a heading letter from a sort key.                                                                         |
+| `dictionaryEntryAnchor` | `dictionaryEntryAnchor(language, name)`         | `string`                                    | Deriving the stable entry anchor for a word in a language's dictionary.                                            |
+| `dictionaryAndTermRows` | `dictionaryAndTermRows(records, all = records)` | `{ dictionary: object[], terms: object[] }` | Deriving dictionary words and glossary terms for the selected records.                                             |
+| `serializeRows`         | `serializeRows(rows)`                           | `string`                                    | Writing deterministic JSON Lines with keys sorted at every depth.                                                  |
+| `pluralOf`              | `pluralOf(word, grammar)`                       | `string \| null`                            | Deriving a noun's plural: its own `plural`, else the first `grammar.plural` row whose ending fits.                 |
+| `pluralByRule`          | `pluralByRule(form, grammar)`                   | `string \| null`                            | Deriving the plural the `grammar.plural` rule gives any form, whatever its class: the first row whose ending fits. |
 
 `dictionaryEntryAnchor` takes the language's canonical Address and the
 word's form. Its `word-` anchor is derived from the full SHA-256 digest of

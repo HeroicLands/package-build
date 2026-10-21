@@ -11,7 +11,7 @@
 import { describe, expect, it } from "vitest";
 
 import { verbForm, verbPattern } from "../engine/verb-pattern.mjs";
-import { lexiconWords } from "../engine/run-words.mjs";
+import { lexiconWords } from "../engine/word-forms.mjs";
 import { runContext, scanRuns } from "../engine/content-scripts.mjs";
 
 const PERSONS = { I: "men", you: "zen", heShe: "zor", we: "mar", youAll: "zar", they: "zoi" };

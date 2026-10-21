@@ -69,6 +69,7 @@ import {
 } from "./language-terms.mjs";
 import { LANGUAGE_SUBTYPE } from "./word-terms.mjs";
 import { WORD_CLASS_BASES } from "./word-classes.mjs";
+import { nearest } from "./near-miss.mjs";
 
 /** The bases a frame's `class` names. */
 const CLASS_BASES = new Set(WORD_CLASS_BASES.map((item) => item.token));
@@ -241,6 +242,166 @@ function formEntries(forms) {
     return [];
 }
 
+/** A suggestion clause for a near miss, or nothing. */
+const suggestion = (value, candidates) => {
+    const near = nearest(value, candidates);
+    return near ? `; did you mean \`${near}\`?` : "";
+};
+
+/** A suggestion clause for a word class written out or mistyped, or nothing. */
+const classSuggestion = (value, bases) => {
+    const spelled = WORD_CLASS_BASES.find((base) => base.expansion === value.trim().toLowerCase());
+    return spelled ? `; did you mean \`${spelled.token}\`?` : suggestion(value, bases);
+};
+
+/**
+ * Each entry of a list of strings that repeats an earlier one, as a finding.
+ *
+ * @param {unknown[]} list - The list.
+ * @param {Array<string|number>} path - Where it sits.
+ * @param {string} verb - What the entry does: `names` or `states`.
+ * @param {Function} finding - The note's finding builder.
+ * @returns {object[]} The findings.
+ */
+function repeats(list, path, verb, finding) {
+    const seen = new Set();
+    const out = [];
+    list.forEach((item, i) => {
+        if (typeof item !== "string") return;
+        const key = item.trim();
+        if (seen.has(key))
+            out.push(
+                finding(
+                    [...path, i],
+                    "error",
+                    `\`${label([...path, i])}\` ${verb} \`${key}\` a second time`,
+                ),
+            );
+        seen.add(key);
+    });
+    return out;
+}
+
+/**
+ * Check `data.grammar.agreement` against what it means: classes of the master
+ * list, each once, and at least two distinct endings to agree among.
+ *
+ * @param {unknown} agreement - The authored value.
+ * @param {Function} finding - The note's finding builder.
+ * @returns {object[]} The findings.
+ */
+function checkAgreement(agreement, finding) {
+    if (!isMap(agreement)) return [];
+    const out = [];
+    const at = ["data", "grammar", "agreement"];
+    const bases = WORD_CLASS_BASES.map((base) => base.token);
+    if (Array.isArray(agreement.classes)) {
+        if (!agreement.classes.length)
+            out.push(
+                finding(
+                    [...at, "classes"],
+                    "error",
+                    "`data.grammar.agreement.classes` must name at least one word class",
+                ),
+            );
+        agreement.classes.forEach((item, i) => {
+            if (typeof item !== "string" || bases.includes(item.trim())) return;
+            out.push(
+                finding(
+                    [...at, "classes", i],
+                    "error",
+                    `\`${label([...at, "classes", i])}\` is \`${item}\`, which is not a word class` +
+                        classSuggestion(item, bases),
+                ),
+            );
+        });
+        out.push(...repeats(agreement.classes, [...at, "classes"], "names", finding));
+    }
+    if (Array.isArray(agreement.endings)) {
+        const distinct = new Set(
+            agreement.endings.filter((item) => typeof item === "string").map((item) => item.trim()),
+        );
+        if (distinct.size < 2)
+            out.push(
+                finding(
+                    [...at, "endings"],
+                    "error",
+                    "`data.grammar.agreement.endings` must state at least two endings for a word to agree among",
+                ),
+            );
+        out.push(...repeats(agreement.endings, [...at, "endings"], "states", finding));
+    }
+    return out;
+}
+
+/**
+ * Check `data.grammar.participles` against what it means: root endings with
+ * letters, and affixes that are suffixes the language's `data.affixes` states.
+ *
+ * @param {unknown} participles - The authored value.
+ * @param {unknown} affixes - The note's `data.affixes`.
+ * @param {Function} finding - The note's finding builder.
+ * @returns {object[]} The findings.
+ */
+function checkParticiples(participles, affixes, finding) {
+    if (!isMap(participles)) return [];
+    const out = [];
+    const at = ["data", "grammar", "participles"];
+    if (Array.isArray(participles.root)) {
+        if (!participles.root.length)
+            out.push(
+                finding(
+                    [...at, "root"],
+                    "error",
+                    "`data.grammar.participles.root` must name at least one ending a verb drops to give its root",
+                ),
+            );
+        participles.root.forEach((item, i) => {
+            if (typeof item === "string" && !item.trim())
+                out.push(
+                    finding(
+                        [...at, "root", i],
+                        "error",
+                        `\`${label([...at, "root", i])}\` must name the letters a verb drops to give its root`,
+                    ),
+                );
+        });
+        out.push(...repeats(participles.root, [...at, "root"], "states", finding));
+    }
+    if (Array.isArray(participles.affixes)) {
+        if (!participles.affixes.length)
+            out.push(
+                finding(
+                    [...at, "affixes"],
+                    "error",
+                    "`data.grammar.participles.affixes` must name at least one suffix of `data.affixes`",
+                ),
+            );
+        const stated = listOf(affixes)
+            .filter((affix) => isMap(affix) && typeof affix.form === "string")
+            .map((affix) => affix.form.trim());
+        const suffixes = stated.filter((form) => /^[-–]/u.test(form) && !/[-–]$/u.test(form));
+        participles.affixes.forEach((item, i) => {
+            if (typeof item !== "string") return;
+            const form = item.trim();
+            const where = `\`${label([...at, "affixes", i])}\` is \`${item}\``;
+            if (suffixes.includes(form)) return;
+            out.push(
+                finding(
+                    [...at, "affixes", i],
+                    "error",
+                    stated.includes(form) ?
+                        `${where}, a ${/^[-–]/u.test(form) ? "infix" : "prefix"}; a participle is a suffix on the root`
+                    :   `${where}, which is not a suffix of \`data.affixes\`` +
+                            suggestion(form, suffixes),
+                ),
+            );
+        });
+        out.push(...repeats(participles.affixes, [...at, "affixes"], "names", finding));
+    }
+    return out;
+}
+
 /**
  * Check a `skill` note's language data against what it means.
  *
@@ -344,6 +505,11 @@ export function checkLanguageData(note, { index, types } = {}) {
                 ),
             );
     }
+
+    findings.push(
+        ...checkAgreement(grammar.agreement, finding),
+        ...checkParticiples(grammar.participles, data.affixes, finding),
+    );
 
     /**
      * The note an Address names, or a finding where it names none.

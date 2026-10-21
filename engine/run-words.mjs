@@ -21,16 +21,9 @@
  * - a word of a name in the language note's own `data.register` whose `tongue`
  *   is not `translation`, so a foreign name the run uses is listed there first,
  *   as `other:<tongue>` or under another tag the note declares;
- * - a form one rule the language states derives from a lexicon form:
- *   - the noun plural `data.grammar.plural` gives, or the word's own `plural`;
- *   - a verb's citation form with one ending of `data.grammar.verbs.persons`,
- *     which takes the place of a closing `data.grammar.verbs.replaces` where
- *     the pattern states one (see {@link module:engine/verb-pattern.verbForm});
- *   - a suffix of `data.affixes` that states `replaces`, or its `front` form:
- *     `vowel` takes the place of a closing vowel (a letter whose base is `a`,
- *     `e`, `i`, `o` or `u`), letters take the place of those letters, and a
- *     stem closing otherwise takes the suffix whole. An affix that states no
- *     `replaces` derives nothing.
+ * - a form one rule the language states derives from a lexicon form: a noun
+ *   plural, a verb's present form, a replacing suffix, an agreeing form or a
+ *   participle (see {@link module:engine/word-forms.derivedForms}).
  *
  * A word not accepted whole is split at its hyphens and en dashes, and each
  * part is checked. An apostrophe joins a word, so `k'aralzon` is one word, and
@@ -42,11 +35,9 @@
  * @module
  */
 
-import { pluralOf } from "./dictionary-rows.mjs";
 import { languageRecordsByName } from "./map-lexicon.mjs";
 import { RESERVED_TONGUE } from "./language-terms.mjs";
-import { replaceClosing, verbForm, verbPattern } from "./verb-pattern.mjs";
-import { parseWordClass } from "./word-classes.mjs";
+import { addWords, foldWord, lexiconWords } from "./word-forms.mjs";
 import { WORD } from "./word-pattern.mjs";
 
 /** Whether a value is a plain map. */
@@ -60,104 +51,6 @@ const JOINS = /[–-]/u;
 
 /** A letter, which a checked word holds at least one of. */
 const LETTER = /\p{L}/u;
-
-/**
- * A word as it is compared: NFC, lowercase, `’` read as `'`.
- *
- * @param {string} word - The word.
- * @returns {string} Its folded form.
- */
-export function foldWord(word) {
-    return word.normalize("NFC").toLowerCase().replace(/’/gu, "'");
-}
-
-/** Whether a character is a vowel: its base letter is a, e, i, o or u. */
-const isVowel = (char) => /^[aeiou]/iu.test(char.normalize("NFD"));
-
-/**
- * Add a text's words to a set, each whole and each part of a compound.
- *
- * @param {Set<string>} set - The set.
- * @param {string} text - A form or a name.
- */
-function addWords(set, text) {
-    for (const [word] of text.matchAll(WORD)) {
-        const folded = foldWord(word);
-        set.add(folded);
-        for (const part of folded.split(JOINS)) if (part) set.add(part);
-    }
-}
-
-/**
- * The form a suffix stating `replaces` makes of a stem.
- *
- * @param {string} stem - The stem, folded.
- * @param {string} suffix - The suffix, folded, with no hyphen.
- * @param {string} replaces - The affix's `replaces`.
- * @returns {string} The derived form.
- */
-function attach(stem, suffix, replaces) {
-    if (replaces === "vowel") {
-        const last = Array.from(stem).at(-1);
-        return last !== undefined && isVowel(last) ?
-                stem.slice(0, -last.length) + suffix
-            :   stem + suffix;
-    }
-    return replaceClosing(stem, suffix, foldWord(replaces));
-}
-
-/**
- * The suffixes a language's affixes state `replaces` for: each `form`, and
- * its `front` form, written `-x`.
- *
- * @param {Record<string, any>} data - The language note's `data`.
- * @returns {Array<{suffix: string, replaces: string}>} The suffixes, folded.
- */
-function replacingSuffixes(data) {
-    const out = [];
-    for (const affix of listOf(data.affixes)) {
-        if (!isMap(affix) || typeof affix.replaces !== "string") continue;
-        for (const written of [affix.form, affix.front]) {
-            if (typeof written !== "string") continue;
-            const form = foldWord(written.trim());
-            if (!/^[-–]/u.test(form) || /[-–]$/u.test(form)) continue;
-            const suffix = form.replace(/^[-–]+/u, "");
-            if (suffix) out.push({ suffix, replaces: affix.replaces });
-        }
-    }
-    return out;
-}
-
-/**
- * The words a language note accepts of its own: its forms, and what its
- * plural rows, verb pattern and replacing suffixes derive from them.
- *
- * @param {Record<string, any>} data - The language note's `data`.
- * @returns {Set<string>} The words, folded.
- */
-export function lexiconWords(data) {
-    const accepted = new Set();
-    const grammar = isMap(data?.grammar) ? data.grammar : undefined;
-    const verbs = verbPattern(grammar?.verbs);
-    const replaces = verbs?.replaces === undefined ? undefined : foldWord(verbs.replaces);
-    const suffixes = replacingSuffixes(data ?? {});
-    for (const word of listOf(data?.words)) {
-        if (!isMap(word) || typeof word.form !== "string") continue;
-        addWords(accepted, word.form);
-        const plural = pluralOf(word, grammar);
-        if (plural) addWords(accepted, plural);
-        if (verbs && parseWordClass(word.class).base === "v")
-            for (const { ending } of verbs.endings)
-                addWords(accepted, verbForm(foldWord(word.form), foldWord(ending), replaces));
-        if (suffixes.length)
-            for (const [stem] of word.form.matchAll(WORD)) {
-                const folded = foldWord(stem);
-                for (const { suffix, replaces } of suffixes)
-                    accepted.add(attach(folded, suffix, replaces));
-            }
-    }
-    return accepted;
-}
 
 /**
  * The words of every name a language note registers under a tongue other than

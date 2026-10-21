@@ -3058,7 +3058,7 @@ List a language's words with their native forms under a map.
 **SYNOPSIS**
 
 ```
-package-build lexicon <language> --map <map> [--font <slug>] [--json]
+package-build lexicon <language> --map <map> [--font <slug>] [--derived] [--json]
 ```
 
 **DESCRIPTION**
@@ -3071,17 +3071,27 @@ word has one, else the rows' spelling, each exactly as
 by tabs, the word's `form`, its native form, `exception` or `rows`, its `class`
 and its `gloss`. Writes nothing.
 
+With `--derived`, the forms the language's own rules derive from those words
+follow them: plurals, verb forms, replacing suffixes, agreeing forms and
+participles, exactly the regular forms
+[the mapped-run word check](authoring/links-and-markup.md#a-mapped-runs-words)
+accepts. Each is listed once, case folded as the check compares it, and spelled
+by the rows; a form that is itself a lexicon word is not repeated. Every line
+then has a sixth column: the lexicon word a derived form comes from, empty for
+the lexicon's own words. A derived line carries its word's `class` and `gloss`.
+
 **OPTIONS**
 
 | Positional | Type   | Default | Description                                         |
 | ---------- | ------ | ------- | --------------------------------------------------- |
 | `language` | string | —       | A declared language whose `note` names its lexicon. |
 
-| Option   | Type    | Default                    | Description                                                                |
-| -------- | ------- | -------------------------- | -------------------------------------------------------------------------- |
-| `--map`  | string  | —                          | Required: the `data.map.name` of a mapping note.                           |
-| `--font` | string  | the map's one face, if one | The face; required when the map lists more than one.                       |
-| `--json` | boolean | `false`                    | Print a JSON array of `{ form, native, exception, class, gloss }` instead. |
+| Option      | Type    | Default                    | Description                                                                                            |
+| ----------- | ------- | -------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `--map`     | string  | —                          | Required: the `data.map.name` of a mapping note.                                                       |
+| `--font`    | string  | the map's one face, if one | The face; required when the map lists more than one.                                                   |
+| `--derived` | boolean | `false`                    | Also list the forms the language's rules derive, each with the word it comes from.                     |
+| `--json`    | boolean | `false`                    | Print a JSON array of `{ form, native, exception, class, gloss }` instead; a derived form adds `from`. |
 
 **EXIT STATUS**
 
@@ -3097,6 +3107,11 @@ $ package-build lexicon vyl --map semaron | head -3
 zaron	<native form>	exception	n	an oath
 lonak	<native form>	rows	n	a road
 thizaron	<native form>	rows	n	a seal
+$ package-build lexicon vyl --map semaron --derived | grep -P '\talathos$'
+alatha	<native form>	rows	pron	he, that one	alathos
+alathon	<native form>	rows	pron	he, that one	alathos
+alathoi	<native form>	rows	pron	he, that one	alathos
+alathai	<native form>	rows	pron	he, that one	alathos
 ```
 
 **SEE ALSO**

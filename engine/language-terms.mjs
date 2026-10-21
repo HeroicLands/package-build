@@ -1651,7 +1651,56 @@ const VERB_PATTERN_FIELDS = Object.freeze([
     }),
 ]);
 
-/** The optional, display-only noun and verb patterns of one language. */
+/** The two keys of a language's optional agreement rule. */
+const AGREEMENT_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "classes",
+        kind: "list",
+        required: true,
+        shape: "a list of word class bases, such as `[adj, pron]`",
+        entries: Object.freeze({ kind: "string", shape: "a word class base" }),
+        describe: "The word classes that agree, each a base of the master word classes.",
+    }),
+    Object.freeze({
+        name: "endings",
+        kind: "list",
+        required: true,
+        shape: "a list of at least two literal endings, such as `[os, a, on]`",
+        entries: Object.freeze({ kind: "string", shape: "a literal ending string" }),
+        describe:
+            "The singular endings an agreeing word swaps among, one for each gender; the " +
+            "`plural` rule gives each one's plural. A word closing on none does not agree.",
+    }),
+]);
+
+/** The two keys of a language's optional participle rule. */
+const PARTICIPLE_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "root",
+        kind: "list",
+        required: true,
+        shape: "a list of closing letters, such as `[athen, ethen]`",
+        entries: Object.freeze({ kind: "string", shape: "the closing letters of a citation form" }),
+        describe:
+            "The infinitive endings a verb's citation form drops to give its root, the longest " +
+            "that matches first. A verb closing on none has no participle.",
+    }),
+    Object.freeze({
+        name: "affixes",
+        kind: "list",
+        required: true,
+        shape: "a list of suffixes of `data.affixes`, such as `[-andar, -thos]`",
+        entries: Object.freeze({
+            kind: "string",
+            shape: "the `form` of a suffix of `data.affixes`",
+        }),
+        describe:
+            "The participle suffixes, each attaching to the root as its own `replaces` says: " +
+            "`vowel` or letters take the place of the root's close, and none adds it whole.",
+    }),
+]);
+
+/** The optional noun, verb, agreement and participle patterns of one language. */
 const GRAMMAR_FIELDS = Object.freeze([
     innerList(
         "plural",
@@ -1680,6 +1729,26 @@ const GRAMMAR_FIELDS = Object.freeze([
         fields: VERB_PATTERN_FIELDS,
         describe: "One optional regular present pattern, printed once at the dictionary head.",
     }),
+    Object.freeze({
+        name: "agreement",
+        kind: "map",
+        shape: "a map — `{ classes, endings }`",
+        fields: AGREEMENT_FIELDS,
+        describe:
+            "How words of the named classes agree with a noun: a word closing on one of the " +
+            "`endings` also takes each other one, and each form takes the `plural` rule. Read " +
+            "by the mapped-run word check.",
+    }),
+    Object.freeze({
+        name: "participles",
+        kind: "map",
+        shape: "a map — `{ root, affixes }`",
+        fields: PARTICIPLE_FIELDS,
+        describe:
+            "Participles on the verb root: a verb closing on a `root` ending drops it, and each " +
+            "named suffix attaches to what is left; a participle closing on an `agreement` " +
+            "ending agrees. Read by the mapped-run word check.",
+    }),
 ]);
 
 /**
@@ -1693,12 +1762,12 @@ export const LANGUAGE_DATA_FIELDS = Object.freeze([
     Object.freeze({
         name: "grammar",
         kind: "map",
-        shape: "a map — `{ plural?, verbs? }`",
+        shape: "a map — `{ plural?, verbs?, agreement?, participles? }`",
         fields: GRAMMAR_FIELDS,
         describe:
-            "Optional noun plurals and one verb pattern for dictionary presentation. Only the " +
-            "shape of supplied keys is checked; no word must follow or state a rule. A language " +
-            "skill note only.",
+            "Optional noun plurals, one verb pattern, agreement and participles, for dictionary " +
+            "presentation and the mapped-run word check. Only the shape of supplied keys is " +
+            "checked; no word must follow or state a rule. A language skill note only.",
     }),
     listOfMaps(
         "tongues",

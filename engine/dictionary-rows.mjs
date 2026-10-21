@@ -143,12 +143,23 @@ const defines = (entry) => typeof entry.definition === "string" && entry.definit
 export function pluralOf(word, grammar) {
     if (parseWordClass(word.class).base !== "n") return null;
     if (typeof word.plural === "string" && word.plural) return word.plural;
+    return pluralByRule(word.form, grammar);
+}
+
+/**
+ * The plural a language's `data.grammar.plural` rule gives a form: the first
+ * literal ending replacement that fits, whatever the form's class.
+ *
+ * @param {string} form - The form.
+ * @param {Record<string, any>|undefined} grammar - Its language's
+ *   `data.grammar`.
+ * @returns {string|null} The plural, or `null` where no rule fits.
+ */
+export function pluralByRule(form, grammar) {
     for (const rule of Array.isArray(grammar?.plural) ? grammar.plural : []) {
         if (typeof rule?.ending !== "string" || typeof rule.becomes !== "string") continue;
-        if (word.form.endsWith(rule.ending))
-            return (
-                (rule.ending ? word.form.slice(0, -rule.ending.length) : word.form) + rule.becomes
-            );
+        if (form.endsWith(rule.ending))
+            return (rule.ending ? form.slice(0, -rule.ending.length) : form) + rule.becomes;
     }
     return null;
 }

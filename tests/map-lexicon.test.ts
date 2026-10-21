@@ -594,6 +594,7 @@ beforeAll(() => {
         subType: "language",
         data: {
             fields: [{ name: "Law", holds: "law" }],
+            grammar: { plural: [{ ending: "", becomes: "a" }] },
             words: [
                 {
                     form: "zaron",
@@ -702,6 +703,35 @@ describe("`package-build transliterate` and `package-build lexicon`", () => {
             });
         },
         subprocessTimeout(4),
+    );
+
+    it(
+        "list the forms the rules derive after the words with `--derived`",
+        () => {
+            const listed = run("lexicon", "vyl", "--map", "m", "--derived");
+            expect(listed.err).toBe("");
+            expect(listed.code).toBe(0);
+            expect(listed.out).toBe(
+                [
+                    "zaron\t\u{F02F0}\texception\tn\tan oath\t",
+                    `lonak\t${rowsOf("lonak")}\trows\tn\ta road\t`,
+                    "Zaron\t\u{F02F2}\texception\tn\tthe Oath\t",
+                    `zarona\t${rowsOf("zarona")}\trows\tn\tan oath\tzaron`,
+                    `lonaka\t${rowsOf("lonaka")}\trows\tn\ta road\tlonak`,
+                    "",
+                ].join("\n"),
+            );
+            const json = JSON.parse(run("lexicon", "vyl", "--map", "m", "--derived", "--json").out);
+            expect(json.at(-1)).toEqual({
+                form: "lonaka",
+                native: rowsOf("lonaka"),
+                exception: false,
+                class: "n",
+                gloss: "a road",
+                from: "lonak",
+            });
+        },
+        subprocessTimeout(2),
     );
 
     it(

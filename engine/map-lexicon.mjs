@@ -54,6 +54,7 @@ import { nearest } from "./near-miss.mjs";
 import { FONTS_PACKAGE } from "./script-fonts.mjs";
 import { GENERIC_FAMILIES, applyMap } from "./text-maps.mjs";
 import { isLanguageRecord, noteAddressOf } from "./word-rows.mjs";
+import { derivedForms } from "./word-forms.mjs";
 import { LANGUAGE_SUBTYPE, glossText } from "./word-terms.mjs";
 
 /** The configuration file a language is declared in. */
@@ -103,6 +104,9 @@ function said(names) {
  * @property {readonly LexiconWord[]} words - Its words, in `data.words` order.
  * @property {ReadonlyMap<string, readonly NativeForm[]>} byForm - The native
  *   forms by the word's form, NFC; the first word of a form keeps it.
+ * @property {ReadonlyArray<{form: string, from: LexiconWord}>} derived - The
+ *   forms the language's rules derive from its words, folded, as the mapped-run
+ *   word check accepts them (see {@link module:engine/word-forms.derivedForms}).
  */
 
 /**
@@ -134,21 +138,30 @@ function readNatives(value) {
 function lexiconOf(language, data) {
     const words = [];
     const byForm = new Map();
+    const bySource = new Map();
     for (const word of listOf(data?.words)) {
         if (!isMap(word) || typeof word.form !== "string") continue;
         const natives = readNatives(word.native);
-        words.push(
-            Object.freeze({
-                form: word.form,
-                class: typeof word.class === "string" ? word.class : null,
-                gloss: glossText(word.gloss),
-                natives,
-            }),
-        );
+        const read = Object.freeze({
+            form: word.form,
+            class: typeof word.class === "string" ? word.class : null,
+            gloss: glossText(word.gloss),
+            natives,
+        });
+        words.push(read);
+        bySource.set(word, read);
         const key = word.form.normalize("NFC");
         if (!byForm.has(key)) byForm.set(key, natives);
     }
-    return Object.freeze({ language, words: Object.freeze(words), byForm });
+    const derived = derivedForms(data).map(({ form, word }) =>
+        Object.freeze({ form, from: bySource.get(word) }),
+    );
+    return Object.freeze({
+        language,
+        words: Object.freeze(words),
+        byForm,
+        derived: Object.freeze(derived),
+    });
 }
 
 /**
@@ -442,15 +455,17 @@ export function transliterate(ctx, keys, text) {
 /**
  * Every word of a language's lexicon with its native form under a map: the
  * stated exception, else the rows' spelling, each exactly as the build gives
- * it.
+ * it. With `derived`, the forms the language's rules derive follow the words,
+ * each case folded and naming the word it comes from in `from`, so the list
+ * is what the mapped-run word check accepts of the lexicon.
  *
  * @param {object} ctx - The run context.
- * @param {{lang: string, map: string, font?: string}} keys - The language, the
- *   map and the face.
- * @returns {{entries: Array<{form: string, native: string, exception: boolean, class: string|null, gloss: string|null}>}|{problem: string, about: string}}
- *   The words in `data.words` order, or the problem.
+ * @param {{lang: string, map: string, font?: string, derived?: boolean}} keys -
+ *   The language, the map, the face, and whether to list derived forms.
+ * @returns {{entries: Array<{form: string, native: string, exception: boolean, class: string|null, gloss: string|null, from?: string}>}|{problem: string, about: string}}
+ *   The words in `data.words` order, then any derived forms, or the problem.
  */
-export function lexiconEntries(ctx, { lang, map, font }) {
+export function lexiconEntries(ctx, { lang, map, font, derived = false }) {
     const found = commandMapping(ctx, { map, font, lang });
     if ("problem" in found) return { problem: found.problem, about: found.about };
     const lexicon = ctx.lexicons?.get(lang);
@@ -462,9 +477,13 @@ export function lexiconEntries(ctx, { lang, map, font }) {
                 "in its `note`",
         };
     const { map: textMap, font: face, native } = found.mapping;
-    const mapped = lexicon.words.map((word) =>
-        applyMap(textMap, word.form, { font: face, native }),
-    );
+    const listed = [
+        ...lexicon.words.map((word) => ({ word, form: word.form, from: undefined })),
+        ...(derived ?
+            lexicon.derived.map((one) => ({ word: one.from, form: one.form, from: one.from.form }))
+        :   []),
+    ];
+    const mapped = listed.map((one) => applyMap(textMap, one.form, { font: face, native }));
     const unsound = mapped.flatMap((one) => one.pieces).find((one) => one.uncapitalised);
     if (unsound)
         return {
@@ -477,15 +496,15 @@ export function lexiconEntries(ctx, { lang, map, font }) {
             ),
         };
     return {
-        entries: lexicon.words.map((word, i) => ({
-            form: word.form,
+        entries: listed.map(({ word, form, from }, i) => ({
+            form,
             native: mapped[i].text,
             exception:
-                native?.(word.form) !== undefined ||
-                (word.form.toLowerCase() !== word.form &&
-                    native?.(word.form.toLowerCase()) !== undefined),
+                native?.(form) !== undefined ||
+                (form.toLowerCase() !== form && native?.(form.toLowerCase()) !== undefined),
             class: word.class,
             gloss: word.gloss,
+            ...(from === undefined ? {} : { from }),
         })),
     };
 }

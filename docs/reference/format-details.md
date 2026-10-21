@@ -2184,10 +2184,12 @@ word's start:
 lists under a `tongue` other than `translation`, or a form one rule derives from a lexicon form —
 the `data.grammar.plural` plural of a noun or its own `plural`, a verb's form
 with one ending of `data.grammar.verbs.persons` (in place of a closing
-`data.grammar.verbs.replaces` where one is stated), or a suffix of `data.affixes`
+`data.grammar.verbs.replaces` where one is stated), a suffix of `data.affixes`
 stating `replaces` (`vowel` takes the place of a closing `a`, `e`, `i`, `o` or
 `u`, accented or not; letters take the place of those letters; a stem closing
-otherwise takes the suffix whole). A compound not known whole is checked part by
+otherwise takes the suffix whole), an agreeing form `data.grammar.agreement`
+gives a word of one of its `classes`, or a participle `data.grammar.participles`
+gives a verb (see [optional noun and verb forms](#optional-noun-and-verb-forms)). A compound not known whole is checked part by
 part at its hyphens and en dashes. Any other word is an error at its first
 character, once per run; see
 [a mapped run's words](../authoring/links-and-markup.md#a-mapped-runs-words):
@@ -5882,7 +5884,7 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `names.<name>`                             | `string[]`                                                                                                                     | A list the placeholder of the same name draws from                                                                                                                                   |
 | `family`                                   | `Address`                                                                                                                      | `language` only: the parent language, naming a skill note with `subType: language`; this language reads the parent's words as its own — see [a language's words](#a-languages-words) |
 | `abbreviation`                             | `string`                                                                                                                       | `language` only: the tag a dictionary prints for it, as `Prov.`; its full name where unstated — see [dictionaries and glossaries](#dictionaries-and-glossaries)                      |
-| `grammar`                                  | `{ plural?, verbs? }`                                                                                                          | Optional dictionary noun plurals and one verb pattern; supplied shapes only are checked                                                                                              |
+| `grammar`                                  | `{ plural?, verbs?, agreement?, participles? }`                                                                                | Optional noun plurals, one verb pattern, agreement and participles; supplied shapes only are checked                                                                                 |
 | `grammar.plural`                           | `{ ending, becomes }[]`                                                                                                        | Literal suffix replacements in authored order; the first match wins                                                                                                                  |
 | `grammar.plural[].ending`                  | `string`, required, may be empty                                                                                               | Bare suffix to replace; empty matches every noun                                                                                                                                     |
 | `grammar.plural[].becomes`                 | `string`, required, may be empty                                                                                               | Bare replacement; empty deletes the matching suffix                                                                                                                                  |
@@ -5896,6 +5898,12 @@ SoHL sets `system.quantity` to `1` for each compendium item.
 | `grammar.verbs.persons.youAll`             | `string`, required, may be empty                                                                                               | Ending for you all                                                                                                                                                                   |
 | `grammar.verbs.persons.they`               | `string`, required, may be empty                                                                                               | Ending for they                                                                                                                                                                      |
 | `grammar.verbs.replaces`                   | `string`, nonempty                                                                                                             | Closing letters each ending takes the place of; a citation form closing otherwise takes the ending whole. With `persons` only                                                        |
+| `grammar.agreement`                        | `{ classes, endings }`                                                                                                         | Adjectives, pronouns or any other named classes agree by swapping among `endings`; see [optional noun and verb forms](#optional-noun-and-verb-forms)                                 |
+| `grammar.agreement.classes`                | `string[]`, required, at least one                                                                                             | Word class bases from the [master word classes](#word-classes), each once                                                                                                            |
+| `grammar.agreement.endings`                | `string[]`, required, at least two                                                                                             | The singular endings, one per gender; the `plural` rule gives each one's plural                                                                                                      |
+| `grammar.participles`                      | `{ root, affixes }`                                                                                                            | Participle suffixes on the verb root; see [optional noun and verb forms](#optional-noun-and-verb-forms)                                                                              |
+| `grammar.participles.root`                 | `string[]`, required, at least one, nonempty                                                                                   | Infinitive endings a citation form drops to give the root; the longest that fits wins                                                                                                |
+| `grammar.participles.affixes`              | `string[]`, required, at least one                                                                                             | Suffixes of `affixes`, by `form`, each attaching to the root as its `replaces` says                                                                                                  |
 | `classModifiers`                           | `string[]`                                                                                                                     | `language` only: the word class modifiers the language uses, each from the [master word classes](#word-classes); empty when unstated                                                 |
 | `fields`                                   | `{ name, holds }[]`                                                                                                            | `language` only: the fields its words are grouped under                                                                                                                              |
 | `fields[].name`                            | `string`, required                                                                                                             | The field's name, which a word's `field` names                                                                                                                                       |
@@ -6208,6 +6216,59 @@ with their heads enabled each print their own tables.
 A language uses only its own stated grammar, including for words
 listed from an ancestor; an inherited word retains its explicit plural.
 Grammar is not inherited through `family`.
+
+**Agreement** states which word classes agree with a noun and the singular
+endings they agree by, one for each gender:
+
+```yaml
+grammar:
+  plural:
+    - { ending: os, becomes: oi }
+    - { ending: on, becomes: oi }
+    - { ending: a, becomes: ai }
+  agreement:
+    classes: [adj, pron]
+    endings: [os, a, on]
+```
+
+A word whose class base is one of `classes` and whose form closes on one of
+`endings` (the longest that leaves a stem) also has that ending swapped for
+each other one, and each of those forms, and the word itself, takes the plural
+the `plural` rule gives. So the adjective _alathos_ gives _alatha_ and
+_alathon_, and the plural rule gives _alathoi_ and _alathai_. A word closing on
+no ending, such as _ethlen_, does not agree, and a word of another class, such
+as the noun _marendos_, keeps its own plural alone. `classes` names at least
+one base of the [master word classes](#word-classes), each once, and `endings`
+states at least two endings, each once. Agreement is by these endings alone:
+there are no cases or declensions.
+
+**Participles** attach to the verb root, which is the citation form less its
+infinitive ending:
+
+```yaml
+affixes:
+  - { form: "-andar", gloss: "doing it", replaces: vowel }
+  - { form: "-thos", gloss: "done" }
+grammar:
+  participles:
+    root: [athen, ethen]
+    affixes: ["-andar", "-thos"]
+```
+
+A verb closing on one of `root` (the longest that leaves a root) drops it, and
+each suffix of `data.affixes` that `affixes` names by its `form` attaches to
+what is left as its own `replaces` says, or whole where it states none: the
+`front` form attaches too. So _dokathen_ gives the root _dok-_, which gives
+_dokandar_ and _dokthos_. A participle closing on an agreement ending agrees,
+so _dokthos_ also gives _doktha_, _dokthon_, _dokthoi_ and _dokthai_. A verb
+closing on no `root` ending has no participle. `root` names at least one
+nonempty ending and `affixes` at least one suffix the language's `data.affixes`
+states; an affix it names that is a prefix, or that the language does not
+state, is an error at the entry.
+
+Neither rule is used by the dictionary. Both are read by the
+[mapped-run word check](#mapping-notes), which accepts the forms they give,
+and `package-build lexicon --derived` lists the same forms.
 
 All grammar is optional. Only a supplied key's shape is checked: no language
 must supply a pattern, no noun must supply gender or plural, and no word is

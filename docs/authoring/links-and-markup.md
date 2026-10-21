@@ -590,7 +590,54 @@ Each word, case folded, is one of:
      is `a`, `e`, `i`, `o` or `u`), letters such as `replaces: a` take the
      place of those letters, and a stem that closes otherwise takes the suffix
      whole. An affix that states no `replaces` makes no form here, whatever its
-     `attaches` says, because `attaches` is prose.
+     `attaches` says, because `attaches` is prose;
+   - an agreeing form, where the language states `data.grammar.agreement`: a
+     word of one of its `classes` closing on one of its `endings` takes each
+     other ending in its place, and each form takes the `plural` rule;
+   - a participle, where the language states `data.grammar.participles`: a
+     verb closing on one of its `root` endings drops it, and each suffix it
+     names attaches to the root, agreeing where it closes on an agreement
+     ending.
+
+**Agreement and participles, worked through in Vylari.** Vylari's adjectives
+and pronouns agree with their noun by its endings, and its participles are
+suffixes on the verb root. Its note states both beside its plural rule:
+
+```yaml
+affixes:
+  - form: "-andar"
+    gloss: "doing it: the present participle"
+    replaces: vowel
+  - form: "-thos"
+    gloss: "done, suffered: the past participle"
+grammar:
+  plural:
+    - { ending: os, becomes: oi }
+    - { ending: on, becomes: oi }
+    - { ending: a, becomes: ai }
+  agreement:
+    classes: [adj, pron]
+    endings: [os, a, on]
+  participles:
+    root: [athen, ethen]
+    affixes: ["-andar", "-thos"]
+```
+
+With those, a run accepts:
+
+| Lexicon word      | Rule        | Forms accepted                                    |
+| ----------------- | ----------- | ------------------------------------------------- |
+| _alathos_, pron.  | agreement   | _alatha_, _alathon_, _alathoi_, _alathai_         |
+| _dokathen_, v.    | participles | _dokandar_ (_dok-_ + _-andar_), _dokthos_         |
+| _dokathen_, v.    | both        | _doktha_, _dokthon_, _dokthoi_, _dokthai_         |
+| _marendos_, n. m. | neither     | _marendoi_ by the plural rule alone; no _marenda_ |
+| _solkatora_, v.   | participles | none: the verb closes on no `root` ending         |
+
+_-andar_ closes on no agreement ending, so _dokandar_ does not agree. A
+near miss such as _alathe_ or _dokendar_ is still an unknown word.
+`package-build lexicon vyl --map semaron --derived` lists every form the rules
+give, each beside the word it comes from, so a puzzling finding can be checked
+against what the rules produce.
 
 A compound that is not a word whole is split at its hyphens and en dashes, and
 each part is checked, so `zaron-lonak` passes when `zaron` and `lonak` do. An
