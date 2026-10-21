@@ -37,7 +37,9 @@
  * `draftNotice`, `scriptFonts`), its `menu`, and `pages`, every regular page
  * as `{url, title, section, type, subType, date, content}`. `tagPages` says the site
  * writes a page for each tag, and `pageExists` answers whether a path inside
- * the site is published. `feed` is the site's Atom feed as `{title, url,
+ * the site is published. `visible`, where the site sets it, answers whether a
+ * generated link may point at a URL; the Related card, the previous and next
+ * links and the infobox links leave out, or set as plain text, what it refuses. `feed` is the site's Atom feed as `{title, url,
  * section}`, `section` being the one its posts are listed in, and
  * `mergeIndexes` the search bundles of other sites its search reads beside
  * its own.
@@ -453,11 +455,14 @@ export function createSiteTheme({ site, dir = SITE_THEME_DIR, bannerData, report
         return { bannerUrl: url, title, tagline };
     };
 
-    /** One infobox entry. */
+    /** Whether a generated link may point at a URL: any, where the site sets no `visible`. */
+    const visible = (url) => (typeof site.visible === "function" ? site.visible(url) : true);
+
+    /** One infobox entry; one that leads outside the reachable pages is its text alone. */
     const entryOf = (entry) => ({
         lead: text(entry?.lead),
         text: text(entry?.text),
-        url: entry?.url ? safeUrl(entry.url) : "",
+        url: entry?.url && visible(entry.url) ? safeUrl(entry.url) : "",
     });
 
     /** The value of one row, by its kind. */
@@ -552,7 +557,7 @@ export function createSiteTheme({ site, dir = SITE_THEME_DIR, bannerData, report
         const deliberate = [];
         const merged = [];
         for (const ref of related.seeAlso ?? []) {
-            if (seen.has(ref.url)) continue;
+            if (seen.has(ref.url) || !visible(ref.url)) continue;
             seen.add(ref.url);
             deliberate.push({
                 url: safeUrl(ref.url),
@@ -561,7 +566,7 @@ export function createSiteTheme({ site, dir = SITE_THEME_DIR, bannerData, report
             });
         }
         for (const ref of [...(related.mentions ?? []), ...(related.backlinks ?? [])]) {
-            if (seen.has(ref.url)) continue;
+            if (seen.has(ref.url) || !visible(ref.url)) continue;
             seen.add(ref.url);
             merged.push(ref);
         }
@@ -595,7 +600,15 @@ export function createSiteTheme({ site, dir = SITE_THEME_DIR, bannerData, report
 
     /** The prev/next links of a page. */
     const navOf = (page, narrow) => {
-        const { prev, next } = neighbours(page, narrow);
+        const { prev, next } = neighbours(
+            {
+                ...page,
+                siblings: (page.siblings ?? []).filter(
+                    (item) => item.url === page.url || visible(item.url),
+                ),
+            },
+            narrow,
+        );
         if (!prev && !next) return undefined;
         const link = (item) => item && { url: safeUrl(item.url), title: text(item.title) };
         return { prev: link(prev), next: link(next) };

@@ -240,6 +240,34 @@ describe("the index a deployment carries", () => {
         expect(fragments(site).length).toBeGreaterThan(0);
     });
 
+    it("indexes only the pages reachable from the homepage when it is given the site's base", async () => {
+        const { site } = rendered();
+        page(
+            site,
+            "",
+            "The Package",
+            'A homepage that leads to <a href="/kethira/doc-welcome/">the welcome</a>.',
+        );
+        page(site, "doc-hidden", "Hidden", "Nothing at all links to this page.");
+
+        const { pages } = await indexSite({
+            site,
+            output: path.join(site, SEARCH_DIR),
+            base: "/kethira/",
+        });
+
+        expect(pages).toBe(2);
+        const text = fragments(site)
+            .map((f) =>
+                gunzipSync(fs.readFileSync(path.join(site, SEARCH_DIR, "fragment", f))).toString(
+                    "utf8",
+                ),
+            )
+            .join("\n");
+        expect(text).toContain("Every reader lands on the Kethira welcome page.");
+        expect(text).not.toContain("Nothing at all links to this page.");
+    });
+
     it("refuses a directory that is not there rather than indexing nothing", async () => {
         const dir = scratch("site-search-missing-");
         const site = path.join(dir, "nowhere");
@@ -261,7 +289,12 @@ describe("the index a deployment carries", () => {
             ["contentPackage: toolkit", "packageKind: documentation", ...siteLines, ""].join("\n"),
         );
         const site = path.join(dir, "build", "site", "toolkit");
-        page(site, "", "The Toolkit", "The front of the documentation.");
+        page(
+            site,
+            "",
+            "The Toolkit",
+            'The front of the documentation, and its <a href="/toolkit/doc-commands/">commands</a>.',
+        );
         page(site, "doc-commands", "Commands", "Every command, and what it reads.");
         const r = spawnSync(
             process.execPath,

@@ -657,12 +657,14 @@ The rules are scoped to those hostnames, so a site deployed under a domain of
 its own stays indexable.
 
 With `_headers` written, the rendered site is indexed for search. Pagefind
-reads every page under `<out>/<contentPackage>/` and writes the index into
+reads the pages under `<out>/<contentPackage>/` that are reachable from the
+homepage (see [the pages a reader finds](guides/site.md#decide-which-pages-a-reader-finds))
+and writes the index into
 `<out>/<contentPackage>/pagefind/`, so it is deployed with the pages and served
 at `/<contentPackage>/pagefind/`; the theme loads `pagefind.js` from there,
 relative to the site's base URL, and the browser bundle derives the prefix from
 its own address, so nothing about the prefix is configured on either side. What
-is indexed is the body of every page and the homepage; the theme marks its own
+is indexed is the body of every reachable page and the homepage; the theme marks its own
 chrome — header, footer, breadcrumbs, infobox, the related-pages card —
 `data-pagefind-ignore`, and carries `data-pagefind-filter` attributes for a
 page's `type` and `package`, so a search can be narrowed to one kind of page.
@@ -2577,7 +2579,7 @@ emptied first:
   `site.sections` names at its section, every other note at
   `<type>-<shortcode>/` — each minified;
 - `404.html`, the page-not-found page `site.notfound` describes;
-- `sitemap.xml`, every page by its full address;
+- `sitemap.xml`, the full address of every page reachable from the homepage;
 - the theme's stylesheets, scripts, icon font and images, and `css/code.css`;
 - the script fonts the notes set text in, under
   `fonts/heroiclands/<version>/`;
@@ -2595,8 +2597,8 @@ page-not-found page and reported as a warning located at that entry of
 the content tree is an error located at its entry, and writes nothing.
 
 Then, as `package-build site-root` does, `_headers` is written at `<out>/` and
-the pages are indexed for search into `pagefind/` inside the site's directory,
-unless `site.search` is `false`. With `site.mergeIndexes`, the search reads
+the pages reachable from the homepage are indexed for search into `pagefind/`
+inside the site's directory, unless `site.search` is `false`. With `site.mergeIndexes`, the search reads
 each package site's index beside its own. What a page tells the search is set
 out in the [site guide](guides/site.md#search).
 

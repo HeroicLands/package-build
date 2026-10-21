@@ -876,3 +876,65 @@ describe("the theme's partials", () => {
         expect(() => theme.partial("glyph")).toThrow(/no partial named "glyph"/);
     });
 });
+
+describe("generated links that lead outside the reachable pages", () => {
+    const outside = new Set(["/demo/hidden/"]);
+    const site = { ...FULL, visible: (url: string) => !outside.has(url) };
+    const page = {
+        kind: "page",
+        title: "Here",
+        url: "/demo/here/",
+        params: {
+            type: "doc",
+            infoboxes: [
+                box([
+                    {
+                        id: "profile",
+                        layout: "rows",
+                        rows: [
+                            {
+                                label: "Seat",
+                                kind: "link",
+                                value: { text: "Hidden Hall", url: "/demo/hidden/" },
+                            },
+                            {
+                                label: "Home",
+                                kind: "link",
+                                value: { text: "Open Hall", url: "/demo/open/" },
+                            },
+                        ],
+                    },
+                ]),
+            ],
+            related: {
+                seeAlso: [
+                    { url: "/demo/hidden/", title: "Hidden Hall", gloss: "" },
+                    { url: "/demo/open/", title: "Open Hall", gloss: "" },
+                ],
+                backlinks: [{ url: "/demo/hidden/", title: "Hidden Hall", type: "doc" }],
+                mentions: [],
+            },
+        },
+        siblings: [
+            { url: "/demo/before/", title: "Before" },
+            { url: "/demo/here/", title: "Here" },
+            { url: "/demo/hidden/", title: "Hidden Hall" },
+            { url: "/demo/after/", title: "After" },
+        ],
+        content: "<p>Text.</p>",
+    };
+
+    it("sets an infobox link as plain text and leaves the Related card and the neighbours without it", () => {
+        const html = createSiteTheme({ site }).render(page);
+        expect(html).not.toContain('href="/demo/hidden/"');
+        expect(html).toContain("Hidden Hall");
+        expect(html).toContain('href="/demo/open/"');
+        expect(html).toContain('href="/demo/after/"');
+        expect(html).toContain('href="/demo/before/"');
+    });
+
+    it("draws every generated link where the site sets no `visible`", () => {
+        const html = createSiteTheme({ site: FULL }).render(page);
+        expect(html).toContain('href="/demo/hidden/"');
+    });
+});

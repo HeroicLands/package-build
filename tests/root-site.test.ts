@@ -22,6 +22,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { gunzipSync } from "node:zlib";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cacheNavigation, fixtureConfig } from "./helpers/parity";
@@ -183,6 +185,20 @@ describe("package-build site build, for a root site", () => {
             ]),
         );
         expect(locs.some((loc) => loc.includes("doc-blog"))).toBe(false);
+    });
+
+    it("writes a page nothing links to, and lists it in neither the sitemap nor the search", () => {
+        expect(fs.existsSync(path.join(out, "doc-unlinkedstudy", "index.html"))).toBe(true);
+        expect(read("sitemap.xml")).not.toContain("doc-unlinkedstudy");
+        // The sitemap index names sitemaps, never pages.
+        expect(read("sitemap-index.xml")).not.toContain("doc-");
+        const fragments = path.join(out, "pagefind", "fragment");
+        const indexed = fs
+            .readdirSync(fragments)
+            .map((f) => gunzipSync(fs.readFileSync(path.join(fragments, f))).toString("utf8"))
+            .join("\n");
+        expect(indexed).not.toContain("quillfeather");
+        expect(indexed).toContain("Second Lantern");
     });
 
     it("tells its search to read the package site's index beside its own", () => {

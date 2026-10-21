@@ -315,7 +315,13 @@ describe("a site served under a path", () => {
         writeSite({
             site,
             pages: [
-                { kind: "home", title: "Demo", url: "/demo/", params: {}, content: "<p>Home.</p>" },
+                {
+                    kind: "home",
+                    title: "Demo",
+                    url: "/demo/",
+                    params: { type: "homepage" },
+                    content: '<p><a href="/demo/lore-note/">A note</a></p>',
+                },
                 {
                     kind: "page",
                     title: "A Note",

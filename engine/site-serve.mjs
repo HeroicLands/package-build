@@ -45,6 +45,7 @@ import path from "node:path";
 import { siteBuildFailed } from "./site-build.mjs";
 import { SITE_THEME_DIR } from "./site-theme.mjs";
 import { SITE_STATIC_DIR, buildPackageSite, writeSite, writeThemeFiles } from "./site-render.mjs";
+import { siteBase } from "../content-config.mjs";
 import { SEARCH_DIR, indexSite } from "./site-root.mjs";
 
 /** The address a served page listens on for the server's reloads. */
@@ -165,7 +166,7 @@ export async function serveSite({
 
     const indexForSearch = async () => {
         if (!search || config.site.search === false || !state) return;
-        await indexSite({ site: out, output: path.join(out, SEARCH_DIR) });
+        await indexSite({ site: out, output: path.join(out, SEARCH_DIR), base: siteBase(config) });
     };
 
     await buildAll();

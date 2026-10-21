@@ -50,6 +50,12 @@
  * | `feed: {section, title}` | `<section>/atom.xml`, the section's pages, newest first |
  * | `sitemaps: [...]` | `sitemap-index.xml`, naming this site's sitemap and each one listed, and `robots.txt` naming them all |
  *
+ * Every page is written, but `sitemap.xml` lists only the pages reachable from
+ * the homepage by the links the rendered pages carry; see
+ * {@link module:engine/site-reach}. A feed is a link, so the pages it lists
+ * are reachable when a page links the feed, and a section or tag page lists
+ * pages it links to the same way.
+ *
  * A sitemap index and `robots.txt` belong at the root of an origin, so a site
  * served under a path refuses `sitemaps`.
  *
@@ -76,6 +82,7 @@ import {
 import { buildSite, gatesFailed } from "./site-build.mjs";
 import { readCachedNavigation, siteSettings } from "./site-config.mjs";
 import { atomFeed, robotsTxt, sitemapIndexXml, sitemapXml } from "./site-files.mjs";
+import { pageAddress, pruneGenerated, reachablePages, splitContent } from "./site-reach.mjs";
 import { prepareTreeSqlTables } from "./sql-tables.mjs";
 import { placeGeography, searchMetadata } from "./site-search.mjs";
 import {
@@ -298,8 +305,9 @@ export function writeThemeFiles(out, staticDir = SITE_STATIC_DIR) {
  * @param {string} [options.staticDir] - The theme's own files, copied first.
  * @param {ReadonlySet<string>} [options.only] - The addresses of the pages to
  *   draw again into a site already written. Nothing else is touched.
- * @returns {{files: string[], pages: string[], findings: object[]}} Every file
- *   written, the address of every page, and the layouts' findings.
+ * @returns {{files: string[], pages: string[], reachable: string[],
+ *   findings: object[]}} Every file written, the address of every page, the
+ *   address of each page reachable from the homepage, and the layouts' findings.
  * @throws {Error} When a page's address is outside the site, or a site served
  *   under a path asks for a sitemap index.
  */
@@ -311,32 +319,95 @@ export function writeSite({ site, pages, out, report, staticDir = SITE_STATIC_DI
     const tree = siteTree(site, pages);
     const published = new Set(tree.map((page) => page.url));
     const feedUrl = site.feed ? relUrl(site, `${site.feed.section}/atom.xml`) : "";
-    const theme = createSiteTheme({
-        site: {
-            ...site,
-            feed:
-                site.feed ?
-                    {
-                        title: site.feed.title ?? site.title,
-                        url: feedUrl,
-                        section: text(site.feed.section),
-                    }
-                :   undefined,
-            pages: tree
-                .filter((page) => page.kind === "page")
-                .map((page) => ({
-                    url: page.url,
-                    title: page.title,
-                    section: text(page.section),
-                    type: page.params?.type,
-                    subType: page.params?.subType,
-                    date: page.date ?? page.params?.date,
-                    content: page.content,
-                })),
-            pageExists: (url) => published.has(url) || published.has(`${url.replace(/\/?$/, "/")}`),
-        },
-        report,
+    const base = basePath(site);
+    const origin = (url) => new URL(url, site.baseURL).href;
+
+    // The address of the page a URL names, or undefined where it names none of
+    // this site's.
+    const pageOfUrl = (url) => {
+        let pathname;
+        try {
+            const resolved = new URL(String(url), origin(base));
+            if (resolved.origin !== new URL(site.baseURL).origin) return undefined;
+            pathname = decodeURI(resolved.pathname);
+        } catch {
+            return undefined;
+        }
+        const address = pageAddress(pathname);
+        return published.has(address) ? address : undefined;
+    };
+
+    // A page is drawn twice. The first draw has no generated link to a page,
+    // and the pages it links are the reachable ones; the second draws the
+    // generated sections again with the links that stay inside that set.
+    const makeTheme = ({ visible, contentOf, report: sink }) =>
+        createSiteTheme({
+            site: {
+                ...site,
+                visible,
+                feed:
+                    site.feed ?
+                        {
+                            title: site.feed.title ?? site.title,
+                            url: feedUrl,
+                            section: text(site.feed.section),
+                        }
+                    :   undefined,
+                pages: tree
+                    .filter((page) => page.kind === "page")
+                    .map((page) => ({
+                        url: page.url,
+                        title: page.title,
+                        section: text(page.section),
+                        type: page.params?.type,
+                        subType: page.params?.subType,
+                        date: page.date ?? page.params?.date,
+                        content: contentOf(page),
+                    })),
+                pageExists: (url) =>
+                    published.has(url) || published.has(`${url.replace(/\/?$/, "/")}`),
+            },
+            report: sink,
+        });
+    const authoredOf = (page) => splitContent(page.content).authored;
+    const first = makeTheme({
+        visible: (url) => pageOfUrl(url) === undefined,
+        contentOf: authoredOf,
     });
+    const firstPass = new Map();
+    for (const page of tree)
+        firstPass.set(
+            page.url,
+            first.render({
+                ...page,
+                content: page.content === undefined ? undefined : authoredOf(page),
+                permalink: origin(page.url),
+            }),
+        );
+
+    const section = site.feed ? text(site.feed.section) : "";
+    const time = (page) => new Date(text(page.date ?? page.params?.date)).getTime() || 0;
+    const posts =
+        site.feed ?
+            tree
+                .filter((page) => page.kind === "page" && text(page.section) === section)
+                .sort((a, b) => time(b) - time(a))
+        :   [];
+    const reachable = reachablePages({
+        base,
+        html: (url) => firstPass.get(url),
+        expand: (target) => (site.feed && target === feedUrl ? posts.map((post) => post.url) : []),
+    });
+    const outside = (url) => {
+        const address = pageOfUrl(url);
+        return address !== undefined && !reachable.has(address);
+    };
+    const contentOf = (page) => {
+        if (page.content === undefined) return page.content;
+        const { authored, generated } = splitContent(page.content);
+        return authored + pruneGenerated(generated, outside);
+    };
+    const theme = makeTheme({ visible: (url) => !outside(url), contentOf, report });
 
     const files = [];
     const write = (file, content) => {
@@ -344,15 +415,22 @@ export function writeSite({ site, pages, out, report, staticDir = SITE_STATIC_DI
         fs.writeFileSync(file, content);
         files.push(file);
     };
-    const origin = (url) => new URL(url, site.baseURL).href;
-    const draw = (page) =>
-        write(
-            pageFile(site, out, page.url),
-            minifyHtml(theme.render({ ...page, permalink: origin(page.url) })),
+    const draw = (page) => {
+        const html = minifyHtml(
+            theme.render({ ...page, content: contentOf(page), permalink: origin(page.url) }),
         );
+        write(pageFile(site, out, page.url), html);
+    };
+    const result = (extra = {}) => ({
+        files,
+        pages: tree.map((page) => page.url),
+        reachable: [...reachable],
+        findings: theme.findings,
+        ...extra,
+    });
     if (only) {
         for (const page of tree) if (only.has(page.url)) draw(page);
-        return { files, pages: tree.map((page) => page.url), findings: theme.findings };
+        return result();
     }
 
     fs.rmSync(out, { recursive: true, force: true });
@@ -373,19 +451,16 @@ export function writeSite({ site, pages, out, report, staticDir = SITE_STATIC_DI
     write(
         path.join(out, "sitemap.xml"),
         sitemapXml(
-            tree.map((page) => ({
-                loc: origin(page.url),
-                lastmod: page.params?.lastmod ?? page.date ?? page.params?.date,
-            })),
+            tree
+                .filter((page) => reachable.has(page.url))
+                .map((page) => ({
+                    loc: origin(page.url),
+                    lastmod: page.params?.lastmod ?? page.date ?? page.params?.date,
+                })),
         ),
     );
 
     if (site.feed) {
-        const section = text(site.feed.section);
-        const time = (page) => new Date(text(page.date ?? page.params?.date)).getTime() || 0;
-        const posts = tree
-            .filter((page) => page.kind === "page" && text(page.section) === section)
-            .sort((a, b) => time(b) - time(a));
         write(
             path.join(out, ...section.split("/").filter(Boolean), "atom.xml"),
             atomFeed({
@@ -394,7 +469,7 @@ export function writeSite({ site, pages, out, report, staticDir = SITE_STATIC_DI
                 self: origin(feedUrl),
                 author: site.params?.author,
                 entries: posts.map((post) => {
-                    const words = plainText(post.content).split(" ").filter(Boolean);
+                    const words = plainText(contentOf(post)).split(" ").filter(Boolean);
                     return {
                         title: post.title,
                         url: origin(post.url),
@@ -405,7 +480,7 @@ export function writeSite({ site, pages, out, report, staticDir = SITE_STATIC_DI
                             (words.length > SUMMARY_WORDS ?
                                 `${words.slice(0, SUMMARY_WORDS).join(" ")}…`
                             :   words.join(" ")),
-                        content: post.content,
+                        content: contentOf(post),
                     };
                 }),
             }),
@@ -420,7 +495,7 @@ export function writeSite({ site, pages, out, report, staticDir = SITE_STATIC_DI
         write(path.join(out, "robots.txt"), robotsTxt([index, ...all]));
     }
 
-    return { files, pages: tree.map((page) => page.url), findings: theme.findings };
+    return result();
 }
 
 /**

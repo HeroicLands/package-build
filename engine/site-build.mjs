@@ -99,6 +99,7 @@ import { checkHomepageCount, homepageFrontmatter, homepageTitle, isHomepage } fr
 import { publishesContentPages, siteBase } from "../content-config.mjs";
 import { seeAlsoPages } from "./see-also.mjs";
 import { homepageLinkTargets, relatedPages } from "./related-pages.mjs";
+import { GENERATED_MARK } from "./site-reach.mjs";
 import { drawSiteMaps, inlineDrawingFigure } from "./site-maps.mjs";
 import { generatedDrawing } from "./generated-sections.mjs";
 import { IMAGE_PATTERN } from "./content-images.mjs";
@@ -784,7 +785,13 @@ export function renderSitePage(
     const tableErrors = expanded.findings.tables;
     const expressionErrors = expanded.findings.expressions;
     const wikiErrors = expanded.findings.links;
-    const resolvedBody = expanded.markdown;
+    // The author's text and the sections the build generated after it are
+    // told apart by a comment, so the site writer can leave the generated
+    // links out of what makes a page reachable.
+    const resolvedBody =
+        expanded.generated ?
+            `${expanded.authored}\n\n${GENERATED_MARK}\n\n${expanded.generated}`
+        :   expanded.markdown;
     for (const error of expanded.findings.captions)
         captionErrors.push({
             file: page.file,

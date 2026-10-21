@@ -223,6 +223,49 @@ The build writes these keys; [what the theme draws](../reference/theme-pages.md)
 describes the panel each one feeds — the infobox, the hero band, the related
 card, and search — and the generated sections the theme draws as any other.
 
+## Decide which pages a reader finds
+
+Every note is written as a page, linked or not, and a page is served at its
+address. What a reader can find is what the homepage leads to: the sitemap and
+the site search cover the pages reachable from the homepage, directly or
+through the pages it links, and no others.
+
+Reachability is read from the links the rendered pages carry, never from the
+notes' sources. A page is reachable when an authored link leads to it:
+
+- a link in the homepage or in the body of a reachable note, including the
+  links a `pagelist` or a `sql` table writes into the body;
+- a link in the menu or the rest of the site chrome;
+- a link in a listing: the pages of a section page, a tag page, and the posts
+  an Atom feed lists, once a reachable page links the section, the tag or the
+  feed. A tag chip on a reachable page links its tag page when `site.tags` is
+  on, so every page carrying the tag is then reachable.
+
+The links the build generates do not make a page reachable. These are the
+Related card, the previous and next links, the infobox links, and the sections
+generated after a note's text (Within, Governed by, Governed places,
+Chronology, Events, Accounts, What followed, In song and story). Each is drawn
+without a link to a page outside the reachable set, and a section left with
+nothing under it is not drawn. An infobox value that names an unreachable page
+is set as plain text. A link written in prose or produced by a query is kept
+wherever it points, and it is what makes its target reachable.
+
+A page that is not reachable is the way to preview a page in place. Write the
+note, build the site, and read the page at its address on the live site; link
+it from the homepage or from a linked page when it is ready to publish. For a
+note `doc-charlie` in the package `setting`:
+
+1. Add `doc-charlie` to the content tree. It is written at
+   `/setting/doc-charlie/` and appears in neither the sitemap nor the search.
+2. Read it at `/setting/doc-charlie/`.
+3. Link it, for example `[[doc-charlie|Charlie]]` in a linked note, to publish
+   it. The next build lists it in the sitemap and the search.
+
+An address is a short code and the site serves no directory listing, so an
+unlinked page is found only by someone who knows its address. The content
+index that `package-build content-index` writes is a release asset and is not
+part of the site.
+
 ## Show marked text in its font
 
 A site shows text marked with `font=` and one of the faces of

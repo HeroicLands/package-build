@@ -58,7 +58,20 @@ beforeAll(async () => {
         fs.writeFileSync(file, body);
     };
 
-    write("homepage.md", note(["type: homepage", "shortcode: root", "title: The Demo"]));
+    // The homepage links every page, so the whole fixture is reachable and the
+    // generated sections can be read in full.
+    write(
+        "homepage.md",
+        note(
+            ["type: homepage", "shortcode: root", "title: The Demo"],
+            [
+                "[Region](place-rgn/)",
+                "[Hamlet](place-ham/)",
+                "[House](affiliation-house/)",
+                "[Lay](lore-hamlay/)",
+            ].join("\n\n"),
+        ),
+    );
     write(
         "Places/place-rgn.md",
         note(
@@ -96,6 +109,22 @@ beforeAll(async () => {
             "    borders:",
             "        - { to: rgn, bearing: N }",
         ]),
+    );
+    // Nothing links to this place, but the region lists it as a part.
+    write(
+        "Places/place-lost.md",
+        note(
+            [
+                "type: place",
+                "subType: hamlet",
+                "shortcode: lost",
+                "name:",
+                "    full: Lost Mere",
+                "data:",
+                "    parents: [place-rgn]",
+            ],
+            "A hamlet on [[place-rgn|the moor]].",
+        ),
     );
     write(
         "Affiliations/affiliation-house.md",
@@ -226,6 +255,16 @@ describe("the site renders a page the build emitted", () => {
         const within = section("place-rgn", "within");
         expect(within).toContain("Within");
         expect(within).toMatch(/<a href="[^"]*place-ham\/"[^>]*>Little Ham<\/a>/);
+    });
+
+    it("leaves an unlinked page out of the sections of the pages that name it", () => {
+        const region = html.get("place-rgn/index.html")!;
+        expect(region).not.toContain("place-lost");
+        expect(region).not.toContain("Lost Mere");
+        expect(section("place-rgn", "within")).toContain("Little Ham");
+        // The page itself is still written, and its link to the region stays.
+        const lost = html.get("place-lost/index.html")!;
+        expect(lost).toMatch(/href="[^"]*place-rgn\/"/);
     });
 
     it("renders the governing body and its reverse place list as sections", () => {

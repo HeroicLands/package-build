@@ -1,0 +1,10 @@
+# A package site with one unlinked branch. It is copied into a scratch
+# directory before any build runs; nothing here is built in place.
+contentPackage: reachdemo
+packageKind: documentation
+authors:
+    - name: Cy Editor
+site:
+    title: Reach Demo
+    description: A demonstration of which pages a reader can reach.
+    assets: https://cdn.example.org

@@ -52,6 +52,8 @@ import fs from "node:fs";
 import path from "node:path";
 import * as pagefind from "pagefind";
 
+import { feedPaths, reachablePages } from "./site-reach.mjs";
+
 import { formatDiagnostic } from "./diagnostics.mjs";
 
 /**
@@ -148,10 +150,39 @@ export function headers({ pkg, base, fonts = false } = {}) {
  * binary.
  *
  * @callback SiteIndexer
- * @param {{site: string, output: string}} where - The rendered site, and the
- *   directory inside it the index is written to.
+ * @param {{site: string, output: string, base?: string}} where - The rendered
+ *   site, the directory inside it the index is written to, and the path the
+ *   site is served at. With a `base`, only the pages reachable from the
+ *   homepage are indexed.
  * @returns {Promise<{pages: number}>} How many pages were indexed.
  */
+
+/**
+ * The addresses of the pages reachable from a rendered site's homepage.
+ *
+ * @param {string} site - The rendered site's directory, served at `base`.
+ * @param {string} base - The path the site is served at.
+ * @returns {Set<string>} Page addresses, each beginning with `base`.
+ */
+function reachableFromDisk(site, base) {
+    const file = (url) => path.join(site, ...url.slice(base.length).split("/").filter(Boolean));
+    const read = (target) => {
+        try {
+            return fs.readFileSync(target, "utf8");
+        } catch {
+            return undefined;
+        }
+    };
+    return reachablePages({
+        base,
+        html: (url) => read(path.join(file(url), "index.html")),
+        expand: (target) => {
+            if (!target.endsWith(".xml")) return [];
+            const xml = read(file(target));
+            return xml === undefined ? [] : feedPaths(xml);
+        },
+    });
+}
 
 /**
  * Build the search index of a rendered site with Pagefind.
@@ -168,12 +199,17 @@ export function headers({ pkg, base, fonts = false } = {}) {
  * - The binary missing is reported by the package as an install failure of
  *   its own; it is rethrown naming the platform package to install.
  *
+ * With a `base`, the index covers the pages reachable from the homepage by
+ * the links the rendered HTML carries, and no others: an unlinked page is
+ * served but not searchable. Each reachable page is handed to Pagefind as its
+ * own file, so a page outside the set is never read.
+ *
  * The output directory is emptied first, so an index of an earlier build's
  * pages never survives beside the current one.
  *
  * @type {SiteIndexer}
  */
-export async function indexSite({ site, output }) {
+export async function indexSite({ site, output, base }) {
     if (!fs.statSync(site, { throwIfNoEntry: false })?.isDirectory()) {
         throw new Error(`${site} is not a directory, so there is nothing to index`);
     }
@@ -200,9 +236,23 @@ export async function indexSite({ site, output }) {
     }
     let pages;
     try {
-        const added = await index.addDirectory({ path: site });
-        if (added.errors.length) throw new Error(added.errors.join("; "));
-        pages = added.page_count;
+        if (base) {
+            pages = 0;
+            for (const url of reachableFromDisk(site, base)) {
+                const sourcePath = path.posix.join(
+                    ...url.slice(base.length).split("/"),
+                    "index.html",
+                );
+                const content = fs.readFileSync(path.join(site, sourcePath), "utf8");
+                const added = await index.addHTMLFile({ sourcePath, content });
+                if (added.errors.length) throw new Error(added.errors.join("; "));
+                pages += 1;
+            }
+        } else {
+            const added = await index.addDirectory({ path: site });
+            if (added.errors.length) throw new Error(added.errors.join("; "));
+            pages = added.page_count;
+        }
         if (!pages) {
             throw new Error(`no page under ${site} was indexed — the site holds no HTML`);
         }
@@ -281,7 +331,7 @@ export async function writeSiteRoot({ pkg, base, out, search = true, indexer = i
     }
     let pages;
     try {
-        ({ pages } = await indexer({ site: rendered, output: dir }));
+        ({ pages } = await indexer({ site: rendered, output: dir, base: prefix }));
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         // A directory, so the locator is the file field alone: there is no
