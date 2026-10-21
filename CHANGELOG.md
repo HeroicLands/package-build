@@ -1,5 +1,53 @@
 # @heroiclands/package-build
 
+## 23.13.0
+
+### Minor Changes
+
+**Language registers**
+
+- A register row tagged `other:<tongue>` or `exonym:<tongue>` that its tongue's own register does not list, or whose tongue no language note claims, is an error instead of a warning, so a package carrying one now fails its lint.
+
+**Verse**
+
+- A poem is written in a ` ```verse ` fence, with the same keys as before; a ` ```poetry ` fence is an ordinary code block, so rename each one to keep it a poem.
+- On the site and in Foundry journals a poem carries the classes `verse` and `verse-line`; restyle any stylesheet that targets the old names.
+
+### Patch Changes
+
+**Languages**
+
+- An affix may name the word classes it attaches to in `attachesTo`, such as `[n, adj]`; mapped text then accepts its forms of those words alone.
+- An affix that names no classes attaches to words of every class.
+
+**Installing**
+
+- `npm audit` in a package that installs this one reports no sprintf-js advisory.
+
+**Names in prose**
+
+- Bold text is emphasis only: a bold label such as `**Strength**:` draws no warning asking you to mark or link it as a name.
+- A name marked with a `data-type` is compared only with notes of that type and subtype: a lineage that shares its name with a place draws no warning to link the place.
+
+**Definition lists**
+
+- A term with several descriptions sets each description on its own line on the site and in Foundry journals, instead of running them together.
+
+**Language notes**
+
+- A language may state `agreement` and `participles` in its grammar, and the word check then accepts its adjectives' and pronouns' agreeing forms and its participles on the verb root.
+- `package-build lexicon --derived` lists every form a language's rules derive, each beside the word it comes from.
+
+**Content index**
+
+- Two notes that spell a key of the same map with different case, such as `carved` and `Carved`, are reported at both notes and their lines, instead of aborting with a message that names no file.
+
+**Verse**
+
+- A poem can number its lines with `numstep=`, and can be set in up to two columns with `col1=` and `col2=`, such as a verse in a script beside its English, line for line.
+- Each column stacks entries that set one written line through a mapping and a font, so a line typed once in roman shows in its script and in roman.
+- A line that does not pair across the columns is an error at that line.
+
 ## 23.12.8
 
 ### Patch Changes
