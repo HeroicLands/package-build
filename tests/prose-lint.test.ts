@@ -533,4 +533,16 @@ describe("package-build markdown", () => {
         const r = await lintMarkdown(root);
         expect(r.findings).toEqual([]);
     });
+
+    it("applies the rules an options file's config extends", async () => {
+        write("a.md", "Some *emphasis* here.\n");
+        write("base.json", JSON.stringify({ default: false }));
+        write(
+            ".markdownlint-cli2.jsonc",
+            JSON.stringify({ config: { extends: "base.json", MD049: false } }),
+        );
+        const r = await lintMarkdown(root);
+        expect(r.findings).toEqual([]);
+        expect(r.exitCode).toBe(0);
+    });
 });

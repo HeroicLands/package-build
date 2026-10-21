@@ -374,15 +374,15 @@ still wants that file excluded. The command always excludes `node_modules` and
 The options file accepts a closed set of keys, and any other key is refused with
 a located diagnostic:
 
-| Key              | Where                | Meaning                                                                   |
-| ---------------- | -------------------- | ------------------------------------------------------------------------- |
-| `config`         | any directory        | Rule settings, merged rule by rule over the settings above it.            |
-| `customRules`    | any directory        | Module ids (resolved from that directory) or rule objects to add.         |
-| `frontMatter`    | any directory        | Regular expression source matching a front matter block.                  |
-| `ignores`        | any directory        | Globs, relative to that directory, whose files are skipped.               |
-| `noInlineConfig` | any directory        | `true` to disregard `<!-- markdownlint-... -->` comments.                 |
-| `globs`          | repository root only | Globs of files to lint, in addition to `**/*.md` when no paths are named. |
-| `gitignore`      | repository root only | `false` to lint files that `.gitignore` files exclude; `true` by default. |
+| Key              | Where                | Meaning                                                                                                                                                                 |
+| ---------------- | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `config`         | any directory        | Rule settings, merged rule by rule over the settings above it. An `extends` key inside it names a rule file, relative to the options file, whose settings it builds on. |
+| `customRules`    | any directory        | Module ids (resolved from that directory) or rule objects to add.                                                                                                       |
+| `frontMatter`    | any directory        | Regular expression source matching a front matter block.                                                                                                                |
+| `ignores`        | any directory        | Globs, relative to that directory, whose files are skipped.                                                                                                             |
+| `noInlineConfig` | any directory        | `true` to disregard `<!-- markdownlint-... -->` comments.                                                                                                               |
+| `globs`          | repository root only | Globs of files to lint, in addition to `**/*.md` when no paths are named.                                                                                               |
+| `gitignore`      | repository root only | `false` to lint files that `.gitignore` files exclude; `true` by default.                                                                                               |
 
 An options file in a subdirectory applies to that directory and below, merged
 over the root's. A `.markdownlint.jsonc`, `.json`, `.yaml`, `.yml`, `.cjs` or

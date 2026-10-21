@@ -8,6 +8,10 @@ types/
 # instead and never reads the file.
 /packagebuild-metadata.jsonl
 
+# markdownlint, bundled by `npm run build:vendor`, which `prepare` and `prepack`
+# run, so the published tarball carries it and the tree does not.
+/vendor/
+
 # Build dir
 /build/
 

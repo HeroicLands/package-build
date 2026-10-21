@@ -218,7 +218,9 @@ describe("the markdown linter's dependencies", () => {
         expect(Object.keys(manifest.devDependencies ?? {})).not.toContain("markdownlint-cli2");
     });
 
-    it("drives the markdownlint library directly", () => {
-        expect(Object.keys(manifest.dependencies)).toContain("markdownlint");
+    it("drives the markdownlint library, bundled rather than installed", () => {
+        // `markdownlint-vendored.test.ts` proves the bundle is that library.
+        expect(Object.keys(manifest.devDependencies)).toContain("markdownlint");
+        expect(Object.keys(manifest.dependencies)).not.toContain("markdownlint");
     });
 });

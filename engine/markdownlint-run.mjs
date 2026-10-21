@@ -51,11 +51,16 @@ import {
     printParseErrorCode,
 } from "jsonc-parser";
 import markdownIt from "markdown-it";
-import { applyFixes, resolveModule } from "markdownlint";
-import { extendConfig, lint, readConfig } from "markdownlint/promise";
 import { minimatch } from "minimatch";
 import { LineCounter, parse as parseYaml, parseDocument } from "yaml";
 
+import {
+    applyFixes,
+    extendConfig,
+    lint,
+    readConfig,
+    resolveModule,
+} from "../vendor/markdownlint.mjs";
 import { walkFiles } from "./walk-files.mjs";
 
 /** Option-file names, in the order the first existing one is taken. */
@@ -313,7 +318,8 @@ async function validateOptions(file, text, raw, isRoot) {
  */
 async function extendRules(file, config) {
     try {
-        return await extendConfig(config, file, [...CONFIG_PARSERS]);
+        // `extendConfig`, unlike `readConfig`, has no default file system.
+        return await extendConfig(config, file, [...CONFIG_PARSERS], fs);
     } catch (err) {
         throw new MarkdownConfigError(file, `cannot resolve \`extends\`: ${err.message}`);
     }

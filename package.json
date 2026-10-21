@@ -133,7 +133,8 @@
         "sohl",
         "stage.mjs",
         "templates.mjs",
-        "types"
+        "types",
+        "vendor"
     ],
     "dependencies": {
         "@duckdb/node-api": "^1.5.5-r.4",
@@ -160,7 +161,6 @@
         "markdown-it": "^15.0.0",
         "markdown-it-deflist": "^4.0.0",
         "markdown-it-footnote": "^4.0.0",
-        "markdownlint": "^0.42.0",
         "minimatch": "^10.2.6",
         "pagefind": "^1.5.2",
         "prettier": "^3.9.6",
@@ -185,6 +185,8 @@
     "devDependencies": {
         "@changesets/cli": "^3.0.0",
         "@types/node": "^26.2.0",
+        "esbuild": "^0.28.2",
+        "markdownlint": "^0.42.0",
         "npm-run-all": "^4.1.5",
         "vitest": "^5.0.0"
     },
@@ -193,7 +195,8 @@
         "test:watch": "vitest",
         "build": "node bin/package-build.mjs ci",
         "deploy:npm": "node ci/publish-npm.mjs",
-        "prepack": "run-s build:types build:asset-index",
+        "prepack": "run-s build:vendor build:types build:asset-index",
+        "build:vendor": "node scripts/vendor-markdownlint.mjs",
         "build:types": "tsc -p tsconfig.dts.json",
         "build:asset-index": "node ci/emit-asset-index.mjs",
         "format": "node ci/prettier.mjs --write",
@@ -210,7 +213,7 @@
         "lint:content-format:fields": "node bin/package-build.mjs content-format fields --fields sohl && node bin/package-build.mjs content-format fields --fields hm3",
         "changeset": "changeset",
         "changeset:version": "changeset version && node bin/package-build.mjs changelog group && npm install --package-lock-only",
-        "prepare": "git config core.hooksPath .githooks || true",
+        "prepare": "(git config core.hooksPath .githooks || true) && (test ! -e scripts/vendor-markdownlint.mjs || npm run build:vendor)",
         "build:deps": "node bin/package-build.mjs deps fetch"
     },
     "engines": {
