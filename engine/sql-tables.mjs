@@ -603,11 +603,7 @@ async function createEventRelation(connection, file, records, prefix, audience) 
     fs.writeFileSync(file, rows.map((row) => JSON.stringify(row)).join("\n"));
     // `whenIn` and `untilIn` are keyed by calendar Address, and read as structs
     // whatever their number of keys, so `whenIn['<calendar>']` always binds.
-    await createTableFromFile(
-        connection,
-        `${prefix}events`,
-        readJsonAuto(file).replace(/\)$/, ", map_inference_threshold=-1)"),
-    );
+    await createTableFromFile(connection, `${prefix}events`, readJsonAuto(file));
 }
 
 /**
@@ -941,13 +937,20 @@ async function createRowRelation(connection, file, rows, view, columns, types) {
  * type's fields with `NULL` where a record lacks one. A dependency's index has
  * exactly the same shape and needs exactly the same reading.
  *
+ * `map_inference_threshold=-1` keeps every object a struct. Left at its default,
+ * DuckDB reads an object whose keys are sparsely spread across rows (the mean
+ * share of rows carrying a key falls under `field_appearance_threshold`) as a
+ * map, so `data.<key>` changes meaning with the corpus: one more field on one
+ * note can turn a plain comparison into a JSON conversion error.
+ *
  * @param {string} file - The JSONL to read.
  * @returns {string} The `SELECT … FROM read_json_auto(…)` clause.
  */
 function readJsonAuto(file) {
     return (
         `SELECT * FROM read_json_auto('${file.replace(/'/g, "''")}', ` +
-        `format='newline_delimited', union_by_name=true, maximum_object_size=20000000)`
+        `format='newline_delimited', union_by_name=true, maximum_object_size=20000000, ` +
+        `map_inference_threshold=-1)`
     );
 }
 

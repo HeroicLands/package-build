@@ -263,6 +263,38 @@ describe("querying the index", () => {
         expect(result.rows[0].Cat).toBeNull();
     });
 
+    it("keeps `data` a struct however sparsely its keys are spread across notes", async () => {
+        // Many keys, each on one note, is what DuckDB reads as a map: `data.x`
+        // would then compare as JSON and a plain string would not parse.
+        const sparse = Array.from({ length: 60 }, (_, index) => ({
+            type: "lore",
+            shortcode: `sparse${index}`,
+            package: "sohl",
+            name: { full: `Sparse ${index}` },
+            address: { canonical: `sohl-lore-sparse${index}`, slug: `lore-sparse${index}` },
+            file: { path: `Lore/Sparse${index}.md`, folder: "Lore", name: `Sparse${index}` },
+            tags: [],
+            data: { culture: index % 2 ? "odd-culture" : "even-culture", [`key${index}`]: "v" },
+        }));
+        const sparseDb = await openNotesDatabase([...RECORDS, ...sparse]);
+        try {
+            const typed = await sparseDb.query(`SELECT typeof(data) AS t FROM notes LIMIT 1`);
+            expect(String(typed.rows[0].t)).toMatch(/^STRUCT/);
+            const result = await runSqlQuery(
+                sparseDb,
+                `SELECT shortcode FROM notes WHERE data.culture = 'odd-culture'`,
+            );
+            expect(result.rows).toHaveLength(30);
+            const bound = await runSqlQuery(
+                sparseDb,
+                `SELECT shortcode FROM notes WHERE data.key7 = 'v'`,
+            );
+            expect(bound.rows.map((row: any) => row.shortcode)).toEqual(["sparse7"]);
+        } finally {
+            await sparseDb.close();
+        }
+    }, 60_000);
+
     it("hides underscore-prefixed aliases from the rendered columns", async () => {
         const result = await runSqlQuery(
             db,
