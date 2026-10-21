@@ -44,7 +44,7 @@ const REFERENCE = example(
     "#### A section withheld from players",
 );
 
-const POEM = ["```poetry {form=epic lang=en}", "Hear now, hearth keepers.", "```"].join("\n");
+const POEM = ["```verse {form=epic lang=en}", "Hear now, hearth keepers.", "```"].join("\n");
 
 /** A place with a withheld section holding a captioned item. */
 const INN = `---

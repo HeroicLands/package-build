@@ -21,7 +21,7 @@ import Handlebars from "handlebars";
 import matter from "gray-matter";
 import { ALERT_TYPES, alertMarkdownPlugin, scanAlerts } from "./content-alerts.mjs";
 import { spanMarkdownPlugin } from "./content-spans.mjs";
-import { scanPoetry, poetryStanzas } from "./content-poetry.mjs";
+import { scanVerse, verseStanzas } from "./content-verse.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
 import { splitHeadingAttributes } from "./heading-attributes.mjs";
@@ -358,7 +358,7 @@ function parserFor(fm, findings, file) {
             const close = new state.Token("paragraph_close", "p", -1);
             state.tokens.splice(i + 1, 0, open, title, close);
         }
-        const poetry = scanPoetry(state.src).blocks;
+        const verse = scanVerse(state.src).blocks;
         const localFigures = scanFigures(state.src).figures;
         for (const fig of localFigures) if (fig.id) figures.set(fig.id, fig);
         for (const token of state.tokens) {
@@ -366,10 +366,10 @@ function parserFor(fm, findings, file) {
                 token.meta = {
                     ...token.meta,
                     source: lines.slice(token.map[0], token.map[1]).join("\n"),
-                    poem: poetry.find((poem) => poem.start === token.map[0]),
+                    poem: verse.find((poem) => poem.start === token.map[0]),
                 };
         }
-        // Poetry must become inline tokens before footnote collection, so a
+        // Verse must become inline tokens before footnote collection, so a
         // definition outside the fence remains visible to a verse reference.
         for (let i = state.tokens.length - 1; i >= 0; i--) {
             const token = state.tokens[i];
@@ -382,22 +382,22 @@ function parserFor(fm, findings, file) {
                 replacement.push(part);
                 return part;
             };
-            push("hl_preview_poetry_open", "div", 1, [["class", "poetry"]]).map = token.map;
-            for (const stanza of poetryStanzas(poem.body)) {
+            push("hl_preview_verse_open", "div", 1, [["class", "verse"]]).map = token.map;
+            for (const stanza of verseStanzas(poem.body)) {
                 push("paragraph_open", "p", 1);
                 stanza.forEach(({ text, level }, row) => {
                     if (row) push("hardbreak", "br", 0);
-                    push("hl_preview_poetry_line_open", "span", 1, [
-                        ["class", `poetry-line i${level}`],
+                    push("hl_preview_verse_line_open", "span", 1, [
+                        ["class", `verse-line i${level}`],
                     ]);
                     const line = push("inline", "", 0);
                     line.content = text;
                     line.children = [];
-                    push("hl_preview_poetry_line_close", "span", -1);
+                    push("hl_preview_verse_line_close", "span", -1);
                 });
                 push("paragraph_close", "p", -1);
             }
-            push("hl_preview_poetry_close", "div", -1);
+            push("hl_preview_verse_close", "div", -1);
             state.tokens.splice(i, 1, ...replacement);
         }
         // Work backwards so figure ranges and heading removals retain source maps.
@@ -665,7 +665,7 @@ export function previewStyles() {
 .hl-preview .alert-warning { --hl-accent:var(--hl-warning); --hl-alert-bg:var(--hl-warning-bg); }
 .hl-preview .alert .alert-title { color:var(--hl-accent); font-weight:700; opacity:1; }
 .hl-preview .alert .alert-icon { width:1em; height:1em; margin-right:.5em; vertical-align:-.1em; color:var(--hl-accent); fill:currentColor; }
-.hl-preview .poetry-line { white-space:pre-wrap; }
-${Array.from({ length: 9 }, (_, n) => `.hl-preview .poetry-line.i${n} { padding-left:${n * 2}em; }`).join("\n")}
+.hl-preview .verse-line { white-space:pre-wrap; }
+${Array.from({ length: 9 }, (_, n) => `.hl-preview .verse-line.i${n} { padding-left:${n * 2}em; }`).join("\n")}
 `;
 }

@@ -9,7 +9,7 @@
  * **Marked text rendered on every target.** Goldens for `renderRuns` and for
  * what each target makes of its output: a roman run in a language, a run
  * mapped into a left-to-right face, a run mapped into a right-to-left face, a
- * right-to-left block, a poetry fence, and the generic families.
+ * right-to-left block, a verse fence, and the generic families.
  *
  * The fixture fonts package lists each face's real code points, and the maps
  * here are written out row by row, so every expectation is a literal.
@@ -125,13 +125,13 @@ const BLOCK = [
     ":::",
 ].join("\n");
 const POEM = [
-    "```poetry {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}",
+    "```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}",
     "thrima sorima",
     "  thrima",
     "```",
 ].join("\n");
 const RTL_POEM = [
-    "```poetry {#lay lang=khel font=qalezu-hand map=khel-qalezu}",
+    "```verse {#lay lang=khel font=qalezu-hand map=khel-qalezu}",
     "anlagh gar",
     "  zul",
     "```",
@@ -212,10 +212,10 @@ describe("renderRuns, goldens", () => {
         );
     });
 
-    it("gives a poetry fence the tag and the class, and maps each verse", () => {
+    it("gives a verse fence the tag and the class, and maps each verse", () => {
         expect(render(POEM)).toBe(
             [
-                "```poetry {lang=art-x-vyl .script .hl-semaron-kuriale form=epic}",
+                "```verse {lang=art-x-vyl .script .hl-semaron-kuriale form=epic}",
                 `${THRIMA} ${SORIMA}`,
                 `  ${THRIMA}`,
                 "```",
@@ -223,10 +223,10 @@ describe("renderRuns, goldens", () => {
         );
     });
 
-    it("maps a right-to-left poetry fence and marks it right to left", () => {
+    it("maps a right-to-left verse fence and marks it right to left", () => {
         expect(render(RTL_POEM)).toBe(
             [
-                "```poetry {lang=art-x-khel #lay .script .hl-qalezu-hand dir=rtl}",
+                "```verse {lang=art-x-khel #lay .script .hl-qalezu-hand dir=rtl}",
                 ANLAGH,
                 "  " + ZUL,
                 "```",
@@ -256,7 +256,7 @@ describe("renderRuns, goldens", () => {
     });
 
     it("is idempotent in what it leaves unmarked", () => {
-        const plain = "Nothing is marked here.\n\n```poetry {form=epic}\nA\n```\n";
+        const plain = "Nothing is marked here.\n\n```verse {form=epic}\nA\n```\n";
         expect(render(plain)).toBe(plain);
     });
 });
@@ -291,12 +291,12 @@ describe("the site", () => {
         );
     });
 
-    it("sets a poetry fence with its class and tag", () => {
+    it("sets a verse fence with its class and tag", () => {
         expect(site(POEM)).toContain(
-            '<div class="poetry script hl-semaron-kuriale" lang="art-x-vyl" data-form="epic" data-pagefind-ignore="true">',
+            '<div class="verse script hl-semaron-kuriale" lang="art-x-vyl" data-form="epic" data-pagefind-ignore="true">',
         );
         expect(site(RTL_POEM)).toContain(
-            '<div class="poetry script hl-qalezu-hand" id="lay" lang="art-x-khel" dir="rtl" data-pagefind-ignore="true">',
+            '<div class="verse script hl-qalezu-hand" id="lay" lang="art-x-khel" dir="rtl" data-pagefind-ignore="true">',
         );
     });
 
@@ -326,12 +326,12 @@ describe("Foundry", () => {
         );
     });
 
-    it("sets a right-to-left block and a poetry fence", () => {
+    it("sets a right-to-left block and a verse fence", () => {
         expect(foundry(BLOCK)).toContain(
             '<div class="note script script-block hl-qalezu-hand" id="verse" lang="art-x-khel" dir="rtl">',
         );
         expect(foundry(POEM)).toContain(
-            '<div class="poetry script hl-semaron-kuriale" lang="art-x-vyl" data-form="epic">',
+            '<div class="verse script hl-semaron-kuriale" lang="art-x-vyl" data-form="epic">',
         );
     });
 
@@ -414,7 +414,7 @@ describe("Typst", () => {
         );
     });
 
-    it("sets a poetry fence in its class", () => {
+    it("sets a verse fence in its class", () => {
         expect(typst(POEM)).toContain(
             '#block(width: 100%)[#book-script-text(classes: ("script", "hl-semaron-kuriale"))[',
         );

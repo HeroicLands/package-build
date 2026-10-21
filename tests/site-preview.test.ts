@@ -162,18 +162,18 @@ describe("buffer-only preview", () => {
         );
         expect(textOf(html).trim()).toBe('journey / {{ref "#arrival" field="when"}}');
     });
-    it("renders Markdown, footnotes, definitions, poetry and containers locally", () => {
+    it("renders Markdown, footnotes, definitions, verse and containers locally", () => {
         const html = sourceHtml(
-            '# Heading {#heading}\n\nTerm\n: Definition\n\n:::secret {title="Details"}\nText[^one]\n:::\n\n```poetry\nFirst *line*\n  Second\n\nLast\n```\n\n[^one]: A footnote.',
+            '# Heading {#heading}\n\nTerm\n: Definition\n\n:::secret {title="Details"}\nText[^one]\n:::\n\n```verse\nFirst *line*\n  Second\n\nLast\n```\n\n[^one]: A footnote.',
         );
         expect(html).toContain('<h1 id="heading">Heading</h1>');
         expect(html).toContain('<dl class="dictionary">');
         expect(html).toContain('<details class="secret"><summary>Details</summary>');
         expect(html).toContain("footnote-ref");
         expect(html).toContain("A footnote.");
-        expect(html).toContain('class="poetry"');
+        expect(html).toContain('class="verse"');
         expect(html).toContain("First <em>line</em>");
-        expect(html).toContain('class="poetry-line i1">Second');
+        expect(html).toContain('class="verse-line i1">Second');
     });
     it("renders dictionary rows while preserving multiple definitions and rich nested content", () => {
         const html = sourceHtml(
@@ -218,7 +218,7 @@ describe("buffer-only preview", () => {
 
     it("collects footnotes from verses and custom alert titles in the document", () => {
         const html = sourceHtml(
-            '> [!TIP]{title="A title[^title]"}\n> Body\n\n```poetry\nVerse[^verse]\n```\n\n[^title]: Title note.\n[^verse]: Verse note.',
+            '> [!TIP]{title="A title[^title]"}\n> Body\n\n```verse\nVerse[^verse]\n```\n\n[^title]: Title note.\n[^verse]: Verse note.',
         );
         expect(html).toContain("Title note.");
         expect(html).toContain("Verse note.");

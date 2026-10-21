@@ -285,10 +285,11 @@ describe("what the Foundry renderer emits", () => {
         ...Object.keys(ALERT_TYPES).map((type) => `> [!${type.toUpperCase()}]\n> Text.`),
         ':::secret {title="For the GM"}\nGM text.\n:::',
         "Term\n: Its definition.",
-        "```poetry\n    A line\n      An indented line\n```",
+        "```verse\n    A line\n      An indented line\n```",
         ":@ A picture\n\n![A](icons/svg/mystery-man.svg)",
         ":@ A table\n\n| A | B |\n| --- | --- |\n| a | b |",
-        ":@ A verse\n\n```poetry\nA verse\n```",
+        ":@ A verse\n\n```verse\nA verse\n```",
+        "```verse {numstep=1 lang=en col1=en col2=en/x:en}\n[A verse line]{lang=en}\n\n***\n\n[Another]{lang=en}\n```",
         ":@ A passage\n\nA paragraph.",
         "| Left | Right |\n| :--- | ---: |\n| a | b |",
         "[^1]: A footnote.",
@@ -320,7 +321,16 @@ describe("what the Foundry renderer emits", () => {
         /^content-figure-/.test(name) && name !== "content-figure-label";
 
     it("renders the constructs it is meant to check", () => {
-        for (const name of ["name", "alert", "poetry", "dictionary", "content-figure"])
+        for (const name of [
+            "name",
+            "alert",
+            "verse",
+            "verse-columns",
+            "verse-row",
+            "verse-secondary",
+            "dictionary",
+            "content-figure",
+        ])
             expect(emitted).toContain(name);
         expect(emitted).toContain("sohl-unresolved-link");
     });

@@ -12,7 +12,7 @@
  */
 
 /**
- * Spans, divs and poetry fences marked with `lang=`, `font=` or `map=`, projected
+ * Spans, divs and verse fences marked with `lang=`, `font=` or `map=`, projected
  * from own-note index records into the SQL `runs` relation. Every value is a
  * column value and none is a key, so two notes writing one tag in different
  * case are two rows. Documentation records and assets contribute no rows.
@@ -41,7 +41,7 @@ export const RUN_COLUMNS = Object.freeze([
  * One run as an index record carries it.
  *
  * @typedef {object} RecordRun
- * @property {"span"|"block"|"poetry"} kind - The construct.
+ * @property {"span"|"block"|"verse"} kind - The construct.
  * @property {string|null} lang - The language it is set in, as written: its
  *   own `lang=`, else the one the div or fence around it states.
  * @property {string|null} tag - The BCP 47 tag it resolves to, or null.

@@ -154,7 +154,7 @@ function picturesAreMap(contents, resolveRole) {
  * @returns {"code"|"table"|"figure"|"map"|"poem"|"prose"} The kind.
  */
 function figureKind(first, contents, resolveRole) {
-    if (/^(?:<div\b[^>]*\bclass="poetry(?:\s|"))/.test(contents)) return "poem";
+    if (/^(?:<div\b[^>]*\bclass="verse(?:\s|"))/.test(contents)) return "poem";
     if (first?.type === "table_open") return "table";
     if (first?.type === "fence" && /^\s*sql\b/i.test(first.info ?? "")) return "table";
     if (first?.type === "fence" || first?.type === "code_block") return "code";
@@ -220,7 +220,7 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
         const explicit = attributes.values.type;
         if (
             explicit &&
-            !["figure", "table", "poetry", "code", "prose", "example"].includes(explicit)
+            !["figure", "table", "verse", "code", "prose", "example"].includes(explicit)
         )
             fault(i, `unsupported caption type "${explicit}"`);
         if (!caption) fault(i, "a caption needs text");
@@ -281,7 +281,7 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
             ) {
                 fault(
                     bodyStart,
-                    "a caption must be followed by an image, table, poetry or code fence, paragraph, quote, or fenced div",
+                    "a caption must be followed by an image, table, verse or code fence, paragraph, quote, or fenced div",
                 );
                 continue;
             }
@@ -306,11 +306,11 @@ export function scanFigures(source, { resolveRole = () => undefined } = {}) {
                 continue;
             }
             kind =
-                first.type === "fence" && /^poetry(?:\s|$)/.test(first.info) ?
+                first.type === "fence" && /^verse(?:\s|$)/.test(first.info) ?
                     "poem"
                 :   figureKind(first, contents.trim(), resolveRole);
         }
-        if (explicit) kind = explicit === "poetry" ? "poem" : explicit;
+        if (explicit) kind = explicit === "verse" ? "poem" : explicit;
         const id = attributes.id;
         if (id && ids.has(slugify(id))) fault(i, `duplicate figure id "${id}"`);
         if (id) ids.add(slugify(id));

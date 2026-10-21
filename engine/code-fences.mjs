@@ -104,11 +104,11 @@ function column(space) {
  * @param {object} [options]
  * @param {boolean} [options.spans=true] - Include inline code spans. Set false
  *   to consider only block-level code.
- * @param {boolean} [options.poetryAsProse=true] - Treat verse bodies as inline prose.
+ * @param {boolean} [options.verseAsProse=true] - Treat verse bodies as inline prose.
  * @returns {Array<{start: number, end: number}>} Non-overlapping regions, in
  *   source order. `end` is exclusive.
  */
-export function codeRegions(markdown, { spans = true, poetryAsProse = true } = {}) {
+export function codeRegions(markdown, { spans = true, verseAsProse = true } = {}) {
     const src = String(markdown ?? "");
     if (!src) return [];
     const lines = src.split("\n");
@@ -145,7 +145,7 @@ export function codeRegions(markdown, { spans = true, poetryAsProse = true } = {
             let close = i + 1;
             while (close < lines.length && !closer.test(lines[close])) close++;
             // An unclosed fence runs to the end of the document.
-            if (poetryAsProse && /^poetry(?:\s|$)/.test(fence[3])) {
+            if (verseAsProse && /^verse(?:\s|$)/.test(fence[3])) {
                 regions.push(through(i, i));
                 if (close < lines.length) regions.push(through(close, close));
             } else regions.push(through(i, Math.min(close, lines.length - 1)));

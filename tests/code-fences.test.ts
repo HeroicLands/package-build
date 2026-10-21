@@ -150,14 +150,14 @@ describe("matchAllOutsideCode", () => {
     });
 });
 
-describe("poetry inline content", () => {
+describe("verse inline content", () => {
     it("rewrites verse links while protecting inline code and fence attributes", () => {
-        expect(rewrite('```poetry {meter="[[literal]]"}\n  [[verse]] `[[code]]`\n```')).toBe(
-            '```poetry {meter="[[literal]]"}\n  X `[[code]]`\n```',
+        expect(rewrite('```verse {meter="[[literal]]"}\n  [[verse]] `[[code]]`\n```')).toBe(
+            '```verse {meter="[[literal]]"}\n  X `[[code]]`\n```',
         );
     });
-    it("protects poetry inside an outer code example", () => {
-        const src = "````md\n```poetry\n[[literal]]\n```\n````";
+    it("protects verse inside an outer code example", () => {
+        const src = "````md\n```verse\n[[literal]]\n```\n````";
         expect(rewrite(src)).toBe(src);
     });
 });

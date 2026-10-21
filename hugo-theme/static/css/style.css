@@ -1378,33 +1378,109 @@ a.tag:hover {
 }
 
 /* Verse lines are hard breaks in the markup; paragraphs mark stanzas. */
-.single-content .poetry {
+.single-content .verse {
   margin: 1.5rem 0;
   line-height: 1.7;
 }
 
-.single-content .poetry p {
+.single-content .verse p {
   margin: 0;
 }
 
-.single-content .poetry p + p {
+.single-content .verse p + p {
   margin-top: 1em;
 }
 
-.single-content .poetry .poetry-line {
+.single-content .verse .verse-line {
   display: inline-block;
-  margin-inline-start: var(--poetry-indent, 0em);
+  margin-inline-start: var(--verse-indent, 0em);
   white-space: pre-wrap;
 }
 
-.single-content .poetry .poetry-line.i1 { --poetry-indent: 1.25em; }
-.single-content .poetry .poetry-line.i2 { --poetry-indent: 2.5em; }
-.single-content .poetry .poetry-line.i3 { --poetry-indent: 3.75em; }
-.single-content .poetry .poetry-line.i4 { --poetry-indent: 5em; }
-.single-content .poetry .poetry-line.i5 { --poetry-indent: 6.25em; }
-.single-content .poetry .poetry-line.i6 { --poetry-indent: 7.5em; }
-.single-content .poetry .poetry-line.i7 { --poetry-indent: 8.75em; }
-.single-content .poetry .poetry-line.i8 { --poetry-indent: 10em; }
+.single-content .verse .verse-line.i1 { --verse-indent: 1.25em; }
+.single-content .verse .verse-line.i2 { --verse-indent: 2.5em; }
+.single-content .verse .verse-line.i3 { --verse-indent: 3.75em; }
+.single-content .verse .verse-line.i4 { --verse-indent: 5em; }
+.single-content .verse .verse-line.i5 { --verse-indent: 6.25em; }
+.single-content .verse .verse-line.i6 { --verse-indent: 7.5em; }
+.single-content .verse .verse-line.i7 { --verse-indent: 8.75em; }
+.single-content .verse .verse-line.i8 { --verse-indent: 10em; }
+
+/* Numbered verse carries its numbers in a margin. A verse in columns is one
+   grid per verse line: its number, then each column's parts stacked, the
+   first in the normal tone and the rest muted, every part in the body serif
+   unless its face sets it. A narrow verse stacks the columns of each line. */
+.single-content .verse.verse-numbered {
+  position: relative;
+  padding-inline-start: 3em;
+}
+
+.single-content .verse .verse-number {
+  color: var(--text-muted);
+  font-size: 0.8em;
+}
+
+.single-content .verse-numbered .verse-line .verse-number {
+  position: absolute;
+  inset-inline-start: 0;
+  width: 2.2em;
+  text-align: end;
+}
+
+.single-content .verse.verse-columns {
+  container-type: inline-size;
+}
+
+.single-content .verse-numbered.verse-columns {
+  padding-inline-start: 0;
+}
+
+.single-content .verse-columns .verse-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  column-gap: 1.5rem;
+  margin-bottom: 0.5em;
+}
+
+.single-content .verse-numbered.verse-columns .verse-row {
+  grid-template-columns: 2.5em;
+}
+
+.single-content .verse-columns .verse-number {
+  text-align: end;
+  padding-top: 0.2em;
+}
+
+.single-content .verse-columns :is(.verse-column, .verse-part) {
+  display: block;
+  white-space: pre-wrap;
+}
+
+.single-content .verse-columns .verse-part {
+  font-family: var(--font-body);
+}
+
+.single-content .verse-columns .verse-secondary {
+  color: var(--text-muted);
+}
+
+.single-content .verse-columns .verse-part[dir="rtl"] {
+  text-align: start;
+}
+
+@container (max-width: 32rem) {
+  .single-content .verse-columns .verse-row {
+    grid-auto-flow: row;
+    grid-template-columns: 1fr;
+  }
+  .single-content .verse-numbered.verse-columns .verse-row {
+    grid-template-columns: 2.5em 1fr;
+  }
+  .single-content .verse-numbered.verse-columns .verse-column {
+    grid-column: 2;
+  }
+}
 
 /* Ornamental horizontal rule: thin line flanking a centered gold
    diamond. Uses gradients on ::before/::after to keep the markup
@@ -3028,7 +3104,7 @@ summary.info-sidebar-title::after {
    right-to-left block or verse reads from the right. `font=serif`, `sans`
    and `mono` set the site's own serif and mono, and the reader's sans. */
 .script-block { margin:1rem 0; line-height:1.7; }
-.script-block[dir="rtl"], .poetry[dir="rtl"] { text-align:start; }
+.script-block[dir="rtl"], .verse[dir="rtl"] { text-align:start; }
 .font-serif { font-family:var(--font-body); }
 .font-sans { font-family:sans-serif; }
 .font-mono { font-family:var(--font-mono); }

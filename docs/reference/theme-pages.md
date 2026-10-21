@@ -335,6 +335,57 @@ Caption classes are unrestricted. The built-in `border` class draws the block as
 | `.content-figure-label`  | the label, number and caption together     |
 | `.border`                | the block as a boxed aside                 |
 
+## Verse
+
+A verse fence reaches the page as a `.verse` block holding a paragraph per
+stanza and a `.verse-line` per line, its indent level as `i1` to `i8`. Its
+keys reach the block as written, `lang` as its language and the rest as
+`data-*` attributes. A numbered verse also carries `.verse-numbered`, and each
+numbered line starts with its `.verse-number`.
+
+A [verse in columns](../authoring/links-and-markup.md#verse-in-columns) also
+carries `.verse-columns`, and each verse line is one `.verse-row`:
+
+```html
+<div class="verse verse-columns verse-numbered" lang="art-x-vyl" data-numstep="5">
+  <p>
+    <span class="verse-row"
+      ><span class="verse-number"></span
+      ><span class="verse-column"
+        ><span class="verse-part"
+          ><span class="script hl-semaron-kuriale" lang="art-x-vyl">…</span></span
+        ></span
+      ><span class="verse-column"
+        ><span class="verse-part"><span lang="en">The hallowed boundary I sing,</span></span
+        ><span class="verse-part verse-secondary"
+          ><span lang="art-x-vyl">Thiruthriman sorimamen,</span></span
+        ></span
+      ></span
+    >
+    …
+  </p>
+</div>
+```
+
+A numbered verse in columns gives every row a `.verse-number`, empty on the
+lines it does not number, so the columns stay aligned. A part whose text runs
+right to left carries `dir="rtl"`. Each row is its own grid, so a long line
+keeps its partner level with it. Below a block width of `32rem` a row stacks
+its columns in order; it is a container query, so a narrow journal window
+stacks as well. The Foundry stylesheet draws the same.
+
+| class              | drawn as                                                      |
+| ------------------ | ------------------------------------------------------------- |
+| `.verse`           | the poem                                                      |
+| `.verse-line`      | one line of a poem without columns                            |
+| `.verse-numbered`  | a numbered poem, with a margin for its numbers                |
+| `.verse-number`    | a line's number, muted                                        |
+| `.verse-columns`   | a poem in columns, and the container its rows are measured by |
+| `.verse-row`       | one verse line: its number and its columns                    |
+| `.verse-column`    | one column, its entries stacked                               |
+| `.verse-part`      | one entry's text, in the body serif unless its face sets it   |
+| `.verse-secondary` | every entry after a column's first, muted                     |
+
 ## Search
 
 `params.search = true` renders a search box in the header; left unset (or

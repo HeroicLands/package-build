@@ -1978,7 +1978,7 @@ exit status. Supplied-value errors prevent publication and compilation.
 
 #### Text marked with a language, a font or a map
 
-`lang=`, `font=` and `map=` on a span, a generic div or a poetry fence are read
+`lang=`, `font=` and `map=` on a span, a generic div or a verse fence are read
 by the build and never written through as ordinary attributes. Each is
 optional, and a run inside a div or a fence inherits the keys the div or fence
 states, its own keys overriding them. On a named block the three keys are
@@ -2015,7 +2015,7 @@ with a real language's tag alone keeps its Markdown. See
 
 Each own-note metadata record carries `runs` in source order, an empty array
 when the body marks nothing. Every entry has exactly `kind` (`span`, `block` or
-`poetry`), `lang`, `tag`, `font`, `map`, `line` and `column`: `lang`, `font` and
+`verse`), `lang`, `tag`, `font`, `map`, `line` and `column`: `lang`, `font` and
 `map` as written, its own or inherited, `tag` the BCP 47 tag `lang` resolves
 to, each `null` when absent, and the position of the span's `[`, the div's
 `:::` or the fence's opening. Every value is a string or a number and none is a
@@ -3400,14 +3400,14 @@ metadata supplies `names` in that package's SQL schema. Public queries exclude
 GM-only owners; all/native contexts retain them. Only authored occurrences
 contribute rows, so generated queries and sections add no further names.
 
-**`runs`** is one row per span, generic div and poetry fence an authored note
+**`runs`** is one row per span, generic div and verse fence an authored note
 body marks with `lang=`, `font=` or `map=`. Each row has these columns,
 including on an empty relation:
 
 | Column   | SQL type  | Meaning                                                                                      |
 | -------- | --------- | -------------------------------------------------------------------------------------------- |
 | `owner`  | `VARCHAR` | Containing authored page's canonical NOTE Address, or `NULL` when the record has no Address. |
-| `kind`   | `VARCHAR` | `span`, `block` or `poetry`.                                                                 |
+| `kind`   | `VARCHAR` | `span`, `block` or `verse`.                                                                  |
 | `lang`   | `VARCHAR` | The language as written, its own or inherited, or `NULL`.                                    |
 | `tag`    | `VARCHAR` | The BCP 47 tag `lang` resolves to, or `NULL` when it resolves to none.                       |
 | `font`   | `VARCHAR` | The font as written, its own or inherited, or `NULL`.                                        |
@@ -3862,11 +3862,11 @@ The caption attaches to exactly the next supported block:
 | Markdown table                       | `table`       | Table          |
 | Image, Markdown or wikilink          | `figure`      | Figure         |
 | SQL fence, including backtick SQL    | `table`       | Table          |
-| Poetry fence                         | `poetry`      | Poem           |
+| Verse fence                          | `verse`       | Poem           |
 | Any other code fence                 | `code`        | Code           |
 | Paragraph, quote block or fenced div | `prose`       | Prose          |
 
-The optional `type` attribute overrides inference and accepts `figure`, `table`, `poetry`, `code`, `prose`, and `example`. `type=example` uses **Example 1**, **Example 2**, and so on. It does not allow an unsupported target. A heading, list, thematic break, another caption or end of document after a caption is an error. Caption markers without separating spaces or caption text are errors too.
+The optional `type` attribute overrides inference and accepts `figure`, `table`, `verse`, `code`, `prose`, and `example`. `type=example` uses **Example 1**, **Example 2**, and so on. It does not allow an unsupported target. A heading, list, thematic break, another caption or end of document after a caption is an error. Caption markers without separating spaces or caption text are errors too.
 
 Identifiers are optional and must be unique within the note. Classes are unrestricted; `.border` uses the shared border style, while other classes can be styled by the medium. On a captioned table or SQL fence, `.full-width` sets the table across the page in a PDF book instead of in one column (`: Regional trade routes {.full-width}`); the other surfaces ignore it. Named attributes use `key=value`, with quoted values for text containing spaces. Use `#id` and `.class` rather than `id=` and `class=`; event-handler attributes are refused.
 

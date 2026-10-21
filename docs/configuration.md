@@ -1975,7 +1975,7 @@ named first in the generated manifest's `styles`.
 The sheet carries what every package's compiled content needs to read in
 Foundry as it does in the preview and on the site: definition lists (an
 infobox and the markdown `Term` / `: definition` syntax both emit one),
-poetry, alerts, inline spoilers, marked names in bold, unresolved links and
+verse, alerts, inline spoilers, marked names in bold, unresolved links and
 captioned blocks. It is scoped to the journal, enriched-field and editor
 containers so it cannot reach Foundry's own interface, where `.name` and `dl`
 style Foundry's and the system's own elements.

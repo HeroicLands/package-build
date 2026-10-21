@@ -417,9 +417,9 @@ describe("markdownToTypst", () => {
 });
 
 describe("new block syntax in the printed book", () => {
-    it("preserves poetry stanzas and relative indentation without forcing italics", () => {
+    it("preserves verse stanzas and relative indentation without forcing italics", () => {
         const out = markdownToTypst(
-            '```poetry {meter="common meter"}\n  First *verse*.\n    Next verse.\n\n  Last verse.\n```',
+            '```verse {meter="common meter"}\n  First *verse*.\n    Next verse.\n\n  Last verse.\n```',
         );
         expect(out).toContain("First #emph[verse].");
         expect(out).toContain("#h(1.25em)Next verse.");
@@ -440,9 +440,9 @@ describe("new block syntax in the printed book", () => {
         expect(out).not.toContain(":::");
     });
 
-    it("registers poetry and nested inline span identifiers without losing links", () => {
+    it("registers verse and nested inline span identifiers without losing links", () => {
         const out = markdownToTypst(
-            "```poetry {#verse}\n[First [word]{#inner}]{#outer} and [link](https://example.org).\n```",
+            "```verse {#verse}\n[First [word]{#inner}]{#outer} and [link](https://example.org).\n```",
             { anchorPrefix: "note" },
         );
         expect(out).toContain("<note--verse>");
@@ -451,9 +451,9 @@ describe("new block syntax in the printed book", () => {
         expect(out).toContain('#link("https://example.org")[link]');
     });
 
-    it("shares note footnotes with captioned poetry and emits the definition once", () => {
+    it("shares note footnotes with captioned verse and emits the definition once", () => {
         const out = markdownToTypst(
-            "Before[^shore].\n\n:@ A song.\n\n```poetry\nA *quiet* shore[^shore].\n```\n\n[^shore]: Beside the harbor.",
+            "Before[^shore].\n\n:@ A song.\n\n```verse\nA *quiet* shore[^shore].\n```\n\n[^shore]: Beside the harbor.",
         );
         expect(out).toContain("#emph[quiet]");
         expect(out).toContain("#footnote(<footnote-body-shore>)");
@@ -463,7 +463,7 @@ describe("new block syntax in the printed book", () => {
 
     it("uses Poem labels and leaves unnumbered poems outside the count", () => {
         const out = markdownToTypst(
-            ": Unnumbered.\n\n```poetry\nOne.\n```\n\n:@ Numbered.\n\n```poetry\nTwo.\n```",
+            ": Unnumbered.\n\n```verse\nOne.\n```\n\n:@ Numbered.\n\n```verse\nTwo.\n```",
         );
         expect(out).toContain("Unnumbered.");
         expect(out).toContain("Poem 1: Numbered.");

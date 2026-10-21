@@ -24,7 +24,7 @@ const body = [
     "",
     ":::",
     "",
-    "```poetry {#verse}",
+    "```verse {#verse}",
     "A poem.",
     "```",
     "",
@@ -37,7 +37,7 @@ const body = [
     "[Another]{#other}.",
 ].join("\n");
 describe("Foundry containing-page anchors", () => {
-    it("maps div, span, and poetry identifiers to their containing emitted page", () => {
+    it("maps div, span, and verse identifiers to their containing emitted page", () => {
         expect(scanBlocks(body).errors).toEqual([]);
         const uuid = compendiumUuid("demo", "doc", id);
         const pages = splitPages(body);

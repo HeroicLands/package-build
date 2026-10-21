@@ -6,7 +6,7 @@
  */
 
 /**
- * **The `runs` and `maps` relations.** One row per marked span, div and poetry
+ * **The `runs` and `maps` relations.** One row per marked span, div and verse
  * fence, and one per row of a mapping note. Their values are strings, never
  * keys, so two notes writing one language tag in different case are two rows,
  * and a map's `A` and `a` are two rows, rather than two struct keys DuckDB
@@ -78,7 +78,7 @@ function tree(contentPackage = "demo") {
         [
             "The colour is [colour]{lang=en-gb}, and the motto [ad astra]{lang=la}.",
             "",
-            "```poetry {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}",
+            "```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}",
             "Zaron tholmeza.",
             "```",
         ].join("\n"),
@@ -140,7 +140,7 @@ function rows(contentPackage: string, audience = "all") {
         },
         {
             owner: owner("lower"),
-            kind: "poetry",
+            kind: "verse",
             lang: "vyl",
             tag: "art-x-vyl",
             font: "semaron-kuriale",

@@ -16,7 +16,7 @@
  * named first in the manifest's `styles`.
  *
  * It carries what every package's compiled content needs to read in Foundry as
- * it does in the preview and on the site: definition lists, poetry, alerts,
+ * it does in the preview and on the site: definition lists, verse, alerts,
  * inline spoilers, marked names, unresolved links and captioned blocks. Every
  * class the Foundry renderer emits is styled here or exempted by name in
  * `tests/base-styles.test.ts`. A package keeps its own stylesheet for its own
@@ -120,48 +120,152 @@
 }
 
 /* Each verse line breaks in the markup; each paragraph is a stanza. */
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .poetry {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse {
     margin: 1.5rem 0;
     line-height: 1.7;
 }
 
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .poetry p {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse p {
     margin: 0;
 }
 
-:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .poetry p + p {
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror) .verse p + p {
     margin-top: 1em;
 }
 
-.poetry .poetry-line {
+.verse .verse-line {
     display: inline-block;
-    margin-inline-start: var(--poetry-indent, 0em);
+    margin-inline-start: var(--verse-indent, 0em);
     white-space: pre-wrap;
 }
 
-.poetry .poetry-line.i1 {
-    --poetry-indent: 1.25em;
+.verse .verse-line.i1 {
+    --verse-indent: 1.25em;
 }
-.poetry .poetry-line.i2 {
-    --poetry-indent: 2.5em;
+.verse .verse-line.i2 {
+    --verse-indent: 2.5em;
 }
-.poetry .poetry-line.i3 {
-    --poetry-indent: 3.75em;
+.verse .verse-line.i3 {
+    --verse-indent: 3.75em;
 }
-.poetry .poetry-line.i4 {
-    --poetry-indent: 5em;
+.verse .verse-line.i4 {
+    --verse-indent: 5em;
 }
-.poetry .poetry-line.i5 {
-    --poetry-indent: 6.25em;
+.verse .verse-line.i5 {
+    --verse-indent: 6.25em;
 }
-.poetry .poetry-line.i6 {
-    --poetry-indent: 7.5em;
+.verse .verse-line.i6 {
+    --verse-indent: 7.5em;
 }
-.poetry .poetry-line.i7 {
-    --poetry-indent: 8.75em;
+.verse .verse-line.i7 {
+    --verse-indent: 8.75em;
 }
-.poetry .poetry-line.i8 {
-    --poetry-indent: 10em;
+.verse .verse-line.i8 {
+    --verse-indent: 10em;
+}
+
+/* Numbered verse carries its numbers in a margin. A verse in columns is one
+ * grid per verse line: its number, then each column's parts stacked, the
+ * first in the normal tone and the rest muted, every part in the serif unless
+ * its face sets it. A narrow journal stacks the columns of each line. */
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse.verse-numbered {
+    position: relative;
+    padding-inline-start: 3em;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse
+    .verse-number {
+    color: color-mix(in srgb, currentColor 60%, transparent);
+    font-size: 0.8em;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-numbered
+    .verse-line
+    .verse-number {
+    position: absolute;
+    inset-inline-start: 0;
+    width: 2.2em;
+    text-align: end;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse.verse-columns {
+    container-type: inline-size;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-numbered.verse-columns {
+    padding-inline-start: 0;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-columns
+    .verse-row {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    column-gap: 1.5rem;
+    margin-bottom: 0.5em;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-numbered.verse-columns
+    .verse-row {
+    grid-template-columns: 2.5em;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-columns
+    .verse-number {
+    text-align: end;
+    padding-top: 0.2em;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-columns
+    :is(.verse-column, .verse-part) {
+    display: block;
+    white-space: pre-wrap;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-columns
+    .verse-part {
+    font-family: serif;
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-columns
+    .verse-secondary {
+    color: color-mix(in srgb, currentColor 60%, transparent);
+}
+
+:is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+    .verse-columns
+    .verse-part[dir="rtl"] {
+    text-align: start;
+}
+
+@container (max-width: 32rem) {
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+        .verse-columns
+        .verse-row {
+        grid-auto-flow: row;
+        grid-template-columns: 1fr;
+    }
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+        .verse-numbered.verse-columns
+        .verse-row {
+        grid-template-columns: 2.5em 1fr;
+    }
+    :is(.journal-entry-page, .journal-entry-content, .editor-content, .prosemirror)
+        .verse-numbered.verse-columns
+        .verse-column {
+        grid-column: 2;
+    }
 }
 
 /* Text set in one of the faces. The font family and features come from the
@@ -172,7 +276,7 @@
 }
 
 .script-block[dir="rtl"],
-.poetry[dir="rtl"] {
+.verse[dir="rtl"] {
     text-align: start;
 }
 

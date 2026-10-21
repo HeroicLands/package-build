@@ -155,7 +155,7 @@ describe("the actual authored marked-name inventory", () => {
             "[literal]{.name}",
             "```",
             "",
-            "```poetry",
+            "```verse",
             "[Verse]{.name}",
             "```",
             "",

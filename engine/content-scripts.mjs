@@ -13,7 +13,7 @@
 
 /**
  * **Text marked with a language, a font and a mapping.** Three keys on the
- * attribute grammar spans, divs and poetry fences already share, each optional
+ * attribute grammar spans, divs and verse fences already share, each optional
  * and independent of the others:
  *
  * ```markdown
@@ -24,7 +24,7 @@
  * Zaron tholmeza.
  * :::
  *
- * ```poetry {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}
+ * ```verse {form=epic lang=vyl font=semaron-kuriale map=vyl-semaron}
  * ```
  *
  * - **`lang=`** gives the language tag and changes nothing else. It is a name
@@ -45,7 +45,7 @@
  *   form. Any other
  *   word is a finding at its first character, once per run; see
  *   {@link module:engine/run-words}.
- * - **A run inside a div or a poetry fence inherits its keys**, and its own
+ * - **A run inside a div or a verse fence inherits its keys**, and its own
  *   keys override them.
  * - **Text with a font, a map or a declared language is plain.** A span or a
  *   verse holds no emphasis, link, image, footnote, wikilink, code or HTML,
@@ -59,7 +59,7 @@
  *
  * {@link scanRuns} reads the markup through {@link module:engine/content-spans.scanSpans},
  * {@link module:engine/content-blocks.scanBlocks} and
- * {@link module:engine/content-poetry.scanPoetry}, so what counts as a span, a
+ * {@link module:engine/content-verse.scanVerse}, so what counts as a span, a
  * div or a fence is theirs to say.
  *
  * @module
@@ -68,7 +68,7 @@
 import MarkdownIt from "markdown-it";
 
 import { scanBlocks, BLOCK_CONTAINERS } from "./content-blocks.mjs";
-import { scanPoetry } from "./content-poetry.mjs";
+import { expandVerse, expandVerseOrigins, scanVerse, sourcePosition } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { isLanguageTag } from "./language-tag.mjs";
 import { distance, nearest } from "./near-miss.mjs";
@@ -116,12 +116,12 @@ const CONFIG = "package-build.config.yaml";
  */
 
 /**
- * One span, div or poetry fence carrying `lang=`, `font=` or `map=`. Its
+ * One span, div or verse fence carrying `lang=`, `font=` or `map=`. Its
  * `lang`, `font` and `map` are the ones it is set with: its own, else the
  * innermost div or fence around it that states one.
  *
  * @typedef {object} Run
- * @property {"span"|"block"|"poetry"} kind - Which construct.
+ * @property {"span"|"block"|"verse"} kind - Which construct.
  * @property {string|undefined} lang - The language as written.
  * @property {string|undefined} tag - The BCP 47 tag it resolves to; `undefined`
  *   when it resolves to none.
@@ -205,7 +205,7 @@ function withinOneEdit(a, b) {
 }
 
 /** The word each construct is called in a finding. */
-const CONSTRUCT = Object.freeze({ span: "span", block: "div", poetry: "poetry fence" });
+const CONSTRUCT = Object.freeze({ span: "span", block: "div", verse: "verse fence" });
 
 /** Line starts of a source, for offsets to positions. */
 function lineStarts(text) {
@@ -645,7 +645,7 @@ function analyseRuns(source, ctx, syntax) {
                 for (const key of Object.keys(keys))
                     report(
                         at(key, "key"),
-                        `\`${key}=\` is read on a span, a div or a poetry fence, not on a ${block.name} block`,
+                        `\`${key}=\` is read on a span, a div or a verse fence, not on a ${block.name} block`,
                     );
             } else {
                 divs.set(first, block);
@@ -679,13 +679,13 @@ function analyseRuns(source, ctx, syntax) {
     collect(0, text);
 
     const poems = new Map();
-    for (const poem of scanPoetry(text).blocks) {
+    for (const poem of scanVerse(text).blocks) {
         poems.set(poem.start, poem);
         const keys = runKeys(poem.attributes);
         if (!Object.keys(keys).length) continue;
         const opening = lines[poem.start];
         constructs.push({
-            kind: "poetry",
+            kind: "verse",
             keys,
             node: poem,
             line0: poem.start,
@@ -914,7 +914,11 @@ function analyseRuns(source, ctx, syntax) {
     const runs = [];
     const details = [];
     for (const construct of constructs) {
+        const unchecked = errors.length;
         checkOwn(construct);
+        // A key that names nothing is the finding; the text it would have set
+        // is not then checked against a face or a language it cannot reach.
+        const named = errors.length === unchecked;
         const keys = Object.assign({}, ...around(construct).map((c) => c.keys), construct.keys);
         const { lang, font, map } = keys;
         // A face the run's map is not for, once the face and the map are each
@@ -973,7 +977,7 @@ function analyseRuns(source, ctx, syntax) {
             const span = construct.node;
             const inline = text.slice(span.start + 1, span.contentEnd);
             plainInline(inline, span.start + 1, marking);
-            if (errors.length === before) {
+            if (named && errors.length === before) {
                 lexical([[span.start + 1, span.contentEnd]], detail);
                 capitals([[span.start + 1, span.contentEnd]], detail);
                 covered([[span.start + 1, span.contentEnd]], detail);
@@ -1017,8 +1021,8 @@ function analyseRuns(source, ctx, syntax) {
                 if (token.type === "fence")
                     said(
                         top,
-                        token.info.trim().split(/\s/)[0] === "poetry" ?
-                            "a poetry fence"
+                        token.info.trim().split(/\s/)[0] === "verse" ?
+                            "a verse fence"
                         :   "a code fence",
                     );
                 else if (Object.hasOwn(BLOCK_WHAT, token.type)) said(top, BLOCK_WHAT[token.type]);
@@ -1027,7 +1031,7 @@ function analyseRuns(source, ctx, syntax) {
             for (let line = first; line < last; line++)
                 plainInline(lines[line], starts[line], marking, detail.holes);
         }
-        if (errors.length === before) {
+        if (named && errors.length === before) {
             lexical(outsideHoles(from, to, detail.holes), detail);
             capitals(outsideHoles(from, to, detail.holes), detail);
             covered(outsideHoles(from, to, detail.holes), detail);
@@ -1043,7 +1047,7 @@ function analyseRuns(source, ctx, syntax) {
 }
 
 /**
- * Find the spans, divs and poetry fences marked with `lang=`, `font=` or
+ * Find the spans, divs and verse fences marked with `lang=`, `font=` or
  * `map=`, and every fault in their markup and their text.
  *
  * @param {string} source - Authored Markdown: a note body, or a whole file
@@ -1059,8 +1063,32 @@ function analyseRuns(source, ctx, syntax) {
  *   declared name.
  */
 export function scanRuns(source, ctx = {}, syntax) {
-    const { runs, errors, warnings } = analyseRuns(source, ctx, syntax);
-    return { runs, errors, warnings };
+    const text = String(source ?? "");
+    const { markdown, origins } = expandVerseOrigins(text);
+    const authored = analyseRuns(text, ctx, syntax);
+    if (markdown === text) return authored;
+    // A verse in columns is checked as the spans each entry sets, which are
+    // written only in the expansion; every finding is placed back where the
+    // note wrote the text or the entry it comes from, once.
+    const expanded = markdown.split("\n");
+    const checked = analyseRuns(markdown, ctx);
+    const placed = (findings) => {
+        const seen = new Set();
+        return findings
+            .map((finding) => ({ ...finding, ...sourcePosition(finding, expanded, origins) }))
+            .filter((finding) => {
+                const key = `${finding.line}:${finding.column}:${finding.message}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            })
+            .sort((a, b) => a.line - b.line || a.column - b.column);
+    };
+    return {
+        runs: authored.runs,
+        errors: placed(checked.errors),
+        warnings: placed(checked.warnings),
+    };
 }
 
 /**
@@ -1113,7 +1141,7 @@ function rewrittenAttributes(detail, search) {
     const changes =
         run.font !== undefined ||
         run.map !== undefined ||
-        (run.tag !== undefined && (keys.lang !== run.tag || run.kind === "poetry"));
+        (run.tag !== undefined && (keys.lang !== run.tag || run.kind === "verse"));
     if (!changes) return undefined;
     const classes = [...own.classes];
     const values = [...own.values];
@@ -1130,8 +1158,12 @@ function rewrittenAttributes(detail, search) {
 
 /**
  * Rewrite text marked with `lang=`, `font=` and `map=` into the plain span,
- * div and poetry grammar the rest of each chain renders, one line for one line.
+ * div and verse grammar the rest of each chain renders, one line for one line.
  *
+ * - **A verse in columns is expanded first** into one span per column entry
+ *   per verse line, by {@link module:engine/content-verse.expandVerse}, so
+ *   each entry is mapped and set as a span with its keys is. That is the one
+ *   rewrite that changes the number of lines.
  * - **The map, if any, is applied first.** Characters Markdown would read are
  *   then backslash-escaped, so they reach every later pass as characters.
  * - **The construct carries** the language's tag as `lang`, the face's class
@@ -1156,7 +1188,9 @@ function rewrittenAttributes(detail, search) {
  */
 export function renderRuns(source, ctx = {}, syntax, options = {}) {
     const search = options.target === "site";
-    const text = String(source ?? "");
+    const authored = String(source ?? "");
+    const text = expandVerse(authored);
+    if (text !== authored) syntax = undefined;
     if (!/\b(?:lang|font|map)=/.test(text)) return { markdown: text, errors: [] };
     const { details, errors } = analyseRuns(text, ctx, syntax);
     if (!details.length) return { markdown: text, errors };

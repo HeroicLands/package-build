@@ -2492,7 +2492,7 @@ with visible text, nullable type/subtype and original source line/column.
 Local and dependency SQL schemas expose them through `names`; they travel in
 the metadata artifact.
 
-Metadata also includes each own note's spans, divs and poetry fences marked with
+Metadata also includes each own note's spans, divs and verse fences marked with
 `lang=`, `font=` or `map=` under `runs`, with the language as written, the tag
 it resolves to, the font, the map and the original source line/column. Local
 and dependency SQL schemas expose them through `runs`, and each mapping note's

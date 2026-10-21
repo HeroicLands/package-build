@@ -53,7 +53,7 @@ import crypto from "node:crypto";
 import { slugify } from "./content-slug.mjs";
 import MarkdownIt from "markdown-it";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
-import { scanPoetry, renderPoetry } from "./content-poetry.mjs";
+import { scanVerse, renderVerse } from "./content-verse.mjs";
 import { WITHHELD_CLASS, parseHeadingLine, withheldSections } from "./heading-attributes.mjs";
 
 /**
@@ -200,7 +200,7 @@ export function scanBlocks(source) {
                 });
         }
     }
-    return { blocks, errors: [...errors, ...scanPoetry(source).errors] };
+    return { blocks, errors: [...errors, ...scanVerse(source).errors] };
 }
 
 /**
@@ -252,7 +252,7 @@ function attributeText(block, target, classes) {
  */
 export function renderBlocks(source, target) {
     const { errors } = scanBlocks(source);
-    source = renderPoetry(source).markdown;
+    source = renderVerse(source).markdown;
     const renderedBlocks = scanBlocks(source).blocks;
     if (!renderedBlocks.length) return { markdown: String(source ?? ""), errors };
     const lines = String(source ?? "").split("\n");

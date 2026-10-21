@@ -87,7 +87,7 @@ describe("command boundary validation", () => {
         [":::secret\n# Page\n:::\n", "heading that starts a page"],
         ["> [!NOTE]\n", "needs a body"],
         ["> [!NOTE\n", "brackets"],
-        ["```poetry\nVerse.\n", "closing code fence"],
+        ["```verse\nVerse.\n", "closing code fence"],
     ])("shares the renderer's syntax refusals: %s", async (body, message) => {
         write("example.md", body);
         const result = await lintMarkdown(root);
@@ -109,8 +109,8 @@ describe("command boundary validation", () => {
         );
         expect(await lintMarkdown(root)).toMatchObject({ exitCode: 0, findings: [] });
     });
-    it("keeps poetry-looking fences in literal HTML out of syntax validation", async () => {
-        write("example.md", "<pre>\n```poetry\n</pre>\n");
+    it("keeps verse-looking fences in literal HTML out of syntax validation", async () => {
+        write("example.md", "<pre>\n```verse\n</pre>\n");
         expect(await lintMarkdown(root)).toMatchObject({ exitCode: 0, findings: [] });
     });
     it("accepts every alert type the shared registry declares", async () => {

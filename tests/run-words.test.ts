@@ -173,11 +173,11 @@ describe("a mapped run's words", () => {
         ]);
     });
 
-    it("checks the lines of a div and a poetry fence at their words", () => {
+    it("checks the lines of a div and a verse fence at their words", () => {
         expect(findings("::: {lang=vyl map=m}\nzaron lonak\nlonak qux\n:::\n")).toEqual([
             `3:7: ${unknown("qux")}`,
         ]);
-        expect(findings("```poetry {lang=vyl map=m}\nzaron\n  thelmaro quxa\n```\n")).toEqual([
+        expect(findings("```verse {lang=vyl map=m}\nzaron\n  thelmaro quxa\n```\n")).toEqual([
             `3:12: ${unknown("quxa")}`,
         ]);
     });

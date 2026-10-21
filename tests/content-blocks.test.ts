@@ -6,7 +6,7 @@ import { markdownToTypst } from "../engine/pdf-render.mjs";
 describe("secret blocks and general divs", () => {
     it("keeps secret as the only named fence", () => {
         expect(BLOCK_NAMES).toEqual({ secret: "Secret" });
-        for (const name of ["info", "warn", "figure", "poetry", "caution"])
+        for (const name of ["info", "warn", "figure", "verse", "caution"])
             expect(scanBlocks(`:::${name}\nBody\n:::`).errors[0].message).toContain(
                 `no ${name} block`,
             );

@@ -254,6 +254,48 @@ problems, listing every conflict at once. Stating `data.culture` on the note
 resolves it. The rules are under
 [Culture in the index](reference/format-details.md#culture-in-the-index).
 
+## A worked case: a verse in columns
+
+A [verse in columns](authoring/links-and-markup.md#verse-in-columns) is
+checked line by line, and every finding sits on the text that makes it wrong.
+Each is an error, from `package-build lint` and from every build that sets the
+page.
+
+A verse line that leaves out a language its columns name is located at the
+group's first line, and names the column that asks for it. A language given
+twice is located at the second span, and one no column sets at its span:
+
+```text
+assets/content/Lore/Walking_of_the_Line.md:14:1: error: this verse line has no `en` line, which `col2=` sets
+assets/content/Lore/Walking_of_the_Line.md:18:1: error: this verse line gives `en` twice; give each language once
+assets/content/Lore/Walking_of_the_Line.md:22:1: error: no column sets `khel`; a verse line gives the languages `col1=` and `col2=` name
+```
+
+A finding about the columns themselves is located in the opening line, at the
+key or at the entry. A third column is located at its key; a malformed entry
+at the entry; an unknown mapping or font at that part of its entry, with the
+nearest name the package knows:
+
+```text
+assets/content/Lore/Walking_of_the_Line.md:9:85: error: `col3=` is not a column: a verse has at most two, `col1=` and `col2=`
+assets/content/Lore/Walking_of_the_Line.md:9:81: error: `vyl/a/b/c` in `col2=` is not an entry: an entry is `language[/mapping[/font]]`
+assets/content/Lore/Walking_of_the_Line.md:9:45: error: `vyl-semron` is not a map: `map=` names the `data.map.name` of a mapping note; did you mean `vyl-semaron`?
+```
+
+The text an entry sets is checked as a span with that entry's keys, and its
+findings sit on the character of the verse line they come from. A character
+the face does not draw, after the mapping, is located at the character as the
+note wrote it:
+
+```text
+assets/content/Lore/Walking_of_the_Line.md:19:8: error: `7` (U+0037) is not drawn by the font `semaron-kuriale`, and the map `vyl-semaron` has no row for it
+```
+
+A key that names nothing is the one finding: a line set through an unknown
+mapping or font is not then checked against a face or a lexicon it cannot
+reach. A verse in columns with any finding is set as its lines are written,
+and the build fails on the error.
+
 ## Summary counts and prose are not findings
 
 A run's progress and summary lines — `42 address(es) across 10 note(s).`,

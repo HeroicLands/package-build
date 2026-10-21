@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { collectAnchors, markupAnchorFindings } from "../engine/anchors.mjs";
 import { renderFoundryMarkdown } from "../engine/helpers.mjs";
 
-it("indexes div, span and poetry anchors without indexing literal code examples", () => {
+it("indexes div, span and verse anchors without indexing literal code examples", () => {
     const source = [
         "::: {#outer}",
         "[a *word*]{#inner .accent}",
@@ -12,7 +12,7 @@ it("indexes div, span and poetry anchors without indexing literal code examples"
         ":::",
         ":::",
         "",
-        "```poetry {#verse}",
+        "```verse {#verse}",
         "A verse.",
         "```",
         "",

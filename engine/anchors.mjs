@@ -37,7 +37,7 @@
 
 import { scanAlerts } from "./content-alerts.mjs";
 import { scanBlocks } from "./content-blocks.mjs";
-import { scanPoetry } from "./content-poetry.mjs";
+import { scanVerse } from "./content-verse.mjs";
 import { scanSpans } from "./content-spans.mjs";
 import { slugify } from "./content-slug.mjs";
 import { scanFigures } from "./content-figures.mjs";
@@ -123,7 +123,7 @@ export function collectAnchors(body, bodyLine = 1, resolveRole, syntax) {
                 kind: "prose",
             });
     }
-    for (const poem of scanPoetry(body).blocks) {
+    for (const poem of scanVerse(body).blocks) {
         if (poem.id)
             anchors.push({
                 slug: slugify(poem.id),

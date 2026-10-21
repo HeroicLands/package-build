@@ -156,7 +156,7 @@ go run check-sanitizer.go /path/to/gitea.ini < preview.html > sanitized.html
 ```
 
 Check both light and dark fixtures containing all four alert types, a custom
-title, nesting, wikilinks and attributes, SQL/pagelist fences, infoboxes, poetry
+title, nesting, wikilinks and attributes, SQL/pagelist fences, infoboxes, verse
 and footnotes. All wrapper/token classes and icon shapes should remain, while
 injected scripts and event-handler attributes should disappear. This replay
 checks the sanitizer primitives; also inspect the result in the actual Gitea

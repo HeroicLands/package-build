@@ -14,7 +14,7 @@
 import MarkdownIt from "markdown-it";
 import { alertMarkdownPlugin } from "./content-alerts.mjs";
 import { slugify } from "./content-slug.mjs";
-import { scanPoetry } from "./content-poetry.mjs";
+import { scanVerse } from "./content-verse.mjs";
 import footnotePlugin from "markdown-it-footnote";
 import { parseExtensionAttributes, refusedAttributes } from "./extension-attributes.mjs";
 import { inlineText } from "./name-markup.mjs";
@@ -263,7 +263,7 @@ export function scanSpans(source) {
     }
     // Verse fences preserve inline Markdown even though the block parser
     // normally treats every code fence as literal text.
-    for (const poem of scanPoetry(text).blocks) {
+    for (const poem of scanVerse(text).blocks) {
         for (let line = poem.start + 1; line < poem.end; line++) {
             const children = [];
             parser.inline.parse(lines[line], parser, env, children);

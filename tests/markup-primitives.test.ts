@@ -2,7 +2,7 @@
 import { describe, it, expect } from "vitest";
 import MarkdownIt from "markdown-it";
 import { scanBlocks, renderBlocks } from "../engine/content-blocks.mjs";
-import { scanPoetry, renderPoetry } from "../engine/content-poetry.mjs";
+import { scanVerse, renderVerse } from "../engine/content-verse.mjs";
 import { spanMarkdownPlugin, scanSpans, renderSpans } from "../engine/content-spans.mjs";
 describe("markup primitives", () => {
     it("wraps attributed nested divs without a heading", () => {
@@ -13,24 +13,24 @@ describe("markup primitives", () => {
         expect(result).toContain('<div class="inner">');
         expect(result).not.toContain("<summary");
     });
-    it("reads poetry fences, preserving stanza and relative indent", () => {
+    it("reads verse fences, preserving stanza and relative indent", () => {
         const source =
-            '```poetry {meter="common meter"}\n    Base  line\n       Indented\n\n    Last\n```';
-        expect(scanPoetry(source).errors).toEqual([]);
-        const result = renderPoetry(source).markdown;
-        expect(result).toContain('class="poetry-line i1"');
+            '```verse {meter="common meter"}\n    Base  line\n       Indented\n\n    Last\n```';
+        expect(scanVerse(source).errors).toEqual([]);
+        const result = renderVerse(source).markdown;
+        expect(result).toContain('class="verse-line i1"');
         expect(result).toContain("Base  line");
-        expect(scanPoetry("~~~poetry\nA\tline\n~~~").errors[0]).toMatchObject({
+        expect(scanVerse("~~~verse\nA\tline\n~~~").errors[0]).toMatchObject({
             line: 2,
             column: 2,
         });
-        expect(scanBlocks(":::poetry\nOld\n:::").errors[0].message).toContain("no poetry block");
+        expect(scanBlocks(":::verse\nOld\n:::").errors[0].message).toContain("no verse block");
     });
-    it("does not read poetry inside literal examples", () => {
-        expect(scanPoetry("````md\n```poetry\nVerse\n```\n````").blocks).toEqual([]);
+    it("does not read verse inside literal examples", () => {
+        expect(scanVerse("````md\n```verse\nVerse\n```\n````").blocks).toEqual([]);
     });
     it("preserves literal headings in a fenced poem inside a div", () => {
-        expect(scanBlocks("::: {.verse}\n```poetry\n# Verse {#literal}\n```\n:::").errors).toEqual(
+        expect(scanBlocks("::: {.verse}\n```verse\n# Verse {#literal}\n```\n:::").errors).toEqual(
             [],
         );
     });
@@ -52,7 +52,7 @@ describe("markup primitives", () => {
     });
     it("finds and renders verse spans with original file locations", () => {
         const source =
-            'Before.\n\n```poetry\n  A [bright]{#Light} lantern\n  [bad]{onclick="bad"}\n```\n\n```text\n[literal]{#No}\n```';
+            'Before.\n\n```verse\n  A [bright]{#Light} lantern\n  [bad]{onclick="bad"}\n```\n\n```text\n[literal]{#No}\n```';
         const result = scanSpans(source);
         expect(result.spans.map((span) => [span.id, span.line, span.column])).toEqual([
             ["light", 4, 5],
@@ -64,7 +64,7 @@ describe("markup primitives", () => {
     });
     it("renders canonical anchor IDs for every primitive", () => {
         expect(renderBlocks("::: {#SomeId}\nText\n:::", "web").markdown).toContain('id="someid"');
-        expect(renderPoetry("```poetry {#SomeId}\nText\n```").markdown).toContain('id="someid"');
+        expect(renderVerse("```verse {#SomeId}\nText\n```").markdown).toContain('id="someid"');
         expect(renderSpans("[Text]{#SomeId}").markdown).toContain('id="someid"');
     });
     it("renders nested Markdown spans and preserves link precedence", () => {

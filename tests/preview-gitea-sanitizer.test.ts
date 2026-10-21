@@ -84,7 +84,7 @@ SELECT '<&>';
 place-demo
 \`\`\`
 
-\`\`\`poetry
+\`\`\`verse
 A line.
   Indented line.
 \`\`\`

@@ -181,16 +181,13 @@ const GOOD: Array<[string, string, Array<Record<string, unknown>>]> = [
         ],
     ],
     [
-        "a poetry fence in a declared language, a face and a map",
-        [
-            `\`\`\`poetry {form=epic ${SEMARON}}`,
-            "zaron tholmeza,",
-            "  daimela helthos.",
-            "```",
-        ].join("\n"),
+        "a verse fence in a declared language, a face and a map",
+        [`\`\`\`verse {form=epic ${SEMARON}}`, "zaron tholmeza,", "  daimela helthos.", "```"].join(
+            "\n",
+        ),
         [
             {
-                kind: "poetry",
+                kind: "verse",
                 lang: "vyl",
                 tag: "art-x-vyl",
                 font: "semaron-kuriale",
@@ -202,16 +199,16 @@ const GOOD: Array<[string, string, Array<Record<string, unknown>>]> = [
     ],
     [
         "a run in a verse, which inherits the fence's keys",
-        [`\`\`\`poetry {${SEMARON}}`, "ka [tor]{font=mono}", "```"].join("\n"),
+        [`\`\`\`verse {${SEMARON}}`, "ka [tor]{font=mono}", "```"].join("\n"),
         [
-            { kind: "poetry", font: "semaron-kuriale" },
+            { kind: "verse", font: "semaron-kuriale" },
             { kind: "span", lang: "vyl", font: "mono", map: "vyl-semaron", line: 2, column: 4 },
         ],
     ],
     [
-        "an English poetry fence with emphasis",
-        ["```poetry {form=epic lang=en}", "_Counted._", "```"].join("\n"),
-        [{ kind: "poetry", lang: "en", tag: "en" }],
+        "an English verse fence with emphasis",
+        ["```verse {form=epic lang=en}", "_Counted._", "```"].join("\n"),
+        [{ kind: "verse", lang: "en", tag: "en" }],
     ],
     [
         "markup inside literal code",
@@ -366,28 +363,28 @@ const BAD: Array<[string, string, string[]]> = [
         ],
     ],
     [
-        "a poetry fence inside a marked div",
-        [`::: {${SEMARON}}`, "```poetry", "Ka tor.", "```", ":::"].join("\n"),
+        "a verse fence inside a marked div",
+        [`::: {${SEMARON}}`, "```verse", "Ka tor.", "```", ":::"].join("\n"),
         [
-            `2:1: a div marked \`${SEMARON}\` holds paragraphs and line breaks only, not a poetry fence`,
+            `2:1: a div marked \`${SEMARON}\` holds paragraphs and line breaks only, not a verse fence`,
         ],
     ],
     [
-        "an undeclared language on a poetry fence",
-        ["  ```poetry {lang=en_GB}", "  The watch.", "  ```"].join("\n"),
+        "an undeclared language on a verse fence",
+        ["  ```verse {lang=en_GB}", "  The watch.", "  ```"].join("\n"),
         [
-            "1:19: `en_GB` is not a declared language (`languages` in package-build.config.yaml) or a BCP 47 tag",
+            "1:18: `en_GB` is not a declared language (`languages` in package-build.config.yaml) or a BCP 47 tag",
         ],
     ],
     [
         "emphasis in a verse of a declared language",
-        ["```poetry {lang=vyl}", "Zaron,", "  daimela *helthos*.", "```"].join("\n"),
+        ["```verse {lang=vyl}", "Zaron,", "  daimela *helthos*.", "```"].join("\n"),
         ["3:11: text marked `lang=vyl` is plain text and holds no emphasis"],
     ],
     [
         "a reserved key on a secret block",
         [":::secret {font=mono}", "Ka tor.", ":::"].join("\n"),
-        ["1:12: `font=` is read on a span, a div or a poetry fence, not on a secret block"],
+        ["1:12: `font=` is read on a span, a div or a verse fence, not on a secret block"],
     ],
 ];
 

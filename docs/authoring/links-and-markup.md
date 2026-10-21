@@ -191,11 +191,11 @@ The caption attaches to exactly the next supported block:
 | Markdown table                       | `table`       | Table          |
 | Image, Markdown or wikilink          | `figure`      | Figure         |
 | SQL fence, including backtick SQL    | `table`       | Table          |
-| Poetry fence                         | `poetry`      | Poem           |
+| Verse fence                          | `verse`       | Poem           |
 | Any other code fence                 | `code`        | Code           |
 | Paragraph, quote block or fenced div | `prose`       | Prose          |
 
-The optional `type` attribute overrides inference and accepts `figure`, `table`, `poetry`, `code`, `prose`, and `example`. `type=example` uses **Example 1**, **Example 2**, and so on. It does not allow an unsupported target. A heading, list, thematic break, another caption or end of document after a caption is an error. Caption markers without separating spaces or caption text are errors too.
+The optional `type` attribute overrides inference and accepts `figure`, `table`, `verse`, `code`, `prose`, and `example`. `type=example` uses **Example 1**, **Example 2**, and so on. It does not allow an unsupported target. A heading, list, thematic break, another caption or end of document after a caption is an error. Caption markers without separating spaces or caption text are errors too.
 
 Identifiers are optional and must be unique within the note. Classes are unrestricted; `.border` uses the shared border style, while other classes can be styled by the medium. On a captioned table or SQL fence, `.full-width` sets the table across the page in a PDF book instead of in one column (`: Regional trade routes {.full-width}`); the other surfaces ignore it. Named attributes use `key=value`, with quoted values for text containing spaces. Use `#id` and `.class` rather than `id=` and `class=`; event-handler attributes are refused.
 
@@ -338,9 +338,9 @@ A secret block can contain alerts and general divs. It cannot contain another se
 
 Foundry renders a secret section; the website renders an expandable spoiler, and the book renders a labeled box. An untitled secret takes its normal default title, and a Foundry secret without an id receives an id derived from its body. The presentation does not make published HTML private: deliberately inspecting generated source can reveal its content. Use YAML comments for information that must never be published.
 
-### Poetry
+### Verse
 
-Use a code fence with the language `poetry` to preserve verse lines and stanzas. Every nonblank source line
+Use a code fence with the language `verse` to preserve verse lines and stanzas. Every nonblank source line
 is one verse line; blank lines separate stanzas. Inline emphasis, links and
 footnotes work as they do in prose. The fence itself adds no title, caption or
 number.
@@ -366,11 +366,11 @@ an error. Interior spaces are preserved on a best-effort basis.
 
 For example, a line with four leading spaces and a line with six leading spaces
 render at levels zero and `i1` respectively. This also works when the entire
-fence is indented inside a list item. Poetry is upright by default; use normal
+fence is indented inside a list item. Verse is upright by default; use normal
 Markdown emphasis when italics are part of the poem.
 
 ````markdown
-```poetry {form=ballad meter="common meter" rhyme=ABCB syllables="8,6,8,6" lang=en}
+```verse {form=ballad meter="common meter" rhyme=ABCB syllables="8,6,8,6" lang=en}
 The lantern burns beside the gate,
 The harbor sleeps below.
 
@@ -383,18 +383,19 @@ The optional `form`, `meter` and `rhyme` attributes record the author's intent;
 the build does not infer stress, rhyme or pronunciation. `syllables` gives a
 positive count for each verse line in order, separated by commas, with blank
 stanza lines omitted. The build checks the number of counts, not the syllables
-spoken. `lang` names the poem's language, `font` the font it is set in and
+spoken. `numstep` numbers the lines, and `col1` and `col2` set the poem in
+columns; see below. `lang` names the poem's language, `font` the font it is set in and
 `map` the mapping its text is rewritten by; see
 [marking language, font and mapping](#marking-language-font-and-mapping). An optional `#id`
 addresses the poem itself. There are no `title` or `lines` attributes, and no
 special punctuation for stress, pauses or refrains.
 
-To number and caption a poem, put a leading numbered caption before the poetry fence:
+To number and caption a poem, put a leading numbered caption before the verse fence:
 
 ````markdown
 :@ A song sung by the harbor watch. {#watch-song}
 
-```poetry {form=ballad}
+```verse {form=ballad}
 The watch has gone to sea,
 The lantern marks the shore.
 ```
@@ -402,9 +403,90 @@ The lantern marks the shore.
 
 This uses the **Poem** counter, so `{{ref "#watch-song"}}` reads **Poem 1**. Use `:` for a caption without a number.
 
+#### Line numbers
+
+`numstep=N` numbers the poem's lines, counting every verse line from the first
+to the last across stanzas. `numstep=1` numbers every line, `numstep=5` every
+fifth line, and `numstep=0`, the default, numbers none. The numbers sit in a
+margin beside the lines, in a muted tone.
+
+````markdown
+```verse {numstep=5 lang=en}
+The lantern burns beside the gate,
+…
+```
+````
+
+#### Verse in columns
+
+A poem can be set beside its translation, line for line. `col1=` names what
+the left column shows and `col2=` what the right column shows, and each
+column stacks one or more **entries**, joined by `:`. An entry is
+`language[/mapping[/font]]`:
+
+- **`language`** names a language the poem's lines give, as `lang=` does.
+- **`mapping`** names a [mapping note](#mapping-notes), which rewrites the
+  line before it is set. Left out, the line is set as written.
+- **`font`** names a face or a generic family, as `font=` does. Left out, the
+  line is set in the roman serif.
+
+A poem has at most two columns, and either may be left out. In every column
+the first entry is set in the normal tone and each later one in grey.
+
+With columns, the poem's body is written as **verse lines**, each a group of
+lines separated by a blank line. Each line of a group is a span giving the
+verse line in one language, `[text]{lang=…}`, or plain text in the poem's
+`lang=`. The spans of a group may come in any order: each entry takes the
+span in its own language. A line holding only `***` breaks the stanza.
+
+Here the left column sets the Vylari in Semaron Kuriale through the `semaron`
+mapping, and the right column gives the English over the Vylari in roman:
+
+````markdown
+```verse {numstep=5 lang=vyl col1=vyl/semaron/semaron-kuriale col2=en:vyl}
+[Thiruthriman sorimamen,]{lang=vyl}
+[The hallowed boundary I sing,]{lang=en}
+
+[ul alathas kedis alatha valmazor, ul talothoi]{lang=vyl}
+[and the one who walked it, and the stones]{lang=en}
+
+***
+
+[set down in the grass of the six hills]{lang=en}
+lendthoi ir yormalis ol selthur malkothoi
+
+[before a wall stood on any of them.]{lang=en}
+pra kembothos us urkis ol alathoi thalezor.
+```
+````
+
+The Vylari is written once, in roman, and the script is never typed: the
+first entry of `col1=` maps the Vylari line into Semaron, and the second entry
+of `col2=` sets the same line as written. The last two verse lines give their
+Vylari as plain text, which takes the poem's `lang=vyl`.
+
+Every target sets each verse line as one row: its number, when the poem is
+numbered, then each column. Each row holds its columns level, so a long line
+on one side never puts the other out of step. On a narrow screen or a narrow
+journal, a row stacks its columns in order. A part set in a right-to-left face
+stays in its column and runs right to left within it. The book sets the poem
+as a grid with a row per verse line.
+
+**The rules of a verse in columns:**
+
+- `font=` and `map=` belong to the entries, not to the poem.
+- Every verse line gives one span for each language its columns name, and
+  none for a language they do not.
+- A line of a verse in columns is not indented, and a span there takes only
+  `lang=`.
+- `syllables` gives one count per verse line, not per written line.
+
+Each finding is an error at the text that is wrong; see
+[a verse in columns](../diagnostics.md#a-worked-case-a-verse-in-columns).
+
 ## Marking language, font and mapping
 
-Three keys go in the attribute block a span, a fenced div or a poetry fence
+Three keys go in the attribute block a span, a fenced div or a verse fence
 already takes. Each is optional, and each does one thing:
 
 - **`lang=`** names the language of the text. It becomes the element's
@@ -446,13 +528,13 @@ Daimela, helthos.
 A poem takes the keys on its fence, beside its other attributes:
 
 ````markdown
-```poetry {form=epic lang=vyl font=semaron-kuriale map=semaron}
+```verse {form=epic lang=vyl font=semaron-kuriale map=semaron}
 Zaron tholmeza,
   daimela, helthos.
 ```
 ````
 
-**A run inside a div or a poetry fence inherits its keys**, and its own keys
+**A run inside a div or a verse fence inherits its keys**, and its own keys
 override them. Here the gloss keeps the passage's language and map, and is set
 in the page's serif:
 
@@ -778,7 +860,7 @@ plain text.
 - **A span or a verse line** holds no emphasis, link, image, footnote,
   wikilink, code or HTML, and no span but a marked one inside a div or a fence.
 - **A div** holds paragraphs and line breaks only: no heading, list, block
-  quote, code fence, poetry fence, table, rule, footnote definition or nested
+  quote, code fence, verse fence, table, rule, footnote definition or nested
   block. Mark a poem's own fence instead of a div around it.
 
 The text is read as written, so characters a run types need no escaping: `[`
@@ -811,7 +893,7 @@ that `lint` reports and that fails nothing:
 | `` `thuravark-carved` is not a font of the map `semaron`; it is for `semaron-kuriale` ``                                                                                                                                                                       | Set the run in a face the map lists, or list the face in `data.map.fonts`.                                                |
 | ``text marked `lang=vyl` is plain text and holds no emphasis``                                                                                                                                                                                                 | Remove the markup, or escape the character with a backslash.                                                              |
 | ``a div marked `lang=vyl font=semaron-kuriale map=semaron` holds paragraphs and line breaks only, not a list``                                                                                                                                                 | Move the list out of the div.                                                                                             |
-| `` `font=` is read on a span, a div or a poetry fence, not on a secret block ``                                                                                                                                                                                | Put a marked div inside the secret block.                                                                                 |
+| `` `font=` is read on a span, a div or a verse fence, not on a secret block ``                                                                                                                                                                                 | Put a marked div inside the secret block.                                                                                 |
 | `` `vly` is read as a BCP 47 tag; did you mean the declared language `vyl`? `` (a warning)                                                                                                                                                                     | Write the declared name, or ignore it when the tag is meant.                                                              |
 
 A character the face does not draw is reported once per run, at its first
@@ -828,7 +910,7 @@ SELECT owner, kind, tag, font, line FROM runs WHERE lang = 'vyl' ORDER BY owner,
 ```
 ````
 
-Its columns are `owner`, `kind` (`span`, `block` or `poetry`), `lang` as written,
+Its columns are `owner`, `kind` (`span`, `block` or `verse`), `lang` as written,
 the `tag` it resolves to (`NULL` when it resolves to none), `font`, `map`, `line`
 and `column`. A run inside a div or a fence records the keys it inherits. See
 [the `runs` relation](../reference/format-details.md#content-tables).
@@ -936,7 +1018,7 @@ A column's heading is its SQL alias, so `AS "Name"` is what a reader sees. A cel
 | `entries`          | Every note, stubs included.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `events`           | One row per event a `lore`, `place` or `affiliation` note writes in `data.events`, with `whenSort` to order them by date.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `names`            | Each authored `.name` span, with its containing NOTE Address, visible text, optional type/subtype and source line/column.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
-| `runs`             | Each span, div and poetry fence marked with `lang=`, `font=` or `map=`, with its containing NOTE Address, its `kind`, `lang` as written, the `tag` it resolves to, `font`, `map`, and source line/column. See [marking language, font and mapping](#marking-language-font-and-mapping).                                                                                                                                                                                                                                                                                                                                                |
+| `runs`             | Each span, div and verse fence marked with `lang=`, `font=` or `map=`, with its containing NOTE Address, its `kind`, `lang` as written, the `tag` it resolves to, `font`, `map`, and source line/column. See [marking language, font and mapping](#marking-language-font-and-mapping).                                                                                                                                                                                                                                                                                                                                                 |
 | `maps`             | One row per row of a mapping note's `data.map`, with its containing NOTE Address, the map's `name`, the `font` whose own row it is (`NULL` for a shared row), the row's 1-based place as `"row"`, and its `"from"`, `"to"`, `before` and `"at"`. See [mapping notes](#mapping-notes).                                                                                                                                                                                                                                                                                                                                                  |
 | `natives`          | One row per native form a language note's word states in `native`, with that note as its `language`, the word's place as `word`, its `form`, the entry's place as `native`, and its `map`, `font` and `"text"`. See [what `map=` takes](#what-map-takes).                                                                                                                                                                                                                                                                                                                                                                              |
 | `words`            | One row per word a language note writes in `data.words`, with that note as its `language`, its `position` and what it is built from.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |

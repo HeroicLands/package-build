@@ -94,7 +94,16 @@ import { spanMarkdownPlugin, scanSpans } from "./content-spans.mjs";
 import { GENERIC_FONTS, renderRuns, scanRuns } from "./content-scripts.mjs";
 import { scanFigures } from "./content-figures.mjs";
 import { BLOCK_CONTAINERS, scanBlocks, BLOCK_NAMES } from "./content-blocks.mjs";
-import { inlineVerse, poetryStanzas, scanPoetry } from "./content-poetry.mjs";
+import {
+    COLUMNS_CLASS,
+    STANZA_BREAK,
+    inlineVerse,
+    lineNumber,
+    rightToLeft,
+    scanVerse,
+    verseColumns,
+    verseStanzas,
+} from "./content-verse.mjs";
 import { matchAllOutsideCode, replaceOutsideCode } from "./code-fences.mjs";
 import { HTML_TAG, htmlMessage } from "./content-html.mjs";
 import { EXPRESSION } from "./markdown-expressions.mjs";
@@ -205,12 +214,12 @@ export function createParser(registry) {
     md.use(spanMarkdownPlugin);
     // Verse is held inside a literal fence. Parse its inline content before
     // footnote_tail collects definitions, using the surrounding note's env.
-    md.core.ruler.after("inline", "poetry_inline", (state) => {
+    md.core.ruler.after("inline", "verse_inline", (state) => {
         for (const token of state.tokens) {
-            if (token.type !== "fence" || !/^poetry(?:\s|$)/.test(token.info?.trim() || ""))
+            if (token.type !== "fence" || !/^verse(?:\s|$)/.test(token.info?.trim() || ""))
                 continue;
             token.meta ??= {};
-            token.meta.poetryStanzas = poetryStanzas(token.content).map((stanza) =>
+            token.meta.verseStanzas = verseStanzas(token.content).map((stanza) =>
                 stanza.map(({ text, level }) => {
                     const children = [];
                     state.md.inline.parse(inlineVerse(text), state.md, state.env, children);
@@ -772,20 +781,24 @@ function renderBlock(tokens, i, out, ctx) {
         }
         case "fence":
         case "code_block": {
-            if (token.type === "fence" && /^poetry(?:\s|$)/.test(token.info?.trim() || "")) {
-                const content = token.meta.poetryStanzas
-                    .map((stanza) =>
-                        stanza
-                            .map(({ children, level }) => {
-                                const verse = renderInline({ children }, ctx);
-                                return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
-                            })
-                            .join(" \\\n"),
-                    )
-                    .join("\n\n");
-                const poem = scanPoetry(
-                    `${token.markup}${token.info}\n${token.content}${token.markup}`,
-                ).blocks[0];
+            if (token.type === "fence" && /^verse(?:\s|$)/.test(token.info?.trim() || "")) {
+                const opening = `${token.markup}${token.info}`;
+                const poem = scanVerse(`${opening}\n${token.content}${token.markup}`).blocks[0];
+                const step = Number(poem?.attributes.numstep ?? 0) || 0;
+                const content =
+                    poem?.classes.includes(COLUMNS_CLASS) ?
+                        verseGrid(token, poem, opening, step, ctx)
+                    : step ? numberedVerse(token, step, ctx)
+                    : token.meta.verseStanzas
+                            .map((stanza) =>
+                                stanza
+                                    .map(({ children, level }) => {
+                                        const verse = renderInline({ children }, ctx);
+                                        return `${level ? `#h(${level * 1.25}em)` : ""}${verse}`;
+                                    })
+                                    .join(" \\\n"),
+                            )
+                            .join("\n\n");
                 const anchor = poem?.id ? ` <${sectionLabel(ctx.anchorPrefix, poem.id)}>` : "";
                 out.push(
                     `\n#block(width: 100%)[${scriptWrapped(content, poem?.classes, poem?.attributes)}]${anchor}\n`,
@@ -1250,6 +1263,82 @@ function typstLanguage(tag) {
 
 /** The classes that set a run in a font: a face's run carries `script`. */
 const FONT_CLASSES = Object.freeze(["script", ...Object.values(GENERIC_FONTS)]);
+
+/** A line number in the book: muted, as on the page. */
+const typstNumber = (number) => (number ? `[#text(fill: luma(45%))[${number}]]` : "[]");
+
+/**
+ * A numbered verse without columns: a grid of each line's number and the
+ * line, with a row of space between stanzas.
+ *
+ * @param {object} token - The verse's fence token.
+ * @param {number} step - Its `numstep`.
+ * @param {object} ctx - Render context.
+ * @returns {string} Typst markup.
+ */
+function numberedVerse(token, step, ctx) {
+    let count = 0;
+    const stanzas = token.meta.verseStanzas.map((stanza) =>
+        stanza
+            .map(({ children, level }) => {
+                const verse = renderInline({ children }, ctx);
+                return `  ${typstNumber(lineNumber(++count, step))}, [${level ? `#h(${level * 1.25}em)` : ""}${verse}],`;
+            })
+            .join("\n"),
+    );
+    return [
+        "#grid(columns: (2.5em, 1fr), column-gutter: 1em, row-gutter: 0.35em,",
+        stanzas.join("\n  grid.cell(colspan: 2)[#v(0.5em)],\n"),
+        ")",
+    ].join("\n");
+}
+
+/**
+ * A verse in columns: a grid with a row per verse line, its number first when
+ * the verse is numbered, then each column's entries stacked, the first in the
+ * normal tone and each later one grey. A part whose text runs right to left
+ * is set right to left inside its cell, and the grid keeps the page's
+ * direction, so the columns stay in order. A `***` line is a row of space
+ * across the grid.
+ *
+ * @param {object} token - The expanded verse's fence token.
+ * @param {object} poem - The verse, from `scanVerse`.
+ * @param {string} opening - Its opening line.
+ * @param {number} step - Its `numstep`.
+ * @param {object} ctx - Render context.
+ * @returns {string} Typst markup.
+ */
+function verseGrid(token, poem, opening, step, ctx) {
+    const counts = verseColumns(poem, opening).map((column) => column.entries.length);
+    const width = counts.length + (step ? 1 : 0);
+    const columns = [...(step ? ["2.5em"] : []), ...counts.map(() => "1fr")];
+    const raw = verseStanzas(token.content);
+    const rows = [];
+    let count = 0;
+    token.meta.verseStanzas.forEach((group, at) => {
+        if (raw[at].length === 1 && STANZA_BREAK.test(raw[at][0].text)) {
+            rows.push(`  grid.cell(colspan: ${width})[#v(0.5em)],`);
+            return;
+        }
+        const parts = group.map(({ children }, k) => {
+            const part = renderInline({ children }, ctx);
+            return rightToLeft(raw[at][k].text) ? `#set text(dir: rtl)\n${part}` : part;
+        });
+        let next = 0;
+        const cells = counts.map((n) => {
+            const stacked = parts.slice(next, (next += n));
+            if (stacked.length === 1) return `[${stacked[0]}]`;
+            return `[#stack(dir: ttb, spacing: 0.3em, ${stacked.map((part, k) => (k ? `[#text(fill: luma(45%))[${part}]]` : `[${part}]`)).join(", ")})]`;
+        });
+        const number = step ? [typstNumber(lineNumber(++count, step))] : [];
+        rows.push(`  ${[...number, ...cells].join(", ")},`);
+    });
+    return [
+        `#grid(columns: (${columns.join(", ")}${columns.length === 1 ? "," : ""}), column-gutter: 1.5em, row-gutter: 0.65em,`,
+        ...rows,
+        ")",
+    ].join("\n");
+}
 
 /**
  * Wrap a block's Typst in its font, its language and its direction.
